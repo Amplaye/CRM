@@ -1,0 +1,73 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Helper functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    function isTenantMember(tenantId) {
+      return isAuthenticated() && request.auth.token.active_tenant_id == tenantId;
+    }
+    
+    function isPlatformAdmin() {
+      return isAuthenticated() && request.auth.token.role == 'platform_admin';
+    }
+
+    // A user can read their own document
+    match /users/{userId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+
+    // Platform Admins can read anything
+    match /{document=**} {
+      allow read, write: if isPlatformAdmin();
+    }
+
+    // Tenant-isolated collections
+    
+    match /tenants/{tenantId} {
+      allow read: if isTenantMember(tenantId);
+      // Only owners/admins can update tenant settings
+      allow write: if isTenantMember(tenantId) && request.auth.token.tenant_role in ['owner', 'admin'];
+    }
+
+    match /tenant_members/{memberId} {
+      // memberId is typically tenantId_userId
+      allow read: if isTenantMember(resource.data.tenant_id);
+    }
+    
+    match /guests/{guestId} {
+      allow read, write: if isTenantMember(resource.data.tenant_id) || (request.resource != null && isTenantMember(request.resource.data.tenant_id));
+    }
+    
+    match /reservations/{reservationId} {
+      allow read, write: if isTenantMember(resource.data.tenant_id) || (request.resource != null && isTenantMember(request.resource.data.tenant_id));
+    }
+
+    match /waitlist_entries/{entryId} {
+      allow read, write: if isTenantMember(resource.data.tenant_id) || (request.resource != null && isTenantMember(request.resource.data.tenant_id));
+    }
+
+    match /conversations/{conversationId} {
+      allow read, write: if isTenantMember(resource.data.tenant_id) || (request.resource != null && isTenantMember(request.resource.data.tenant_id));
+    }
+
+    match /incidents/{incidentId} {
+      allow read, write: if isTenantMember(resource.data.tenant_id) || (request.resource != null && isTenantMember(request.resource.data.tenant_id));
+    }
+    
+    match /knowledge_articles/{articleId} {
+      // Allow read access to anyone in the tenant
+      allow read: if isTenantMember(resource.data.tenant_id);
+      // Wait to implement finer-grained write access later
+      allow write: if isTenantMember(resource.data.tenant_id);
+    }
+
+    match /automations/{automationId} {
+      allow read, write: if isTenantMember(resource.data.tenant_id) || (request.resource != null && isTenantMember(request.resource.data.tenant_id));
+    }
+  }
+}
