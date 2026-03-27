@@ -76,7 +76,7 @@ export function Sidebar() {
           className="w-full flex items-center justify-between px-2 py-1.5 rounded-lg hover:bg-zinc-200/50 transition-colors"
         >
           <div className="flex items-center gap-2 overflow-hidden">
-            <img src="/logo.jpg" alt="BaliFlow" className="w-8 h-8 rounded-md flex-shrink-0 shadow-sm object-cover" />
+            <img src="/logo.png" alt="BaliFlow" className="w-8 h-8 rounded-md flex-shrink-0 shadow-sm object-cover" />
             <span className="font-semibold text-zinc-900 truncate">
               {activeTenant?.name || "Loading..."}
             </span>
