@@ -4,6 +4,7 @@ import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
 import { Loader2, Lock, Mail } from "lucide-react";
+import Link from "next/link";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
@@ -35,9 +36,7 @@ export default function LoginPage() {
     <div className="min-h-screen bg-zinc-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
       <div className="sm:mx-auto sm:w-full sm:max-w-md">
         <div className="flex justify-center">
-           <div className="w-12 h-12 bg-terracotta-600 rounded-xl flex items-center justify-center shadow-lg">
-             <span className="text-white font-bold text-xl tracking-tighter">BF</span>
-           </div>
+           <img src="/logo.jpg" alt="BaliFlow" className="h-14 w-auto rounded-xl shadow-lg" />
         </div>
         <h2 className="mt-6 text-center text-3xl font-bold tracking-tight text-zinc-900">
           Sign in to BaliFlow CRM
@@ -84,6 +83,12 @@ export default function LoginPage() {
                   className="block w-full pl-10 sm:text-sm border-zinc-300 border p-2.5 rounded-md focus:ring-terracotta-500 focus:border-terracotta-500"
                 />
               </div>
+            </div>
+
+            <div className="flex items-center justify-end">
+              <Link href="/forgot-password" className="text-sm font-medium text-terracotta-600 hover:text-terracotta-500">
+                Forgot password?
+              </Link>
             </div>
 
             <button
@@ -169,6 +174,13 @@ export default function LoginPage() {
               {guestLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : "Continue as Guest"}
             </button>
           </div>
+
+          <p className="mt-6 text-center text-sm text-zinc-500">
+            Don't have an account?{" "}
+            <Link href="/register" className="font-medium text-terracotta-600 hover:text-terracotta-500">
+              Create one
+            </Link>
+          </p>
         </div>
       </div>
     </div>
