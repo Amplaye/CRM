@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useEffect, useState, ReactNode } from "react";
+import { createContext, useContext, useEffect, useState, ReactNode, useMemo } from "react";
 import { useAuth } from "./AuthContext";
 import { createClient } from "@/lib/supabase/client";
 import { Tenant, GlobalRole } from "@/lib/types";
@@ -25,7 +25,7 @@ const TenantContext = createContext<TenantContextType>({
 
 export const TenantProvider = ({ children }: { children: ReactNode }) => {
   const { user, loading: authLoading } = useAuth();
-  const supabase = createClient();
+  const supabase = useMemo(() => createClient(), []);
 
   const [activeTenant, setActiveTenant] = useState<Tenant | null>(null);
   const [activeRole, setActiveRole] = useState<string | null>(null);
@@ -49,21 +49,15 @@ export const TenantProvider = ({ children }: { children: ReactNode }) => {
       try {
         setLoading(true);
 
-        // Load user global role
-        const { data: userData } = await supabase
-          .from("users")
-          .select("global_role")
-          .eq("id", user.id)
-          .single();
+        // Single parallel fetch for both user role and memberships
+        const [userRes, membershipsRes] = await Promise.all([
+          supabase.from("users").select("global_role").eq("id", user.id).single(),
+          supabase.from("tenant_members").select("tenant_id, role, tenants(*)").eq("user_id", user.id)
+        ]);
 
-        if (userData) setGlobalRole(userData.global_role as GlobalRole);
+        if (userRes.data) setGlobalRole(userRes.data.global_role as GlobalRole);
 
-        // Load memberships with tenant data
-        const { data: memberships } = await supabase
-          .from("tenant_members")
-          .select("tenant_id, role, tenants(*)")
-          .eq("user_id", user.id);
-
+        const memberships = membershipsRes.data;
         if (memberships && memberships.length > 0) {
           const tenants = memberships.map((m: any) => m.tenants as Tenant);
           setAvailableTenants(tenants);
@@ -85,7 +79,7 @@ export const TenantProvider = ({ children }: { children: ReactNode }) => {
     };
 
     loadTenantData();
-  }, [user, authLoading]);
+  }, [user, authLoading, supabase]);
 
   const switchTenant = (tenantId: string) => {
     const target = availableTenants.find(t => t.id === tenantId);
