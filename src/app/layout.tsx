@@ -15,8 +15,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "TableFlow AI - Operations Hub",
-  description: "Restaurant Operations CRM and AI Dashboard",
+  title: "BaliFlow CRM",
+  description: "BaliFlow CRM - Business Operations Dashboard",
 };
 
 export default function RootLayout({
