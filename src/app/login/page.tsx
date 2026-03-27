@@ -121,7 +121,7 @@ export default function LoginPage() {
 
                   if (signInError) {
                     // If user doesn't exist, sign up
-                    const { error: signUpError } = await supabase.auth.signUp({
+                    const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
                       email: guestEmail,
                       password: guestPassword,
                       options: { data: { name: "Guest User" } }
@@ -134,6 +134,25 @@ export default function LoginPage() {
                       password: guestPassword
                     });
                     if (retryError) throw retryError;
+
+                    // Setup demo tenant for new guest
+                    if (signUpData?.user) {
+                      await fetch("/api/guest-setup", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ userId: signUpData.user.id, email: guestEmail })
+                      });
+                    }
+                  } else {
+                    // Existing user - ensure they have a tenant
+                    const { data: { user: currentUser } } = await supabase.auth.getUser();
+                    if (currentUser) {
+                      await fetch("/api/guest-setup", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ userId: currentUser.id, email: guestEmail })
+                      });
+                    }
                   }
 
                   router.push("/");
