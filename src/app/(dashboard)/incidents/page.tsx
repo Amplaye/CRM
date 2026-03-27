@@ -1,0 +1,229 @@
+"use client";
+
+import { AlertOctagon, CheckCircle2, Search, Zap, Clock, User, Link as LinkIcon, AlertTriangle } from "lucide-react";
+import { useLanguage } from "@/lib/contexts/LanguageContext";
+import { useEffect, useState } from "react";
+import { collection, query, where, onSnapshot, doc, updateDoc, setDoc, getDocs } from "firebase/firestore";
+import { db } from "@/lib/firebase/client";
+import { useTenant } from "@/lib/contexts/TenantContext";
+import { Incident } from "@/lib/types";
+import { useAuth } from "@/lib/contexts/AuthContext";
+
+export default function IncidentsPage() {
+  const { t } = useLanguage();
+  const { activeTenant: tenant } = useTenant();
+  const { user } = useAuth();
+  
+  const [incidents, setIncidents] = useState<Incident[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!tenant) return;
+    
+    // Seed initial incidents if empty for demo purposes
+    const seedIncidents = async () => {
+      const q = query(collection(db, "incidents"), where("tenant_id", "==", tenant.id));
+      const snap = await getDocs(q);
+      
+      if (snap.empty) {
+         const presets: Partial<Incident>[] = [
+            {
+               tenant_id: tenant.id,
+               type: "ai_error",
+               title: "Bland AI Hallucinated Pricing",
+               description: "The AI agent quoted $15 for the premium tasting menu over a phone call.",
+               status: "open",
+               severity: "critical",
+               owner_id: null,
+               linked_conversation_id: "conv_12345",
+            },
+            {
+               tenant_id: tenant.id,
+               type: "conflict",
+               title: "Double Booking at Table 4",
+               description: "Walk-in overrode an online booking. Next.js server actions caught it but guest complained.",
+               status: "investigating",
+               severity: "medium",
+               owner_id: user?.uid || "staff_1",
+               linked_reservation_id: "res_9982",
+            },
+            {
+               tenant_id: tenant.id,
+               type: "health_safety",
+               title: "Nut Allergy Unreported during Booking",
+               description: "Guest forgot to mention severe nut allergy. Safely handled by kitchen.",
+               status: "resolved",
+               severity: "critical",
+               owner_id: "chef_1",
+               linked_reservation_id: "res_1111",
+            }
+         ];
+         
+         for (const preset of presets) {
+            const iRef = doc(collection(db, "incidents"));
+            await setDoc(iRef, { ...preset, id: iRef.id, created_at: Date.now(), updated_at: Date.now() });
+         }
+      }
+    };
+
+    seedIncidents().then(() => {
+       const q = query(collection(db, "incidents"), where("tenant_id", "==", tenant.id));
+       const unsubscribe = onSnapshot(q, (snapshot) => {
+         const docs = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as Incident));
+         // Sort by severity critical first, then newest
+         docs.sort((a,b) => {
+            if (a.severity === 'critical' && b.severity !== 'critical') return -1;
+            if (b.severity === 'critical' && a.severity !== 'critical') return 1;
+            return b.created_at - a.created_at;
+         });
+         setIncidents(docs);
+         setLoading(false);
+       });
+       return () => unsubscribe();
+    });
+  }, [tenant, user?.uid]);
+
+  const handleStatusChange = async (id: string, newStatus: Incident["status"]) => {
+     try {
+        await updateDoc(doc(db, "incidents", id), { 
+           status: newStatus, 
+           updated_at: Date.now(),
+           owner_id: newStatus === 'investigating' && user ? user.uid : null 
+        });
+     } catch (err) { console.error(err); }
+  };
+
+  const columns: { id: Incident["status"]; label: string; bg: string }[] = [
+    { id: "open", label: "Open Triage", bg: "bg-red-50/50 border-red-100" },
+    { id: "investigating", label: "Investigating", bg: "bg-amber-50/50 border-amber-100" },
+    { id: "resolved", label: "Resolved", bg: "bg-emerald-50/50 border-emerald-100" }
+  ];
+
+  const getIncidentIcon = (type: string) => {
+     switch(type) {
+        case 'ai_error': return <Zap className="w-4 h-4 text-purple-500" />;
+        case 'conflict': return <Clock className="w-4 h-4 text-orange-500" />;
+        case 'health_safety': return <AlertOctagon className="w-4 h-4 text-red-500" />;
+        default: return <AlertTriangle className="w-4 h-4 text-zinc-500" />;
+     }
+  };
+
+  return (
+    <div className="p-8 max-w-[1600px] h-[calc(100vh-4rem)] flex flex-col mx-auto bg-zinc-50/30">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-8 shrink-0">
+        <div>
+          <h1 className="text-2xl font-bold text-zinc-900 tracking-tight">Incidents & Audits</h1>
+          <p className="mt-1 text-sm text-zinc-500">Track AI errors, operational conflicts, and guest complaints.</p>
+        </div>
+        <div className="flex space-x-3 mt-4 sm:mt-0">
+            <div className="relative">
+               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-zinc-400" />
+               <input type="text" placeholder="Search incidents..." className="w-64 pl-9 pr-3 py-2 bg-white border border-zinc-200 rounded-lg text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-zinc-900" />
+            </div>
+            <button className="px-4 py-2 bg-zinc-900 text-white text-sm font-bold rounded-lg shadow-sm hover:bg-zinc-800 transition-colors">
+               Report Manual
+            </button>
+        </div>
+      </div>
+
+      {loading ? (
+        <div className="flex-1 flex items-center justify-center text-zinc-400 animate-pulse font-medium">Loading Operations Board...</div>
+      ) : (
+        <div className="flex-1 flex gap-6 overflow-hidden pb-4">
+           {columns.map(col => {
+              const colIncidents = incidents.filter(i => i.status === col.id);
+              
+              return (
+                 <div key={col.id} className={`flex-1 flex flex-col rounded-2xl border ${col.bg} overflow-hidden shadow-sm`}>
+                    <div className="px-5 py-4 border-b border-black/5 bg-white/50 backdrop-blur-sm flex justify-between items-center shrink-0">
+                       <h2 className="font-bold text-zinc-900 tracking-tight">{col.label}</h2>
+                       <span className="bg-white border border-black/10 text-zinc-600 text-[10px] font-bold px-2 py-0.5 rounded-full shadow-sm">{colIncidents.length}</span>
+                    </div>
+                    
+                    <div className="flex-1 overflow-y-auto p-4 space-y-4">
+                       {colIncidents.map(inc => (
+                          <div key={inc.id} className="bg-white rounded-xl border border-zinc-200/80 shadow-sm hover:shadow-md transition-shadow p-5 relative group cursor-pointer group">
+                             
+                             {inc.severity === 'critical' && (
+                                <div className="absolute top-0 right-0 w-8 h-8 overflow-hidden rounded-tr-xl">
+                                   <div className="absolute top-0 right-0 w-0 h-0 border-t-[24px] border-t-red-500 border-l-[24px] border-l-transparent"></div>
+                                </div>
+                             )}
+
+                             <div className="flex items-start justify-between mb-3">
+                                <div className="flex items-center space-x-2">
+                                   <div className="bg-zinc-50 p-1.5 rounded-md border border-zinc-100">
+                                      {getIncidentIcon(inc.type)}
+                                   </div>
+                                   <span className="text-[10px] uppercase font-bold tracking-wider text-zinc-500 bg-zinc-100 px-2 py-0.5 rounded border border-zinc-200">
+                                      {inc.type.replace('_', ' ')}
+                                   </span>
+                                </div>
+                             </div>
+
+                             <h3 className="font-bold text-zinc-900 leading-tight mb-1 pr-6">{inc.title}</h3>
+                             <p className="text-xs text-zinc-500 leading-relaxed mb-4 line-clamp-2">{inc.description}</p>
+                             
+                             {(inc.linked_reservation_id || inc.linked_conversation_id) && (
+                                <div className="flex flex-wrap gap-2 mb-4">
+                                   {inc.linked_reservation_id && (
+                                      <span className="inline-flex items-center text-[10px] font-bold text-blue-600 bg-blue-50 px-2 py-1 rounded border border-blue-100 hover:bg-blue-100 transition-colors">
+                                         <LinkIcon className="w-3 h-3 mr-1" /> Res {inc.linked_reservation_id.substring(0,4)}
+                                      </span>
+                                   )}
+                                   {inc.linked_conversation_id && (
+                                      <span className="inline-flex items-center text-[10px] font-bold text-purple-600 bg-purple-50 px-2 py-1 rounded border border-purple-100 hover:bg-purple-100 transition-colors">
+                                         <LinkIcon className="w-3 h-3 mr-1" /> Conv {inc.linked_conversation_id.substring(0,4)}
+                                      </span>
+                                   )}
+                                </div>
+                             )}
+
+                             <div className="flex items-center justify-between pt-3 border-t border-zinc-50">
+                                <div className="flex items-center text-[10px] font-bold text-zinc-400">
+                                   <Clock className="w-3 h-3 mr-1" /> {new Date(inc.created_at).toLocaleDateString()}
+                                </div>
+                                <div className="flex items-center space-x-2">
+                                   {col.id === 'open' && (
+                                      <button 
+                                        onClick={(e) => { e.stopPropagation(); handleStatusChange(inc.id, 'investigating'); }}
+                                        className="text-[10px] font-bold bg-zinc-900 text-white px-3 py-1.5 rounded-md shadow-sm hover:bg-zinc-800 transition-colors"
+                                      >
+                                        Claim
+                                      </button>
+                                   )}
+                                   {col.id === 'investigating' && (
+                                      <button 
+                                        onClick={(e) => { e.stopPropagation(); handleStatusChange(inc.id, 'resolved'); }}
+                                        className="text-[10px] font-bold bg-emerald-100 text-emerald-700 border border-emerald-200 px-3 py-1.5 rounded-md shadow-sm hover:bg-emerald-200 transition-colors flex items-center"
+                                      >
+                                        <CheckCircle2 className="w-3 h-3 mr-1" /> Resolve
+                                      </button>
+                                   )}
+                                   {inc.owner_id ? (
+                                      <div className="h-6 w-6 rounded-full bg-zinc-200 border border-white flex items-center justify-center text-[10px] font-bold text-zinc-500 shadow-sm" title="Assigned">
+                                         <User className="w-3 h-3" />
+                                      </div>
+                                   ) : (
+                                      <div className="h-6 w-6 rounded-full bg-red-50 border border-red-100 border-dashed flex items-center justify-center text-red-400" title="Unassigned">
+                                         !
+                                      </div>
+                                   )}
+                                </div>
+                             </div>
+                          </div>
+                       ))}
+                       {colIncidents.length === 0 && (
+                          <div className="h-24 flex items-center justify-center border-2 border-dashed border-black/5 rounded-xl">
+                             <span className="text-xs font-bold text-zinc-400 uppercase tracking-widest">Empty</span>
+                          </div>
+                       )}
+                    </div>
+                 </div>
+              );
+           })}
+        </div>
+      )}
+    </div>
+  );
+}

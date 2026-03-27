@@ -1,0 +1,53 @@
+"use client";
+
+import React, { createContext, useContext, useState, useEffect, ReactNode } from "react";
+import { en, Dictionary } from "../i18n/dictionaries/en";
+import { es } from "../i18n/dictionaries/es";
+
+type LanguageCode = "en" | "es";
+
+interface LanguageContextType {
+  language: LanguageCode;
+  setLanguage: (lang: LanguageCode) => void;
+  t: (key: keyof Dictionary) => string;
+}
+
+const dictionaries: Record<LanguageCode, Dictionary> = {
+  en,
+  es,
+};
+
+const LanguageContext = createContext<LanguageContextType>({
+  language: "en",
+  setLanguage: () => {},
+  t: (key) => key,
+});
+
+export const LanguageProvider = ({ children }: { children: ReactNode }) => {
+  const [language, setLanguageState] = useState<LanguageCode>("en");
+
+  // Load saved preference from localStorage on mount
+  useEffect(() => {
+    const saved = localStorage.getItem("app_lang") as LanguageCode;
+    if (saved === "en" || saved === "es") {
+      setLanguageState(saved);
+    }
+  }, []);
+
+  const setLanguage = (lang: LanguageCode) => {
+    setLanguageState(lang);
+    localStorage.setItem("app_lang", lang);
+  };
+
+  const t = (key: keyof Dictionary): string => {
+    return dictionaries[language][key] || dictionaries["en"][key] || key;
+  };
+
+  return (
+    <LanguageContext.Provider value={{ language, setLanguage, t }}>
+      {children}
+    </LanguageContext.Provider>
+  );
+};
+
+export const useLanguage = () => useContext(LanguageContext);

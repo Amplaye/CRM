@@ -1,0 +1,103 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import { collection, query, where, onSnapshot } from "firebase/firestore";
+import { db } from "@/lib/firebase/client";
+import { Reservation } from "@/lib/types";
+import { useTenant } from "@/lib/contexts/TenantContext";
+import { Loader2 } from "lucide-react";
+import { cn } from "@/components/layout/Sidebar";
+
+export function ReservationTimeline({ date, onRowClick }: { date: string, onRowClick: (r: Reservation) => void }) {
+  const { activeTenant } = useTenant();
+  const [reservations, setReservations] = useState<Reservation[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!activeTenant) return;
+
+    const q = query(
+      collection(db, "reservations"),
+      where("tenant_id", "==", activeTenant.id),
+      where("date", "==", date)
+    );
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const results: Reservation[] = [];
+      snapshot.forEach((doc) => {
+        results.push({ id: doc.id, ...doc.data() } as Reservation);
+      });
+      // Sort by time
+      results.sort((a, b) => a.time.localeCompare(b.time));
+      setReservations(results);
+      setLoading(false);
+    });
+
+    return () => unsubscribe();
+  }, [activeTenant, date]);
+
+  if (loading) {
+    return (
+      <div className="flex justify-center p-8">
+        <Loader2 className="h-6 w-6 animate-spin text-terracotta-500" />
+      </div>
+    );
+  }
+
+  if (reservations.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center p-12 text-zinc-500 bg-white border border-zinc-200 shadow-sm rounded-xl">
+        <p>No reservations for this date timeline.</p>
+      </div>
+    );
+  }
+
+  // Generate hours from 11:00 to 23:00
+  const hours = Array.from({ length: 13 }, (_, i) => i + 11);
+
+  return (
+    <div className="bg-white border text-sm border-zinc-200 shadow-sm rounded-xl overflow-hidden relative">
+      <div className="flex border-b border-zinc-200 bg-zinc-50">
+        <div className="w-24 border-r border-zinc-200 py-3 px-4 font-semibold text-zinc-600">Time</div>
+        <div className="flex-1 py-3 px-4 font-semibold text-zinc-600">Service Floor</div>
+      </div>
+      
+      {hours.map((hour) => {
+        const hourString = `${hour.toString().padStart(2, '0')}`;
+        // Find matching reservations in this hour block (e.g. 11:00 - 11:59)
+        const activeRes = reservations.filter(r => r.time.startsWith(hourString));
+        
+        return (
+          <div key={hour} className="flex border-b border-zinc-100 min-h-[80px]">
+            <div className="w-24 border-r border-zinc-100 py-4 px-4 font-medium text-zinc-500 text-xs">
+              {hourString}:00
+            </div>
+            <div className="flex-1 p-2 flex flex-wrap gap-2 items-start content-start">
+              {activeRes.map((res) => (
+                <button
+                  key={res.id}
+                  onClick={() => onRowClick(res)}
+                  className={cn(
+                    "px-3 py-2 rounded-lg text-left transition-colors border shadow-sm w-48",
+                    res.status === 'confirmed' ? "bg-white border-zinc-200 hover:border-terracotta-400 focus:ring-1 focus:ring-terracotta-400" :
+                    res.status === 'seated' ? "bg-blue-50 border-blue-200 text-blue-900" :
+                    res.status === 'completed' ? "bg-green-50 border-green-200 text-green-900" :
+                    "bg-zinc-100 border-zinc-200 text-zinc-500 opacity-60"
+                  )}
+                >
+                  <div className="flex items-center justify-between mb-1">
+                     <span className="font-bold text-zinc-900">{res.time}</span>
+                     <span className="text-xs px-1.5 py-0.5 rounded-md bg-zinc-100 text-zinc-600 font-medium">v.{res.party_size}</span>
+                  </div>
+                  <div className="text-xs truncate font-medium text-zinc-600 mt-1">
+                     {res.guest_id.slice(0, 8)} | Table Auto
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
+        )
+      })}
+    </div>
+  );
+}

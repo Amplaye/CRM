@@ -1,26 +1,51 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
+@theme {
+  --color-terracotta-50: #fff3ec;
+  --color-terracotta-100: #ffe4d2;
+  --color-terracotta-200: #ffc9a9;
+  --color-terracotta-300: #ffa579;
+  --color-terracotta-400: #fb7740;
+  --color-terracotta-500: #f45517;
+  --color-terracotta-600: #e53f0c;
+  --color-terracotta-700: #be2e0b;
+  --color-terracotta-800: #972611;
+  --color-terracotta-900: #7a2211;
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
+  --color-olive-50: #f6f7f4;
+  --color-olive-100: #eaede5;
+  --color-olive-200: #d6ddcb;
+  --color-olive-300: #b8c6a9;
+  --color-olive-400: #95a881;
+  --color-olive-500: #768a61;
+  --color-olive-600: #5c6c4b;
+  --color-olive-700: #49563d;
+  --color-olive-800: #3c4633;
+  --color-olive-900: #333d2c;
+  
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+/*
+  The default border color has changed to `currentColor` in Tailwind CSS v4,
+  so we've added these compatibility styles to make sure everything still
+  looks the same as it did with Tailwind CSS v3.
+
+  If we ever want to remove these styles, we need to add an explicit border
+  color utility to any element that depends on these defaults.
+*/
+@layer base {
+  *,
+  ::after,
+  ::before,
+  ::backdrop,
+  ::file-selector-button {
+    border-color: var(--color-gray-200, currentColor);
   }
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  color: var(--color-zinc-900);
+  background: var(--color-white);
 }
