@@ -10,6 +10,7 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [guestLoading, setGuestLoading] = useState(false);
   const router = useRouter();
   const supabase = createClient();
 
@@ -93,6 +94,62 @@ export default function LoginPage() {
               {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : "Sign in"}
             </button>
           </form>
+
+          <div className="mt-6">
+            <div className="relative">
+              <div className="absolute inset-0 flex items-center">
+                <div className="w-full border-t border-zinc-200" />
+              </div>
+              <div className="relative flex justify-center text-sm">
+                <span className="bg-white px-2 text-zinc-500">or</span>
+              </div>
+            </div>
+
+            <button
+              onClick={async () => {
+                setGuestLoading(true);
+                setError("");
+                try {
+                  const guestEmail = "guest@baliflow.com";
+                  const guestPassword = "guest123456";
+
+                  // Try to sign in first
+                  const { error: signInError } = await supabase.auth.signInWithPassword({
+                    email: guestEmail,
+                    password: guestPassword
+                  });
+
+                  if (signInError) {
+                    // If user doesn't exist, sign up
+                    const { error: signUpError } = await supabase.auth.signUp({
+                      email: guestEmail,
+                      password: guestPassword,
+                      options: { data: { name: "Guest User" } }
+                    });
+                    if (signUpError) throw signUpError;
+
+                    // Sign in after signup
+                    const { error: retryError } = await supabase.auth.signInWithPassword({
+                      email: guestEmail,
+                      password: guestPassword
+                    });
+                    if (retryError) throw retryError;
+                  }
+
+                  router.push("/");
+                  router.refresh();
+                } catch (err: any) {
+                  setError(err.message || "Failed to access as guest.");
+                } finally {
+                  setGuestLoading(false);
+                }
+              }}
+              disabled={guestLoading}
+              className="mt-4 w-full flex justify-center py-2.5 px-4 border border-zinc-300 rounded-md shadow-sm text-sm font-medium text-zinc-700 bg-white hover:bg-zinc-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-zinc-400 disabled:opacity-50 transition-colors"
+            >
+              {guestLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : "Continue as Guest"}
+            </button>
+          </div>
         </div>
       </div>
     </div>
