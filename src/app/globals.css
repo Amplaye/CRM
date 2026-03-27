@@ -47,5 +47,6 @@
 
 body {
   color: var(--color-zinc-900);
-  background: var(--color-white);
+  background: linear-gradient(to top, #E1CAB2, #ECD7BF, #F4E4CD, #F7EEE0, #FCF6ED) fixed;
+  min-height: 100vh;
 }
