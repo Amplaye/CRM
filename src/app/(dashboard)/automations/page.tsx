@@ -3,27 +3,30 @@
 import { Activity, Power, Settings2, ShieldAlert, Bot } from "lucide-react";
 import { useLanguage } from "@/lib/contexts/LanguageContext";
 import { useEffect, useState } from "react";
-import { collection, query, where, onSnapshot, doc, updateDoc, setDoc, getDocs } from "firebase/firestore";
-import { db } from "@/lib/firebase/client";
+import { createClient } from "@/lib/supabase/client";
 import { useTenant } from "@/lib/contexts/TenantContext";
 import { AutomationRule } from "@/lib/types";
 
 export default function AutomationsPage() {
   const { t } = useLanguage();
   const { activeTenant: tenant } = useTenant();
-  
+  const supabase = createClient();
+
   const [rules, setRules] = useState<AutomationRule[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     if (!tenant) return;
-    
+
     // Seed initial rules if empty
     const seedRules = async () => {
-      const q = query(collection(db, "automation_rules"), where("tenant_id", "==", tenant.id));
-      const snap = await getDocs(q);
-      
-      if (snap.empty) {
+      const { data: existing } = await supabase
+        .from("automation_rules")
+        .select("id")
+        .eq("tenant_id", tenant.id)
+        .limit(1);
+
+      if (!existing || existing.length === 0) {
          const presets: Partial<AutomationRule>[] = [
             {
                tenant_id: tenant.id,
@@ -50,33 +53,56 @@ export default function AutomationsPage() {
                is_active: false,
             }
          ];
-         
+
          for (const preset of presets) {
-            const rRef = doc(collection(db, "automation_rules"));
-            await setDoc(rRef, { ...preset, id: rRef.id, created_at: Date.now(), updated_at: Date.now() });
+            await supabase.from("automation_rules").insert({
+              ...preset,
+              created_at: Date.now(),
+              updated_at: Date.now()
+            });
          }
       }
     };
-    
+
+    const fetchRules = async () => {
+      const { data, error } = await supabase
+        .from("automation_rules")
+        .select("*")
+        .eq("tenant_id", tenant.id);
+
+      if (error) {
+        console.error(error);
+        setLoading(false);
+        return;
+      }
+
+      const res = (data || []) as AutomationRule[];
+      res.sort((a,b) => a.created_at - b.created_at);
+      setRules(res);
+      setLoading(false);
+    };
+
     seedRules().then(() => {
-       const q = query(collection(db, "automation_rules"), where("tenant_id", "==", tenant.id));
-       const unsubscribe = onSnapshot(q, (snapshot) => {
-         const res = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as AutomationRule));
-         res.sort((a,b) => a.created_at - b.created_at);
-         setRules(res);
-         setLoading(false);
-       });
-       return () => unsubscribe();
+       fetchRules();
+
+       const channel = supabase
+         .channel("automation_rules_realtime")
+         .on("postgres_changes", { event: "*", schema: "public", table: "automation_rules", filter: `tenant_id=eq.${tenant.id}` }, () => {
+           fetchRules();
+         })
+         .subscribe();
+
+       return () => { supabase.removeChannel(channel); };
     });
-    
+
   }, [tenant]);
 
   const toggleRule = async (ruleId: string, currentStatus: boolean) => {
      try {
-        await updateDoc(doc(db, "automation_rules", ruleId), { 
+        await supabase.from("automation_rules").update({
           is_active: !currentStatus,
           updated_at: Date.now()
-        });
+        }).eq("id", ruleId);
      } catch (err) { console.error(err); }
   };
 
@@ -99,7 +125,7 @@ export default function AutomationsPage() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
            {rules.map(rule => (
               <div key={rule.id} className={`bg-white rounded-xl border shadow-sm p-6 relative transition-all duration-300 ${rule.is_active ? 'border-emerald-200 bg-gradient-to-br from-white to-emerald-50/10' : 'border-zinc-200 bg-zinc-50/50'}`}>
-                 
+
                  {rule.is_active ? (
                     <div className="absolute top-4 right-4 group">
                       <span className="flex h-3 w-3 relative">
@@ -116,15 +142,15 @@ export default function AutomationsPage() {
                  <div className={`h-12 w-12 rounded-xl flex items-center justify-center mb-5 border ${rule.is_active ? 'bg-gradient-to-br from-emerald-50 to-emerald-100/50 text-emerald-600 border-emerald-200 shadow-sm' : 'bg-zinc-100 text-zinc-500 border-zinc-200'}`}>
                     <Bot className="h-6 w-6" />
                  </div>
-                 
+
                  <h3 className={`text-lg font-bold tracking-tight ${rule.is_active ? 'text-zinc-900' : 'text-zinc-500'}`}>
                    {rule.name}
                  </h3>
-                 
+
                  <p className="text-sm text-zinc-500 mt-2 mb-6 h-10 leading-relaxed font-medium">
                    {rule.description}
                  </p>
-                 
+
                  <div className="flex items-center justify-between border-t border-zinc-100 pt-5 mt-auto">
                     <div className="flex items-center space-x-2 text-xs font-bold uppercase tracking-wider">
                        {rule.is_active ? (
@@ -135,12 +161,12 @@ export default function AutomationsPage() {
                        <span className="text-zinc-300">•</span>
                        <span className="text-zinc-400 font-mono text-[10px]">{rule.trigger}</span>
                     </div>
-                    
-                    <button 
+
+                    <button
                        onClick={() => toggleRule(rule.id, rule.is_active)}
                        className={`inline-flex items-center px-4 py-2 text-xs font-bold rounded-lg transition-colors shadow-sm ${rule.is_active ? 'text-zinc-900 bg-white border border-zinc-200 hover:bg-zinc-50' : 'text-white bg-zinc-900 hover:bg-zinc-800'}`}
                     >
-                      <Power className={`h-3 w-3 mr-1.5 ${rule.is_active ? 'text-zinc-400' : 'text-zinc-300'}`} /> 
+                      <Power className={`h-3 w-3 mr-1.5 ${rule.is_active ? 'text-zinc-400' : 'text-zinc-300'}`} />
                       {rule.is_active ? 'Disable' : 'Activate'}
                     </button>
                  </div>

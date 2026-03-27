@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { db } from '@/lib/firebase/admin';
+import { createServiceRoleClient } from '@/lib/supabase/server';
 import { WaitlistEntry } from '@/lib/types';
 import { logAuditEvent } from '@/lib/audit';
 
@@ -11,34 +11,41 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: false, error: "Missing required fields" }, { status: 400 });
     }
 
+    const supabase = createServiceRoleClient();
+
     // Reuse existing guest lookup pattern
     let guestId = `guest_${Date.now()}`;
-    const guestsSnap = await db.collection('guests')
-      .where('tenant_id', '==', payload.tenant_id)
-      .where('phone', '==', payload.guest_phone)
-      .limit(1)
-      .get();
-    
-    if (!guestsSnap.empty) {
-       guestId = guestsSnap.docs[0].id;
+    const { data: existingGuests } = await supabase
+      .from('guests')
+      .select('id')
+      .eq('tenant_id', payload.tenant_id)
+      .eq('phone', payload.guest_phone)
+      .limit(1);
+
+    if (existingGuests && existingGuests.length > 0) {
+       guestId = existingGuests[0].id;
     } else {
-       await db.collection('guests').doc(guestId).set({
-          id: guestId,
-          tenant_id: payload.tenant_id,
-          phone: payload.guest_phone,
-          name: payload.guest_name || "Unknown Guest",
-          visit_count: 0,
-          no_show_count: 0,
-          cancellation_count: 0,
-          tags: [],
-          created_at: Date.now(),
-          updated_at: Date.now()
-       });
+       const { data: newGuest, error: guestErr } = await supabase
+         .from('guests')
+         .insert({
+            tenant_id: payload.tenant_id,
+            phone: payload.guest_phone,
+            name: payload.guest_name || "Unknown Guest",
+            visit_count: 0,
+            no_show_count: 0,
+            cancellation_count: 0,
+            tags: [],
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+         })
+         .select('id')
+         .single();
+
+       if (guestErr) throw guestErr;
+       guestId = newGuest.id;
     }
 
-    const ref = db.collection('waitlist').doc();
-    const entry: WaitlistEntry = {
-       id: ref.id,
+    const entry = {
        tenant_id: payload.tenant_id,
        guest_id: guestId,
        requested_date: payload.requested_date,
@@ -46,16 +53,23 @@ export async function POST(request: Request) {
        party_size: payload.party_size,
        status: 'waiting',
        contact_channel: payload.channel === 'voice' ? 'phone' : 'whatsapp',
-       priority_score: payload.is_vip ? 100 : 0, // Simplified VIP scoring from payload flags
-       created_at: Date.now(),
-       updated_at: Date.now()
+       priority_score: payload.is_vip ? 100 : 0,
+       created_at: new Date().toISOString(),
+       updated_at: new Date().toISOString()
     };
 
-    await ref.set(entry);
+    const { data: newEntry, error: insertErr } = await supabase
+      .from('waitlist')
+      .insert(entry)
+      .select('id')
+      .single();
 
-    await logAuditEvent(payload.tenant_id, {
+    if (insertErr) throw insertErr;
+
+    await logAuditEvent({
+       tenant_id: payload.tenant_id,
        action: "create_waitlist",
-       entity_id: ref.id,
+       entity_id: newEntry.id,
        source: "ai_agent",
        details: {
           requested_date: payload.requested_date,
@@ -64,9 +78,9 @@ export async function POST(request: Request) {
        }
     });
 
-    return NextResponse.json({ 
-       success: true, 
-       waitlist_id: ref.id,
+    return NextResponse.json({
+       success: true,
+       waitlist_id: newEntry.id,
        message: "Guest successfully added to waitlist."
     });
 

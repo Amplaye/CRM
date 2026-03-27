@@ -1,8 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { collection, query, where, onSnapshot } from "firebase/firestore";
-import { db } from "@/lib/firebase/client";
+import { createClient } from "@/lib/supabase/client";
 import { Reservation } from "@/lib/types";
 import { useTenant } from "@/lib/contexts/TenantContext";
 import { Loader2 } from "lucide-react";
@@ -16,24 +15,35 @@ export function ReservationTimeline({ date, onRowClick }: { date: string, onRowC
   useEffect(() => {
     if (!activeTenant) return;
 
-    const q = query(
-      collection(db, "reservations"),
-      where("tenant_id", "==", activeTenant.id),
-      where("date", "==", date)
-    );
+    const supabase = createClient();
 
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const results: Reservation[] = [];
-      snapshot.forEach((doc) => {
-        results.push({ id: doc.id, ...doc.data() } as Reservation);
-      });
-      // Sort by time
-      results.sort((a, b) => a.time.localeCompare(b.time));
-      setReservations(results);
+    const fetchReservations = async () => {
+      const { data: results, error } = await supabase
+        .from("reservations")
+        .select("*")
+        .eq("tenant_id", activeTenant.id)
+        .eq("date", date);
+
+      if (error) {
+        console.error("Failed to load timeline reservations", error);
+        setLoading(false);
+        return;
+      }
+
+      const sorted = (results as Reservation[]).sort((a, b) => a.time.localeCompare(b.time));
+      setReservations(sorted);
       setLoading(false);
-    });
+    };
 
-    return () => unsubscribe();
+    fetchReservations();
+
+    const channel = supabase.channel(`reservations-timeline-${date}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'reservations', filter: `tenant_id=eq.${activeTenant.id}` }, () => fetchReservations())
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, [activeTenant, date]);
 
   if (loading) {
@@ -61,12 +71,12 @@ export function ReservationTimeline({ date, onRowClick }: { date: string, onRowC
         <div className="w-24 border-r border-zinc-200 py-3 px-4 font-semibold text-zinc-600">Time</div>
         <div className="flex-1 py-3 px-4 font-semibold text-zinc-600">Service Floor</div>
       </div>
-      
+
       {hours.map((hour) => {
         const hourString = `${hour.toString().padStart(2, '0')}`;
         // Find matching reservations in this hour block (e.g. 11:00 - 11:59)
         const activeRes = reservations.filter(r => r.time.startsWith(hourString));
-        
+
         return (
           <div key={hour} className="flex border-b border-zinc-100 min-h-[80px]">
             <div className="w-24 border-r border-zinc-100 py-4 px-4 font-medium text-zinc-500 text-xs">

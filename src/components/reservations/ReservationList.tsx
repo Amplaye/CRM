@@ -2,8 +2,7 @@
 
 import { useTenant } from "@/lib/contexts/TenantContext";
 import { useEffect, useState } from "react";
-import { collection, query, where, onSnapshot } from "firebase/firestore";
-import { db } from "@/lib/firebase/client";
+import { createClient } from "@/lib/supabase/client";
 import { Reservation } from "@/lib/types";
 import { useLanguage } from "@/lib/contexts/LanguageContext";
 import { Clock, User, Phone, MessageSquare, Globe, UserCheck, AlertTriangle, UserMinus, CalendarCheck, Plus } from "lucide-react";
@@ -22,22 +21,36 @@ export function ReservationList({ date, onRowClick }: ReservationListProps) {
   useEffect(() => {
     if (!tenant) return;
     setLoading(true);
-    const q = query(
-      collection(db, "reservations"),
-      where("tenant_id", "==", tenant.id),
-      where("date", "==", date)
-    );
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const resData = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as Reservation));
-      resData.sort((a, b) => a.time.localeCompare(b.time));
-      setReservations(resData);
-      setLoading(false);
-    }, (error) => {
-      console.error("Failed to load reservations", error);
-      setLoading(false);
-    });
 
-    return () => unsubscribe();
+    const supabase = createClient();
+
+    const fetchReservations = async () => {
+      const { data: resData, error } = await supabase
+        .from("reservations")
+        .select("*")
+        .eq("tenant_id", tenant.id)
+        .eq("date", date);
+
+      if (error) {
+        console.error("Failed to load reservations", error);
+        setLoading(false);
+        return;
+      }
+
+      const sorted = (resData as Reservation[]).sort((a, b) => a.time.localeCompare(b.time));
+      setReservations(sorted);
+      setLoading(false);
+    };
+
+    fetchReservations();
+
+    const channel = supabase.channel(`reservations-list-${date}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'reservations', filter: `tenant_id=eq.${tenant.id}` }, () => fetchReservations())
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, [tenant, date]);
 
   const StatusPill = ({ status }: { status: Reservation['status'] }) => {
@@ -104,8 +117,8 @@ export function ReservationList({ date, onRowClick }: ReservationListProps) {
         </thead>
         <tbody className="bg-white divide-y divide-zinc-100">
           {reservations.map((res) => (
-            <tr 
-               key={res.id} 
+            <tr
+               key={res.id}
                onClick={() => onRowClick?.(res)}
                className={`hover:bg-zinc-50 transition-colors ${onRowClick ? 'cursor-pointer' : ''}`}
             >

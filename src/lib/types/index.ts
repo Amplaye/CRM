@@ -2,7 +2,7 @@ export type GlobalRole = "platform_admin" | "user";
 export type TenantRole = "owner" | "admin" | "manager" | "host" | "marketing" | "readonly";
 
 export interface User {
-  id: string; // Firebase Auth UID
+  id: string; // Supabase Auth UID
   email: string;
   name: string;
   global_role: GlobalRole;

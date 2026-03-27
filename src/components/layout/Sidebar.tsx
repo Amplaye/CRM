@@ -2,16 +2,16 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { 
-  BarChart, 
-  Calendar, 
-  Clock, 
-  MessageSquare, 
-  Users, 
-  AlertTriangle, 
-  BookOpen, 
-  Zap, 
-  Settings, 
+import {
+  BarChart,
+  Calendar,
+  Clock,
+  MessageSquare,
+  Users,
+  AlertTriangle,
+  BookOpen,
+  Zap,
+  Settings,
   Shield,
   LayoutDashboard,
   ChevronDown,
@@ -24,7 +24,7 @@ import { useLanguage } from "@/lib/contexts/LanguageContext";
 import { Dictionary } from "@/lib/i18n/dictionaries/en";
 import { useAuth } from "@/lib/contexts/AuthContext";
 import { useState, useRef, useEffect } from "react";
-import { auth } from "@/lib/firebase/client";
+import { createClient } from "@/lib/supabase/client";
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -62,16 +62,22 @@ export function Sidebar() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
+  const handleSignOut = async () => {
+    const supabase = createClient();
+    await supabase.auth.signOut();
+    window.location.href = "/login";
+  };
+
   return (
     <aside className="w-64 bg-zinc-50 border-r border-zinc-200 h-screen flex flex-col hidden md:flex">
       <div className="h-16 flex items-center px-4 border-b border-zinc-200 relative" ref={dropdownRef}>
-        <button 
+        <button
           onClick={() => setIsDropdownOpen(!isDropdownOpen)}
           className="w-full flex items-center justify-between px-2 py-1.5 rounded-lg hover:bg-zinc-200/50 transition-colors"
         >
           <div className="flex items-center gap-2 overflow-hidden">
             <div className="w-8 h-8 bg-terracotta-600 rounded-md flex items-center justify-center flex-shrink-0 shadow-sm">
-              <span className="text-white font-bold tracking-tighter text-sm">TF</span>
+              <span className="text-white font-bold tracking-tighter text-sm">BF</span>
             </div>
             <span className="font-semibold text-zinc-900 truncate">
               {activeTenant?.name || "Loading..."}
@@ -101,7 +107,7 @@ export function Sidebar() {
           </div>
         )}
       </div>
-      
+
       <div className="flex-1 overflow-y-auto py-4">
         <nav className="space-y-1 px-3">
           {navItems.map((item) => {
@@ -147,19 +153,19 @@ export function Sidebar() {
           )}
         </nav>
       </div>
-      
+
       <div className="p-4 border-t border-zinc-200 bg-white">
          <div className="flex items-center">
             <div className="h-8 w-8 rounded-full bg-terracotta-100 flex items-center justify-center text-terracotta-700 font-bold text-xs flex-shrink-0">
               {user?.email?.charAt(0).toUpperCase() || 'U'}
             </div>
             <div className="ml-3 overflow-hidden">
-              <p className="text-sm font-medium text-zinc-900 truncate">{user?.email || "Demo User"}</p>
+              <p className="text-sm font-medium text-zinc-900 truncate">{user?.email || "User"}</p>
               <p className="text-xs font-medium text-zinc-500 uppercase tracking-wider mt-0.5">{activeRole?.replace('_', ' ') || "Guest"}</p>
             </div>
          </div>
-         <button 
-           onClick={() => { auth.signOut(); }} 
+         <button
+           onClick={handleSignOut}
            className="mt-4 w-full text-xs text-zinc-500 hover:text-zinc-900 font-medium text-left px-1 transition-colors"
          >
            Sign out

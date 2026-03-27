@@ -6,7 +6,6 @@ import { Plus, SlidersHorizontal, Download, X, Save, Clock, Menu } from "lucide-
 import { useState } from "react";
 import { Reservation, ReservationStatus } from "@/lib/types";
 import { useLanguage } from "@/lib/contexts/LanguageContext";
-import { useAuth } from "@/lib/contexts/AuthContext";
 import { useTenant } from "@/lib/contexts/TenantContext";
 import { createReservationAction, updateReservationDetailsAction } from "@/app/actions/reservations";
 
@@ -14,25 +13,22 @@ export default function ReservationsPage() {
   const [selectedRes, setSelectedRes] = useState<Reservation | null>(null);
   const [isCreating, setIsCreating] = useState(false);
   const [saving, setSaving] = useState(false);
-  
+
   const today = new Date().toISOString().split('T')[0];
   const [date, setDate] = useState(today);
   const [viewMode, setViewMode] = useState<"list" | "timeline">("list");
-  
+
   const { t } = useLanguage();
-  const { user } = useAuth();
   const { activeTenant } = useTenant();
 
   const handleUpdate = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    if (!user || !activeTenant || !selectedRes) return;
-    
+    if (!activeTenant || !selectedRes) return;
+
     setSaving(true);
     const formData = new FormData(e.currentTarget);
     try {
-      const token = await user.getIdToken();
       const res = await updateReservationDetailsAction({
-        idToken: token,
         tenantId: activeTenant.id,
         reservationId: selectedRes.id,
         data: {
@@ -43,7 +39,7 @@ export default function ReservationsPage() {
           notes: formData.get("notes") as string
         }
       });
-      
+
       if (!res.success) throw new Error(res.error);
       setSelectedRes(null);
     } catch (err: any) {
@@ -55,14 +51,12 @@ export default function ReservationsPage() {
 
   const handleCreate = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    if (!user || !activeTenant) return;
+    if (!activeTenant) return;
 
     setSaving(true);
     const formData = new FormData(e.currentTarget);
     try {
-      const token = await user.getIdToken();
       const res = await createReservationAction({
-        idToken: token,
         tenantId: activeTenant.id,
         guestName: formData.get("guestName") as string,
         guestPhone: formData.get("guestPhone") as string,
@@ -94,7 +88,7 @@ export default function ReservationsPage() {
              <button className="inline-flex items-center px-4 py-2 border border-zinc-200 text-sm font-medium rounded-lg shadow-sm text-zinc-700 bg-white hover:bg-zinc-50 transition-colors">
                 <Download className="-ml-1 mr-2 h-4 w-4" /> {t("res_export")}
              </button>
-             <button 
+             <button
                onClick={() => { setSelectedRes(null); setIsCreating(true); }}
                className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-lg shadow-sm text-white bg-zinc-900 hover:bg-zinc-800 transition-colors"
              >
@@ -106,20 +100,20 @@ export default function ReservationsPage() {
 
         <div className="bg-white p-4 flex flex-col sm:flex-row items-center justify-between border-b border-zinc-200 rounded-t-xl hidden md:flex border-x border-t">
            <div className="flex space-x-4 items-center">
-              <input 
-                type="date" 
+              <input
+                type="date"
                 value={date}
                 onChange={(e) => setDate(e.target.value)}
-                className="border border-zinc-200 rounded-md px-3 py-1.5 text-sm font-medium text-zinc-700 focus:ring-1 focus:ring-zinc-400 focus:outline-none shadow-sm" 
+                className="border border-zinc-200 rounded-md px-3 py-1.5 text-sm font-medium text-zinc-700 focus:ring-1 focus:ring-zinc-400 focus:outline-none shadow-sm"
               />
               <div className="flex bg-zinc-100 p-1 rounded-lg border border-zinc-200 ml-4">
-                <button 
+                <button
                   onClick={() => setViewMode("list")}
                   className={`px-3 py-1 text-sm font-medium rounded-md flex items-center transition-colors ${viewMode === 'list' ? 'bg-white text-zinc-900 shadow-sm' : 'text-zinc-500 hover:text-zinc-700'}`}
                 >
                   <Menu className="w-4 h-4 mr-1.5" /> List
                 </button>
-                <button 
+                <button
                   onClick={() => setViewMode("timeline")}
                   className={`px-3 py-1 text-sm font-medium rounded-md flex items-center transition-colors ${viewMode === 'timeline' ? 'bg-white text-zinc-900 shadow-sm' : 'text-zinc-500 hover:text-zinc-700'}`}
                 >
@@ -131,16 +125,16 @@ export default function ReservationsPage() {
               <SlidersHorizontal className="h-4 w-4 mr-2" /> {t("res_filters")}
            </button>
         </div>
-        
+
         {viewMode === "list" ? (
-          <ReservationList 
-            date={date} 
-            onRowClick={(res) => { setIsCreating(false); setSelectedRes(res); }} 
+          <ReservationList
+            date={date}
+            onRowClick={(res) => { setIsCreating(false); setSelectedRes(res); }}
           />
         ) : (
           <ReservationTimeline
             date={date}
-            onRowClick={(res) => { setIsCreating(false); setSelectedRes(res); }} 
+            onRowClick={(res) => { setIsCreating(false); setSelectedRes(res); }}
           />
         )}
       </div>
@@ -158,7 +152,7 @@ export default function ReservationsPage() {
              <div className="flex-1 overflow-y-auto w-full p-6 space-y-6 bg-zinc-50/50">
                 <div>
                    <label className="block text-sm font-medium text-zinc-700 mb-1">{t("res_edit_status")}</label>
-                   <select 
+                   <select
                      name="status"
                      defaultValue={selectedRes.status}
                      className="w-full border border-zinc-200 bg-white rounded-lg px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-zinc-900 font-medium"
@@ -171,7 +165,7 @@ export default function ReservationsPage() {
                       <option value="no_show">{t("status_no_show")}</option>
                    </select>
                 </div>
-                
+
                 <div className="grid grid-cols-2 gap-4">
                    <div>
                      <label className="block text-sm font-medium text-zinc-700 mb-1">{t("res_edit_date")}</label>
@@ -182,7 +176,7 @@ export default function ReservationsPage() {
                      <input name="time" type="time" defaultValue={selectedRes.time} className="w-full border border-zinc-200 bg-white rounded-lg px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-zinc-900" />
                    </div>
                 </div>
-                
+
                 <div>
                    <label className="block text-sm font-medium text-zinc-700 mb-1">{t("res_edit_party")}</label>
                    <input name="party_size" type="number" defaultValue={selectedRes.party_size} className="w-full border border-zinc-200 bg-white rounded-lg px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-zinc-900" />
@@ -190,17 +184,17 @@ export default function ReservationsPage() {
 
                 <div>
                    <label className="block text-sm font-medium text-zinc-700 mb-1">{t("res_edit_notes")}</label>
-                   <textarea 
+                   <textarea
                      name="notes"
-                     defaultValue={selectedRes.notes} 
+                     defaultValue={selectedRes.notes}
                      rows={4}
-                     className="w-full border border-zinc-200 bg-white rounded-lg px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-zinc-900" 
+                     className="w-full border border-zinc-200 bg-white rounded-lg px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-zinc-900"
                      placeholder={t("res_edit_placeholder")}
                    />
                 </div>
              </div>
              <div className="p-6 border-t border-zinc-100 bg-white">
-                <button 
+                <button
                    type="submit"
                    disabled={saving}
                    className="w-full flex items-center justify-center bg-zinc-900 hover:bg-zinc-800 text-white font-medium py-2.5 px-4 rounded-lg transition-colors shadow-sm disabled:opacity-50"
@@ -254,16 +248,16 @@ export default function ReservationsPage() {
 
                 <div>
                    <label className="block text-sm font-medium text-zinc-700 mb-1">Notes</label>
-                   <textarea 
+                   <textarea
                      name="notes"
                      rows={3}
-                     className="w-full border border-zinc-200 bg-white rounded-lg px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-zinc-900" 
+                     className="w-full border border-zinc-200 bg-white rounded-lg px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-zinc-900"
                      placeholder="Allergies, special occasions..."
                    />
                 </div>
              </div>
              <div className="p-6 border-t border-zinc-100 bg-white">
-                <button 
+                <button
                    type="submit"
                    disabled={saving}
                    className="w-full flex items-center justify-center bg-zinc-900 hover:bg-zinc-800 text-white font-medium py-2.5 px-4 rounded-lg transition-colors shadow-sm disabled:opacity-50"

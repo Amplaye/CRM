@@ -1,10 +1,10 @@
 "use client";
 
 import { KPICard } from "@/components/ui/KPICard";
-import { 
-  CalendarCheck, 
-  TrendingUp, 
-  Clock, 
+import {
+  CalendarCheck,
+  TrendingUp,
+  Clock,
   PhoneMissed,
   MessageSquare,
   Sparkles
@@ -23,8 +23,7 @@ import {
   Legend
 } from "recharts";
 import { useEffect, useState } from "react";
-import { collection, query, where, onSnapshot } from "firebase/firestore";
-import { db } from "@/lib/firebase/client";
+import { createClient } from "@/lib/supabase/client";
 import { useTenant } from "@/lib/contexts/TenantContext";
 import { Reservation, Conversation } from "@/lib/types";
 
@@ -35,7 +34,7 @@ export default function OverviewDashboard() {
   const [data, setData] = useState([
     { name: "Mon", AI: 0, Staff: 0, Web: 0 }
   ]);
-  
+
   const [metrics, setMetrics] = useState({
     totalRes: 0,
     aiBookings: 0,
@@ -49,15 +48,14 @@ export default function OverviewDashboard() {
 
   useEffect(() => {
     if (!tenant) return;
-    
-    const qRes = query(collection(db, "reservations"), where("tenant_id", "==", tenant.id));
-    const unsubRes = onSnapshot(qRes, (snap) => {
-      const resDocs = snap.docs.map(d => d.data() as Reservation);
-      
+
+    const supabase = createClient();
+
+    const processReservations = (resDocs: Reservation[]) => {
       let aiCount = 0;
       let staffCount = 0;
       let webCount = 0;
-      
+
       const dayCounts: Record<number, { AI: number, Staff: number, Web: number }> = {
         0: { AI: 0, Staff: 0, Web: 0 },
         1: { AI: 0, Staff: 0, Web: 0 },
@@ -105,33 +103,46 @@ export default function OverviewDashboard() {
         { name: t("dash_day_sat"), ...dayCounts[6] },
         { name: t("dash_day_sun"), ...dayCounts[0] },
       ]);
-    });
+    };
 
-    const qConv = query(collection(db, "conversations"), where("tenant_id", "==", tenant.id));
-    const unsubConv = onSnapshot(qConv, (snap) => {
-       const convDocs = snap.docs.map(d => d.data() as Conversation);
-       
-       let hoursSaved = 0;
-       let turned = 0;
-       let lost = 0;
+    const processConversations = (convDocs: Conversation[]) => {
+      let hoursSaved = 0;
+      let turned = 0;
+      let lost = 0;
 
-       convDocs.forEach(c => {
-          hoursSaved += 5 / 60; // 5 mins per convo
-          if (c.intent === "booking_request" && c.outcome === "resolved") turned++;
-          if (c.outcome === "abandoned") lost++;
-       });
+      convDocs.forEach(c => {
+        hoursSaved += 5 / 60; // 5 mins per convo
+        if (c.intent === "booking_request" && c.status === "resolved") turned++;
+        if (c.status === "abandoned") lost++;
+      });
 
-       setMetrics(prev => ({
-         ...prev,
-         hoursSaved: Math.round(hoursSaved),
-         missedCallsTurned: turned,
-         lostCalls: lost
-       }));
-    });
+      setMetrics(prev => ({
+        ...prev,
+        hoursSaved: Math.round(hoursSaved),
+        missedCallsTurned: turned,
+        lostCalls: lost
+      }));
+    };
+
+    const fetchData = async () => {
+      const [{ data: resDocs }, { data: convDocs }] = await Promise.all([
+        supabase.from("reservations").select("*").eq("tenant_id", tenant.id),
+        supabase.from("conversations").select("*").eq("tenant_id", tenant.id),
+      ]);
+
+      if (resDocs) processReservations(resDocs as Reservation[]);
+      if (convDocs) processConversations(convDocs as Conversation[]);
+    };
+
+    fetchData();
+
+    const channel = supabase.channel('dashboard-changes')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'reservations', filter: `tenant_id=eq.${tenant.id}` }, () => fetchData())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'conversations', filter: `tenant_id=eq.${tenant.id}` }, () => fetchData())
+      .subscribe();
 
     return () => {
-      unsubRes();
-      unsubConv();
+      supabase.removeChannel(channel);
     };
   }, [tenant, t]);
 
@@ -154,16 +165,16 @@ export default function OverviewDashboard() {
             Estimated ROI
           </span>
         </div>
-        
+
         <div className="grid grid-cols-1 md:grid-cols-4 gap-8 relative z-10">
           <div className="flex flex-col">
             <p className="text-sm font-medium text-zinc-500 mb-1">{t("roi_recovered_revenue")}</p>
             <div className="flex items-end">
-               <p className="text-4xl font-bold tracking-tight text-emerald-600">{metrics.recoveredRevenue || '€0'}</p>
+               <p className="text-4xl font-bold tracking-tight text-emerald-600">{metrics.recoveredRevenue || '$0'}</p>
             </div>
             <p className="text-xs text-zinc-400 mt-2 font-medium bg-zinc-50 w-fit px-2 py-1 rounded">{t("roi_matches")}</p>
           </div>
-          
+
           <div className="flex flex-col">
             <p className="text-sm font-medium text-zinc-500 mb-1">{t("roi_no_shows_prevented")}</p>
             <div className="flex items-end">
@@ -171,7 +182,7 @@ export default function OverviewDashboard() {
             </div>
             <p className="text-xs text-zinc-400 mt-2 font-medium bg-zinc-50 w-fit px-2 py-1 rounded">{t("roi_reminders")}</p>
           </div>
-          
+
           <div className="flex flex-col">
             <p className="text-sm font-medium text-zinc-500 mb-1">{t("roi_hours_saved")}</p>
             <div className="flex items-end">
@@ -179,7 +190,7 @@ export default function OverviewDashboard() {
             </div>
             <p className="text-xs text-zinc-400 mt-2 font-medium bg-zinc-50 w-fit px-2 py-1 rounded">{t("roi_faqs")}</p>
           </div>
-          
+
           <div className="flex flex-col">
             <p className="text-sm font-medium text-zinc-500 mb-1">{t("roi_missed_calls")}</p>
             <div className="flex items-end">
@@ -192,33 +203,33 @@ export default function OverviewDashboard() {
 
       {/* KPI Cards */}
       <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
-        <KPICard 
-          title={t("dashboard_total_reservations")} 
-          value={metrics.totalRes.toString()} 
-          icon={<CalendarCheck className="h-5 w-5" />} 
+        <KPICard
+          title={t("dashboard_total_reservations")}
+          value={metrics.totalRes.toString()}
+          icon={<CalendarCheck className="h-5 w-5" />}
           className="shadow-[0_1px_3px_0_rgba(0,0,0,0.02)] border-zinc-100"
           trend={{ value: "+12.5%", isPositive: true }}
         />
-        <KPICard 
-          title={t("dashboard_ai_bookings")} 
-          value={metrics.aiPercentage} 
+        <KPICard
+          title={t("dashboard_ai_bookings")}
+          value={metrics.aiPercentage}
           valueClassName="text-terracotta-600"
           className="shadow-[0_1px_3px_0_rgba(0,0,0,0.02)] border-zinc-100"
-          icon={<MessageSquare className="h-5 w-5" />} 
+          icon={<MessageSquare className="h-5 w-5" />}
           trend={{ value: "+5.2%", isPositive: true }}
         />
-        <KPICard 
-          title={t("kpi_avg_response")} 
-          value="< 1m" 
+        <KPICard
+          title={t("kpi_avg_response")}
+          value="< 1m"
           className="shadow-[0_1px_3px_0_rgba(0,0,0,0.02)] border-zinc-100"
-          icon={<Clock className="h-5 w-5" />} 
+          icon={<Clock className="h-5 w-5" />}
           trend={{ value: "-4m", isPositive: true, label: t("kpi_vs_staff") }}
         />
-        <KPICard 
-          title={t("kpi_lost_calls")} 
-          value={metrics.lostCalls.toString()} 
+        <KPICard
+          title={t("kpi_lost_calls")}
+          value={metrics.lostCalls.toString()}
           className="shadow-[0_1px_3px_0_rgba(0,0,0,0.02)] border-zinc-100"
-          icon={<PhoneMissed className="h-5 w-5" />} 
+          icon={<PhoneMissed className="h-5 w-5" />}
           trend={{ value: "-80%", isPositive: true, label: t("kpi_thanks_ai") }}
         />
       </div>
@@ -243,7 +254,7 @@ export default function OverviewDashboard() {
                 <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#A1A1AA' }} dy={10} />
                 <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#A1A1AA' }} />
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f4f4f5" />
-                <Tooltip 
+                <Tooltip
                   contentStyle={{ borderRadius: '12px', border: '1px solid #e4e4e7', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.05)', fontSize: '13px' }}
                 />
                 <Area type="monotone" dataKey="Web" stroke="#71717a" strokeWidth={2} fillOpacity={1} fill="url(#colorWeb)" />
@@ -261,12 +272,12 @@ export default function OverviewDashboard() {
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f4f4f5" />
                 <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#A1A1AA' }} dy={10} />
                 <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#A1A1AA' }} />
-                <Tooltip 
+                <Tooltip
                   cursor={{ fill: '#fafafa' }}
                   contentStyle={{ borderRadius: '12px', border: '1px solid #e4e4e7', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.05)', fontSize: '13px' }}
                 />
-                <Legend 
-                  iconType="circle" 
+                <Legend
+                  iconType="circle"
                   wrapperStyle={{ fontSize: '12px', paddingTop: '20px' }}
                   formatter={(value) => t(`dash_legend_${value.toLowerCase()}` as Extract<keyof typeof import("../../lib/i18n/dictionaries/en").en, string>) || value}
                 />
@@ -277,7 +288,7 @@ export default function OverviewDashboard() {
           </div>
         </div>
       </div>
-      
+
     </div>
   );
 }

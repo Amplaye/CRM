@@ -1,36 +1,18 @@
 "use server";
 
-import { db, auth } from "@/lib/firebase/admin";
+import { createServerSupabaseClient, createServiceRoleClient } from "@/lib/supabase/server";
 import { Reservation, ReservationEvent, ReservationStatus, Guest } from "@/lib/types";
 import { revalidatePath } from "next/cache";
 import { matchWaitlistForSlotAction } from "./waitlist";
 
 /**
- * Validates the caller's Firebase Auth Token to ensure they possess 
- * the proper claims (`active_tenant_id`) to perform restricted backend tasks.
- */
-async function verifyToken(idToken: string, expectedTenantId: string) {
-  try {
-    const decoded = await auth.verifyIdToken(idToken);
-    if (decoded.active_tenant_id !== expectedTenantId && decoded.role !== 'platform_admin') {
-       throw new Error("Unauthorized tenant access");
-    }
-    return decoded;
-  } catch (error) {
-    console.error("Token verification failed:", error);
-    throw new Error("Authentication failed");
-  }
-}
-
-/**
- * Creates a Reservation inside a Firestore Transaction.
+ * Creates a Reservation.
  * Highlights:
- * 1. Checks or creates a linked Guest model natively.
+ * 1. Checks or creates a linked Guest model.
  * 2. Pre-checks for identical active reservations to prevent exact double-booking.
- * 3. Appends a rigorous `reservation_events` audit event natively.
+ * 3. Appends a rigorous `reservation_events` audit event.
  */
 export async function createReservationAction(params: {
-  idToken?: string;
   adminTenantId?: string;
   tenantId: string;
   guestName: string;
@@ -42,30 +24,46 @@ export async function createReservationAction(params: {
   notes?: string;
 }) {
   let operatorId = "system";
-  if (params.idToken) {
-     const decoded = await verifyToken(params.idToken, params.tenantId);
-     operatorId = decoded.uid;
+
+  // If called from a server action context (user-initiated), get user from session
+  if (!params.adminTenantId) {
+    try {
+      const supabaseAuth = await createServerSupabaseClient();
+      const { data: { user } } = await supabaseAuth.auth.getUser();
+      if (user) {
+        operatorId = user.id;
+      } else {
+        return { success: false, error: "Authentication failed" };
+      }
+    } catch {
+      return { success: false, error: "Authentication failed" };
+    }
   } else if (params.adminTenantId !== params.tenantId) {
-     return { success: false, error: "Unauthorized webhook bypass" };
+    return { success: false, error: "Unauthorized webhook bypass" };
   } else {
-     operatorId = "ai_agent";
+    operatorId = "ai_agent";
   }
 
+  // Use service role client for all DB operations (bypasses RLS for server actions)
+  const supabase = createServiceRoleClient();
+
   try {
-    return await db.runTransaction(async (transaction) => {
-      // 1. Look up or create Guest
-      const guestsQuery = db.collection("guests")
-         .where("tenant_id", "==", params.tenantId)
-         .where("phone", "==", params.guestPhone)
-         .limit(1);
-      
-      const guestSnap = await transaction.get(guestsQuery);
-      let guestId = "";
-      
-      if (guestSnap.empty) {
-        const newGuestRef = db.collection("guests").doc();
-        guestId = newGuestRef.id;
-        const newGuest = {
+    // 1. Look up or create Guest
+    const { data: existingGuests, error: guestLookupErr } = await supabase
+      .from("guests")
+      .select("id")
+      .eq("tenant_id", params.tenantId)
+      .eq("phone", params.guestPhone)
+      .limit(1);
+
+    if (guestLookupErr) throw guestLookupErr;
+
+    let guestId = "";
+
+    if (!existingGuests || existingGuests.length === 0) {
+      const { data: newGuest, error: createGuestErr } = await supabase
+        .from("guests")
+        .insert({
           tenant_id: params.tenantId,
           name: params.guestName,
           phone: params.guestPhone,
@@ -74,29 +72,37 @@ export async function createReservationAction(params: {
           cancellation_count: 0,
           tags: [],
           notes: "",
-          created_at: Date.now(),
-          updated_at: Date.now()
-        };
-        transaction.set(newGuestRef, newGuest);
-      } else {
-        guestId = guestSnap.docs[0].id;
-      }
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        })
+        .select("id")
+        .single();
 
-      // 2. Prevent Double Booking (Exact time + same guest)
-      const existingQ = db.collection("reservations")
-         .where("tenant_id", "==", params.tenantId)
-         .where("date", "==", params.date)
-         .where("guest_id", "==", guestId)
-         .where("status", "in", ["confirmed", "seeded", "pending_confirmation"]);
-         
-      const existingSnap = await transaction.get(existingQ);
-      if (!existingSnap.empty) {
-         throw new Error("Guest already has an active reservation on this date.");
-      }
+      if (createGuestErr) throw createGuestErr;
+      guestId = newGuest.id;
+    } else {
+      guestId = existingGuests[0].id;
+    }
 
-      // 3. Create Reservation
-      const resRef = db.collection("reservations").doc();
-      const reservationData = {
+    // 2. Prevent Double Booking (same guest, same date, active status)
+    const { data: existingRes, error: dupCheckErr } = await supabase
+      .from("reservations")
+      .select("id")
+      .eq("tenant_id", params.tenantId)
+      .eq("date", params.date)
+      .eq("guest_id", guestId)
+      .in("status", ["confirmed", "seated", "pending_confirmation"])
+      .limit(1);
+
+    if (dupCheckErr) throw dupCheckErr;
+    if (existingRes && existingRes.length > 0) {
+      throw new Error("Guest already has an active reservation on this date.");
+    }
+
+    // 3. Create Reservation
+    const { data: newRes, error: createResErr } = await supabase
+      .from("reservations")
+      .insert({
         tenant_id: params.tenantId,
         guest_id: guestId,
         date: params.date,
@@ -106,26 +112,30 @@ export async function createReservationAction(params: {
         source: params.source,
         created_by_type: params.source.startsWith("ai_") ? "ai" : "staff",
         notes: params.notes || "",
-        created_at: Date.now(),
-        updated_at: Date.now()
-      };
-      transaction.set(resRef, reservationData);
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      })
+      .select("id")
+      .single();
 
-      // 4. Create Audit Event
-      const eventRef = db.collection("reservation_events").doc();
-      const eventData = {
+    if (createResErr) throw createResErr;
+
+    // 4. Create Audit Event
+    const { error: eventErr } = await supabase
+      .from("reservation_events")
+      .insert({
         tenant_id: params.tenantId,
-        reservation_id: resRef.id,
+        reservation_id: newRes.id,
         action: "created",
         new_status: "confirmed",
         changed_by_user_id: operatorId,
         details: `Created via ${params.source}`,
-        created_at: Date.now()
-      };
-      transaction.set(eventRef, eventData);
+        created_at: new Date().toISOString()
+      });
 
-      return { success: true, reservationId: resRef.id };
-    });
+    if (eventErr) throw eventErr;
+
+    return { success: true, reservationId: newRes.id };
   } catch (err: any) {
     return { success: false, error: err.message };
   }
@@ -135,71 +145,87 @@ export async function createReservationAction(params: {
  * Mutates an existing reservation accurately logging deltas in the audit trunk.
  */
 export async function updateReservationDetailsAction(params: {
-  idToken?: string;
   adminTenantId?: string;
   tenantId: string;
   reservationId: string;
   data: Partial<Reservation>;
 }) {
   let operatorId = "system";
-  if (params.idToken) {
-     const decoded = await verifyToken(params.idToken, params.tenantId);
-     operatorId = decoded.uid;
+
+  if (!params.adminTenantId) {
+    try {
+      const supabaseAuth = await createServerSupabaseClient();
+      const { data: { user } } = await supabaseAuth.auth.getUser();
+      if (user) {
+        operatorId = user.id;
+      } else {
+        return { success: false, error: "Authentication failed" };
+      }
+    } catch {
+      return { success: false, error: "Authentication failed" };
+    }
   } else if (params.adminTenantId !== params.tenantId) {
-     return { success: false, error: "Unauthorized webhook bypass" };
+    return { success: false, error: "Unauthorized webhook bypass" };
   } else {
-     operatorId = "ai_agent";
+    operatorId = "ai_agent";
   }
 
+  const supabase = createServiceRoleClient();
+
   try {
-    const result = await db.runTransaction(async (transaction) => {
-      const resRef = db.collection("reservations").doc(params.reservationId);
-      const resSnap = await transaction.get(resRef);
+    // Fetch existing reservation
+    const { data: current, error: fetchErr } = await supabase
+      .from("reservations")
+      .select("*")
+      .eq("id", params.reservationId)
+      .single();
 
-      if (!resSnap.exists) throw new Error("Reservation not found");
-      
-      const current = resSnap.data() as Reservation;
-      if (current.tenant_id !== params.tenantId) throw new Error("Tenant boundary violation");
+    if (fetchErr || !current) throw new Error("Reservation not found");
+    if (current.tenant_id !== params.tenantId) throw new Error("Tenant boundary violation");
 
-      // Execute update
-      transaction.update(resRef, { 
+    // Execute update
+    const { error: updateErr } = await supabase
+      .from("reservations")
+      .update({
         ...params.data,
-        updated_at: Date.now() 
-      });
+        updated_at: new Date().toISOString()
+      })
+      .eq("id", params.reservationId);
 
-      // Determine the best audit action type
-      let actionType = "time_changed"; 
-      if (params.data.status && params.data.status !== current.status) actionType = "status_changed";
-      if (params.data.party_size && params.data.party_size !== current.party_size) actionType = "party_size_changed";
+    if (updateErr) throw updateErr;
 
-      // Insert Audit Event
-      const eventRef = db.collection("reservation_events").doc();
-      transaction.set(eventRef, {
+    // Determine the best audit action type
+    let actionType = "time_changed";
+    if (params.data.status && params.data.status !== current.status) actionType = "status_changed";
+    if (params.data.party_size && params.data.party_size !== current.party_size) actionType = "party_size_changed";
+
+    // Insert Audit Event
+    const { error: eventErr } = await supabase
+      .from("reservation_events")
+      .insert({
         tenant_id: params.tenantId,
         reservation_id: params.reservationId,
         action: actionType,
         previous_status: current.status,
         new_status: params.data.status || current.status,
         changed_by_user_id: operatorId,
-        created_at: Date.now()
+        created_at: new Date().toISOString()
       });
 
-      return { success: true, updatedRes: current };
-    });
-    
-    // Auto-trigger waitlist matcher outside of the immediate transaction lock
-    if (result.success && params.data.status === "cancelled" && result.updatedRes) {
-       // Fire and forget, or wait for it
-       await matchWaitlistForSlotAction(
-         params.tenantId,
-         params.reservationId,
-         result.updatedRes.date,
-         result.updatedRes.time,
-         result.updatedRes.party_size
-       );
+    if (eventErr) throw eventErr;
+
+    // Auto-trigger waitlist matcher when a booking is cancelled
+    if (params.data.status === "cancelled") {
+      await matchWaitlistForSlotAction(
+        params.tenantId,
+        params.reservationId,
+        current.date,
+        current.time,
+        current.party_size
+      );
     }
-    
-    return { success: result.success };
+
+    return { success: true };
   } catch (err: any) {
     return { success: false, error: err.message };
   }

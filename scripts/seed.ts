@@ -1,132 +1,136 @@
-import { initializeApp, cert } from "firebase-admin/app";
-import { getFirestore } from "firebase-admin/firestore";
-import { getAuth } from "firebase-admin/auth";
+import { createClient } from "@supabase/supabase-js";
 
-// Tell the admin SDK to use the emulator
-process.env.FIRESTORE_EMULATOR_HOST = "127.0.0.1:8080";
-process.env.FIREBASE_AUTH_EMULATOR_HOST = "127.0.0.1:9099";
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "https://azhlnybiqlkbhbboyvud.supabase.co";
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || "";
 
-const app = initializeApp({ projectId: "demo-tableflow-ai" });
-const db = getFirestore(app);
-const auth = getAuth(app);
-
-const tenants = [
-  {
-    id: "tenant-picnic",
-    name: "PICNIC",
-    created_at: Date.now(),
-    settings: { timezone: "Europe/Madrid", currency: "EUR", ai_enabled_channels: ["whatsapp", "voice"] }
-  },
-  {
-    id: "tenant-trattoria",
-    name: "Trattoria Napoletana",
-    created_at: Date.now(),
-    settings: { timezone: "Europe/Rome", currency: "EUR", ai_enabled_channels: ["whatsapp"] }
-  }
-];
-
-const users = [
-  { uid: "admin-user", email: "admin@tableflow.ai", password: "password123", name: "Platform Admin", role: "platform_admin" },
-  { uid: "picnic-owner", email: "owner@picnic.com", password: "password123", name: "Sarah Owner", role: "user" },
-  { uid: "trattoria-mgr", email: "manager@trattoria.com", password: "password123", name: "Marco Manager", role: "user" },
-  { uid: "picnic-host", email: "host@picnic.com", password: "password123", name: "Host Team", role: "user" }
-];
+const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
 async function seed() {
-  console.log("Starting Phase 2 DB seeding to Emulators...");
+  console.log("Starting Supabase seeding...");
 
-  // 1. Create Users
-  for (const u of users) {
-    try {
-      await auth.createUser({ uid: u.uid, email: u.email, password: u.password, displayName: u.name });
-    } catch (e: any) {
-      if (e.code !== "auth/uid-already-exists") throw e;
-    }
-    await db.collection("users").doc(u.uid).set({
-      id: u.uid, email: u.email, name: u.name, global_role: u.role, created_at: Date.now()
+  // 1. Create auth users via Supabase Admin API
+  const usersToCreate = [
+    { email: "admin@baliflow.com", password: "password123", name: "Platform Admin", global_role: "platform_admin" },
+    { email: "owner@picnic.com", password: "password123", name: "Sarah Owner", global_role: "user" },
+    { email: "manager@trattoria.com", password: "password123", name: "Marco Manager", global_role: "user" },
+    { email: "host@picnic.com", password: "password123", name: "Host Team", global_role: "user" }
+  ];
+
+  const createdUsers: Record<string, string> = {};
+
+  for (const u of usersToCreate) {
+    const { data, error } = await supabase.auth.admin.createUser({
+      email: u.email,
+      password: u.password,
+      email_confirm: true,
+      user_metadata: { name: u.name }
     });
+
+    if (error) {
+      console.warn(`User ${u.email} may already exist:`, error.message);
+      // Try to find existing user
+      const { data: list } = await supabase.auth.admin.listUsers();
+      const existing = list?.users?.find(usr => usr.email === u.email);
+      if (existing) createdUsers[u.email] = existing.id;
+      continue;
+    }
+
+    createdUsers[u.email] = data.user.id;
+
+    // Update user profile with global_role
+    await supabase.from("users").update({ global_role: u.global_role, name: u.name }).eq("id", data.user.id);
   }
+
+  console.log("Users created:", Object.keys(createdUsers));
 
   // 2. Create Tenants
-  for (const t of tenants) {
-    await db.collection("tenants").doc(t.id).set(t);
+  const { data: tenant1 } = await supabase.from("tenants").insert({
+    name: "PICNIC",
+    business_type: "restaurant",
+    settings: { timezone: "Europe/Madrid", currency: "EUR", ai_enabled_channels: ["whatsapp", "voice"] }
+  }).select("id").single();
+
+  const { data: tenant2 } = await supabase.from("tenants").insert({
+    name: "Trattoria Napoletana",
+    business_type: "restaurant",
+    settings: { timezone: "Europe/Rome", currency: "EUR", ai_enabled_channels: ["whatsapp"] }
+  }).select("id").single();
+
+  if (!tenant1 || !tenant2) {
+    console.error("Failed to create tenants");
+    return;
   }
 
-  // 3. Create Tenant Memberships (Roles tested)
-  await db.collection("tenant_members").doc("tenant-picnic_picnic-owner").set({
-    id: "tenant-picnic_picnic-owner", tenant_id: "tenant-picnic", user_id: "picnic-owner", role: "owner", created_at: Date.now()
-  });
-  await db.collection("tenant_members").doc("tenant-picnic_picnic-host").set({
-    id: "tenant-picnic_picnic-host", tenant_id: "tenant-picnic", user_id: "picnic-host", role: "host", created_at: Date.now()
-  });
+  console.log("Tenants created:", tenant1.id, tenant2.id);
 
-  // 4. Seeding Data for PICNIC - 200 Guests
-  const picnicGuests = Array.from({length: 200}).map((_, i) => ({
-    id: `guest-picnic-${i}`, tenant_id: "tenant-picnic", name: `Guest ${i}`,
-    phone: `+346001230${String(i).padStart(2, '0')}`, visit_count: Math.floor(Math.random() * 15),
-    no_show_count: Math.random() > 0.9 ? 1 + Math.floor(Math.random() * 3) : 0, 
+  // 3. Create Tenant Memberships
+  if (createdUsers["owner@picnic.com"]) {
+    await supabase.from("tenant_members").insert({
+      tenant_id: tenant1.id, user_id: createdUsers["owner@picnic.com"], role: "owner"
+    });
+  }
+  if (createdUsers["host@picnic.com"]) {
+    await supabase.from("tenant_members").insert({
+      tenant_id: tenant1.id, user_id: createdUsers["host@picnic.com"], role: "host"
+    });
+  }
+  if (createdUsers["manager@trattoria.com"]) {
+    await supabase.from("tenant_members").insert({
+      tenant_id: tenant2.id, user_id: createdUsers["manager@trattoria.com"], role: "manager"
+    });
+  }
+  // Give admin access to both
+  if (createdUsers["admin@baliflow.com"]) {
+    await supabase.from("tenant_members").insert([
+      { tenant_id: tenant1.id, user_id: createdUsers["admin@baliflow.com"], role: "owner" },
+      { tenant_id: tenant2.id, user_id: createdUsers["admin@baliflow.com"], role: "owner" }
+    ]);
+  }
+
+  // 4. Seed 200 Guests for PICNIC
+  const guests = Array.from({ length: 200 }).map((_, i) => ({
+    tenant_id: tenant1.id,
+    name: `Guest ${i}`,
+    phone: `+346001230${String(i).padStart(2, "0")}`,
+    visit_count: Math.floor(Math.random() * 15),
+    no_show_count: Math.random() > 0.9 ? 1 + Math.floor(Math.random() * 3) : 0,
     cancellation_count: Math.floor(Math.random() * 2),
-    tags: Math.random() > 0.85 ? ["VIP"] : (Math.random() > 0.9 ? ["At Risk"] : []), 
-    notes: Math.random() > 0.8 ? "Prefers terrace seating" : "", 
-    created_at: Date.now(), updated_at: Date.now()
+    tags: Math.random() > 0.85 ? ["VIP"] : Math.random() > 0.9 ? ["At Risk"] : [],
+    notes: Math.random() > 0.8 ? "Prefers terrace seating" : ""
   }));
 
-  const batchSize = 100;
-  for (let i = 0; i < picnicGuests.length; i += batchSize) {
-     const batch = db.batch();
-     for(const g of picnicGuests.slice(i, i + batchSize)) {
-        batch.set(db.collection("guests").doc(g.id), g);
-     }
-     await batch.commit();
-  }
+  const { data: insertedGuests } = await supabase.from("guests").insert(guests).select("id");
+  const guestIds = insertedGuests?.map(g => g.id) || [];
 
-  // Baseline Metrics for Analytics (Before AI vs After AI)
-  await db.collection("baseline_metrics").doc("tenant-picnic").set({
-     tenant_id: "tenant-picnic",
-     pre_ai: {
-        avg_monthly_covers: 3200,
-        avg_monthly_no_shows: 85,
-        avg_monthly_unanswered_calls: 150,
-        avg_response_time_minutes: 45
-     },
-     post_ai: {
-        avg_monthly_covers: 3500,
-        avg_monthly_no_shows: 25,
-        avg_monthly_unanswered_calls: 5,
-        avg_response_time_minutes: 1
-     }
-  });
+  console.log(`Seeded ${guestIds.length} guests`);
 
-  // 5. Richer Reservations
+  // 5. Seed 300 Reservations for PICNIC
   const statuses = ["confirmed", "seated", "completed", "cancelled", "no_show", "pending_confirmation"];
   const sources = ["ai_chat", "ai_voice", "web", "staff", "walk_in"];
 
-  const picnicReservations = Array.from({length: 300}).map((_, i) => {
-    // Skew recency, more confirmed, some no shows
-    const status = statuses[Math.floor(Math.random() * statuses.length)];
+  const reservations = Array.from({ length: 300 }).map((_, i) => {
     const source = sources[Math.floor(Math.random() * sources.length)];
     return {
-      id: `res-picnic-${i}`, tenant_id: "tenant-picnic", guest_id: `guest-picnic-${i % 200}`,
-      date: "2026-03-25", time: `${18 + (i % 5)}:00`, party_size: (i % 6) + 2,
-      status: status,
-      source: source,
+      tenant_id: tenant1.id,
+      guest_id: guestIds[i % guestIds.length],
+      date: "2026-03-25",
+      time: `${18 + (i % 5)}:00`,
+      party_size: (i % 6) + 2,
+      status: statuses[Math.floor(Math.random() * statuses.length)],
+      source,
       created_by_type: source.startsWith("ai") ? "ai" : "staff",
-      notes: Math.random() > 0.8 ? "Birthday celebration" : "", 
-      allergies: Math.random() > 0.9 ? ["Gluten"] : [],
-      created_at: Date.now() - (Math.random() * 10000000), 
-      updated_at: Date.now()
-    }
+      notes: Math.random() > 0.8 ? "Birthday celebration" : "",
+      allergies: Math.random() > 0.9 ? ["Gluten"] : []
+    };
   });
 
-  for (let i = 0; i < picnicReservations.length; i += batchSize) {
-     const batch = db.batch();
-     for(const r of picnicReservations.slice(i, i + batchSize)) {
-        batch.set(db.collection("reservations").doc(r.id), r);
-     }
-     await batch.commit();
+  // Insert in batches of 100
+  for (let i = 0; i < reservations.length; i += 100) {
+    await supabase.from("reservations").insert(reservations.slice(i, i + 100));
   }
 
-  console.log("Phase 2 Seeding complete.");
+  console.log("Seeded 300 reservations");
+  console.log("Seeding complete!");
 }
 
 seed().catch(console.error);

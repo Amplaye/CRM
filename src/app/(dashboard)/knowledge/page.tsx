@@ -3,8 +3,7 @@
 import { FileText, Plus, Search, Archive, BookOpen, Clock, User, ChevronRight, Save, X, History, Trash2, Filter, AlertTriangle, Settings2 } from "lucide-react";
 import { useLanguage } from "@/lib/contexts/LanguageContext";
 import { useEffect, useState } from "react";
-import { collection, query, where, onSnapshot, doc, updateDoc, addDoc, setDoc, getDocs, deleteDoc } from "firebase/firestore";
-import { db } from "@/lib/firebase/client";
+import { createClient } from "@/lib/supabase/client";
 import { useTenant } from "@/lib/contexts/TenantContext";
 import { KnowledgeArticle } from "@/lib/types";
 import { useAuth } from "@/lib/contexts/AuthContext";
@@ -13,11 +12,12 @@ export default function KnowledgePage() {
   const { t } = useLanguage();
   const { activeTenant: tenant } = useTenant();
   const { user } = useAuth();
-  
+  const supabase = createClient();
+
   const [articles, setArticles] = useState<KnowledgeArticle[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedArticleId, setSelectedArticleId] = useState<string | null>(null);
-  
+
   const [isEditing, setIsEditing] = useState(false);
   const [editTitle, setEditTitle] = useState("");
   const [editContent, setEditContent] = useState("");
@@ -29,21 +29,35 @@ export default function KnowledgePage() {
 
   useEffect(() => {
     if (!tenant) return;
-    
+
     const fetchArticles = async () => {
-       const q = query(collection(db, "knowledge_articles"), where("tenant_id", "==", tenant.id));
-       const unsubscribe = onSnapshot(q, (snapshot) => {
-         const docs = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as KnowledgeArticle));
-         docs.sort((a,b) => b.updated_at - a.updated_at);
-         setArticles(docs);
-         setLoading(false);
-       });
-       return unsubscribe;
+      const { data, error } = await supabase
+        .from("knowledge_articles")
+        .select("*")
+        .eq("tenant_id", tenant.id);
+
+      if (error) {
+        console.error(error);
+        setLoading(false);
+        return;
+      }
+
+      const docs = (data || []) as KnowledgeArticle[];
+      docs.sort((a,b) => b.updated_at - a.updated_at);
+      setArticles(docs);
+      setLoading(false);
     };
 
-    fetchArticles().then(unsub => {
-       return () => unsub();
-    });
+    fetchArticles();
+
+    const channel = supabase
+      .channel("knowledge_articles_realtime")
+      .on("postgres_changes", { event: "*", schema: "public", table: "knowledge_articles", filter: `tenant_id=eq.${tenant.id}` }, () => {
+        fetchArticles();
+      })
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
   }, [tenant]);
 
   const selectedArticle = articles.find(a => a.id === selectedArticleId) || null;
@@ -79,20 +93,18 @@ export default function KnowledgePage() {
            status: editStatus,
            risk_tags: editRiskTags.split(",").map(t => t.trim()).filter(t => t !== ""),
            updated_at: Date.now(),
-           author_id: user.uid
+           author_id: user.id
         };
 
         if (selectedArticleId) {
            const currentVersion = selectedArticle?.version || 1;
            payload.version = currentVersion + 1;
-           await updateDoc(doc(db, "knowledge_articles", selectedArticleId), payload);
+           await supabase.from("knowledge_articles").update(payload).eq("id", selectedArticleId);
         } else {
-           const aRef = doc(collection(db, "knowledge_articles"));
-           payload.id = aRef.id;
            payload.version = 1;
            payload.created_at = Date.now();
-           await setDoc(aRef, payload);
-           setSelectedArticleId(aRef.id);
+           const { data: inserted } = await supabase.from("knowledge_articles").insert(payload).select("id").single();
+           if (inserted) setSelectedArticleId(inserted.id);
         }
         setIsEditing(false);
      } catch (err) { console.error(err); }
@@ -102,20 +114,20 @@ export default function KnowledgePage() {
   const handleDelete = async (id: string) => {
      if (!confirm("Are you sure you want to delete this article?")) return;
      try {
-        await deleteDoc(doc(db, "knowledge_articles", id));
+        await supabase.from("knowledge_articles").delete().eq("id", id);
         if (selectedArticleId === id) setSelectedArticleId(null);
      } catch (err) { console.error(err); }
   }
 
   return (
     <div className="p-0 h-[calc(100vh-4rem)] flex bg-zinc-50 overflow-hidden">
-      
+
       {/* Article List Pane */}
       <div className="w-[400px] border-r border-zinc-200 bg-white flex flex-col shrink-0">
          <div className="p-6 border-b border-zinc-100 shrink-0">
             <h1 className="text-xl font-bold text-zinc-900 tracking-tight">{t("know_title")}</h1>
             <p className="text-xs text-zinc-500 mt-1">{t("know_subtitle")}</p>
-            
+
             <div className="mt-6 flex space-x-2">
                <div className="relative flex-1">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-zinc-400" />
@@ -140,8 +152,8 @@ export default function KnowledgePage() {
             ) : (
                <div className="divide-y divide-zinc-100">
                   {articles.map(article => (
-                     <div 
-                        key={article.id} 
+                     <div
+                        key={article.id}
                         onClick={() => setSelectedArticleId(article.id)}
                         className={`p-5 cursor-pointer transition-all relative ${selectedArticleId === article.id ? 'bg-white shadow-sm ring-1 ring-zinc-200 z-10' : 'bg-transparent hover:bg-zinc-50/80'}`}
                      >
@@ -171,8 +183,8 @@ export default function KnowledgePage() {
                      </button>
                      <h2 className="text-xl font-bold text-zinc-900">{selectedArticleId ? t("know_edit_article") : t("know_new_article")}</h2>
                   </div>
-                  <button 
-                     onClick={handleSave} 
+                  <button
+                     onClick={handleSave}
                      disabled={saving || !editTitle.trim()}
                      className="px-6 py-2 bg-zinc-900 text-white text-sm font-bold rounded-lg shadow-sm hover:bg-zinc-800 transition-colors flex items-center disabled:opacity-50"
                   >
@@ -185,18 +197,18 @@ export default function KnowledgePage() {
                   <div className="space-y-4">
                      <div>
                         <label className="block text-xs font-bold text-zinc-500 uppercase tracking-widest mb-1.5 ml-1">{t("know_title_label")}</label>
-                        <input 
-                           type="text" 
+                        <input
+                           type="text"
                            value={editTitle}
                            onChange={e => setEditTitle(e.target.value)}
-                           className="w-full text-2xl font-bold text-zinc-900 bg-transparent border-none focus:ring-0 p-1 placeholder:text-zinc-300" 
+                           className="w-full text-2xl font-bold text-zinc-900 bg-transparent border-none focus:ring-0 p-1 placeholder:text-zinc-300"
                            placeholder="How to handle nut allergies..."
                         />
                      </div>
                      <div className="grid grid-cols-2 gap-4">
                         <div>
                            <label className="block text-xs font-bold text-zinc-500 uppercase tracking-widest mb-1.5 ml-1">{t("know_category_label")}</label>
-                           <select 
+                           <select
                               value={editCategory}
                               onChange={e => setEditCategory(e.target.value as any)}
                               className="w-full bg-zinc-50 border border-zinc-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-zinc-900"
@@ -209,7 +221,7 @@ export default function KnowledgePage() {
                         </div>
                         <div>
                            <label className="block text-xs font-bold text-zinc-500 uppercase tracking-widest mb-1.5 ml-1">{t("know_status_label")}</label>
-                           <select 
+                           <select
                               value={editStatus}
                               onChange={e => setEditStatus(e.target.value as any)}
                               className="w-full bg-zinc-50 border border-zinc-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-zinc-900"
@@ -222,11 +234,11 @@ export default function KnowledgePage() {
                      </div>
                      <div>
                         <label className="block text-xs font-bold text-zinc-500 uppercase tracking-widest mb-1.5 ml-1">{t("know_risk_tags")}</label>
-                        <input 
-                           type="text" 
+                        <input
+                           type="text"
                            value={editRiskTags}
                            onChange={e => setEditRiskTags(e.target.value)}
-                           className="w-full bg-zinc-50 border border-zinc-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-zinc-900" 
+                           className="w-full bg-zinc-50 border border-zinc-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-zinc-900"
                            placeholder="legal, safety, high-risk..."
                         />
                      </div>
@@ -244,7 +256,7 @@ export default function KnowledgePage() {
 
                <div className="flex-1 flex flex-col">
                   <label className="block text-xs font-bold text-zinc-500 uppercase tracking-widest mb-2 ml-1">{t("know_content_label")}</label>
-                  <textarea 
+                  <textarea
                      value={editContent}
                      onChange={e => setEditContent(e.target.value)}
                      className="flex-1 w-full bg-zinc-50 border border-zinc-200 rounded-xl p-6 text-sm leading-relaxed focus:outline-none focus:ring-1 focus:ring-zinc-900 font-mono"
@@ -265,13 +277,13 @@ export default function KnowledgePage() {
                      </div>
                   </div>
                   <div className="flex items-center space-x-2">
-                     <button 
+                     <button
                         onClick={() => handleDelete(selectedArticle.id)}
                         className="p-2.5 text-zinc-400 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all"
                      >
                         <Trash2 className="w-5 h-5" />
                      </button>
-                     <button 
+                     <button
                         onClick={() => handleStartEdit(selectedArticle)}
                         className="px-6 py-2.5 bg-zinc-900 text-white text-sm font-bold rounded-xl shadow-lg hover:shadow-xl hover:-translate-y-0.5 transition-all flex items-center"
                      >
@@ -319,8 +331,8 @@ export default function KnowledgePage() {
                </div>
                <h2 className="text-2xl font-black text-zinc-900 tracking-tight">{t("know_title")}</h2>
                <p className="text-zinc-500 max-w-sm mt-2 leading-relaxed font-medium">{t("know_empty_desc") || "Select an article from the list or create a new one to start training your operational agents."}</p>
-               <button 
-                  onClick={() => handleStartEdit()} 
+               <button
+                  onClick={() => handleStartEdit()}
                   className="mt-8 px-8 py-3 bg-zinc-900 text-white font-bold rounded-2xl shadow-xl hover:shadow-2xl hover:bg-zinc-800 transition-all flex items-center group"
                >
                   <Plus className="w-5 h-5 mr-3 group-hover:rotate-90 transition-transform" />

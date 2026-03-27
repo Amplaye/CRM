@@ -1,8 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { signInWithEmailAndPassword } from "firebase/auth";
-import { auth } from "@/lib/firebase/client";
+import { createClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
 import { Loader2, Lock, Mail } from "lucide-react";
 
@@ -12,15 +11,18 @@ export default function LoginPage() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const router = useRouter();
+  const supabase = createClient();
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
     setLoading(true);
-    
+
     try {
-      await signInWithEmailAndPassword(auth, email, password);
+      const { error } = await supabase.auth.signInWithPassword({ email, password });
+      if (error) throw error;
       router.push("/");
+      router.refresh();
     } catch (err: any) {
       setError(err.message || "Failed to sign in. Please verify your credentials.");
     } finally {
@@ -28,21 +30,16 @@ export default function LoginPage() {
     }
   };
 
-  const copyDemoUser = (demoEmail: string) => {
-    setEmail(demoEmail);
-    setPassword("password123");
-  };
-
   return (
     <div className="min-h-screen bg-zinc-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
       <div className="sm:mx-auto sm:w-full sm:max-w-md">
         <div className="flex justify-center">
            <div className="w-12 h-12 bg-terracotta-600 rounded-xl flex items-center justify-center shadow-lg">
-             <span className="text-white font-bold text-xl tracking-tighter">TB</span>
+             <span className="text-white font-bold text-xl tracking-tighter">BF</span>
            </div>
         </div>
         <h2 className="mt-6 text-center text-3xl font-bold tracking-tight text-zinc-900">
-          Sign in to TableFlow AI
+          Sign in to BaliFlow CRM
         </h2>
       </div>
 
@@ -54,7 +51,7 @@ export default function LoginPage() {
                 {error}
               </div>
             )}
-            
+
             <div>
               <label className="block text-sm font-medium text-zinc-700">Email address</label>
               <div className="mt-1 relative rounded-md shadow-sm">
@@ -67,7 +64,7 @@ export default function LoginPage() {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   className="block w-full pl-10 sm:text-sm border-zinc-300 border p-2.5 rounded-md focus:ring-terracotta-500 focus:border-terracotta-500"
-                  placeholder="admin@tableflow.ai"
+                  placeholder="you@example.com"
                 />
               </div>
             </div>
@@ -96,23 +93,6 @@ export default function LoginPage() {
               {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : "Sign in"}
             </button>
           </form>
-
-          <div className="mt-8">
-            <div className="relative">
-              <div className="absolute inset-0 flex items-center">
-                <div className="w-full border-t border-zinc-200" />
-              </div>
-              <div className="relative flex justify-center text-sm">
-                <span className="bg-white px-2 text-zinc-500">Demo Accounts</span>
-              </div>
-            </div>
-
-            <div className="mt-6 flex flex-col gap-2">
-              <button onClick={() => copyDemoUser('owner@oceanview.com')} className="text-xs text-left px-3 py-2 bg-zinc-50 border border-zinc-200 rounded hover:bg-zinc-100 text-zinc-600 font-medium transition-colors">Auto-fill: Owner (Oceanview)</button>
-              <button onClick={() => copyDemoUser('manager@mountainpizza.com')} className="text-xs text-left px-3 py-2 bg-zinc-50 border border-zinc-200 rounded hover:bg-zinc-100 text-zinc-600 font-medium transition-colors">Auto-fill: Manager (Mountain Pizza)</button>
-              <button onClick={() => copyDemoUser('host@oceanview.com')} className="text-xs text-left px-3 py-2 bg-zinc-50 border border-zinc-200 rounded hover:bg-zinc-100 text-zinc-600 font-medium transition-colors">Auto-fill: Host (Oceanview)</button>
-            </div>
-          </div>
         </div>
       </div>
     </div>

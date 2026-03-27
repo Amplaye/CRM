@@ -175,7 +175,7 @@ export const es: Dictionary = {
   admin_since_dec: "Desde Dic 2025",
   admin_healthy: "Uso Saludable",
   admin_impersonate: "Impersonar",
-  admin_unauthorized: "Solo los administradores de la plataforma pueden ver esta página. Actualmente estás simulando un rol de inquilino. Para ver esta página, tu registro de Firebase Auth debe tener el global_role establecido en 'platform_admin'.",
+  admin_unauthorized: "Solo los administradores de la plataforma pueden ver esta página. Tu cuenta debe tener el global_role establecido en 'platform_admin'.",
 
   // Statuses
   status_confirmed: "Confirmada",

@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { db } from '@/lib/firebase/admin';
+import { createServiceRoleClient } from '@/lib/supabase/server';
 import { logAuditEvent } from '@/lib/audit';
 
 export async function DELETE(request: Request) {
@@ -12,35 +12,46 @@ export async function DELETE(request: Request) {
         return NextResponse.json({ success: false, error: "Missing required params" }, { status: 400 });
      }
 
-     const ref = db.collection('reservations').doc(reservation_id);
-     const docSnap = await ref.get();
+     const supabase = createServiceRoleClient();
 
-     if (!docSnap.exists) {
+     const { data: reservation, error: fetchErr } = await supabase
+       .from('reservations')
+       .select('*')
+       .eq('id', reservation_id)
+       .single();
+
+     if (fetchErr || !reservation) {
         return NextResponse.json({ success: false, error: "Reservation not found" }, { status: 404 });
      }
 
-     if (docSnap.data()?.tenant_id !== tenant_id) {
+     if (reservation.tenant_id !== tenant_id) {
         return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 403 });
      }
 
      // Instead of hard deleting, we soft delete / status change
-     await ref.update({
-        status: 'cancelled',
-        updated_at: Date.now()
-     });
+     const { error: updateErr } = await supabase
+       .from('reservations')
+       .update({
+          status: 'cancelled',
+          updated_at: new Date().toISOString()
+       })
+       .eq('id', reservation_id);
 
-     await logAuditEvent(tenant_id, {
+     if (updateErr) throw updateErr;
+
+     await logAuditEvent({
+        tenant_id,
         action: "cancel_reservation",
-        entity_id: ref.id,
+        entity_id: reservation_id,
         source: "ai_agent",
         details: { reason: "User requested cancellation via AI" }
      });
 
-     return NextResponse.json({ 
-        success: true, 
-        message: "Reservation successfully cancelled." 
+     return NextResponse.json({
+        success: true,
+        message: "Reservation successfully cancelled."
      });
-     
+
   } catch (error: any) {
      console.error("Cancel Booking Error:", error);
      return NextResponse.json({ success: false, error: "Internal Server Error" }, { status: 500 });

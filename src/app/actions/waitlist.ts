@@ -1,25 +1,12 @@
 "use server";
 
-import { db, auth } from "@/lib/firebase/admin";
+import { createServerSupabaseClient, createServiceRoleClient } from "@/lib/supabase/server";
 import { WaitlistEntry, WaitlistStatus, Guest, Reservation, ReservationEvent } from "@/lib/types";
-
-async function verifyToken(idToken: string, expectedTenantId: string) {
-  try {
-    const decoded = await auth.verifyIdToken(idToken);
-    if (decoded.active_tenant_id !== expectedTenantId && decoded.role !== 'platform_admin') {
-       throw new Error("Unauthorized tenant access");
-    }
-    return decoded;
-  } catch (error) {
-    throw new Error("Authentication failed");
-  }
-}
 
 /**
  * Creates a Waitlist Entry, calculating priority score dynamically.
  */
 export async function createWaitlistEntryAction(params: {
-  idToken: string;
   tenantId: string;
   guestId?: string;
   guestName: string;
@@ -32,70 +19,84 @@ export async function createWaitlistEntryAction(params: {
   contactPreference: "whatsapp" | "sms" | "call";
   notes: string;
 }) {
-  const decoded = await verifyToken(params.idToken, params.tenantId);
-  
-  try {
-    return await db.runTransaction(async (transaction) => {
-      let guestId = params.guestId;
-      let priorityScore = 10; // Base score
-      
-      // Guest lookup or creation
-      if (!guestId) {
-         const guestsQuery = db.collection("guests")
-           .where("tenant_id", "==", params.tenantId)
-           .where("phone", "==", params.guestPhone)
-           .limit(1);
-         const guestSnap = await transaction.get(guestsQuery);
-         
-         if (guestSnap.empty) {
-           const newGuestRef = db.collection("guests").doc();
-           guestId = newGuestRef.id;
-           transaction.set(newGuestRef, {
-             tenant_id: params.tenantId,
-             name: params.guestName,
-             phone: params.guestPhone,
-             visit_count: 0,
-             no_show_count: 0,
-             cancellation_count: 0,
-             tags: [],
-             notes: "",
-             created_at: Date.now(),
-             updated_at: Date.now()
-           });
-         } else {
-           const guestDoc = guestSnap.docs[0];
-           guestId = guestDoc.id;
-           const guestData = guestDoc.data() as Guest;
-           
-           // Calculate dynamic priority
-           if (guestData.visit_count > 5) priorityScore += 20;
-           if (guestData.visit_count > 20) priorityScore += 30; // VIP
-           if (guestData.no_show_count > 0) priorityScore -= 15; // Penalty
-         }
-      }
+  // Authenticate via Supabase session
+  const supabaseAuth = await createServerSupabaseClient();
+  const { data: { user } } = await supabaseAuth.auth.getUser();
+  if (!user) return { success: false, error: "Authentication failed" };
 
-      const wRef = db.collection("waitlist_entries").doc();
-      const entry: Partial<WaitlistEntry> = {
-         tenant_id: params.tenantId,
-         guest_id: guestId!,
-         date: params.date,
-         target_time: params.targetTime,
-         party_size: params.partySize,
-         acceptable_time_range: {
-           start: params.timeRangeStart,
-           end: params.timeRangeEnd
-         },
-         contact_preference: params.contactPreference,
-         priority_score: priorityScore,
-         status: "waiting",
-         notes: params.notes,
-         created_at: Date.now(),
-         updated_at: Date.now()
-      };
-      
-      transaction.set(wRef, entry);
-      return { success: true, waitlistId: wRef.id };
-    });
+  const supabase = createServiceRoleClient();
+
+  try {
+    let guestId = params.guestId;
+    let priorityScore = 10; // Base score
+
+    // Guest lookup or creation
+    if (!guestId) {
+      const { data: existingGuests } = await supabase
+        .from("guests")
+        .select("id, visit_count, no_show_count")
+        .eq("tenant_id", params.tenantId)
+        .eq("phone", params.guestPhone)
+        .limit(1);
+
+      if (!existingGuests || existingGuests.length === 0) {
+        const { data: newGuest, error: createErr } = await supabase
+          .from("guests")
+          .insert({
+            tenant_id: params.tenantId,
+            name: params.guestName,
+            phone: params.guestPhone,
+            visit_count: 0,
+            no_show_count: 0,
+            cancellation_count: 0,
+            tags: [],
+            notes: "",
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+          })
+          .select("id")
+          .single();
+
+        if (createErr) throw createErr;
+        guestId = newGuest.id;
+      } else {
+        const guestData = existingGuests[0];
+        guestId = guestData.id;
+
+        // Calculate dynamic priority
+        if (guestData.visit_count > 5) priorityScore += 20;
+        if (guestData.visit_count > 20) priorityScore += 30; // VIP
+        if (guestData.no_show_count > 0) priorityScore -= 15; // Penalty
+      }
+    }
+
+    const entry = {
+      tenant_id: params.tenantId,
+      guest_id: guestId!,
+      date: params.date,
+      target_time: params.targetTime,
+      party_size: params.partySize,
+      acceptable_time_range: {
+        start: params.timeRangeStart,
+        end: params.timeRangeEnd
+      },
+      contact_preference: params.contactPreference,
+      priority_score: priorityScore,
+      status: "waiting",
+      notes: params.notes,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    };
+
+    const { data: newEntry, error: insertErr } = await supabase
+      .from("waitlist_entries")
+      .insert(entry)
+      .select("id")
+      .single();
+
+    if (insertErr) throw insertErr;
+
+    return { success: true, waitlistId: newEntry.id };
   } catch (err: any) {
     return { success: false, error: err.message };
   }
@@ -106,71 +107,76 @@ export async function createWaitlistEntryAction(params: {
  * Called automatically by Reservation engine when a booking is cancelled.
  */
 export async function matchWaitlistForSlotAction(
-  tenantId: string, 
+  tenantId: string,
   cancelledResId: string,
-  date: string, 
-  time: string, 
+  date: string,
+  time: string,
   freedPartySize: number
 ) {
+  const supabase = createServiceRoleClient();
+
   try {
-     // Run transaction to ensure we safely lock and assign matches
-     return await db.runTransaction(async (transaction) => {
-        const q = db.collection("waitlist_entries")
-          .where("tenant_id", "==", tenantId)
-          .where("date", "==", date)
-          .where("status", "==", "waiting");
+    const { data: waitlistEntries, error: fetchErr } = await supabase
+      .from("waitlist_entries")
+      .select("*")
+      .eq("tenant_id", tenantId)
+      .eq("date", date)
+      .eq("status", "waiting");
 
-        const snap = await transaction.get(q);
-        if (snap.empty) return { success: true, matched: 0 };
+    if (fetchErr) throw fetchErr;
+    if (!waitlistEntries || waitlistEntries.length === 0) return { success: true, matched: 0 };
 
-        const candidates: Array<{ id: string; data: WaitlistEntry }> = [];
-        
-        snap.forEach(doc => {
-           const data = doc.data() as WaitlistEntry;
-           
-           // Time range check
-           // E.g. freed time "19:00", acceptable "18:00" - "20:00"
-           if (time >= data.acceptable_time_range.start && time <= data.acceptable_time_range.end) {
-              // Capacity check (+/- 1 person tolerance depending on business rules, let's say strict exact or smaller)
-              if (data.party_size <= freedPartySize && data.party_size >= freedPartySize - 1) {
-                 candidates.push({ id: doc.id, data });
-              }
-           }
-        });
+    const candidates: Array<{ id: string; data: WaitlistEntry }> = [];
 
-        if (candidates.length === 0) return { success: true, matched: 0 };
+    for (const entry of waitlistEntries) {
+      // Time range check
+      if (time >= entry.acceptable_time_range.start && time <= entry.acceptable_time_range.end) {
+        // Capacity check (+/- 1 person tolerance)
+        if (entry.party_size <= freedPartySize && entry.party_size >= freedPartySize - 1) {
+          candidates.push({ id: entry.id, data: entry as WaitlistEntry });
+        }
+      }
+    }
 
-        // Sort by priority DESC, then oldest first
-        candidates.sort((a, b) => {
-           if (b.data.priority_score !== a.data.priority_score) {
-              return b.data.priority_score - a.data.priority_score;
-           }
-           return a.data.created_at - b.data.created_at;
-        });
+    if (candidates.length === 0) return { success: true, matched: 0 };
 
-        const bestMatch = candidates[0];
+    // Sort by priority DESC, then oldest first
+    candidates.sort((a, b) => {
+      if (b.data.priority_score !== a.data.priority_score) {
+        return b.data.priority_score - a.data.priority_score;
+      }
+      return new Date(a.data.created_at).getTime() - new Date(b.data.created_at).getTime();
+    });
 
-        // Flag the waitlist entry as match_found
-        const wRef = db.collection("waitlist_entries").doc(bestMatch.id);
-        transaction.update(wRef, {
-           status: "match_found",
-           matched_reservation_id: cancelledResId,
-           updated_at: Date.now()
-        });
+    const bestMatch = candidates[0];
 
-        // Add a system event to reservation events to track recovery attempt
-        const eventRef = db.collection("reservation_events").doc();
-        transaction.set(eventRef, {
-           tenant_id: tenantId,
-           reservation_id: cancelledResId,
-           action: "note_added",
-           details: `System automatically matched waitlist candidate [${bestMatch.id}] for recovery.`,
-           changed_by_user_id: "system",
-           created_at: Date.now()
-        });
+    // Flag the waitlist entry as match_found
+    const { error: updateErr } = await supabase
+      .from("waitlist_entries")
+      .update({
+        status: "match_found",
+        matched_reservation_id: cancelledResId,
+        updated_at: new Date().toISOString()
+      })
+      .eq("id", bestMatch.id);
 
-        return { success: true, matchedCount: 1, matchedListId: bestMatch.id };
-     });
+    if (updateErr) throw updateErr;
+
+    // Add a system event to reservation events to track recovery attempt
+    const { error: eventErr } = await supabase
+      .from("reservation_events")
+      .insert({
+        tenant_id: tenantId,
+        reservation_id: cancelledResId,
+        action: "note_added",
+        details: `System automatically matched waitlist candidate [${bestMatch.id}] for recovery.`,
+        changed_by_user_id: "system",
+        created_at: new Date().toISOString()
+      });
+
+    if (eventErr) throw eventErr;
+
+    return { success: true, matchedCount: 1, matchedListId: bestMatch.id };
   } catch (err: any) {
     return { success: false, error: err.message };
   }
@@ -180,25 +186,36 @@ export async function matchWaitlistForSlotAction(
  * Updates waitlist status manually (e.g staff contacted them, or converting to booking)
  */
 export async function updateWaitlistStatusAction(params: {
-  idToken: string;
   tenantId: string;
   waitlistId: string;
   newStatus: WaitlistStatus;
   notes?: string;
 }) {
-  const decoded = await verifyToken(params.idToken, params.tenantId);
+  // Authenticate via Supabase session
+  const supabaseAuth = await createServerSupabaseClient();
+  const { data: { user } } = await supabaseAuth.auth.getUser();
+  if (!user) return { success: false, error: "Authentication failed" };
+
+  const supabase = createServiceRoleClient();
+
   try {
-     const wRef = db.collection("waitlist_entries").doc(params.waitlistId);
-     const updates: any = {
-        status: params.newStatus,
-        updated_at: Date.now()
-     };
-     if (params.notes) {
-        updates.notes = params.notes; // Overwrite or append based on logic
-     }
-     await wRef.update(updates);
-     return { success: true };
+    const updates: any = {
+      status: params.newStatus,
+      updated_at: new Date().toISOString()
+    };
+    if (params.notes) {
+      updates.notes = params.notes;
+    }
+
+    const { error } = await supabase
+      .from("waitlist_entries")
+      .update(updates)
+      .eq("id", params.waitlistId);
+
+    if (error) throw error;
+
+    return { success: true };
   } catch (e: any) {
-     return { success: false, error: e.message };
+    return { success: false, error: e.message };
   }
 }

@@ -1,17 +1,17 @@
 "use client";
 
-import { Download, Search, SlidersHorizontal, Star, AlertTriangle, X, Save, CalendarCheck } from "lucide-react";
+import { Download, Search, SlidersHorizontal, Star, AlertTriangle, X, Save, CalendarCheck, User } from "lucide-react";
 import { useLanguage } from "@/lib/contexts/LanguageContext";
 import { useEffect, useState } from "react";
 import { useTenant } from "@/lib/contexts/TenantContext";
 import { Guest, Reservation } from "@/lib/types";
-import { collection, query, where, onSnapshot, doc, updateDoc, orderBy, getDocs } from "firebase/firestore";
-import { db } from "@/lib/firebase/client";
+import { createClient } from "@/lib/supabase/client";
 
 export default function GuestsPage() {
   const { t } = useLanguage();
   const { activeTenant } = useTenant();
-  
+  const supabase = createClient();
+
   const [guests, setGuests] = useState<Guest[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedGuest, setSelectedGuest] = useState<Guest | null>(null);
@@ -22,32 +22,50 @@ export default function GuestsPage() {
     if (!activeTenant) return;
     setLoading(true);
 
-    const q = query(
-      collection(db, "guests"),
-      where("tenant_id", "==", activeTenant.id)
-    );
+    const fetchGuests = async () => {
+      const { data, error } = await supabase
+        .from("guests")
+        .select("*")
+        .eq("tenant_id", activeTenant.id);
 
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const results: Guest[] = [];
-      snapshot.forEach(d => results.push({ id: d.id, ...d.data() } as Guest));
-      setGuests(results);
+      if (error) {
+        console.error(error);
+        setLoading(false);
+        return;
+      }
+
+      setGuests((data || []) as Guest[]);
       setLoading(false);
-    });
+    };
 
-    return () => unsubscribe();
+    fetchGuests();
+
+    const channel = supabase
+      .channel("guests_realtime")
+      .on("postgres_changes", { event: "*", schema: "public", table: "guests", filter: `tenant_id=eq.${activeTenant.id}` }, () => {
+        fetchGuests();
+      })
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
   }, [activeTenant]);
 
   // Fetch reservations when a specific guest is selected
   useEffect(() => {
     if (!selectedGuest || !activeTenant) return;
     const fetchRes = async () => {
-       const q = query(
-         collection(db, "reservations"),
-         where("tenant_id", "==", activeTenant.id),
-         where("guest_id", "==", selectedGuest.id),
-       );
-       const snap = await getDocs(q);
-       const res = snap.docs.map(d => ({ id: d.id, ...d.data() } as Reservation));
+       const { data, error } = await supabase
+         .from("reservations")
+         .select("*")
+         .eq("tenant_id", activeTenant.id)
+         .eq("guest_id", selectedGuest.id);
+
+       if (error) {
+         console.error(error);
+         return;
+       }
+
+       const res = (data || []) as Reservation[];
        // sort by date descending
        res.sort((a,b) => b.date.localeCompare(a.date));
        setGuestReservations(res);
@@ -58,19 +76,19 @@ export default function GuestsPage() {
   const handleUpdate = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (!selectedGuest) return;
-    
+
     setSaving(true);
     const formData = new FormData(e.currentTarget);
     try {
-      await updateDoc(doc(db, "guests", selectedGuest.id), {
+      await supabase.from("guests").update({
         email: formData.get("email"),
         dietary_notes: formData.get("dietary_notes"),
         accessibility_notes: formData.get("accessibility_notes"),
         family_notes: formData.get("family_notes"),
         notes: formData.get("notes"),
         updated_at: Date.now()
-      });
-      // updating local state to reflect UI changes instantly if needed or let snapshot handle it
+      }).eq("id", selectedGuest.id);
+      // updating local state to reflect UI changes instantly if needed or let realtime handle it
       setSelectedGuest(null);
     } catch(err) {
       console.error(err);
@@ -101,8 +119,8 @@ export default function GuestsPage() {
         <div className="flex flex-col sm:flex-row space-y-3 sm:space-y-0 sm:space-x-4 mb-8">
            <div className="relative flex-1 max-w-lg">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-zinc-400" />
-              <input 
-                type="text" 
+              <input
+                type="text"
                 placeholder={t("guests_search")}
                 className="w-full pl-9 pr-3 py-2 bg-white border border-zinc-200 rounded-md text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-zinc-500"
               />
@@ -124,8 +142,8 @@ export default function GuestsPage() {
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
              {guests.map((guest) => (
-               <div 
-                 key={guest.id} 
+               <div
+                 key={guest.id}
                  onClick={() => setSelectedGuest(guest)}
                  className={`bg-white rounded-xl border ${isHighRisk(guest) ? 'border-red-200' : 'border-zinc-200'} shadow-sm p-6 hover:border-terracotta-400 cursor-pointer transition-colors relative overflow-hidden`}
                >
@@ -151,7 +169,7 @@ export default function GuestsPage() {
                         <span className="bg-emerald-100 text-emerald-800 text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider flex-shrink-0">VIP</span>
                      ) : null}
                   </div>
-                  
+
                   <div className="grid grid-cols-3 gap-2 border-y border-zinc-100 py-3 mb-3">
                      <div className="text-center">
                         <p className="text-lg font-bold text-zinc-900">{guest.visit_count}</p>
@@ -195,10 +213,10 @@ export default function GuestsPage() {
                 <X className="h-5 w-5" />
              </button>
           </div>
-          
+
           <form onSubmit={handleUpdate} className="flex-1 flex flex-col overflow-hidden">
              <div className="flex-1 overflow-y-auto w-full p-6 space-y-8 bg-zinc-50/30">
-                
+
                 {/* Guest CRM Data */}
                 <div className="space-y-4">
                   <h3 className="text-xs font-bold text-zinc-500 uppercase tracking-widest mb-2 border-b border-zinc-200 pb-2">Profile Details</h3>
@@ -252,7 +270,7 @@ export default function GuestsPage() {
 
              </div>
              <div className="p-6 border-t border-zinc-100 bg-white flex space-x-3">
-                <button 
+                <button
                    type="submit"
                    disabled={saving}
                    className="flex-1 flex items-center justify-center bg-zinc-900 hover:bg-zinc-800 text-white font-medium py-2.5 px-4 rounded-lg transition-colors shadow-sm disabled:opacity-50 text-sm"

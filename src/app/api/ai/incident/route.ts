@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { db } from '@/lib/firebase/admin';
+import { createServiceRoleClient } from '@/lib/supabase/server';
 import { Incident } from '@/lib/types';
 import { logAuditEvent } from '@/lib/audit';
 
@@ -11,9 +11,9 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: false, error: "Missing required fields" }, { status: 400 });
     }
 
-    const ref = db.collection('incidents').doc();
-    const incident: Incident = {
-       id: ref.id,
+    const supabase = createServiceRoleClient();
+
+    const incident = {
        tenant_id: payload.tenant_id,
        guest_id: payload.guest_id, // optional
        category: payload.category, // e.g. "complaint"
@@ -21,24 +21,36 @@ export async function POST(request: Request) {
        status: 'new',
        summary: payload.summary,
        linked_entity_id: payload.linked_conversation_id,
-       created_at: Date.now(),
-       updated_at: Date.now()
+       created_at: new Date().toISOString(),
+       updated_at: new Date().toISOString()
     };
 
-    await ref.set(incident);
+    const { data: newIncident, error: insertErr } = await supabase
+      .from('incidents')
+      .insert(incident)
+      .select('id')
+      .single();
+
+    if (insertErr) throw insertErr;
 
     // If this is specifically a handoff, we update the conversation status if linked
     if (payload.linked_conversation_id && payload.is_handoff) {
-       await db.collection('conversations').doc(payload.linked_conversation_id).update({
-          status: 'needs_human', // legacy usage -> wait, in indexing we called it outcome
-          outcome: 'escalated',
-          updated_at: Date.now()
-       });
+       const { error: updateErr } = await supabase
+         .from('conversations')
+         .update({
+            status: 'needs_human',
+            outcome: 'escalated',
+            updated_at: new Date().toISOString()
+         })
+         .eq('id', payload.linked_conversation_id);
+
+       if (updateErr) console.error("Failed to update conversation for handoff:", updateErr);
     }
 
-    await logAuditEvent(payload.tenant_id, {
+    await logAuditEvent({
+       tenant_id: payload.tenant_id,
        action: "create_incident",
-       entity_id: ref.id,
+       entity_id: newIncident.id,
        source: "ai_agent",
        details: {
           category: incident.category,
@@ -47,9 +59,9 @@ export async function POST(request: Request) {
        }
     });
 
-    return NextResponse.json({ 
-       success: true, 
-       incident_id: ref.id,
+    return NextResponse.json({
+       success: true,
+       incident_id: newIncident.id,
        message: payload.is_handoff ? "Handoff to human successful." : "Incident ticket created."
     });
 

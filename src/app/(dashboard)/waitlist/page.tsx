@@ -3,8 +3,7 @@
 import { UserPlus, Sparkles, Clock, Send, Activity, X, CheckCircle } from "lucide-react";
 import { useLanguage } from "@/lib/contexts/LanguageContext";
 import { useEffect, useState } from "react";
-import { collection, query, where, onSnapshot } from "firebase/firestore";
-import { db } from "@/lib/firebase/client";
+import { createClient } from "@/lib/supabase/client";
 import { useTenant } from "@/lib/contexts/TenantContext";
 import { WaitlistEntry } from "@/lib/types";
 import { useAuth } from "@/lib/contexts/AuthContext";
@@ -15,38 +14,50 @@ export default function WaitlistPage() {
   const { t } = useLanguage();
   const { activeTenant: tenant } = useTenant();
   const { user } = useAuth();
-  
+  const supabase = createClient();
+
   const [entries, setEntries] = useState<WaitlistEntry[]>([]);
   const [loading, setLoading] = useState(true);
-  
+
   const [isCreating, setIsCreating] = useState(false);
   const [saving, setSaving] = useState(false);
-  
+
   const today = new Date().toISOString().split('T')[0];
 
   useEffect(() => {
     if (!tenant) return;
     setLoading(true);
-    
-    // Pull active entries for today
-    const q = query(
-      collection(db, "waitlist_entries"),
-      where("tenant_id", "==", tenant.id),
-      where("date", "==", today),
-      where("status", "in", ["waiting", "match_found", "contacted"])
-    );
 
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const docs = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as WaitlistEntry));
+    const fetchEntries = async () => {
+      const { data, error } = await supabase
+        .from("waitlist_entries")
+        .select("*")
+        .eq("tenant_id", tenant.id)
+        .eq("date", today)
+        .in("status", ["waiting", "match_found", "contacted"]);
+
+      if (error) {
+        console.error(error);
+        setLoading(false);
+        return;
+      }
+
+      const docs = (data || []) as WaitlistEntry[];
       docs.sort((a, b) => b.priority_score - a.priority_score || a.created_at - b.created_at);
       setEntries(docs);
       setLoading(false);
-    }, (err) => {
-      console.error(err);
-      setLoading(false);
-    });
+    };
 
-    return () => unsubscribe();
+    fetchEntries();
+
+    const channel = supabase
+      .channel("waitlist_entries_realtime")
+      .on("postgres_changes", { event: "*", schema: "public", table: "waitlist_entries", filter: `tenant_id=eq.${tenant.id}` }, () => {
+        fetchEntries();
+      })
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
   }, [tenant, today]);
 
   const matchFoundEntry = entries.find(e => e.status === "match_found");
@@ -57,9 +68,7 @@ export default function WaitlistPage() {
     setSaving(true);
     const formData = new FormData(e.currentTarget);
     try {
-       const token = await user.getIdToken();
        const res = await createWaitlistEntryAction({
-          idToken: token,
           tenantId: tenant.id,
           guestName: formData.get("guestName") as string,
           guestPhone: formData.get("guestPhone") as string,
@@ -83,9 +92,7 @@ export default function WaitlistPage() {
   const markContacted = async (entry: WaitlistEntry) => {
     if (!user || !tenant) return;
     try {
-      const token = await user.getIdToken();
       await updateWaitlistStatusAction({
-         idToken: token,
          tenantId: tenant.id,
          waitlistId: entry.id,
          newStatus: "contacted"
@@ -96,12 +103,10 @@ export default function WaitlistPage() {
   const convertToBooking = async (entry: WaitlistEntry) => {
     if (!user || !tenant) return;
     if (!confirm(`Convert ${entry.party_size} pax at ${entry.target_time} to a confirmed booking?`)) return;
-    
+
     try {
-      const token = await user.getIdToken();
       // 1. Create Reservation natively
       const res = await createReservationAction({
-         idToken: token,
          tenantId: tenant.id,
          guestName: `Guest ${entry.guest_id.substring(0,6)}`, // Real name exists in guest DB, relying on backend lookup via phone, we'll pass placeholder since backend auto links by ID
          guestPhone: "0000000", // Edge case: if we don't have phone here. For production, the API should take guestId. Extending API is out of scope for this UI snippet test. Let's just pass dummy.
@@ -113,7 +118,6 @@ export default function WaitlistPage() {
       });
       // 2. Mark Waitlist Status
       await updateWaitlistStatusAction({
-         idToken: token,
          tenantId: tenant.id,
          waitlistId: entry.id,
          newStatus: "converted_to_booking"
@@ -130,7 +134,7 @@ export default function WaitlistPage() {
             <p className="mt-1 text-sm text-zinc-500">{t("waitlist_subtitle")} ({today})</p>
           </div>
           <div className="mt-4 sm:mt-0 flex space-x-3">
-            <button 
+            <button
                onClick={() => setIsCreating(true)}
                className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-lg shadow-sm text-white bg-zinc-900 hover:bg-zinc-800 transition-colors"
             >
@@ -144,7 +148,7 @@ export default function WaitlistPage() {
         {matchFoundEntry && (
           <div className="mb-8 relative overflow-hidden bg-white rounded-2xl border border-terracotta-200 shadow-sm flex items-start sm:items-center p-6 justify-between flex-col sm:flex-row gap-4">
              <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-gradient-to-bl from-terracotta-50/80 to-transparent rounded-full blur-3xl pointer-events-none transform translate-x-10 -translate-y-10"></div>
-             
+
              <div className="flex items-start relative z-10 w-full">
                 <div className="flex-shrink-0 mt-1">
                    <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-terracotta-100 to-terracotta-50 text-terracotta-600 border border-terracotta-100 shadow-sm">
@@ -154,7 +158,7 @@ export default function WaitlistPage() {
                 <div className="ml-5 flex-1">
                    <h3 className="text-lg font-bold text-zinc-900 tracking-tight">Recovery Match Available</h3>
                    <p className="text-sm text-zinc-600 mt-1 max-w-2xl leading-relaxed">
-                     A cancellation has triggered a capacity match for <span className="font-bold text-zinc-900">Guest {matchFoundEntry.guest_id.substring(0,8)}</span> ({matchFoundEntry.party_size} pax). Their flexible window is {matchFoundEntry.acceptable_time_range.start} – {matchFoundEntry.acceptable_time_range.end}.
+                     A cancellation has triggered a capacity match for <span className="font-bold text-zinc-900">Guest {matchFoundEntry.guest_id.substring(0,8)}</span> ({matchFoundEntry.party_size} pax). Their flexible window is {matchFoundEntry.acceptable_time_range.start} – {matchFoundEntry.acceptable_time_range.end}.
                    </p>
                    <div className="mt-3 flex items-center space-x-2">
                       <span className="inline-flex items-center px-2.5 py-1 rounded-md text-[10px] uppercase tracking-wider font-bold bg-zinc-900 text-white shadow-sm">
@@ -168,7 +172,7 @@ export default function WaitlistPage() {
                    </div>
                 </div>
                 <div className="flex flex-col space-y-2 shrink-0">
-                  <button 
+                  <button
                      onClick={() => markContacted(matchFoundEntry)}
                      className="w-full sm:w-auto px-5 py-2.5 bg-terracotta-600 text-white text-sm font-bold rounded-lg shadow-sm hover:bg-terracotta-700 transition-colors flex items-center justify-center"
                   >
@@ -184,7 +188,7 @@ export default function WaitlistPage() {
               <h2 className="font-bold text-zinc-900 tracking-tight">{t("waitlist_queue")}</h2>
               <span className="bg-zinc-200 text-zinc-800 text-[10px] uppercase tracking-wider font-bold px-2.5 py-1 rounded-md">{entries.length} Checking</span>
            </div>
-           
+
            {entries.length === 0 && !loading ? (
               <div className="py-16 text-center text-zinc-500 bg-zinc-50/30">
                  <Activity className="w-12 h-12 text-zinc-300 mx-auto mb-4" />
@@ -298,7 +302,7 @@ export default function WaitlistPage() {
                      <input required name="partySize" type="number" min="1" max="20" defaultValue="2" className="w-full border border-zinc-200 bg-white rounded-md px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-zinc-900" />
                    </div>
                 </div>
-                
+
                 <div className="border border-zinc-200 rounded-lg p-4 bg-white shadow-sm">
                    <h3 className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest mb-3">Time Flexibility</h3>
                    <div className="space-y-4">
@@ -330,17 +334,17 @@ export default function WaitlistPage() {
 
                 <div>
                    <label className="block text-xs font-bold text-zinc-700 mb-1">Internal Notes</label>
-                   <textarea 
+                   <textarea
                      name="notes"
                      rows={2}
-                     className="w-full border border-zinc-200 bg-white rounded-md px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-zinc-900" 
+                     className="w-full border border-zinc-200 bg-white rounded-md px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-zinc-900"
                      placeholder="Urgent, anniversary..."
                    />
                 </div>
              </div>
-             
+
              <div className="p-6 border-t border-zinc-100 bg-white">
-                <button 
+                <button
                    type="submit"
                    disabled={saving}
                    className="w-full flex items-center justify-center bg-zinc-900 hover:bg-zinc-800 text-white font-medium py-2.5 px-4 rounded-lg transition-colors shadow-sm disabled:opacity-50 text-sm"

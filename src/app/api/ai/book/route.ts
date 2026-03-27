@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { db } from '@/lib/firebase/admin';
+import { createServiceRoleClient } from '@/lib/supabase/server';
 import { CreateBookingRequest, Reservation } from '@/lib/types';
 import { logAuditEvent } from '@/lib/audit';
 
@@ -11,54 +11,60 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: false, error: "Missing required fields" }, { status: 400 });
     }
 
-    // 1. Idempotency Check: Prevent double-booking if LLM retries the same tool call
-    const existingChecks = await db.collection('audit_logs')
-       .where('tenant_id', '==', payload.tenant_id)
-       .where('idempotency_key', '==', payload.idempotency_key)
-       .where('action', '==', 'create_reservation')
-       .limit(1)
-       .get();
+    const supabase = createServiceRoleClient();
 
-    if (!existingChecks.empty) {
-       const existingEvent = existingChecks.docs[0].data();
-       return NextResponse.json({ 
-          success: true, 
-          message: "Reservation already exists (Idempotent response)", 
-          reservation_id: existingEvent.entity_id 
+    // 1. Idempotency Check: Prevent double-booking if LLM retries the same tool call
+    const { data: existingChecks } = await supabase
+       .from('audit_events')
+       .select('entity_id')
+       .eq('tenant_id', payload.tenant_id)
+       .eq('idempotency_key', payload.idempotency_key)
+       .eq('action', 'create_reservation')
+       .limit(1);
+
+    if (existingChecks && existingChecks.length > 0) {
+       return NextResponse.json({
+          success: true,
+          message: "Reservation already exists (Idempotent response)",
+          reservation_id: existingChecks[0].entity_id
        });
     }
 
     // 2. Guest Verification / Creation
-    // In production, we'd do a fuzzy search or pure phone match
     let guestId = `guest_${Date.now()}`;
-    const guestsSnap = await db.collection('guests')
-      .where('tenant_id', '==', payload.tenant_id)
-      .where('phone', '==', payload.guest_phone)
-      .limit(1)
-      .get();
-    
-    if (!guestsSnap.empty) {
-       guestId = guestsSnap.docs[0].id;
+    const { data: existingGuests } = await supabase
+      .from('guests')
+      .select('id')
+      .eq('tenant_id', payload.tenant_id)
+      .eq('phone', payload.guest_phone)
+      .limit(1);
+
+    if (existingGuests && existingGuests.length > 0) {
+       guestId = existingGuests[0].id;
     } else {
        // Create minimal guest record
-       await db.collection('guests').doc(guestId).set({
-          id: guestId,
-          tenant_id: payload.tenant_id,
-          phone: payload.guest_phone,
-          name: payload.guest_name || "Unknown Guest",
-          visit_count: 0,
-          no_show_count: 0,
-          cancellation_count: 0,
-          tags: [],
-          created_at: Date.now(),
-          updated_at: Date.now()
-       });
+       const { data: newGuest, error: guestErr } = await supabase
+         .from('guests')
+         .insert({
+            tenant_id: payload.tenant_id,
+            phone: payload.guest_phone,
+            name: payload.guest_name || "Unknown Guest",
+            visit_count: 0,
+            no_show_count: 0,
+            cancellation_count: 0,
+            tags: [],
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+         })
+         .select('id')
+         .single();
+
+       if (guestErr) throw guestErr;
+       guestId = newGuest.id;
     }
 
     // 3. Create Reservation
-    const ref = db.collection('reservations').doc();
-    const reservation: Reservation = {
-       id: ref.id,
+    const reservation = {
        tenant_id: payload.tenant_id,
        guest_id: guestId,
        date: payload.date,
@@ -69,16 +75,23 @@ export async function POST(request: Request) {
        created_by_type: 'ai',
        notes: payload.notes || "",
        linked_conversation_id: payload.linked_conversation_id,
-       created_at: Date.now(),
-       updated_at: Date.now()
+       created_at: new Date().toISOString(),
+       updated_at: new Date().toISOString()
     };
 
-    await ref.set(reservation);
+    const { data: newRes, error: resErr } = await supabase
+      .from('reservations')
+      .insert(reservation)
+      .select('id')
+      .single();
+
+    if (resErr) throw resErr;
 
     // 4. Log Audit Event
-    await logAuditEvent(payload.tenant_id, {
+    await logAuditEvent({
+       tenant_id: payload.tenant_id,
        action: "create_reservation",
-       entity_id: ref.id,
+       entity_id: newRes.id,
        idempotency_key: payload.idempotency_key,
        source: "ai_agent",
        details: {
@@ -88,9 +101,9 @@ export async function POST(request: Request) {
        }
     });
 
-    return NextResponse.json({ 
-       success: true, 
-       reservation_id: ref.id,
+    return NextResponse.json({
+       success: true,
+       reservation_id: newRes.id,
        status: "confirmed",
        message: "Reservation successfully created."
     });

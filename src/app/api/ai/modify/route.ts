@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { db } from '@/lib/firebase/admin';
+import { createServiceRoleClient } from '@/lib/supabase/server';
 import { ModifyBookingRequest, Reservation } from '@/lib/types';
 import { logAuditEvent } from '@/lib/audit';
 
@@ -11,22 +11,25 @@ export async function PUT(request: Request) {
       return NextResponse.json({ success: false, error: "Missing required fields" }, { status: 400 });
     }
 
-    const ref = db.collection('reservations').doc(payload.reservation_id);
-    const docSnap = await ref.get();
+    const supabase = createServiceRoleClient();
 
-    if (!docSnap.exists) {
+    const { data: existingData, error: fetchErr } = await supabase
+      .from('reservations')
+      .select('*')
+      .eq('id', payload.reservation_id)
+      .single();
+
+    if (fetchErr || !existingData) {
        return NextResponse.json({ success: false, error: "Reservation not found" }, { status: 404 });
     }
 
-    const existingData = docSnap.data() as Reservation;
-    
     // Ensure the AI only touches its own tenant's data
     if (existingData.tenant_id !== payload.tenant_id) {
        return NextResponse.json({ success: false, error: "Unauthorized access" }, { status: 403 });
     }
 
     const updates: Partial<Reservation> = {
-       updated_at: Date.now()
+       updated_at: new Date().toISOString() as any
     };
 
     if (payload.date) updates.date = payload.date;
@@ -38,11 +41,17 @@ export async function PUT(request: Request) {
     if (payload.status) updates.status = payload.status;
     if (payload.notes) updates.notes = `${existingData.notes || ''}\n[AI Update]: ${payload.notes}`.trim();
 
-    await ref.update(updates);
+    const { error: updateErr } = await supabase
+      .from('reservations')
+      .update(updates)
+      .eq('id', payload.reservation_id);
 
-    await logAuditEvent(payload.tenant_id, {
+    if (updateErr) throw updateErr;
+
+    await logAuditEvent({
+       tenant_id: payload.tenant_id,
        action: "modify_reservation",
-       entity_id: ref.id,
+       entity_id: payload.reservation_id,
        source: "ai_agent",
        details: {
           previous: {
@@ -54,9 +63,9 @@ export async function PUT(request: Request) {
        }
     });
 
-    return NextResponse.json({ 
-       success: true, 
-       reservation_id: ref.id,
+    return NextResponse.json({
+       success: true,
+       reservation_id: payload.reservation_id,
        message: "Reservation successfully updated."
     });
 

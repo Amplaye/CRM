@@ -3,8 +3,7 @@
 import { AlertOctagon, CheckCircle2, Search, Zap, Clock, User, Link as LinkIcon, AlertTriangle } from "lucide-react";
 import { useLanguage } from "@/lib/contexts/LanguageContext";
 import { useEffect, useState } from "react";
-import { collection, query, where, onSnapshot, doc, updateDoc, setDoc, getDocs } from "firebase/firestore";
-import { db } from "@/lib/firebase/client";
+import { createClient } from "@/lib/supabase/client";
 import { useTenant } from "@/lib/contexts/TenantContext";
 import { Incident } from "@/lib/types";
 import { useAuth } from "@/lib/contexts/AuthContext";
@@ -13,19 +12,23 @@ export default function IncidentsPage() {
   const { t } = useLanguage();
   const { activeTenant: tenant } = useTenant();
   const { user } = useAuth();
-  
+  const supabase = createClient();
+
   const [incidents, setIncidents] = useState<Incident[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     if (!tenant) return;
-    
+
     // Seed initial incidents if empty for demo purposes
     const seedIncidents = async () => {
-      const q = query(collection(db, "incidents"), where("tenant_id", "==", tenant.id));
-      const snap = await getDocs(q);
-      
-      if (snap.empty) {
+      const { data: existing } = await supabase
+        .from("incidents")
+        .select("id")
+        .eq("tenant_id", tenant.id)
+        .limit(1);
+
+      if (!existing || existing.length === 0) {
          const presets: Partial<Incident>[] = [
             {
                tenant_id: tenant.id,
@@ -44,7 +47,7 @@ export default function IncidentsPage() {
                description: "Walk-in overrode an online booking. Next.js server actions caught it but guest complained.",
                status: "investigating",
                severity: "medium",
-               owner_id: user?.uid || "staff_1",
+               owner_id: user?.id || "staff_1",
                linked_reservation_id: "res_9982",
             },
             {
@@ -58,38 +61,61 @@ export default function IncidentsPage() {
                linked_reservation_id: "res_1111",
             }
          ];
-         
+
          for (const preset of presets) {
-            const iRef = doc(collection(db, "incidents"));
-            await setDoc(iRef, { ...preset, id: iRef.id, created_at: Date.now(), updated_at: Date.now() });
+            await supabase.from("incidents").insert({
+              ...preset,
+              created_at: Date.now(),
+              updated_at: Date.now()
+            });
          }
       }
     };
 
+    const fetchIncidents = async () => {
+      const { data, error } = await supabase
+        .from("incidents")
+        .select("*")
+        .eq("tenant_id", tenant.id);
+
+      if (error) {
+        console.error(error);
+        setLoading(false);
+        return;
+      }
+
+      const docs = (data || []) as Incident[];
+      // Sort by severity critical first, then newest
+      docs.sort((a,b) => {
+         if (a.severity === 'critical' && b.severity !== 'critical') return -1;
+         if (b.severity === 'critical' && a.severity !== 'critical') return 1;
+         return b.created_at - a.created_at;
+      });
+      setIncidents(docs);
+      setLoading(false);
+    };
+
     seedIncidents().then(() => {
-       const q = query(collection(db, "incidents"), where("tenant_id", "==", tenant.id));
-       const unsubscribe = onSnapshot(q, (snapshot) => {
-         const docs = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as Incident));
-         // Sort by severity critical first, then newest
-         docs.sort((a,b) => {
-            if (a.severity === 'critical' && b.severity !== 'critical') return -1;
-            if (b.severity === 'critical' && a.severity !== 'critical') return 1;
-            return b.created_at - a.created_at;
-         });
-         setIncidents(docs);
-         setLoading(false);
-       });
-       return () => unsubscribe();
+       fetchIncidents();
+
+       const channel = supabase
+         .channel("incidents_realtime")
+         .on("postgres_changes", { event: "*", schema: "public", table: "incidents", filter: `tenant_id=eq.${tenant.id}` }, () => {
+           fetchIncidents();
+         })
+         .subscribe();
+
+       return () => { supabase.removeChannel(channel); };
     });
-  }, [tenant, user?.uid]);
+  }, [tenant, user?.id]);
 
   const handleStatusChange = async (id: string, newStatus: Incident["status"]) => {
      try {
-        await updateDoc(doc(db, "incidents", id), { 
-           status: newStatus, 
+        await supabase.from("incidents").update({
+           status: newStatus,
            updated_at: Date.now(),
-           owner_id: newStatus === 'investigating' && user ? user.uid : null 
-        });
+           owner_id: newStatus === 'investigating' && user ? user.id : null
+        }).eq("id", id);
      } catch (err) { console.error(err); }
   };
 
@@ -132,18 +158,18 @@ export default function IncidentsPage() {
         <div className="flex-1 flex gap-6 overflow-hidden pb-4">
            {columns.map(col => {
               const colIncidents = incidents.filter(i => i.status === col.id);
-              
+
               return (
                  <div key={col.id} className={`flex-1 flex flex-col rounded-2xl border ${col.bg} overflow-hidden shadow-sm`}>
                     <div className="px-5 py-4 border-b border-black/5 bg-white/50 backdrop-blur-sm flex justify-between items-center shrink-0">
                        <h2 className="font-bold text-zinc-900 tracking-tight">{col.label}</h2>
                        <span className="bg-white border border-black/10 text-zinc-600 text-[10px] font-bold px-2 py-0.5 rounded-full shadow-sm">{colIncidents.length}</span>
                     </div>
-                    
+
                     <div className="flex-1 overflow-y-auto p-4 space-y-4">
                        {colIncidents.map(inc => (
                           <div key={inc.id} className="bg-white rounded-xl border border-zinc-200/80 shadow-sm hover:shadow-md transition-shadow p-5 relative group cursor-pointer group">
-                             
+
                              {inc.severity === 'critical' && (
                                 <div className="absolute top-0 right-0 w-8 h-8 overflow-hidden rounded-tr-xl">
                                    <div className="absolute top-0 right-0 w-0 h-0 border-t-[24px] border-t-red-500 border-l-[24px] border-l-transparent"></div>
@@ -163,7 +189,7 @@ export default function IncidentsPage() {
 
                              <h3 className="font-bold text-zinc-900 leading-tight mb-1 pr-6">{inc.title}</h3>
                              <p className="text-xs text-zinc-500 leading-relaxed mb-4 line-clamp-2">{inc.description}</p>
-                             
+
                              {(inc.linked_reservation_id || inc.linked_conversation_id) && (
                                 <div className="flex flex-wrap gap-2 mb-4">
                                    {inc.linked_reservation_id && (
@@ -185,7 +211,7 @@ export default function IncidentsPage() {
                                 </div>
                                 <div className="flex items-center space-x-2">
                                    {col.id === 'open' && (
-                                      <button 
+                                      <button
                                         onClick={(e) => { e.stopPropagation(); handleStatusChange(inc.id, 'investigating'); }}
                                         className="text-[10px] font-bold bg-zinc-900 text-white px-3 py-1.5 rounded-md shadow-sm hover:bg-zinc-800 transition-colors"
                                       >
@@ -193,7 +219,7 @@ export default function IncidentsPage() {
                                       </button>
                                    )}
                                    {col.id === 'investigating' && (
-                                      <button 
+                                      <button
                                         onClick={(e) => { e.stopPropagation(); handleStatusChange(inc.id, 'resolved'); }}
                                         className="text-[10px] font-bold bg-emerald-100 text-emerald-700 border border-emerald-200 px-3 py-1.5 rounded-md shadow-sm hover:bg-emerald-200 transition-colors flex items-center"
                                       >

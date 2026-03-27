@@ -173,7 +173,7 @@ export const en = {
   admin_since_dec: "Since Dec 2025",
   admin_healthy: "Healthy Usage",
   admin_impersonate: "Impersonate",
-  admin_unauthorized: "Only platform admins can view this page. You are currently simulating a tenant role. To view this page, your Firebase Auth record must have the global_role set to 'platform_admin'.",
+  admin_unauthorized: "Only platform admins can view this page. Your account must have the global_role set to 'platform_admin'.",
 
   // Statuses
   status_confirmed: "Confirmed",
