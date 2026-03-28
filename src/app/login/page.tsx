@@ -35,10 +35,10 @@ export default function LoginPage() {
   return (
     <div className="min-h-screen flex flex-col justify-center py-12 sm:px-6 lg:px-8 relative overflow-hidden">
       {/* Sand texture overlay */}
-      <div className="fixed inset-0 pointer-events-none" style={{
+      <div className="fixed inset-0 pointer-events-none z-0" style={{
         backgroundImage: 'url("/sand-texture.png")',
         backgroundRepeat: 'repeat',
-        opacity: 0.8,
+        backgroundSize: '500px 500px',
       }} />
 
       <div className="sm:mx-auto sm:w-full sm:max-w-md relative z-10">
