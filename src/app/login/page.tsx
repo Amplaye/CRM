@@ -34,91 +34,106 @@ export default function LoginPage() {
 
   return (
     <div className="min-h-screen flex flex-col justify-center py-12 sm:px-6 lg:px-8 relative overflow-hidden">
-      {/* Animated sand dunes */}
+      {/* Animated sand */}
       <div className="fixed inset-0 pointer-events-none z-0">
-        {/* Dune wave 1 - slow */}
+        {/* Dune waves - much more visible */}
         <div className="absolute inset-0 animate-[dune1_12s_ease-in-out_infinite]" style={{
-          background: 'radial-gradient(ellipse 160% 40% at 30% 85%, rgba(196,149,106,0.15) 0%, transparent 70%)',
+          background: 'radial-gradient(ellipse 180% 50% at 20% 90%, rgba(196,149,106,0.35) 0%, transparent 70%)',
         }} />
-        {/* Dune wave 2 - medium */}
-        <div className="absolute inset-0 animate-[dune2_8s_ease-in-out_infinite]" style={{
-          background: 'radial-gradient(ellipse 140% 35% at 70% 75%, rgba(184,132,92,0.12) 0%, transparent 65%)',
+        <div className="absolute inset-0 animate-[dune2_9s_ease-in-out_infinite]" style={{
+          background: 'radial-gradient(ellipse 160% 45% at 80% 80%, rgba(184,132,92,0.3) 0%, transparent 65%)',
         }} />
-        {/* Dune wave 3 - fast shimmer */}
-        <div className="absolute inset-0 animate-[dune3_15s_ease-in-out_infinite]" style={{
-          background: 'radial-gradient(ellipse 120% 30% at 50% 65%, rgba(212,165,116,0.1) 0%, transparent 60%)',
+        <div className="absolute inset-0 animate-[dune3_14s_ease-in-out_infinite]" style={{
+          background: 'radial-gradient(ellipse 200% 40% at 50% 95%, rgba(212,165,116,0.25) 0%, transparent 60%)',
         }} />
-        {/* Wind streak 1 */}
-        <div className="absolute h-[1px] top-[30%] animate-[wind_4s_linear_infinite]" style={{
-          width: '40%',
-          background: 'linear-gradient(90deg, transparent, rgba(196,149,106,0.3), transparent)',
+        <div className="absolute inset-0 animate-[dune4_18s_ease-in-out_infinite]" style={{
+          background: 'radial-gradient(ellipse 150% 35% at 40% 70%, rgba(196,149,106,0.2) 0%, transparent 55%)',
         }} />
-        {/* Wind streak 2 */}
-        <div className="absolute h-[1px] top-[50%] animate-[wind_6s_linear_infinite_1s]" style={{
-          width: '30%',
-          background: 'linear-gradient(90deg, transparent, rgba(184,132,92,0.2), transparent)',
-        }} />
-        {/* Wind streak 3 */}
-        <div className="absolute h-[1px] top-[70%] animate-[wind_5s_linear_infinite_2s]" style={{
-          width: '35%',
-          background: 'linear-gradient(90deg, transparent, rgba(212,165,116,0.25), transparent)',
-        }} />
-        {/* Floating sand particles */}
-        {[...Array(20)].map((_, i) => (
-          <div
-            key={i}
-            className="absolute rounded-full"
-            style={{
-              width: `${1 + (i % 3)}px`,
-              height: `${1 + (i % 3)}px`,
-              background: `rgba(${180 + (i * 3) % 30}, ${145 + (i * 2) % 25}, ${100 + (i * 4) % 30}, ${0.3 + (i % 5) * 0.1})`,
-              top: `${10 + (i * 47) % 80}%`,
-              left: `${(i * 53) % 100}%`,
-              animation: `particle_${i % 4} ${3 + (i % 4)}s ease-in-out infinite ${(i * 0.5) % 3}s`,
-            }}
-          />
-        ))}
+
+        {/* 100 sand particles */}
+        {[...Array(100)].map((_, i) => {
+          const size = 1 + (i % 4);
+          const duration = 4 + (i % 7) * 1.5;
+          const delay = (i * 0.13) % 8;
+          const startTop = 5 + ((i * 31) % 90);
+          const startLeft = (i * 17) % 100;
+          const moveX = 80 + (i % 5) * 40;
+          const moveY = -30 + (i % 7) * 10;
+          const opacity = 0.2 + (i % 6) * 0.1;
+          const r = 175 + (i * 3) % 40;
+          const g = 140 + (i * 2) % 35;
+          const b = 95 + (i * 4) % 40;
+          return (
+            <div
+              key={i}
+              className="absolute rounded-full"
+              style={{
+                width: `${size}px`,
+                height: `${size}px`,
+                background: `rgba(${r},${g},${b},${opacity})`,
+                top: `${startTop}%`,
+                left: `${startLeft}%`,
+                animation: `sand${i % 6} ${duration}s ease-in-out infinite ${delay}s`,
+              }}
+            />
+          );
+        })}
       </div>
 
       {/* Keyframes */}
       <style jsx>{`
         @keyframes dune1 {
           0%, 100% { transform: translateX(0) scale(1); }
-          50% { transform: translateX(30px) scale(1.05); }
+          50% { transform: translateX(40px) scale(1.08); }
         }
         @keyframes dune2 {
           0%, 100% { transform: translateX(0) scale(1); }
-          50% { transform: translateX(-40px) scale(1.08); }
+          50% { transform: translateX(-50px) scale(1.1); }
         }
         @keyframes dune3 {
-          0%, 100% { transform: translateX(0) translateY(0); }
-          33% { transform: translateX(20px) translateY(-10px); }
-          66% { transform: translateX(-15px) translateY(5px); }
+          0%, 100% { transform: translateX(0); }
+          33% { transform: translateX(25px) translateY(-8px); }
+          66% { transform: translateX(-20px) translateY(5px); }
         }
-        @keyframes wind {
-          0% { left: -40%; opacity: 0; }
-          10% { opacity: 1; }
-          90% { opacity: 1; }
-          100% { left: 120%; opacity: 0; }
+        @keyframes dune4 {
+          0%, 100% { transform: translateX(0) scale(1); }
+          40% { transform: translateX(-30px) scale(1.06); }
+          70% { transform: translateX(35px) scale(0.97); }
         }
-        @keyframes particle_0 {
-          0%, 100% { transform: translate(0, 0) scale(1); opacity: 0.4; }
-          25% { transform: translate(60px, -15px) scale(1.5); opacity: 0.7; }
-          50% { transform: translate(120px, -5px) scale(1); opacity: 0.3; }
-          75% { transform: translate(60px, 10px) scale(1.3); opacity: 0.6; }
+        @keyframes sand0 {
+          0% { transform: translate(0, 0); opacity: 0; }
+          10% { opacity: 0.6; }
+          90% { opacity: 0.4; }
+          100% { transform: translate(120px, -20px); opacity: 0; }
         }
-        @keyframes particle_1 {
-          0%, 100% { transform: translate(0, 0); opacity: 0.3; }
-          50% { transform: translate(80px, -20px); opacity: 0.6; }
+        @keyframes sand1 {
+          0% { transform: translate(0, 0); opacity: 0; }
+          15% { opacity: 0.5; }
+          85% { opacity: 0.3; }
+          100% { transform: translate(150px, -35px); opacity: 0; }
         }
-        @keyframes particle_2 {
-          0%, 100% { transform: translate(0, 0); opacity: 0.5; }
-          33% { transform: translate(40px, -10px); opacity: 0.2; }
-          66% { transform: translate(100px, 5px); opacity: 0.7; }
+        @keyframes sand2 {
+          0% { transform: translate(0, 0); opacity: 0; }
+          10% { opacity: 0.7; }
+          50% { transform: translate(60px, -15px); opacity: 0.4; }
+          100% { transform: translate(130px, -10px); opacity: 0; }
         }
-        @keyframes particle_3 {
-          0%, 100% { transform: translate(0, 0) rotate(0deg); opacity: 0.3; }
-          50% { transform: translate(70px, -25px) rotate(180deg); opacity: 0.5; }
+        @keyframes sand3 {
+          0% { transform: translate(0, 0); opacity: 0; }
+          20% { opacity: 0.5; }
+          80% { opacity: 0.3; }
+          100% { transform: translate(100px, -40px); opacity: 0; }
+        }
+        @keyframes sand4 {
+          0% { transform: translate(0, 0); opacity: 0; }
+          10% { opacity: 0.4; }
+          100% { transform: translate(180px, -15px); opacity: 0; }
+        }
+        @keyframes sand5 {
+          0% { transform: translate(0, 0); opacity: 0; }
+          15% { opacity: 0.6; }
+          70% { opacity: 0.2; }
+          100% { transform: translate(90px, -30px); opacity: 0; }
         }
       `}</style>
 
