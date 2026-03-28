@@ -57,10 +57,10 @@ export default function LoginPage() {
       </div>
 
       <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md relative z-10">
-        <div className="py-8 px-4 sm:rounded-2xl sm:px-10 backdrop-blur-sm" style={{
-          background: 'linear-gradient(135deg, rgba(244,228,205,0.5) 0%, rgba(236,215,191,0.4) 50%, rgba(252,246,237,0.5) 100%)',
-          border: '1px solid rgba(225,202,178,0.4)',
-          boxShadow: '0 8px 32px rgba(161,120,80,0.08), inset 0 1px 0 rgba(255,255,255,0.3)',
+        <div className="py-8 px-4 sm:rounded-2xl sm:px-10" style={{
+          background: 'rgba(252,246,237,0.85)',
+          border: '2px solid #8b6540',
+          boxShadow: '0 20px 60px rgba(139,101,64,0.25), 0 8px 24px rgba(139,101,64,0.15)',
         }}>
           <form className="space-y-6" onSubmit={handleLogin}>
             {error && (
