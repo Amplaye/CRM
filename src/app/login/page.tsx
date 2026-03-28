@@ -36,18 +36,9 @@ export default function LoginPage() {
     <div className="min-h-screen flex flex-col justify-center py-12 sm:px-6 lg:px-8 relative overflow-hidden">
       {/* Sand texture overlay */}
       <div className="fixed inset-0 pointer-events-none" style={{
-        backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 600 600' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E")`,
-        opacity: 0.03,
-        mixBlendMode: 'multiply',
-      }} />
-      {/* Subtle sand dune waves */}
-      <div className="fixed inset-0 pointer-events-none opacity-[0.07]" style={{
-        backgroundImage: `
-          radial-gradient(ellipse 120% 30% at 20% 80%, #d4a574 0%, transparent 70%),
-          radial-gradient(ellipse 100% 25% at 70% 90%, #c8956e 0%, transparent 60%),
-          radial-gradient(ellipse 80% 20% at 50% 70%, #d4a574 0%, transparent 50%),
-          radial-gradient(ellipse 140% 35% at 80% 60%, #c8956e 0%, transparent 65%)
-        `,
+        backgroundImage: 'url("/sand-texture.png")',
+        backgroundRepeat: 'repeat',
+        opacity: 0.8,
       }} />
 
       <div className="sm:mx-auto sm:w-full sm:max-w-md relative z-10">
@@ -59,8 +50,8 @@ export default function LoginPage() {
       <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md relative z-10">
         <div className="py-8 px-4 sm:rounded-2xl sm:px-10" style={{
           background: 'rgba(252,246,237,0.85)',
-          border: '2px solid #8b6540',
-          boxShadow: '0 20px 60px rgba(139,101,64,0.25), 0 8px 24px rgba(139,101,64,0.15)',
+          border: '2px solid #c4956a',
+          boxShadow: '0 20px 60px rgba(196,149,106,0.25), 0 8px 24px rgba(196,149,106,0.15)',
         }}>
           <form className="space-y-6" onSubmit={handleLogin}>
             {error && (
@@ -111,7 +102,7 @@ export default function LoginPage() {
             </div>
 
             <div className="flex items-center justify-end">
-              <Link href="/forgot-password" className="text-sm font-medium text-[#a17850] hover:text-[#8b6540]">
+              <Link href="/forgot-password" className="text-sm font-medium text-[#c4956a] hover:text-[#b8845c]">
                 Forgot password?
               </Link>
             </div>
@@ -121,7 +112,7 @@ export default function LoginPage() {
               disabled={loading}
               className="w-full flex justify-center py-2.5 px-4 rounded-lg shadow-sm text-sm font-semibold text-white disabled:opacity-50 transition-all hover:shadow-md"
               style={{
-                background: 'linear-gradient(135deg, #a17850 0%, #8b6540 100%)',
+                background: 'linear-gradient(135deg, #c4956a 0%, #b8845c 100%)',
               }}
             >
               {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : "Sign in"}
@@ -204,7 +195,7 @@ export default function LoginPage() {
 
           <p className="mt-6 text-center text-sm text-stone-500">
             Don't have an account?{" "}
-            <Link href="/register" className="font-medium text-[#a17850] hover:text-[#8b6540]">
+            <Link href="/register" className="font-medium text-[#c4956a] hover:text-[#b8845c]">
               Create one
             </Link>
           </p>
