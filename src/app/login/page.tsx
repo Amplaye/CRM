@@ -38,31 +38,31 @@ export default function LoginPage() {
       <div className="fixed inset-0 pointer-events-none z-0">
         {/* Dune waves - much more visible */}
         <div className="absolute inset-0 animate-[dune1_12s_ease-in-out_infinite]" style={{
-          background: 'radial-gradient(ellipse 180% 50% at 20% 90%, rgba(196,149,106,0.35) 0%, transparent 70%)',
+          background: 'radial-gradient(ellipse 180% 50% at 20% 90%, rgba(170,120,70,0.6) 0%, transparent 70%)',
         }} />
         <div className="absolute inset-0 animate-[dune2_9s_ease-in-out_infinite]" style={{
-          background: 'radial-gradient(ellipse 160% 45% at 80% 80%, rgba(184,132,92,0.3) 0%, transparent 65%)',
+          background: 'radial-gradient(ellipse 160% 45% at 80% 80%, rgba(160,110,60,0.5) 0%, transparent 65%)',
         }} />
         <div className="absolute inset-0 animate-[dune3_14s_ease-in-out_infinite]" style={{
-          background: 'radial-gradient(ellipse 200% 40% at 50% 95%, rgba(212,165,116,0.25) 0%, transparent 60%)',
+          background: 'radial-gradient(ellipse 200% 40% at 50% 95%, rgba(180,130,80,0.45) 0%, transparent 60%)',
         }} />
         <div className="absolute inset-0 animate-[dune4_18s_ease-in-out_infinite]" style={{
-          background: 'radial-gradient(ellipse 150% 35% at 40% 70%, rgba(196,149,106,0.2) 0%, transparent 55%)',
+          background: 'radial-gradient(ellipse 150% 35% at 40% 70%, rgba(170,120,70,0.4) 0%, transparent 55%)',
         }} />
 
         {/* 100 sand particles */}
         {[...Array(100)].map((_, i) => {
-          const size = 1 + (i % 4);
+          const size = 2 + (i % 5);
           const duration = 4 + (i % 7) * 1.5;
           const delay = (i * 0.13) % 8;
           const startTop = 5 + ((i * 31) % 90);
           const startLeft = (i * 17) % 100;
           const moveX = 80 + (i % 5) * 40;
           const moveY = -30 + (i % 7) * 10;
-          const opacity = 0.2 + (i % 6) * 0.1;
-          const r = 175 + (i * 3) % 40;
-          const g = 140 + (i * 2) % 35;
-          const b = 95 + (i * 4) % 40;
+          const opacity = 0.4 + (i % 5) * 0.12;
+          const r = 165 + (i * 3) % 40;
+          const g = 125 + (i * 2) % 35;
+          const b = 80 + (i * 4) % 40;
           return (
             <div
               key={i}
@@ -102,37 +102,37 @@ export default function LoginPage() {
         }
         @keyframes sand0 {
           0% { transform: translate(0, 0); opacity: 0; }
-          10% { opacity: 0.6; }
-          90% { opacity: 0.4; }
+          10% { opacity: 0.9; }
+          90% { opacity: 0.7; }
           100% { transform: translate(120px, -20px); opacity: 0; }
         }
         @keyframes sand1 {
           0% { transform: translate(0, 0); opacity: 0; }
-          15% { opacity: 0.5; }
-          85% { opacity: 0.3; }
+          15% { opacity: 0.8; }
+          85% { opacity: 0.6; }
           100% { transform: translate(150px, -35px); opacity: 0; }
         }
         @keyframes sand2 {
           0% { transform: translate(0, 0); opacity: 0; }
-          10% { opacity: 0.7; }
-          50% { transform: translate(60px, -15px); opacity: 0.4; }
+          10% { opacity: 1; }
+          50% { transform: translate(60px, -15px); opacity: 0.7; }
           100% { transform: translate(130px, -10px); opacity: 0; }
         }
         @keyframes sand3 {
           0% { transform: translate(0, 0); opacity: 0; }
-          20% { opacity: 0.5; }
-          80% { opacity: 0.3; }
+          20% { opacity: 0.8; }
+          80% { opacity: 0.6; }
           100% { transform: translate(100px, -40px); opacity: 0; }
         }
         @keyframes sand4 {
           0% { transform: translate(0, 0); opacity: 0; }
-          10% { opacity: 0.4; }
+          10% { opacity: 0.7; }
           100% { transform: translate(180px, -15px); opacity: 0; }
         }
         @keyframes sand5 {
           0% { transform: translate(0, 0); opacity: 0; }
-          15% { opacity: 0.6; }
-          70% { opacity: 0.2; }
+          15% { opacity: 0.9; }
+          70% { opacity: 0.5; }
           100% { transform: translate(90px, -30px); opacity: 0; }
         }
       `}</style>
