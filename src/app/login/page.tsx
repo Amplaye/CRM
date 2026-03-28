@@ -34,12 +34,93 @@ export default function LoginPage() {
 
   return (
     <div className="min-h-screen flex flex-col justify-center py-12 sm:px-6 lg:px-8 relative overflow-hidden">
-      {/* Sand texture overlay */}
-      <div className="fixed inset-0 pointer-events-none z-0" style={{
-        backgroundImage: 'url("/sand-texture.png")',
-        backgroundRepeat: 'repeat',
-        backgroundSize: '500px 500px',
-      }} />
+      {/* Animated sand dunes */}
+      <div className="fixed inset-0 pointer-events-none z-0">
+        {/* Dune wave 1 - slow */}
+        <div className="absolute inset-0 animate-[dune1_12s_ease-in-out_infinite]" style={{
+          background: 'radial-gradient(ellipse 160% 40% at 30% 85%, rgba(196,149,106,0.15) 0%, transparent 70%)',
+        }} />
+        {/* Dune wave 2 - medium */}
+        <div className="absolute inset-0 animate-[dune2_8s_ease-in-out_infinite]" style={{
+          background: 'radial-gradient(ellipse 140% 35% at 70% 75%, rgba(184,132,92,0.12) 0%, transparent 65%)',
+        }} />
+        {/* Dune wave 3 - fast shimmer */}
+        <div className="absolute inset-0 animate-[dune3_15s_ease-in-out_infinite]" style={{
+          background: 'radial-gradient(ellipse 120% 30% at 50% 65%, rgba(212,165,116,0.1) 0%, transparent 60%)',
+        }} />
+        {/* Wind streak 1 */}
+        <div className="absolute h-[1px] top-[30%] animate-[wind_4s_linear_infinite]" style={{
+          width: '40%',
+          background: 'linear-gradient(90deg, transparent, rgba(196,149,106,0.3), transparent)',
+        }} />
+        {/* Wind streak 2 */}
+        <div className="absolute h-[1px] top-[50%] animate-[wind_6s_linear_infinite_1s]" style={{
+          width: '30%',
+          background: 'linear-gradient(90deg, transparent, rgba(184,132,92,0.2), transparent)',
+        }} />
+        {/* Wind streak 3 */}
+        <div className="absolute h-[1px] top-[70%] animate-[wind_5s_linear_infinite_2s]" style={{
+          width: '35%',
+          background: 'linear-gradient(90deg, transparent, rgba(212,165,116,0.25), transparent)',
+        }} />
+        {/* Floating sand particles */}
+        {[...Array(20)].map((_, i) => (
+          <div
+            key={i}
+            className="absolute rounded-full"
+            style={{
+              width: `${1 + (i % 3)}px`,
+              height: `${1 + (i % 3)}px`,
+              background: `rgba(${180 + (i * 3) % 30}, ${145 + (i * 2) % 25}, ${100 + (i * 4) % 30}, ${0.3 + (i % 5) * 0.1})`,
+              top: `${10 + (i * 47) % 80}%`,
+              left: `${(i * 53) % 100}%`,
+              animation: `particle_${i % 4} ${3 + (i % 4)}s ease-in-out infinite ${(i * 0.5) % 3}s`,
+            }}
+          />
+        ))}
+      </div>
+
+      {/* Keyframes */}
+      <style jsx>{`
+        @keyframes dune1 {
+          0%, 100% { transform: translateX(0) scale(1); }
+          50% { transform: translateX(30px) scale(1.05); }
+        }
+        @keyframes dune2 {
+          0%, 100% { transform: translateX(0) scale(1); }
+          50% { transform: translateX(-40px) scale(1.08); }
+        }
+        @keyframes dune3 {
+          0%, 100% { transform: translateX(0) translateY(0); }
+          33% { transform: translateX(20px) translateY(-10px); }
+          66% { transform: translateX(-15px) translateY(5px); }
+        }
+        @keyframes wind {
+          0% { left: -40%; opacity: 0; }
+          10% { opacity: 1; }
+          90% { opacity: 1; }
+          100% { left: 120%; opacity: 0; }
+        }
+        @keyframes particle_0 {
+          0%, 100% { transform: translate(0, 0) scale(1); opacity: 0.4; }
+          25% { transform: translate(60px, -15px) scale(1.5); opacity: 0.7; }
+          50% { transform: translate(120px, -5px) scale(1); opacity: 0.3; }
+          75% { transform: translate(60px, 10px) scale(1.3); opacity: 0.6; }
+        }
+        @keyframes particle_1 {
+          0%, 100% { transform: translate(0, 0); opacity: 0.3; }
+          50% { transform: translate(80px, -20px); opacity: 0.6; }
+        }
+        @keyframes particle_2 {
+          0%, 100% { transform: translate(0, 0); opacity: 0.5; }
+          33% { transform: translate(40px, -10px); opacity: 0.2; }
+          66% { transform: translate(100px, 5px); opacity: 0.7; }
+        }
+        @keyframes particle_3 {
+          0%, 100% { transform: translate(0, 0) rotate(0deg); opacity: 0.3; }
+          50% { transform: translate(70px, -25px) rotate(180deg); opacity: 0.5; }
+        }
+      `}</style>
 
       <div className="sm:mx-auto sm:w-full sm:max-w-md relative z-10">
         <div className="flex justify-center">
