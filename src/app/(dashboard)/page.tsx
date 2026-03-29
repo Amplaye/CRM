@@ -52,21 +52,27 @@ export default function DashboardPage() {
     if (!tenant) return;
     const supabase = createClient();
 
+    // Timezone-safe date formatting (avoids UTC shift from toISOString)
+    const pad = (n: number) => String(n).padStart(2, "0");
+    const toDateStr = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+
     const now = new Date();
-    const todayStr = now.toISOString().split("T")[0];
-    const monthStart = new Date(selectedYear, selectedMonth, 1).toISOString().split("T")[0];
-    const monthEnd = new Date(selectedYear, selectedMonth + 1, 0).toISOString().split("T")[0];
-    const prevMonthStart = new Date(selectedYear, selectedMonth - 1, 1).toISOString().split("T")[0];
-    const prevMonthEnd = new Date(selectedYear, selectedMonth, 0).toISOString().split("T")[0];
+    const todayStr = toDateStr(now);
+    const monthStartDate = new Date(selectedYear, selectedMonth, 1);
+    const monthEndDate = new Date(selectedYear, selectedMonth + 1, 0);
+    const monthStart = toDateStr(monthStartDate);
+    const monthEnd = toDateStr(monthEndDate);
+    const prevMonthStart = toDateStr(new Date(selectedYear, selectedMonth - 1, 1));
+    const prevMonthEnd = toDateStr(new Date(selectedYear, selectedMonth, 0));
     const yearStart = `${selectedYear}-01-01`;
     const yearEnd = `${selectedYear}-12-31`;
 
     const dayNames = ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"];
     const isCurrentMonth = selectedMonth === now.getMonth() && selectedYear === now.getFullYear();
-    const refDate = isCurrentMonth ? now : new Date(selectedYear, selectedMonth + 1, 0); // last day of selected month
+    const refDate = isCurrentMonth ? now : monthEndDate; // last day of selected month
     const last7 = Array.from({ length: 7 }, (_, i) => {
       const d = new Date(refDate); d.setDate(d.getDate() - (6 - i));
-      return { date: d.toISOString().split("T")[0], label: dayNames[d.getDay()] };
+      return { date: toDateStr(d), label: dayNames[d.getDay()] };
     });
 
     const fetchAll = async () => {
@@ -238,12 +244,13 @@ export default function DashboardPage() {
           )}
         </div>
 
-        {/* THIS WEEK */}
+        {/* WEEK */}
         <div className="rounded-xl border-2 p-5" style={{ background: "rgba(252,246,237,0.85)", borderColor: "#c4956a" }}>
-          <h3 className="text-sm font-bold text-black uppercase tracking-wider mb-4">This Week</h3>
+          <h3 className="text-sm font-bold text-black uppercase tracking-wider mb-4">{monthNames[selectedMonth]} {selectedYear} — Last 7 Days</h3>
           <div className="space-y-2">
             {weekData.map(day => {
-              const isToday = day.date === new Date().toISOString().split("T")[0];
+              const todayCheck = new Date();
+              const isToday = day.date === `${todayCheck.getFullYear()}-${String(todayCheck.getMonth() + 1).padStart(2, "0")}-${String(todayCheck.getDate()).padStart(2, "0")}`;
               const barWidth = maxWeekCount > 0 ? Math.max((day.count / maxWeekCount) * 100, day.count > 0 ? 8 : 0) : 0;
               return (
                 <div key={day.date} className="flex items-center gap-3">
@@ -268,7 +275,7 @@ export default function DashboardPage() {
           {/* Month */}
           <div>
             <div className="flex items-center justify-between mb-2">
-              <h3 className="text-sm font-bold text-black uppercase tracking-wider">This Month</h3>
+              <h3 className="text-sm font-bold text-black uppercase tracking-wider">{monthNames[selectedMonth]} {selectedYear}</h3>
               {monthChange !== 0 && (
                 <div className={`flex items-center gap-1 text-xs font-bold ${monthChange > 0 ? "text-green-600" : "text-red-500"}`}>
                   {monthChange > 0 ? <TrendingUp className="w-3.5 h-3.5" /> : <TrendingDown className="w-3.5 h-3.5" />}
@@ -292,7 +299,7 @@ export default function DashboardPage() {
 
           {/* Year */}
           <div>
-            <h3 className="text-sm font-bold text-black uppercase tracking-wider mb-2">This Year</h3>
+            <h3 className="text-sm font-bold text-black uppercase tracking-wider mb-2">{selectedYear}</h3>
             <div className="flex items-baseline gap-3">
               <span className="text-3xl font-bold text-black">{yearTotal.count}</span>
               <span className="text-sm text-black/40">reservas</span>
@@ -305,7 +312,7 @@ export default function DashboardPage() {
       {/* Charts */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         <div className="p-6 rounded-2xl border-2" style={{ background: "rgba(252,246,237,0.85)", borderColor: "#c4956a" }}>
-          <h3 className="text-sm font-bold text-black uppercase tracking-wider mb-6">Last 7 Days</h3>
+          <h3 className="text-sm font-bold text-black uppercase tracking-wider mb-6">{monthNames[selectedMonth]} — Last 7 Days</h3>
           <div className="h-64">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={weekData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>

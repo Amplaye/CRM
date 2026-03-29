@@ -58,13 +58,19 @@ export default function ReservationsPage() {
   const [date, setDate] = useState(today);
   const [viewMode, setViewMode] = useState<"list" | "timeline">("list");
 
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
   const { activeTenant } = useTenant();
 
   const [availableTables, setAvailableTables] = useState<RestaurantTable[]>([]);
   const [selectedTableIds, setSelectedTableIds] = useState<string[]>([]);
   const [occupiedTableIds, setOccupiedTableIds] = useState<Set<string>>(new Set());
+  const [createShift, setCreateShift] = useState<"lunch" | "dinner">("dinner");
   const supabase = createClient();
+
+  const shiftTimes = {
+    lunch: ["12:30", "12:45", "13:00", "13:15", "13:30", "13:45", "14:00", "14:15", "14:30", "14:45", "15:00", "15:15", "15:30"],
+    dinner: ["19:30", "19:45", "20:00", "20:15", "20:30", "20:45", "21:00", "21:15", "21:30", "21:45", "22:00", "22:15", "22:30"],
+  };
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleExport = async () => {
@@ -431,80 +437,88 @@ export default function ReservationsPage() {
       {isCreating && (
         <div className="fixed inset-y-0 right-0 w-[400px] border-l shadow-2xl z-40 transform transition-transform duration-300 flex flex-col pt-16 overflow-hidden" style={{ background: 'rgba(252,246,237,0.95)', borderColor: '#c4956a' }}>
           <div className="px-6 py-4 flex items-center justify-between border-b" style={{ borderColor: '#c4956a' }}>
-             <h2 className="text-lg font-bold text-zinc-900 tracking-tight">New Walk-in / Booking</h2>
+             <h2 className="text-lg font-bold text-zinc-900 tracking-tight">{t("res_new")}</h2>
              <button onClick={() => setIsCreating(false)} className="p-2 text-black hover:bg-[#c4956a]/10 hover:text-black rounded-full transition-colors">
                 <X className="h-5 w-5" />
              </button>
           </div>
           <form onSubmit={handleCreate} className="flex-1 flex flex-col min-h-0">
              <div className="flex-1 overflow-y-auto p-6 space-y-5">
-                <div className="bg-blue-50 text-blue-800 text-sm p-3 rounded-md border border-blue-100 mb-4 font-medium">
-                  This transaction will automatically create or link a Guest profile natively.
-                </div>
-
                 <div>
-                   <label className="block text-sm font-medium text-black mb-1">Guest Name</label>
+                   <label className="block text-sm font-medium text-black mb-1">{t("res_col_guest")}</label>
                    <input required name="guestName" type="text" placeholder="John Doe" className="w-full border-2 rounded-lg px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-[#c4956a]" style={{ borderColor: '#c4956a', background: 'rgba(252,246,237,0.6)' }} />
                 </div>
                 <div>
-                   <label className="block text-sm font-medium text-black mb-1">Guest Phone</label>
+                   <label className="block text-sm font-medium text-black mb-1">{language === "es" ? "Teléfono" : "Phone"}</label>
                    <input required name="guestPhone" type="tel" placeholder="+1 555-0192" className="w-full border-2 rounded-lg px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-[#c4956a]" style={{ borderColor: '#c4956a', background: 'rgba(252,246,237,0.6)' }} />
                 </div>
 
                 <div>
-                   <label className="block text-sm font-medium text-black mb-1">Date</label>
+                   <label className="block text-sm font-medium text-black mb-1">{t("res_edit_date")}</label>
                    <input required name="date" type="date" defaultValue={date} className="w-full border-2 rounded-lg px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-[#c4956a]" style={{ borderColor: '#c4956a', background: 'rgba(252,246,237,0.6)' }} />
                 </div>
 
                 <div>
-                   <label className="block text-sm font-medium text-black mb-2">Shift</label>
+                   <label className="block text-sm font-medium text-black mb-2">{t("floor_lunch")} / {t("floor_dinner")}</label>
+                   <input type="hidden" name="shift" value={createShift} />
                    <div className="flex border-2 rounded-lg overflow-hidden" style={{ borderColor: '#c4956a' }}>
-                     <label className="flex-1 text-center">
-                       <input type="radio" name="shift" value="lunch" className="sr-only peer" />
-                       <div className="py-2 text-sm font-semibold cursor-pointer peer-checked:bg-[#c4956a] peer-checked:text-white text-black" style={{ background: 'rgba(252,246,237,0.6)' }}>
-                         Lunch (12:30-15:30)
-                       </div>
-                     </label>
-                     <label className="flex-1 text-center">
-                       <input type="radio" name="shift" value="dinner" defaultChecked className="sr-only peer" />
-                       <div className="py-2 text-sm font-semibold cursor-pointer peer-checked:bg-[#c4956a] peer-checked:text-white text-black" style={{ background: 'rgba(252,246,237,0.6)' }}>
-                         Dinner (19:30-22:30)
-                       </div>
-                     </label>
+                     <button
+                       type="button"
+                       onClick={() => setCreateShift("lunch")}
+                       className={`flex-1 py-2 text-sm font-semibold transition-colors ${createShift === "lunch" ? "bg-[#c4956a] text-white" : "text-black"}`}
+                       style={createShift !== "lunch" ? { background: 'rgba(252,246,237,0.6)' } : undefined}
+                     >
+                       {t("floor_lunch")} (12:30-15:30)
+                     </button>
+                     <button
+                       type="button"
+                       onClick={() => setCreateShift("dinner")}
+                       className={`flex-1 py-2 text-sm font-semibold transition-colors ${createShift === "dinner" ? "bg-[#c4956a] text-white" : "text-black"}`}
+                       style={createShift !== "dinner" ? { background: 'rgba(252,246,237,0.6)' } : undefined}
+                     >
+                       {t("floor_dinner")} (19:30-22:30)
+                     </button>
                    </div>
                 </div>
 
                 <div>
-                   <label className="block text-sm font-medium text-black mb-1">Time</label>
-                   <input required name="time" type="time" defaultValue="19:30" className="w-full border-2 rounded-lg px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-[#c4956a]" style={{ borderColor: '#c4956a', background: 'rgba(252,246,237,0.6)' }} />
+                   <label className="block text-sm font-medium text-black mb-1">{t("res_edit_time")}</label>
+                   <select required name="time" defaultValue={createShift === "lunch" ? "13:00" : "20:00"} className="w-full border-2 rounded-lg px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-[#c4956a]" style={{ borderColor: '#c4956a', background: 'rgba(252,246,237,0.6)' }}>
+                     {shiftTimes[createShift].map(time => (
+                       <option key={time} value={time}>{time}</option>
+                     ))}
+                   </select>
                 </div>
 
                 <div>
-                   <label className="block text-sm font-medium text-black mb-1">Party Size</label>
+                   <label className="block text-sm font-medium text-black mb-1">{t("res_edit_party")}</label>
                    <input required name="partySize" type="number" min="1" max="20" defaultValue="2" className="w-full border-2 rounded-lg px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-[#c4956a]" style={{ borderColor: '#c4956a', background: 'rgba(252,246,237,0.6)' }} />
                 </div>
 
                 {availableTables.length > 0 && (
                   <div>
-                    <label className="block text-sm font-medium text-black mb-2">Assign Tables</label>
-                    <div className="border-2 rounded-lg p-3 space-y-2" style={{ borderColor: '#c4956a', background: 'rgba(252,246,237,0.6)' }}>
+                    <label className="block text-sm font-medium text-black mb-2">{t("floor_tables")}</label>
+                    <div className="grid grid-cols-4 gap-2">
                       {availableTables.map(table => {
                         const isOccupied = occupiedTableIds.has(table.id);
+                        const isSelected = selectedTableIds.includes(table.id);
                         return (
-                          <label key={table.id} className={`flex items-center gap-2 text-sm ${isOccupied ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer'} text-black`}>
-                            <input
-                              type="checkbox"
-                              checked={selectedTableIds.includes(table.id)}
-                              onChange={() => !isOccupied && toggleTable(table.id)}
-                              disabled={isOccupied}
-                              className="rounded border-2 accent-[#c4956a]"
-                              style={{ borderColor: '#c4956a' }}
-                            />
-                            <span className="font-medium">{table.name}</span>
-                            <span className="text-xs text-zinc-500">
-                              {isOccupied ? '(occupied)' : `(${table.seats} seats)`}
-                            </span>
-                          </label>
+                          <button
+                            key={table.id}
+                            type="button"
+                            disabled={isOccupied}
+                            onClick={() => !isOccupied && toggleTable(table.id)}
+                            className={`py-2 px-1 text-xs font-semibold rounded-lg border-2 transition-colors ${
+                              isOccupied
+                                ? "border-red-400 text-red-400 opacity-50 cursor-not-allowed"
+                                : isSelected
+                                  ? "border-green-500 bg-green-500 text-white"
+                                  : "border-[#c4956a] text-black"
+                            }`}
+                            style={!isOccupied && !isSelected ? { background: 'rgba(252,246,237,0.6)' } : undefined}
+                          >
+                            {table.name}
+                          </button>
                         );
                       })}
                     </div>
@@ -512,12 +526,12 @@ export default function ReservationsPage() {
                 )}
 
                 <div>
-                   <label className="block text-sm font-medium text-black mb-1">Notes</label>
+                   <label className="block text-sm font-medium text-black mb-1">{t("res_edit_notes")}</label>
                    <textarea
                      name="notes"
                      rows={3}
                      className="w-full border-2 rounded-lg px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-[#c4956a]" style={{ borderColor: '#c4956a', background: 'rgba(252,246,237,0.6)' }}
-                     placeholder="Allergies, special occasions..."
+                     placeholder={t("res_edit_placeholder")}
                    />
                 </div>
              </div>
@@ -525,9 +539,10 @@ export default function ReservationsPage() {
                 <button
                    type="submit"
                    disabled={saving}
-                   className="w-full flex items-center justify-center bg-zinc-900 hover:bg-zinc-800 text-white font-medium py-2.5 px-4 rounded-lg transition-colors shadow-sm disabled:opacity-50"
+                   className="w-full flex items-center justify-center text-white font-medium py-2.5 px-4 rounded-lg transition-colors shadow-sm disabled:opacity-50"
+                   style={{ background: 'linear-gradient(135deg, #c4956a, #a0764e)' }}
                 >
-                   <Save className="h-4 w-4 mr-2" /> {saving ? "Creating..." : "Create Reservation"}
+                   <Save className="h-4 w-4 mr-2" /> {saving ? "..." : t("res_new")}
                 </button>
              </div>
           </form>
