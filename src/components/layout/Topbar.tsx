@@ -25,9 +25,22 @@ export function Topbar() {
   const [showDropdown, setShowDropdown] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
+  // Load notifications from localStorage on mount
   useEffect(() => {
     setIsClient(true);
+    try {
+      const saved = localStorage.getItem("crm_notifications");
+      if (saved) setNotifications(JSON.parse(saved));
+    } catch(e) {}
   }, []);
+
+  // Save notifications to localStorage on change
+  useEffect(() => {
+    if (!isClient) return;
+    try {
+      localStorage.setItem("crm_notifications", JSON.stringify(notifications));
+    } catch(e) {}
+  }, [notifications, isClient]);
 
   // Close dropdown on outside click
   useEffect(() => {
@@ -163,7 +176,7 @@ export function Topbar() {
                   </button>
                 )}
               </div>
-              <div className="max-h-80 overflow-y-auto">
+              <div className="max-h-64 overflow-y-auto">
                 {notifications.length === 0 ? (
                   <div className="px-4 py-8 text-center text-sm text-black/50">
                     No notifications yet
