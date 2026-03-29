@@ -245,6 +245,7 @@ export default function ReservationsPage() {
     setSaving(true);
     const formData = new FormData(e.currentTarget);
     try {
+      const shift = formData.get("shift") as string || "dinner";
       const res = await createReservationAction({
         tenantId: activeTenant.id,
         guestName: formData.get("guestName") as string,
@@ -253,7 +254,8 @@ export default function ReservationsPage() {
         time: formData.get("time") as string,
         partySize: Number(formData.get("partySize")),
         source: "staff",
-        notes: (formData.get("notes") as string) || ""
+        notes: (formData.get("notes") as string) || "",
+        shift
       });
 
       if (!res.success) throw new Error(res.error);
@@ -449,15 +451,32 @@ export default function ReservationsPage() {
                    <input required name="guestPhone" type="tel" placeholder="+1 555-0192" className="w-full border-2 rounded-lg px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-[#c4956a]" style={{ borderColor: '#c4956a', background: 'rgba(252,246,237,0.6)' }} />
                 </div>
 
-                <div className="grid grid-cols-2 gap-4 pt-2">
-                   <div>
-                     <label className="block text-sm font-medium text-black mb-1">Date</label>
-                     <input required name="date" type="date" defaultValue={date} className="w-full border-2 rounded-lg px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-[#c4956a]" style={{ borderColor: '#c4956a', background: 'rgba(252,246,237,0.6)' }} />
+                <div>
+                   <label className="block text-sm font-medium text-black mb-1">Date</label>
+                   <input required name="date" type="date" defaultValue={date} className="w-full border-2 rounded-lg px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-[#c4956a]" style={{ borderColor: '#c4956a', background: 'rgba(252,246,237,0.6)' }} />
+                </div>
+
+                <div>
+                   <label className="block text-sm font-medium text-black mb-2">Shift</label>
+                   <div className="flex border-2 rounded-lg overflow-hidden" style={{ borderColor: '#c4956a' }}>
+                     <label className="flex-1 text-center">
+                       <input type="radio" name="shift" value="lunch" className="sr-only peer" />
+                       <div className="py-2 text-sm font-semibold cursor-pointer peer-checked:bg-[#c4956a] peer-checked:text-white text-black" style={{ background: 'rgba(252,246,237,0.6)' }}>
+                         Lunch (12:30-15:30)
+                       </div>
+                     </label>
+                     <label className="flex-1 text-center">
+                       <input type="radio" name="shift" value="dinner" defaultChecked className="sr-only peer" />
+                       <div className="py-2 text-sm font-semibold cursor-pointer peer-checked:bg-[#c4956a] peer-checked:text-white text-black" style={{ background: 'rgba(252,246,237,0.6)' }}>
+                         Dinner (19:30-22:30)
+                       </div>
+                     </label>
                    </div>
-                   <div>
-                     <label className="block text-sm font-medium text-black mb-1">Time</label>
-                     <input required name="time" type="time" defaultValue="19:00" className="w-full border-2 rounded-lg px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-[#c4956a]" style={{ borderColor: '#c4956a', background: 'rgba(252,246,237,0.6)' }} />
-                   </div>
+                </div>
+
+                <div>
+                   <label className="block text-sm font-medium text-black mb-1">Time</label>
+                   <input required name="time" type="time" defaultValue="19:30" className="w-full border-2 rounded-lg px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-[#c4956a]" style={{ borderColor: '#c4956a', background: 'rgba(252,246,237,0.6)' }} />
                 </div>
 
                 <div>

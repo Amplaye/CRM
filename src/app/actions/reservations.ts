@@ -22,6 +22,7 @@ export async function createReservationAction(params: {
   partySize: number;
   source: 'phone' | 'walk-in' | 'online' | 'staff' | 'ai_agent';
   notes?: string;
+  shift?: string;
 }) {
   let operatorId = "system";
 
@@ -112,6 +113,7 @@ export async function createReservationAction(params: {
         source: params.source,
         created_by_type: params.source.startsWith("ai_") ? "ai" : "staff",
         notes: params.notes || "",
+        shift: params.shift || (parseInt(params.time.split(":")[0]) < 16 ? "lunch" : "dinner"),
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString()
       })
