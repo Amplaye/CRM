@@ -23,7 +23,7 @@ export async function POST(req: NextRequest) {
     const kbSection = articles.map(a => `[${a.category}] ${a.title}: ${a.content}`).join("\n\n");
 
     // Fetch current Retell LLM prompt
-    const RETELL_KEY = process.env.RETELL_API_KEY || "key_4c795afdd74f653fc220e2fa8d97";
+    const RETELL_KEY = process.env.RETELL_API_KEY!;
     const LLM_ID = "llm_d19f792cd11a22132956f81dc7fe";
 
     const llmRes = await fetch(`https://api.retellai.com/get-retell-llm/${LLM_ID}`, {
