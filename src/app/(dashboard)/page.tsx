@@ -193,11 +193,11 @@ export default function DashboardPage() {
 
       const { data } = await supabase
         .from("reservations")
-        .select("date, party_size")
+        .select("date, party_size, status")
         .eq("tenant_id", tenant.id)
         .gte("date", start)
         .lte("date", end)
-        .in("status", ["confirmed", "seated", "completed", "escalated"]);
+        .limit(5000);
 
       const map: Record<string, { count: number; guests: number }> = {};
       for (const r of (data || []) as any[]) {
@@ -220,7 +220,6 @@ export default function DashboardPage() {
         .select("*, guests(name, phone)")
         .eq("tenant_id", tenant.id)
         .eq("date", selectedDay)
-        .in("status", ["confirmed", "seated", "completed", "escalated"])
         .order("time");
       setSelectedDayReservations(data || []);
     };

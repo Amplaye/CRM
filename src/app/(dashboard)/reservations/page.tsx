@@ -187,15 +187,15 @@ export default function ReservationsPage() {
               <div className="flex p-1 rounded-lg border-2 ml-4" style={{ borderColor: '#c4956a', background: 'rgba(252,246,237,0.6)' }}>
                 <button
                   onClick={() => setViewMode("list")}
-                  className={`px-3 py-1 text-sm font-medium rounded-md flex items-center transition-colors ${viewMode === 'list' ? 'text-black shadow-sm' : 'text-black'}`}
-                  style={viewMode === 'list' ? { background: 'rgba(252,246,237,0.85)' } : {}}
+                  className={`px-3 py-1 text-sm font-semibold rounded-md flex items-center transition-colors ${viewMode === 'list' ? 'text-white' : 'text-black'}`}
+                  style={{ background: viewMode === 'list' ? '#c4956a' : 'transparent' }}
                 >
                   <Menu className="w-4 h-4 mr-1.5" /> List
                 </button>
                 <button
                   onClick={() => setViewMode("timeline")}
-                  className={`px-3 py-1 text-sm font-medium rounded-md flex items-center transition-colors ${viewMode === 'timeline' ? 'text-black shadow-sm' : 'text-black'}`}
-                  style={viewMode === 'timeline' ? { background: 'rgba(252,246,237,0.85)' } : {}}
+                  className={`px-3 py-1 text-sm font-semibold rounded-md flex items-center transition-colors ${viewMode === 'timeline' ? 'text-white' : 'text-black'}`}
+                  style={{ background: viewMode === 'timeline' ? '#c4956a' : 'transparent' }}
                 >
                   <Clock className="w-4 h-4 mr-1.5" /> Timeline
                 </button>
