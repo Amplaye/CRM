@@ -29,11 +29,11 @@ export function cn(...inputs: ClassValue[]) {
 const navItems = [
   { name: "Tables", href: "/floor", icon: LayoutGrid },
   { name: "Reservations", href: "/reservations", icon: Calendar },
-  { name: "Dashboard", href: "/", icon: LayoutDashboard },
   { name: "Waitlist", href: "/waitlist", icon: Clock },
   { name: "Pending", href: "/pending", icon: ClipboardList },
   { name: "Conversations", href: "/conversations", icon: MessageSquare },
   { name: "Guests", href: "/guests", icon: Users },
+  { name: "Dashboard", href: "/", icon: LayoutDashboard },
   { name: "Knowledge Base", href: "/knowledge", icon: BookOpen },
   { name: "Settings", href: "/settings", icon: Settings },
 ];
