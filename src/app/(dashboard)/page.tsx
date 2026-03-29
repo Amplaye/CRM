@@ -70,10 +70,10 @@ export default function DashboardPage() {
     const dayNames = ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"];
     const isCurrentMonth = selectedMonth === now.getMonth() && selectedYear === now.getFullYear();
 
-    // For week chart: use last 7 days of selected month (or today if current month)
-    const refDate = isCurrentMonth ? now : monthEndDate;
+    // For week chart: show next 7 days from today (current month) or first 7 days with data (past month)
     const last7 = Array.from({ length: 7 }, (_, i) => {
-      const d = new Date(refDate); d.setDate(d.getDate() - (6 - i));
+      const d = isCurrentMonth ? new Date(now) : new Date(selectedYear, selectedMonth, 1);
+      d.setDate(d.getDate() + i);
       return { date: toDateStr(d), label: dayNames[d.getDay()] };
     });
 
@@ -129,25 +129,18 @@ export default function DashboardPage() {
         }
       }
 
-      // Week data
+      // Week data — fetch directly for the 7-day range
+      const weekStart = last7[0].date;
+      const weekEnd = last7[6].date;
+      const { data: weekRes } = await supabase.from("reservations").select("date, party_size").eq("tenant_id", tenant.id).gte("date", weekStart).lte("date", weekEnd);
       const weekCounts: Record<string, { count: number; guests: number }> = {};
       last7.forEach(d => weekCounts[d.date] = { count: 0, guests: 0 });
-      monthRes.forEach((r: any) => {
+      (weekRes || []).forEach((r: any) => {
         if (weekCounts[r.date] !== undefined) {
           weekCounts[r.date].count++;
           weekCounts[r.date].guests += r.party_size;
         }
       });
-      // Also check last 7 days that might be in prev month
-      if (last7[0].date < monthStart) {
-        const { data: extraWeek } = await supabase.from("reservations").select("date, party_size").eq("tenant_id", tenant.id).gte("date", last7[0].date).lt("date", monthStart);
-        (extraWeek || []).forEach((r: any) => {
-          if (weekCounts[r.date] !== undefined) {
-            weekCounts[r.date].count++;
-            weekCounts[r.date].guests += r.party_size;
-          }
-        });
-      }
       setWeekData(last7.map(d => ({ ...d, count: weekCounts[d.date].count, guests: weekCounts[d.date].guests })));
 
       // Month totals
@@ -323,7 +316,7 @@ export default function DashboardPage() {
       {/* Charts */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         <div className="p-6 rounded-2xl border-2" style={{ background: "rgba(252,246,237,0.85)", borderColor: "#c4956a" }}>
-          <h3 className="text-sm font-bold text-black uppercase tracking-wider mb-6">{monthNames[selectedMonth]} — Last 7 Days</h3>
+          <h3 className="text-sm font-bold text-black uppercase tracking-wider mb-6">{isViewingCurrentMonth ? "Next 7 Days" : `${monthNames[selectedMonth]} ${selectedYear}`}</h3>
           <div className="h-64">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={weekData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
