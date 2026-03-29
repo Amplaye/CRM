@@ -36,8 +36,10 @@ export default function ReservationsPage() {
 
   const [availableTables, setAvailableTables] = useState<RestaurantTable[]>([]);
   const [selectedTableIds, setSelectedTableIds] = useState<string[]>([]);
+  const [occupiedTableIds, setOccupiedTableIds] = useState<Set<string>>(new Set());
   const supabase = createClient();
 
+  // Fetch tables + occupied tables for selected date
   useEffect(() => {
     if (!activeTenant) return;
     const fetchTables = async () => {
@@ -53,9 +55,28 @@ export default function ReservationsPage() {
         return numA - numB;
       });
       setAvailableTables(sorted);
+
+      // Fetch occupied tables for the selected date
+      const { data: resData } = await supabase
+        .from("reservations")
+        .select("id")
+        .eq("tenant_id", activeTenant.id)
+        .eq("date", date)
+        .in("status", ["confirmed", "seated", "pending_confirmation"]);
+
+      const resIds = (resData || []).map((r: any) => r.id);
+      if (resIds.length > 0) {
+        const { data: links } = await supabase
+          .from("reservation_tables")
+          .select("table_id")
+          .in("reservation_id", resIds);
+        setOccupiedTableIds(new Set((links || []).map((l: any) => l.table_id)));
+      } else {
+        setOccupiedTableIds(new Set());
+      }
     };
     fetchTables();
-  }, [activeTenant]);
+  }, [activeTenant, date]);
 
   const toggleTable = (tableId: string) => {
     setSelectedTableIds(prev =>
@@ -318,19 +339,25 @@ export default function ReservationsPage() {
                   <div>
                     <label className="block text-sm font-medium text-black mb-2">Assign Tables</label>
                     <div className="border-2 rounded-lg p-3 space-y-2" style={{ borderColor: '#c4956a', background: 'rgba(252,246,237,0.6)' }}>
-                      {availableTables.map(table => (
-                        <label key={table.id} className="flex items-center gap-2 cursor-pointer text-sm text-black">
-                          <input
-                            type="checkbox"
-                            checked={selectedTableIds.includes(table.id)}
-                            onChange={() => toggleTable(table.id)}
-                            className="rounded border-2 accent-[#c4956a]"
-                            style={{ borderColor: '#c4956a' }}
-                          />
-                          <span className="font-medium">{table.name}</span>
-                          <span className="text-xs text-zinc-500">({table.seats} seats)</span>
-                        </label>
-                      ))}
+                      {availableTables.map(table => {
+                        const isOccupied = occupiedTableIds.has(table.id);
+                        return (
+                          <label key={table.id} className={`flex items-center gap-2 text-sm ${isOccupied ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer'} text-black`}>
+                            <input
+                              type="checkbox"
+                              checked={selectedTableIds.includes(table.id)}
+                              onChange={() => !isOccupied && toggleTable(table.id)}
+                              disabled={isOccupied}
+                              className="rounded border-2 accent-[#c4956a]"
+                              style={{ borderColor: '#c4956a' }}
+                            />
+                            <span className="font-medium">{table.name}</span>
+                            <span className="text-xs text-zinc-500">
+                              {isOccupied ? '(occupied)' : `(${table.seats} seats)`}
+                            </span>
+                          </label>
+                        );
+                      })}
                     </div>
                   </div>
                 )}
