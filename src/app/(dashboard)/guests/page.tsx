@@ -1,6 +1,6 @@
 "use client";
 
-import { Download, Search, Star, AlertTriangle, X, Save, CalendarCheck, User, LayoutGrid, List } from "lucide-react";
+import { Download, Search, Star, AlertTriangle, X, Save, CalendarCheck, User, LayoutGrid, List, Trash2 } from "lucide-react";
 import { useLanguage } from "@/lib/contexts/LanguageContext";
 import { useEffect, useState } from "react";
 import { useTenant } from "@/lib/contexts/TenantContext";
@@ -18,6 +18,8 @@ export default function GuestsPage() {
   const [guestReservations, setGuestReservations] = useState<Reservation[]>([]);
   const [saving, setSaving] = useState(false);
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     if (!activeTenant) return;
@@ -101,6 +103,41 @@ export default function GuestsPage() {
   const isVip = (g: Guest) => g.visit_count >= 10 || (g.estimated_spend && g.estimated_spend > 1000);
   const isHighRisk = (g: Guest) => g.no_show_count >= 2;
 
+  const toggleSelect = (id: string) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+
+  const selectAll = () => {
+    if (selectedIds.size === guests.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(guests.map(g => g.id)));
+    }
+  };
+
+  const deleteSelected = async () => {
+    if (selectedIds.size === 0) return;
+    setDeleting(true);
+    const idsToDelete = Array.from(selectedIds);
+    setGuests(prev => prev.filter(g => !selectedIds.has(g.id)));
+    if (selectedGuest && selectedIds.has(selectedGuest.id)) setSelectedGuest(null);
+    setSelectedIds(new Set());
+    await supabase.from("guests").delete().in("id", idsToDelete);
+    setDeleting(false);
+  };
+
+  const deleteSingle = async (id: string) => {
+    setGuests(prev => prev.filter(g => g.id !== id));
+    if (selectedGuest?.id === id) setSelectedGuest(null);
+    selectedIds.delete(id);
+    setSelectedIds(new Set(selectedIds));
+    await supabase.from("guests").delete().eq("id", id);
+  };
+
   return (
     <div className="p-8 w-full space-y-8 flex">
       <div className={`flex-1 transition-all duration-300 ${selectedGuest ? 'pr-[400px]' : ''}`}>
@@ -135,7 +172,7 @@ export default function GuestsPage() {
           </div>
         </div>
 
-        <div className="flex flex-col sm:flex-row space-y-3 sm:space-y-0 sm:space-x-4 mb-8">
+        <div className="flex flex-col sm:flex-row space-y-3 sm:space-y-0 sm:space-x-4 mb-4">
            <div className="relative flex-1 max-w-lg">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-black" />
               <input
@@ -146,6 +183,30 @@ export default function GuestsPage() {
               />
            </div>
         </div>
+
+        {guests.length > 0 && (
+          <div className="flex items-center justify-between mb-6">
+            <button onClick={selectAll} className="flex items-center gap-1.5 text-xs font-medium text-black/60 hover:text-black">
+              <input
+                type="checkbox"
+                checked={selectedIds.size === guests.length && guests.length > 0}
+                onChange={selectAll}
+                className="w-3.5 h-3.5 rounded accent-[#c4956a] cursor-pointer"
+              />
+              {selectedIds.size === guests.length ? 'Deselect all' : 'Select all'}
+            </button>
+            {selectedIds.size > 0 && (
+              <button
+                onClick={deleteSelected}
+                disabled={deleting}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold text-red-600 bg-red-50 border border-red-200 hover:bg-red-100 disabled:opacity-50"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                Delete ({selectedIds.size})
+              </button>
+            )}
+          </div>
+        )}
 
         {loading ? (
            <div className="text-sm text-black">Loading guests...</div>
@@ -166,6 +227,20 @@ export default function GuestsPage() {
                  style={{ background: 'rgba(252,246,237,0.85)', borderColor: isHighRisk(guest) ? undefined : '#c4956a', boxShadow: '0 20px 60px rgba(196,149,106,0.25), 0 8px 24px rgba(196,149,106,0.15)' }}
                >
                   {isHighRisk(guest) && <div className="absolute top-0 inset-x-0 h-1 bg-red-500"></div>}
+                  <div className="absolute top-3 right-3 flex items-center gap-1.5">
+                    <button
+                      onClick={(e) => { e.stopPropagation(); deleteSingle(guest.id); }}
+                      className="p-1 text-black/20 hover:text-red-500 transition-colors"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                    <input
+                      type="checkbox"
+                      checked={selectedIds.has(guest.id)}
+                      onChange={(e) => { e.stopPropagation(); toggleSelect(guest.id); }}
+                      className="w-4 h-4 rounded accent-[#c4956a] cursor-pointer"
+                    />
+                  </div>
                   <div className="flex justify-between items-start mb-4">
                      <div className="flex items-center overflow-hidden pr-2">
                         <div className="h-10 w-10 rounded-full flex items-center justify-center text-black font-bold text-sm flex-shrink-0" style={{ background: 'rgba(196,149,106,0.2)' }}>
@@ -218,12 +293,14 @@ export default function GuestsPage() {
             <table className="min-w-full divide-y" style={{ borderColor: '#c4956a' }}>
               <thead>
                 <tr>
+                  <th className="px-3 py-3 w-10"></th>
                   <th className="px-6 py-3 text-left text-xs font-semibold text-black uppercase tracking-wider">Name</th>
                   <th className="px-6 py-3 text-left text-xs font-semibold text-black uppercase tracking-wider">Phone</th>
                   <th className="px-6 py-3 text-center text-xs font-semibold text-black uppercase tracking-wider">Visits</th>
                   <th className="px-6 py-3 text-center text-xs font-semibold text-black uppercase tracking-wider">No-Shows</th>
                   <th className="px-6 py-3 text-center text-xs font-semibold text-black uppercase tracking-wider">Value</th>
                   <th className="px-6 py-3 text-left text-xs font-semibold text-black uppercase tracking-wider">Tags</th>
+                  <th className="px-3 py-3 w-10"></th>
                 </tr>
               </thead>
               <tbody className="divide-y" style={{ borderColor: 'rgba(196,149,106,0.3)' }}>
@@ -233,6 +310,14 @@ export default function GuestsPage() {
                     onClick={() => setSelectedGuest(guest)}
                     className="hover:bg-[#c4956a]/10 transition-colors cursor-pointer"
                   >
+                    <td className="px-3 py-4 whitespace-nowrap">
+                      <input
+                        type="checkbox"
+                        checked={selectedIds.has(guest.id)}
+                        onChange={(e) => { e.stopPropagation(); toggleSelect(guest.id); }}
+                        className="w-4 h-4 rounded accent-[#c4956a] cursor-pointer"
+                      />
+                    </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex items-center">
                         <div className="h-8 w-8 rounded-full flex items-center justify-center text-black font-bold text-xs flex-shrink-0" style={{ background: 'rgba(196,149,106,0.2)' }}>
@@ -259,6 +344,14 @@ export default function GuestsPage() {
                         {guest.dietary_notes && <span className="px-2 py-0.5 bg-blue-50 text-blue-700 text-[10px] font-bold uppercase tracking-widest rounded border border-blue-100">Dietary</span>}
                         {guest.accessibility_notes && <span className="px-2 py-0.5 bg-purple-50 text-purple-700 text-[10px] font-bold uppercase tracking-widest rounded border border-purple-100">Access</span>}
                       </div>
+                    </td>
+                    <td className="px-3 py-4 whitespace-nowrap">
+                      <button
+                        onClick={(e) => { e.stopPropagation(); deleteSingle(guest.id); }}
+                        className="p-1 text-black/20 hover:text-red-500 transition-colors"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
                     </td>
                   </tr>
                 ))}

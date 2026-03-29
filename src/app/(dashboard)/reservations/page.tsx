@@ -2,9 +2,14 @@
 
 import { ReservationList } from "@/components/reservations/ReservationList";
 import { ReservationTimeline } from "@/components/reservations/ReservationTimeline";
-import { Plus, Download, X, Save, Clock, Menu } from "lucide-react";
+import { Plus, Download, X, Save, Clock, Menu, Phone } from "lucide-react";
 import { useState, useEffect } from "react";
 import { Reservation, ReservationStatus } from "@/lib/types";
+
+interface ReservationWithGuest extends Reservation {
+  guest_name?: string;
+  guest_phone?: string;
+}
 import { useLanguage } from "@/lib/contexts/LanguageContext";
 import { useTenant } from "@/lib/contexts/TenantContext";
 import { createReservationAction, updateReservationDetailsAction } from "@/app/actions/reservations";
@@ -18,7 +23,7 @@ interface RestaurantTable {
 }
 
 export default function ReservationsPage() {
-  const [selectedRes, setSelectedRes] = useState<Reservation | null>(null);
+  const [selectedRes, setSelectedRes] = useState<ReservationWithGuest | null>(null);
   const [isCreating, setIsCreating] = useState(false);
   const [saving, setSaving] = useState(false);
 
@@ -180,12 +185,12 @@ export default function ReservationsPage() {
         {viewMode === "list" ? (
           <ReservationList
             date={date}
-            onRowClick={(res) => { setIsCreating(false); setSelectedRes(res); }}
+            onRowClick={(res) => { setIsCreating(false); setSelectedRes(res as ReservationWithGuest); }}
           />
         ) : (
           <ReservationTimeline
             date={date}
-            onRowClick={(res) => { setIsCreating(false); setSelectedRes(res); }}
+            onRowClick={(res) => { setIsCreating(false); setSelectedRes(res as ReservationWithGuest); }}
           />
         )}
       </div>
@@ -194,7 +199,19 @@ export default function ReservationsPage() {
       {selectedRes && (
         <div className="fixed inset-y-0 right-0 w-[400px] border-l shadow-2xl z-40 transform transition-transform duration-300 flex flex-col pt-16 overflow-hidden" style={{ background: 'rgba(252,246,237,0.95)', borderColor: '#c4956a' }}>
           <div className="px-6 py-4 flex items-center justify-between border-b" style={{ borderColor: '#c4956a' }}>
-             <h2 className="text-lg font-bold text-zinc-900 tracking-tight">{t("res_quick_edit")}</h2>
+             <div>
+               <h2 className="text-lg font-bold text-zinc-900 tracking-tight">{t("res_quick_edit")}</h2>
+               {(selectedRes.guest_name || selectedRes.guest_phone) && (
+                 <div className="flex items-center gap-2 mt-1">
+                   {selectedRes.guest_name && <span className="text-sm font-medium text-black">{selectedRes.guest_name}</span>}
+                   {selectedRes.guest_phone && (
+                     <span className="flex items-center text-xs text-black/60">
+                       <Phone className="w-3 h-3 mr-1" />{selectedRes.guest_phone}
+                     </span>
+                   )}
+                 </div>
+               )}
+             </div>
              <button onClick={() => setSelectedRes(null)} className="p-2 text-black hover:bg-[#c4956a]/10 hover:text-black rounded-full transition-colors">
                 <X className="h-5 w-5" />
              </button>

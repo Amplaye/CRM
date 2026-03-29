@@ -20,7 +20,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Build KB section for prompt
-    const kbSection = articles.map(a => `[${a.category}] ${a.title}: ${a.content}`).join("\n\n");
+    const kbSection = articles.map((a: any) => `[${a.category}] ${a.title}: ${a.content}`).join("\n\n");
 
     // Fetch current Retell LLM prompt
     const RETELL_KEY = process.env.RETELL_API_KEY!;

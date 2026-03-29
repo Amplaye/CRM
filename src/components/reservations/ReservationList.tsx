@@ -16,7 +16,7 @@ interface ReservationListProps {
 export function ReservationList({ date, onRowClick }: ReservationListProps) {
   const { activeTenant: tenant } = useTenant();
   const { t } = useLanguage();
-  const [reservations, setReservations] = useState<(Reservation & { guest_name?: string; table_names?: string[] })[]>([]);
+  const [reservations, setReservations] = useState<(Reservation & { guest_name?: string; guest_phone?: string; table_names?: string[] })[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -28,7 +28,7 @@ export function ReservationList({ date, onRowClick }: ReservationListProps) {
     const fetchReservations = async () => {
       const { data: resData, error } = await supabase
         .from("reservations")
-        .select("*, guests(name)")
+        .select("*, guests(name, phone)")
         .eq("tenant_id", tenant.id)
         .eq("date", date);
 
@@ -54,8 +54,9 @@ export function ReservationList({ date, onRowClick }: ReservationListProps) {
       const withNames = (resData || []).map((r: any) => ({
         ...r,
         guest_name: r.guests?.name || undefined,
+        guest_phone: r.guests?.phone || undefined,
         table_names: tableMap[r.id] || [],
-      })) as (Reservation & { guest_name?: string; table_names?: string[] })[];
+      })) as (Reservation & { guest_name?: string; guest_phone?: string; table_names?: string[] })[];
 
       const sorted = withNames.sort((a, b) => a.time.localeCompare(b.time));
       setReservations(sorted);
@@ -130,6 +131,7 @@ export function ReservationList({ date, onRowClick }: ReservationListProps) {
           <tr>
             <th scope="col" className="px-4 py-3 text-center text-xs font-semibold text-black uppercase tracking-wider">{t("res_col_time")}</th>
             <th scope="col" className="px-4 py-3 text-center text-xs font-semibold text-black uppercase tracking-wider">{t("res_col_guest")}</th>
+            <th scope="col" className="px-4 py-3 text-center text-xs font-semibold text-black uppercase tracking-wider">Phone</th>
             <th scope="col" className="px-4 py-3 text-center text-xs font-semibold text-black uppercase tracking-wider">{t("res_col_party")}</th>
             <th scope="col" className="px-4 py-3 text-center text-xs font-semibold text-black uppercase tracking-wider">Table</th>
             <th scope="col" className="px-4 py-3 text-center text-xs font-semibold text-black uppercase tracking-wider">{t("res_col_status")}</th>
@@ -152,6 +154,9 @@ export function ReservationList({ date, onRowClick }: ReservationListProps) {
               <td className="px-4 py-4 whitespace-nowrap text-center">
                 <div className="text-sm font-medium text-zinc-900">{res.guest_name || `Guest (${res.guest_id.substring(0,8)})`}</div>
                 {res.notes && <div className="text-xs text-black truncate max-w-[200px] mx-auto text-center">{res.notes}</div>}
+              </td>
+              <td className="px-4 py-4 whitespace-nowrap text-center">
+                <div className="text-sm text-black">{res.guest_phone || "—"}</div>
               </td>
               <td className="px-4 py-4 whitespace-nowrap text-center">
                 <div className="text-sm font-medium text-zinc-900">{res.party_size}</div>
