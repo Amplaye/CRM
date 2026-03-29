@@ -112,9 +112,16 @@ export default function DashboardPage() {
       setTotalGuests(guestsCount.count || 0);
       setNoShows(noShowCount.count || 0);
 
-      // Source pie chart
+      // Source pie chart with friendly labels
+      const sourceLabels: Record<string, string> = {
+        ai_voice: "AI Calls",
+        ai_chat: "AI Chat",
+        staff: "Staff",
+        walk_in: "Walk-in",
+        web: "Web",
+      };
       const srcArr: SourceCount[] = Object.entries(sourceCounts).map(
-        ([name, value]) => ({ name, value })
+        ([name, value]) => ({ name: sourceLabels[name] || name, value })
       );
       setSourceData(srcArr);
 
