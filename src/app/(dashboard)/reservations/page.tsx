@@ -3,11 +3,19 @@
 import { ReservationList } from "@/components/reservations/ReservationList";
 import { ReservationTimeline } from "@/components/reservations/ReservationTimeline";
 import { Plus, Download, X, Save, Clock, Menu } from "lucide-react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Reservation, ReservationStatus } from "@/lib/types";
 import { useLanguage } from "@/lib/contexts/LanguageContext";
 import { useTenant } from "@/lib/contexts/TenantContext";
 import { createReservationAction, updateReservationDetailsAction } from "@/app/actions/reservations";
+import { createClient } from "@/lib/supabase/client";
+
+interface RestaurantTable {
+  id: string;
+  name: string;
+  seats: number;
+  status: "active" | "inactive";
+}
 
 export default function ReservationsPage() {
   const [selectedRes, setSelectedRes] = useState<Reservation | null>(null);
@@ -20,6 +28,30 @@ export default function ReservationsPage() {
 
   const { t } = useLanguage();
   const { activeTenant } = useTenant();
+
+  const [availableTables, setAvailableTables] = useState<RestaurantTable[]>([]);
+  const [selectedTableIds, setSelectedTableIds] = useState<string[]>([]);
+  const supabase = createClient();
+
+  useEffect(() => {
+    if (!activeTenant) return;
+    const fetchTables = async () => {
+      const { data } = await supabase
+        .from("restaurant_tables")
+        .select("id, name, seats, status")
+        .eq("tenant_id", activeTenant.id)
+        .eq("status", "active")
+        .order("name");
+      setAvailableTables((data || []) as RestaurantTable[]);
+    };
+    fetchTables();
+  }, [activeTenant]);
+
+  const toggleTable = (tableId: string) => {
+    setSelectedTableIds(prev =>
+      prev.includes(tableId) ? prev.filter(id => id !== tableId) : [...prev, tableId]
+    );
+  };
 
   const handleUpdate = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -68,6 +100,20 @@ export default function ReservationsPage() {
       });
 
       if (!res.success) throw new Error(res.error);
+
+      // Assign selected tables to the new reservation
+      if (selectedTableIds.length > 0 && res.reservationId) {
+        const tableInserts = selectedTableIds.map(tableId => ({
+          reservation_id: res.reservationId,
+          table_id: tableId,
+        }));
+        const { error: tableErr } = await supabase
+          .from("reservation_tables")
+          .insert(tableInserts);
+        if (tableErr) console.error("Failed to assign tables:", tableErr);
+      }
+
+      setSelectedTableIds([]);
       setIsCreating(false);
     } catch (err: any) {
       alert("Failed to create booking: " + err.message);
@@ -245,6 +291,27 @@ export default function ReservationsPage() {
                    <label className="block text-sm font-medium text-black mb-1">Party Size</label>
                    <input required name="partySize" type="number" min="1" max="20" defaultValue="2" className="w-full border-2 rounded-lg px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-[#c4956a]" style={{ borderColor: '#c4956a', background: 'rgba(252,246,237,0.6)' }} />
                 </div>
+
+                {availableTables.length > 0 && (
+                  <div>
+                    <label className="block text-sm font-medium text-black mb-2">Assign Tables</label>
+                    <div className="border-2 rounded-lg p-3 space-y-2" style={{ borderColor: '#c4956a', background: 'rgba(252,246,237,0.6)' }}>
+                      {availableTables.map(table => (
+                        <label key={table.id} className="flex items-center gap-2 cursor-pointer text-sm text-black">
+                          <input
+                            type="checkbox"
+                            checked={selectedTableIds.includes(table.id)}
+                            onChange={() => toggleTable(table.id)}
+                            className="rounded border-2 accent-[#c4956a]"
+                            style={{ borderColor: '#c4956a' }}
+                          />
+                          <span className="font-medium">{table.name}</span>
+                          <span className="text-xs text-zinc-500">({table.seats} seats)</span>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                )}
 
                 <div>
                    <label className="block text-sm font-medium text-black mb-1">Notes</label>

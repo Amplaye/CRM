@@ -1,6 +1,6 @@
 "use client";
 
-import { UserPlus, Sparkles, Clock, Send, Activity, X, CheckCircle } from "lucide-react";
+import { UserPlus, Sparkles, Clock, Send, Activity, X, CheckCircle, MessageSquare } from "lucide-react";
 import { useLanguage } from "@/lib/contexts/LanguageContext";
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
@@ -9,6 +9,11 @@ import { WaitlistEntry } from "@/lib/types";
 import { useAuth } from "@/lib/contexts/AuthContext";
 import { createWaitlistEntryAction, updateWaitlistStatusAction } from "@/app/actions/waitlist";
 import { createReservationAction } from "@/app/actions/reservations";
+import Link from "next/link";
+
+interface WaitlistWithGuest extends WaitlistEntry {
+  guests?: { name: string; phone: string; email?: string };
+}
 
 export default function WaitlistPage() {
   const { t } = useLanguage();
@@ -16,7 +21,7 @@ export default function WaitlistPage() {
   const { user } = useAuth();
   const supabase = createClient();
 
-  const [entries, setEntries] = useState<WaitlistEntry[]>([]);
+  const [entries, setEntries] = useState<WaitlistWithGuest[]>([]);
   const [loading, setLoading] = useState(true);
 
   const [isCreating, setIsCreating] = useState(false);
@@ -31,7 +36,7 @@ export default function WaitlistPage() {
     const fetchEntries = async () => {
       const { data, error } = await supabase
         .from("waitlist_entries")
-        .select("*")
+        .select("*, guests(name, phone, email)")
         .eq("tenant_id", tenant.id)
         .eq("date", today)
         .in("status", ["waiting", "match_found", "contacted"]);
@@ -42,7 +47,7 @@ export default function WaitlistPage() {
         return;
       }
 
-      const docs = (data || []) as WaitlistEntry[];
+      const docs = (data || []) as WaitlistWithGuest[];
       docs.sort((a, b) => b.priority_score - a.priority_score || a.created_at - b.created_at);
       setEntries(docs);
       setLoading(false);
@@ -100,16 +105,18 @@ export default function WaitlistPage() {
     } catch (err) { console.error(err); }
   };
 
-  const convertToBooking = async (entry: WaitlistEntry) => {
+  const convertToBooking = async (entry: WaitlistWithGuest) => {
     if (!user || !tenant) return;
-    if (!confirm(`Convert ${entry.party_size} pax at ${entry.target_time} to a confirmed booking?`)) return;
+    const guestName = entry.guests?.name || `Guest ${entry.guest_id.substring(0,6)}`;
+    const guestPhone = entry.guests?.phone || "0000000";
+    if (!confirm(`Convert ${guestName} (${entry.party_size} pax) at ${entry.target_time} to a confirmed booking?`)) return;
 
     try {
       // 1. Create Reservation natively
       const res = await createReservationAction({
          tenantId: tenant.id,
-         guestName: `Guest ${entry.guest_id.substring(0,6)}`, // Real name exists in guest DB, relying on backend lookup via phone, we'll pass placeholder since backend auto links by ID
-         guestPhone: "0000000", // Edge case: if we don't have phone here. For production, the API should take guestId. Extending API is out of scope for this UI snippet test. Let's just pass dummy.
+         guestName,
+         guestPhone,
          date: entry.date,
          time: entry.target_time,
          partySize: entry.party_size,
@@ -158,7 +165,7 @@ export default function WaitlistPage() {
                 <div className="ml-5 flex-1">
                    <h3 className="text-lg font-bold text-zinc-900 tracking-tight">Recovery Match Available</h3>
                    <p className="text-sm text-zinc-600 mt-1 max-w-2xl leading-relaxed">
-                     A cancellation has triggered a capacity match for <span className="font-bold text-zinc-900">Guest {matchFoundEntry.guest_id.substring(0,8)}</span> ({matchFoundEntry.party_size} pax). Their flexible window is {matchFoundEntry.acceptable_time_range.start} – {matchFoundEntry.acceptable_time_range.end}.
+                     A cancellation has triggered a capacity match for <span className="font-bold text-zinc-900">{matchFoundEntry.guests?.name || `Guest ${matchFoundEntry.guest_id.substring(0,8)}`}</span> ({matchFoundEntry.party_size} pax). Their flexible window is {matchFoundEntry.acceptable_time_range.start} – {matchFoundEntry.acceptable_time_range.end}.
                    </p>
                    <div className="mt-3 flex items-center space-x-2">
                       <span className="inline-flex items-center px-2.5 py-1 rounded-md text-[10px] uppercase tracking-wider font-bold bg-zinc-900 text-white shadow-sm">
@@ -224,9 +231,17 @@ export default function WaitlistPage() {
                        </div>
                      </td>
                      <td className="px-6 py-4 whitespace-nowrap">
-                       <div className="text-sm font-bold text-zinc-900 tracking-tight">Guest {entry.guest_id.substring(0,6)} ({entry.party_size} pax)</div>
+                       <div className="text-sm font-bold text-zinc-900 tracking-tight flex items-center">
+                         {entry.guests?.name || `Guest ${entry.guest_id.substring(0,6)}`} ({entry.party_size} pax)
+                         <Link href={`/conversations?guest=${entry.guest_id}`} className="ml-2 text-[#c4956a] hover:text-[#b8845c] transition-colors" title="Open conversation">
+                           <MessageSquare className="w-4 h-4" />
+                         </Link>
+                       </div>
+                       {entry.guests?.phone && (
+                         <div className="text-xs font-medium text-zinc-500 mt-0.5">{entry.guests.phone}</div>
+                       )}
                        <div className="text-xs font-medium text-zinc-500 flex items-center mt-0.5">
-                          Prefers {entry.contact_preference}
+                          {entry.date} &middot; Prefers {entry.contact_preference}
                        </div>
                      </td>
                      <td className="px-6 py-4 whitespace-nowrap">
