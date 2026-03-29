@@ -151,7 +151,7 @@ export function ReservationList({ date, onRowClick }: ReservationListProps) {
               </td>
               <td className="px-4 py-4 whitespace-nowrap text-center">
                 <div className="text-sm font-medium text-zinc-900">{res.guest_name || `Guest (${res.guest_id.substring(0,8)})`}</div>
-                {res.notes && <div className="text-xs text-black truncate max-w-[200px]">{res.notes}</div>}
+                {res.notes && <div className="text-xs text-black truncate max-w-[200px] mx-auto text-center">{res.notes}</div>}
               </td>
               <td className="px-4 py-4 whitespace-nowrap text-center">
                 <div className="text-sm font-medium text-zinc-900">{res.party_size}</div>
