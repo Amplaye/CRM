@@ -35,6 +35,7 @@ export default function PendingPage() {
   const [tables, setTables] = useState<TableOption[]>([]);
   const [confirmingId, setConfirmingId] = useState<string | null>(null);
   const [selectedTables, setSelectedTables] = useState<Set<string>>(new Set());
+  const [occupiedTableIds, setOccupiedTableIds] = useState<Set<string>>(new Set());
 
   const fetchPending = async () => {
     if (!tenant) return;
@@ -79,9 +80,32 @@ export default function PendingPage() {
     return () => { supabase.removeChannel(channel); };
   }, [tenant]);
 
-  const startConfirm = (id: string) => {
+  const startConfirm = async (id: string) => {
     setConfirmingId(id);
     setSelectedTables(new Set());
+
+    // Find the request's date and fetch occupied tables for that date
+    const req = pending.find(p => p.id === id);
+    if (req && tenant) {
+      const { data: resData } = await supabase
+        .from("reservations")
+        .select("id")
+        .eq("tenant_id", tenant.id)
+        .eq("date", req.date)
+        .in("status", ["confirmed", "seated", "pending_confirmation"])
+        .neq("id", id);
+
+      const resIds = (resData || []).map((r: any) => r.id);
+      if (resIds.length > 0) {
+        const { data: links } = await supabase
+          .from("reservation_tables")
+          .select("table_id")
+          .in("reservation_id", resIds);
+        setOccupiedTableIds(new Set((links || []).map((l: any) => l.table_id)));
+      } else {
+        setOccupiedTableIds(new Set());
+      }
+    }
   };
 
   const toggleTable = (tableId: string) => {
@@ -227,20 +251,28 @@ export default function PendingPage() {
                   <div className="border-t-2 p-5" style={{ borderColor: '#22c55e', background: 'rgba(34,197,94,0.03)' }}>
                     <h3 className="text-sm font-bold text-black mb-3">Asignar mesas ({Math.ceil(req.party_size / 4)} necesarias para {req.party_size} personas)</h3>
                     <div className="grid grid-cols-4 sm:grid-cols-5 gap-2 mb-4">
-                      {tables.map(table => (
-                        <button
-                          key={table.id}
-                          onClick={() => toggleTable(table.id)}
-                          className={`px-3 py-2 rounded-lg text-sm font-medium border-2 transition-all ${
-                            selectedTables.has(table.id)
-                              ? 'border-green-500 bg-green-50 text-green-800'
-                              : 'border-[#c4956a]/50 text-black hover:border-[#c4956a]'
-                          }`}
-                          style={{ background: selectedTables.has(table.id) ? undefined : 'rgba(252,246,237,0.6)' }}
-                        >
-                          {table.name}
-                        </button>
-                      ))}
+                      {tables.map(table => {
+                        const isOccupied = occupiedTableIds.has(table.id);
+                        const isSelected = selectedTables.has(table.id);
+                        return (
+                          <button
+                            key={table.id}
+                            onClick={() => !isOccupied && toggleTable(table.id)}
+                            disabled={isOccupied}
+                            className={`px-3 py-2 rounded-lg text-sm font-medium border-2 transition-all ${
+                              isOccupied
+                                ? 'border-red-400 bg-red-50 text-red-400 cursor-not-allowed opacity-60'
+                                : isSelected
+                                  ? 'border-green-500 bg-green-50 text-green-800'
+                                  : 'border-[#c4956a]/50 text-black hover:border-[#c4956a]'
+                            }`}
+                            style={!isOccupied && !isSelected ? { background: 'rgba(252,246,237,0.6)' } : undefined}
+                          >
+                            {table.name}
+                            {isOccupied && <span className="text-[10px] block text-red-400">occupied</span>}
+                          </button>
+                        );
+                      })}
                     </div>
                     <div className="flex items-center gap-3">
                       <button
