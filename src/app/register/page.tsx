@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
-import { Loader2, Lock, Mail, User, Building2, UtensilsCrossed, ShoppingBag, CalendarCheck } from "lucide-react";
+import { Loader2, Lock, Mail, User, Building2, UtensilsCrossed, ShoppingBag, CalendarCheck, CheckCircle } from "lucide-react";
 import Link from "next/link";
 
 const businessTypes = [
@@ -53,15 +53,41 @@ export default function RegisterPage() {
       const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
         email,
         password,
-        options: { data: { name } }
+        options: {
+          data: { name },
+          emailRedirectTo: `${window.location.origin}/auth/callback?next=/`
+        }
       });
       if (signUpError) throw signUpError;
 
-      // 2. Sign in immediately
+      // Check if email confirmation is required
+      if (signUpData?.user?.identities?.length === 0) {
+        setError("An account with this email already exists.");
+        setLoading(false);
+        return;
+      }
+
+      // If email is not confirmed yet (confirmation enabled), show message
+      if (signUpData?.user && !signUpData.session) {
+        // Create tenant immediately (user exists even before confirmation)
+        await fetch("/api/register-tenant", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            userId: signUpData.user.id,
+            businessName,
+            businessType
+          })
+        });
+        setStep(3); // Show confirmation message
+        setLoading(false);
+        return;
+      }
+
+      // If no email confirmation required, sign in and create tenant
       const { error: signInError } = await supabase.auth.signInWithPassword({ email, password });
       if (signInError) throw signInError;
 
-      // 3. Create tenant via API
       if (signUpData?.user) {
         const res = await fetch("/api/register-tenant", {
           method: "POST",
@@ -252,12 +278,30 @@ export default function RegisterPage() {
             </form>
           )}
 
-          <p className="mt-6 text-center text-sm text-black">
-            Already have an account?{" "}
-            <Link href="/login" className="font-medium text-[#c4956a] hover:text-[#b8845c]">
-              Sign in
-            </Link>
-          </p>
+          {step === 3 && (
+            <div className="text-center space-y-4">
+              <CheckCircle className="mx-auto h-12 w-12 text-emerald-500" />
+              <h3 className="text-lg font-semibold text-zinc-900">Check your email</h3>
+              <p className="text-sm text-black">
+                We sent a confirmation link to <strong>{email}</strong>. Click the link to activate your account.
+              </p>
+              <Link
+                href="/login"
+                className="inline-flex items-center text-sm font-medium text-[#c4956a] hover:text-[#b8845c]"
+              >
+                Go to sign in
+              </Link>
+            </div>
+          )}
+
+          {step !== 3 && (
+            <p className="mt-6 text-center text-sm text-black">
+              Already have an account?{" "}
+              <Link href="/login" className="font-medium text-[#c4956a] hover:text-[#b8845c]">
+                Sign in
+              </Link>
+            </p>
+          )}
         </div>
       </div>
     </div>
