@@ -1,6 +1,6 @@
 "use client";
 
-import { Download, Search, SlidersHorizontal, Star, AlertTriangle, X, Save, CalendarCheck, User, LayoutGrid, List } from "lucide-react";
+import { Download, Search, Star, AlertTriangle, X, Save, CalendarCheck, User, LayoutGrid, List } from "lucide-react";
 import { useLanguage } from "@/lib/contexts/LanguageContext";
 import { useEffect, useState } from "react";
 import { useTenant } from "@/lib/contexts/TenantContext";
@@ -145,10 +145,6 @@ export default function GuestsPage() {
                 style={{ borderColor: '#c4956a', background: 'rgba(252,246,237,0.6)' }}
               />
            </div>
-           <button className="px-4 py-2 border-2 text-black rounded-md text-sm font-medium flex items-center shadow-sm" style={{ borderColor: '#c4956a', background: 'rgba(252,246,237,0.6)' }}>
-              <SlidersHorizontal className="h-4 w-4 mr-2" />
-              {t("guests_filters")}
-           </button>
         </div>
 
         {loading ? (
