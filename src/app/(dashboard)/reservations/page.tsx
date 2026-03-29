@@ -65,6 +65,7 @@ export default function ReservationsPage() {
   const [selectedTableIds, setSelectedTableIds] = useState<string[]>([]);
   const [occupiedTableIds, setOccupiedTableIds] = useState<Set<string>>(new Set());
   const [createShift, setCreateShift] = useState<"lunch" | "dinner">("dinner");
+  const [createDate, setCreateDate] = useState(date);
   const supabase = createClient();
 
   const shiftTimes = {
@@ -188,12 +189,13 @@ export default function ReservationsPage() {
       });
       setAvailableTables(sorted);
 
-      // Fetch occupied tables for the selected date
+      // Fetch occupied tables for the date being created
+      const checkDate = isCreating ? createDate : date;
       const { data: resData } = await supabase
         .from("reservations")
         .select("id")
         .eq("tenant_id", activeTenant.id)
-        .eq("date", date)
+        .eq("date", checkDate)
         .in("status", ["confirmed", "seated", "pending_confirmation"]);
 
       const resIds = (resData || []).map((r: any) => r.id);
@@ -208,7 +210,7 @@ export default function ReservationsPage() {
       }
     };
     fetchTables();
-  }, [activeTenant, date]);
+  }, [activeTenant, date, createDate, isCreating]);
 
   const toggleTable = (tableId: string) => {
     setSelectedTableIds(prev =>
@@ -304,7 +306,7 @@ export default function ReservationsPage() {
              </button>
              <input ref={fileInputRef} type="file" accept=".csv" className="hidden" onChange={handleImport} />
              <button
-               onClick={() => { setSelectedRes(null); setIsCreating(true); }}
+               onClick={() => { setSelectedRes(null); setIsCreating(true); setCreateDate(date); setSelectedTableIds([]); }}
                className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-lg shadow-sm text-white bg-zinc-900 hover:bg-zinc-800 transition-colors"
              >
                 <Plus className="-ml-1 mr-2 h-5 w-5" aria-hidden="true" />
@@ -356,7 +358,7 @@ export default function ReservationsPage() {
 
       {/* QUICK STATUS EDIT DRAWER */}
       {selectedRes && (
-        <div className="fixed inset-y-0 right-0 w-[400px] border-l shadow-2xl z-40 transform transition-transform duration-300 flex flex-col pt-16 overflow-hidden" style={{ background: 'rgba(252,246,237,0.95)', borderColor: '#c4956a' }}>
+        <div className="fixed inset-y-0 right-0 w-[400px] border-l shadow-2xl z-40 transform transition-transform duration-300 flex flex-col overflow-hidden" style={{ background: 'rgba(252,246,237,0.95)', borderColor: '#c4956a' }}>
           <div className="px-6 py-4 flex items-center justify-between border-b" style={{ borderColor: '#c4956a' }}>
              <div>
                <h2 className="text-lg font-bold text-zinc-900 tracking-tight">{t("res_quick_edit")}</h2>
@@ -435,7 +437,7 @@ export default function ReservationsPage() {
 
       {/* NEW RESERVATION DRAWER */}
       {isCreating && (
-        <div className="fixed inset-y-0 right-0 w-[400px] border-l shadow-2xl z-40 transform transition-transform duration-300 flex flex-col pt-16 overflow-hidden" style={{ background: 'rgba(252,246,237,0.95)', borderColor: '#c4956a' }}>
+        <div className="fixed inset-y-0 right-0 w-[400px] border-l shadow-2xl z-40 transform transition-transform duration-300 flex flex-col overflow-hidden" style={{ background: 'rgba(252,246,237,0.95)', borderColor: '#c4956a' }}>
           <div className="px-6 py-4 flex items-center justify-between border-b" style={{ borderColor: '#c4956a' }}>
              <h2 className="text-lg font-bold text-zinc-900 tracking-tight">{t("res_new")}</h2>
              <button onClick={() => setIsCreating(false)} className="p-2 text-black hover:bg-[#c4956a]/10 hover:text-black rounded-full transition-colors">
@@ -455,7 +457,7 @@ export default function ReservationsPage() {
 
                 <div>
                    <label className="block text-sm font-medium text-black mb-1">{t("res_edit_date")}</label>
-                   <input required name="date" type="date" defaultValue={date} className="w-full border-2 rounded-lg px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-[#c4956a]" style={{ borderColor: '#c4956a', background: 'rgba(252,246,237,0.6)' }} />
+                   <input required name="date" type="date" value={createDate} onChange={(e) => { setCreateDate(e.target.value); setSelectedTableIds([]); }} className="w-full border-2 rounded-lg px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-[#c4956a]" style={{ borderColor: '#c4956a', background: 'rgba(252,246,237,0.6)' }} />
                 </div>
 
                 <div>
