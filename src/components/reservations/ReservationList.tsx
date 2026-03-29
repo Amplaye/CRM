@@ -114,10 +114,10 @@ export function ReservationList({ date, onRowClick }: ReservationListProps) {
       <table className="min-w-full divide-y" style={{ borderColor: '#c4956a' }}>
         <thead>
           <tr>
-            <th scope="col" className="px-6 py-3 text-left text-xs font-semibold text-black uppercase tracking-wider">{t("res_col_time")}</th>
-            <th scope="col" className="px-6 py-3 text-left text-xs font-semibold text-black uppercase tracking-wider">{t("res_col_guest")}</th>
+            <th scope="col" className="px-6 py-3 text-center text-xs font-semibold text-black uppercase tracking-wider">{t("res_col_time")}</th>
+            <th scope="col" className="px-6 py-3 text-center text-xs font-semibold text-black uppercase tracking-wider">{t("res_col_guest")}</th>
             <th scope="col" className="px-6 py-3 text-center text-xs font-semibold text-black uppercase tracking-wider">{t("res_col_party")}</th>
-            <th scope="col" className="px-6 py-3 text-left text-xs font-semibold text-black uppercase tracking-wider">{t("res_col_status")}</th>
+            <th scope="col" className="px-6 py-3 text-center text-xs font-semibold text-black uppercase tracking-wider">{t("res_col_status")}</th>
             <th scope="col" className="px-6 py-3 text-center text-xs font-semibold text-black uppercase tracking-wider">{t("res_col_source")}</th>
           </tr>
         </thead>
@@ -128,20 +128,20 @@ export function ReservationList({ date, onRowClick }: ReservationListProps) {
                onClick={() => onRowClick?.(res)}
                className={`hover:bg-[#c4956a]/10 transition-colors ${onRowClick ? 'cursor-pointer' : ''}`}
             >
-              <td className="px-6 py-4 whitespace-nowrap">
-                <div className="flex items-center text-sm font-bold text-zinc-900">
+              <td className="px-6 py-4 whitespace-nowrap text-center">
+                <div className="flex items-center justify-center text-sm font-bold text-zinc-900">
                   <Clock className="w-4 h-4 text-black mr-2" />
                   {res.time}
                 </div>
               </td>
-              <td className="px-6 py-4 whitespace-nowrap">
+              <td className="px-6 py-4 whitespace-nowrap text-center">
                 <div className="text-sm font-medium text-zinc-900">{res.guest_name || `Guest (${res.guest_id.substring(0,8)})`}</div>
                 {res.notes && <div className="text-xs text-black truncate max-w-[200px]">{res.notes}</div>}
               </td>
               <td className="px-6 py-4 whitespace-nowrap text-center">
                 <div className="text-sm font-medium text-zinc-900">{res.party_size}</div>
               </td>
-              <td className="px-6 py-4 whitespace-nowrap">
+              <td className="px-6 py-4 whitespace-nowrap text-center">
                 <StatusPill status={res.status} />
               </td>
               <td className="px-6 py-4 whitespace-nowrap text-center">
