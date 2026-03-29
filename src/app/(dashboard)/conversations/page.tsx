@@ -152,15 +152,20 @@ export default function ConversationsPage() {
   const deleteSelected = async () => {
     if (selectedIds.size === 0) return;
     setDeleting(true);
-    await supabase.from("conversations").delete().in("id", Array.from(selectedIds));
-    setSelectedIds(new Set());
+    const idsToDelete = Array.from(selectedIds);
+    setConversations(prev => prev.filter(c => !selectedIds.has(c.id)));
     if (selectedConvoId && selectedIds.has(selectedConvoId)) setSelectedConvoId(null);
+    setSelectedIds(new Set());
+    await supabase.from("conversations").delete().in("id", idsToDelete);
     setDeleting(false);
   };
 
   const deleteSingle = async (id: string) => {
-    await supabase.from("conversations").delete().eq("id", id);
+    setConversations(prev => prev.filter(c => c.id !== id));
     if (selectedConvoId === id) setSelectedConvoId(null);
+    selectedIds.delete(id);
+    setSelectedIds(new Set(selectedIds));
+    await supabase.from("conversations").delete().eq("id", id);
   };
 
   const getGuestDisplay = (conv: ConvoWithGuest) => {
@@ -181,24 +186,6 @@ export default function ConversationsPage() {
         <div className="p-6 border-b z-10" style={{ borderColor: '#c4956a' }}>
           <h1 className="text-2xl font-bold text-zinc-900 tracking-tight">{t("conv_title")}</h1>
           <p className="mt-1 text-sm text-black">{t("conv_subtitle")}</p>
-          {selectedIds.size > 0 ? (
-            <div className="mt-4 flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <button onClick={selectAll} className="text-xs font-medium text-black/60 hover:text-black">
-                  {selectedIds.size === filtered.length ? 'Deselect all' : 'Select all'}
-                </button>
-                <span className="text-xs text-black/40">{selectedIds.size} selected</span>
-              </div>
-              <button
-                onClick={deleteSelected}
-                disabled={deleting}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold text-red-600 bg-red-50 border border-red-200 hover:bg-red-100 disabled:opacity-50"
-              >
-                <Trash2 className="w-3.5 h-3.5" />
-                Delete ({selectedIds.size})
-              </button>
-            </div>
-          ) : (
           <div className="mt-4 relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-black" />
             <input
@@ -210,6 +197,28 @@ export default function ConversationsPage() {
               style={{ borderColor: '#c4956a', background: 'rgba(252,246,237,0.6)' }}
             />
           </div>
+          {filtered.length > 0 && (
+            <div className="mt-3 flex items-center justify-between">
+              <button onClick={selectAll} className="flex items-center gap-1.5 text-xs font-medium text-black/60 hover:text-black">
+                <input
+                  type="checkbox"
+                  checked={selectedIds.size === filtered.length && filtered.length > 0}
+                  onChange={selectAll}
+                  className="w-3.5 h-3.5 rounded accent-[#c4956a] cursor-pointer"
+                />
+                {selectedIds.size === filtered.length ? 'Deselect all' : 'Select all'}
+              </button>
+              {selectedIds.size > 0 && (
+                <button
+                  onClick={deleteSelected}
+                  disabled={deleting}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold text-red-600 bg-red-50 border border-red-200 hover:bg-red-100 disabled:opacity-50"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  Delete ({selectedIds.size})
+                </button>
+              )}
+            </div>
           )}
         </div>
 
