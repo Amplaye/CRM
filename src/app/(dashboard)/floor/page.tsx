@@ -41,6 +41,7 @@ export default function FloorPage() {
   const [resTableLinks, setResTableLinks] = useState<ResTableLink[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split("T")[0]);
+  const [selectedShift, setSelectedShift] = useState<"lunch" | "dinner">(new Date().getHours() < 16 ? "lunch" : "dinner");
 
   const today = selectedDate;
   const nowMinutes = new Date().getHours() * 60 + new Date().getMinutes();
@@ -129,16 +130,21 @@ export default function FloorPage() {
     return h * 60 + m;
   }
 
+  // Filter reservations by selected shift
+  const shiftReservations = reservations.filter((r) => {
+    const resShift = r.shift || getShift(r.time);
+    return resShift === selectedShift;
+  });
+
   function getTableStatus(tableId: string): {
     status: "free" | "occupied" | "ending_soon";
     reservation?: ReservationWithGuest;
   } {
-    // Find a seated reservation assigned to this table right now
     for (const link of resTableLinks) {
       if (link.table_id !== tableId) continue;
-      const res = reservations.find((r) => r.id === link.reservation_id);
+      const res = shiftReservations.find((r) => r.id === link.reservation_id);
       if (!res) continue;
-      if (res.status !== "seated" && res.status !== "confirmed") continue;
+      if (res.status !== "seated" && res.status !== "confirmed" && res.status !== "escalated" && res.status !== "pending_confirmation") continue;
 
       const dayOfWeek = new Date(today + "T12:00:00").getDay();
       const shift = res.shift || getShift(res.time);
@@ -150,48 +156,50 @@ export default function FloorPage() {
         );
       const endMin = timeToMin(endTime);
       const startMin = timeToMin(res.time);
+      const isToday = selectedDate === new Date().toISOString().split("T")[0];
 
-      // Check if reservation is active now
-      if (nowMinutes >= startMin && nowMinutes < endMin) {
-        const minutesLeft = endMin - nowMinutes;
-        return {
-          status: minutesLeft <= 15 ? "ending_soon" : "occupied",
-          reservation: res,
-        };
+      if (isToday) {
+        // For today: show occupied only if currently active
+        if (nowMinutes >= startMin && nowMinutes < endMin) {
+          const minutesLeft = endMin - nowMinutes;
+          return {
+            status: minutesLeft <= 15 ? "ending_soon" : "occupied",
+            reservation: res,
+          };
+        }
+        // Also show upcoming reservations as occupied
+        if (nowMinutes < startMin) {
+          return { status: "occupied", reservation: res };
+        }
+      } else {
+        // For other dates: show all reservations for the shift as occupied
+        return { status: "occupied", reservation: res };
       }
     }
     return { status: "free" };
   }
 
-  // Stats
-  const activeStatuses = ["confirmed", "seated", "completed"];
-  const todayActiveRes = reservations.filter((r) =>
+  // Stats (filtered by shift)
+  const activeStatuses = ["confirmed", "seated", "completed", "pending_confirmation"];
+  const shiftActiveRes = shiftReservations.filter((r) =>
     activeStatuses.includes(r.status)
   );
-  const totalGuests = todayActiveRes.reduce((s, r) => s + r.party_size, 0);
+  const totalGuests = shiftActiveRes.reduce((s, r) => s + r.party_size, 0);
 
-  const seatedRes = reservations.filter((r) => r.status === "seated");
   const occupiedTableIds = new Set<string>();
   for (const link of resTableLinks) {
-    const res = reservations.find((r) => r.id === link.reservation_id);
-    if (res && res.status === "seated") {
+    const res = shiftReservations.find((r) => r.id === link.reservation_id);
+    if (res && activeStatuses.includes(res.status)) {
       occupiedTableIds.add(link.table_id);
     }
   }
   const occupiedCount = occupiedTableIds.size;
-  const pendingCount = reservations.filter(
+  const pendingCount = shiftReservations.filter(
     (r) => r.status === "escalated"
   ).length;
 
-  // Split by shift
-  const lunchRes = reservations.filter((r) => {
-    const shift = r.shift || getShift(r.time);
-    return shift === "lunch";
-  });
-  const dinnerRes = reservations.filter((r) => {
-    const shift = r.shift || getShift(r.time);
-    return shift === "dinner";
-  });
+  // Current shift reservations (already filtered)
+  const currentShiftRes = shiftReservations;
 
   function getTablesForRes(resId: string): string[] {
     return resTableLinks
@@ -242,12 +250,28 @@ export default function FloorPage() {
           </h1>
           <p className="mt-1 text-sm text-black">{t("floor_subtitle")}</p>
         </div>
-        <div className="mt-4 sm:mt-0">
+        <div className="mt-4 sm:mt-0 flex items-center gap-3">
+          <div className="flex border-2 rounded-lg overflow-hidden" style={{ borderColor: '#c4956a' }}>
+            <button
+              onClick={() => setSelectedShift("lunch")}
+              className={`px-4 py-1.5 text-sm font-semibold transition-colors ${selectedShift === "lunch" ? "text-white" : "text-black"}`}
+              style={{ background: selectedShift === "lunch" ? '#c4956a' : 'rgba(252,246,237,0.6)' }}
+            >
+              {t("floor_lunch")}
+            </button>
+            <button
+              onClick={() => setSelectedShift("dinner")}
+              className={`px-4 py-1.5 text-sm font-semibold transition-colors ${selectedShift === "dinner" ? "text-white" : "text-black"}`}
+              style={{ background: selectedShift === "dinner" ? '#c4956a' : 'rgba(252,246,237,0.6)' }}
+            >
+              {t("floor_dinner")}
+            </button>
+          </div>
           <input
             type="date"
             value={selectedDate}
             onChange={(e) => setSelectedDate(e.target.value)}
-            className="border-2 rounded-md px-3 py-1.5 text-sm font-medium text-black focus:ring-1 focus:ring-[#c4956a] focus:outline-none shadow-sm"
+            className="border-2 rounded-lg px-3 py-1.5 text-sm font-medium text-black focus:ring-1 focus:ring-[#c4956a] focus:outline-none"
             style={{ borderColor: '#c4956a', background: 'rgba(252,246,237,0.6)' }}
           />
         </div>
@@ -258,7 +282,7 @@ export default function FloorPage() {
         {[
           {
             label: t("floor_today"),
-            value: todayActiveRes.length,
+            value: shiftActiveRes.length,
             icon: Calendar,
             href: "/reservations",
           },
@@ -362,120 +386,62 @@ export default function FloorPage() {
         </div>
       </div>
 
-      {/* Reservations by Shift */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Lunch */}
+      {/* Reservations for selected shift */}
+      <div
+        className="rounded-xl border-2 overflow-hidden"
+        style={{
+          background: "rgba(252,246,237,0.85)",
+          borderColor: "#c4956a",
+        }}
+      >
         <div
-          className="rounded-xl border-2 overflow-hidden"
-          style={{
-            background: "rgba(252,246,237,0.85)",
-            borderColor: "#c4956a",
-          }}
+          className="px-4 py-3 border-b"
+          style={{ borderColor: "#c4956a" }}
         >
-          <div
-            className="px-4 py-3 border-b"
-            style={{ borderColor: "#c4956a" }}
-          >
-            <h3 className="font-bold text-black">{t("floor_lunch")}</h3>
-          </div>
-          <div className="divide-y" style={{ borderColor: "#c4956a" }}>
-            {lunchRes.length === 0 ? (
-              <p className="px-4 py-6 text-sm text-black/60 text-center">
-                {t("floor_no_reservations")}
-              </p>
-            ) : (
-              lunchRes.map((res) => {
-                const guestName =
-                  res.guests && typeof res.guests === "object"
-                    ? (res.guests as any).name
-                    : "Guest";
-                const tableNames = getTablesForRes(res.id);
-                return (
-                  <div
-                    key={res.id}
-                    className="px-4 py-3 flex items-center justify-between"
-                  >
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center space-x-2">
-                        <span className="text-sm font-bold text-black">
-                          {res.time}
-                        </span>
-                        <span className="text-sm text-black truncate">
-                          {guestName}
-                        </span>
-                        <span className="text-xs text-black/60">
-                          {res.party_size}p
-                        </span>
-                      </div>
-                      {tableNames.length > 0 && (
-                        <p className="text-xs text-black/60 mt-0.5">
-                          {tableNames.join(", ")}
-                        </p>
-                      )}
-                    </div>
-                    {statusPill(res.status)}
-                  </div>
-                );
-              })
-            )}
-          </div>
+          <h3 className="font-bold text-black">
+            {selectedShift === "lunch" ? t("floor_lunch") : t("floor_dinner")} — {selectedDate}
+          </h3>
         </div>
-
-        {/* Dinner */}
-        <div
-          className="rounded-xl border-2 overflow-hidden"
-          style={{
-            background: "rgba(252,246,237,0.85)",
-            borderColor: "#c4956a",
-          }}
-        >
-          <div
-            className="px-4 py-3 border-b"
-            style={{ borderColor: "#c4956a" }}
-          >
-            <h3 className="font-bold text-black">{t("floor_dinner")}</h3>
-          </div>
-          <div className="divide-y" style={{ borderColor: "#c4956a" }}>
-            {dinnerRes.length === 0 ? (
-              <p className="px-4 py-6 text-sm text-black/60 text-center">
-                {t("floor_no_reservations")}
-              </p>
-            ) : (
-              dinnerRes.map((res) => {
-                const guestName =
-                  res.guests && typeof res.guests === "object"
-                    ? (res.guests as any).name
-                    : "Guest";
-                const tableNames = getTablesForRes(res.id);
-                return (
-                  <div
-                    key={res.id}
-                    className="px-4 py-3 flex items-center justify-between"
-                  >
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center space-x-2">
-                        <span className="text-sm font-bold text-black">
-                          {res.time}
-                        </span>
-                        <span className="text-sm text-black truncate">
-                          {guestName}
-                        </span>
-                        <span className="text-xs text-black/60">
-                          {res.party_size}p
-                        </span>
-                      </div>
+        <div className="divide-y" style={{ borderColor: "rgba(196,149,106,0.3)" }}>
+          {currentShiftRes.length === 0 ? (
+            <p className="px-4 py-6 text-sm text-black/60 text-center">
+              {t("floor_no_reservations")}
+            </p>
+          ) : (
+            currentShiftRes.map((res) => {
+              const guestName =
+                res.guests && typeof res.guests === "object"
+                  ? (res.guests as any).name
+                  : "Guest";
+              const tableNames = getTablesForRes(res.id);
+              return (
+                <div
+                  key={res.id}
+                  className="px-4 py-3 flex items-center justify-between"
+                >
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center space-x-3">
+                      <span className="text-sm font-bold text-black">
+                        {res.time}
+                      </span>
+                      <span className="text-sm text-black truncate">
+                        {guestName}
+                      </span>
+                      <span className="text-xs text-black/60">
+                        {res.party_size}p
+                      </span>
                       {tableNames.length > 0 && (
-                        <p className="text-xs text-black/60 mt-0.5">
+                        <span className="text-xs text-black/40">
                           {tableNames.join(", ")}
-                        </p>
+                        </span>
                       )}
                     </div>
-                    {statusPill(res.status)}
                   </div>
-                );
-              })
-            )}
-          </div>
+                  {statusPill(res.status)}
+                </div>
+              );
+            })
+          )}
         </div>
       </div>
     </div>
