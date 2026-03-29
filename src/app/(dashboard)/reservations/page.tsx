@@ -194,8 +194,8 @@ export default function ReservationsPage() {
                 <X className="h-5 w-5" />
              </button>
           </div>
-          <form onSubmit={handleUpdate} className="flex-1 flex flex-col">
-             <div className="flex-1 overflow-y-auto w-full p-6 space-y-6 bg-transparent">
+          <form onSubmit={handleUpdate} className="flex-1 flex flex-col min-h-0">
+             <div className="flex-1 overflow-y-auto w-full p-6 space-y-6">
                 <div>
                    <label className="block text-sm font-medium text-black mb-1">{t("res_edit_status")}</label>
                    <select
@@ -261,8 +261,8 @@ export default function ReservationsPage() {
                 <X className="h-5 w-5" />
              </button>
           </div>
-          <form onSubmit={handleCreate} className="flex-1 flex flex-col">
-             <div className="flex-1 overflow-y-auto p-6 space-y-5 bg-transparent">
+          <form onSubmit={handleCreate} className="flex-1 flex flex-col min-h-0">
+             <div className="flex-1 overflow-y-auto p-6 space-y-5">
                 <div className="bg-blue-50 text-blue-800 text-sm p-3 rounded-md border border-blue-100 mb-4 font-medium">
                   This transaction will automatically create or link a Guest profile natively.
                 </div>
