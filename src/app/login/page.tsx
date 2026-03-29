@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
 import { Loader2, Lock, Mail } from "lucide-react";
 import Link from "next/link";
+import { SandEffect } from "@/components/SandEffect";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
@@ -34,108 +35,7 @@ export default function LoginPage() {
 
   return (
     <div className="min-h-screen flex flex-col justify-center py-12 sm:px-6 lg:px-8 relative overflow-hidden">
-      {/* Animated sand */}
-      <div className="fixed inset-0 pointer-events-none z-0">
-        {/* Dune waves - much more visible */}
-        <div className="absolute inset-0 animate-[dune1_12s_ease-in-out_infinite]" style={{
-          background: 'radial-gradient(ellipse 180% 50% at 20% 90%, rgba(170,120,70,0.6) 0%, transparent 70%)',
-        }} />
-        <div className="absolute inset-0 animate-[dune2_9s_ease-in-out_infinite]" style={{
-          background: 'radial-gradient(ellipse 160% 45% at 80% 80%, rgba(160,110,60,0.5) 0%, transparent 65%)',
-        }} />
-        <div className="absolute inset-0 animate-[dune3_14s_ease-in-out_infinite]" style={{
-          background: 'radial-gradient(ellipse 200% 40% at 50% 95%, rgba(180,130,80,0.45) 0%, transparent 60%)',
-        }} />
-        <div className="absolute inset-0 animate-[dune4_18s_ease-in-out_infinite]" style={{
-          background: 'radial-gradient(ellipse 150% 35% at 40% 70%, rgba(170,120,70,0.4) 0%, transparent 55%)',
-        }} />
-
-        {/* 100 sand particles */}
-        {[...Array(100)].map((_, i) => {
-          const size = 2 + (i % 5);
-          const duration = 4 + (i % 7) * 1.5;
-          const delay = (i * 0.13) % 8;
-          const startTop = 5 + ((i * 31) % 90);
-          const startLeft = (i * 17) % 100;
-          const moveX = 80 + (i % 5) * 40;
-          const moveY = -30 + (i % 7) * 10;
-          const opacity = 0.4 + (i % 5) * 0.12;
-          const r = 165 + (i * 3) % 40;
-          const g = 125 + (i * 2) % 35;
-          const b = 80 + (i * 4) % 40;
-          return (
-            <div
-              key={i}
-              className="absolute rounded-full"
-              style={{
-                width: `${size}px`,
-                height: `${size}px`,
-                background: `rgba(${r},${g},${b},${opacity})`,
-                top: `${startTop}%`,
-                left: `${startLeft}%`,
-                animation: `sand${i % 6} ${duration}s ease-in-out infinite ${delay}s`,
-              }}
-            />
-          );
-        })}
-      </div>
-
-      {/* Keyframes */}
-      <style jsx>{`
-        @keyframes dune1 {
-          0%, 100% { transform: translateX(0) scale(1); }
-          50% { transform: translateX(40px) scale(1.08); }
-        }
-        @keyframes dune2 {
-          0%, 100% { transform: translateX(0) scale(1); }
-          50% { transform: translateX(-50px) scale(1.1); }
-        }
-        @keyframes dune3 {
-          0%, 100% { transform: translateX(0); }
-          33% { transform: translateX(25px) translateY(-8px); }
-          66% { transform: translateX(-20px) translateY(5px); }
-        }
-        @keyframes dune4 {
-          0%, 100% { transform: translateX(0) scale(1); }
-          40% { transform: translateX(-30px) scale(1.06); }
-          70% { transform: translateX(35px) scale(0.97); }
-        }
-        @keyframes sand0 {
-          0% { transform: translate(0, 0); opacity: 0; }
-          10% { opacity: 0.9; }
-          90% { opacity: 0.7; }
-          100% { transform: translate(120px, -20px); opacity: 0; }
-        }
-        @keyframes sand1 {
-          0% { transform: translate(0, 0); opacity: 0; }
-          15% { opacity: 0.8; }
-          85% { opacity: 0.6; }
-          100% { transform: translate(150px, -35px); opacity: 0; }
-        }
-        @keyframes sand2 {
-          0% { transform: translate(0, 0); opacity: 0; }
-          10% { opacity: 1; }
-          50% { transform: translate(60px, -15px); opacity: 0.7; }
-          100% { transform: translate(130px, -10px); opacity: 0; }
-        }
-        @keyframes sand3 {
-          0% { transform: translate(0, 0); opacity: 0; }
-          20% { opacity: 0.8; }
-          80% { opacity: 0.6; }
-          100% { transform: translate(100px, -40px); opacity: 0; }
-        }
-        @keyframes sand4 {
-          0% { transform: translate(0, 0); opacity: 0; }
-          10% { opacity: 0.7; }
-          100% { transform: translate(180px, -15px); opacity: 0; }
-        }
-        @keyframes sand5 {
-          0% { transform: translate(0, 0); opacity: 0; }
-          15% { opacity: 0.9; }
-          70% { opacity: 0.5; }
-          100% { transform: translate(90px, -30px); opacity: 0; }
-        }
-      `}</style>
+      <SandEffect />
 
       <div className="sm:mx-auto sm:w-full sm:max-w-md relative z-10">
         <div className="flex justify-center">
