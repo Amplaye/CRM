@@ -242,8 +242,8 @@ export default function DashboardPage() {
         ))}
       </div>
 
-      {/* Timeline: Today → Week → Month → Year */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+      {/* Timeline: Today → Month → Year */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
 
         {/* TODAY */}
         <div className="rounded-xl border-2 p-5" style={{ background: "rgba(252,246,237,0.85)", borderColor: "#c4956a" }}>
@@ -279,32 +279,6 @@ export default function DashboardPage() {
           ) : (
             <p className="text-xs text-black/30">No reservations</p>
           )}
-        </div>
-
-        {/* WEEK */}
-        <div className="rounded-xl border-2 p-5" style={{ background: "rgba(252,246,237,0.85)", borderColor: "#c4956a" }}>
-          <h3 className="text-sm font-bold text-black uppercase tracking-wider mb-4">{monthNames[selectedMonth]} {selectedYear} — Last 7 Days</h3>
-          <div className="space-y-2">
-            {weekData.map(day => {
-              const todayCheck = new Date();
-              const isToday = day.date === `${todayCheck.getFullYear()}-${String(todayCheck.getMonth() + 1).padStart(2, "0")}-${String(todayCheck.getDate()).padStart(2, "0")}`;
-              const barWidth = maxWeekCount > 0 ? Math.max((day.count / maxWeekCount) * 100, day.count > 0 ? 8 : 0) : 0;
-              return (
-                <div key={day.date} className="flex items-center gap-3">
-                  <span className={`text-xs font-bold w-8 ${isToday ? "text-[#c4956a]" : "text-black/40"}`}>{day.label}</span>
-                  <div className="flex-1 h-6 rounded-md overflow-hidden" style={{ background: "rgba(196,149,106,0.1)" }}>
-                    <div
-                      className="h-full rounded-md flex items-center px-2 transition-all"
-                      style={{ width: `${barWidth}%`, background: isToday ? "#c4956a" : "rgba(196,149,106,0.3)" }}
-                    >
-                      {day.count > 0 && <span className={`text-[10px] font-bold ${isToday ? "text-white" : "text-black/60"}`}>{day.count}</span>}
-                    </div>
-                  </div>
-                  <span className="text-[10px] text-black/30 w-8 text-right">{day.guests}p</span>
-                </div>
-              );
-            })}
-          </div>
         </div>
 
         {/* MONTH + YEAR */}
