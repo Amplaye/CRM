@@ -2,6 +2,7 @@
 
 import { useTenant } from "@/lib/contexts/TenantContext";
 import { useEffect, useState, useRef } from "react";
+import { useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { Conversation, Guest, Reservation } from "@/lib/types";
 import { useLanguage } from "@/lib/contexts/LanguageContext";
@@ -15,6 +16,8 @@ export default function ConversationsPage() {
   const { activeTenant: tenant } = useTenant();
   const { t } = useLanguage();
   const supabase = createClient();
+  const searchParams = useSearchParams();
+  const guestParam = searchParams.get("guest");
 
   const [conversations, setConversations] = useState<ConvoWithGuest[]>([]);
   const [loading, setLoading] = useState(true);
@@ -48,8 +51,15 @@ export default function ConversationsPage() {
         return;
       }
 
-      setConversations((data || []) as ConvoWithGuest[]);
+      const convos = (data || []) as ConvoWithGuest[];
+      setConversations(convos);
       setLoading(false);
+
+      // Auto-select conversation if guest param is in URL
+      if (guestParam && !selectedConvoId) {
+        const match = convos.find(c => c.guest_id === guestParam);
+        if (match) setSelectedConvoId(match.id);
+      }
     };
 
     fetchConversations();
