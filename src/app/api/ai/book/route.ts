@@ -153,6 +153,58 @@ export async function POST(request: Request) {
       }
     }
 
+    // 5. Handle manual review (7-12 people) - NO table assignment
+    if (action === 'manual_review') {
+      const reservation = {
+        tenant_id: payload.tenant_id,
+        guest_id: guestId,
+        date: payload.date,
+        time: payload.time,
+        party_size: payload.party_size,
+        status: 'escalated',
+        source: payload.source || 'ai_voice',
+        created_by_type: 'ai',
+        notes: payload.notes || "Grupo grande - pendiente de revisión",
+        linked_conversation_id: payload.linked_conversation_id,
+        end_time: endTime,
+        shift,
+      };
+
+      const { data: newRes, error: newResErr } = await supabase
+        .from('reservations')
+        .insert(reservation)
+        .select('id')
+        .single();
+
+      if (newResErr) throw newResErr;
+
+      await logAuditEvent({
+        tenant_id: payload.tenant_id,
+        action: "create_reservation",
+        entity_id: newRes.id,
+        idempotency_key: payload.idempotency_key,
+        source: "ai_agent",
+        details: {
+          date: payload.date,
+          time: payload.time,
+          party_size: payload.party_size,
+          shift,
+          type: "manual_review",
+        }
+      });
+
+      return NextResponse.json({
+        success: true,
+        reservation_id: newRes.id,
+        status: 'escalated',
+        shift,
+        end_time: endTime,
+        tables_assigned: [],
+        message: "Solicitud registrada. Pendiente de revisión del responsable."
+      });
+    }
+
+    // 6. Normal booking (1-6 people) - assign tables
     const freeTables = (activeTables || []).filter((t: any) => !occupiedTableIds.has(t.id));
 
     if (freeTables.length < needed) {
@@ -162,11 +214,7 @@ export async function POST(request: Request) {
       }, { status: 409 });
     }
 
-    // Pick the first N free tables
     const assignedTables = freeTables.slice(0, needed);
-
-    // 5. Create Reservation
-    const status = action === 'manual_review' ? 'escalated' : 'confirmed';
 
     const reservation = {
        tenant_id: payload.tenant_id,
@@ -174,15 +222,13 @@ export async function POST(request: Request) {
        date: payload.date,
        time: payload.time,
        party_size: payload.party_size,
-       status,
+       status: 'confirmed',
        source: payload.source || 'ai_voice',
        created_by_type: 'ai',
        notes: payload.notes || "",
        linked_conversation_id: payload.linked_conversation_id,
        end_time: endTime,
        shift,
-       created_at: new Date().toISOString(),
-       updated_at: new Date().toISOString()
     };
 
     const { data: newRes, error: newResErr } = await supabase
@@ -193,22 +239,13 @@ export async function POST(request: Request) {
 
     if (newResErr) throw newResErr;
 
-    // 6. Assign tables
     const tableInserts = assignedTables.map((t: any) => ({
       reservation_id: newRes.id,
       table_id: t.id,
-      created_at: new Date().toISOString(),
     }));
 
-    const { error: rtErr } = await supabase
-      .from('reservation_tables')
-      .insert(tableInserts);
+    await supabase.from('reservation_tables').insert(tableInserts);
 
-    if (rtErr) {
-      console.error("Failed to assign tables:", rtErr);
-    }
-
-    // 7. Log Audit Event
     await logAuditEvent({
        tenant_id: payload.tenant_id,
        action: "create_reservation",
@@ -228,13 +265,11 @@ export async function POST(request: Request) {
     return NextResponse.json({
        success: true,
        reservation_id: newRes.id,
-       status,
+       status: 'confirmed',
        shift,
        end_time: endTime,
        tables_assigned: assignedTables.map((t: any) => t.name),
-       message: status === 'escalated'
-         ? "Reservation created but requires manual review (party size 7-12)."
-         : "Reservation successfully created."
+       message: "Reservation successfully created."
     });
 
   } catch (error: any) {

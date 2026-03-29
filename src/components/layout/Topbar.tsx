@@ -55,10 +55,13 @@ export function Topbar() {
         },
         (payload: any) => {
           const res = payload.new;
+          const isEscalated = res.status === 'escalated';
           const notif: Notification = {
             id: res.id,
-            type: "reservation",
-            message: `New reservation: ${res.party_size} guests on ${res.date} at ${res.time}`,
+            type: isEscalated ? "incident" : "reservation",
+            message: isEscalated
+              ? `⚠️ Solicitud pendiente: ${res.party_size} personas - ${res.date} ${res.time}`
+              : `📅 Nueva reserva: ${res.party_size} personas - ${res.date} ${res.time}`,
             time: new Date().toLocaleTimeString(),
             read: false,
           };
