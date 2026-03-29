@@ -118,7 +118,27 @@ export interface Reservation {
   tags?: string[];
   linked_conversation_id?: string;
   created_at: number;
+  end_time?: string;
+  shift?: 'lunch' | 'dinner';
   updated_at: number;
+}
+
+export interface RestaurantTable {
+  id: string;
+  tenant_id: string;
+  name: string;
+  seats: number;
+  status: 'active' | 'inactive';
+  position_x: number;
+  position_y: number;
+  created_at: number;
+}
+
+export interface ReservationTable {
+  id: string;
+  reservation_id: string;
+  table_id: string;
+  created_at: number;
 }
 
 export interface ReservationEvent {

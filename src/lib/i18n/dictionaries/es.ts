@@ -312,4 +312,19 @@ export const es: Dictionary = {
   inc_source_sys: "Sistema",
   inc_view_res: "Ver Reservas",
   inc2_desc: "La Mesa 4 tiene reservas superpuestas asignadas por IA y por el personal a las 20:30.",
+
+  // Floor
+  nav_floor: "Sala",
+  floor_title: "Mapa de Sala",
+  floor_subtitle: "Estado de mesas y reservas en tiempo real",
+  floor_today: "Reservas Hoy",
+  floor_guests: "Personas Hoy",
+  floor_tables: "Mesas Ocupadas",
+  floor_pending: "Solicitudes Pendientes",
+  floor_lunch: "Almuerzo",
+  floor_dinner: "Cena",
+  floor_free: "Libre",
+  floor_occupied: "Ocupada",
+  floor_ending_soon: "Terminando pronto",
+  floor_no_reservations: "No hay reservas en este turno",
 };

@@ -1,7 +1,27 @@
 import { NextResponse } from 'next/server';
 import { createServiceRoleClient } from '@/lib/supabase/server';
-import { CreateBookingRequest, Reservation } from '@/lib/types';
+import { CreateBookingRequest } from '@/lib/types';
 import { logAuditEvent } from '@/lib/audit';
+import {
+  getShift,
+  getRotationMinutes,
+  calculateEndTime,
+  tablesNeeded,
+  getBookingAction,
+} from '@/lib/restaurant-rules';
+
+function timeToMinutes(time: string): number {
+  const [h, m] = time.split(':').map(Number);
+  return h * 60 + m;
+}
+
+function rangesOverlap(startA: string, endA: string, startB: string, endB: string): boolean {
+  const a0 = timeToMinutes(startA);
+  const a1 = timeToMinutes(endA);
+  const b0 = timeToMinutes(startB);
+  const b1 = timeToMinutes(endB);
+  return a0 < b1 && b0 < a1;
+}
 
 export async function POST(request: Request) {
   try {
@@ -11,9 +31,18 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: false, error: "Missing required fields" }, { status: 400 });
     }
 
+    // Check party size rules
+    const action = getBookingAction(payload.party_size);
+    if (action === 'reject') {
+      return NextResponse.json({
+        success: false,
+        error: "Party size exceeds maximum capacity (12). Please contact the restaurant directly."
+      }, { status: 400 });
+    }
+
     const supabase = createServiceRoleClient();
 
-    // 1. Idempotency Check: Prevent double-booking if LLM retries the same tool call
+    // 1. Idempotency Check
     const { data: existingChecks } = await supabase
        .from('audit_events')
        .select('entity_id')
@@ -41,7 +70,6 @@ export async function POST(request: Request) {
 
     if (existingGuests && existingGuests.length > 0) {
        guestId = existingGuests[0].id;
-       // Update guest name if we now know it
        if (payload.guest_name && payload.guest_name !== "Unknown Guest" && existingGuests[0].name === "Unknown Guest") {
          await supabase.from('guests').update({ name: payload.guest_name }).eq('id', guestId);
        }
@@ -65,31 +93,122 @@ export async function POST(request: Request) {
        guestId = newGuest.id;
     }
 
-    // 3. Create Reservation
+    // 3. Calculate shift and end_time
+    const shift = getShift(payload.time);
+    const dayOfWeek = new Date(payload.date + 'T12:00:00').getDay();
+    const rotation = getRotationMinutes(payload.party_size, shift, dayOfWeek);
+    const endTime = calculateEndTime(payload.time, rotation);
+    const needed = tablesNeeded(payload.party_size);
+
+    // 4. Find free tables for the time window
+    const { data: activeTables, error: tablesErr } = await supabase
+      .from('restaurant_tables')
+      .select('id, name')
+      .eq('tenant_id', payload.tenant_id)
+      .eq('status', 'active');
+
+    if (tablesErr) throw tablesErr;
+
+    // Get existing reservations that overlap
+    const { data: existingRes, error: resErr } = await supabase
+      .from('reservations')
+      .select('id, time, party_size, end_time, shift')
+      .eq('tenant_id', payload.tenant_id)
+      .eq('date', payload.date)
+      .in('status', ['confirmed', 'seated', 'pending_confirmation', 'escalated']);
+
+    if (resErr) throw resErr;
+
+    const resIds = (existingRes || []).map((r: any) => r.id);
+    let reservationTableMap: Record<string, string[]> = {};
+
+    if (resIds.length > 0) {
+      const { data: resTables } = await supabase
+        .from('reservation_tables')
+        .select('reservation_id, table_id')
+        .in('reservation_id', resIds);
+
+      for (const rt of (resTables || [])) {
+        if (!reservationTableMap[rt.reservation_id]) {
+          reservationTableMap[rt.reservation_id] = [];
+        }
+        reservationTableMap[rt.reservation_id].push(rt.table_id);
+      }
+    }
+
+    // Find occupied table IDs during the requested window
+    const occupiedTableIds = new Set<string>();
+    for (const res of (existingRes || [])) {
+      const resEnd = res.end_time || calculateEndTime(res.time, getRotationMinutes(
+        res.party_size,
+        res.shift || getShift(res.time),
+        dayOfWeek
+      ));
+
+      if (rangesOverlap(payload.time, endTime, res.time, resEnd)) {
+        const assigned = reservationTableMap[res.id] || [];
+        for (const tid of assigned) {
+          occupiedTableIds.add(tid);
+        }
+      }
+    }
+
+    const freeTables = (activeTables || []).filter((t: any) => !occupiedTableIds.has(t.id));
+
+    if (freeTables.length < needed) {
+      return NextResponse.json({
+        success: false,
+        error: `Not enough tables available. Need ${needed}, only ${freeTables.length} free.`
+      }, { status: 409 });
+    }
+
+    // Pick the first N free tables
+    const assignedTables = freeTables.slice(0, needed);
+
+    // 5. Create Reservation
+    const status = action === 'manual_review' ? 'escalated' : 'confirmed';
+
     const reservation = {
        tenant_id: payload.tenant_id,
        guest_id: guestId,
        date: payload.date,
        time: payload.time,
        party_size: payload.party_size,
-       status: 'confirmed',
+       status,
        source: payload.source || 'ai_voice',
        created_by_type: 'ai',
        notes: payload.notes || "",
        linked_conversation_id: payload.linked_conversation_id,
+       end_time: endTime,
+       shift,
        created_at: new Date().toISOString(),
        updated_at: new Date().toISOString()
     };
 
-    const { data: newRes, error: resErr } = await supabase
+    const { data: newRes, error: newResErr } = await supabase
       .from('reservations')
       .insert(reservation)
       .select('id')
       .single();
 
-    if (resErr) throw resErr;
+    if (newResErr) throw newResErr;
 
-    // 4. Log Audit Event
+    // 6. Assign tables
+    const tableInserts = assignedTables.map((t: any) => ({
+      reservation_id: newRes.id,
+      table_id: t.id,
+      created_at: new Date().toISOString(),
+    }));
+
+    const { error: rtErr } = await supabase
+      .from('reservation_tables')
+      .insert(tableInserts);
+
+    if (rtErr) {
+      console.error("Failed to assign tables:", rtErr);
+    }
+
+    // 7. Log Audit Event
     await logAuditEvent({
        tenant_id: payload.tenant_id,
        action: "create_reservation",
@@ -99,15 +218,23 @@ export async function POST(request: Request) {
        details: {
           date: payload.date,
           time: payload.time,
-          party_size: payload.party_size
+          party_size: payload.party_size,
+          shift,
+          end_time: endTime,
+          tables_assigned: assignedTables.map((t: any) => t.name),
        }
     });
 
     return NextResponse.json({
        success: true,
        reservation_id: newRes.id,
-       status: "confirmed",
-       message: "Reservation successfully created."
+       status,
+       shift,
+       end_time: endTime,
+       tables_assigned: assignedTables.map((t: any) => t.name),
+       message: status === 'escalated'
+         ? "Reservation created but requires manual review (party size 7-12)."
+         : "Reservation successfully created."
     });
 
   } catch (error: any) {

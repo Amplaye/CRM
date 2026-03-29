@@ -309,6 +309,21 @@ export const en = {
   inc_source_sys: "System",
   inc_view_res: "View Reservations",
   inc2_desc: "Table 4 has overlapping reservations assigned by AI and walk-in staff at 20:30.",
+
+  // Floor
+  nav_floor: "Floor",
+  floor_title: "Floor Map",
+  floor_subtitle: "Real-time table status and reservations",
+  floor_today: "Today's Reservations",
+  floor_guests: "Guests Today",
+  floor_tables: "Tables Occupied",
+  floor_pending: "Pending Requests",
+  floor_lunch: "Lunch",
+  floor_dinner: "Dinner",
+  floor_free: "Free",
+  floor_occupied: "Occupied",
+  floor_ending_soon: "Ending soon",
+  floor_no_reservations: "No reservations this shift",
 };
 
 export type Dictionary = typeof en;

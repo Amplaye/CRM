@@ -14,6 +14,7 @@ import {
   Settings,
   Shield,
   LayoutDashboard,
+  LayoutGrid,
 } from "lucide-react";
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
@@ -30,6 +31,7 @@ export function cn(...inputs: ClassValue[]) {
 const navItems = [
   { name: "Overview", href: "/", icon: LayoutDashboard },
   { name: "Reservations", href: "/reservations", icon: Calendar },
+  { name: "Floor", href: "/floor", icon: LayoutGrid },
   { name: "Waitlist", href: "/waitlist", icon: Clock },
   { name: "Conversations", href: "/conversations", icon: MessageSquare },
   { name: "Guests", href: "/guests", icon: Users },
