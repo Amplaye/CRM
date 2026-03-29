@@ -6,7 +6,7 @@ import { useLanguage } from "@/lib/contexts/LanguageContext";
 export default function SettingsPage() {
   const { t } = useLanguage();
   return (
-    <div className="p-8 max-w-4xl mx-auto space-y-8">
+    <div className="p-8 w-full space-y-8">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between border-b pb-5" style={{ borderColor: '#c4956a' }}>
         <div>
           <h1 className="text-2xl font-bold text-zinc-900">{t("settings_title")}</h1>

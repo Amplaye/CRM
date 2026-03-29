@@ -54,13 +54,11 @@ export function Sidebar() {
 
   return (
     <aside className="w-64 border-r h-screen flex flex-col hidden md:flex flex-shrink-0" style={{ background: 'rgba(252,246,237,0.85)', borderColor: '#c4956a' }}>
-      <div className="h-16 flex items-center justify-center px-4 border-b" style={{ borderColor: '#c4956a' }}>
-        <div className="flex items-center gap-2">
-          <img src="/logo.png" alt="BaliFlow" className="w-8 h-8 rounded-md flex-shrink-0 shadow-sm object-cover" />
-          <span className="font-semibold text-black text-lg">
-            {activeTenant?.name || "BaliFlow"}
-          </span>
-        </div>
+      <div className="h-16 flex items-center px-4 border-b" style={{ borderColor: '#c4956a' }}>
+        <img src="/logo.png" alt="BaliFlow" className="w-8 h-8 rounded-md flex-shrink-0 shadow-sm object-cover" />
+        <span className="font-semibold text-black text-lg flex-1 text-center">
+          {activeTenant?.name || "BaliFlow"}
+        </span>
       </div>
 
       <div className="flex-1 overflow-y-auto py-4">

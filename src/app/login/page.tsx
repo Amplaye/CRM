@@ -45,8 +45,8 @@ export default function LoginPage() {
             onChange={(e) => setLanguage(e.target.value as "en" | "es")}
             className="bg-transparent text-sm font-medium text-black outline-none cursor-pointer"
           >
-            <option value="en">English</option>
-            <option value="es">Español</option>
+            <option value="en">EN</option>
+            <option value="es">ES</option>
           </select>
         </div>
       </div>
