@@ -9,14 +9,14 @@ export default function AdminPage() {
 
   if (globalRole !== "platform_admin") {
      return (
-        <div className="p-8 max-w-7xl mx-auto flex justify-center mt-20 text-black text-center">
+        <div className="p-8 w-full flex justify-center mt-20 text-black text-center">
            {t("admin_unauthorized")}
         </div>
      );
   }
 
   return (
-    <div className="p-8 max-w-7xl mx-auto space-y-8">
+    <div className="p-8 w-full space-y-8">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl font-bold bg-gradient-to-r from-indigo-600 to-violet-600 bg-clip-text text-transparent">{t("admin_title")}</h1>

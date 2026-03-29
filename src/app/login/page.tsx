@@ -3,9 +3,9 @@
 import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
-import { Loader2, Lock, Mail } from "lucide-react";
+import { Loader2, Lock, Mail, Globe } from "lucide-react";
 import Link from "next/link";
-
+import { useLanguage } from "@/lib/contexts/LanguageContext";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
@@ -15,6 +15,7 @@ export default function LoginPage() {
   const [guestLoading, setGuestLoading] = useState(false);
   const router = useRouter();
   const supabase = createClient();
+  const { language, setLanguage } = useLanguage();
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -35,6 +36,21 @@ export default function LoginPage() {
 
   return (
     <div className="min-h-screen flex flex-col justify-center py-12 sm:px-6 lg:px-8 relative overflow-hidden">
+      {/* Language selector */}
+      <div className="absolute top-4 right-4 z-20">
+        <div className="flex items-center border-2 rounded-lg px-3 py-2" style={{ borderColor: '#c4956a', background: 'rgba(252,246,237,0.6)' }}>
+          <Globe className="h-4 w-4 text-black mr-2" />
+          <select
+            value={language}
+            onChange={(e) => setLanguage(e.target.value as "en" | "es")}
+            className="bg-transparent text-sm font-medium text-black outline-none cursor-pointer"
+          >
+            <option value="en">English</option>
+            <option value="es">Español</option>
+          </select>
+        </div>
+      </div>
+
       <div className="sm:mx-auto sm:w-full sm:max-w-md relative z-10">
         <div className="flex justify-center">
            <img src="/logo.png" alt="BaliFlow" className="w-64 h-auto" style={{

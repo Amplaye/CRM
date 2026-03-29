@@ -152,7 +152,7 @@ export default function ConversationsPage() {
     <div className="flex h-[calc(100vh-4rem)] border-t" style={{ borderColor: '#c4956a' }}>
 
       {/* COLUMN 1: Inbox List */}
-      <div className={`flex flex-col border-r transition-all duration-300 ${selectedConvo ? 'w-[380px]' : 'w-full max-w-7xl mx-auto'}`} style={{ background: 'rgba(252,246,237,0.85)', borderColor: '#c4956a' }}>
+      <div className={`flex flex-col border-r transition-all duration-300 ${selectedConvo ? 'w-[380px]' : 'w-full w-full'}`} style={{ background: 'rgba(252,246,237,0.85)', borderColor: '#c4956a' }}>
          <div className="p-6 border-b z-10" style={{ borderColor: '#c4956a' }}>
             <h1 className="text-2xl font-bold text-zinc-900 tracking-tight">{t("conv_title")}</h1>
             <p className="mt-1 text-sm text-black">{t("conv_subtitle")}</p>

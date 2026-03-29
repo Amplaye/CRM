@@ -77,7 +77,7 @@ export default function ReservationsPage() {
   };
 
   return (
-    <div className="p-8 max-w-7xl mx-auto space-y-8 flex">
+    <div className="p-8 w-full space-y-8 flex">
       <div className={`flex-1 transition-all duration-300 ${(selectedRes || isCreating) ? 'pr-[400px]' : ''}`}>
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-8">
           <div>

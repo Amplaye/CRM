@@ -6,7 +6,7 @@ import { useLanguage } from "@/lib/contexts/LanguageContext";
 export default function StaffPage() {
   const { t } = useLanguage();
   return (
-    <div className="p-8 max-w-7xl mx-auto space-y-8">
+    <div className="p-8 w-full space-y-8">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl font-bold text-zinc-900">{t("staff_title")}</h1>

@@ -8,7 +8,7 @@ import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 export function DashboardLayout({ children }: { children: ReactNode }) {
   return (
     <ProtectedRoute>
-      <div className="min-h-screen flex relative z-10">
+      <div className="h-screen flex relative z-10 overflow-hidden">
         <Sidebar />
         <div className="flex-1 flex flex-col min-w-0">
           <Topbar />

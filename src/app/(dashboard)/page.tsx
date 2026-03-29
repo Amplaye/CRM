@@ -147,7 +147,7 @@ export default function OverviewDashboard() {
   }, [tenant, t]);
 
   return (
-    <div className="p-8 max-w-7xl mx-auto space-y-10">
+    <div className="p-8 w-full space-y-10">
       <div>
         <h1 className="text-2xl font-bold text-zinc-900 tracking-tight">{t("nav_overview")}</h1>
         <p className="mt-1 text-sm text-black">{t("roi_subtitle")}</p>
