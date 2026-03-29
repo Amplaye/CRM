@@ -4,6 +4,7 @@ import { Bell, Globe } from "lucide-react";
 import { useLanguage } from "@/lib/contexts/LanguageContext";
 import { useTenant } from "@/lib/contexts/TenantContext";
 import { useEffect, useState, useRef } from "react";
+import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 
 interface Notification {
@@ -12,11 +13,13 @@ interface Notification {
   message: string;
   time: string;
   read: boolean;
+  href: string;
 }
 
 export function Topbar() {
   const { language, setLanguage } = useLanguage();
   const { activeTenant } = useTenant();
+  const router = useRouter();
   const [isClient, setIsClient] = useState(false);
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [showDropdown, setShowDropdown] = useState(false);
@@ -64,6 +67,7 @@ export function Topbar() {
               : `📅 Nueva reserva: ${res.party_size} personas - ${res.date} ${res.time}`,
             time: new Date().toLocaleTimeString(),
             read: false,
+            href: isEscalated ? "/pending" : "/reservations",
           };
           setNotifications(prev => [notif, ...prev].slice(0, 20));
         }
@@ -81,9 +85,10 @@ export function Topbar() {
           const notif: Notification = {
             id: entry.id,
             type: "waitlist",
-            message: `New waitlist entry: ${entry.party_size} guests for ${entry.date}`,
+            message: `⏳ Waitlist: ${entry.party_size} personas - ${entry.date}`,
             time: new Date().toLocaleTimeString(),
             read: false,
+            href: "/waitlist",
           };
           setNotifications(prev => [notif, ...prev].slice(0, 20));
         }
@@ -167,7 +172,8 @@ export function Topbar() {
                   notifications.map((n) => (
                     <div
                       key={n.id}
-                      className="px-4 py-3 border-b hover:bg-[#c4956a]/5 transition-colors"
+                      onClick={() => { router.push(n.href); setShowDropdown(false); }}
+                      className="px-4 py-3 border-b hover:bg-[#c4956a]/10 transition-colors cursor-pointer"
                       style={{ borderColor: 'rgba(196,149,106,0.2)' }}
                     >
                       <div className="flex items-start gap-2">
