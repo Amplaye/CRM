@@ -71,8 +71,8 @@ export function Topbar() {
         },
         (payload: any) => {
           const res = payload.new;
-          // Skip walk-in notifications (created manually by staff)
-          if (res.source === 'walk_in') return;
+          // Skip walk-in and seated notifications (created manually by staff)
+          if (res.source === 'walk_in' || res.status === 'seated' || res.created_by_type === 'staff') return;
           const isEscalated = res.status === 'escalated';
           const notif: Notification = {
             id: res.id,
