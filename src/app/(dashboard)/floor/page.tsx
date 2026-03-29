@@ -40,8 +40,9 @@ export default function FloorPage() {
   const [reservations, setReservations] = useState<ReservationWithGuest[]>([]);
   const [resTableLinks, setResTableLinks] = useState<ResTableLink[]>([]);
   const [loading, setLoading] = useState(true);
+  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split("T")[0]);
 
-  const today = new Date().toISOString().split("T")[0];
+  const today = selectedDate;
   const nowMinutes = new Date().getHours() * 60 + new Date().getMinutes();
 
   const fetchData = useCallback(async () => {
@@ -234,11 +235,22 @@ export default function FloorPage() {
   return (
     <div className="p-8 w-full space-y-8">
       {/* Header */}
-      <div>
-        <h1 className="text-2xl font-bold text-black tracking-tight">
-          {t("floor_title")}
-        </h1>
-        <p className="mt-1 text-sm text-black">{t("floor_subtitle")}</p>
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-black tracking-tight">
+            {t("floor_title")}
+          </h1>
+          <p className="mt-1 text-sm text-black">{t("floor_subtitle")}</p>
+        </div>
+        <div className="mt-4 sm:mt-0">
+          <input
+            type="date"
+            value={selectedDate}
+            onChange={(e) => setSelectedDate(e.target.value)}
+            className="border-2 rounded-md px-3 py-1.5 text-sm font-medium text-black focus:ring-1 focus:ring-[#c4956a] focus:outline-none shadow-sm"
+            style={{ borderColor: '#c4956a', background: 'rgba(252,246,237,0.6)' }}
+          />
+        </div>
       </div>
 
       {/* Stats Bar */}

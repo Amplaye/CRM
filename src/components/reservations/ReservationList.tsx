@@ -6,6 +6,7 @@ import { createClient } from "@/lib/supabase/client";
 import { Reservation } from "@/lib/types";
 import { useLanguage } from "@/lib/contexts/LanguageContext";
 import { Clock, User, Phone, MessageSquare, Globe, UserCheck, AlertTriangle, UserMinus, CalendarCheck, Plus } from "lucide-react";
+import Link from "next/link";
 
 interface ReservationListProps {
   date: string;
@@ -15,7 +16,7 @@ interface ReservationListProps {
 export function ReservationList({ date, onRowClick }: ReservationListProps) {
   const { activeTenant: tenant } = useTenant();
   const { t } = useLanguage();
-  const [reservations, setReservations] = useState<Reservation[]>([]);
+  const [reservations, setReservations] = useState<(Reservation & { guest_name?: string })[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -27,7 +28,7 @@ export function ReservationList({ date, onRowClick }: ReservationListProps) {
     const fetchReservations = async () => {
       const { data: resData, error } = await supabase
         .from("reservations")
-        .select("*")
+        .select("*, guests(name)")
         .eq("tenant_id", tenant.id)
         .eq("date", date);
 
@@ -37,7 +38,12 @@ export function ReservationList({ date, onRowClick }: ReservationListProps) {
         return;
       }
 
-      const sorted = (resData as Reservation[]).sort((a, b) => a.time.localeCompare(b.time));
+      const withNames = (resData || []).map((r: any) => ({
+        ...r,
+        guest_name: r.guests?.name || undefined,
+      })) as (Reservation & { guest_name?: string })[];
+
+      const sorted = withNames.sort((a, b) => a.time.localeCompare(b.time));
       setReservations(sorted);
       setLoading(false);
     };
@@ -110,9 +116,9 @@ export function ReservationList({ date, onRowClick }: ReservationListProps) {
           <tr>
             <th scope="col" className="px-6 py-3 text-left text-xs font-semibold text-black uppercase tracking-wider">{t("res_col_time")}</th>
             <th scope="col" className="px-6 py-3 text-left text-xs font-semibold text-black uppercase tracking-wider">{t("res_col_guest")}</th>
-            <th scope="col" className="px-6 py-3 text-left text-xs font-semibold text-black uppercase tracking-wider">{t("res_col_party")}</th>
+            <th scope="col" className="px-6 py-3 text-center text-xs font-semibold text-black uppercase tracking-wider">{t("res_col_party")}</th>
             <th scope="col" className="px-6 py-3 text-left text-xs font-semibold text-black uppercase tracking-wider">{t("res_col_status")}</th>
-            <th scope="col" className="px-6 py-3 text-left text-xs font-semibold text-black uppercase tracking-wider">{t("res_col_source")}</th>
+            <th scope="col" className="px-6 py-3 text-center text-xs font-semibold text-black uppercase tracking-wider">{t("res_col_source")}</th>
           </tr>
         </thead>
         <tbody className="divide-y" style={{ borderColor: 'rgba(196,149,106,0.3)' }}>
@@ -129,17 +135,25 @@ export function ReservationList({ date, onRowClick }: ReservationListProps) {
                 </div>
               </td>
               <td className="px-6 py-4 whitespace-nowrap">
-                <div className="text-sm font-medium text-zinc-900">Guest ({res.guest_id.substring(0,8)})</div>
+                <div className="text-sm font-medium text-zinc-900">{res.guest_name || `Guest (${res.guest_id.substring(0,8)})`}</div>
                 {res.notes && <div className="text-xs text-black truncate max-w-[200px]">{res.notes}</div>}
               </td>
-              <td className="px-6 py-4 whitespace-nowrap">
+              <td className="px-6 py-4 whitespace-nowrap text-center">
                 <div className="text-sm font-medium text-zinc-900">{res.party_size}</div>
               </td>
               <td className="px-6 py-4 whitespace-nowrap">
                 <StatusPill status={res.status} />
               </td>
-              <td className="px-6 py-4 whitespace-nowrap">
-                <SourceIcon source={res.source} />
+              <td className="px-6 py-4 whitespace-nowrap text-center">
+                {(res.source === 'ai_chat' || res.source === 'ai_voice') ? (
+                  <Link href={`/conversations?guest=${res.guest_id}`} onClick={(e) => e.stopPropagation()} className="inline-flex justify-center">
+                    <SourceIcon source={res.source} />
+                  </Link>
+                ) : (
+                  <div className="inline-flex justify-center">
+                    <SourceIcon source={res.source} />
+                  </div>
+                )}
               </td>
             </tr>
           ))}

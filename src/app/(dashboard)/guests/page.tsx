@@ -1,6 +1,6 @@
 "use client";
 
-import { Download, Search, SlidersHorizontal, Star, AlertTriangle, X, Save, CalendarCheck, User } from "lucide-react";
+import { Download, Search, SlidersHorizontal, Star, AlertTriangle, X, Save, CalendarCheck, User, LayoutGrid, List } from "lucide-react";
 import { useLanguage } from "@/lib/contexts/LanguageContext";
 import { useEffect, useState } from "react";
 import { useTenant } from "@/lib/contexts/TenantContext";
@@ -17,6 +17,7 @@ export default function GuestsPage() {
   const [selectedGuest, setSelectedGuest] = useState<Guest | null>(null);
   const [guestReservations, setGuestReservations] = useState<Reservation[]>([]);
   const [saving, setSaving] = useState(false);
+  const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
 
   useEffect(() => {
     if (!activeTenant) return;
@@ -109,6 +110,24 @@ export default function GuestsPage() {
             <p className="mt-1 text-sm text-black">{t("guests_subtitle")}</p>
           </div>
           <div className="mt-4 sm:mt-0 flex space-x-3">
+            <div className="flex p-1 rounded-lg border-2" style={{ borderColor: '#c4956a', background: 'rgba(252,246,237,0.6)' }}>
+              <button
+                onClick={() => setViewMode("grid")}
+                className={`p-1.5 rounded-md transition-colors ${viewMode === 'grid' ? 'shadow-sm' : ''}`}
+                style={viewMode === 'grid' ? { background: 'rgba(252,246,237,0.85)' } : {}}
+                title="Grid view"
+              >
+                <LayoutGrid className="h-4 w-4 text-black" />
+              </button>
+              <button
+                onClick={() => setViewMode("list")}
+                className={`p-1.5 rounded-md transition-colors ${viewMode === 'list' ? 'shadow-sm' : ''}`}
+                style={viewMode === 'list' ? { background: 'rgba(252,246,237,0.85)' } : {}}
+                title="List view"
+              >
+                <List className="h-4 w-4 text-black" />
+              </button>
+            </div>
             <button className="inline-flex items-center px-4 py-2 border-2 text-sm font-medium rounded-md shadow-sm text-black transition-colors" style={{ borderColor: '#c4956a', background: 'rgba(252,246,237,0.6)' }}>
               <Download className="-ml-1 mr-2 h-4 w-4" />
               {t("guests_export")}
@@ -141,6 +160,7 @@ export default function GuestsPage() {
               <p className="mt-1 text-sm text-zinc-500">Guests will automatically populate here when reservations are booked.</p>
            </div>
         ) : (
+          viewMode === "grid" ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
              {guests.map((guest) => (
                <div
@@ -197,6 +217,59 @@ export default function GuestsPage() {
                </div>
              ))}
           </div>
+          ) : (
+          <div className="border-2 rounded-xl overflow-hidden" style={{ background: 'rgba(252,246,237,0.85)', borderColor: '#c4956a', boxShadow: '0 20px 60px rgba(196,149,106,0.25), 0 8px 24px rgba(196,149,106,0.15)' }}>
+            <table className="min-w-full divide-y" style={{ borderColor: '#c4956a' }}>
+              <thead>
+                <tr>
+                  <th className="px-6 py-3 text-left text-xs font-semibold text-black uppercase tracking-wider">Name</th>
+                  <th className="px-6 py-3 text-left text-xs font-semibold text-black uppercase tracking-wider">Phone</th>
+                  <th className="px-6 py-3 text-center text-xs font-semibold text-black uppercase tracking-wider">Visits</th>
+                  <th className="px-6 py-3 text-center text-xs font-semibold text-black uppercase tracking-wider">No-Shows</th>
+                  <th className="px-6 py-3 text-center text-xs font-semibold text-black uppercase tracking-wider">Value</th>
+                  <th className="px-6 py-3 text-left text-xs font-semibold text-black uppercase tracking-wider">Tags</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y" style={{ borderColor: 'rgba(196,149,106,0.3)' }}>
+                {guests.map((guest) => (
+                  <tr
+                    key={guest.id}
+                    onClick={() => setSelectedGuest(guest)}
+                    className="hover:bg-[#c4956a]/10 transition-colors cursor-pointer"
+                  >
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="flex items-center">
+                        <div className="h-8 w-8 rounded-full flex items-center justify-center text-black font-bold text-xs flex-shrink-0" style={{ background: 'rgba(196,149,106,0.2)' }}>
+                          {guest.name.charAt(0).toUpperCase()}
+                        </div>
+                        <div className="ml-3">
+                          <span className="text-sm font-bold text-zinc-900 flex items-center">
+                            {guest.name}
+                            {isVip(guest) && <Star className="h-3.5 w-3.5 text-amber-400 ml-1 fill-current" />}
+                          </span>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-black">{guest.phone}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-zinc-900 text-center">{guest.visit_count}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-center">
+                      <span className={guest.no_show_count > 0 ? 'text-red-600' : 'text-zinc-900'}>{guest.no_show_count}</span>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-zinc-900 text-center">${guest.estimated_spend || 0}</td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="flex flex-wrap gap-1">
+                        {isHighRisk(guest) && <span className="bg-red-100 text-red-800 text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider">Risk</span>}
+                        {isVip(guest) && <span className="bg-emerald-100 text-emerald-800 text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider">VIP</span>}
+                        {guest.dietary_notes && <span className="px-2 py-0.5 bg-blue-50 text-blue-700 text-[10px] font-bold uppercase tracking-widest rounded border border-blue-100">Dietary</span>}
+                        {guest.accessibility_notes && <span className="px-2 py-0.5 bg-purple-50 text-purple-700 text-[10px] font-bold uppercase tracking-widest rounded border border-purple-100">Access</span>}
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          )
         )}
       </div>
 

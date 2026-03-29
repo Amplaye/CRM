@@ -2,7 +2,7 @@
 
 import { ReservationList } from "@/components/reservations/ReservationList";
 import { ReservationTimeline } from "@/components/reservations/ReservationTimeline";
-import { Plus, SlidersHorizontal, Download, X, Save, Clock, Menu } from "lucide-react";
+import { Plus, Download, X, Save, Clock, Menu } from "lucide-react";
 import { useState } from "react";
 import { Reservation, ReservationStatus } from "@/lib/types";
 import { useLanguage } from "@/lib/contexts/LanguageContext";
@@ -124,9 +124,6 @@ export default function ReservationsPage() {
                 </button>
               </div>
            </div>
-           <button className="flex items-center text-sm font-medium text-black hover:text-black px-3 py-1.5 border border-transparent hover:bg-[#c4956a]/10 rounded-md transition-colors">
-              <SlidersHorizontal className="h-4 w-4 mr-2" /> {t("res_filters")}
-           </button>
         </div>
 
         {viewMode === "list" ? (
