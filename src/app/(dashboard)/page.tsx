@@ -217,8 +217,9 @@ export default function DashboardPage() {
         </div>
 
         {/* MONTH + YEAR */}
-        <div className="space-y-4">
-          <div className="rounded-xl border-2 p-5" style={{ background: "rgba(252,246,237,0.85)", borderColor: "#c4956a" }}>
+        <div className="rounded-xl border-2 p-5 flex flex-col justify-between" style={{ background: "rgba(252,246,237,0.85)", borderColor: "#c4956a" }}>
+          {/* Month */}
+          <div>
             <div className="flex items-center justify-between mb-2">
               <h3 className="text-sm font-bold text-black uppercase tracking-wider">This Month</h3>
               {monthChange !== 0 && (
@@ -232,20 +233,24 @@ export default function DashboardPage() {
               <span className="text-3xl font-bold text-black">{monthTotal.count}</span>
               <span className="text-sm text-black/40">reservas</span>
             </div>
-            <div className="flex items-center gap-4 mt-2 text-xs text-black/40">
+            <div className="flex items-center gap-4 mt-1 text-xs text-black/40">
               <span>{monthTotal.guests} personas</span>
               <span>·</span>
-              <span>prev: {prevMonthTotal.count} reservas</span>
+              <span>prev: {prevMonthTotal.count}</span>
             </div>
           </div>
 
-          <div className="rounded-xl border-2 p-5" style={{ background: "rgba(252,246,237,0.85)", borderColor: "#c4956a" }}>
+          {/* Divider */}
+          <div className="my-4 border-t" style={{ borderColor: "rgba(196,149,106,0.3)" }} />
+
+          {/* Year */}
+          <div>
             <h3 className="text-sm font-bold text-black uppercase tracking-wider mb-2">This Year</h3>
             <div className="flex items-baseline gap-3">
               <span className="text-3xl font-bold text-black">{yearTotal.count}</span>
               <span className="text-sm text-black/40">reservas</span>
             </div>
-            <p className="text-xs text-black/40 mt-2">{yearTotal.guests} personas total</p>
+            <p className="text-xs text-black/40 mt-1">{yearTotal.guests} personas total</p>
           </div>
         </div>
       </div>
