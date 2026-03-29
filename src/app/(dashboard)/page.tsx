@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { CalendarCheck, Users, UserX, Bot, Clock, TrendingUp, TrendingDown, Minus } from "lucide-react";
+import { CalendarCheck, Users, UserX, Bot, Clock, TrendingUp, TrendingDown, ChevronLeft, ChevronRight } from "lucide-react";
 import { useLanguage } from "@/lib/contexts/LanguageContext";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
@@ -33,22 +33,39 @@ export default function DashboardPage() {
   const [prevMonthTotal, setPrevMonthTotal] = useState({ count: 0, guests: 0 });
   const [yearTotal, setYearTotal] = useState({ count: 0, guests: 0 });
 
+  // Selected period
+  const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth());
+  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
+
+  const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+  const navigateMonth = (dir: number) => {
+    let m = selectedMonth + dir;
+    let y = selectedYear;
+    if (m > 11) { m = 0; y++; }
+    if (m < 0) { m = 11; y--; }
+    setSelectedMonth(m);
+    setSelectedYear(y);
+  };
+
   useEffect(() => {
     if (!tenant) return;
     const supabase = createClient();
 
     const now = new Date();
     const todayStr = now.toISOString().split("T")[0];
-    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split("T")[0];
-    const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().split("T")[0];
-    const prevMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1).toISOString().split("T")[0];
-    const prevMonthEnd = new Date(now.getFullYear(), now.getMonth(), 0).toISOString().split("T")[0];
-    const yearStart = `${now.getFullYear()}-01-01`;
-    const yearEnd = `${now.getFullYear()}-12-31`;
+    const monthStart = new Date(selectedYear, selectedMonth, 1).toISOString().split("T")[0];
+    const monthEnd = new Date(selectedYear, selectedMonth + 1, 0).toISOString().split("T")[0];
+    const prevMonthStart = new Date(selectedYear, selectedMonth - 1, 1).toISOString().split("T")[0];
+    const prevMonthEnd = new Date(selectedYear, selectedMonth, 0).toISOString().split("T")[0];
+    const yearStart = `${selectedYear}-01-01`;
+    const yearEnd = `${selectedYear}-12-31`;
 
     const dayNames = ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"];
+    const isCurrentMonth = selectedMonth === now.getMonth() && selectedYear === now.getFullYear();
+    const refDate = isCurrentMonth ? now : new Date(selectedYear, selectedMonth + 1, 0); // last day of selected month
     const last7 = Array.from({ length: 7 }, (_, i) => {
-      const d = new Date(); d.setDate(d.getDate() - (6 - i));
+      const d = new Date(refDate); d.setDate(d.getDate() - (6 - i));
       return { date: d.toISOString().split("T")[0], label: dayNames[d.getDay()] };
     });
 
@@ -121,7 +138,7 @@ export default function DashboardPage() {
       .subscribe();
 
     return () => { supabase.removeChannel(channel); };
-  }, [tenant]);
+  }, [tenant, selectedMonth, selectedYear]);
 
   const nowHH = new Date().getHours() * 60 + new Date().getMinutes();
   const nextRes = todayRes.find((r: any) => {
@@ -144,9 +161,39 @@ export default function DashboardPage() {
 
   return (
     <div className="p-8 w-full space-y-8">
-      <div>
-        <h1 className="text-2xl font-bold text-black tracking-tight">{t("nav_dashboard")}</h1>
-        <p className="mt-1 text-sm text-black/60">Performance overview</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-black tracking-tight">{t("nav_dashboard")}</h1>
+          <p className="mt-1 text-sm text-black/60">Performance overview</p>
+        </div>
+        <div className="flex items-center gap-2">
+          <button onClick={() => navigateMonth(-1)} className="p-2 hover:bg-[#c4956a]/10 rounded-lg transition-colors">
+            <ChevronLeft className="w-5 h-5 text-black" />
+          </button>
+          <div className="flex items-center gap-1 min-w-[140px] justify-center">
+            <select
+              value={selectedMonth}
+              onChange={(e) => setSelectedMonth(Number(e.target.value))}
+              className="border-2 rounded-lg px-2 py-1.5 text-sm font-semibold text-black focus:outline-none focus:ring-1 focus:ring-[#c4956a]"
+              style={{ borderColor: '#c4956a', background: 'rgba(252,246,237,0.6)' }}
+            >
+              {monthNames.map((m, i) => <option key={i} value={i}>{m}</option>)}
+            </select>
+            <select
+              value={selectedYear}
+              onChange={(e) => setSelectedYear(Number(e.target.value))}
+              className="border-2 rounded-lg px-2 py-1.5 text-sm font-semibold text-black focus:outline-none focus:ring-1 focus:ring-[#c4956a]"
+              style={{ borderColor: '#c4956a', background: 'rgba(252,246,237,0.6)' }}
+            >
+              {Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - 2 + i).map(y => (
+                <option key={y} value={y}>{y}</option>
+              ))}
+            </select>
+          </div>
+          <button onClick={() => navigateMonth(1)} className="p-2 hover:bg-[#c4956a]/10 rounded-lg transition-colors">
+            <ChevronRight className="w-5 h-5 text-black" />
+          </button>
+        </div>
       </div>
 
       {/* Stats Cards */}
