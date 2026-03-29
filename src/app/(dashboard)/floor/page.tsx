@@ -370,11 +370,16 @@ export default function FloorPage() {
                         : t("floor_occupied")}
                   </span>
                 </div>
-                {tRes && guestName && (
-                  <p className="text-xs text-black truncate">
-                    {guestName} - {tRes.party_size}p
-                  </p>
-                )}
+                {tRes && guestName && (() => {
+                  // Count how many tables this reservation uses
+                  const resTablesCount = resTableLinks.filter(l => l.reservation_id === tRes.id).length;
+                  return (
+                    <div>
+                      <p className="text-xs text-black truncate font-medium">{guestName}</p>
+                      <p className="text-[10px] text-black/50">{tRes.party_size}p · {tRes.time}{resTablesCount > 1 ? ` · ${resTablesCount} mesas` : ''}</p>
+                    </div>
+                  );
+                })()}
                 {tStatus === "free" && (
                   <p className="text-xs text-black/60">
                     {table.seats} seats

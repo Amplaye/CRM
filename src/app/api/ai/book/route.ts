@@ -206,10 +206,37 @@ export async function POST(request: Request) {
     const freeTables = (activeTables || []).filter((t: any) => !occupiedTableIds.has(t.id));
 
     if (freeTables.length < needed) {
+      // Not enough tables — save as pending request instead of rejecting
+      const noSpaceRes = {
+        tenant_id: payload.tenant_id,
+        guest_id: guestId,
+        date: payload.date,
+        time: payload.time,
+        party_size: payload.party_size,
+        status: 'escalated',
+        source: payload.source || 'ai_voice',
+        created_by_type: 'ai',
+        notes: (payload.notes || '') + ' — No hay mesas disponibles, pendiente de revisión',
+        end_time: endTime,
+        shift,
+      };
+      const { data: pendRes, error: pendErr } = await supabase
+        .from('reservations').insert(noSpaceRes).select('id').single();
+      if (pendErr) throw pendErr;
+
+      await logAuditEvent({
+        tenant_id: payload.tenant_id, action: "create_reservation",
+        entity_id: pendRes.id, idempotency_key: payload.idempotency_key,
+        source: "ai_agent", details: { type: "no_capacity", tables_free: freeTables.length, tables_needed: needed }
+      });
+
       return NextResponse.json({
-        success: false,
-        error: `Not enough tables available. Need ${needed}, only ${freeTables.length} free.`
-      }, { status: 409 });
+        success: true,
+        reservation_id: pendRes.id,
+        status: 'escalated',
+        tables_assigned: [],
+        message: `No hay suficientes mesas disponibles (necesarias: ${needed}, libres: ${freeTables.length}). Solicitud registrada para revisión del responsable.`
+      });
     }
 
     const assignedTables = freeTables.slice(0, needed);
