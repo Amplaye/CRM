@@ -67,7 +67,8 @@ export async function POST(request: Request) {
 
     if (existingGuests && existingGuests.length > 0) {
        guestId = existingGuests[0].id;
-       if (payload.guest_name && payload.guest_name !== "Unknown Guest" && existingGuests[0].name === "Unknown Guest") {
+       // Always update guest name if provided and different
+       if (payload.guest_name && payload.guest_name !== "Unknown Guest" && payload.guest_name !== "Cliente" && existingGuests[0].name !== payload.guest_name) {
          await supabase.from('guests').update({ name: payload.guest_name }).eq('id', guestId);
        }
     } else {
