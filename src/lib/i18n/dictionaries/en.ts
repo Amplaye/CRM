@@ -3,6 +3,7 @@ export const en = {
   sidebar_demo_user: "Demo User",
   sidebar_manager: "Manager",
   nav_overview: "Overview",
+  nav_dashboard: "Dashboard",
   nav_reservations: "Reservations",
   nav_waitlist: "Waitlist",
   nav_guests: "Guests",

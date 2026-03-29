@@ -3,14 +3,11 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
-  BarChart,
   Calendar,
   Clock,
   MessageSquare,
   Users,
-  AlertTriangle,
   BookOpen,
-  Zap,
   Settings,
   Shield,
   LayoutDashboard,
@@ -32,15 +29,12 @@ export function cn(...inputs: ClassValue[]) {
 const navItems = [
   { name: "Tables", href: "/floor", icon: LayoutGrid },
   { name: "Reservations", href: "/reservations", icon: Calendar },
-  { name: "Overview", href: "/", icon: LayoutDashboard },
+  { name: "Dashboard", href: "/", icon: LayoutDashboard },
   { name: "Waitlist", href: "/waitlist", icon: Clock },
   { name: "Pending", href: "/pending", icon: ClipboardList },
   { name: "Conversations", href: "/conversations", icon: MessageSquare },
   { name: "Guests", href: "/guests", icon: Users },
-  { name: "Analytics", href: "/analytics", icon: BarChart },
-  { name: "Incidents", href: "/incidents", icon: AlertTriangle },
   { name: "Knowledge Base", href: "/knowledge", icon: BookOpen },
-  { name: "Automations", href: "/automations", icon: Zap },
   { name: "Settings", href: "/settings", icon: Settings },
 ];
 

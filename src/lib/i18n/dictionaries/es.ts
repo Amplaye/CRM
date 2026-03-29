@@ -5,6 +5,7 @@ export const es: Dictionary = {
   sidebar_demo_user: "Usuario Demo",
   sidebar_manager: "Gerente",
   nav_overview: "Resumen",
+  nav_dashboard: "Dashboard",
   nav_reservations: "Reservas",
   nav_waitlist: "Lista de Espera",
   nav_guests: "Clientes",

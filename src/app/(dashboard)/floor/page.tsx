@@ -43,6 +43,12 @@ export default function FloorPage() {
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split("T")[0]);
   const [selectedShift, setSelectedShift] = useState<"lunch" | "dinner">(new Date().getHours() < 16 ? "lunch" : "dinner");
 
+  // Quick Seat state
+  const [quickSeatTable, setQuickSeatTable] = useState<TableData | null>(null);
+  const [quickSeatSize, setQuickSeatSize] = useState(2);
+  const [quickSeatName, setQuickSeatName] = useState("");
+  const [quickSeatLoading, setQuickSeatLoading] = useState(false);
+
   const today = selectedDate;
   const nowMinutes = new Date().getHours() * 60 + new Date().getMinutes();
 
@@ -232,6 +238,84 @@ export default function FloorPage() {
     return "#22c55e";
   }
 
+  async function handleQuickSeat() {
+    if (!activeTenant || !quickSeatTable) return;
+    setQuickSeatLoading(true);
+    const supabase = createClient();
+
+    try {
+      const now = new Date();
+      const todayStr = now.toISOString().split("T")[0];
+      const timeStr = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
+
+      // Create or find guest
+      let guestId: string;
+      const guestName = quickSeatName.trim() || "Walk-in";
+
+      const { data: existingGuest } = await supabase
+        .from("guests")
+        .select("id")
+        .eq("tenant_id", activeTenant.id)
+        .eq("name", guestName)
+        .limit(1)
+        .maybeSingle();
+
+      if (existingGuest) {
+        guestId = existingGuest.id;
+      } else {
+        const { data: newGuest, error: guestErr } = await supabase
+          .from("guests")
+          .insert({
+            tenant_id: activeTenant.id,
+            name: guestName,
+            phone: "",
+            visit_count: 0,
+            no_show_count: 0,
+            cancellation_count: 0,
+            tags: [],
+            notes: "",
+          })
+          .select("id")
+          .single();
+        if (guestErr || !newGuest) throw guestErr;
+        guestId = newGuest.id;
+      }
+
+      // Create reservation
+      const { data: newRes, error: resErr } = await supabase
+        .from("reservations")
+        .insert({
+          tenant_id: activeTenant.id,
+          guest_id: guestId,
+          date: todayStr,
+          time: timeStr,
+          party_size: quickSeatSize,
+          status: "seated",
+          source: "walk_in",
+          created_by_type: "staff",
+          notes: "",
+        })
+        .select("id")
+        .single();
+      if (resErr || !newRes) throw resErr;
+
+      // Assign table
+      await supabase.from("reservation_tables").insert({
+        reservation_id: newRes.id,
+        table_id: quickSeatTable.id,
+      });
+
+      // Close modal and reset
+      setQuickSeatTable(null);
+      setQuickSeatSize(2);
+      setQuickSeatName("");
+    } catch (err) {
+      console.error("Quick seat error:", err);
+    } finally {
+      setQuickSeatLoading(false);
+    }
+  }
+
   if (loading) {
     return (
       <div className="p-8 w-full">
@@ -344,10 +428,17 @@ export default function FloorPage() {
             return (
               <div
                 key={table.id}
-                className="rounded-xl p-4 border-2 transition-all"
+                className={`rounded-xl p-4 border-2 transition-all ${tStatus === "free" ? "cursor-pointer hover:shadow-lg hover:scale-[1.02]" : ""}`}
                 style={{
                   background: "rgba(252,246,237,0.85)",
                   borderColor: tableBorderColor(tStatus),
+                }}
+                onClick={() => {
+                  if (tStatus === "free") {
+                    setQuickSeatTable(table);
+                    setQuickSeatSize(2);
+                    setQuickSeatName("");
+                  }
                 }}
               >
                 <div className="flex items-center justify-between mb-2">
@@ -449,6 +540,65 @@ export default function FloorPage() {
           )}
         </div>
       </div>
+
+      {/* Quick Seat Modal */}
+      {quickSeatTable && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={() => setQuickSeatTable(null)}>
+          <div
+            className="rounded-2xl p-6 w-full max-w-sm border-2 shadow-xl"
+            style={{ background: "rgba(252,246,237,0.97)", borderColor: "#c4956a" }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="text-lg font-bold text-black mb-4">
+              Quick Seat - {quickSeatTable.name}
+            </h3>
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-black mb-1">Party size</label>
+                <input
+                  type="number"
+                  min={1}
+                  max={20}
+                  value={quickSeatSize}
+                  onChange={(e) => setQuickSeatSize(Number(e.target.value))}
+                  className="w-full border-2 rounded-lg px-3 py-2 text-sm text-black focus:ring-1 focus:ring-[#c4956a] focus:outline-none"
+                  style={{ borderColor: "#c4956a", background: "rgba(252,246,237,0.6)" }}
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-black mb-1">Guest name (optional)</label>
+                <input
+                  type="text"
+                  value={quickSeatName}
+                  onChange={(e) => setQuickSeatName(e.target.value)}
+                  placeholder="Walk-in"
+                  className="w-full border-2 rounded-lg px-3 py-2 text-sm text-black focus:ring-1 focus:ring-[#c4956a] focus:outline-none"
+                  style={{ borderColor: "#c4956a", background: "rgba(252,246,237,0.6)" }}
+                />
+              </div>
+            </div>
+
+            <div className="flex gap-3 mt-6">
+              <button
+                onClick={() => setQuickSeatTable(null)}
+                className="flex-1 px-4 py-2 text-sm font-semibold rounded-lg border-2 text-black transition-colors hover:bg-[#c4956a]/10"
+                style={{ borderColor: "#c4956a" }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleQuickSeat}
+                disabled={quickSeatLoading}
+                className="flex-1 px-4 py-2 text-sm font-semibold rounded-lg text-white transition-colors disabled:opacity-50"
+                style={{ background: "#c4956a" }}
+              >
+                {quickSeatLoading ? "..." : "Seat Now"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
