@@ -311,7 +311,8 @@ export const en = {
   inc2_desc: "Table 4 has overlapping reservations assigned by AI and walk-in staff at 20:30.",
 
   // Floor
-  nav_floor: "Floor",
+  nav_floor: "Tables",
+  nav_tables: "Tables",
   floor_title: "Floor Map",
   floor_subtitle: "Real-time table status and reservations",
   floor_today: "Today's Reservations",

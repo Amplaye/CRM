@@ -314,7 +314,8 @@ export const es: Dictionary = {
   inc2_desc: "La Mesa 4 tiene reservas superpuestas asignadas por IA y por el personal a las 20:30.",
 
   // Floor
-  nav_floor: "Sala",
+  nav_floor: "Mesas",
+  nav_tables: "Mesas",
   floor_title: "Mapa de Sala",
   floor_subtitle: "Estado de mesas y reservas en tiempo real",
   floor_today: "Reservas Hoy",

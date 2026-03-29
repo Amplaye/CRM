@@ -29,9 +29,9 @@ export function cn(...inputs: ClassValue[]) {
 }
 
 const navItems = [
-  { name: "Overview", href: "/", icon: LayoutDashboard },
+  { name: "Tables", href: "/floor", icon: LayoutGrid },
   { name: "Reservations", href: "/reservations", icon: Calendar },
-  { name: "Floor", href: "/floor", icon: LayoutGrid },
+  { name: "Overview", href: "/", icon: LayoutDashboard },
   { name: "Waitlist", href: "/waitlist", icon: Clock },
   { name: "Conversations", href: "/conversations", icon: MessageSquare },
   { name: "Guests", href: "/guests", icon: Users },
