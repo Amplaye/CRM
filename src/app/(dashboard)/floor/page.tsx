@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { Calendar, Users, LayoutGrid, AlertTriangle } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { useLanguage } from "@/lib/contexts/LanguageContext";
 import { useTenant } from "@/lib/contexts/TenantContext";
 import { createClient } from "@/lib/supabase/client";
@@ -34,6 +35,7 @@ interface ResTableLink {
 export default function FloorPage() {
   const { t } = useLanguage();
   const { activeTenant } = useTenant();
+  const router = useRouter();
   const [tables, setTables] = useState<TableData[]>([]);
   const [reservations, setReservations] = useState<ReservationWithGuest[]>([]);
   const [resTableLinks, setResTableLinks] = useState<ResTableLink[]>([]);
@@ -246,22 +248,31 @@ export default function FloorPage() {
             label: t("floor_today"),
             value: todayActiveRes.length,
             icon: Calendar,
+            href: "/reservations",
           },
-          { label: t("floor_guests"), value: totalGuests, icon: Users },
+          {
+            label: t("floor_guests"),
+            value: totalGuests,
+            icon: Users,
+            href: "/guests",
+          },
           {
             label: t("floor_tables"),
             value: `${occupiedCount}/${tables.length || TOTAL_TABLES}`,
             icon: LayoutGrid,
+            href: null,
           },
           {
             label: t("floor_pending"),
             value: pendingCount,
             icon: AlertTriangle,
+            href: "/incidents",
           },
         ].map((stat) => (
           <div
             key={stat.label}
-            className="rounded-xl p-4 border-2"
+            onClick={() => stat.href && router.push(stat.href)}
+            className={`rounded-xl p-4 border-2 transition-all ${stat.href ? 'cursor-pointer hover:shadow-lg hover:scale-[1.02]' : ''}`}
             style={{
               background: "rgba(252,246,237,0.85)",
               borderColor: "#c4956a",
