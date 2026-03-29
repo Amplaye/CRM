@@ -242,18 +242,18 @@ export default function GuestsPage() {
               <button
                 onClick={() => setViewMode("grid")}
                 className={`p-1.5 rounded-md transition-colors ${viewMode === 'grid' ? 'shadow-sm' : ''}`}
-                style={viewMode === 'grid' ? { background: 'rgba(252,246,237,0.85)' } : {}}
+                style={{ background: viewMode === 'grid' ? '#c4956a' : 'transparent' }}
                 title="Grid view"
               >
-                <LayoutGrid className="h-4 w-4 text-black" />
+                <LayoutGrid className={`h-4 w-4 ${viewMode === 'grid' ? 'text-white' : 'text-black'}`} />
               </button>
               <button
                 onClick={() => setViewMode("list")}
                 className={`p-1.5 rounded-md transition-colors ${viewMode === 'list' ? 'shadow-sm' : ''}`}
-                style={viewMode === 'list' ? { background: 'rgba(252,246,237,0.85)' } : {}}
+                style={{ background: viewMode === 'list' ? '#c4956a' : 'transparent' }}
                 title="List view"
               >
-                <List className="h-4 w-4 text-black" />
+                <List className={`h-4 w-4 ${viewMode === 'list' ? 'text-white' : 'text-black'}`} />
               </button>
             </div>
             <button onClick={handleExport} className="inline-flex items-center px-4 py-2 border-2 text-sm font-medium rounded-md shadow-sm text-black transition-colors" style={{ borderColor: '#c4956a', background: 'rgba(252,246,237,0.6)' }}>
