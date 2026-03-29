@@ -85,26 +85,6 @@ export function Topbar() {
           setNotifications(prev => [notif, ...prev].slice(0, 20));
         }
       )
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'conversations',
-          filter: `tenant_id=eq.${activeTenant.id}`
-        },
-        (payload: any) => {
-          const convo = payload.new;
-          const notif: Notification = {
-            id: convo.id,
-            type: "conversation",
-            message: `New ${convo.channel} conversation: ${convo.intent || 'chat'}`,
-            time: new Date().toLocaleTimeString(),
-            read: false,
-          };
-          setNotifications(prev => [notif, ...prev].slice(0, 20));
-        }
-      )
       .subscribe();
 
     return () => {
