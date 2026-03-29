@@ -26,6 +26,28 @@ export default function KnowledgePage() {
   const [editRiskTags, setEditRiskTags] = useState("");
 
   const [saving, setSaving] = useState(false);
+  const [syncing, setSyncing] = useState(false);
+
+  const handleSyncBots = async () => {
+    if (!tenant) return;
+    setSyncing(true);
+    try {
+      const res = await fetch("/api/sync-kb-retell", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tenant_id: tenant.id }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        alert(`Synced ${data.articles} articles to WhatsApp + Voice bots`);
+      } else {
+        alert("Sync failed: " + (data.error || "Unknown error"));
+      }
+    } catch (err) {
+      alert("Sync error");
+    }
+    setSyncing(false);
+  };
 
   useEffect(() => {
     if (!tenant) return;
@@ -133,8 +155,17 @@ export default function KnowledgePage() {
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-black" />
                   <input type="text" placeholder={t("know_search_placeholder") || "Search articles..."} className="w-full pl-9 pr-3 py-2 border-2 rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-[#c4956a]" style={{ borderColor: '#c4956a', background: 'rgba(252,246,237,0.6)' }} />
                </div>
-               <button onClick={() => handleStartEdit()} className="p-2 bg-zinc-900 text-white rounded-lg hover:bg-zinc-800 transition-colors shadow-sm">
+               <button onClick={() => handleStartEdit()} className="p-2 bg-zinc-900 text-white rounded-lg hover:bg-zinc-800 transition-colors shadow-sm" title="New article">
                   <Plus className="w-5 h-5" />
+               </button>
+               <button
+                 onClick={handleSyncBots}
+                 disabled={syncing}
+                 className="px-3 py-2 text-sm font-bold text-white rounded-lg transition-colors shadow-sm disabled:opacity-50"
+                 style={{ background: 'linear-gradient(135deg, #c4956a 0%, #b8845c 100%)' }}
+                 title="Sync to WhatsApp + Voice bots"
+               >
+                 {syncing ? "..." : "Sync Bots"}
                </button>
             </div>
          </div>
