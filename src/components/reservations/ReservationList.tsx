@@ -111,14 +111,14 @@ export function ReservationList({ date, onRowClick }: ReservationListProps) {
 
   return (
     <div className="border-2 rounded-b-xl overflow-hidden" style={{ background: 'rgba(252,246,237,0.85)', borderColor: '#c4956a', boxShadow: '0 20px 60px rgba(196,149,106,0.25), 0 8px 24px rgba(196,149,106,0.15)' }}>
-      <table className="min-w-full divide-y" style={{ borderColor: '#c4956a' }}>
+      <table className="min-w-full table-fixed divide-y" style={{ borderColor: '#c4956a' }}>
         <thead>
           <tr>
-            <th scope="col" className="px-6 py-3 text-center text-xs font-semibold text-black uppercase tracking-wider">{t("res_col_time")}</th>
-            <th scope="col" className="px-6 py-3 text-center text-xs font-semibold text-black uppercase tracking-wider">{t("res_col_guest")}</th>
-            <th scope="col" className="px-6 py-3 text-center text-xs font-semibold text-black uppercase tracking-wider">{t("res_col_party")}</th>
-            <th scope="col" className="px-6 py-3 text-center text-xs font-semibold text-black uppercase tracking-wider">{t("res_col_status")}</th>
-            <th scope="col" className="px-6 py-3 text-center text-xs font-semibold text-black uppercase tracking-wider">{t("res_col_source")}</th>
+            <th scope="col" className="w-1/5 px-6 py-3 text-center text-xs font-semibold text-black uppercase tracking-wider">{t("res_col_time")}</th>
+            <th scope="col" className="w-1/5 px-6 py-3 text-center text-xs font-semibold text-black uppercase tracking-wider">{t("res_col_guest")}</th>
+            <th scope="col" className="w-1/5 px-6 py-3 text-center text-xs font-semibold text-black uppercase tracking-wider">{t("res_col_party")}</th>
+            <th scope="col" className="w-1/5 px-6 py-3 text-center text-xs font-semibold text-black uppercase tracking-wider">{t("res_col_status")}</th>
+            <th scope="col" className="w-1/5 px-6 py-3 text-center text-xs font-semibold text-black uppercase tracking-wider">{t("res_col_source")}</th>
           </tr>
         </thead>
         <tbody className="divide-y" style={{ borderColor: 'rgba(196,149,106,0.3)' }}>
