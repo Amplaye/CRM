@@ -14,22 +14,27 @@ export async function POST(request: Request) {
 
     // 1. Find or create guest
     let guestId: string;
+    let guestName = payload.guest_name || "";
     const { data: existingGuests } = await supabase
       .from('guests')
-      .select('id')
+      .select('id, name')
       .eq('tenant_id', payload.tenant_id)
       .eq('phone', payload.guest_phone)
       .limit(1);
 
     if (existingGuests && existingGuests.length > 0) {
       guestId = existingGuests[0].id;
+      // Update guest name if we now know it and it was unknown
+      if (guestName && guestName !== "Unknown Guest" && existingGuests[0].name === "Unknown Guest") {
+        await supabase.from('guests').update({ name: guestName }).eq('id', guestId);
+      }
     } else {
       const { data: newGuest, error: guestErr } = await supabase
         .from('guests')
         .insert({
           tenant_id: payload.tenant_id,
           phone: payload.guest_phone,
-          name: payload.guest_name || "Unknown Guest",
+          name: guestName || "Unknown Guest",
           visit_count: 0,
           no_show_count: 0,
           cancellation_count: 0,
@@ -43,51 +48,101 @@ export async function POST(request: Request) {
       guestId = newGuest.id;
     }
 
-    // 2. Map outcome to conversation status
-    const statusMap: Record<string, string> = {
-      resolved: "resolved",
-      escalated: "escalated",
-      abandoned: "abandoned",
-    };
-    const status = statusMap[payload.outcome] || "active";
-
-    // 3. Insert conversation
-    const { data: newConvo, error: insertErr } = await supabase
+    // 2. Find existing active conversation for this guest
+    const { data: existingConvos } = await supabase
       .from('conversations')
-      .insert({
-        tenant_id: payload.tenant_id,
-        guest_id: guestId,
-        channel: payload.channel || "whatsapp",
-        intent: payload.intent || "unknown",
-        status,
-        escalation_flag: payload.outcome === "escalated",
-        sentiment: payload.sentiment || "neutral",
-        summary: payload.summary || payload.message || "No summary provided",
-        transcript: payload.transcript || [],
-      })
-      .select('id')
-      .single();
+      .select('id, transcript, status')
+      .eq('tenant_id', payload.tenant_id)
+      .eq('guest_id', guestId)
+      .eq('channel', payload.channel || 'whatsapp')
+      .in('status', ['active', 'escalated'])
+      .order('created_at', { ascending: false })
+      .limit(1);
 
-    if (insertErr) throw insertErr;
+    const newMessages = payload.transcript || [];
+    const summaryText = payload.summary || payload.message || "";
 
-    // 4. Audit log
-    await logAuditEvent({
-      tenant_id: payload.tenant_id,
-      action: status === 'escalated' ? 'handoff' : 'create_incident',
-      entity_id: newConvo.id,
-      source: "ai_agent",
-      details: {
-        channel: payload.channel || "whatsapp",
-        intent: payload.intent || "unknown",
-        status,
+    if (existingConvos && existingConvos.length > 0) {
+      // --- UPDATE existing conversation ---
+      const existing = existingConvos[0];
+      const existingTranscript = Array.isArray(existing.transcript) ? existing.transcript : [];
+
+      // Append new messages to existing transcript
+      const updatedTranscript = [...existingTranscript, ...newMessages];
+
+      const updates: any = {
+        transcript: updatedTranscript,
+        updated_at: new Date().toISOString(),
+      };
+
+      // Update summary if provided
+      if (summaryText) updates.summary = summaryText;
+      // Update intent if provided
+      if (payload.intent && payload.intent !== 'unknown') updates.intent = payload.intent;
+      // Update sentiment if provided
+      if (payload.sentiment) updates.sentiment = payload.sentiment;
+      // Update status if outcome says resolved
+      if (payload.outcome === 'resolved') updates.status = 'resolved';
+      if (payload.outcome === 'escalated') {
+        updates.status = 'escalated';
+        updates.escalation_flag = true;
       }
-    });
 
-    return NextResponse.json({
-      success: true,
-      message: "Conversation ingested successfully",
-      conversation_id: newConvo.id
-    });
+      await supabase.from('conversations').update(updates).eq('id', existing.id);
+
+      return NextResponse.json({
+        success: true,
+        message: "Conversation updated",
+        conversation_id: existing.id,
+        action: "updated"
+      });
+
+    } else {
+      // --- CREATE new conversation ---
+      const statusMap: Record<string, string> = {
+        resolved: "resolved",
+        escalated: "escalated",
+        abandoned: "abandoned",
+      };
+      const status = statusMap[payload.outcome] || "active";
+
+      const { data: newConvo, error: insertErr } = await supabase
+        .from('conversations')
+        .insert({
+          tenant_id: payload.tenant_id,
+          guest_id: guestId,
+          channel: payload.channel || "whatsapp",
+          intent: payload.intent || "unknown",
+          status,
+          escalation_flag: payload.outcome === "escalated",
+          sentiment: payload.sentiment || "neutral",
+          summary: summaryText || "New conversation",
+          transcript: newMessages,
+        })
+        .select('id')
+        .single();
+
+      if (insertErr) throw insertErr;
+
+      await logAuditEvent({
+        tenant_id: payload.tenant_id,
+        action: 'create_incident',
+        entity_id: newConvo.id,
+        source: "ai_agent",
+        details: {
+          channel: payload.channel || "whatsapp",
+          intent: payload.intent || "unknown",
+          status,
+        }
+      });
+
+      return NextResponse.json({
+        success: true,
+        message: "Conversation created",
+        conversation_id: newConvo.id,
+        action: "created"
+      });
+    }
 
   } catch (error: any) {
     console.error("Webhook processing error:", error);

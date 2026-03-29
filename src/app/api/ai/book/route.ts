@@ -31,18 +31,21 @@ export async function POST(request: Request) {
     }
 
     // 2. Guest Verification / Creation
-    let guestId = `guest_${Date.now()}`;
+    let guestId: string;
     const { data: existingGuests } = await supabase
       .from('guests')
-      .select('id')
+      .select('id, name')
       .eq('tenant_id', payload.tenant_id)
       .eq('phone', payload.guest_phone)
       .limit(1);
 
     if (existingGuests && existingGuests.length > 0) {
        guestId = existingGuests[0].id;
+       // Update guest name if we now know it
+       if (payload.guest_name && payload.guest_name !== "Unknown Guest" && existingGuests[0].name === "Unknown Guest") {
+         await supabase.from('guests').update({ name: payload.guest_name }).eq('id', guestId);
+       }
     } else {
-       // Create minimal guest record
        const { data: newGuest, error: guestErr } = await supabase
          .from('guests')
          .insert({
@@ -53,8 +56,7 @@ export async function POST(request: Request) {
             no_show_count: 0,
             cancellation_count: 0,
             tags: [],
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString()
+            notes: "",
          })
          .select('id')
          .single();
