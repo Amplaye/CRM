@@ -69,18 +69,25 @@ export default function DashboardPage() {
 
     const dayNames = ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"];
     const isCurrentMonth = selectedMonth === now.getMonth() && selectedYear === now.getFullYear();
-    const refDate = isCurrentMonth ? now : monthEndDate; // last day of selected month
+
+    // For week chart: use last 7 days of selected month (or today if current month)
+    const refDate = isCurrentMonth ? now : monthEndDate;
     const last7 = Array.from({ length: 7 }, (_, i) => {
       const d = new Date(refDate); d.setDate(d.getDate() - (6 - i));
       return { date: toDateStr(d), label: dayNames[d.getDay()] };
     });
+
+    // For "today" box: if viewing current month show today's data, otherwise show busiest day of month
+    const todayQuery = isCurrentMonth ? todayStr : null;
 
     const fetchAll = async () => {
       const [resMonth, prevMonth, resYear, resToday, guestsCount, noShowCount] = await Promise.all([
         supabase.from("reservations").select("id, source, date, party_size").eq("tenant_id", tenant.id).gte("date", monthStart).lte("date", monthEnd),
         supabase.from("reservations").select("id, party_size").eq("tenant_id", tenant.id).gte("date", prevMonthStart).lte("date", prevMonthEnd),
         supabase.from("reservations").select("id, party_size").eq("tenant_id", tenant.id).gte("date", yearStart).lte("date", yearEnd),
-        supabase.from("reservations").select("*, guests(name)").eq("tenant_id", tenant.id).eq("date", todayStr).in("status", ["confirmed", "seated", "completed", "escalated"]).order("time"),
+        todayQuery
+          ? supabase.from("reservations").select("*, guests(name)").eq("tenant_id", tenant.id).eq("date", todayQuery).in("status", ["confirmed", "seated", "completed", "escalated"]).order("time")
+          : Promise.resolve({ data: [], error: null }),
         supabase.from("guests").select("id", { count: "exact", head: true }).eq("tenant_id", tenant.id),
         supabase.from("reservations").select("id", { count: "exact", head: true }).eq("tenant_id", tenant.id).eq("status", "no_show").gte("date", monthStart).lte("date", monthEnd),
       ]);
@@ -102,8 +109,25 @@ export default function DashboardPage() {
       const sourceLabels: Record<string, string> = { ai_voice: "AI Calls", ai_chat: "AI Chat", staff: "Staff", walk_in: "Walk-in", web: "Web" };
       setSourceData(Object.entries(sourceCounts).map(([name, value]) => ({ name: sourceLabels[name] || name, value })));
 
-      // Today
-      setTodayRes(resToday.data || []);
+      // Today (or busiest day if viewing past month)
+      if (isCurrentMonth) {
+        setTodayRes(resToday.data || []);
+      } else {
+        // Find busiest day of the selected month
+        const dayTotals: Record<string, { count: number; guests: number }> = {};
+        monthRes.forEach((r: any) => {
+          if (!dayTotals[r.date]) dayTotals[r.date] = { count: 0, guests: 0 };
+          dayTotals[r.date].count++;
+          dayTotals[r.date].guests += r.party_size;
+        });
+        const busiest = Object.entries(dayTotals).sort((a, b) => b[1].count - a[1].count)[0];
+        if (busiest) {
+          const { data: busiestData } = await supabase.from("reservations").select("*, guests(name)").eq("tenant_id", tenant.id).eq("date", busiest[0]).in("status", ["confirmed", "seated", "completed", "escalated"]).order("time");
+          setTodayRes(busiestData || []);
+        } else {
+          setTodayRes([]);
+        }
+      }
 
       // Week data
       const weekCounts: Record<string, { count: number; guests: number }> = {};
@@ -146,11 +170,12 @@ export default function DashboardPage() {
     return () => { supabase.removeChannel(channel); };
   }, [tenant, selectedMonth, selectedYear]);
 
+  const isViewingCurrentMonth = selectedMonth === new Date().getMonth() && selectedYear === new Date().getFullYear();
   const nowHH = new Date().getHours() * 60 + new Date().getMinutes();
-  const nextRes = todayRes.find((r: any) => {
+  const nextRes = isViewingCurrentMonth ? todayRes.find((r: any) => {
     const [h, m] = r.time.split(":").map(Number);
     return h * 60 + m > nowHH;
-  });
+  }) : null;
 
   const monthChange = prevMonthTotal.count > 0
     ? Math.round(((monthTotal.count - prevMonthTotal.count) / prevMonthTotal.count) * 100)
@@ -223,8 +248,12 @@ export default function DashboardPage() {
         {/* TODAY */}
         <div className="rounded-xl border-2 p-5" style={{ background: "rgba(252,246,237,0.85)", borderColor: "#c4956a" }}>
           <div className="flex items-center justify-between mb-4">
-            <h3 className="text-sm font-bold text-black uppercase tracking-wider">Today</h3>
-            <span className="text-xs text-black/40">{new Date().toLocaleDateString()}</span>
+            <h3 className="text-sm font-bold text-black uppercase tracking-wider">
+              {isViewingCurrentMonth ? "Today" : "Top Day"}
+            </h3>
+            <span className="text-xs text-black/40">
+              {isViewingCurrentMonth ? new Date().toLocaleDateString() : todayRes.length > 0 ? todayRes[0]?.date : monthNames[selectedMonth]}
+            </span>
           </div>
           <div className="flex items-baseline gap-2 mb-3">
             <span className="text-3xl font-bold text-black">{todayRes.length}</span>
@@ -239,8 +268,16 @@ export default function DashboardPage() {
                 <p className="text-sm font-bold text-black">{nextRes.time} — {nextRes.guests?.name || "Guest"} ({nextRes.party_size}p)</p>
               </div>
             </div>
+          ) : todayRes.length > 0 ? (
+            <div className="flex items-center gap-2 p-3 rounded-lg" style={{ background: "rgba(196,149,106,0.1)" }}>
+              <CalendarCheck className="w-4 h-4 text-[#c4956a]" />
+              <div>
+                <p className="text-xs text-black/40">First</p>
+                <p className="text-sm font-bold text-black">{todayRes[0]?.time} — {todayRes[0]?.guests?.name || "Guest"} ({todayRes[0]?.party_size}p)</p>
+              </div>
+            </div>
           ) : (
-            <p className="text-xs text-black/30">No upcoming reservations</p>
+            <p className="text-xs text-black/30">No reservations</p>
           )}
         </div>
 
