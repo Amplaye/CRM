@@ -117,7 +117,10 @@ export default function RegisterPage() {
     <div className="min-h-screen flex flex-col justify-center py-12 sm:px-6 lg:px-8 relative z-10">
       <div className="sm:mx-auto sm:w-full sm:max-w-md">
         <div className="flex justify-center">
-          <img src="/logo.png" alt="BaliFlow" className="w-64 h-auto" />
+          <img src="/logo.png" alt="BaliFlow" className="w-64 h-auto" style={{
+             mask: 'radial-gradient(67% 90%, black 50%, transparent 75%)',
+             WebkitMask: 'radial-gradient(67% 90%, black 50%, transparent 75%)',
+           }} />
         </div>
         <p className="mt-2 text-center text-sm text-black">
           Set up your CRM in 30 seconds
