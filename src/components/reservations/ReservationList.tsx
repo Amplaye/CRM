@@ -16,7 +16,7 @@ interface ReservationListProps {
 export function ReservationList({ date, onRowClick }: ReservationListProps) {
   const { activeTenant: tenant } = useTenant();
   const { t } = useLanguage();
-  const [reservations, setReservations] = useState<(Reservation & { guest_name?: string })[]>([]);
+  const [reservations, setReservations] = useState<(Reservation & { guest_name?: string; table_names?: string[] })[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -38,10 +38,24 @@ export function ReservationList({ date, onRowClick }: ReservationListProps) {
         return;
       }
 
+      const resIds = (resData || []).map((r: any) => r.id);
+      let tableMap: Record<string, string[]> = {};
+      if (resIds.length > 0) {
+        const { data: links } = await supabase
+          .from("reservation_tables")
+          .select("reservation_id, restaurant_tables(name)")
+          .in("reservation_id", resIds);
+        for (const link of (links || []) as any[]) {
+          if (!tableMap[link.reservation_id]) tableMap[link.reservation_id] = [];
+          if (link.restaurant_tables?.name) tableMap[link.reservation_id].push(link.restaurant_tables.name);
+        }
+      }
+
       const withNames = (resData || []).map((r: any) => ({
         ...r,
         guest_name: r.guests?.name || undefined,
-      })) as (Reservation & { guest_name?: string })[];
+        table_names: tableMap[r.id] || [],
+      })) as (Reservation & { guest_name?: string; table_names?: string[] })[];
 
       const sorted = withNames.sort((a, b) => a.time.localeCompare(b.time));
       setReservations(sorted);
@@ -114,11 +128,12 @@ export function ReservationList({ date, onRowClick }: ReservationListProps) {
       <table className="min-w-full table-fixed divide-y" style={{ borderColor: '#c4956a' }}>
         <thead>
           <tr>
-            <th scope="col" className="w-1/5 px-6 py-3 text-center text-xs font-semibold text-black uppercase tracking-wider">{t("res_col_time")}</th>
-            <th scope="col" className="w-1/5 px-6 py-3 text-center text-xs font-semibold text-black uppercase tracking-wider">{t("res_col_guest")}</th>
-            <th scope="col" className="w-1/5 px-6 py-3 text-center text-xs font-semibold text-black uppercase tracking-wider">{t("res_col_party")}</th>
-            <th scope="col" className="w-1/5 px-6 py-3 text-center text-xs font-semibold text-black uppercase tracking-wider">{t("res_col_status")}</th>
-            <th scope="col" className="w-1/5 px-6 py-3 text-center text-xs font-semibold text-black uppercase tracking-wider">{t("res_col_source")}</th>
+            <th scope="col" className="px-4 py-3 text-center text-xs font-semibold text-black uppercase tracking-wider">{t("res_col_time")}</th>
+            <th scope="col" className="px-4 py-3 text-center text-xs font-semibold text-black uppercase tracking-wider">{t("res_col_guest")}</th>
+            <th scope="col" className="px-4 py-3 text-center text-xs font-semibold text-black uppercase tracking-wider">{t("res_col_party")}</th>
+            <th scope="col" className="px-4 py-3 text-center text-xs font-semibold text-black uppercase tracking-wider">Table</th>
+            <th scope="col" className="px-4 py-3 text-center text-xs font-semibold text-black uppercase tracking-wider">{t("res_col_status")}</th>
+            <th scope="col" className="px-4 py-3 text-center text-xs font-semibold text-black uppercase tracking-wider">{t("res_col_source")}</th>
           </tr>
         </thead>
         <tbody className="divide-y" style={{ borderColor: 'rgba(196,149,106,0.3)' }}>
@@ -128,23 +143,28 @@ export function ReservationList({ date, onRowClick }: ReservationListProps) {
                onClick={() => onRowClick?.(res)}
                className={`hover:bg-[#c4956a]/10 transition-colors ${onRowClick ? 'cursor-pointer' : ''}`}
             >
-              <td className="px-6 py-4 whitespace-nowrap text-center">
+              <td className="px-4 py-4 whitespace-nowrap text-center">
                 <div className="flex items-center justify-center text-sm font-bold text-zinc-900">
                   <Clock className="w-4 h-4 text-black mr-2" />
                   {res.time}
                 </div>
               </td>
-              <td className="px-6 py-4 whitespace-nowrap text-center">
+              <td className="px-4 py-4 whitespace-nowrap text-center">
                 <div className="text-sm font-medium text-zinc-900">{res.guest_name || `Guest (${res.guest_id.substring(0,8)})`}</div>
                 {res.notes && <div className="text-xs text-black truncate max-w-[200px]">{res.notes}</div>}
               </td>
-              <td className="px-6 py-4 whitespace-nowrap text-center">
+              <td className="px-4 py-4 whitespace-nowrap text-center">
                 <div className="text-sm font-medium text-zinc-900">{res.party_size}</div>
               </td>
-              <td className="px-6 py-4 whitespace-nowrap text-center">
+              <td className="px-4 py-4 whitespace-nowrap text-center">
+                <div className="text-xs font-medium text-black/60">
+                  {res.table_names && res.table_names.length > 0 ? res.table_names.join(", ") : "—"}
+                </div>
+              </td>
+              <td className="px-4 py-4 whitespace-nowrap text-center">
                 <StatusPill status={res.status} />
               </td>
-              <td className="px-6 py-4 whitespace-nowrap text-center">
+              <td className="px-4 py-4 whitespace-nowrap text-center">
                 <Link href={`/conversations?guest=${res.guest_id}`} onClick={(e) => e.stopPropagation()} className="inline-flex justify-center hover:scale-110 transition-transform" title="Open conversation">
                   <SourceIcon source={res.source} />
                 </Link>

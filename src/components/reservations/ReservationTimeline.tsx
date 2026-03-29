@@ -7,9 +7,14 @@ import { useTenant } from "@/lib/contexts/TenantContext";
 import { Loader2 } from "lucide-react";
 import { cn } from "@/components/layout/Sidebar";
 
+interface ResWithGuest extends Reservation {
+  guest_name?: string;
+  table_names?: string[];
+}
+
 export function ReservationTimeline({ date, onRowClick }: { date: string, onRowClick: (r: Reservation) => void }) {
   const { activeTenant } = useTenant();
-  const [reservations, setReservations] = useState<Reservation[]>([]);
+  const [reservations, setReservations] = useState<ResWithGuest[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -20,7 +25,7 @@ export function ReservationTimeline({ date, onRowClick }: { date: string, onRowC
     const fetchReservations = async () => {
       const { data: results, error } = await supabase
         .from("reservations")
-        .select("*")
+        .select("*, guests(name)")
         .eq("tenant_id", activeTenant.id)
         .eq("date", date);
 
@@ -30,7 +35,33 @@ export function ReservationTimeline({ date, onRowClick }: { date: string, onRowC
         return;
       }
 
-      const sorted = (results as Reservation[]).sort((a, b) => a.time.localeCompare(b.time));
+      const resData = (results || []) as any[];
+
+      // Fetch table assignments
+      const resIds = resData.map(r => r.id);
+      let tableMap: Record<string, string[]> = {};
+
+      if (resIds.length > 0) {
+        const { data: links } = await supabase
+          .from("reservation_tables")
+          .select("reservation_id, restaurant_tables(name)")
+          .in("reservation_id", resIds);
+
+        for (const link of (links || []) as any[]) {
+          if (!tableMap[link.reservation_id]) tableMap[link.reservation_id] = [];
+          if (link.restaurant_tables?.name) {
+            tableMap[link.reservation_id].push(link.restaurant_tables.name);
+          }
+        }
+      }
+
+      const withNames: ResWithGuest[] = resData.map(r => ({
+        ...r,
+        guest_name: r.guests?.name || undefined,
+        table_names: tableMap[r.id] || [],
+      }));
+
+      const sorted = withNames.sort((a, b) => a.time.localeCompare(b.time));
       setReservations(sorted);
       setLoading(false);
     };
@@ -49,7 +80,7 @@ export function ReservationTimeline({ date, onRowClick }: { date: string, onRowC
   if (loading) {
     return (
       <div className="flex justify-center p-8">
-        <Loader2 className="h-6 w-6 animate-spin text-terracotta-500" />
+        <Loader2 className="h-6 w-6 animate-spin text-[#c4956a]" />
       </div>
     );
   }
@@ -57,12 +88,11 @@ export function ReservationTimeline({ date, onRowClick }: { date: string, onRowC
   if (reservations.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center p-12 text-black border-2 rounded-xl" style={{ background: 'rgba(252,246,237,0.85)', borderColor: '#c4956a' }}>
-        <p>No reservations for this date timeline.</p>
+        <p>No reservations for this date.</p>
       </div>
     );
   }
 
-  // Generate hours from 11:00 to 23:00
   const hours = Array.from({ length: 13 }, (_, i) => i + 11);
 
   return (
@@ -74,7 +104,6 @@ export function ReservationTimeline({ date, onRowClick }: { date: string, onRowC
 
       {hours.map((hour) => {
         const hourString = `${hour.toString().padStart(2, '0')}`;
-        // Find matching reservations in this hour block (e.g. 11:00 - 11:59)
         const activeRes = reservations.filter(r => r.time.startsWith(hourString));
 
         return (
@@ -88,20 +117,26 @@ export function ReservationTimeline({ date, onRowClick }: { date: string, onRowC
                   key={res.id}
                   onClick={() => onRowClick(res)}
                   className={cn(
-                    "px-3 py-2 rounded-lg text-left transition-colors border shadow-sm w-48",
-                    res.status === 'confirmed' ? "border-[#c4956a] hover:border-[#b8845c] focus:ring-1 focus:ring-[#c4956a]" :
+                    "px-3 py-2 rounded-lg text-left transition-colors border shadow-sm w-52",
+                    res.status === 'confirmed' ? "border-[#c4956a] hover:border-[#b8845c]" :
                     res.status === 'seated' ? "bg-blue-50 border-blue-200 text-blue-900" :
                     res.status === 'completed' ? "bg-green-50 border-green-200 text-green-900" :
+                    res.status === 'escalated' ? "bg-orange-50 border-orange-200 text-orange-900" :
                     "bg-zinc-100 border-zinc-200 text-zinc-500 opacity-60"
                   )}
                 >
                   <div className="flex items-center justify-between mb-1">
-                     <span className="font-bold text-zinc-900">{res.time}</span>
-                     <span className="text-xs px-1.5 py-0.5 rounded-md bg-zinc-100 text-zinc-600 font-medium">v.{res.party_size}</span>
+                    <span className="font-bold text-zinc-900">{res.time}</span>
+                    <span className="text-xs px-1.5 py-0.5 rounded-md bg-zinc-100 text-zinc-600 font-medium">{res.party_size}p</span>
                   </div>
-                  <div className="text-xs truncate font-medium text-black mt-1">
-                     {res.guest_id.slice(0, 8)} | Table Auto
+                  <div className="text-xs font-medium text-black truncate">
+                    {res.guest_name || "Unknown"}
                   </div>
+                  {res.table_names && res.table_names.length > 0 && (
+                    <div className="text-[10px] text-black/50 mt-0.5">
+                      {res.table_names.join(", ")}
+                    </div>
+                  )}
                 </button>
               ))}
             </div>

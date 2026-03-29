@@ -42,7 +42,12 @@ export default function ReservationsPage() {
         .eq("tenant_id", activeTenant.id)
         .eq("status", "active")
         .order("name");
-      setAvailableTables((data || []) as RestaurantTable[]);
+      const sorted = ((data || []) as RestaurantTable[]).sort((a, b) => {
+        const numA = parseInt(a.name.replace(/\D/g, '')) || 0;
+        const numB = parseInt(b.name.replace(/\D/g, '')) || 0;
+        return numA - numB;
+      });
+      setAvailableTables(sorted);
     };
     fetchTables();
   }, [activeTenant]);
