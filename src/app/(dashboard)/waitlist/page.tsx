@@ -131,7 +131,7 @@ export default function WaitlistPage() {
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-8">
           <div>
             <h1 className="text-2xl font-bold text-zinc-900 tracking-tight">{t("waitlist_title")}</h1>
-            <p className="mt-1 text-sm text-zinc-500">{t("waitlist_subtitle")} ({today})</p>
+            <p className="mt-1 text-sm text-black">{t("waitlist_subtitle")} ({today})</p>
           </div>
           <div className="mt-4 sm:mt-0 flex space-x-3">
             <button
@@ -146,7 +146,7 @@ export default function WaitlistPage() {
 
         {/* AI Match Alert Banner */}
         {matchFoundEntry && (
-          <div className="mb-8 relative overflow-hidden bg-white rounded-2xl border border-terracotta-200 shadow-sm flex items-start sm:items-center p-6 justify-between flex-col sm:flex-row gap-4">
+          <div className="mb-8 relative overflow-hidden rounded-2xl border-2 flex items-start sm:items-center p-6 justify-between flex-col sm:flex-row gap-4" style={{ background: 'rgba(252,246,237,0.85)', borderColor: '#c4956a', boxShadow: '0 20px 60px rgba(196,149,106,0.25), 0 8px 24px rgba(196,149,106,0.15)' }}>
              <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-gradient-to-bl from-terracotta-50/80 to-transparent rounded-full blur-3xl pointer-events-none transform translate-x-10 -translate-y-10"></div>
 
              <div className="flex items-start relative z-10 w-full">
@@ -174,7 +174,8 @@ export default function WaitlistPage() {
                 <div className="flex flex-col space-y-2 shrink-0">
                   <button
                      onClick={() => markContacted(matchFoundEntry)}
-                     className="w-full sm:w-auto px-5 py-2.5 bg-terracotta-600 text-white text-sm font-bold rounded-lg shadow-sm hover:bg-terracotta-700 transition-colors flex items-center justify-center"
+                     className="w-full sm:w-auto px-5 py-2.5 text-white text-sm font-bold rounded-lg shadow-sm transition-colors flex items-center justify-center"
+                     style={{ background: 'linear-gradient(135deg, #c4956a 0%, #b8845c 100%)' }}
                   >
                      <Send className="h-4 w-4 mr-2" /> Notify Guest
                   </button>
@@ -183,14 +184,14 @@ export default function WaitlistPage() {
           </div>
         )}
 
-        <div className="bg-white border rounded-xl border-zinc-200 overflow-hidden shadow-sm">
-           <div className="px-6 py-4 border-b border-zinc-200 flex justify-between items-center bg-zinc-50/50">
+        <div className="border-2 rounded-xl overflow-hidden" style={{ background: 'rgba(252,246,237,0.85)', borderColor: '#c4956a', boxShadow: '0 20px 60px rgba(196,149,106,0.25), 0 8px 24px rgba(196,149,106,0.15)' }}>
+           <div className="px-6 py-4 border-b flex justify-between items-center" style={{ borderColor: '#c4956a' }}>
               <h2 className="font-bold text-zinc-900 tracking-tight">{t("waitlist_queue")}</h2>
               <span className="bg-zinc-200 text-zinc-800 text-[10px] uppercase tracking-wider font-bold px-2.5 py-1 rounded-md">{entries.length} Checking</span>
            </div>
 
            {entries.length === 0 && !loading ? (
-              <div className="py-16 text-center text-zinc-500 bg-zinc-50/30">
+              <div className="py-16 text-center text-black">
                  <Activity className="w-12 h-12 text-zinc-300 mx-auto mb-4" />
                  <p className="text-sm font-bold text-zinc-900">No entries in queue</p>
                  <p className="text-xs text-zinc-500 mt-1">The waitlist requires zero active management.</p>
@@ -267,15 +268,15 @@ export default function WaitlistPage() {
 
       {/* CREATE WAITLIST ENTRY DRAWER */}
       {isCreating && (
-        <div className="fixed inset-y-0 right-0 w-[400px] bg-white border-l border-zinc-200 shadow-2xl z-40 transform transition-transform duration-300 flex flex-col pt-16">
-          <div className="px-6 py-4 flex items-center justify-between border-b border-zinc-100 bg-zinc-50">
+        <div className="fixed inset-y-0 right-0 w-[400px] border-l shadow-2xl z-40 transform transition-transform duration-300 flex flex-col pt-16" style={{ background: 'rgba(252,246,237,0.95)', borderColor: '#c4956a' }}>
+          <div className="px-6 py-4 flex items-center justify-between border-b" style={{ borderColor: '#c4956a' }}>
              <h2 className="text-lg font-bold text-zinc-900 tracking-tight">Waitlist Registration</h2>
-             <button onClick={() => setIsCreating(false)} className="p-2 text-zinc-400 hover:bg-zinc-200 hover:text-zinc-700 rounded-full transition-colors">
+             <button onClick={() => setIsCreating(false)} className="p-2 text-black hover:bg-[#c4956a]/10 hover:text-black rounded-full transition-colors">
                 <X className="h-5 w-5" />
              </button>
           </div>
           <form onSubmit={handleCreate} className="flex-1 flex flex-col overflow-hidden">
-             <div className="flex-1 overflow-y-auto p-6 space-y-6 bg-zinc-50/30">
+             <div className="flex-1 overflow-y-auto p-6 space-y-6">
                 <div className="bg-zinc-900 text-white text-xs p-3 rounded-lg border border-black shadow-sm font-medium mb-4 flex items-start">
                   <Activity className="w-4 h-4 mr-2 shrink-0 opacity-70" />
                   We automatically inject CRM priority points calculating logic during backend processing.
@@ -343,7 +344,7 @@ export default function WaitlistPage() {
                 </div>
              </div>
 
-             <div className="p-6 border-t border-zinc-100 bg-white">
+             <div className="p-6 border-t" style={{ borderColor: '#c4956a' }}>
                 <button
                    type="submit"
                    disabled={saving}

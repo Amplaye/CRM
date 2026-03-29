@@ -150,11 +150,11 @@ export default function OverviewDashboard() {
     <div className="p-8 max-w-7xl mx-auto space-y-10">
       <div>
         <h1 className="text-2xl font-bold text-zinc-900 tracking-tight">{t("nav_overview")}</h1>
-        <p className="mt-1 text-sm text-zinc-500">{t("roi_subtitle")}</p>
+        <p className="mt-1 text-sm text-black">{t("roi_subtitle")}</p>
       </div>
 
       {/* Business Impact Panel (High Visibility) */}
-      <div className="relative overflow-hidden bg-white rounded-2xl border border-zinc-100 shadow-[0_2px_10px_-3px_rgba(6,81,237,0.1)] p-8">
+      <div className="relative overflow-hidden rounded-2xl border-2 p-8" style={{ background: 'rgba(252,246,237,0.85)', borderColor: '#c4956a', boxShadow: '0 20px 60px rgba(196,149,106,0.25), 0 8px 24px rgba(196,149,106,0.15)' }}>
         <div className="absolute top-0 right-0 p-32 bg-gradient-to-bl from-terracotta-50 via-white to-transparent opacity-60 rounded-full blur-3xl pointer-events-none transform translate-x-10 -translate-y-10"></div>
         <div className="flex items-center justify-between mb-8 relative z-10">
           <h2 className="text-xl font-bold text-zinc-900 flex items-center">
@@ -168,31 +168,31 @@ export default function OverviewDashboard() {
 
         <div className="grid grid-cols-1 md:grid-cols-4 gap-8 relative z-10">
           <div className="flex flex-col">
-            <p className="text-sm font-medium text-zinc-500 mb-1">{t("roi_recovered_revenue")}</p>
+            <p className="text-sm font-medium text-black mb-1">{t("roi_recovered_revenue")}</p>
             <div className="flex items-end">
                <p className="text-4xl font-bold tracking-tight text-emerald-600">{metrics.recoveredRevenue || '$0'}</p>
             </div>
-            <p className="text-xs text-zinc-400 mt-2 font-medium bg-zinc-50 w-fit px-2 py-1 rounded">{t("roi_matches")}</p>
+            <p className="text-xs text-black mt-2 font-medium bg-[#c4956a]/10 w-fit px-2 py-1 rounded">{t("roi_matches")}</p>
           </div>
 
           <div className="flex flex-col">
-            <p className="text-sm font-medium text-zinc-500 mb-1">{t("roi_no_shows_prevented")}</p>
+            <p className="text-sm font-medium text-black mb-1">{t("roi_no_shows_prevented")}</p>
             <div className="flex items-end">
                <p className="text-4xl font-bold tracking-tight text-zinc-900">{metrics.noShowsPrevented}</p>
             </div>
-            <p className="text-xs text-zinc-400 mt-2 font-medium bg-zinc-50 w-fit px-2 py-1 rounded">{t("roi_reminders")}</p>
+            <p className="text-xs text-black mt-2 font-medium bg-[#c4956a]/10 w-fit px-2 py-1 rounded">{t("roi_reminders")}</p>
           </div>
 
           <div className="flex flex-col">
-            <p className="text-sm font-medium text-zinc-500 mb-1">{t("roi_hours_saved")}</p>
+            <p className="text-sm font-medium text-black mb-1">{t("roi_hours_saved")}</p>
             <div className="flex items-end">
-               <p className="text-4xl font-bold tracking-tight text-zinc-900">{metrics.hoursSaved}<span className="text-2xl text-zinc-400">h</span></p>
+               <p className="text-4xl font-bold tracking-tight text-zinc-900">{metrics.hoursSaved}<span className="text-2xl text-black">h</span></p>
             </div>
-            <p className="text-xs text-zinc-400 mt-2 font-medium bg-zinc-50 w-fit px-2 py-1 rounded">{t("roi_faqs")}</p>
+            <p className="text-xs text-black mt-2 font-medium bg-[#c4956a]/10 w-fit px-2 py-1 rounded">{t("roi_faqs")}</p>
           </div>
 
           <div className="flex flex-col">
-            <p className="text-sm font-medium text-zinc-500 mb-1">{t("roi_missed_calls")}</p>
+            <p className="text-sm font-medium text-black mb-1">{t("roi_missed_calls")}</p>
             <div className="flex items-end">
                <p className="text-4xl font-bold tracking-tight text-zinc-900">{metrics.missedCallsTurned}</p>
             </div>
@@ -207,28 +207,28 @@ export default function OverviewDashboard() {
           title={t("dashboard_total_reservations")}
           value={metrics.totalRes.toString()}
           icon={<CalendarCheck className="h-5 w-5" />}
-          className="shadow-[0_1px_3px_0_rgba(0,0,0,0.02)] border-zinc-100"
+          className="border-[#c4956a]"
           trend={{ value: "+12.5%", isPositive: true }}
         />
         <KPICard
           title={t("dashboard_ai_bookings")}
           value={metrics.aiPercentage}
           valueClassName="text-terracotta-600"
-          className="shadow-[0_1px_3px_0_rgba(0,0,0,0.02)] border-zinc-100"
+          className="border-[#c4956a]"
           icon={<MessageSquare className="h-5 w-5" />}
           trend={{ value: "+5.2%", isPositive: true }}
         />
         <KPICard
           title={t("kpi_avg_response")}
           value="< 1m"
-          className="shadow-[0_1px_3px_0_rgba(0,0,0,0.02)] border-zinc-100"
+          className="border-[#c4956a]"
           icon={<Clock className="h-5 w-5" />}
           trend={{ value: "-4m", isPositive: true, label: t("kpi_vs_staff") }}
         />
         <KPICard
           title={t("kpi_lost_calls")}
           value={metrics.lostCalls.toString()}
-          className="shadow-[0_1px_3px_0_rgba(0,0,0,0.02)] border-zinc-100"
+          className="border-[#c4956a]"
           icon={<PhoneMissed className="h-5 w-5" />}
           trend={{ value: "-80%", isPositive: true, label: t("kpi_thanks_ai") }}
         />
@@ -236,8 +236,8 @@ export default function OverviewDashboard() {
 
       {/* Charts Section */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        <div className="bg-white p-6 rounded-2xl border border-zinc-100 shadow-[0_1px_3px_0_rgba(0,0,0,0.02)]">
-          <h3 className="text-[15px] font-semibold text-zinc-900 mb-6">{t("chart_source_title")} <span className="text-zinc-400 font-normal ml-1">{t("chart_source_subtitle")}</span></h3>
+        <div className="p-6 rounded-2xl border-2" style={{ background: 'rgba(252,246,237,0.85)', borderColor: '#c4956a', boxShadow: '0 20px 60px rgba(196,149,106,0.25), 0 8px 24px rgba(196,149,106,0.15)' }}>
+          <h3 className="text-[15px] font-semibold text-zinc-900 mb-6">{t("chart_source_title")} <span className="text-black font-normal ml-1">{t("chart_source_subtitle")}</span></h3>
           <div className="h-72">
             <ResponsiveContainer width="100%" height="100%">
               <AreaChart data={data} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
@@ -264,7 +264,7 @@ export default function OverviewDashboard() {
           </div>
         </div>
 
-        <div className="bg-white p-6 rounded-2xl border border-zinc-100 shadow-[0_1px_3px_0_rgba(0,0,0,0.02)]">
+        <div className="p-6 rounded-2xl border-2" style={{ background: 'rgba(252,246,237,0.85)', borderColor: '#c4956a', boxShadow: '0 20px 60px rgba(196,149,106,0.25), 0 8px 24px rgba(196,149,106,0.15)' }}>
           <h3 className="text-[15px] font-semibold text-zinc-900 mb-6">{t("chart_conversion_title")}</h3>
           <div className="h-72">
             <ResponsiveContainer width="100%" height="100%">

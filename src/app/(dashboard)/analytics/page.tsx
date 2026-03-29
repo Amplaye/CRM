@@ -28,30 +28,30 @@ export default function AnalyticsPage() {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
         <div>
            <h1 className="text-2xl font-bold text-zinc-900 tracking-tight">{t("analytics_title")}</h1>
-           <p className="mt-1 text-sm text-zinc-500">{t("analytics_subtitle")}</p>
+           <p className="mt-1 text-sm text-black">{t("analytics_subtitle")}</p>
         </div>
         <div className="mt-4 sm:mt-0 flex space-x-3">
-           <select className="bg-white border border-zinc-200 text-zinc-700 text-sm rounded-lg focus:ring-zinc-500 focus:border-zinc-500 block p-2 shadow-sm font-medium">
+           <select className="border-2 text-black text-sm rounded-lg block p-2 shadow-sm font-medium" style={{ borderColor: '#c4956a', background: 'rgba(252,246,237,0.6)' }}>
               <option>{t("analytics_30d")}</option>
               <option>{t("analytics_ytd")}</option>
               <option>{t("analytics_all_time")}</option>
            </select>
-           <button className="inline-flex items-center px-4 py-2 border border-zinc-200 text-sm font-medium rounded-lg shadow-sm text-zinc-700 bg-white hover:bg-zinc-50 transition-colors">
+           <button className="inline-flex items-center px-4 py-2 border-2 text-sm font-medium rounded-lg shadow-sm text-black transition-colors" style={{ borderColor: '#c4956a', background: 'rgba(252,246,237,0.6)' }}>
              <Download className="-ml-1 mr-2 h-4 w-4" />
              {t("analytics_export")}
            </button>
         </div>
       </div>
 
-      <div className="bg-white rounded-2xl p-8 border border-zinc-100 shadow-[0_2px_10px_-3px_rgba(6,81,237,0.1)] relative overflow-hidden">
+      <div className="rounded-2xl p-8 border-2 relative overflow-hidden" style={{ background: 'rgba(252,246,237,0.85)', borderColor: '#c4956a', boxShadow: '0 20px 60px rgba(196,149,106,0.25), 0 8px 24px rgba(196,149,106,0.15)' }}>
          <div className="absolute top-0 right-0 p-32 bg-gradient-to-bl from-emerald-50 via-white to-transparent opacity-60 rounded-full blur-3xl pointer-events-none transform translate-x-10 -translate-y-10"></div>
-         <div className="flex items-center mb-8 relative z-10 text-zinc-500">
+         <div className="flex items-center mb-8 relative z-10 text-black">
             <Info className="h-4 w-4 mr-2"/>
             <span className="text-sm font-medium">{t("analytics_factors")}</span>
          </div>
          <div className="grid grid-cols-1 md:grid-cols-3 gap-8 relative z-10">
             <div className="border-l-2 border-emerald-100 pl-6">
-               <p className="text-zinc-500 font-semibold text-[13px] mb-2 uppercase tracking-widest flex items-center">
+               <p className="text-black font-semibold text-[13px] mb-2 uppercase tracking-widest flex items-center">
                  <Sparkles className="h-4 w-4 mr-1.5 text-emerald-500" /> {t("analytics_net_value")}
                </p>
                <p className="text-5xl font-bold tracking-tight text-zinc-900">€14,250</p>
@@ -62,12 +62,12 @@ export default function AnalyticsPage() {
                </div>
             </div>
             <div className="border-l border-zinc-100 pl-6">
-               <p className="text-zinc-400 font-semibold text-[13px] mb-2 uppercase tracking-widest">{t("analytics_waitlist_matches")}</p>
+               <p className="text-black font-semibold text-[13px] mb-2 uppercase tracking-widest">{t("analytics_waitlist_matches")}</p>
                <p className="text-4xl font-bold tracking-tight text-zinc-900">€8,100</p>
-               <p className="text-zinc-500 font-medium mt-3 text-sm">{t("analytics_recovered_seats")}</p>
+               <p className="text-black font-medium mt-3 text-sm">{t("analytics_recovered_seats")}</p>
             </div>
             <div className="border-l border-zinc-100 pl-6">
-               <p className="text-zinc-400 font-semibold text-[13px] mb-2 uppercase tracking-widest">{t("analytics_noshow_reduction")}</p>
+               <p className="text-black font-semibold text-[13px] mb-2 uppercase tracking-widest">{t("analytics_noshow_reduction")}</p>
                <p className="text-4xl font-bold tracking-tight text-zinc-900">-70%</p>
                <div className="mt-3 flex items-center text-sm font-medium text-emerald-600">
                   <TrendingDown className="h-4 w-4 mr-1" /> €3,400 {t("analytics_saved_loss")}
@@ -77,7 +77,7 @@ export default function AnalyticsPage() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-         <div className="bg-white p-6 rounded-2xl border border-zinc-100 shadow-[0_1px_3px_0_rgba(0,0,0,0.02)]">
+         <div className="p-6 rounded-2xl border-2" style={{ background: 'rgba(252,246,237,0.85)', borderColor: '#c4956a', boxShadow: '0 20px 60px rgba(196,149,106,0.25), 0 8px 24px rgba(196,149,106,0.15)' }}>
             <h3 className="text-[15px] font-semibold text-zinc-900 mb-6">{t("analytics_chart_1_title")}</h3>
             <div className="h-80">
                <ResponsiveContainer width="100%" height="100%">
@@ -95,7 +95,7 @@ export default function AnalyticsPage() {
                </ResponsiveContainer>
             </div>
          </div>
-         <div className="bg-white p-6 rounded-2xl border border-zinc-100 shadow-[0_1px_3px_0_rgba(0,0,0,0.02)]">
+         <div className="p-6 rounded-2xl border-2" style={{ background: 'rgba(252,246,237,0.85)', borderColor: '#c4956a', boxShadow: '0 20px 60px rgba(196,149,106,0.25), 0 8px 24px rgba(196,149,106,0.15)' }}>
             <h3 className="text-[15px] font-semibold text-zinc-900 mb-6">{t("analytics_chart_2_title")}</h3>
             <div className="h-80">
                <ResponsiveContainer width="100%" height="100%">

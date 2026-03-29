@@ -5,7 +5,7 @@ import { createClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
 import { Loader2, Lock, Mail } from "lucide-react";
 import Link from "next/link";
-import { SandEffect } from "@/components/SandEffect";
+
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
@@ -35,13 +35,11 @@ export default function LoginPage() {
 
   return (
     <div className="min-h-screen flex flex-col justify-center py-12 sm:px-6 lg:px-8 relative overflow-hidden">
-      <SandEffect />
-
       <div className="sm:mx-auto sm:w-full sm:max-w-md relative z-10">
         <div className="flex justify-center">
            <img src="/logo.png" alt="BaliFlow" className="w-64 h-auto" style={{
-             mask: 'radial-gradient(ellipse 70% 90% at center, black 40%, transparent 95%)',
-             WebkitMask: 'radial-gradient(ellipse 70% 90% at center, black 40%, transparent 95%)',
+             mask: 'radial-gradient(67% 90%, black 50%, transparent 75%)',
+             WebkitMask: 'radial-gradient(67% 90%, black 50%, transparent 75%)',
            }} />
         </div>
       </div>

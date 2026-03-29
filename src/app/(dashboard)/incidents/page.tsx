@@ -135,16 +135,16 @@ export default function IncidentsPage() {
   };
 
   return (
-    <div className="p-8 max-w-[1600px] h-[calc(100vh-4rem)] flex flex-col mx-auto bg-zinc-50/30">
+    <div className="p-8 max-w-[1600px] h-[calc(100vh-4rem)] flex flex-col mx-auto">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-8 shrink-0">
         <div>
           <h1 className="text-2xl font-bold text-zinc-900 tracking-tight">Incidents & Audits</h1>
-          <p className="mt-1 text-sm text-zinc-500">Track AI errors, operational conflicts, and guest complaints.</p>
+          <p className="mt-1 text-sm text-black">Track AI errors, operational conflicts, and guest complaints.</p>
         </div>
         <div className="flex space-x-3 mt-4 sm:mt-0">
             <div className="relative">
-               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-zinc-400" />
-               <input type="text" placeholder="Search incidents..." className="w-64 pl-9 pr-3 py-2 bg-white border border-zinc-200 rounded-lg text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-zinc-900" />
+               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-black" />
+               <input type="text" placeholder="Search incidents..." className="w-64 pl-9 pr-3 py-2 border-2 rounded-lg text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-[#c4956a]" style={{ borderColor: '#c4956a', background: 'rgba(252,246,237,0.6)' }} />
             </div>
             <button className="px-4 py-2 bg-zinc-900 text-white text-sm font-bold rounded-lg shadow-sm hover:bg-zinc-800 transition-colors">
                Report Manual
@@ -153,7 +153,7 @@ export default function IncidentsPage() {
       </div>
 
       {loading ? (
-        <div className="flex-1 flex items-center justify-center text-zinc-400 animate-pulse font-medium">Loading Operations Board...</div>
+        <div className="flex-1 flex items-center justify-center text-black animate-pulse font-medium">Loading Operations Board...</div>
       ) : (
         <div className="flex-1 flex gap-6 overflow-hidden pb-4">
            {columns.map(col => {
@@ -168,7 +168,7 @@ export default function IncidentsPage() {
 
                     <div className="flex-1 overflow-y-auto p-4 space-y-4">
                        {colIncidents.map(inc => (
-                          <div key={inc.id} className="bg-white rounded-xl border border-zinc-200/80 shadow-sm hover:shadow-md transition-shadow p-5 relative group cursor-pointer group">
+                          <div key={inc.id} className="rounded-xl border-2 hover:shadow-md transition-shadow p-5 relative group cursor-pointer" style={{ background: 'rgba(252,246,237,0.85)', borderColor: '#c4956a', boxShadow: '0 20px 60px rgba(196,149,106,0.25), 0 8px 24px rgba(196,149,106,0.15)' }}>
 
                              {inc.severity === 'critical' && (
                                 <div className="absolute top-0 right-0 w-8 h-8 overflow-hidden rounded-tr-xl">
@@ -188,7 +188,7 @@ export default function IncidentsPage() {
                              </div>
 
                              <h3 className="font-bold text-zinc-900 leading-tight mb-1 pr-6">{inc.title}</h3>
-                             <p className="text-xs text-zinc-500 leading-relaxed mb-4 line-clamp-2">{inc.description}</p>
+                             <p className="text-xs text-black leading-relaxed mb-4 line-clamp-2">{inc.description}</p>
 
                              {(inc.linked_reservation_id || inc.linked_conversation_id) && (
                                 <div className="flex flex-wrap gap-2 mb-4">
@@ -206,7 +206,7 @@ export default function IncidentsPage() {
                              )}
 
                              <div className="flex items-center justify-between pt-3 border-t border-zinc-50">
-                                <div className="flex items-center text-[10px] font-bold text-zinc-400">
+                                <div className="flex items-center text-[10px] font-bold text-black">
                                    <Clock className="w-3 h-3 mr-1" /> {new Date(inc.created_at).toLocaleDateString()}
                                 </div>
                                 <div className="flex items-center space-x-2">

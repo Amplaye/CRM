@@ -111,20 +111,20 @@ export default function AutomationsPage() {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-8">
         <div>
           <h1 className="text-2xl font-bold text-zinc-900 tracking-tight">AI Integrations & Rules</h1>
-          <p className="mt-1 text-sm text-zinc-500">Configure boundaries and external webhook triggers for your AI agents.</p>
+          <p className="mt-1 text-sm text-black">Configure boundaries and external webhook triggers for your AI agents.</p>
         </div>
       </div>
 
       {loading ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
            {[1,2,3].map(i => (
-              <div key={i} className="animate-pulse bg-white rounded-xl border border-zinc-200 shadow-sm p-6 h-[220px]"></div>
+              <div key={i} className="animate-pulse rounded-xl border-2 p-6 h-[220px]" style={{ background: 'rgba(252,246,237,0.6)', borderColor: '#c4956a' }}></div>
            ))}
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
            {rules.map(rule => (
-              <div key={rule.id} className={`bg-white rounded-xl border shadow-sm p-6 relative transition-all duration-300 ${rule.is_active ? 'border-emerald-200 bg-gradient-to-br from-white to-emerald-50/10' : 'border-zinc-200 bg-zinc-50/50'}`}>
+              <div key={rule.id} className={`rounded-xl border-2 p-6 relative transition-all duration-300 ${rule.is_active ? 'border-emerald-200' : ''}`} style={{ background: 'rgba(252,246,237,0.85)', borderColor: rule.is_active ? '#10b981' : '#c4956a', boxShadow: '0 20px 60px rgba(196,149,106,0.25), 0 8px 24px rgba(196,149,106,0.15)' }}>
 
                  {rule.is_active ? (
                     <div className="absolute top-4 right-4 group">
@@ -147,7 +147,7 @@ export default function AutomationsPage() {
                    {rule.name}
                  </h3>
 
-                 <p className="text-sm text-zinc-500 mt-2 mb-6 h-10 leading-relaxed font-medium">
+                 <p className="text-sm text-black mt-2 mb-6 h-10 leading-relaxed font-medium">
                    {rule.description}
                  </p>
 

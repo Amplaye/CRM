@@ -120,18 +120,18 @@ export default function KnowledgePage() {
   }
 
   return (
-    <div className="p-0 h-[calc(100vh-4rem)] flex bg-zinc-50 overflow-hidden">
+    <div className="p-0 h-[calc(100vh-4rem)] flex overflow-hidden">
 
       {/* Article List Pane */}
-      <div className="w-[400px] border-r border-zinc-200 bg-white flex flex-col shrink-0">
-         <div className="p-6 border-b border-zinc-100 shrink-0">
+      <div className="w-[400px] border-r flex flex-col shrink-0" style={{ background: 'rgba(252,246,237,0.85)', borderColor: '#c4956a' }}>
+         <div className="p-6 border-b shrink-0" style={{ borderColor: '#c4956a' }}>
             <h1 className="text-xl font-bold text-zinc-900 tracking-tight">{t("know_title")}</h1>
-            <p className="text-xs text-zinc-500 mt-1">{t("know_subtitle")}</p>
+            <p className="text-xs text-black mt-1">{t("know_subtitle")}</p>
 
             <div className="mt-6 flex space-x-2">
                <div className="relative flex-1">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-zinc-400" />
-                  <input type="text" placeholder={t("know_search_placeholder") || "Search articles..."} className="w-full pl-9 pr-3 py-2 bg-zinc-50 border border-zinc-200 rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-zinc-900" />
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-black" />
+                  <input type="text" placeholder={t("know_search_placeholder") || "Search articles..."} className="w-full pl-9 pr-3 py-2 border-2 rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-[#c4956a]" style={{ borderColor: '#c4956a', background: 'rgba(252,246,237,0.6)' }} />
                </div>
                <button onClick={() => handleStartEdit()} className="p-2 bg-zinc-900 text-white rounded-lg hover:bg-zinc-800 transition-colors shadow-sm">
                   <Plus className="w-5 h-5" />
@@ -139,18 +139,18 @@ export default function KnowledgePage() {
             </div>
          </div>
 
-         <div className="flex-1 overflow-y-auto bg-zinc-50/20">
+         <div className="flex-1 overflow-y-auto">
             {loading ? (
                <div className="p-6 space-y-4 animate-pulse">
                   {[1,2,3,4].map(i => <div key={i} className="h-16 bg-zinc-200 rounded-xl" />)}
                </div>
             ) : articles.length === 0 ? (
-               <div className="p-12 text-center text-zinc-400">
+               <div className="p-12 text-center text-black">
                   <BookOpen className="w-12 h-12 mx-auto mb-4 opacity-10" />
                   <p className="text-sm font-bold">{t("know_no_articles") || "No articles yet"}</p>
                </div>
             ) : (
-               <div className="divide-y divide-zinc-100">
+               <div className="divide-y" style={{ borderColor: 'rgba(196,149,106,0.3)' }}>
                   {articles.map(article => (
                      <div
                         key={article.id}
@@ -173,12 +173,12 @@ export default function KnowledgePage() {
       </div>
 
       {/* Content View / Edit Pane */}
-      <div className="flex-1 overflow-y-auto flex flex-col bg-white">
+      <div className="flex-1 overflow-y-auto flex flex-col" style={{ background: 'rgba(252,246,237,0.85)' }}>
          {isEditing ? (
             <div className="flex-1 flex flex-col p-8 max-w-4xl mx-auto w-full space-y-8 animate-in fade-in slide-in-from-bottom-2">
-               <div className="flex items-center justify-between border-b border-zinc-100 pb-6">
+               <div className="flex items-center justify-between border-b pb-6" style={{ borderColor: '#c4956a' }}>
                   <div className="flex items-center space-x-1">
-                     <button onClick={() => setIsEditing(false)} className="p-2 text-zinc-400 hover:text-zinc-600 hover:bg-zinc-100 rounded-full transition-colors mr-2">
+                     <button onClick={() => setIsEditing(false)} className="p-2 text-black hover:text-black hover:bg-[#c4956a]/10 rounded-full transition-colors mr-2">
                         <X className="w-5 h-5" />
                      </button>
                      <h2 className="text-xl font-bold text-zinc-900">{selectedArticleId ? t("know_edit_article") : t("know_new_article")}</h2>
@@ -211,7 +211,7 @@ export default function KnowledgePage() {
                            <select
                               value={editCategory}
                               onChange={e => setEditCategory(e.target.value as any)}
-                              className="w-full bg-zinc-50 border border-zinc-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-zinc-900"
+                              className="w-full border-2 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-[#c4956a]" style={{ borderColor: '#c4956a', background: 'rgba(252,246,237,0.6)' }}
                            >
                               <option value="general">General</option>
                               <option value="policies">Policies</option>
@@ -224,7 +224,7 @@ export default function KnowledgePage() {
                            <select
                               value={editStatus}
                               onChange={e => setEditStatus(e.target.value as any)}
-                              className="w-full bg-zinc-50 border border-zinc-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-zinc-900"
+                              className="w-full border-2 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-[#c4956a]" style={{ borderColor: '#c4956a', background: 'rgba(252,246,237,0.6)' }}
                            >
                               <option value="draft">Draft</option>
                               <option value="published">Published</option>
@@ -238,7 +238,7 @@ export default function KnowledgePage() {
                            type="text"
                            value={editRiskTags}
                            onChange={e => setEditRiskTags(e.target.value)}
-                           className="w-full bg-zinc-50 border border-zinc-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-zinc-900"
+                           className="w-full border-2 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-[#c4956a]" style={{ borderColor: '#c4956a', background: 'rgba(252,246,237,0.6)' }}
                            placeholder="legal, safety, high-risk..."
                         />
                      </div>
@@ -259,14 +259,15 @@ export default function KnowledgePage() {
                   <textarea
                      value={editContent}
                      onChange={e => setEditContent(e.target.value)}
-                     className="flex-1 w-full bg-zinc-50 border border-zinc-200 rounded-xl p-6 text-sm leading-relaxed focus:outline-none focus:ring-1 focus:ring-zinc-900 font-mono"
+                     className="flex-1 w-full border-2 rounded-xl p-6 text-sm leading-relaxed focus:outline-none focus:ring-1 focus:ring-[#c4956a] font-mono"
+                     style={{ borderColor: '#c4956a', background: 'rgba(252,246,237,0.6)' }}
                      placeholder="# Policies... \n\n1. Always ask about allergies..."
                   />
                </div>
             </div>
          ) : selectedArticle ? (
             <div className="flex-1 flex flex-col p-8 max-w-4xl mx-auto w-full animate-in fade-in slide-in-from-right-2">
-               <div className="flex items-center justify-between border-b border-zinc-100 pb-8 mb-8">
+               <div className="flex items-center justify-between border-b pb-8 mb-8" style={{ borderColor: '#c4956a' }}>
                   <div className="flex items-center space-x-4">
                      <div className="h-14 w-14 rounded-2xl bg-zinc-900 flex items-center justify-center text-white shadow-lg">
                         <FileText className="w-7 h-7" />
@@ -312,7 +313,7 @@ export default function KnowledgePage() {
                </div>
 
                {selectedArticle.risk_tags.length > 0 && (
-                  <div className="mt-10 border-t border-zinc-100 pt-8">
+                  <div className="mt-10 border-t pt-8" style={{ borderColor: '#c4956a' }}>
                      <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-zinc-400 mb-4 ml-1">{t("know_ai_safety_risk") || "AI Safety Risk Tags"}</h4>
                      <div className="flex flex-wrap gap-2">
                         {selectedArticle.risk_tags.map(tag => (
@@ -330,7 +331,7 @@ export default function KnowledgePage() {
                   <BookOpen className="w-10 h-10 text-zinc-200" />
                </div>
                <h2 className="text-2xl font-black text-zinc-900 tracking-tight">{t("know_title")}</h2>
-               <p className="text-zinc-500 max-w-sm mt-2 leading-relaxed font-medium">{t("know_empty_desc") || "Select an article from the list or create a new one to start training your operational agents."}</p>
+               <p className="text-black max-w-sm mt-2 leading-relaxed font-medium">{t("know_empty_desc") || "Select an article from the list or create a new one to start training your operational agents."}</p>
                <button
                   onClick={() => handleStartEdit()}
                   className="mt-8 px-8 py-3 bg-zinc-900 text-white font-bold rounded-2xl shadow-xl hover:shadow-2xl hover:bg-zinc-800 transition-all flex items-center group"

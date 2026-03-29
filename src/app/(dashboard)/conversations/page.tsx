@@ -149,27 +149,27 @@ export default function ConversationsPage() {
   }
 
   return (
-    <div className="flex h-[calc(100vh-4rem)] bg-zinc-50 border-t border-zinc-200">
+    <div className="flex h-[calc(100vh-4rem)] border-t" style={{ borderColor: '#c4956a' }}>
 
       {/* COLUMN 1: Inbox List */}
-      <div className={`flex flex-col border-r border-zinc-200 bg-white transition-all duration-300 ${selectedConvo ? 'w-[380px]' : 'w-full max-w-7xl mx-auto'}`}>
-         <div className="p-6 border-b border-zinc-100 bg-white z-10">
+      <div className={`flex flex-col border-r transition-all duration-300 ${selectedConvo ? 'w-[380px]' : 'w-full max-w-7xl mx-auto'}`} style={{ background: 'rgba(252,246,237,0.85)', borderColor: '#c4956a' }}>
+         <div className="p-6 border-b z-10" style={{ borderColor: '#c4956a' }}>
             <h1 className="text-2xl font-bold text-zinc-900 tracking-tight">{t("conv_title")}</h1>
-            <p className="mt-1 text-sm text-zinc-500">{t("conv_subtitle")}</p>
+            <p className="mt-1 text-sm text-black">{t("conv_subtitle")}</p>
 
             <div className="mt-6 flex space-x-2">
                <div className="relative flex-1">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-zinc-400" />
-                  <input type="text" placeholder={t("conv_search")} className="w-full pl-9 pr-3 py-2 bg-zinc-50 border border-zinc-200 rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-zinc-500 focus:bg-white transition-colors" />
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-black" />
+                  <input type="text" placeholder={t("conv_search")} className="w-full pl-9 pr-3 py-2 border-2 rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-[#c4956a] transition-colors" style={{ borderColor: '#c4956a', background: 'rgba(252,246,237,0.6)' }} />
                </div>
             </div>
          </div>
 
-         <div className="flex-1 overflow-y-auto bg-zinc-50/30">
+         <div className="flex-1 overflow-y-auto">
             {loading ? (
                <div className="p-6 space-y-4">
                   {[1,2,3,4].map(i => (
-                     <div key={i} className="animate-pulse flex items-start space-x-4 bg-white p-4 rounded-xl border border-zinc-100">
+                     <div key={i} className="animate-pulse flex items-start space-x-4 p-4 rounded-xl border-2" style={{ background: 'rgba(252,246,237,0.6)', borderColor: '#c4956a' }}>
                         <div className="w-10 h-10 bg-zinc-200 rounded-full"></div>
                         <div className="flex-1 space-y-2">
                            <div className="h-4 bg-zinc-200 rounded w-1/4"></div>
@@ -179,13 +179,13 @@ export default function ConversationsPage() {
                   ))}
                </div>
             ) : conversations.length === 0 ? (
-               <div className="p-12 text-center text-zinc-500">
+               <div className="p-12 text-center text-black">
                   <MessageSquare className="w-12 h-12 text-zinc-300 mx-auto mb-4" />
                   <p className="text-sm font-medium text-zinc-900">{t("conv_empty")}</p>
                   <p className="text-sm mt-1">{t("conv_empty_sub")}</p>
                </div>
             ) : (
-               <div className="divide-y divide-zinc-100">
+               <div className="divide-y" style={{ borderColor: 'rgba(196,149,106,0.3)' }}>
                   {conversations.map(conv => (
                      <div
                         key={conv.id}
@@ -313,12 +313,12 @@ export default function ConversationsPage() {
 
       {/* COLUMN 3: AI Context & CRM Pane */}
       {selectedConvo && (
-         <div className="w-[340px] border-l border-zinc-200 bg-white flex flex-col overflow-y-auto">
+         <div className="w-[340px] border-l flex flex-col overflow-y-auto" style={{ background: 'rgba(252,246,237,0.85)', borderColor: '#c4956a' }}>
 
             {/* Header Actions */}
-            <div className="p-4 border-b border-zinc-100 flex justify-between items-center bg-zinc-50/50">
-               <span className="text-xs font-bold text-zinc-500 uppercase tracking-widest">Workspace</span>
-               <button onClick={() => setSelectedConvoId(null)} className="p-1.5 text-zinc-400 hover:text-zinc-600 hover:bg-zinc-200 rounded-md transition-colors">
+            <div className="p-4 border-b flex justify-between items-center" style={{ borderColor: '#c4956a' }}>
+               <span className="text-xs font-bold text-black uppercase tracking-widest">Workspace</span>
+               <button onClick={() => setSelectedConvoId(null)} className="p-1.5 text-black hover:text-black hover:bg-[#c4956a]/10 rounded-md transition-colors">
                   <X className="w-4 h-4" />
                </button>
             </div>
@@ -383,7 +383,7 @@ export default function ConversationsPage() {
 
                {/* Linked CRM Data */}
                <div className="space-y-4 pt-2">
-                  <h3 className="text-xs font-bold uppercase tracking-widest text-zinc-400">Linked Records</h3>
+                  <h3 className="text-xs font-bold uppercase tracking-widest text-black">Linked Records</h3>
 
                   {/* Guest Profile Card */}
                   {selectedGuest ? (

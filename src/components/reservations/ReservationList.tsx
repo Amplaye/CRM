@@ -74,8 +74,8 @@ export function ReservationList({ date, onRowClick }: ReservationListProps) {
 
   if (loading) {
     return (
-      <div className="bg-white border rounded-b-xl border-zinc-200 animate-pulse">
-        <div className="h-12 bg-zinc-50 border-b border-zinc-200"></div>
+      <div className="border-2 rounded-b-xl animate-pulse" style={{ background: 'rgba(252,246,237,0.85)', borderColor: '#c4956a' }}>
+        <div className="h-12 border-b" style={{ borderColor: '#c4956a' }}></div>
         {[1,2,3,4,5].map(i => (
           <div key={i} className="h-16 border-b border-zinc-100 flex items-center px-6">
             <div className="h-4 w-12 bg-zinc-200 rounded mr-8"></div>
@@ -89,10 +89,10 @@ export function ReservationList({ date, onRowClick }: ReservationListProps) {
   // Handle empty state gracefully
   if (!reservations || reservations.length === 0) {
       return (
-         <div className="bg-white border rounded-b-xl border-zinc-200 py-16 text-center shadow-sm">
+         <div className="border-2 rounded-b-xl py-16 text-center" style={{ background: 'rgba(252,246,237,0.85)', borderColor: '#c4956a', boxShadow: '0 20px 60px rgba(196,149,106,0.25), 0 8px 24px rgba(196,149,106,0.15)' }}>
             <CalendarCheck className="mx-auto h-12 w-12 text-zinc-300 mb-4" />
             <h3 className="text-sm font-medium text-zinc-900">{t("res_empty_title")}</h3>
-            <p className="mt-1 text-sm text-zinc-500">{t("res_empty_subtitle")}</p>
+            <p className="mt-1 text-sm text-black">{t("res_empty_subtitle")}</p>
             <div className="mt-6">
                <button className="inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium text-white bg-zinc-900 hover:bg-zinc-800 rounded-lg">
                   <Plus className="-ml-1 mr-2 h-4 w-4" aria-hidden="true" />
@@ -104,33 +104,33 @@ export function ReservationList({ date, onRowClick }: ReservationListProps) {
   }
 
   return (
-    <div className="bg-white border rounded-b-xl border-zinc-200 overflow-hidden shadow-sm">
-      <table className="min-w-full divide-y divide-zinc-200">
-        <thead className="bg-zinc-50">
+    <div className="border-2 rounded-b-xl overflow-hidden" style={{ background: 'rgba(252,246,237,0.85)', borderColor: '#c4956a', boxShadow: '0 20px 60px rgba(196,149,106,0.25), 0 8px 24px rgba(196,149,106,0.15)' }}>
+      <table className="min-w-full divide-y" style={{ borderColor: '#c4956a' }}>
+        <thead>
           <tr>
-            <th scope="col" className="px-6 py-3 text-left text-xs font-semibold text-zinc-500 uppercase tracking-wider">{t("res_col_time")}</th>
-            <th scope="col" className="px-6 py-3 text-left text-xs font-semibold text-zinc-500 uppercase tracking-wider">{t("res_col_guest")}</th>
-            <th scope="col" className="px-6 py-3 text-left text-xs font-semibold text-zinc-500 uppercase tracking-wider">{t("res_col_party")}</th>
-            <th scope="col" className="px-6 py-3 text-left text-xs font-semibold text-zinc-500 uppercase tracking-wider">{t("res_col_status")}</th>
-            <th scope="col" className="px-6 py-3 text-left text-xs font-semibold text-zinc-500 uppercase tracking-wider">{t("res_col_source")}</th>
+            <th scope="col" className="px-6 py-3 text-left text-xs font-semibold text-black uppercase tracking-wider">{t("res_col_time")}</th>
+            <th scope="col" className="px-6 py-3 text-left text-xs font-semibold text-black uppercase tracking-wider">{t("res_col_guest")}</th>
+            <th scope="col" className="px-6 py-3 text-left text-xs font-semibold text-black uppercase tracking-wider">{t("res_col_party")}</th>
+            <th scope="col" className="px-6 py-3 text-left text-xs font-semibold text-black uppercase tracking-wider">{t("res_col_status")}</th>
+            <th scope="col" className="px-6 py-3 text-left text-xs font-semibold text-black uppercase tracking-wider">{t("res_col_source")}</th>
           </tr>
         </thead>
-        <tbody className="bg-white divide-y divide-zinc-100">
+        <tbody className="divide-y" style={{ borderColor: 'rgba(196,149,106,0.3)' }}>
           {reservations.map((res) => (
             <tr
                key={res.id}
                onClick={() => onRowClick?.(res)}
-               className={`hover:bg-zinc-50 transition-colors ${onRowClick ? 'cursor-pointer' : ''}`}
+               className={`hover:bg-[#c4956a]/10 transition-colors ${onRowClick ? 'cursor-pointer' : ''}`}
             >
               <td className="px-6 py-4 whitespace-nowrap">
                 <div className="flex items-center text-sm font-bold text-zinc-900">
-                  <Clock className="w-4 h-4 text-zinc-400 mr-2" />
+                  <Clock className="w-4 h-4 text-black mr-2" />
                   {res.time}
                 </div>
               </td>
               <td className="px-6 py-4 whitespace-nowrap">
                 <div className="text-sm font-medium text-zinc-900">Guest ({res.guest_id.substring(0,8)})</div>
-                {res.notes && <div className="text-xs text-zinc-500 truncate max-w-[200px]">{res.notes}</div>}
+                {res.notes && <div className="text-xs text-black truncate max-w-[200px]">{res.notes}</div>}
               </td>
               <td className="px-6 py-4 whitespace-nowrap">
                 <div className="text-sm font-medium text-zinc-900">{res.party_size}</div>

@@ -43,7 +43,7 @@ export default function ResetPasswordPage() {
   };
 
   return (
-    <div className="min-h-screen flex flex-col justify-center py-12 sm:px-6 lg:px-8">
+    <div className="min-h-screen flex flex-col justify-center py-12 sm:px-6 lg:px-8 relative z-10">
       <div className="sm:mx-auto sm:w-full sm:max-w-md">
         <div className="flex justify-center">
           <img src="/logo.png" alt="BaliFlow" className="w-64 h-auto" />
@@ -51,12 +51,12 @@ export default function ResetPasswordPage() {
       </div>
 
       <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
-        <div className="bg-white py-8 px-4 shadow sm:rounded-lg sm:px-10 border border-zinc-200">
+        <div className="py-8 px-4 sm:rounded-lg sm:px-10 border-2" style={{ background: 'rgba(252,246,237,0.85)', borderColor: '#c4956a', boxShadow: '0 20px 60px rgba(196,149,106,0.25), 0 8px 24px rgba(196,149,106,0.15)' }}>
           {success ? (
             <div className="text-center space-y-4">
               <CheckCircle className="mx-auto h-12 w-12 text-emerald-500" />
               <h3 className="text-lg font-semibold text-zinc-900">Password updated!</h3>
-              <p className="text-sm text-zinc-500">
+              <p className="text-sm text-black">
                 Redirecting you to sign in...
               </p>
             </div>
@@ -69,10 +69,10 @@ export default function ResetPasswordPage() {
               )}
 
               <div>
-                <label className="block text-sm font-medium text-zinc-700">New password</label>
+                <label className="block text-sm font-medium text-black">New password</label>
                 <div className="mt-1 relative rounded-md shadow-sm">
                   <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                    <Lock className="h-4 w-4 text-zinc-400" />
+                    <Lock className="h-4 w-4 text-black" />
                   </div>
                   <input
                     type="password"
@@ -80,17 +80,18 @@ export default function ResetPasswordPage() {
                     minLength={6}
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    className="block w-full pl-10 sm:text-sm border-zinc-300 border p-2.5 rounded-md focus:ring-terracotta-500 focus:border-terracotta-500"
+                    className="block w-full pl-10 sm:text-sm border-2 p-2.5 rounded-md focus:ring-[#c4956a] focus:border-[#c4956a]"
+                    style={{ borderColor: '#c4956a', background: 'rgba(252,246,237,0.6)' }}
                     placeholder="Min. 6 characters"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-zinc-700">Confirm new password</label>
+                <label className="block text-sm font-medium text-black">Confirm new password</label>
                 <div className="mt-1 relative rounded-md shadow-sm">
                   <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                    <Lock className="h-4 w-4 text-zinc-400" />
+                    <Lock className="h-4 w-4 text-black" />
                   </div>
                   <input
                     type="password"
@@ -98,7 +99,8 @@ export default function ResetPasswordPage() {
                     minLength={6}
                     value={confirmPassword}
                     onChange={(e) => setConfirmPassword(e.target.value)}
-                    className="block w-full pl-10 sm:text-sm border-zinc-300 border p-2.5 rounded-md focus:ring-terracotta-500 focus:border-terracotta-500"
+                    className="block w-full pl-10 sm:text-sm border-2 p-2.5 rounded-md focus:ring-[#c4956a] focus:border-[#c4956a]"
+                    style={{ borderColor: '#c4956a', background: 'rgba(252,246,237,0.6)' }}
                     placeholder="Repeat password"
                   />
                 </div>
@@ -107,7 +109,8 @@ export default function ResetPasswordPage() {
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full flex justify-center py-2.5 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-terracotta-600 hover:bg-terracotta-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-terracotta-500 disabled:opacity-50 transition-colors"
+                className="w-full flex justify-center py-2.5 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#c4956a] disabled:opacity-50 transition-colors"
+                style={{ background: 'linear-gradient(135deg, #c4956a 0%, #b8845c 100%)' }}
               >
                 {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : "Update password"}
               </button>

@@ -106,10 +106,10 @@ export default function GuestsPage() {
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-8">
           <div>
             <h1 className="text-2xl font-bold text-zinc-900">{t("guests_title")}</h1>
-            <p className="mt-1 text-sm text-zinc-500">{t("guests_subtitle")}</p>
+            <p className="mt-1 text-sm text-black">{t("guests_subtitle")}</p>
           </div>
           <div className="mt-4 sm:mt-0 flex space-x-3">
-            <button className="inline-flex items-center px-4 py-2 border border-zinc-200 text-sm font-medium rounded-md shadow-sm text-zinc-700 bg-white hover:bg-zinc-50 transition-colors">
+            <button className="inline-flex items-center px-4 py-2 border-2 text-sm font-medium rounded-md shadow-sm text-black transition-colors" style={{ borderColor: '#c4956a', background: 'rgba(252,246,237,0.6)' }}>
               <Download className="-ml-1 mr-2 h-4 w-4" />
               {t("guests_export")}
             </button>
@@ -118,23 +118,24 @@ export default function GuestsPage() {
 
         <div className="flex flex-col sm:flex-row space-y-3 sm:space-y-0 sm:space-x-4 mb-8">
            <div className="relative flex-1 max-w-lg">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-zinc-400" />
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-black" />
               <input
                 type="text"
                 placeholder={t("guests_search")}
-                className="w-full pl-9 pr-3 py-2 bg-white border border-zinc-200 rounded-md text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-zinc-500"
+                className="w-full pl-9 pr-3 py-2 border-2 rounded-md text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-[#c4956a]"
+                style={{ borderColor: '#c4956a', background: 'rgba(252,246,237,0.6)' }}
               />
            </div>
-           <button className="px-4 py-2 border border-zinc-200 bg-white text-zinc-700 rounded-md text-sm font-medium flex items-center hover:bg-zinc-50 shadow-sm">
+           <button className="px-4 py-2 border-2 text-black rounded-md text-sm font-medium flex items-center shadow-sm" style={{ borderColor: '#c4956a', background: 'rgba(252,246,237,0.6)' }}>
               <SlidersHorizontal className="h-4 w-4 mr-2" />
               {t("guests_filters")}
            </button>
         </div>
 
         {loading ? (
-           <div className="text-sm text-zinc-500">Loading guests...</div>
+           <div className="text-sm text-black">Loading guests...</div>
         ) : guests.length === 0 ? (
-           <div className="bg-white border rounded-xl border-zinc-200 py-16 text-center shadow-sm">
+           <div className="border-2 rounded-xl py-16 text-center" style={{ background: 'rgba(252,246,237,0.85)', borderColor: '#c4956a', boxShadow: '0 20px 60px rgba(196,149,106,0.25), 0 8px 24px rgba(196,149,106,0.15)' }}>
               <User className="mx-auto h-12 w-12 text-zinc-300 mb-4" />
               <h3 className="text-sm font-medium text-zinc-900">No Guests Found</h3>
               <p className="mt-1 text-sm text-zinc-500">Guests will automatically populate here when reservations are booked.</p>
@@ -145,12 +146,13 @@ export default function GuestsPage() {
                <div
                  key={guest.id}
                  onClick={() => setSelectedGuest(guest)}
-                 className={`bg-white rounded-xl border ${isHighRisk(guest) ? 'border-red-200' : 'border-zinc-200'} shadow-sm p-6 hover:border-terracotta-400 cursor-pointer transition-colors relative overflow-hidden`}
+                 className={`rounded-xl border-2 p-6 hover:border-[#c4956a] cursor-pointer transition-colors relative overflow-hidden ${isHighRisk(guest) ? 'border-red-200' : ''}`}
+                 style={{ background: 'rgba(252,246,237,0.85)', borderColor: isHighRisk(guest) ? undefined : '#c4956a', boxShadow: '0 20px 60px rgba(196,149,106,0.25), 0 8px 24px rgba(196,149,106,0.15)' }}
                >
                   {isHighRisk(guest) && <div className="absolute top-0 inset-x-0 h-1 bg-red-500"></div>}
                   <div className="flex justify-between items-start mb-4">
                      <div className="flex items-center overflow-hidden pr-2">
-                        <div className="h-10 w-10 rounded-full bg-zinc-100 flex items-center justify-center text-zinc-600 font-bold text-sm flex-shrink-0">
+                        <div className="h-10 w-10 rounded-full flex items-center justify-center text-black font-bold text-sm flex-shrink-0" style={{ background: 'rgba(196,149,106,0.2)' }}>
                            {guest.name.charAt(0).toUpperCase()}
                         </div>
                         <div className="ml-3 truncate">
@@ -158,7 +160,7 @@ export default function GuestsPage() {
                               {guest.name}
                               {isVip(guest) && <Star className="h-4 w-4 text-amber-400 ml-1.5 fill-current flex-shrink-0" />}
                            </h3>
-                           <p className="text-xs text-zinc-500 truncate">{guest.phone}</p>
+                           <p className="text-xs text-black truncate">{guest.phone}</p>
                         </div>
                      </div>
                      {isHighRisk(guest) ? (
@@ -200,22 +202,22 @@ export default function GuestsPage() {
 
       {/* GUEST DETAIL DRAWER */}
       {selectedGuest && (
-        <div className="fixed inset-y-0 right-0 w-[400px] bg-white border-l border-zinc-200 shadow-2xl z-40 transform transition-transform duration-300 flex flex-col pt-16">
-          <div className="px-6 py-4 flex items-center justify-between border-b border-zinc-100 bg-zinc-50">
+        <div className="fixed inset-y-0 right-0 w-[400px] border-l shadow-2xl z-40 transform transition-transform duration-300 flex flex-col pt-16" style={{ background: 'rgba(252,246,237,0.95)', borderColor: '#c4956a' }}>
+          <div className="px-6 py-4 flex items-center justify-between border-b" style={{ borderColor: '#c4956a' }}>
              <div>
                <h2 className="text-lg font-bold text-zinc-900 tracking-tight flex items-center">
                  {selectedGuest.name}
                  {isVip(selectedGuest) && <Star className="h-4 w-4 text-amber-400 ml-2 fill-current" />}
                </h2>
-               <p className="text-xs text-zinc-500 font-medium">{selectedGuest.phone}</p>
+               <p className="text-xs text-black font-medium">{selectedGuest.phone}</p>
              </div>
-             <button onClick={() => setSelectedGuest(null)} className="p-2 text-zinc-400 hover:bg-zinc-200 hover:text-zinc-700 rounded-full transition-colors">
+             <button onClick={() => setSelectedGuest(null)} className="p-2 text-black hover:bg-[#c4956a]/10 hover:text-black rounded-full transition-colors">
                 <X className="h-5 w-5" />
              </button>
           </div>
 
           <form onSubmit={handleUpdate} className="flex-1 flex flex-col overflow-hidden">
-             <div className="flex-1 overflow-y-auto w-full p-6 space-y-8 bg-zinc-50/30">
+             <div className="flex-1 overflow-y-auto w-full p-6 space-y-8">
 
                 {/* Guest CRM Data */}
                 <div className="space-y-4">
@@ -269,7 +271,7 @@ export default function GuestsPage() {
                 </div>
 
              </div>
-             <div className="p-6 border-t border-zinc-100 bg-white flex space-x-3">
+             <div className="p-6 border-t flex space-x-3" style={{ borderColor: '#c4956a' }}>
                 <button
                    type="submit"
                    disabled={saving}

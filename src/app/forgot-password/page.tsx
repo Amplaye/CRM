@@ -31,28 +31,28 @@ export default function ForgotPasswordPage() {
   };
 
   return (
-    <div className="min-h-screen flex flex-col justify-center py-12 sm:px-6 lg:px-8">
+    <div className="min-h-screen flex flex-col justify-center py-12 sm:px-6 lg:px-8 relative z-10">
       <div className="sm:mx-auto sm:w-full sm:max-w-md">
         <div className="flex justify-center">
           <img src="/logo.png" alt="BaliFlow" className="w-64 h-auto" />
         </div>
-        <p className="mt-2 text-center text-sm text-zinc-500">
+        <p className="mt-2 text-center text-sm text-black">
           Enter your email and we'll send you a reset link
         </p>
       </div>
 
       <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
-        <div className="bg-white py-8 px-4 shadow sm:rounded-lg sm:px-10 border border-zinc-200">
+        <div className="py-8 px-4 sm:rounded-lg sm:px-10 border-2" style={{ background: 'rgba(252,246,237,0.85)', borderColor: '#c4956a', boxShadow: '0 20px 60px rgba(196,149,106,0.25), 0 8px 24px rgba(196,149,106,0.15)' }}>
           {sent ? (
             <div className="text-center space-y-4">
               <CheckCircle className="mx-auto h-12 w-12 text-emerald-500" />
               <h3 className="text-lg font-semibold text-zinc-900">Check your email</h3>
-              <p className="text-sm text-zinc-500">
+              <p className="text-sm text-black">
                 We sent a password reset link to <strong>{email}</strong>. Click the link in the email to reset your password.
               </p>
               <Link
                 href="/login"
-                className="inline-flex items-center text-sm font-medium text-terracotta-600 hover:text-terracotta-500"
+                className="inline-flex items-center text-sm font-medium text-[#c4956a] hover:text-[#b8845c]"
               >
                 <ArrowLeft className="h-4 w-4 mr-1" /> Back to sign in
               </Link>
@@ -66,17 +66,18 @@ export default function ForgotPasswordPage() {
               )}
 
               <div>
-                <label className="block text-sm font-medium text-zinc-700">Email address</label>
+                <label className="block text-sm font-medium text-black">Email address</label>
                 <div className="mt-1 relative rounded-md shadow-sm">
                   <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                    <Mail className="h-4 w-4 text-zinc-400" />
+                    <Mail className="h-4 w-4 text-black" />
                   </div>
                   <input
                     type="email"
                     required
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    className="block w-full pl-10 sm:text-sm border-zinc-300 border p-2.5 rounded-md focus:ring-terracotta-500 focus:border-terracotta-500"
+                    className="block w-full pl-10 sm:text-sm border-2 p-2.5 rounded-md focus:ring-[#c4956a] focus:border-[#c4956a]"
+                    style={{ borderColor: '#c4956a', background: 'rgba(252,246,237,0.6)' }}
                     placeholder="you@example.com"
                   />
                 </div>
@@ -85,7 +86,8 @@ export default function ForgotPasswordPage() {
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full flex justify-center py-2.5 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-terracotta-600 hover:bg-terracotta-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-terracotta-500 disabled:opacity-50 transition-colors"
+                className="w-full flex justify-center py-2.5 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#c4956a] disabled:opacity-50 transition-colors"
+                style={{ background: 'linear-gradient(135deg, #c4956a 0%, #b8845c 100%)' }}
               >
                 {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : "Send reset link"}
               </button>
@@ -93,7 +95,7 @@ export default function ForgotPasswordPage() {
               <div className="text-center">
                 <Link
                   href="/login"
-                  className="inline-flex items-center text-sm font-medium text-zinc-500 hover:text-zinc-700"
+                  className="inline-flex items-center text-sm font-medium text-black hover:text-black"
                 >
                   <ArrowLeft className="h-4 w-4 mr-1" /> Back to sign in
                 </Link>

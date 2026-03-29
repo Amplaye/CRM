@@ -15,14 +15,14 @@ export default function Error({
   }, [error]);
 
   return (
-    <div className="flex h-[calc(100vh-4rem)] w-full items-center justify-center bg-zinc-50 px-4">
-      <div className="flex max-w-md flex-col items-center justify-center space-y-5 text-center bg-white p-8 rounded-2xl border border-zinc-200 shadow-sm">
+    <div className="flex h-[calc(100vh-4rem)] w-full items-center justify-center px-4">
+      <div className="flex max-w-md flex-col items-center justify-center space-y-5 text-center p-8 rounded-2xl border-2" style={{ background: 'rgba(252,246,237,0.85)', borderColor: '#c4956a', boxShadow: '0 20px 60px rgba(196,149,106,0.25), 0 8px 24px rgba(196,149,106,0.15)' }}>
         <div className="flex h-12 w-12 items-center justify-center rounded-full bg-red-100">
           <AlertTriangle className="h-6 w-6 text-red-600" />
         </div>
         <div>
            <h2 className="text-xl font-bold text-zinc-900 tracking-tight">Something went wrong!</h2>
-           <p className="mt-2 text-sm text-zinc-500">An unexpected error occurred while loading this view.</p>
+           <p className="mt-2 text-sm text-black">An unexpected error occurred while loading this view.</p>
         </div>
         <button
           onClick={() => reset()}

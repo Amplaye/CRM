@@ -88,18 +88,18 @@ export default function RegisterPage() {
   };
 
   return (
-    <div className="min-h-screen flex flex-col justify-center py-12 sm:px-6 lg:px-8">
+    <div className="min-h-screen flex flex-col justify-center py-12 sm:px-6 lg:px-8 relative z-10">
       <div className="sm:mx-auto sm:w-full sm:max-w-md">
         <div className="flex justify-center">
           <img src="/logo.png" alt="BaliFlow" className="w-64 h-auto" />
         </div>
-        <p className="mt-2 text-center text-sm text-zinc-500">
+        <p className="mt-2 text-center text-sm text-black">
           Set up your CRM in 30 seconds
         </p>
       </div>
 
       <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
-        <div className="bg-white py-8 px-4 shadow sm:rounded-lg sm:px-10 border border-zinc-200">
+        <div className="py-8 px-4 sm:rounded-lg sm:px-10 border-2" style={{ background: 'rgba(252,246,237,0.85)', borderColor: '#c4956a', boxShadow: '0 20px 60px rgba(196,149,106,0.25), 0 8px 24px rgba(196,149,106,0.15)' }}>
           {error && (
             <div className="bg-red-50 text-red-700 p-3 rounded-md text-sm border border-red-200 mb-6">
               {error}
@@ -118,22 +118,21 @@ export default function RegisterPage() {
                       onClick={() => setBusinessType(bt.value)}
                       className={`w-full flex items-center p-4 border-2 rounded-xl transition-all text-left ${
                         businessType === bt.value
-                          ? "border-terracotta-500 bg-terracotta-50 shadow-sm"
-                          : "border-zinc-200 hover:border-zinc-300 hover:bg-zinc-50"
+                          ? "border-[#c4956a] shadow-sm"
+                          : "border-[#c4956a]/40 hover:border-[#c4956a]"
                       }`}
+                      style={{ background: businessType === bt.value ? 'rgba(196,149,106,0.15)' : 'rgba(252,246,237,0.6)' }}
                     >
-                      <div className={`w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 ${
-                        businessType === bt.value ? "bg-terracotta-100" : "bg-zinc-100"
-                      }`}>
+                      <div className={`w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0`} style={{ background: businessType === bt.value ? 'rgba(196,149,106,0.2)' : 'rgba(196,149,106,0.1)' }}>
                         <bt.icon className={`h-5 w-5 ${
-                          businessType === bt.value ? "text-terracotta-600" : "text-zinc-500"
+                          businessType === bt.value ? "text-[#c4956a]" : "text-black"
                         }`} />
                       </div>
                       <div className="ml-4">
                         <p className={`text-sm font-semibold ${
-                          businessType === bt.value ? "text-terracotta-700" : "text-zinc-900"
+                          businessType === bt.value ? "text-[#c4956a]" : "text-zinc-900"
                         }`}>{bt.label}</p>
-                        <p className="text-xs text-zinc-500 mt-0.5">{bt.description}</p>
+                        <p className="text-xs text-black mt-0.5">{bt.description}</p>
                       </div>
                     </button>
                   ))}
@@ -149,7 +148,8 @@ export default function RegisterPage() {
                   setError("");
                   setStep(2);
                 }}
-                className="w-full flex justify-center py-2.5 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-terracotta-600 hover:bg-terracotta-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-terracotta-500 transition-colors"
+                className="w-full flex justify-center py-2.5 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#c4956a] transition-colors"
+                style={{ background: 'linear-gradient(135deg, #c4956a 0%, #b8845c 100%)' }}
               >
                 Continue
               </button>
@@ -159,61 +159,64 @@ export default function RegisterPage() {
           {step === 2 && (
             <form className="space-y-5" onSubmit={handleRegister}>
               <div>
-                <label className="block text-sm font-medium text-zinc-700">Your name</label>
+                <label className="block text-sm font-medium text-black">Your name</label>
                 <div className="mt-1 relative rounded-md shadow-sm">
                   <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                    <User className="h-4 w-4 text-zinc-400" />
+                    <User className="h-4 w-4 text-black" />
                   </div>
                   <input
                     type="text"
                     required
                     value={name}
                     onChange={(e) => setName(e.target.value)}
-                    className="block w-full pl-10 sm:text-sm border-zinc-300 border p-2.5 rounded-md focus:ring-terracotta-500 focus:border-terracotta-500"
+                    className="block w-full pl-10 sm:text-sm border-2 p-2.5 rounded-md focus:ring-[#c4956a] focus:border-[#c4956a]"
+                    style={{ borderColor: '#c4956a', background: 'rgba(252,246,237,0.6)' }}
                     placeholder="John Doe"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-zinc-700">Business name</label>
+                <label className="block text-sm font-medium text-black">Business name</label>
                 <div className="mt-1 relative rounded-md shadow-sm">
                   <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                    <Building2 className="h-4 w-4 text-zinc-400" />
+                    <Building2 className="h-4 w-4 text-black" />
                   </div>
                   <input
                     type="text"
                     required
                     value={businessName}
                     onChange={(e) => setBusinessName(e.target.value)}
-                    className="block w-full pl-10 sm:text-sm border-zinc-300 border p-2.5 rounded-md focus:ring-terracotta-500 focus:border-terracotta-500"
+                    className="block w-full pl-10 sm:text-sm border-2 p-2.5 rounded-md focus:ring-[#c4956a] focus:border-[#c4956a]"
+                    style={{ borderColor: '#c4956a', background: 'rgba(252,246,237,0.6)' }}
                     placeholder="My Restaurant"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-zinc-700">Email address</label>
+                <label className="block text-sm font-medium text-black">Email address</label>
                 <div className="mt-1 relative rounded-md shadow-sm">
                   <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                    <Mail className="h-4 w-4 text-zinc-400" />
+                    <Mail className="h-4 w-4 text-black" />
                   </div>
                   <input
                     type="email"
                     required
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    className="block w-full pl-10 sm:text-sm border-zinc-300 border p-2.5 rounded-md focus:ring-terracotta-500 focus:border-terracotta-500"
+                    className="block w-full pl-10 sm:text-sm border-2 p-2.5 rounded-md focus:ring-[#c4956a] focus:border-[#c4956a]"
+                    style={{ borderColor: '#c4956a', background: 'rgba(252,246,237,0.6)' }}
                     placeholder="you@example.com"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-zinc-700">Password</label>
+                <label className="block text-sm font-medium text-black">Password</label>
                 <div className="mt-1 relative rounded-md shadow-sm">
                   <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                    <Lock className="h-4 w-4 text-zinc-400" />
+                    <Lock className="h-4 w-4 text-black" />
                   </div>
                   <input
                     type="password"
@@ -221,7 +224,8 @@ export default function RegisterPage() {
                     minLength={6}
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    className="block w-full pl-10 sm:text-sm border-zinc-300 border p-2.5 rounded-md focus:ring-terracotta-500 focus:border-terracotta-500"
+                    className="block w-full pl-10 sm:text-sm border-2 p-2.5 rounded-md focus:ring-[#c4956a] focus:border-[#c4956a]"
+                    style={{ borderColor: '#c4956a', background: 'rgba(252,246,237,0.6)' }}
                     placeholder="Min. 6 characters"
                   />
                 </div>
@@ -231,14 +235,16 @@ export default function RegisterPage() {
                 <button
                   type="button"
                   onClick={() => setStep(1)}
-                  className="flex-1 flex justify-center py-2.5 px-4 border border-zinc-300 rounded-md shadow-sm text-sm font-medium text-zinc-700 bg-white hover:bg-zinc-50 transition-colors"
+                  className="flex-1 flex justify-center py-2.5 px-4 border-2 rounded-md shadow-sm text-sm font-medium text-black transition-colors"
+                  style={{ borderColor: '#c4956a', background: 'rgba(252,246,237,0.6)' }}
                 >
                   Back
                 </button>
                 <button
                   type="submit"
                   disabled={loading}
-                  className="flex-[2] flex justify-center py-2.5 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-terracotta-600 hover:bg-terracotta-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-terracotta-500 disabled:opacity-50 transition-colors"
+                  className="flex-[2] flex justify-center py-2.5 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#c4956a] disabled:opacity-50 transition-colors"
+                  style={{ background: 'linear-gradient(135deg, #c4956a 0%, #b8845c 100%)' }}
                 >
                   {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : "Create account"}
                 </button>
@@ -246,9 +252,9 @@ export default function RegisterPage() {
             </form>
           )}
 
-          <p className="mt-6 text-center text-sm text-zinc-500">
+          <p className="mt-6 text-center text-sm text-black">
             Already have an account?{" "}
-            <Link href="/login" className="font-medium text-terracotta-600 hover:text-terracotta-500">
+            <Link href="/login" className="font-medium text-[#c4956a] hover:text-[#b8845c]">
               Sign in
             </Link>
           </p>

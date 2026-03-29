@@ -69,11 +69,11 @@ export function Sidebar() {
   };
 
   return (
-    <aside className="w-64 bg-zinc-50 border-r border-zinc-200 h-screen flex flex-col hidden md:flex">
-      <div className="h-16 flex items-center px-4 border-b border-zinc-200 relative" ref={dropdownRef}>
+    <aside className="w-64 border-r h-screen flex flex-col hidden md:flex" style={{ background: 'rgba(252,246,237,0.85)', borderColor: '#c4956a' }}>
+      <div className="h-16 flex items-center px-4 border-b relative" style={{ borderColor: '#c4956a' }} ref={dropdownRef}>
         <button
           onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-          className="w-full flex items-center justify-between px-2 py-1.5 rounded-lg hover:bg-zinc-200/50 transition-colors"
+          className="w-full flex items-center justify-between px-2 py-1.5 rounded-lg hover:bg-[#c4956a]/10 transition-colors"
         >
           <div className="flex items-center gap-2 overflow-hidden">
             <img src="/logo.png" alt="BaliFlow" className="w-8 h-8 rounded-md flex-shrink-0 shadow-sm object-cover" />
@@ -81,12 +81,12 @@ export function Sidebar() {
               {activeTenant?.name || "Loading..."}
             </span>
           </div>
-          <ChevronDown className="w-4 h-4 text-zinc-500" />
+          <ChevronDown className="w-4 h-4 text-black" />
         </button>
 
         {isDropdownOpen && availableTenants.length > 0 && (
-          <div className="absolute top-14 left-4 right-4 bg-white border border-zinc-200 shadow-lg rounded-xl overflow-hidden z-50 py-1">
-            <div className="px-3 py-2 text-xs font-semibold tracking-wider text-zinc-500 uppercase">
+          <div className="absolute top-14 left-4 right-4 border shadow-lg rounded-xl overflow-hidden z-50 py-1" style={{ background: 'rgba(252,246,237,0.95)', borderColor: '#c4956a' }}>
+            <div className="px-3 py-2 text-xs font-semibold tracking-wider text-black uppercase">
               Workspaces
             </div>
             {availableTenants.map((tenantOption) => (
@@ -96,10 +96,10 @@ export function Sidebar() {
                   switchTenant(tenantOption.id);
                   setIsDropdownOpen(false);
                 }}
-                className="w-full flex items-center justify-between px-3 py-2 text-sm text-zinc-700 hover:bg-zinc-50 transition-colors text-left"
+                className="w-full flex items-center justify-between px-3 py-2 text-sm text-black hover:bg-[#c4956a]/10 transition-colors text-left"
               >
                 <span className="truncate pr-4">{tenantOption.name}</span>
-                {activeTenant?.id === tenantOption.id && <Check className="w-4 h-4 text-terracotta-600 flex-shrink-0" />}
+                {activeTenant?.id === tenantOption.id && <Check className="w-4 h-4 text-[#c4956a] flex-shrink-0" />}
               </button>
             ))}
           </div>
@@ -117,14 +117,14 @@ export function Sidebar() {
                 className={cn(
                   "flex items-center px-3 py-2 text-sm font-medium rounded-md transition-colors",
                   isActive
-                    ? "bg-zinc-200 text-zinc-900"
-                    : "text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900"
+                    ? "bg-[#c4956a]/20 text-black"
+                    : "text-black hover:bg-[#c4956a]/10 hover:text-black"
                 )}
               >
                 <item.icon
                   className={cn(
                     "mr-3 flex-shrink-0 h-5 w-5",
-                    isActive ? "text-zinc-900" : "text-zinc-400"
+                    isActive ? "text-black" : "text-black"
                   )}
                   aria-hidden="true"
                 />
@@ -134,17 +134,17 @@ export function Sidebar() {
           })}
 
           {globalRole === "platform_admin" && (
-            <div className="pt-4 mt-4 border-t border-zinc-200">
+            <div className="pt-4 mt-4 border-t" style={{ borderColor: '#c4956a' }}>
               <Link
                href="/admin"
                 className={cn(
                   "flex items-center px-3 py-2 text-sm font-medium rounded-md transition-colors",
                   pathname?.startsWith("/admin")
-                    ? "bg-zinc-200 text-zinc-900"
-                    : "text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900"
+                    ? "bg-[#c4956a]/20 text-black"
+                    : "text-black hover:bg-[#c4956a]/10 hover:text-black"
                 )}
               >
-                <Shield className="mr-3 flex-shrink-0 h-5 w-5 text-zinc-400" />
+                <Shield className="mr-3 flex-shrink-0 h-5 w-5 text-black" />
                 {t("nav_admin")}
               </Link>
             </div>
@@ -152,19 +152,19 @@ export function Sidebar() {
         </nav>
       </div>
 
-      <div className="p-4 border-t border-zinc-200 bg-white">
+      <div className="p-4 border-t" style={{ borderColor: '#c4956a', background: 'rgba(252,246,237,0.85)' }}>
          <div className="flex items-center">
             <div className="h-8 w-8 rounded-full bg-terracotta-100 flex items-center justify-center text-terracotta-700 font-bold text-xs flex-shrink-0">
               {user?.email?.charAt(0).toUpperCase() || 'U'}
             </div>
             <div className="ml-3 overflow-hidden">
               <p className="text-sm font-medium text-zinc-900 truncate">{user?.email || "User"}</p>
-              <p className="text-xs font-medium text-zinc-500 uppercase tracking-wider mt-0.5">{activeRole?.replace('_', ' ') || "Guest"}</p>
+              <p className="text-xs font-medium text-black uppercase tracking-wider mt-0.5">{activeRole?.replace('_', ' ') || "Guest"}</p>
             </div>
          </div>
          <button
            onClick={handleSignOut}
-           className="mt-4 w-full text-xs text-zinc-500 hover:text-zinc-900 font-medium text-left px-1 transition-colors"
+           className="mt-4 w-full text-xs text-black hover:text-black font-medium text-left px-1 transition-colors"
          >
            Sign out
          </button>
