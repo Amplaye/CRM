@@ -22,6 +22,7 @@ export default function ConversationsPage() {
   const [conversations, setConversations] = useState<ConvoWithGuest[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedConvoId, setSelectedConvoId] = useState<string | null>(null);
+  const [autoSelected, setAutoSelected] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [deleting, setDeleting] = useState(false);
@@ -56,9 +57,12 @@ export default function ConversationsPage() {
       setLoading(false);
 
       // Auto-select conversation if guest param is in URL
-      if (guestParam && !selectedConvoId) {
+      if (guestParam && !autoSelected) {
         const match = convos.find(c => c.guest_id === guestParam);
-        if (match) setSelectedConvoId(match.id);
+        if (match) {
+          setSelectedConvoId(match.id);
+          setAutoSelected(true);
+        }
       }
     };
 
@@ -73,6 +77,14 @@ export default function ConversationsPage() {
 
     return () => { supabase.removeChannel(channel); };
   }, [tenant]);
+
+  // React to URL guest param changes
+  useEffect(() => {
+    if (guestParam && conversations.length > 0) {
+      const match = conversations.find(c => c.guest_id === guestParam);
+      if (match) setSelectedConvoId(match.id);
+    }
+  }, [guestParam, conversations]);
 
   const selectedConvo = conversations.find(c => c.id === selectedConvoId) || null;
   const selectedGuest = selectedConvo?.guests || null;
