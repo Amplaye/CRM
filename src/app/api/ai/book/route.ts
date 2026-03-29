@@ -31,13 +31,10 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: false, error: "Missing required fields" }, { status: 400 });
     }
 
-    // Check party size rules
+    // Check party size rules — 7+ always goes to manual review (escalated), never reject
     const action = getBookingAction(payload.party_size);
-    if (action === 'reject') {
-      return NextResponse.json({
-        success: false,
-        error: "Party size exceeds maximum capacity (12). Please contact the restaurant directly."
-      }, { status: 400 });
+    if (action === 'reject' || action === 'manual_review') {
+      // Force manual review path for any group 7+
     }
 
     const supabase = createServiceRoleClient();
@@ -154,7 +151,7 @@ export async function POST(request: Request) {
     }
 
     // 5. Handle manual review (7-12 people) - NO table assignment
-    if (action === 'manual_review') {
+    if (action === 'manual_review' || action === 'reject') {
       const reservation = {
         tenant_id: payload.tenant_id,
         guest_id: guestId,
