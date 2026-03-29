@@ -2,8 +2,8 @@
 
 import { ReservationList } from "@/components/reservations/ReservationList";
 import { ReservationTimeline } from "@/components/reservations/ReservationTimeline";
-import { Plus, Download, X, Save, Clock, Menu, Phone } from "lucide-react";
-import { useState, useEffect } from "react";
+import { Plus, Download, Upload, X, Save, Clock, Menu, Phone } from "lucide-react";
+import { useState, useEffect, useRef } from "react";
 import { Reservation, ReservationStatus } from "@/lib/types";
 
 interface ReservationWithGuest extends Reservation {
@@ -14,6 +14,33 @@ import { useLanguage } from "@/lib/contexts/LanguageContext";
 import { useTenant } from "@/lib/contexts/TenantContext";
 import { createReservationAction, updateReservationDetailsAction } from "@/app/actions/reservations";
 import { createClient } from "@/lib/supabase/client";
+
+const downloadCSV = (data: string[][], filename: string) => {
+  const csv = data.map(row => row.map(cell => `"${(cell || '').replace(/"/g, '""')}"`).join(',')).join('\n');
+  const blob = new Blob([csv], { type: 'text/csv' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+};
+
+const parseCSV = (text: string): string[][] => {
+  const lines = text.split('\n').filter(l => l.trim());
+  return lines.map(line => {
+    const result: string[] = [];
+    let current = '';
+    let inQuotes = false;
+    for (const char of line) {
+      if (char === '"') { inQuotes = !inQuotes; }
+      else if (char === ',' && !inQuotes) { result.push(current.trim()); current = ''; }
+      else { current += char; }
+    }
+    result.push(current.trim());
+    return result;
+  });
+};
 
 interface RestaurantTable {
   id: string;
@@ -38,6 +65,105 @@ export default function ReservationsPage() {
   const [selectedTableIds, setSelectedTableIds] = useState<string[]>([]);
   const [occupiedTableIds, setOccupiedTableIds] = useState<Set<string>>(new Set());
   const supabase = createClient();
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleExport = async () => {
+    if (!activeTenant) return;
+    const { data: reservations } = await supabase
+      .from('reservations')
+      .select('*, guests(name, phone)')
+      .eq('tenant_id', activeTenant.id)
+      .eq('date', date);
+
+    if (!reservations || reservations.length === 0) {
+      alert('No reservations to export for this date');
+      return;
+    }
+
+    // Fetch table assignments for these reservations
+    const resIds = reservations.map((r: any) => r.id);
+    const { data: tableLinks } = await supabase
+      .from('reservation_tables')
+      .select('reservation_id, restaurant_tables(name)')
+      .in('reservation_id', resIds);
+
+    const tableMap: Record<string, string[]> = {};
+    if (tableLinks) {
+      for (const link of tableLinks as any[]) {
+        const rid = link.reservation_id;
+        const tname = link.restaurant_tables?.name || '';
+        if (!tableMap[rid]) tableMap[rid] = [];
+        if (tname) tableMap[rid].push(tname);
+      }
+    }
+
+    const headers = ['Date', 'Time', 'Guest Name', 'Phone', 'Party Size', 'Status', 'Source', 'Tables', 'Notes'];
+    const rows = reservations.map((r: any) => [
+      r.date,
+      r.time,
+      r.guests?.name || '',
+      r.guests?.phone || '',
+      String(r.party_size),
+      r.status,
+      r.source || '',
+      (tableMap[r.id] || []).join('; '),
+      r.notes || ''
+    ]);
+    downloadCSV([headers, ...rows], `reservations_export_${date}.csv`);
+  };
+
+  const handleImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !activeTenant) return;
+    const text = await file.text();
+    const rows = parseCSV(text);
+    if (rows.length < 2) return;
+
+    const headers = rows[0].map(h => h.toLowerCase().replace(/\s+/g, '_'));
+    const dateIdx = headers.indexOf('date');
+    const timeIdx = headers.indexOf('time');
+    const nameIdx = headers.indexOf('guest_name');
+    const phoneIdx = headers.indexOf('phone');
+    const partyIdx = headers.indexOf('party_size');
+    const notesIdx = headers.indexOf('notes');
+
+    if (dateIdx === -1 || timeIdx === -1 || nameIdx === -1 || phoneIdx === -1) {
+      alert('CSV must have Date, Time, Guest Name, and Phone columns');
+      return;
+    }
+
+    let imported = 0;
+    for (let i = 1; i < rows.length; i++) {
+      const row = rows[i];
+      const rDate = row[dateIdx]?.trim();
+      const rTime = row[timeIdx]?.trim();
+      const gName = row[nameIdx]?.trim();
+      const gPhone = row[phoneIdx]?.trim();
+      const partySize = partyIdx !== -1 ? parseInt(row[partyIdx]?.trim()) || 2 : 2;
+      const notes = notesIdx !== -1 ? row[notesIdx]?.trim() || '' : '';
+
+      if (!rDate || !rTime || !gName || !gPhone) continue;
+
+      try {
+        const res = await createReservationAction({
+          tenantId: activeTenant.id,
+          guestName: gName,
+          guestPhone: gPhone,
+          date: rDate,
+          time: rTime,
+          partySize: partySize,
+          source: 'staff',
+          notes
+        });
+        if (res.success) imported++;
+      } catch (err) {
+        console.error('Import row error:', err);
+      }
+    }
+
+    alert(`Imported ${imported} reservations`);
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
 
   // Fetch tables + occupied tables for selected date
   useEffect(() => {
@@ -162,9 +288,13 @@ export default function ReservationsPage() {
             <p className="mt-1 text-sm text-black">{t("res_subtitle")}</p>
           </div>
           <div className="mt-4 sm:mt-0 flex space-x-3">
-             <button className="inline-flex items-center px-4 py-2 border-2 text-sm font-medium rounded-lg shadow-sm text-black transition-colors" style={{ borderColor: '#c4956a', background: 'rgba(252,246,237,0.6)' }}>
+             <button onClick={handleExport} className="inline-flex items-center px-4 py-2 border-2 text-sm font-medium rounded-lg shadow-sm text-black transition-colors" style={{ borderColor: '#c4956a', background: 'rgba(252,246,237,0.6)' }}>
                 <Download className="-ml-1 mr-2 h-4 w-4" /> {t("res_export")}
              </button>
+             <button onClick={() => fileInputRef.current?.click()} className="inline-flex items-center px-4 py-2 border-2 text-sm font-medium rounded-lg shadow-sm text-black transition-colors" style={{ borderColor: '#c4956a', background: 'rgba(252,246,237,0.6)' }}>
+                <Upload className="-ml-1 mr-2 h-4 w-4" /> Import
+             </button>
+             <input ref={fileInputRef} type="file" accept=".csv" className="hidden" onChange={handleImport} />
              <button
                onClick={() => { setSelectedRes(null); setIsCreating(true); }}
                className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-lg shadow-sm text-white bg-zinc-900 hover:bg-zinc-800 transition-colors"

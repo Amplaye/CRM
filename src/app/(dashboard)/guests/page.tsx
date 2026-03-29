@@ -1,11 +1,38 @@
 "use client";
 
-import { Download, Search, Star, AlertTriangle, X, Save, CalendarCheck, User, LayoutGrid, List, Trash2 } from "lucide-react";
+import { Download, Upload, Search, Star, AlertTriangle, X, Save, CalendarCheck, User, LayoutGrid, List, Trash2 } from "lucide-react";
 import { useLanguage } from "@/lib/contexts/LanguageContext";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useTenant } from "@/lib/contexts/TenantContext";
 import { Guest, Reservation } from "@/lib/types";
 import { createClient } from "@/lib/supabase/client";
+
+const downloadCSV = (data: string[][], filename: string) => {
+  const csv = data.map(row => row.map(cell => `"${(cell || '').replace(/"/g, '""')}"`).join(',')).join('\n');
+  const blob = new Blob([csv], { type: 'text/csv' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+};
+
+const parseCSV = (text: string): string[][] => {
+  const lines = text.split('\n').filter(l => l.trim());
+  return lines.map(line => {
+    const result: string[] = [];
+    let current = '';
+    let inQuotes = false;
+    for (const char of line) {
+      if (char === '"') { inQuotes = !inQuotes; }
+      else if (char === ',' && !inQuotes) { result.push(current.trim()); current = ''; }
+      else { current += char; }
+    }
+    result.push(current.trim());
+    return result;
+  });
+};
 
 export default function GuestsPage() {
   const { t } = useLanguage();
@@ -20,6 +47,70 @@ export default function GuestsPage() {
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [deleting, setDeleting] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleExport = () => {
+    const headers = ['Name', 'Phone', 'Email', 'Visits', 'No-Shows', 'Cancellations', 'Tags', 'Notes'];
+    const rows = guests.map(g => [
+      g.name,
+      g.phone,
+      g.email || '',
+      String(g.visit_count),
+      String(g.no_show_count),
+      String(g.cancellation_count),
+      (g.tags || []).join('; '),
+      g.notes || ''
+    ]);
+    downloadCSV([headers, ...rows], 'guests_export.csv');
+  };
+
+  const handleImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !activeTenant) return;
+    const text = await file.text();
+    const rows = parseCSV(text);
+    if (rows.length < 2) return;
+
+    const headers = rows[0].map(h => h.toLowerCase());
+    const nameIdx = headers.indexOf('name');
+    const phoneIdx = headers.indexOf('phone');
+    const emailIdx = headers.indexOf('email');
+
+    if (nameIdx === -1 || phoneIdx === -1) {
+      alert('CSV must have Name and Phone columns');
+      return;
+    }
+
+    let imported = 0;
+    for (let i = 1; i < rows.length; i++) {
+      const row = rows[i];
+      const name = row[nameIdx]?.trim();
+      const phone = row[phoneIdx]?.trim();
+      if (!name || !phone) continue;
+
+      const guest: Record<string, any> = {
+        tenant_id: activeTenant.id,
+        name,
+        phone,
+        visit_count: 0,
+        no_show_count: 0,
+        cancellation_count: 0,
+        tags: [],
+        notes: '',
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      };
+      if (emailIdx !== -1 && row[emailIdx]?.trim()) {
+        guest.email = row[emailIdx].trim();
+      }
+
+      const { error } = await supabase.from('guests').insert(guest);
+      if (!error) imported++;
+    }
+
+    alert(`Imported ${imported} guests`);
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
 
   useEffect(() => {
     if (!activeTenant) return;
@@ -165,10 +256,15 @@ export default function GuestsPage() {
                 <List className="h-4 w-4 text-black" />
               </button>
             </div>
-            <button className="inline-flex items-center px-4 py-2 border-2 text-sm font-medium rounded-md shadow-sm text-black transition-colors" style={{ borderColor: '#c4956a', background: 'rgba(252,246,237,0.6)' }}>
+            <button onClick={handleExport} className="inline-flex items-center px-4 py-2 border-2 text-sm font-medium rounded-md shadow-sm text-black transition-colors" style={{ borderColor: '#c4956a', background: 'rgba(252,246,237,0.6)' }}>
               <Download className="-ml-1 mr-2 h-4 w-4" />
               {t("guests_export")}
             </button>
+            <button onClick={() => fileInputRef.current?.click()} className="inline-flex items-center px-4 py-2 border-2 text-sm font-medium rounded-md shadow-sm text-black transition-colors" style={{ borderColor: '#c4956a', background: 'rgba(252,246,237,0.6)' }}>
+              <Upload className="-ml-1 mr-2 h-4 w-4" />
+              Import
+            </button>
+            <input ref={fileInputRef} type="file" accept=".csv" className="hidden" onChange={handleImport} />
           </div>
         </div>
 
