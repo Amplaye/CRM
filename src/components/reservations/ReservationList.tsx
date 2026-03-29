@@ -145,15 +145,9 @@ export function ReservationList({ date, onRowClick }: ReservationListProps) {
                 <StatusPill status={res.status} />
               </td>
               <td className="px-6 py-4 whitespace-nowrap text-center">
-                {(res.source === 'ai_chat' || res.source === 'ai_voice') ? (
-                  <Link href={`/conversations?guest=${res.guest_id}`} onClick={(e) => e.stopPropagation()} className="inline-flex justify-center">
-                    <SourceIcon source={res.source} />
-                  </Link>
-                ) : (
-                  <div className="inline-flex justify-center">
-                    <SourceIcon source={res.source} />
-                  </div>
-                )}
+                <Link href={`/conversations?guest=${res.guest_id}`} onClick={(e) => e.stopPropagation()} className="inline-flex justify-center hover:scale-110 transition-transform" title="Open conversation">
+                  <SourceIcon source={res.source} />
+                </Link>
               </td>
             </tr>
           ))}
