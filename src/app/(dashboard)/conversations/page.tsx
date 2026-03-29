@@ -105,12 +105,26 @@ export default function ConversationsPage() {
 
   // Handlers
   const handleSend = async () => {
-    if (!replyText.trim() || !selectedConvo) return;
+    if (!replyText.trim() || !selectedConvo || !selectedGuest) return;
     setSending(true);
     try {
+      // 1. Send real WhatsApp message via Twilio
+      if (selectedConvo.channel === "whatsapp" && selectedGuest.phone) {
+        const res = await fetch("/api/send-whatsapp", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ to: selectedGuest.phone, message: replyText })
+        });
+        const result = await res.json();
+        if (!result.success) {
+          console.error("WhatsApp send failed:", result.error);
+        }
+      }
+
+      // 2. Save to transcript
       const newMessage = { role: "staff", content: replyText, timestamp: Date.now() };
       const updatedTranscript = [...(selectedConvo.transcript || []), newMessage];
-      const updates: any = { transcript: updatedTranscript, updated_at: Date.now() };
+      const updates: any = { transcript: updatedTranscript, updated_at: new Date().toISOString() };
       if (selectedConvo.status === "abandoned") updates.status = "active";
       await supabase.from("conversations").update(updates).eq("id", selectedConvo.id);
       setReplyText("");

@@ -1,0 +1,54 @@
+import { NextRequest, NextResponse } from "next/server";
+
+export async function POST(req: NextRequest) {
+  try {
+    const { to, message } = await req.json();
+
+    if (!to || !message) {
+      return NextResponse.json({ error: "Missing 'to' or 'message'" }, { status: 400 });
+    }
+
+    const TWILIO_SID = process.env.TWILIO_ACCOUNT_SID;
+    const TWILIO_TOKEN = process.env.TWILIO_AUTH_TOKEN;
+    const TWILIO_FROM = process.env.TWILIO_WHATSAPP_FROM || "whatsapp:+14155238886";
+
+    if (!TWILIO_SID || !TWILIO_TOKEN) {
+      return NextResponse.json({ error: "Twilio credentials not configured" }, { status: 500 });
+    }
+
+    // Format phone number for WhatsApp
+    let whatsappTo = to;
+    if (!whatsappTo.startsWith("whatsapp:")) {
+      if (!whatsappTo.startsWith("+")) whatsappTo = "+" + whatsappTo;
+      whatsappTo = "whatsapp:" + whatsappTo;
+    }
+
+    const body = new URLSearchParams({
+      From: TWILIO_FROM,
+      To: whatsappTo,
+      Body: message,
+    });
+
+    const res = await fetch(
+      `https://api.twilio.com/2010-04-01/Accounts/${TWILIO_SID}/Messages.json`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded",
+          Authorization: "Basic " + Buffer.from(`${TWILIO_SID}:${TWILIO_TOKEN}`).toString("base64"),
+        },
+        body: body.toString(),
+      }
+    );
+
+    const data = await res.json();
+
+    if (!res.ok) {
+      return NextResponse.json({ error: data.message || "Twilio error", details: data }, { status: res.status });
+    }
+
+    return NextResponse.json({ success: true, sid: data.sid });
+  } catch (err: any) {
+    return NextResponse.json({ error: err.message }, { status: 500 });
+  }
+}
