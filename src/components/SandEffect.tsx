@@ -32,7 +32,7 @@ export function SandEffect() {
     // Create 300 sand particles
     const createParticles = () => {
       particles = [];
-      for (let i = 0; i < 300; i++) {
+      for (let i = 0; i < 100; i++) {
         const r = 160 + Math.random() * 50;
         const g = 120 + Math.random() * 50;
         const b = 70 + Math.random() * 50;

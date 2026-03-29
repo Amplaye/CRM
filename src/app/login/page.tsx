@@ -40,8 +40,8 @@ export default function LoginPage() {
       <div className="sm:mx-auto sm:w-full sm:max-w-md relative z-10">
         <div className="flex justify-center">
            <img src="/logo.png" alt="BaliFlow" className="w-64 h-auto" style={{
-             mask: 'radial-gradient(ellipse 85% 85% at center, black 50%, transparent 100%)',
-             WebkitMask: 'radial-gradient(ellipse 85% 85% at center, black 50%, transparent 100%)',
+             mask: 'radial-gradient(ellipse 70% 90% at center, black 40%, transparent 95%)',
+             WebkitMask: 'radial-gradient(ellipse 70% 90% at center, black 40%, transparent 95%)',
            }} />
         </div>
       </div>
@@ -60,20 +60,20 @@ export default function LoginPage() {
             )}
 
             <div>
-              <label className="block text-sm font-medium text-stone-700">Email address</label>
+              <label className="block text-sm font-medium text-black">Email address</label>
               <div className="mt-1 relative rounded-lg">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <Mail className="h-4 w-4 text-stone-400" />
+                  <Mail className="h-4 w-4 text-black" />
                 </div>
                 <input
                   type="email"
                   required
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className="block w-full pl-10 sm:text-sm border p-2.5 rounded-lg focus:ring-2 focus:ring-[#d4a574] focus:border-[#d4a574] outline-none transition-all"
+                  className="block w-full pl-10 sm:text-sm border-2 p-2.5 rounded-lg focus:ring-2 focus:ring-[#c4956a] focus:border-[#c4956a] outline-none transition-all text-black placeholder:text-black/50"
                   style={{
                     background: 'rgba(252,246,237,0.6)',
-                    borderColor: 'rgba(225,202,178,0.5)',
+                    borderColor: '#c4956a',
                   }}
                   placeholder="you@example.com"
                 />
@@ -81,20 +81,20 @@ export default function LoginPage() {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-stone-700">Password</label>
+              <label className="block text-sm font-medium text-black">Password</label>
               <div className="mt-1 relative rounded-lg">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <Lock className="h-4 w-4 text-stone-400" />
+                  <Lock className="h-4 w-4 text-black" />
                 </div>
                 <input
                   type="password"
                   required
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="block w-full pl-10 sm:text-sm border p-2.5 rounded-lg focus:ring-2 focus:ring-[#d4a574] focus:border-[#d4a574] outline-none transition-all"
+                  className="block w-full pl-10 sm:text-sm border-2 p-2.5 rounded-lg focus:ring-2 focus:ring-[#c4956a] focus:border-[#c4956a] outline-none transition-all text-black placeholder:text-black/50"
                   style={{
                     background: 'rgba(252,246,237,0.6)',
-                    borderColor: 'rgba(225,202,178,0.5)',
+                    borderColor: '#c4956a',
                   }}
                 />
               </div>
@@ -124,7 +124,7 @@ export default function LoginPage() {
                 <div className="w-full" style={{ borderTop: '1px solid rgba(225,202,178,0.4)' }} />
               </div>
               <div className="relative flex justify-center text-sm">
-                <span className="px-2 text-stone-500" style={{ background: 'rgba(244,228,205,0.5)' }}>or</span>
+                <span className="px-2 text-black" style={{ background: 'rgba(244,228,205,0.5)' }}>or</span>
               </div>
             </div>
 
@@ -182,17 +182,17 @@ export default function LoginPage() {
                 }
               }}
               disabled={guestLoading}
-              className="mt-4 w-full flex justify-center py-2.5 px-4 rounded-lg text-sm font-medium text-stone-600 disabled:opacity-50 transition-all hover:shadow-sm"
+              className="mt-4 w-full flex justify-center py-2.5 px-4 rounded-lg text-sm font-medium text-black disabled:opacity-50 transition-all hover:shadow-sm"
               style={{
                 background: 'rgba(252,246,237,0.5)',
-                border: '1px solid rgba(225,202,178,0.4)',
+                border: '2px solid #c4956a',
               }}
             >
               {guestLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : "Continue as Guest"}
             </button>
           </div>
 
-          <p className="mt-6 text-center text-sm text-stone-500">
+          <p className="mt-6 text-center text-sm text-black">
             Don't have an account?{" "}
             <Link href="/register" className="font-medium text-[#c4956a] hover:text-[#b8845c]">
               Create one
