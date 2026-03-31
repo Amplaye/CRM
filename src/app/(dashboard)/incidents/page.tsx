@@ -135,7 +135,7 @@ export default function IncidentsPage() {
   };
 
   return (
-    <div className="p-8 max-w-[1600px] h-[calc(100vh-4rem)] flex flex-col mx-auto">
+    <div className="p-4 sm:p-6 lg:p-8 max-w-[1600px] h-[calc(100vh-4rem)] flex flex-col mx-auto">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-8 shrink-0">
         <div>
           <h1 className="text-2xl font-bold text-zinc-900 tracking-tight">Incidents & Audits</h1>

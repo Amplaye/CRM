@@ -6,7 +6,7 @@ import { useLanguage } from "@/lib/contexts/LanguageContext";
 export default function StaffPage() {
   const { t } = useLanguage();
   return (
-    <div className="p-8 w-full space-y-8">
+    <div className="p-4 sm:p-6 lg:p-8 w-full space-y-4 sm:space-y-6 lg:space-y-8">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl font-bold text-zinc-900">{t("staff_title")}</h1>
@@ -21,18 +21,19 @@ export default function StaffPage() {
       </div>
 
       <div className="border-2 rounded-xl overflow-hidden" style={{ background: 'rgba(252,246,237,0.85)', borderColor: '#c4956a', boxShadow: '0 20px 60px rgba(196,149,106,0.25), 0 8px 24px rgba(196,149,106,0.15)' }}>
+         <div className="overflow-x-auto">
          <table className="min-w-full divide-y" style={{ borderColor: '#c4956a' }}>
           <thead>
             <tr>
-              <th scope="col" className="px-6 py-3 text-left text-xs font-semibold text-black uppercase tracking-wider">{t("staff_col_name")}</th>
-              <th scope="col" className="px-6 py-3 text-left text-xs font-semibold text-black uppercase tracking-wider">{t("staff_col_role")}</th>
-              <th scope="col" className="px-6 py-3 text-left text-xs font-semibold text-black uppercase tracking-wider">{t("staff_col_status")}</th>
-              <th scope="col" className="relative px-6 py-3"><span className="sr-only">Actions</span></th>
+              <th scope="col" className="px-3 sm:px-6 py-3 text-left text-xs font-semibold text-black uppercase tracking-wider">{t("staff_col_name")}</th>
+              <th scope="col" className="px-3 sm:px-6 py-3 text-left text-xs font-semibold text-black uppercase tracking-wider">{t("staff_col_role")}</th>
+              <th scope="col" className="px-3 sm:px-6 py-3 text-left text-xs font-semibold text-black uppercase tracking-wider">{t("staff_col_status")}</th>
+              <th scope="col" className="relative px-3 sm:px-6 py-3"><span className="sr-only">Actions</span></th>
             </tr>
           </thead>
           <tbody className="divide-y" style={{ borderColor: 'rgba(196,149,106,0.3)' }}>
             <tr>
-              <td className="px-6 py-4 whitespace-nowrap">
+              <td className="px-3 sm:px-6 py-4 whitespace-nowrap">
                 <div className="flex items-center">
                   <div className="flex-shrink-0 h-10 w-10 rounded-full flex justify-center items-center text-black font-bold" style={{ background: 'rgba(196,149,106,0.2)' }}>SO</div>
                   <div className="ml-4">
@@ -41,12 +42,12 @@ export default function StaffPage() {
                   </div>
                 </div>
               </td>
-              <td className="px-6 py-4 whitespace-nowrap">
+              <td className="px-3 sm:px-6 py-4 whitespace-nowrap">
                 <div className="text-sm text-zinc-900 flex items-center">
                     <Shield className="w-4 h-4 mr-1 text-terracotta-600" /> Owner
                 </div>
               </td>
-              <td className="px-6 py-4 whitespace-nowrap">
+              <td className="px-3 sm:px-6 py-4 whitespace-nowrap">
                 <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-emerald-100 text-emerald-800">Active</span>
               </td>
               <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
@@ -55,7 +56,7 @@ export default function StaffPage() {
             </tr>
             
             <tr>
-              <td className="px-6 py-4 whitespace-nowrap">
+              <td className="px-3 sm:px-6 py-4 whitespace-nowrap">
                 <div className="flex items-center">
                   <div className="flex-shrink-0 h-10 w-10 rounded-full flex justify-center items-center text-black font-bold" style={{ background: 'rgba(196,149,106,0.2)' }}>JD</div>
                   <div className="ml-4">
@@ -64,10 +65,10 @@ export default function StaffPage() {
                   </div>
                 </div>
               </td>
-              <td className="px-6 py-4 whitespace-nowrap">
+              <td className="px-3 sm:px-6 py-4 whitespace-nowrap">
                 <div className="text-sm text-zinc-900">Manager</div>
               </td>
-              <td className="px-6 py-4 whitespace-nowrap">
+              <td className="px-3 sm:px-6 py-4 whitespace-nowrap">
                 <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-emerald-100 text-emerald-800">Active</span>
               </td>
               <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
@@ -75,7 +76,7 @@ export default function StaffPage() {
             </tr>
             
             <tr>
-              <td className="px-6 py-4 whitespace-nowrap">
+              <td className="px-3 sm:px-6 py-4 whitespace-nowrap">
                 <div className="flex items-center">
                   <div className="flex-shrink-0 h-10 w-10 rounded-full flex justify-center items-center text-black font-bold" style={{ background: 'rgba(196,149,106,0.2)' }}>?</div>
                   <div className="ml-4">
@@ -84,10 +85,10 @@ export default function StaffPage() {
                   </div>
                 </div>
               </td>
-              <td className="px-6 py-4 whitespace-nowrap">
+              <td className="px-3 sm:px-6 py-4 whitespace-nowrap">
                 <div className="text-sm text-zinc-900">Host</div>
               </td>
-              <td className="px-6 py-4 whitespace-nowrap">
+              <td className="px-3 sm:px-6 py-4 whitespace-nowrap">
                 <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-zinc-100 text-zinc-800">Invited</span>
               </td>
               <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
@@ -96,6 +97,7 @@ export default function StaffPage() {
             </tr>
           </tbody>
         </table>
+        </div>
       </div>
     </div>
   );

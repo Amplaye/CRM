@@ -134,16 +134,13 @@ export async function POST(request: Request) {
       }
     }
 
-    // Find occupied table IDs during the requested window
+    // Find occupied table IDs for the same shift
+    // Tables are occupied for the ENTIRE shift (customers can stay as long as they want)
     const occupiedTableIds = new Set<string>();
     for (const res of (existingRes || [])) {
-      const resEnd = res.end_time || calculateEndTime(res.time, getRotationMinutes(
-        res.party_size,
-        res.shift || getShift(res.time),
-        dayOfWeek
-      ));
-
-      if (rangesOverlap(payload.time, endTime, res.time, resEnd)) {
+      const resShift = res.shift || getShift(res.time);
+      // A table is occupied if it belongs to any reservation in the same shift
+      if (resShift === shift) {
         const assigned = reservationTableMap[res.id] || [];
         for (const tid of assigned) {
           occupiedTableIds.add(tid);

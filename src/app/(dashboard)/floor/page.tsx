@@ -318,14 +318,14 @@ export default function FloorPage() {
 
   if (loading) {
     return (
-      <div className="p-8 w-full">
+      <div className="p-4 sm:p-6 lg:p-8 w-full">
         <p className="text-black">{t("loading")}</p>
       </div>
     );
   }
 
   return (
-    <div className="p-8 w-full space-y-8">
+    <div className="p-4 sm:p-6 lg:p-8 w-full space-y-4 sm:space-y-6 lg:space-y-8">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
         <div>

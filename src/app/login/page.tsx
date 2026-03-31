@@ -35,15 +35,15 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen flex flex-col justify-center py-12 sm:px-6 lg:px-8 relative overflow-hidden">
+    <div className="min-h-[100dvh] flex flex-col justify-center px-4 sm:px-6 lg:px-8 py-4 sm:py-6 relative overflow-hidden">
       {/* Language selector */}
-      <div className="absolute top-4 right-4 z-20">
-        <div className="flex items-center border-2 rounded-lg px-3 py-2" style={{ borderColor: '#c4956a', background: 'rgba(252,246,237,0.6)' }}>
-          <Globe className="h-4 w-4 text-black mr-2" />
+      <div className="absolute top-3 right-3 sm:top-4 sm:right-4 z-20">
+        <div className="flex items-center border-2 rounded-lg px-2.5 py-1.5 sm:px-3 sm:py-2" style={{ borderColor: '#c4956a', background: 'rgba(252,246,237,0.6)' }}>
+          <Globe className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-black mr-1.5 sm:mr-2" />
           <select
             value={language}
             onChange={(e) => setLanguage(e.target.value as "en" | "es")}
-            className="bg-transparent text-sm font-medium text-black outline-none cursor-pointer"
+            className="bg-transparent text-xs sm:text-sm font-medium text-black outline-none cursor-pointer"
           >
             <option value="en">EN</option>
             <option value="es">ES</option>
@@ -51,22 +51,22 @@ export default function LoginPage() {
         </div>
       </div>
 
-      <div className="sm:mx-auto sm:w-full sm:max-w-md relative z-10">
+      <div className="mx-auto w-full max-w-md relative z-10">
         <div className="flex justify-center">
-           <img src="/logo.png" alt="BaliFlow" className="w-64 h-auto" style={{
+           <img src="/logo.png" alt="BaliFlow" className="w-36 sm:w-44 lg:w-48 h-auto" style={{
              mask: 'radial-gradient(67% 90%, black 50%, transparent 75%)',
              WebkitMask: 'radial-gradient(67% 90%, black 50%, transparent 75%)',
            }} />
         </div>
       </div>
 
-      <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md relative z-10">
-        <div className="py-8 px-4 sm:rounded-2xl sm:px-10" style={{
+      <div className="mt-3 sm:mt-4 mx-auto w-full max-w-md relative z-10">
+        <div className="py-5 sm:py-6 px-5 sm:px-10 rounded-2xl" style={{
           background: 'rgba(252,246,237,0.85)',
           border: '2px solid #c4956a',
           boxShadow: '0 20px 60px rgba(196,149,106,0.25), 0 8px 24px rgba(196,149,106,0.15)',
         }}>
-          <form className="space-y-6" onSubmit={handleLogin}>
+          <form className="space-y-4 sm:space-y-5" onSubmit={handleLogin}>
             {error && (
               <div className="bg-red-50/80 text-red-700 p-3 rounded-md text-sm border border-red-200/50">
                 {error}
@@ -84,7 +84,7 @@ export default function LoginPage() {
                   required
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className="block w-full pl-10 sm:text-sm border-2 p-2.5 rounded-lg focus:ring-2 focus:ring-[#c4956a] focus:border-[#c4956a] outline-none transition-all text-black placeholder:text-black/50"
+                  className="block w-full pl-10 text-sm border-2 p-2.5 rounded-lg focus:ring-2 focus:ring-[#c4956a] focus:border-[#c4956a] outline-none transition-all text-black placeholder:text-black/50"
                   style={{
                     background: 'rgba(252,246,237,0.6)',
                     borderColor: '#c4956a',
@@ -105,7 +105,7 @@ export default function LoginPage() {
                   required
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="block w-full pl-10 sm:text-sm border-2 p-2.5 rounded-lg focus:ring-2 focus:ring-[#c4956a] focus:border-[#c4956a] outline-none transition-all text-black placeholder:text-black/50"
+                  className="block w-full pl-10 text-sm border-2 p-2.5 rounded-lg focus:ring-2 focus:ring-[#c4956a] focus:border-[#c4956a] outline-none transition-all text-black placeholder:text-black/50"
                   style={{
                     background: 'rgba(252,246,237,0.6)',
                     borderColor: '#c4956a',
@@ -132,7 +132,7 @@ export default function LoginPage() {
             </button>
           </form>
 
-          <div className="mt-6">
+          <div className="mt-4 sm:mt-5">
             <div className="relative">
               <div className="absolute inset-0 flex items-center">
                 <div className="w-full" style={{ borderTop: '1px solid rgba(225,202,178,0.4)' }} />
@@ -196,7 +196,7 @@ export default function LoginPage() {
                 }
               }}
               disabled={guestLoading}
-              className="mt-4 w-full flex justify-center py-2.5 px-4 rounded-lg text-sm font-medium text-black disabled:opacity-50 transition-all hover:shadow-sm"
+              className="mt-3 sm:mt-4 w-full flex justify-center py-2.5 px-4 rounded-lg text-sm font-medium text-black disabled:opacity-50 transition-all hover:shadow-sm"
               style={{
                 background: 'rgba(252,246,237,0.5)',
                 border: '2px solid #c4956a',
@@ -206,7 +206,7 @@ export default function LoginPage() {
             </button>
           </div>
 
-          <p className="mt-6 text-center text-sm text-black">
+          <p className="mt-4 sm:mt-5 text-center text-sm text-black">
             Don't have an account?{" "}
             <Link href="/register" className="font-medium text-[#c4956a] hover:text-[#b8845c]">
               Create one

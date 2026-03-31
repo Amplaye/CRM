@@ -93,26 +93,19 @@ export async function GET(request: Request) {
     }
 
     // For each slot, count free tables
+    // Tables are occupied for the ENTIRE shift (customers can stay as long as they want)
     const availability = slots.map(time => {
-      const shift = getShift(time);
-      if (!isOpen(dayOfWeek, shift)) {
+      const slotShift = getShift(time);
+      if (!isOpen(dayOfWeek, slotShift)) {
         return { time, available: false, free_tables: 0 };
       }
 
-      const rotation = getRotationMinutes(pax, shift, dayOfWeek);
-      const slotEnd = calculateEndTime(time, rotation);
-
-      // Find which tables are occupied during this window
+      // Find which tables are occupied in the same shift
       const occupiedTableIds = new Set<string>();
 
       for (const res of (reservations || [])) {
-        const resEnd = res.end_time || calculateEndTime(res.time, getRotationMinutes(
-          res.party_size,
-          res.shift || getShift(res.time),
-          dayOfWeek
-        ));
-
-        if (rangesOverlap(time, slotEnd, res.time, resEnd)) {
+        const resShift = res.shift || getShift(res.time);
+        if (resShift === slotShift) {
           const assignedTables = reservationTableMap[res.id] || [];
           for (const tid of assignedTables) {
             occupiedTableIds.add(tid);

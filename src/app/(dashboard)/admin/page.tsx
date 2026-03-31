@@ -9,14 +9,14 @@ export default function AdminPage() {
 
   if (globalRole !== "platform_admin") {
      return (
-        <div className="p-8 w-full flex justify-center mt-20 text-black text-center">
+        <div className="p-4 sm:p-6 lg:p-8 w-full flex justify-center mt-20 text-black text-center">
            {t("admin_unauthorized")}
         </div>
      );
   }
 
   return (
-    <div className="p-8 w-full space-y-8">
+    <div className="p-4 sm:p-6 lg:p-8 w-full space-y-4 sm:space-y-6 lg:space-y-8">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl font-bold bg-gradient-to-r from-indigo-600 to-violet-600 bg-clip-text text-transparent">{t("admin_title")}</h1>
@@ -44,22 +44,24 @@ export default function AdminPage() {
             <h2 className="font-medium text-zinc-900">{t("admin_tenants_list")}</h2>
             <button className="px-3 py-1.5 text-xs font-medium bg-zinc-900 text-white rounded">{t("admin_provision")}</button>
          </div>
+         <div className="overflow-x-auto">
          <table className="min-w-full divide-y divide-zinc-200">
             <tbody className="divide-y divide-zinc-100 text-sm">
                <tr className="hover:bg-zinc-50">
-                  <td className="px-6 py-4 font-medium">PICNIC</td>
-                  <td className="px-6 py-4 text-black">{t("admin_since_oct")}</td>
-                  <td className="px-6 py-4"><span className="px-2 py-0.5 bg-emerald-100 text-emerald-800 rounded text-xs font-medium">{t("admin_healthy")}</span></td>
-                  <td className="px-6 py-4 text-right text-indigo-600 font-medium cursor-pointer">{t("admin_impersonate")}</td>
+                  <td className="px-3 sm:px-6 py-4 font-medium">PICNIC</td>
+                  <td className="px-3 sm:px-6 py-4 text-black">{t("admin_since_oct")}</td>
+                  <td className="px-3 sm:px-6 py-4"><span className="px-2 py-0.5 bg-emerald-100 text-emerald-800 rounded text-xs font-medium">{t("admin_healthy")}</span></td>
+                  <td className="px-3 sm:px-6 py-4 text-right text-indigo-600 font-medium cursor-pointer">{t("admin_impersonate")}</td>
                </tr>
                <tr className="hover:bg-zinc-50">
-                  <td className="px-6 py-4 font-medium">Trattoria Napoletana</td>
-                  <td className="px-6 py-4 text-black">{t("admin_since_dec")}</td>
-                  <td className="px-6 py-4"><span className="px-2 py-0.5 bg-emerald-100 text-emerald-800 rounded text-xs font-medium">{t("admin_healthy")}</span></td>
-                  <td className="px-6 py-4 text-right text-indigo-600 font-medium cursor-pointer">{t("admin_impersonate")}</td>
+                  <td className="px-3 sm:px-6 py-4 font-medium">Trattoria Napoletana</td>
+                  <td className="px-3 sm:px-6 py-4 text-black">{t("admin_since_dec")}</td>
+                  <td className="px-3 sm:px-6 py-4"><span className="px-2 py-0.5 bg-emerald-100 text-emerald-800 rounded text-xs font-medium">{t("admin_healthy")}</span></td>
+                  <td className="px-3 sm:px-6 py-4 text-right text-indigo-600 font-medium cursor-pointer">{t("admin_impersonate")}</td>
                </tr>
             </tbody>
          </table>
+         </div>
       </div>
     </div>
   );

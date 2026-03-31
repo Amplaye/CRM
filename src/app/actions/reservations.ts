@@ -4,6 +4,7 @@ import { createServerSupabaseClient, createServiceRoleClient } from "@/lib/supab
 import { Reservation, ReservationEvent, ReservationStatus, Guest } from "@/lib/types";
 import { revalidatePath } from "next/cache";
 import { matchWaitlistForSlotAction } from "./waitlist";
+import { getShift, getRotationMinutes, calculateEndTime } from "@/lib/restaurant-rules";
 
 /**
  * Creates a Reservation.
@@ -101,6 +102,11 @@ export async function createReservationAction(params: {
     }
 
     // 3. Create Reservation
+    const computedShift = params.shift || getShift(params.time);
+    const dayOfWeek = new Date(params.date + 'T12:00:00').getDay();
+    const rotation = getRotationMinutes(params.partySize, computedShift as 'lunch' | 'dinner', dayOfWeek);
+    const endTime = calculateEndTime(params.time, rotation);
+
     const { data: newRes, error: createResErr } = await supabase
       .from("reservations")
       .insert({
@@ -113,7 +119,8 @@ export async function createReservationAction(params: {
         source: params.source,
         created_by_type: params.source.startsWith("ai_") ? "ai" : "staff",
         notes: params.notes || "",
-        shift: params.shift || (parseInt(params.time.split(":")[0]) < 16 ? "lunch" : "dinner"),
+        shift: computedShift,
+        end_time: endTime,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString()
       })

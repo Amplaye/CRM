@@ -215,13 +215,13 @@ export default function ConversationsPage() {
   };
 
   return (
-    <div className="flex h-[calc(100vh-4rem)] border-t" style={{ borderColor: '#c4956a' }}>
+    <div className="flex h-[calc(100dvh-3.5rem)] md:h-[calc(100dvh-4rem)] border-t" style={{ borderColor: '#c4956a' }}>
 
       {/* COLUMN 1: Inbox List */}
-      <div className={`flex flex-col border-r transition-all duration-300 ${selectedConvo ? 'w-[380px]' : 'w-full'}`} style={{ background: 'rgba(252,246,237,0.85)', borderColor: '#c4956a' }}>
-        <div className="p-6 border-b z-10" style={{ borderColor: '#c4956a' }}>
-          <h1 className="text-2xl font-bold text-zinc-900 tracking-tight">{t("conv_title")}</h1>
-          <p className="mt-1 text-sm text-black">{t("conv_subtitle")}</p>
+      <div className={`flex flex-col border-r transition-all duration-300 ${selectedConvo ? 'hidden md:flex md:w-[380px]' : 'w-full'}`} style={{ background: 'rgba(252,246,237,0.85)', borderColor: '#c4956a' }}>
+        <div className="p-4 md:p-6 border-b z-10" style={{ borderColor: '#c4956a' }}>
+          <h1 className="text-xl md:text-2xl font-bold text-zinc-900 tracking-tight">{t("conv_title")}</h1>
+          <p className="mt-0.5 md:mt-1 text-xs md:text-sm text-black">{t("conv_subtitle")}</p>
           <div className="mt-4 relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-black" />
             <input
@@ -345,20 +345,20 @@ export default function ConversationsPage() {
         </div>
       </div>
 
-      {/* COLUMN 2: Transcript Pane */}
+      {/* COLUMN 2: Transcript Pane — full screen overlay on mobile */}
       {selectedConvo && (
-        <div className="flex-1 flex flex-col relative" style={{ background: '#EFEAE2' }}>
+        <div className="fixed inset-0 md:static md:inset-auto flex-1 flex flex-col relative z-30 md:z-auto" style={{ background: '#EFEAE2' }}>
           {/* Header with guest info */}
-          <div className="px-6 py-4 border-b flex justify-between items-center z-10 sticky top-0" style={{ background: 'rgba(252,246,237,0.95)', borderColor: '#c4956a' }}>
+          <div className="px-4 md:px-6 py-3 md:py-4 border-b flex justify-between items-center z-10 sticky top-0" style={{ background: 'rgba(252,246,237,0.95)', borderColor: '#c4956a' }}>
             <div className="flex items-center space-x-3">
-              <div className={`h-10 w-10 rounded-full flex items-center justify-center text-white font-bold ${selectedConvo.channel === 'whatsapp' ? 'bg-emerald-500' : 'bg-indigo-500'}`}>
+              <div className={`h-9 w-9 md:h-10 md:w-10 rounded-full flex items-center justify-center text-white font-bold text-sm md:text-base ${selectedConvo.channel === 'whatsapp' ? 'bg-emerald-500' : 'bg-indigo-500'}`}>
                 {selectedGuest?.name ? selectedGuest.name.charAt(0).toUpperCase() : '?'}
               </div>
               <div>
-                <h3 className="font-bold text-black">
+                <h3 className="font-bold text-sm md:text-base text-black">
                   {selectedGuest?.name || "Unknown Guest"}
                 </h3>
-                <p className="text-xs text-black/50 font-medium">
+                <p className="text-[11px] md:text-xs text-black/50 font-medium">
                   {selectedGuest?.phone || ""} • {selectedConvo.channel === 'whatsapp' ? 'WhatsApp' : 'Voice Call'}
                 </p>
               </div>
@@ -369,7 +369,7 @@ export default function ConversationsPage() {
           </div>
 
           {/* Chat messages */}
-          <div ref={scrollRef} className="flex-1 overflow-y-auto p-6 space-y-3 relative z-0">
+          <div ref={scrollRef} className="flex-1 overflow-y-auto p-3 md:p-6 space-y-3 relative z-0">
             <div className="flex justify-center mb-4">
               <span className="text-[11px] font-bold uppercase tracking-widest text-black/40 bg-white/60 px-3 py-1 rounded-md shadow-sm">
                 {new Date(selectedConvo.created_at).toLocaleDateString()}
@@ -429,9 +429,9 @@ export default function ConversationsPage() {
         </div>
       )}
 
-      {/* COLUMN 3: Context Pane */}
+      {/* COLUMN 3: Context Pane — hidden on mobile */}
       {selectedConvo && (
-        <div className="w-[320px] border-l flex flex-col overflow-y-auto" style={{ background: 'rgba(252,246,237,0.85)', borderColor: '#c4956a' }}>
+        <div className="hidden lg:flex w-[320px] border-l flex-col overflow-y-auto" style={{ background: 'rgba(252,246,237,0.85)', borderColor: '#c4956a' }}>
           <div className="p-4 border-b" style={{ borderColor: '#c4956a' }}>
             <span className="text-xs font-bold text-black uppercase tracking-widest">Details</span>
           </div>

@@ -133,7 +133,7 @@ export default function WaitlistPage() {
   };
 
   return (
-    <div className="p-8 w-full space-y-8 flex">
+    <div className="p-4 sm:p-6 lg:p-8 w-full space-y-4 sm:space-y-6 lg:space-y-8 flex">
       <div className={`flex-1 transition-all duration-300 ${isCreating ? 'pr-[400px]' : ''}`}>
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-8">
           <div>
@@ -206,20 +206,21 @@ export default function WaitlistPage() {
            ) : loading ? (
                <div className="py-16 text-center animate-pulse text-zinc-400">Loading...</div>
            ) : (
+             <div className="overflow-x-auto">
              <table className="min-w-full divide-y divide-zinc-200">
                <thead className="bg-white">
                  <tr>
-                   <th scope="col" className="px-6 py-3 text-left text-[10px] font-bold text-zinc-500 uppercase tracking-widest">{t("waitlist_col_pos")}</th>
-                   <th scope="col" className="px-6 py-3 text-left text-[10px] font-bold text-zinc-500 uppercase tracking-widest">{t("waitlist_col_guest")}</th>
-                   <th scope="col" className="px-6 py-3 text-left text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Target / Flex</th>
-                   <th scope="col" className="px-6 py-3 text-left text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Status / Score</th>
-                   <th scope="col" className="relative px-6 py-3"><span className="sr-only">Actions</span></th>
+                   <th scope="col" className="px-3 sm:px-6 py-3 text-left text-[10px] font-bold text-zinc-500 uppercase tracking-widest">{t("waitlist_col_pos")}</th>
+                   <th scope="col" className="px-3 sm:px-6 py-3 text-left text-[10px] font-bold text-zinc-500 uppercase tracking-widest">{t("waitlist_col_guest")}</th>
+                   <th scope="col" className="px-3 sm:px-6 py-3 text-left text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Target / Flex</th>
+                   <th scope="col" className="px-3 sm:px-6 py-3 text-left text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Status / Score</th>
+                   <th scope="col" className="relative px-3 sm:px-6 py-3"><span className="sr-only">Actions</span></th>
                  </tr>
                </thead>
                <tbody className="bg-white divide-y divide-zinc-100">
                  {entries.map((entry, idx) => (
                    <tr key={entry.id} className={entry.status === 'match_found' ? 'bg-terracotta-50/20' : entry.status === 'contacted' ? 'bg-blue-50/20' : 'hover:bg-zinc-50/50 transition-colors'}>
-                     <td className="px-6 py-4 whitespace-nowrap">
+                     <td className="px-3 sm:px-6 py-4 whitespace-nowrap">
                        <div className="flex items-center">
                          <span className={`text-2xl font-black w-8 tracking-tighter ${entry.status === 'match_found' ? 'text-terracotta-600' : 'text-zinc-300'}`}>{idx + 1}</span>
                          <div className="ml-2">
@@ -230,7 +231,7 @@ export default function WaitlistPage() {
                          </div>
                        </div>
                      </td>
-                     <td className="px-6 py-4 whitespace-nowrap">
+                     <td className="px-3 sm:px-6 py-4 whitespace-nowrap">
                        <div className="text-sm font-bold text-zinc-900 tracking-tight flex items-center">
                          {entry.guests?.name || `Guest ${entry.guest_id.substring(0,6)}`} ({entry.party_size} pax)
                          <Link href={`/conversations?guest=${entry.guest_id}`} className="ml-2 text-[#c4956a] hover:text-[#b8845c] transition-colors" title="Open conversation">
@@ -244,13 +245,13 @@ export default function WaitlistPage() {
                           {entry.date} &middot; Prefers {entry.contact_preference}
                        </div>
                      </td>
-                     <td className="px-6 py-4 whitespace-nowrap">
+                     <td className="px-3 sm:px-6 py-4 whitespace-nowrap">
                         <div className="text-sm font-bold text-zinc-900">{entry.target_time}</div>
                         <div className="text-[11px] font-medium text-zinc-500 bg-zinc-100 px-2 py-0.5 rounded-md inline-flex mt-1 border border-zinc-200">
                            {entry.acceptable_time_range.start} – {entry.acceptable_time_range.end}
                         </div>
                      </td>
-                     <td className="px-6 py-4 whitespace-nowrap">
+                     <td className="px-3 sm:px-6 py-4 whitespace-nowrap">
                         <div className="flex flex-col items-start gap-1">
                            <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider border ${
                               entry.status === 'contacted' ? 'bg-blue-50 text-blue-700 border-blue-200' :
@@ -277,13 +278,14 @@ export default function WaitlistPage() {
                  ))}
                </tbody>
              </table>
+             </div>
            )}
         </div>
       </div>
 
       {/* CREATE WAITLIST ENTRY DRAWER */}
       {isCreating && (
-        <div className="fixed inset-y-0 right-0 w-[400px] border-l shadow-2xl z-40 transform transition-transform duration-300 flex flex-col" style={{ background: 'rgba(252,246,237,0.95)', borderColor: '#c4956a' }}>
+        <div className="fixed inset-y-0 right-0 w-full sm:w-[400px] border-l shadow-2xl z-40 transform transition-transform duration-300 flex flex-col" style={{ background: 'rgba(252,246,237,0.95)', borderColor: '#c4956a' }}>
           <div className="px-6 py-4 flex items-center justify-between border-b" style={{ borderColor: '#c4956a' }}>
              <h2 className="text-lg font-bold text-zinc-900 tracking-tight">Waitlist Registration</h2>
              <button onClick={() => setIsCreating(false)} className="p-2 text-black hover:bg-[#c4956a]/10 hover:text-black rounded-full transition-colors">

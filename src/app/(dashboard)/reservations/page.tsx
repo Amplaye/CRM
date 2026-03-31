@@ -252,6 +252,22 @@ export default function ReservationsPage() {
 
     setSaving(true);
     const formData = new FormData(e.currentTarget);
+
+    // Capacity check: warn if selected tables have fewer seats than party size
+    const partySize = Number(formData.get("partySize"));
+    if (selectedTableIds.length > 0) {
+      const totalSeats = selectedTableIds.reduce((sum, tableId) => {
+        const table = availableTables.find(t => t.id === tableId);
+        return sum + (table?.seats || 0);
+      }, 0);
+      if (totalSeats < partySize) {
+        const confirmed = window.confirm(
+          `Las mesas seleccionadas tienen ${totalSeats} plazas pero la reserva es para ${partySize} personas. ¿Continuar?`
+        );
+        if (!confirmed) { setSaving(false); return; }
+      }
+    }
+
     try {
       const shift = formData.get("shift") as string || "dinner";
       const res = await createReservationAction({
@@ -290,31 +306,59 @@ export default function ReservationsPage() {
   };
 
   return (
-    <div className="p-8 w-full space-y-8 flex">
-      <div className={`flex-1 transition-all duration-300 ${(selectedRes || isCreating) ? 'pr-[400px]' : ''}`}>
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-8">
+    <div className="p-4 sm:p-6 lg:p-8 w-full space-y-4 sm:space-y-6 lg:space-y-8 flex">
+      <div className={`flex-1 transition-all duration-300 ${(selectedRes || isCreating) ? 'md:pr-[400px]' : ''}`}>
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-4 sm:mb-6 lg:mb-8">
           <div>
-            <h1 className="text-2xl font-bold text-zinc-900 tracking-tight">{t("res_title")}</h1>
-            <p className="mt-1 text-sm text-black">{t("res_subtitle")}</p>
+            <h1 className="text-xl sm:text-2xl font-bold text-zinc-900 tracking-tight">{t("res_title")}</h1>
+            <p className="mt-0.5 sm:mt-1 text-xs sm:text-sm text-black">{t("res_subtitle")}</p>
           </div>
-          <div className="mt-4 sm:mt-0 flex space-x-3">
-             <button onClick={handleExport} className="inline-flex items-center px-4 py-2 border-2 text-sm font-medium rounded-lg shadow-sm text-black transition-colors" style={{ borderColor: '#c4956a', background: 'rgba(252,246,237,0.6)' }}>
+          <div className="mt-3 sm:mt-0 flex flex-wrap gap-2 sm:space-x-3">
+             <button onClick={handleExport} className="hidden sm:inline-flex items-center px-4 py-2 border-2 text-sm font-medium rounded-lg shadow-sm text-black transition-colors" style={{ borderColor: '#c4956a', background: 'rgba(252,246,237,0.6)' }}>
                 <Download className="-ml-1 mr-2 h-4 w-4" /> {t("res_export")}
              </button>
-             <button onClick={() => fileInputRef.current?.click()} className="inline-flex items-center px-4 py-2 border-2 text-sm font-medium rounded-lg shadow-sm text-black transition-colors" style={{ borderColor: '#c4956a', background: 'rgba(252,246,237,0.6)' }}>
+             <button onClick={() => fileInputRef.current?.click()} className="hidden sm:inline-flex items-center px-4 py-2 border-2 text-sm font-medium rounded-lg shadow-sm text-black transition-colors" style={{ borderColor: '#c4956a', background: 'rgba(252,246,237,0.6)' }}>
                 <Upload className="-ml-1 mr-2 h-4 w-4" /> Import
              </button>
              <input ref={fileInputRef} type="file" accept=".csv" className="hidden" onChange={handleImport} />
              <button
                onClick={() => { setSelectedRes(null); setIsCreating(true); setCreateDate(date); setSelectedTableIds([]); }}
-               className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-lg shadow-sm text-white bg-zinc-900 hover:bg-zinc-800 transition-colors"
+               className="inline-flex items-center px-3 sm:px-4 py-2 border border-transparent text-sm font-medium rounded-lg shadow-sm text-white bg-zinc-900 hover:bg-zinc-800 transition-colors"
              >
-                <Plus className="-ml-1 mr-2 h-5 w-5" aria-hidden="true" />
+                <Plus className="-ml-1 mr-1.5 sm:mr-2 h-4 w-4 sm:h-5 sm:w-5" aria-hidden="true" />
                 {t("res_new")}
              </button>
           </div>
         </div>
 
+        {/* Mobile controls */}
+        <div className="md:hidden flex items-center gap-2 mb-3">
+          <input
+            type="date"
+            value={date}
+            onChange={(e) => setDate(e.target.value)}
+            className="flex-1 border-2 rounded-lg px-3 py-2 text-sm font-medium text-black focus:ring-1 focus:ring-[#c4956a] focus:outline-none"
+            style={{ borderColor: '#c4956a', background: 'rgba(252,246,237,0.6)' }}
+          />
+          <div className="flex p-0.5 rounded-lg border-2" style={{ borderColor: '#c4956a', background: 'rgba(252,246,237,0.6)' }}>
+            <button
+              onClick={() => setViewMode("list")}
+              className={`p-2 rounded-md transition-colors ${viewMode === 'list' ? 'text-white' : 'text-black'}`}
+              style={{ background: viewMode === 'list' ? '#c4956a' : 'transparent' }}
+            >
+              <Menu className="w-4 h-4" />
+            </button>
+            <button
+              onClick={() => setViewMode("timeline")}
+              className={`p-2 rounded-md transition-colors ${viewMode === 'timeline' ? 'text-white' : 'text-black'}`}
+              style={{ background: viewMode === 'timeline' ? '#c4956a' : 'transparent' }}
+            >
+              <Clock className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+
+        {/* Desktop controls */}
         <div className="p-4 flex flex-col sm:flex-row items-center justify-between border-b rounded-t-xl hidden md:flex border-x border-t border-2" style={{ background: 'rgba(252,246,237,0.85)', borderColor: '#c4956a' }}>
            <div className="flex space-x-4 items-center">
               <input
@@ -358,7 +402,7 @@ export default function ReservationsPage() {
 
       {/* QUICK STATUS EDIT DRAWER */}
       {selectedRes && (
-        <div className="fixed inset-y-0 right-0 w-[400px] border-l shadow-2xl z-40 transform transition-transform duration-300 flex flex-col overflow-hidden" style={{ background: 'rgba(252,246,237,0.95)', borderColor: '#c4956a' }}>
+        <div className="fixed inset-y-0 right-0 w-full sm:w-[400px] border-l shadow-2xl z-40 transform transition-transform duration-300 flex flex-col overflow-hidden" style={{ background: 'rgba(252,246,237,0.95)', borderColor: '#c4956a' }}>
           <div className="px-6 py-4 flex items-center justify-between border-b" style={{ borderColor: '#c4956a' }}>
              <div>
                <h2 className="text-lg font-bold text-zinc-900 tracking-tight">{t("res_quick_edit")}</h2>
@@ -437,7 +481,7 @@ export default function ReservationsPage() {
 
       {/* NEW RESERVATION DRAWER */}
       {isCreating && (
-        <div className="fixed inset-y-0 right-0 w-[400px] border-l shadow-2xl z-40 transform transition-transform duration-300 flex flex-col overflow-hidden" style={{ background: 'rgba(252,246,237,0.95)', borderColor: '#c4956a' }}>
+        <div className="fixed inset-y-0 right-0 w-full sm:w-[400px] border-l shadow-2xl z-40 transform transition-transform duration-300 flex flex-col overflow-hidden" style={{ background: 'rgba(252,246,237,0.95)', borderColor: '#c4956a' }}>
           <div className="px-6 py-4 flex items-center justify-between border-b" style={{ borderColor: '#c4956a' }}>
              <h2 className="text-lg font-bold text-zinc-900 tracking-tight">{t("res_new")}</h2>
              <button onClick={() => setIsCreating(false)} className="p-2 text-black hover:bg-[#c4956a]/10 hover:text-black rounded-full transition-colors">
@@ -499,7 +543,7 @@ export default function ReservationsPage() {
 
                 {availableTables.length > 0 && (
                   <div>
-                    <label className="block text-sm font-medium text-black mb-2">{t("floor_tables")}</label>
+                    <label className="block text-sm font-medium text-black mb-2">{t("floor_tables")} <span className="text-xs font-normal text-black/40">(Opcional)</span></label>
                     <div className="grid grid-cols-4 gap-2">
                       {availableTables.map(table => {
                         const isOccupied = occupiedTableIds.has(table.id);

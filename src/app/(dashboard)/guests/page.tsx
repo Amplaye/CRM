@@ -230,7 +230,7 @@ export default function GuestsPage() {
   };
 
   return (
-    <div className="p-8 w-full space-y-8 flex">
+    <div className="p-4 sm:p-6 lg:p-8 w-full space-y-4 sm:space-y-6 lg:space-y-8 flex">
       <div className={`flex-1 transition-all duration-300 ${selectedGuest ? 'pr-[400px]' : ''}`}>
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-8">
           <div>
@@ -386,16 +386,17 @@ export default function GuestsPage() {
           </div>
           ) : (
           <div className="border-2 rounded-xl overflow-hidden" style={{ background: 'rgba(252,246,237,0.85)', borderColor: '#c4956a', boxShadow: '0 20px 60px rgba(196,149,106,0.25), 0 8px 24px rgba(196,149,106,0.15)' }}>
+            <div className="overflow-x-auto">
             <table className="min-w-full divide-y" style={{ borderColor: '#c4956a' }}>
               <thead>
                 <tr>
                   <th className="px-3 py-3 w-10"></th>
-                  <th className="px-6 py-3 text-left text-xs font-semibold text-black uppercase tracking-wider">Name</th>
-                  <th className="px-6 py-3 text-left text-xs font-semibold text-black uppercase tracking-wider">Phone</th>
-                  <th className="px-6 py-3 text-center text-xs font-semibold text-black uppercase tracking-wider">Visits</th>
-                  <th className="px-6 py-3 text-center text-xs font-semibold text-black uppercase tracking-wider">No-Shows</th>
-                  <th className="px-6 py-3 text-center text-xs font-semibold text-black uppercase tracking-wider">Value</th>
-                  <th className="px-6 py-3 text-left text-xs font-semibold text-black uppercase tracking-wider">Tags</th>
+                  <th className="px-3 sm:px-6 py-3 text-left text-xs font-semibold text-black uppercase tracking-wider">Name</th>
+                  <th className="px-3 sm:px-6 py-3 text-left text-xs font-semibold text-black uppercase tracking-wider">Phone</th>
+                  <th className="px-3 sm:px-6 py-3 text-center text-xs font-semibold text-black uppercase tracking-wider">Visits</th>
+                  <th className="px-3 sm:px-6 py-3 text-center text-xs font-semibold text-black uppercase tracking-wider">No-Shows</th>
+                  <th className="px-3 sm:px-6 py-3 text-center text-xs font-semibold text-black uppercase tracking-wider">Value</th>
+                  <th className="px-3 sm:px-6 py-3 text-left text-xs font-semibold text-black uppercase tracking-wider">Tags</th>
                   <th className="px-3 py-3 w-10"></th>
                 </tr>
               </thead>
@@ -414,7 +415,7 @@ export default function GuestsPage() {
                         className="w-4 h-4 rounded accent-[#c4956a] cursor-pointer"
                       />
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
+                    <td className="px-3 sm:px-6 py-4 whitespace-nowrap">
                       <div className="flex items-center">
                         <div className="h-8 w-8 rounded-full flex items-center justify-center text-black font-bold text-xs flex-shrink-0" style={{ background: 'rgba(196,149,106,0.2)' }}>
                           {guest.name.charAt(0).toUpperCase()}
@@ -427,13 +428,13 @@ export default function GuestsPage() {
                         </div>
                       </div>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-black">{guest.phone}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-zinc-900 text-center">{guest.visit_count}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-center">
+                    <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-sm text-black">{guest.phone}</td>
+                    <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-sm font-medium text-zinc-900 text-center">{guest.visit_count}</td>
+                    <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-sm font-medium text-center">
                       <span className={guest.no_show_count > 0 ? 'text-red-600' : 'text-zinc-900'}>{guest.no_show_count}</span>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-zinc-900 text-center">${guest.estimated_spend || 0}</td>
-                    <td className="px-6 py-4 whitespace-nowrap">
+                    <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-sm font-medium text-zinc-900 text-center">${guest.estimated_spend || 0}</td>
+                    <td className="px-3 sm:px-6 py-4 whitespace-nowrap">
                       <div className="flex flex-wrap gap-1">
                         {isHighRisk(guest) && <span className="bg-red-100 text-red-800 text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider">Risk</span>}
                         {isVip(guest) && <span className="bg-emerald-100 text-emerald-800 text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider">VIP</span>}
@@ -453,6 +454,7 @@ export default function GuestsPage() {
                 ))}
               </tbody>
             </table>
+            </div>
           </div>
           )
         )}
@@ -460,7 +462,7 @@ export default function GuestsPage() {
 
       {/* GUEST DETAIL DRAWER */}
       {selectedGuest && (
-        <div className="fixed inset-y-0 right-0 w-[400px] border-l shadow-2xl z-40 transform transition-transform duration-300 flex flex-col" style={{ background: 'rgba(252,246,237,0.95)', borderColor: '#c4956a' }}>
+        <div className="fixed inset-y-0 right-0 w-full sm:w-[400px] border-l shadow-2xl z-40 transform transition-transform duration-300 flex flex-col" style={{ background: 'rgba(252,246,237,0.95)', borderColor: '#c4956a' }}>
           <div className="px-6 py-4 flex items-center justify-between border-b" style={{ borderColor: '#c4956a' }}>
              <div>
                <h2 className="text-lg font-bold text-zinc-900 tracking-tight flex items-center">

@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { Reservation } from "@/lib/types";
 import { useLanguage } from "@/lib/contexts/LanguageContext";
-import { Clock, User, Phone, MessageSquare, Globe, UserCheck, AlertTriangle, UserMinus, CalendarCheck, Plus } from "lucide-react";
+import { Clock, User, Phone, MessageSquare, Globe, UserCheck, AlertTriangle, UserMinus, CalendarCheck, Plus, Users } from "lucide-react";
 import Link from "next/link";
 
 interface ReservationListProps {
@@ -76,11 +76,11 @@ export function ReservationList({ date, onRowClick }: ReservationListProps) {
 
   const StatusPill = ({ status }: { status: Reservation['status'] }) => {
     switch (status) {
-      case 'confirmed': return <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200"><UserCheck className="w-3 h-3 mr-1" /> {t("status_confirmed")}</span>;
-      case 'seated': return <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-50 text-blue-700 ring-1 ring-blue-200">Seated</span>; // Not in dict, left as is
-      case 'cancelled': return <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-50 text-red-700 ring-1 ring-red-200"><UserMinus className="w-3 h-3 mr-1" /> {t("status_cancelled")}</span>;
-      case 'no_show': return <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-zinc-800 text-zinc-100"><AlertTriangle className="w-3 h-3 mr-1" /> {t("status_no_show")}</span>;
-      default: return <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-50 text-amber-700 ring-1 ring-amber-200">Pending</span>;
+      case 'confirmed': return <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200"><UserCheck className="w-3 h-3 mr-1" /> {t("status_confirmed")}</span>;
+      case 'seated': return <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-50 text-blue-700 ring-1 ring-blue-200">Seated</span>;
+      case 'cancelled': return <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-red-50 text-red-700 ring-1 ring-red-200"><UserMinus className="w-3 h-3 mr-1" /> {t("status_cancelled")}</span>;
+      case 'no_show': return <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-zinc-800 text-zinc-100"><AlertTriangle className="w-3 h-3 mr-1" /> {t("status_no_show")}</span>;
+      default: return <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-amber-50 text-amber-700 ring-1 ring-amber-200">Pending</span>;
     }
   };
 
@@ -95,10 +95,10 @@ export function ReservationList({ date, onRowClick }: ReservationListProps) {
 
   if (loading) {
     return (
-      <div className="border-2 rounded-b-xl animate-pulse" style={{ background: 'rgba(252,246,237,0.85)', borderColor: '#c4956a' }}>
-        <div className="h-12 border-b" style={{ borderColor: '#c4956a' }}></div>
+      <div className="border-2 rounded-b-xl md:rounded-xl animate-pulse" style={{ background: 'rgba(252,246,237,0.85)', borderColor: '#c4956a' }}>
+        <div className="h-12 border-b hidden md:block" style={{ borderColor: '#c4956a' }}></div>
         {[1,2,3,4,5].map(i => (
-          <div key={i} className="h-16 border-b border-zinc-100 flex items-center px-6">
+          <div key={i} className="h-16 border-b border-zinc-100 flex items-center px-4 md:px-6">
             <div className="h-4 w-12 bg-zinc-200 rounded mr-8"></div>
             <div className="h-4 w-48 bg-zinc-200 rounded"></div>
           </div>
@@ -107,10 +107,9 @@ export function ReservationList({ date, onRowClick }: ReservationListProps) {
     );
   }
 
-  // Handle empty state gracefully
   if (!reservations || reservations.length === 0) {
       return (
-         <div className="border-2 rounded-b-xl py-16 text-center" style={{ background: 'rgba(252,246,237,0.85)', borderColor: '#c4956a', boxShadow: '0 20px 60px rgba(196,149,106,0.25), 0 8px 24px rgba(196,149,106,0.15)' }}>
+         <div className="border-2 rounded-b-xl md:rounded-xl py-16 text-center" style={{ background: 'rgba(252,246,237,0.85)', borderColor: '#c4956a', boxShadow: '0 20px 60px rgba(196,149,106,0.25), 0 8px 24px rgba(196,149,106,0.15)' }}>
             <CalendarCheck className="mx-auto h-12 w-12 text-zinc-300 mb-4" />
             <h3 className="text-sm font-medium text-zinc-900">{t("res_empty_title")}</h3>
             <p className="mt-1 text-sm text-black">{t("res_empty_subtitle")}</p>
@@ -125,8 +124,9 @@ export function ReservationList({ date, onRowClick }: ReservationListProps) {
   }
 
   return (
-    <div className="border-2 rounded-b-xl overflow-hidden" style={{ background: 'rgba(252,246,237,0.85)', borderColor: '#c4956a', boxShadow: '0 20px 60px rgba(196,149,106,0.25), 0 8px 24px rgba(196,149,106,0.15)' }}>
-      <table className="min-w-full table-fixed divide-y" style={{ borderColor: '#c4956a' }}>
+    <div className="border-2 rounded-b-xl md:rounded-xl overflow-hidden" style={{ background: 'rgba(252,246,237,0.85)', borderColor: '#c4956a', boxShadow: '0 20px 60px rgba(196,149,106,0.25), 0 8px 24px rgba(196,149,106,0.15)' }}>
+      {/* Desktop table - hidden on mobile */}
+      <table className="hidden md:table min-w-full table-fixed divide-y" style={{ borderColor: '#c4956a' }}>
         <thead>
           <tr>
             <th scope="col" className="px-4 py-3 text-center text-xs font-semibold text-black uppercase tracking-wider">{t("res_col_time")}</th>
@@ -178,6 +178,48 @@ export function ReservationList({ date, onRowClick }: ReservationListProps) {
           ))}
         </tbody>
       </table>
+
+      {/* Mobile card layout */}
+      <div className="md:hidden divide-y" style={{ borderColor: 'rgba(196,149,106,0.3)' }}>
+        {reservations.map((res) => (
+          <div
+            key={res.id}
+            onClick={() => onRowClick?.(res)}
+            className={`p-3 hover:bg-[#c4956a]/10 transition-colors ${onRowClick ? 'cursor-pointer' : ''}`}
+          >
+            <div className="flex items-center justify-between mb-1.5">
+              <div className="flex items-center gap-2">
+                <div className="flex items-center text-sm font-bold text-zinc-900">
+                  <Clock className="w-3.5 h-3.5 text-black mr-1" />
+                  {res.time}
+                </div>
+                <div className="flex items-center text-xs text-black/60">
+                  <Users className="w-3 h-3 mr-0.5" />
+                  {res.party_size}
+                </div>
+                <SourceIcon source={res.source} />
+              </div>
+              <StatusPill status={res.status} />
+            </div>
+            <div className="flex items-center justify-between">
+              <div className="min-w-0">
+                <p className="text-sm font-medium text-zinc-900 truncate">
+                  {res.guest_name || `Guest (${res.guest_id.substring(0,8)})`}
+                </p>
+                {res.guest_phone && (
+                  <p className="text-xs text-black/50">{res.guest_phone}</p>
+                )}
+              </div>
+              {res.table_names && res.table_names.length > 0 && (
+                <span className="text-xs font-medium text-black/50 ml-2 flex-shrink-0">
+                  {res.table_names.join(", ")}
+                </span>
+              )}
+            </div>
+            {res.notes && <p className="text-xs text-black/40 truncate mt-1">{res.notes}</p>}
+          </div>
+        ))}
+      </div>
     </div>
   );
 }

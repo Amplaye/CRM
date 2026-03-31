@@ -13,6 +13,7 @@ import {
   LayoutDashboard,
   LayoutGrid,
   ClipboardList,
+  X,
 } from "lucide-react";
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
@@ -38,7 +39,12 @@ const navItems = [
   { name: "Settings", href: "/settings", icon: Settings },
 ];
 
-export function Sidebar() {
+interface SidebarProps {
+  mobileOpen?: boolean;
+  onClose?: () => void;
+}
+
+export function Sidebar({ mobileOpen = false, onClose }: SidebarProps) {
   const pathname = usePathname();
   const { globalRole, activeTenant, activeRole } = useTenant();
   const { t } = useLanguage();
@@ -50,25 +56,34 @@ export function Sidebar() {
     window.location.href = "/login";
   };
 
-  return (
-    <aside className="w-64 border-r h-screen flex flex-col hidden md:flex flex-shrink-0" style={{ background: 'rgba(252,246,237,0.85)', borderColor: '#c4956a' }}>
-      <div className="h-16 flex items-center px-4 border-b" style={{ borderColor: '#c4956a' }}>
-        <img src="/logo.png" alt="BaliFlow" className="w-8 h-8 rounded-md flex-shrink-0 shadow-sm object-cover" />
-        <span className="font-semibold text-black text-lg flex-1 text-center">
+  const handleNavClick = () => {
+    onClose?.();
+  };
+
+  const sidebarContent = (
+    <>
+      <div className="h-14 md:h-16 flex items-center px-4 border-b" style={{ borderColor: '#c4956a' }}>
+        <img src="/logo.png" alt="BaliFlow" className="w-7 h-7 md:w-8 md:h-8 rounded-md flex-shrink-0 shadow-sm object-cover" />
+        <span className="font-semibold text-black text-base md:text-lg flex-1 text-center">
           {activeTenant?.name || "BaliFlow"}
         </span>
+        {/* Close button - mobile only */}
+        <button onClick={onClose} className="md:hidden p-1 -mr-1 hover:bg-[#c4956a]/10 rounded-lg">
+          <X className="w-5 h-5 text-black" />
+        </button>
       </div>
 
-      <div className="flex-1 overflow-y-auto py-4">
-        <nav className="space-y-1 px-3">
+      <div className="flex-1 overflow-y-auto py-3 md:py-4">
+        <nav className="space-y-0.5 md:space-y-1 px-2 md:px-3">
           {navItems.map((item) => {
             const isActive = pathname === item.href || (item.href !== "/" && pathname?.startsWith(item.href));
             return (
               <Link
                 key={item.name}
                 href={item.href}
+                onClick={handleNavClick}
                 className={cn(
-                  "flex items-center px-3 py-2 text-sm font-medium rounded-md transition-colors",
+                  "flex items-center px-3 py-2.5 md:py-2 text-sm font-medium rounded-md transition-colors",
                   isActive
                     ? "bg-[#c4956a]/20 text-black"
                     : "text-black hover:bg-[#c4956a]/10 hover:text-black"
@@ -84,11 +99,12 @@ export function Sidebar() {
           })}
 
           {globalRole === "platform_admin" && (
-            <div className="pt-4 mt-4 border-t" style={{ borderColor: '#c4956a' }}>
+            <div className="pt-3 mt-3 md:pt-4 md:mt-4 border-t" style={{ borderColor: '#c4956a' }}>
               <Link
                href="/admin"
+                onClick={handleNavClick}
                 className={cn(
-                  "flex items-center px-3 py-2 text-sm font-medium rounded-md transition-colors",
+                  "flex items-center px-3 py-2.5 md:py-2 text-sm font-medium rounded-md transition-colors",
                   pathname?.startsWith("/admin")
                     ? "bg-[#c4956a]/20 text-black"
                     : "text-black hover:bg-[#c4956a]/10 hover:text-black"
@@ -102,7 +118,7 @@ export function Sidebar() {
         </nav>
       </div>
 
-      <div className="p-4 border-t" style={{ borderColor: '#c4956a', background: 'rgba(252,246,237,0.85)' }}>
+      <div className="p-3 md:p-4 border-t" style={{ borderColor: '#c4956a', background: 'rgba(252,246,237,0.85)' }}>
          <div className="flex items-center">
             <div className="h-8 w-8 rounded-full bg-[#c4956a]/20 flex items-center justify-center text-[#8b6540] font-bold text-xs flex-shrink-0">
               {user?.email?.charAt(0).toUpperCase() || 'U'}
@@ -114,11 +130,32 @@ export function Sidebar() {
          </div>
          <button
            onClick={handleSignOut}
-           className="mt-4 w-full text-xs text-black hover:text-black/70 font-medium text-left px-1 transition-colors"
+           className="mt-3 md:mt-4 w-full text-xs text-black hover:text-black/70 font-medium text-left px-1 transition-colors"
          >
            Sign out
          </button>
       </div>
-    </aside>
+    </>
+  );
+
+  return (
+    <>
+      {/* Desktop sidebar - always visible from md+ */}
+      <aside className="w-64 border-r h-full hidden md:flex flex-col flex-shrink-0" style={{ background: 'rgba(252,246,237,0.85)', borderColor: '#c4956a' }}>
+        {sidebarContent}
+      </aside>
+
+      {/* Mobile overlay + drawer */}
+      {mobileOpen && (
+        <div className="md:hidden fixed inset-0 z-50 flex">
+          {/* Backdrop */}
+          <div className="fixed inset-0 bg-black/40" onClick={onClose} />
+          {/* Drawer */}
+          <aside className="relative w-72 max-w-[80vw] h-full flex flex-col flex-shrink-0 shadow-xl" style={{ background: 'rgba(252,246,237,0.98)', borderRight: '2px solid #c4956a' }}>
+            {sidebarContent}
+          </aside>
+        </div>
+      )}
+    </>
   );
 }

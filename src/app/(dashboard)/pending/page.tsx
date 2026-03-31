@@ -80,27 +80,38 @@ export default function PendingPage() {
     return () => { supabase.removeChannel(channel); };
   }, [tenant]);
 
+  const getShift = (time: string) => {
+    const h = parseInt(time.split(':')[0]);
+    return h < 16 ? 'lunch' : 'dinner';
+  };
+
   const startConfirm = async (id: string) => {
     setConfirmingId(id);
     setSelectedTables(new Set());
 
-    // Find the request's date and fetch occupied tables for that date
+    // Find the request's date and shift, fetch occupied tables for that date+shift
     const req = pending.find(p => p.id === id);
     if (req && tenant) {
+      const reqShift = getShift(req.time);
       const { data: resData } = await supabase
         .from("reservations")
-        .select("id")
+        .select("id, time, shift")
         .eq("tenant_id", tenant.id)
         .eq("date", req.date)
         .in("status", ["confirmed", "seated", "pending_confirmation"])
         .neq("id", id);
 
-      const resIds = (resData || []).map((r: any) => r.id);
-      if (resIds.length > 0) {
+      // Only count tables from same shift as occupied
+      const sameShiftIds = (resData || []).filter((r: any) => {
+        const rShift = r.shift || getShift(r.time);
+        return rShift === reqShift;
+      }).map((r: any) => r.id);
+
+      if (sameShiftIds.length > 0) {
         const { data: links } = await supabase
           .from("reservation_tables")
           .select("table_id")
-          .in("reservation_id", resIds);
+          .in("reservation_id", sameShiftIds);
         setOccupiedTableIds(new Set((links || []).map((l: any) => l.table_id)));
       } else {
         setOccupiedTableIds(new Set());
@@ -118,6 +129,29 @@ export default function PendingPage() {
 
   const handleConfirm = async () => {
     if (!confirmingId) return;
+    const req = pending.find(p => p.id === confirmingId);
+
+    // Validate: warn if selected tables have fewer seats than party size
+    if (req && selectedTables.size > 0) {
+      const totalSeats = Array.from(selectedTables).reduce((sum, tableId) => {
+        const table = tables.find(t => t.id === tableId);
+        return sum + (table?.seats || 0);
+      }, 0);
+      if (totalSeats < req.party_size) {
+        const ok = window.confirm(
+          `Las mesas seleccionadas tienen ${totalSeats} plazas pero la reserva es para ${req.party_size} personas. ¿Continuar?`
+        );
+        if (!ok) return;
+      }
+    }
+
+    // Warn if no tables selected for a large group
+    if (req && selectedTables.size === 0) {
+      const ok = window.confirm(
+        `No has seleccionado ninguna mesa para ${req.party_size} personas. ¿Confirmar sin asignar mesas?`
+      );
+      if (!ok) return;
+    }
 
     // Assign selected tables
     if (selectedTables.size > 0) {
@@ -142,7 +176,7 @@ export default function PendingPage() {
   const req = confirmingId ? pending.find(p => p.id === confirmingId) : null;
 
   return (
-    <div className="p-8 w-full space-y-8">
+    <div className="p-4 sm:p-6 lg:p-8 w-full space-y-4 sm:space-y-6 lg:space-y-8">
       <div>
         <h1 className="text-2xl font-bold text-black tracking-tight">Solicitudes Pendientes</h1>
         <p className="mt-1 text-sm text-black/60">Reservas de grupos grandes pendientes de aprobación manual.</p>

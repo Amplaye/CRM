@@ -1,6 +1,6 @@
 "use client";
 
-import { FileText, Plus, Search, Archive, BookOpen, Clock, User, ChevronRight, Save, X, History, Trash2, Filter, AlertTriangle, Settings2 } from "lucide-react";
+import { FileText, Plus, Search, Archive, BookOpen, Clock, User, ChevronRight, ChevronLeft, Save, X, History, Trash2, Filter, AlertTriangle, Settings2 } from "lucide-react";
 import { useLanguage } from "@/lib/contexts/LanguageContext";
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
@@ -142,10 +142,10 @@ export default function KnowledgePage() {
   }
 
   return (
-    <div className="p-0 h-[calc(100vh-4rem)] flex overflow-hidden">
+    <div className="p-0 h-[calc(100dvh-3.5rem)] md:h-[calc(100dvh-4rem)] flex overflow-hidden">
 
-      {/* Article List Pane */}
-      <div className="w-[400px] border-r flex flex-col shrink-0" style={{ background: 'rgba(252,246,237,0.85)', borderColor: '#c4956a' }}>
+      {/* Article List Pane — hidden on mobile when article is open */}
+      <div className={`border-r flex flex-col shrink-0 ${selectedArticleId || isEditing ? 'hidden md:flex md:w-[400px]' : 'w-full md:w-[400px]'}`} style={{ background: 'rgba(252,246,237,0.85)', borderColor: '#c4956a' }}>
          <div className="p-6 border-b shrink-0" style={{ borderColor: '#c4956a' }}>
             <h1 className="text-xl font-bold text-zinc-900 tracking-tight">{t("know_title")}</h1>
             <p className="text-xs text-black mt-1">{t("know_subtitle")}</p>
@@ -203,14 +203,15 @@ export default function KnowledgePage() {
          </div>
       </div>
 
-      {/* Content View / Edit Pane */}
-      <div className="flex-1 overflow-y-auto flex flex-col" style={{ background: 'rgba(252,246,237,0.85)' }}>
+      {/* Content View / Edit Pane — full screen on mobile */}
+      <div className={`flex-1 overflow-y-auto flex flex-col ${!selectedArticleId && !isEditing ? 'hidden md:flex' : ''}`} style={{ background: 'rgba(252,246,237,0.85)' }}>
          {isEditing ? (
-            <div className="flex-1 flex flex-col p-8 max-w-4xl mx-auto w-full space-y-8 animate-in fade-in slide-in-from-bottom-2">
-               <div className="flex items-center justify-between border-b pb-6" style={{ borderColor: '#c4956a' }}>
+            <div className="flex-1 flex flex-col p-4 sm:p-6 lg:p-8 max-w-4xl mx-auto w-full space-y-4 sm:space-y-6 lg:space-y-8 animate-in fade-in slide-in-from-bottom-2">
+               <div className="flex items-center justify-between border-b pb-4 md:pb-6" style={{ borderColor: '#c4956a' }}>
                   <div className="flex items-center space-x-1">
-                     <button onClick={() => setIsEditing(false)} className="p-2 text-black hover:text-black hover:bg-[#c4956a]/10 rounded-full transition-colors mr-2">
-                        <X className="w-5 h-5" />
+                     <button onClick={() => { setIsEditing(false); setSelectedArticleId(null); }} className="p-2 text-black hover:text-black hover:bg-[#c4956a]/10 rounded-full transition-colors mr-2">
+                        <ChevronLeft className="w-5 h-5 md:hidden" />
+                        <X className="w-5 h-5 hidden md:block" />
                      </button>
                      <h2 className="text-xl font-bold text-zinc-900">{selectedArticleId ? t("know_edit_article") : t("know_new_article")}</h2>
                   </div>
@@ -224,7 +225,7 @@ export default function KnowledgePage() {
                   </button>
                </div>
 
-               <div className="grid grid-cols-2 gap-8">
+               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-8">
                   <div className="space-y-4">
                      <div>
                         <label className="block text-xs font-bold text-zinc-500 uppercase tracking-widest mb-1.5 ml-1">{t("know_title_label")}</label>
@@ -297,18 +298,22 @@ export default function KnowledgePage() {
                </div>
             </div>
          ) : selectedArticle ? (
-            <div className="flex-1 flex flex-col p-8 max-w-4xl mx-auto w-full animate-in fade-in slide-in-from-right-2">
-               <div className="flex items-center justify-between border-b pb-8 mb-8" style={{ borderColor: '#c4956a' }}>
-                  <div className="flex items-center space-x-4">
-                     <div className="h-14 w-14 rounded-2xl bg-zinc-900 flex items-center justify-center text-white shadow-lg">
-                        <FileText className="w-7 h-7" />
+            <div className="flex-1 flex flex-col p-4 sm:p-6 lg:p-8 max-w-4xl mx-auto w-full animate-in fade-in slide-in-from-right-2">
+               {/* Mobile back button */}
+               <button onClick={() => setSelectedArticleId(null)} className="md:hidden flex items-center text-sm font-medium text-black/60 mb-3 -ml-1">
+                  <ChevronLeft className="w-4 h-4 mr-1" /> Volver
+               </button>
+               <div className="flex flex-col md:flex-row md:items-center justify-between border-b pb-4 md:pb-8 mb-4 md:mb-8 gap-3" style={{ borderColor: '#c4956a' }}>
+                  <div className="flex items-center space-x-3 md:space-x-4 min-w-0">
+                     <div className="h-10 w-10 md:h-14 md:w-14 rounded-xl md:rounded-2xl bg-zinc-900 flex items-center justify-center text-white shadow-lg flex-shrink-0">
+                        <FileText className="w-5 h-5 md:w-7 md:h-7" />
                      </div>
-                     <div>
-                        <p className="text-xs font-black uppercase tracking-widest text-zinc-400">{selectedArticle.category}</p>
-                        <h2 className="text-3xl font-black text-zinc-900 tracking-tight">{selectedArticle.title}</h2>
+                     <div className="min-w-0">
+                        <p className="text-[10px] md:text-xs font-black uppercase tracking-widest text-zinc-400">{selectedArticle.category}</p>
+                        <h2 className="text-xl md:text-3xl font-black text-zinc-900 tracking-tight truncate">{selectedArticle.title}</h2>
                      </div>
                   </div>
-                  <div className="flex items-center space-x-2">
+                  <div className="flex items-center space-x-2 flex-shrink-0">
                      <button
                         onClick={() => handleDelete(selectedArticle.id)}
                         className="p-2.5 text-zinc-400 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all"
@@ -325,7 +330,7 @@ export default function KnowledgePage() {
                   </div>
                </div>
 
-               <div className="flex items-center space-x-6 mb-10 text-xs font-bold text-zinc-500 uppercase tracking-wider">
+               <div className="flex flex-wrap items-center gap-2 md:space-x-6 mb-6 md:mb-10 text-xs font-bold text-zinc-500 uppercase tracking-wider">
                   <div className="flex items-center bg-zinc-100 px-3 py-1.5 rounded-lg">
                      <Clock className="w-3.5 h-3.5 mr-2" /> {t("version") || "Version"} {selectedArticle.version}
                   </div>

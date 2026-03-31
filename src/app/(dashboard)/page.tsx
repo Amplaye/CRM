@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { CalendarCheck, Users, UserX, Bot, Clock, TrendingUp, TrendingDown, ChevronLeft, ChevronRight } from "lucide-react";
+import { CalendarCheck, Users, UserX, Bot, Clock, TrendingUp, TrendingDown, ChevronLeft, ChevronRight, XCircle } from "lucide-react";
 import { useLanguage } from "@/lib/contexts/LanguageContext";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
@@ -184,21 +184,21 @@ export default function DashboardPage() {
   ];
 
   return (
-    <div className="p-8 w-full space-y-8">
-      <div className="flex items-center justify-between">
+    <div className="p-4 sm:p-6 lg:p-8 w-full space-y-4 sm:space-y-6 lg:space-y-8">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-black tracking-tight">{t("nav_dashboard")}</h1>
-          <p className="mt-1 text-sm text-black/60">Performance overview</p>
+          <h1 className="text-xl sm:text-2xl font-bold text-black tracking-tight">{t("nav_dashboard")}</h1>
+          <p className="mt-0.5 sm:mt-1 text-xs sm:text-sm text-black/60">Performance overview</p>
         </div>
-        <div className="flex items-center gap-2">
-          <button onClick={() => navigateMonth(-1)} className="p-2 hover:bg-[#c4956a]/10 rounded-lg transition-colors">
-            <ChevronLeft className="w-5 h-5 text-black" />
+        <div className="flex items-center gap-1 sm:gap-2">
+          <button onClick={() => navigateMonth(-1)} className="p-1.5 sm:p-2 hover:bg-[#c4956a]/10 rounded-lg transition-colors">
+            <ChevronLeft className="w-4 h-4 sm:w-5 sm:h-5 text-black" />
           </button>
-          <div className="flex items-center gap-1 min-w-[140px] justify-center">
+          <div className="flex items-center gap-1 min-w-[120px] sm:min-w-[140px] justify-center">
             <select
               value={selectedMonth}
               onChange={(e) => setSelectedMonth(Number(e.target.value))}
-              className="border-2 rounded-lg px-2 py-1.5 text-sm font-semibold text-black focus:outline-none focus:ring-1 focus:ring-[#c4956a]"
+              className="border-2 rounded-lg px-1.5 sm:px-2 py-1 sm:py-1.5 text-xs sm:text-sm font-semibold text-black focus:outline-none focus:ring-1 focus:ring-[#c4956a]"
               style={{ borderColor: '#c4956a', background: 'rgba(252,246,237,0.6)' }}
             >
               {monthNames.map((m, i) => <option key={i} value={i}>{m}</option>)}
@@ -206,7 +206,7 @@ export default function DashboardPage() {
             <select
               value={selectedYear}
               onChange={(e) => setSelectedYear(Number(e.target.value))}
-              className="border-2 rounded-lg px-2 py-1.5 text-sm font-semibold text-black focus:outline-none focus:ring-1 focus:ring-[#c4956a]"
+              className="border-2 rounded-lg px-1.5 sm:px-2 py-1 sm:py-1.5 text-xs sm:text-sm font-semibold text-black focus:outline-none focus:ring-1 focus:ring-[#c4956a]"
               style={{ borderColor: '#c4956a', background: 'rgba(252,246,237,0.6)' }}
             >
               {Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - 2 + i).map(y => (
@@ -214,22 +214,22 @@ export default function DashboardPage() {
               ))}
             </select>
           </div>
-          <button onClick={() => navigateMonth(1)} className="p-2 hover:bg-[#c4956a]/10 rounded-lg transition-colors">
-            <ChevronRight className="w-5 h-5 text-black" />
+          <button onClick={() => navigateMonth(1)} className="p-1.5 sm:p-2 hover:bg-[#c4956a]/10 rounded-lg transition-colors">
+            <ChevronRight className="w-4 h-4 sm:w-5 sm:h-5 text-black" />
           </button>
         </div>
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-4">
         {cards.map((card) => (
-          <div key={card.label} className="rounded-xl p-5 border-2" style={{ background: "rgba(252,246,237,0.85)", borderColor: "#c4956a" }}>
+          <div key={card.label} className="rounded-xl p-3 sm:p-5 border-2" style={{ background: "rgba(252,246,237,0.85)", borderColor: "#c4956a" }}>
             <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-black/60">{card.label}</p>
-                <p className="text-2xl font-bold text-black mt-1">{card.value}</p>
+              <div className="min-w-0">
+                <p className="text-xs sm:text-sm font-medium text-black/60 truncate">{card.label}</p>
+                <p className="text-lg sm:text-2xl font-bold text-black mt-0.5 sm:mt-1">{card.value}</p>
               </div>
-              <card.icon className="h-8 w-8 text-[#c4956a]" />
+              <card.icon className="h-6 w-6 sm:h-8 sm:w-8 text-[#c4956a] flex-shrink-0 ml-2" />
             </div>
           </div>
         ))}
@@ -248,29 +248,41 @@ export default function DashboardPage() {
               {isViewingCurrentMonth ? new Date().toLocaleDateString() : todayRes.length > 0 ? todayRes[0]?.date : monthNames[selectedMonth]}
             </span>
           </div>
-          <div className="flex items-baseline gap-2 mb-3">
-            <span className="text-3xl font-bold text-black">{todayRes.length}</span>
-            <span className="text-sm text-black/40">reservas</span>
-            <span className="text-lg font-bold text-[#c4956a] ml-2">{todayRes.reduce((s: number, r: any) => s + r.party_size, 0)}p</span>
-          </div>
-          {nextRes ? (
-            <div className="flex items-center gap-2 p-3 rounded-lg" style={{ background: "rgba(196,149,106,0.1)" }}>
-              <Clock className="w-4 h-4 text-[#c4956a]" />
+          {isViewingCurrentMonth && new Date().getDay() === 1 ? (
+            <div className="flex items-center gap-3 p-4 rounded-lg" style={{ background: "rgba(196,149,106,0.08)" }}>
+              <XCircle className="w-6 h-6 text-black/30 flex-shrink-0" />
               <div>
-                <p className="text-xs text-black/40">Next</p>
-                <p className="text-sm font-bold text-black">{nextRes.time} — {nextRes.guests?.name || "Guest"} ({nextRes.party_size}p)</p>
-              </div>
-            </div>
-          ) : todayRes.length > 0 ? (
-            <div className="flex items-center gap-2 p-3 rounded-lg" style={{ background: "rgba(196,149,106,0.1)" }}>
-              <CalendarCheck className="w-4 h-4 text-[#c4956a]" />
-              <div>
-                <p className="text-xs text-black/40">First</p>
-                <p className="text-sm font-bold text-black">{todayRes[0]?.time} — {todayRes[0]?.guests?.name || "Guest"} ({todayRes[0]?.party_size}p)</p>
+                <p className="text-sm font-bold text-black">No hay turno hoy</p>
+                <p className="text-xs text-black/40">El restaurante está cerrado los lunes</p>
               </div>
             </div>
           ) : (
-            <p className="text-xs text-black/30">No reservations</p>
+            <>
+              <div className="flex items-baseline gap-2 mb-3">
+                <span className="text-3xl font-bold text-black">{todayRes.length}</span>
+                <span className="text-sm text-black/40">reservas</span>
+                <span className="text-lg font-bold text-[#c4956a] ml-2">{todayRes.reduce((s: number, r: any) => s + r.party_size, 0)}p</span>
+              </div>
+              {nextRes ? (
+                <div className="flex items-center gap-2 p-3 rounded-lg" style={{ background: "rgba(196,149,106,0.1)" }}>
+                  <Clock className="w-4 h-4 text-[#c4956a]" />
+                  <div>
+                    <p className="text-xs text-black/40">Next</p>
+                    <p className="text-sm font-bold text-black">{nextRes.time} — {nextRes.guests?.name || "Guest"} ({nextRes.party_size}p)</p>
+                  </div>
+                </div>
+              ) : todayRes.length > 0 ? (
+                <div className="flex items-center gap-2 p-3 rounded-lg" style={{ background: "rgba(196,149,106,0.1)" }}>
+                  <CalendarCheck className="w-4 h-4 text-[#c4956a]" />
+                  <div>
+                    <p className="text-xs text-black/40">First</p>
+                    <p className="text-sm font-bold text-black">{todayRes[0]?.time} — {todayRes[0]?.guests?.name || "Guest"} ({todayRes[0]?.party_size}p)</p>
+                  </div>
+                </div>
+              ) : (
+                <p className="text-xs text-black/30">No reservations</p>
+              )}
+            </>
           )}
         </div>
 
@@ -314,10 +326,10 @@ export default function DashboardPage() {
       </div>
 
       {/* Charts */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        <div className="p-6 rounded-2xl border-2" style={{ background: "rgba(252,246,237,0.85)", borderColor: "#c4956a" }}>
-          <h3 className="text-sm font-bold text-black uppercase tracking-wider mb-6">{isViewingCurrentMonth ? "Next 7 Days" : `${monthNames[selectedMonth]} ${selectedYear}`}</h3>
-          <div className="h-64">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-8">
+        <div className="p-4 sm:p-6 rounded-2xl border-2" style={{ background: "rgba(252,246,237,0.85)", borderColor: "#c4956a" }}>
+          <h3 className="text-xs sm:text-sm font-bold text-black uppercase tracking-wider mb-4 sm:mb-6">{isViewingCurrentMonth ? "Next 7 Days" : `${monthNames[selectedMonth]} ${selectedYear}`}</h3>
+          <div className="h-48 sm:h-64">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={weekData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e4e4e7" />
@@ -330,9 +342,9 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        <div className="p-6 rounded-2xl border-2" style={{ background: "rgba(252,246,237,0.85)", borderColor: "#c4956a" }}>
-          <h3 className="text-sm font-bold text-black uppercase tracking-wider mb-6">{t("chart_source_title")}</h3>
-          <div className="h-64">
+        <div className="p-4 sm:p-6 rounded-2xl border-2" style={{ background: "rgba(252,246,237,0.85)", borderColor: "#c4956a" }}>
+          <h3 className="text-xs sm:text-sm font-bold text-black uppercase tracking-wider mb-4 sm:mb-6">{t("chart_source_title")}</h3>
+          <div className="h-48 sm:h-64">
             {sourceData.length === 0 ? (
               <p className="text-sm text-black/40 text-center pt-20">No data yet</p>
             ) : (

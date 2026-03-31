@@ -50,3 +50,32 @@ body {
   background: linear-gradient(to top, #E1CAB2, #ECD7BF, #F4E4CD, #F7EEE0, #FCF6ED) fixed;
   min-height: 100vh;
 }
+
+/* Prevent auto-zoom on input focus on ALL mobile browsers */
+@media screen and (max-width: 767px) {
+  input, select, textarea {
+    font-size: 16px !important;
+  }
+}
+
+/* Safari iOS fixes */
+@supports (-webkit-touch-callout: none) {
+  /* Fix 100dvh not supported in older Safari */
+  .h-\[100dvh\] {
+    height: -webkit-fill-available;
+    height: 100dvh;
+  }
+  /* Fix fixed positioning in Safari iOS */
+  .fixed {
+    -webkit-transform: translateZ(0);
+  }
+  /* Prevent elastic scroll bounce on drawers */
+  .overflow-hidden {
+    -webkit-overflow-scrolling: touch;
+  }
+  /* Fix sticky positioning */
+  .sticky {
+    position: -webkit-sticky;
+    position: sticky;
+  }
+}

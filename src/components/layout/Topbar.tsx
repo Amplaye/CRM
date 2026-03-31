@@ -1,6 +1,6 @@
 "use client";
 
-import { Bell, Globe } from "lucide-react";
+import { Bell, Globe, Menu } from "lucide-react";
 import { useLanguage } from "@/lib/contexts/LanguageContext";
 import { useTenant } from "@/lib/contexts/TenantContext";
 import { useEffect, useState, useRef } from "react";
@@ -16,7 +16,11 @@ interface Notification {
   href: string;
 }
 
-export function Topbar() {
+interface TopbarProps {
+  onMenuToggle?: () => void;
+}
+
+export function Topbar({ onMenuToggle }: TopbarProps) {
   const { language, setLanguage } = useLanguage();
   const { activeTenant } = useTenant();
   const router = useRouter();
@@ -132,15 +136,26 @@ export function Topbar() {
   };
 
   return (
-    <header className="h-16 border-b flex items-center justify-end px-4 sm:px-6 lg:px-8" style={{ background: 'rgba(252,246,237,0.85)', borderColor: '#c4956a' }}>
-      <div className="flex items-center space-x-3 sm:space-x-4">
+    <header className="h-14 md:h-16 border-b flex items-center justify-between px-3 sm:px-4 md:px-6 lg:px-8" style={{ background: 'rgba(252,246,237,0.85)', borderColor: '#c4956a' }}>
+      {/* Left side - hamburger on mobile */}
+      <div className="flex items-center">
+        <button
+          onClick={onMenuToggle}
+          className="md:hidden p-2 -ml-1 hover:bg-[#c4956a]/10 rounded-lg transition-colors"
+        >
+          <Menu className="h-5 w-5 text-black" />
+        </button>
+      </div>
+
+      {/* Right side - controls */}
+      <div className="flex items-center space-x-2 sm:space-x-3 md:space-x-4">
         {isClient && (
-          <div className="flex items-center border-2 rounded-lg px-3 py-2" style={{ borderColor: '#c4956a', background: 'rgba(252,246,237,0.6)' }}>
-            <Globe className="h-4 w-4 text-black mr-2" />
+          <div className="flex items-center border-2 rounded-lg px-2 sm:px-3 h-8 sm:h-9" style={{ borderColor: '#c4956a', background: 'rgba(252,246,237,0.6)' }}>
+            <Globe className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-black mr-1.5 sm:mr-2" />
             <select
               value={language}
               onChange={(e) => setLanguage(e.target.value as "en" | "es")}
-              className="bg-transparent text-sm font-medium text-black outline-none cursor-pointer"
+              className="bg-transparent text-xs sm:text-sm font-medium text-black outline-none cursor-pointer"
             >
               <option value="en">EN</option>
               <option value="es">ES</option>
@@ -154,19 +169,19 @@ export function Topbar() {
               setShowDropdown(!showDropdown);
               if (!showDropdown) markAllRead();
             }}
-            className="relative p-2 text-black hover:text-black rounded-lg border-2"
+            className="relative flex items-center justify-center h-8 w-8 sm:h-9 sm:w-9 text-black hover:text-black rounded-lg border-2"
             style={{ borderColor: '#c4956a', background: 'rgba(252,246,237,0.6)' }}
           >
             {unreadCount > 0 && (
-              <span className="absolute -top-1 -right-1 flex items-center justify-center h-5 w-5 rounded-full bg-red-500 text-white text-xs font-bold">
+              <span className="absolute -top-1 -right-1 flex items-center justify-center h-4 w-4 sm:h-5 sm:w-5 rounded-full bg-red-500 text-white text-[10px] sm:text-xs font-bold">
                 {unreadCount > 9 ? '9+' : unreadCount}
               </span>
             )}
-            <Bell className="h-5 w-5" />
+            <Bell className="h-4 w-4 sm:h-5 sm:w-5" />
           </button>
 
           {showDropdown && (
-            <div className="absolute right-0 mt-2 w-80 border-2 rounded-xl shadow-lg overflow-hidden z-50" style={{ background: 'rgba(252,246,237,0.98)', borderColor: '#c4956a' }}>
+            <div className="absolute right-0 mt-2 w-[calc(100vw-2rem)] sm:w-80 max-w-80 border-2 rounded-xl shadow-lg overflow-hidden z-50" style={{ background: 'rgba(252,246,237,0.98)', borderColor: '#c4956a' }}>
               <div className="px-4 py-3 border-b flex items-center justify-between" style={{ borderColor: '#c4956a' }}>
                 <span className="text-sm font-semibold text-black">Notifications</span>
                 {notifications.length > 0 && (
