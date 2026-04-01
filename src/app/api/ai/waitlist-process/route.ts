@@ -148,7 +148,7 @@ export async function POST(request: Request) {
               shift: entryShift,
               party_size: entry.party_size,
               status: 'confirmed',
-              source: 'waitlist',
+              source: 'web',
               created_by_type: 'ai',
               notes: `Auto-asignado desde lista de espera (prioridad: ${entry.priority_score})`,
             })
@@ -219,7 +219,7 @@ export async function POST(request: Request) {
                   shift: entryShift,
                   party_size: entry.party_size,
                   status: 'confirmed',
-                  source: 'waitlist',
+                  source: 'web',
                   created_by_type: 'ai',
                   notes: `Auto-asignado desde lista de espera con tiempo limitado (hasta ${limitedEndTime}). Prioridad: ${entry.priority_score}`,
                 })
