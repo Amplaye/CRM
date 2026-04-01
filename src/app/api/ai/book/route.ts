@@ -148,8 +148,15 @@ export async function POST(request: Request) {
       }
     }
 
-    // 5. Handle manual review (7-12 people) - NO table assignment
+    // 5. Handle manual review (7-12 people) - check capacity first
     if (action === 'manual_review' || action === 'reject') {
+      const freeTables = (activeTables || []).filter((t: any) => !occupiedTableIds.has(t.id));
+      const hasCapacity = freeTables.length >= needed;
+
+      const capacityNote = hasCapacity
+        ? `Hay espacio: ${freeTables.length} mesas libres de ${(activeTables || []).length} (necesarias: ${needed})`
+        : `SIN CAPACIDAD: solo ${freeTables.length} mesas libres de ${(activeTables || []).length} (necesarias: ${needed})`;
+
       const reservation = {
         tenant_id: payload.tenant_id,
         guest_id: guestId,
@@ -159,7 +166,7 @@ export async function POST(request: Request) {
         status: 'escalated',
         source: payload.source || 'ai_voice',
         created_by_type: 'ai',
-        notes: payload.notes || "Grupo grande - pendiente de revisión",
+        notes: `${payload.notes || "Grupo grande - pendiente de revisión"} — ${capacityNote}`,
         linked_conversation_id: payload.linked_conversation_id,
         end_time: endTime,
         shift,
@@ -185,6 +192,9 @@ export async function POST(request: Request) {
           party_size: payload.party_size,
           shift,
           type: "manual_review",
+          has_capacity: hasCapacity,
+          free_tables: freeTables.length,
+          tables_needed: needed,
         }
       });
 
@@ -192,10 +202,15 @@ export async function POST(request: Request) {
         success: true,
         reservation_id: newRes.id,
         status: 'escalated',
+        has_capacity: hasCapacity,
+        free_tables: freeTables.length,
+        tables_needed: needed,
         shift,
         end_time: endTime,
         tables_assigned: [],
-        message: "Solicitud registrada. Pendiente de revisión del responsable."
+        message: hasCapacity
+          ? "Solicitud registrada. Pendiente de revisión del responsable."
+          : `No hay suficientes mesas disponibles (necesarias: ${needed}, libres: ${freeTables.length}). Solicitud registrada para revisión.`
       });
     }
 
