@@ -248,6 +248,9 @@ export default function FloorPage() {
       const now = new Date();
       const todayStr = now.toISOString().split("T")[0];
       const timeStr = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
+      const walkInShift = getShift(timeStr);
+      const rotationMin = getRotationMinutes(quickSeatSize, walkInShift, now.getDay());
+      const endTime = calculateEndTime(timeStr, rotationMin);
 
       // Create or find guest
       let guestId: string;
@@ -290,6 +293,8 @@ export default function FloorPage() {
           guest_id: guestId,
           date: todayStr,
           time: timeStr,
+          end_time: endTime,
+          shift: walkInShift,
           party_size: quickSeatSize,
           status: "seated",
           source: "walk_in",
