@@ -26,27 +26,18 @@ export default function KnowledgePage() {
   const [editRiskTags, setEditRiskTags] = useState("");
 
   const [saving, setSaving] = useState(false);
-  const [syncing, setSyncing] = useState(false);
 
-  const handleSyncBots = async () => {
+  const syncRetellKB = async () => {
     if (!tenant) return;
-    setSyncing(true);
     try {
-      const res = await fetch("/api/sync-kb-retell", {
+      await fetch("/api/sync-kb-retell", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ tenant_id: tenant.id }),
       });
-      const data = await res.json();
-      if (data.success) {
-        alert(`Synced ${data.articles} articles to WhatsApp + Voice bots`);
-      } else {
-        alert("Sync failed: " + (data.error || "Unknown error"));
-      }
     } catch (err) {
-      alert("Sync error");
+      console.error("Auto-sync KB error:", err);
     }
-    setSyncing(false);
   };
 
   useEffect(() => {
@@ -129,6 +120,7 @@ export default function KnowledgePage() {
            if (inserted) setSelectedArticleId(inserted.id);
         }
         setIsEditing(false);
+        syncRetellKB();
      } catch (err) { console.error(err); }
      setSaving(false);
   };
@@ -138,6 +130,7 @@ export default function KnowledgePage() {
      try {
         await supabase.from("knowledge_articles").delete().eq("id", id);
         if (selectedArticleId === id) setSelectedArticleId(null);
+        syncRetellKB();
      } catch (err) { console.error(err); }
   }
 
@@ -157,15 +150,6 @@ export default function KnowledgePage() {
                </div>
                <button onClick={() => handleStartEdit()} className="p-2 bg-zinc-900 text-white rounded-lg hover:bg-zinc-800 transition-colors shadow-sm" title="New article">
                   <Plus className="w-5 h-5" />
-               </button>
-               <button
-                 onClick={handleSyncBots}
-                 disabled={syncing}
-                 className="px-3 py-2 text-sm font-bold text-white rounded-lg transition-colors shadow-sm disabled:opacity-50"
-                 style={{ background: 'linear-gradient(135deg, #c4956a 0%, #b8845c 100%)' }}
-                 title="Sync to WhatsApp + Voice bots"
-               >
-                 {syncing ? "..." : "Sync Bots"}
                </button>
             </div>
          </div>
