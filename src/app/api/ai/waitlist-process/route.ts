@@ -260,7 +260,6 @@ export async function POST(request: Request) {
       success: true,
       matched: totalMatched,
       results,
-      debug: debugInfo,
     });
 
   } catch (error: any) {
