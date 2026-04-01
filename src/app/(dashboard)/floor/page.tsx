@@ -78,6 +78,7 @@ export default function FloorPage() {
     ]);
 
     const fetchedTables = (tablesRes.data || []) as TableData[];
+    fetchedTables.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
     const fetchedRes = (reservationsRes.data || []) as unknown as ReservationWithGuest[];
     setTables(fetchedTables);
     setReservations(fetchedRes);
