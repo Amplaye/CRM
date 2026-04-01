@@ -155,7 +155,10 @@ export async function POST(request: Request) {
             .select('id')
             .single();
 
-          if (resErr || !newRes) continue;
+          if (resErr || !newRes) {
+            debugInfo.resInsertError = resErr?.message || 'newRes is null';
+            continue;
+          }
 
           // Assign tables
           await supabase.from('reservation_tables').insert(
