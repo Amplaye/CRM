@@ -164,6 +164,26 @@ export default function PendingPage() {
 
     // Update status to confirmed
     await supabase.from("reservations").update({ status: "confirmed" }).eq("id", confirmingId);
+
+    // Send WhatsApp confirmation to client
+    if (req) {
+      const guestPhone = req.guests?.phone || '';
+      if (guestPhone) {
+        const assignedTableNames = Array.from(selectedTables).map(tid => {
+          const t = tables.find(x => x.id === tid);
+          return t?.name || '';
+        }).filter(Boolean).join(', ');
+        const confirmMsg = `✅ *Reserva confirmada*\n📅 Fecha: ${req.date}\n⏰ Hora: ${req.time}\n👥 Personas: ${req.party_size}\n📝 Nombre: ${req.guests?.name || ''}${assignedTableNames ? '\n🪑 Mesas: ' + assignedTableNames : ''}\n\nSi necesitas cancelar, escríbenos con CANCELAR.`;
+        try {
+          await fetch("/api/send-whatsapp", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ to: guestPhone, message: confirmMsg }),
+          });
+        } catch (e) { console.error("WhatsApp confirm error:", e); }
+      }
+    }
+
     setConfirmingId(null);
     setSelectedTables(new Set());
   };
