@@ -219,7 +219,7 @@ export default function PendingPage() {
                             ? 'bg-amber-100 text-amber-800 border border-amber-200'
                             : 'bg-indigo-100 text-indigo-800 border border-indigo-200'
                         }`}>
-                          {getShift(req.time) === 'lunch' ? '☀️ Almuerzo' : '🌙 Cena'}
+                          {getShift(req.time) === 'lunch' ? 'Almuerzo' : 'Cena'}
                         </span>
                       </div>
 
