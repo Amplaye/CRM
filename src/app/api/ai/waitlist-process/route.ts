@@ -40,8 +40,10 @@ export async function POST(request: Request) {
 
     let totalMatched = 0;
     const results: any[] = [];
+    const debugInfo: any = { shiftsChecked: shiftsToCheck, shifts: {} };
 
     for (const shift of shiftsToCheck) {
+      const shiftDebug: any = {};
       // Get all active tables
       const { data: allTables } = await supabase
         .from('restaurant_tables')
@@ -93,6 +95,10 @@ export async function POST(request: Request) {
       }
 
       const freeTables = allTables.filter(t => !occupiedTableIds.has(t.id));
+      shiftDebug.totalTables = allTables.length;
+      shiftDebug.shiftReservations = shiftReservations.length;
+      shiftDebug.occupiedTables = occupiedTableIds.size;
+      shiftDebug.freeTables = freeTables.length;
 
       // Get waiting waitlist entries for this date
       const { data: waitingEntries } = await supabase
@@ -103,6 +109,8 @@ export async function POST(request: Request) {
         .eq('status', 'waiting')
         .order('priority_score', { ascending: false });
 
+      shiftDebug.waitingEntries = (waitingEntries || []).length;
+      debugInfo.shifts[shift] = shiftDebug;
       if (!waitingEntries || waitingEntries.length === 0) continue;
 
       for (const entry of waitingEntries) {
@@ -249,7 +257,7 @@ export async function POST(request: Request) {
       success: true,
       matched: totalMatched,
       results,
-      debug: { shiftsChecked: shiftsToCheck },
+      debug: debugInfo,
     });
 
   } catch (error: any) {
