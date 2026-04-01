@@ -190,7 +190,20 @@ export default function PendingPage() {
 
   const handleReject = async (id: string) => {
     if (!confirm("¿Estás seguro de rechazar esta solicitud?")) return;
+    const rejectedReq = pending.find(p => p.id === id);
     await supabase.from("reservations").update({ status: "cancelled" }).eq("id", id);
+
+    // Trigger waitlist auto-assign (freed capacity)
+    if (rejectedReq) {
+      try {
+        const shift = parseInt(rejectedReq.time.split(':')[0]) < 16 ? 'lunch' : 'dinner';
+        await fetch("/api/ai/waitlist-process", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ tenant_id: tenant?.id, date: rejectedReq.date, shift }),
+        });
+      } catch (e) { console.error("Waitlist process error:", e); }
+    }
   };
 
   const req = confirmingId ? pending.find(p => p.id === confirmingId) : null;
