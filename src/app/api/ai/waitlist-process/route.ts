@@ -149,7 +149,7 @@ export async function POST(request: Request) {
               party_size: entry.party_size,
               status: 'confirmed',
               source: 'waitlist',
-              created_by_type: 'system',
+              created_by_type: 'ai',
               notes: `Auto-asignado desde lista de espera (prioridad: ${entry.priority_score})`,
             })
             .select('id')
@@ -220,7 +220,7 @@ export async function POST(request: Request) {
                   party_size: entry.party_size,
                   status: 'confirmed',
                   source: 'waitlist',
-                  created_by_type: 'system',
+                  created_by_type: 'ai',
                   notes: `Auto-asignado desde lista de espera con tiempo limitado (hasta ${limitedEndTime}). Prioridad: ${entry.priority_score}`,
                 })
                 .select('id')
