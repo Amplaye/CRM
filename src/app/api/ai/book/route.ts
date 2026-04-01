@@ -246,8 +246,11 @@ export async function POST(request: Request) {
         success: true,
         reservation_id: pendRes.id,
         status: 'escalated',
+        has_capacity: false,
+        free_tables: freeTables.length,
+        tables_needed: needed,
         tables_assigned: [],
-        message: `No hay suficientes mesas disponibles (necesarias: ${needed}, libres: ${freeTables.length}). Solicitud registrada para revisión del responsable.`
+        message: `No hay suficientes mesas disponibles (necesarias: ${needed}, libres: ${freeTables.length}). Solicitud registrada para revisión.`
       });
     }
 
