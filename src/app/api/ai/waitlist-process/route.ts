@@ -109,6 +109,14 @@ export async function POST(request: Request) {
         const entryShift = getShift(entry.target_time);
         if (entryShift !== shift) continue;
 
+        // Re-check status (might have been updated in a previous iteration)
+        const { data: freshEntry } = await supabase
+          .from('waitlist_entries')
+          .select('status')
+          .eq('id', entry.id)
+          .single();
+        if (!freshEntry || freshEntry.status !== 'waiting') continue;
+
         const needed = tablesNeeded(entry.party_size);
         const guestPhone = entry.guests?.phone || '';
         const guestName = entry.guests?.name || 'Cliente';
@@ -241,6 +249,7 @@ export async function POST(request: Request) {
       success: true,
       matched: totalMatched,
       results,
+      debug: { shiftsChecked: shiftsToCheck },
     });
 
   } catch (error: any) {
