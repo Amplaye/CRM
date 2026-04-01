@@ -214,6 +214,13 @@ export default function PendingPage() {
                         <span className="inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-medium bg-[#c4956a]/10 text-[#8b6540] border border-[#c4956a]/30">
                           {req.source === "ai_chat" ? "WhatsApp" : req.source === "ai_voice" ? "Voice" : "Staff"}
                         </span>
+                        <span className={`inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-bold uppercase tracking-wider ${
+                          getShift(req.time) === 'lunch'
+                            ? 'bg-amber-100 text-amber-800 border border-amber-200'
+                            : 'bg-indigo-100 text-indigo-800 border border-indigo-200'
+                        }`}>
+                          {getShift(req.time) === 'lunch' ? '☀️ Almuerzo' : '🌙 Cena'}
+                        </span>
                       </div>
 
                       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-3">
@@ -283,7 +290,9 @@ export default function PendingPage() {
                 {/* Table selection panel — shown when confirming */}
                 {isConfirming && (
                   <div className="border-t-2 p-5" style={{ borderColor: '#22c55e', background: 'rgba(34,197,94,0.03)' }}>
-                    <h3 className="text-sm font-bold text-black mb-3">Asignar mesas ({Math.ceil(req.party_size / 4)} necesarias para {req.party_size} personas)</h3>
+                    <h3 className="text-sm font-bold text-black mb-3">
+                      Asignar mesas — {getShift(req.time) === 'lunch' ? 'Almuerzo' : 'Cena'} del {req.date} ({Math.ceil(req.party_size / 4)} necesarias para {req.party_size} personas)
+                    </h3>
                     <div className="grid grid-cols-4 sm:grid-cols-5 gap-2 mb-4">
                       {tables.map(table => {
                         const isOccupied = occupiedTableIds.has(table.id);
