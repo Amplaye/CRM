@@ -57,7 +57,7 @@ export default function LoginPage() {
         </div>
       </div>
 
-      <div className="mt-3 sm:mt-4 mx-auto w-full max-w-md relative z-10">
+      <div className="mt-[20px] mx-auto w-full max-w-md relative z-10">
         <div className="py-5 sm:py-6 px-5 sm:px-10 rounded-2xl" style={{
           background: 'rgba(252,246,237,0.85)',
           border: '2px solid #c4956a',
