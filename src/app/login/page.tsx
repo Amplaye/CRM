@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
-import { Loader2, Lock, Mail, Globe } from "lucide-react";
+import { Loader2, Lock, Mail, Globe, Eye, EyeOff } from "lucide-react";
 import Link from "next/link";
 import { useLanguage } from "@/lib/contexts/LanguageContext";
 
@@ -12,6 +12,7 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
   const router = useRouter();
   const supabase = createClient();
   const { language, setLanguage } = useLanguage();
@@ -100,16 +101,23 @@ export default function LoginPage() {
                   <Lock className="h-4 w-4 text-black" />
                 </div>
                 <input
-                  type="password"
+                  type={showPassword ? "text" : "password"}
                   required
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="block w-full pl-10 text-sm border-2 p-2.5 rounded-lg focus:ring-2 focus:ring-[#c4956a] focus:border-[#c4956a] outline-none transition-all text-black placeholder:text-black/50"
+                  className="block w-full pl-10 pr-10 text-sm border-2 p-2.5 rounded-lg focus:ring-2 focus:ring-[#c4956a] focus:border-[#c4956a] outline-none transition-all text-black placeholder:text-black/50"
                   style={{
                     background: 'rgba(252,246,237,0.6)',
                     borderColor: '#c4956a',
                   }}
                 />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute inset-y-0 right-0 pr-3 flex items-center"
+                >
+                  {showPassword ? <EyeOff className="h-4 w-4 text-black/50 hover:text-black transition-colors" /> : <Eye className="h-4 w-4 text-black/50 hover:text-black transition-colors" />}
+                </button>
               </div>
             </div>
 
