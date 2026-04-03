@@ -53,7 +53,10 @@ export default function LoginPage() {
 
       <div className="mx-auto w-full max-w-md relative z-10">
         <div className="flex justify-center">
-           <img src="/logo-horizontal.png" alt="BaliFlow" className="w-full h-auto max-w-full" />
+           <img src="/logo-horizontal.png" alt="BaliFlow" className="w-full h-auto max-w-full" style={{
+             mask: 'radial-gradient(67% 90%, black 50%, transparent 75%)',
+             WebkitMask: 'radial-gradient(67% 90%, black 50%, transparent 75%)',
+           }} />
         </div>
       </div>
 
