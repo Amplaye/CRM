@@ -12,7 +12,6 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
-  const [guestLoading, setGuestLoading] = useState(false);
   const router = useRouter();
   const supabase = createClient();
   const { language, setLanguage } = useLanguage();
@@ -132,79 +131,6 @@ export default function LoginPage() {
             </button>
           </form>
 
-          <div className="mt-4 sm:mt-5">
-            <div className="relative">
-              <div className="absolute inset-0 flex items-center">
-                <div className="w-full" style={{ borderTop: '1px solid rgba(225,202,178,0.4)' }} />
-              </div>
-              <div className="relative flex justify-center text-sm">
-                <span className="px-2 text-black" style={{ background: 'rgba(244,228,205,0.5)' }}>or</span>
-              </div>
-            </div>
-
-            <button
-              onClick={async () => {
-                setGuestLoading(true);
-                setError("");
-                try {
-                  const guestEmail = "guest@baliflow.com";
-                  const guestPassword = "guest123456";
-
-                  const { error: signInError } = await supabase.auth.signInWithPassword({
-                    email: guestEmail,
-                    password: guestPassword
-                  });
-
-                  if (signInError) {
-                    const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
-                      email: guestEmail,
-                      password: guestPassword,
-                      options: { data: { name: "Guest User" } }
-                    });
-                    if (signUpError) throw signUpError;
-
-                    const { error: retryError } = await supabase.auth.signInWithPassword({
-                      email: guestEmail,
-                      password: guestPassword
-                    });
-                    if (retryError) throw retryError;
-
-                    if (signUpData?.user) {
-                      await fetch("/api/guest-setup", {
-                        method: "POST",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({ userId: signUpData.user.id, email: guestEmail })
-                      });
-                    }
-                  } else {
-                    const { data: { user: currentUser } } = await supabase.auth.getUser();
-                    if (currentUser) {
-                      await fetch("/api/guest-setup", {
-                        method: "POST",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({ userId: currentUser.id, email: guestEmail })
-                      });
-                    }
-                  }
-
-                  router.push("/");
-                  router.refresh();
-                } catch (err: any) {
-                  setError(err.message || "Failed to access as guest.");
-                } finally {
-                  setGuestLoading(false);
-                }
-              }}
-              disabled={guestLoading}
-              className="mt-3 sm:mt-4 w-full flex justify-center py-2.5 px-4 rounded-lg text-sm font-medium text-black disabled:opacity-50 transition-all hover:shadow-sm"
-              style={{
-                background: 'rgba(252,246,237,0.5)',
-                border: '2px solid #c4956a',
-              }}
-            >
-              {guestLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : "Continue as Guest"}
-            </button>
-          </div>
 
           <p className="mt-4 sm:mt-5 text-center text-sm text-black">
             Don't have an account?{" "}
