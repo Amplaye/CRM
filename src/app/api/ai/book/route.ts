@@ -214,48 +214,7 @@ export async function POST(request: Request) {
       });
     }
 
-    // 6. Normal booking (1-6 people) - assign tables
-    const freeTables = (activeTables || []).filter((t: any) => !occupiedTableIds.has(t.id));
-
-    if (freeTables.length < needed) {
-      // Not enough tables — save as pending request instead of rejecting
-      const noSpaceRes = {
-        tenant_id: payload.tenant_id,
-        guest_id: guestId,
-        date: payload.date,
-        time: payload.time,
-        party_size: payload.party_size,
-        status: 'escalated',
-        source: payload.source || 'ai_voice',
-        created_by_type: 'ai',
-        notes: (payload.notes || '') + ' — No hay mesas disponibles, pendiente de revisión',
-        end_time: endTime,
-        shift,
-      };
-      const { data: pendRes, error: pendErr } = await supabase
-        .from('reservations').insert(noSpaceRes).select('id').single();
-      if (pendErr) throw pendErr;
-
-      await logAuditEvent({
-        tenant_id: payload.tenant_id, action: "create_reservation",
-        entity_id: pendRes.id, idempotency_key: payload.idempotency_key,
-        source: "ai_agent", details: { type: "no_capacity", tables_free: freeTables.length, tables_needed: needed }
-      });
-
-      return NextResponse.json({
-        success: true,
-        reservation_id: pendRes.id,
-        status: 'escalated',
-        has_capacity: false,
-        free_tables: freeTables.length,
-        tables_needed: needed,
-        tables_assigned: [],
-        message: `No hay suficientes mesas disponibles (necesarias: ${needed}, libres: ${freeTables.length}). Solicitud registrada para revisión.`
-      });
-    }
-
-    const assignedTables = freeTables.slice(0, needed);
-
+    // 6. Normal booking (1-6 people) - create reservation then atomically assign tables
     const reservation = {
        tenant_id: payload.tenant_id,
        guest_id: guestId,
@@ -279,12 +238,41 @@ export async function POST(request: Request) {
 
     if (newResErr) throw newResErr;
 
-    const tableInserts = assignedTables.map((t: any) => ({
-      reservation_id: newRes.id,
-      table_id: t.id,
-    }));
+    // Atomic table assignment — prevents double-booking under concurrent requests
+    const { data: atomicResult, error: atomicErr } = await supabase.rpc('atomic_book_tables', {
+      p_tenant_id: payload.tenant_id,
+      p_date: payload.date,
+      p_shift: shift,
+      p_tables_needed: needed,
+      p_reservation_id: newRes.id,
+    });
 
-    await supabase.from('reservation_tables').insert(tableInserts);
+    if (atomicErr) throw atomicErr;
+
+    if (!atomicResult.success) {
+      // Not enough tables — change to escalated
+      await supabase.from('reservations').update({
+        status: 'escalated',
+        notes: (payload.notes || '') + ' — No hay mesas disponibles, pendiente de revisión',
+      }).eq('id', newRes.id);
+
+      await logAuditEvent({
+        tenant_id: payload.tenant_id, action: "create_reservation",
+        entity_id: newRes.id, idempotency_key: payload.idempotency_key,
+        source: "ai_agent", details: { type: "no_capacity", tables_free: atomicResult.free_tables, tables_needed: needed }
+      });
+
+      return NextResponse.json({
+        success: true,
+        reservation_id: newRes.id,
+        status: 'escalated',
+        has_capacity: false,
+        free_tables: atomicResult.free_tables,
+        tables_needed: needed,
+        tables_assigned: [],
+        message: `No hay suficientes mesas disponibles (necesarias: ${needed}, libres: ${atomicResult.free_tables}). Solicitud registrada para revisión.`
+      });
+    }
 
     await logAuditEvent({
        tenant_id: payload.tenant_id,
@@ -298,7 +286,7 @@ export async function POST(request: Request) {
           party_size: payload.party_size,
           shift,
           end_time: endTime,
-          tables_assigned: assignedTables.map((t: any) => t.name),
+          tables_assigned: atomicResult.tables_assigned,
        }
     });
 
@@ -308,7 +296,7 @@ export async function POST(request: Request) {
        status: 'confirmed',
        shift,
        end_time: endTime,
-       tables_assigned: assignedTables.map((t: any) => t.name),
+       tables_assigned: atomicResult.tables_assigned,
        message: "Reservation successfully created."
     });
 
