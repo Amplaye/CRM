@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { Calendar, Users, LayoutGrid, AlertTriangle } from "lucide-react";
+import { Calendar, Users, LayoutGrid, AlertTriangle, ChevronLeft, ChevronRight } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useLanguage } from "@/lib/contexts/LanguageContext";
 import { useTenant } from "@/lib/contexts/TenantContext";
@@ -357,13 +357,21 @@ export default function FloorPage() {
               {t("floor_dinner")}
             </button>
           </div>
-          <input
-            type="date"
-            value={selectedDate}
-            onChange={(e) => setSelectedDate(e.target.value)}
-            className="border-2 rounded-lg px-3 py-1.5 text-sm font-medium text-black focus:ring-1 focus:ring-[#c4956a] focus:outline-none"
-            style={{ borderColor: '#c4956a', background: 'rgba(252,246,237,0.6)' }}
-          />
+          <div className="flex items-center gap-1">
+            <button onClick={() => { const d = new Date(selectedDate + 'T12:00:00'); d.setDate(d.getDate() - 1); setSelectedDate(d.toISOString().split('T')[0]); }} className="p-1.5 rounded-lg hover:bg-[#c4956a]/10 transition-colors">
+              <ChevronLeft className="w-5 h-5 text-black" />
+            </button>
+            <input
+              type="date"
+              value={selectedDate}
+              onChange={(e) => setSelectedDate(e.target.value)}
+              className="border-2 rounded-lg px-3 py-1.5 text-sm font-medium text-black focus:ring-1 focus:ring-[#c4956a] focus:outline-none"
+              style={{ borderColor: '#c4956a', background: 'rgba(252,246,237,0.6)' }}
+            />
+            <button onClick={() => { const d = new Date(selectedDate + 'T12:00:00'); d.setDate(d.getDate() + 1); setSelectedDate(d.toISOString().split('T')[0]); }} className="p-1.5 rounded-lg hover:bg-[#c4956a]/10 transition-colors">
+              <ChevronRight className="w-5 h-5 text-black" />
+            </button>
+          </div>
         </div>
       </div>
 

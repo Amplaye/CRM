@@ -2,7 +2,7 @@
 
 import { ReservationList } from "@/components/reservations/ReservationList";
 import { ReservationTimeline } from "@/components/reservations/ReservationTimeline";
-import { Plus, Download, Upload, X, Save, Clock, Menu, Phone } from "lucide-react";
+import { Plus, Download, Upload, X, Save, Clock, Menu, Phone, ChevronLeft, ChevronRight } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
 import { Reservation, ReservationStatus } from "@/lib/types";
 
@@ -56,6 +56,11 @@ export default function ReservationsPage() {
 
   const today = new Date().toISOString().split('T')[0];
   const [date, setDate] = useState(today);
+  const shiftDate = (days: number) => {
+    const d = new Date(date + 'T12:00:00');
+    d.setDate(d.getDate() + days);
+    setDate(d.toISOString().split('T')[0]);
+  };
   const [viewMode, setViewMode] = useState<"list" | "timeline">("list");
 
   const { t, language } = useLanguage();
@@ -333,6 +338,9 @@ export default function ReservationsPage() {
 
         {/* Mobile controls */}
         <div className="md:hidden flex items-center gap-2 mb-3">
+          <button onClick={() => shiftDate(-1)} className="p-2 rounded-lg border-2 hover:bg-[#c4956a]/10" style={{ borderColor: '#c4956a' }}>
+            <ChevronLeft className="w-4 h-4 text-black" />
+          </button>
           <input
             type="date"
             value={date}
@@ -340,6 +348,9 @@ export default function ReservationsPage() {
             className="flex-1 border-2 rounded-lg px-3 py-2 text-sm font-medium text-black focus:ring-1 focus:ring-[#c4956a] focus:outline-none"
             style={{ borderColor: '#c4956a', background: 'rgba(252,246,237,0.6)' }}
           />
+          <button onClick={() => shiftDate(1)} className="p-2 rounded-lg border-2 hover:bg-[#c4956a]/10" style={{ borderColor: '#c4956a' }}>
+            <ChevronRight className="w-4 h-4 text-black" />
+          </button>
           <div className="flex p-0.5 rounded-lg border-2" style={{ borderColor: '#c4956a', background: 'rgba(252,246,237,0.6)' }}>
             <button
               onClick={() => setViewMode("list")}
@@ -361,6 +372,9 @@ export default function ReservationsPage() {
         {/* Desktop controls */}
         <div className="p-4 flex flex-col sm:flex-row items-center justify-between border-b rounded-t-xl hidden md:flex border-x border-t border-2" style={{ background: 'rgba(252,246,237,0.85)', borderColor: '#c4956a' }}>
            <div className="flex space-x-4 items-center">
+              <button onClick={() => shiftDate(-1)} className="p-1.5 rounded-lg hover:bg-[#c4956a]/10 transition-colors">
+                <ChevronLeft className="w-5 h-5 text-black" />
+              </button>
               <input
                 type="date"
                 value={date}
@@ -368,6 +382,9 @@ export default function ReservationsPage() {
                 className="border-2 rounded-md px-3 py-1.5 text-sm font-medium text-black focus:ring-1 focus:ring-[#c4956a] focus:outline-none shadow-sm"
                 style={{ borderColor: '#c4956a', background: 'rgba(252,246,237,0.6)' }}
               />
+              <button onClick={() => shiftDate(1)} className="p-1.5 rounded-lg hover:bg-[#c4956a]/10 transition-colors">
+                <ChevronRight className="w-5 h-5 text-black" />
+              </button>
               <div className="flex p-1 rounded-lg border-2 ml-4" style={{ borderColor: '#c4956a', background: 'rgba(252,246,237,0.6)' }}>
                 <button
                   onClick={() => setViewMode("list")}
