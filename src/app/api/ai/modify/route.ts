@@ -39,24 +39,26 @@ export async function PUT(request: Request) {
         .select('id, phone')
         .eq('tenant_id', payload.tenant_id);
 
-      const matchGuest = (guests || []).find((g: any) => {
+      const matchingGuests = (guests || []).filter((g: any) => {
         const gDigits = (g.phone || '').replace(/\D/g, '');
         if (!gDigits || gDigits.length < 7) return false;
         return gDigits.includes(phoneDigits) || phoneDigits.includes(gDigits);
       });
 
-      if (matchGuest) {
+      // Try each matching guest until we find one with an active reservation
+      for (const guest of matchingGuests) {
         const { data: resList } = await supabase
           .from('reservations')
           .select('id')
           .eq('tenant_id', payload.tenant_id)
-          .eq('guest_id', matchGuest.id)
+          .eq('guest_id', guest.id)
           .in('status', ['confirmed', 'pending_confirmation', 'escalated', 'seated', 'completed'])
           .order('created_at', { ascending: false })
           .limit(1);
 
         if (resList && resList.length > 0) {
           reservationId = resList[0].id;
+          break;
         }
       }
     }
