@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { Reservation } from "@/lib/types";
 import { useLanguage } from "@/lib/contexts/LanguageContext";
-import { Clock, User, Phone, MessageSquare, Globe, UserCheck, AlertTriangle, UserMinus, CalendarCheck, Plus, Users } from "lucide-react";
+import { Clock, User, Phone, MessageSquare, Globe, UserCheck, AlertTriangle, UserMinus, CalendarCheck, Plus, Users, XCircle } from "lucide-react";
 import Link from "next/link";
 
 interface ReservationListProps {
@@ -93,6 +93,13 @@ export function ReservationList({ date, onRowClick }: ReservationListProps) {
     }
   };
 
+  const handleCancel = async (e: React.MouseEvent, resId: string) => {
+    e.stopPropagation();
+    if (!confirm("¿Cancelar esta reserva?")) return;
+    const supabase = createClient();
+    await supabase.from("reservations").update({ status: "cancelled" }).eq("id", resId);
+  };
+
   if (loading) {
     return (
       <div className="border-2 rounded-b-xl md:rounded-xl animate-pulse" style={{ background: 'rgba(252,246,237,0.85)', borderColor: '#c4956a' }}>
@@ -136,6 +143,7 @@ export function ReservationList({ date, onRowClick }: ReservationListProps) {
             <th scope="col" className="px-4 py-3 text-center text-xs font-semibold text-black uppercase tracking-wider">Table</th>
             <th scope="col" className="px-4 py-3 text-center text-xs font-semibold text-black uppercase tracking-wider">{t("res_col_status")}</th>
             <th scope="col" className="px-4 py-3 text-center text-xs font-semibold text-black uppercase tracking-wider">{t("res_col_source")}</th>
+            <th scope="col" className="px-4 py-3 text-center text-xs font-semibold text-black uppercase tracking-wider w-16"></th>
           </tr>
         </thead>
         <tbody className="divide-y" style={{ borderColor: 'rgba(196,149,106,0.3)' }}>
@@ -174,6 +182,13 @@ export function ReservationList({ date, onRowClick }: ReservationListProps) {
                   <SourceIcon source={res.source} />
                 </Link>
               </td>
+              <td className="px-4 py-4 whitespace-nowrap text-center">
+                {!['cancelled', 'no_show'].includes(res.status) && (
+                  <button onClick={(e) => handleCancel(e, res.id)} className="text-red-400 hover:text-red-600 transition-colors" title="Cancelar reserva">
+                    <XCircle className="w-5 h-5" />
+                  </button>
+                )}
+              </td>
             </tr>
           ))}
         </tbody>
@@ -199,7 +214,14 @@ export function ReservationList({ date, onRowClick }: ReservationListProps) {
                 </div>
                 <SourceIcon source={res.source} />
               </div>
-              <StatusPill status={res.status} />
+              <div className="flex items-center gap-2">
+                <StatusPill status={res.status} />
+                {!['cancelled', 'no_show'].includes(res.status) && (
+                  <button onClick={(e) => handleCancel(e, res.id)} className="text-red-400 hover:text-red-600 transition-colors" title="Cancelar">
+                    <XCircle className="w-4 h-4" />
+                  </button>
+                )}
+              </div>
             </div>
             <div className="flex items-center justify-between">
               <div className="min-w-0">
