@@ -214,7 +214,7 @@ export default function DashboardPage() {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
           <h1 className="text-xl sm:text-2xl font-bold text-black tracking-tight">{t("nav_dashboard")}</h1>
-          <p className="mt-0.5 sm:mt-1 text-xs sm:text-sm text-black/60">Monitor your AI agent&apos;s performance and restaurant operations.</p>
+          <p className="mt-0.5 sm:mt-1 text-xs sm:text-sm text-black">Monitor your AI agent&apos;s performance and restaurant operations.</p>
         </div>
         <div className="flex items-center gap-1 sm:gap-2">
           <button onClick={() => navigateMonth(-1)} className="p-1.5 sm:p-2 hover:bg-[#c4956a]/10 rounded-lg transition-colors">
@@ -252,7 +252,7 @@ export default function DashboardPage() {
           <div className="flex items-center gap-2">
             <Sparkles className="w-5 h-5 text-[#c4956a]" />
             <h2 className="text-sm sm:text-base font-bold text-black">AI Business Impact</h2>
-            <span className="text-xs text-black/40">vs Last Month</span>
+            <span className="text-xs text-black">vs Last Month</span>
           </div>
           <span className="text-xs font-bold px-3 py-1 rounded-full border" style={{ color: "#22c55e", borderColor: "#22c55e" }}>
             ESTIMATED ROI
@@ -260,24 +260,24 @@ export default function DashboardPage() {
         </div>
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
           <div>
-            <p className="text-xs text-black/50 font-medium">Recovered Revenue</p>
+            <p className="text-xs text-black font-medium">Recovered Revenue</p>
             <p className="text-xl sm:text-2xl font-bold text-[#22c55e]">€{recoveredRevenue.toLocaleString()}</p>
-            <p className="text-xs text-black/40">{waitlistConverted} waitlist matches</p>
+            <p className="text-xs text-black">{waitlistConverted} waitlist matches</p>
           </div>
           <div>
-            <p className="text-xs text-black/50 font-medium">No-Shows Prevented</p>
+            <p className="text-xs text-black font-medium">No-Shows Prevented</p>
             <p className="text-xl sm:text-2xl font-bold text-black">{remindersNoShows.reminded > 0 ? Math.max(0, remindersNoShows.reminded - remindersNoShows.noShows) : 0}</p>
-            <p className="text-xs text-black/40">via auto-reminders</p>
+            <p className="text-xs text-black">via auto-reminders</p>
           </div>
           <div>
-            <p className="text-xs text-black/50 font-medium">AI Conversations</p>
+            <p className="text-xs text-black font-medium">AI Conversations</p>
             <p className="text-xl sm:text-2xl font-bold text-black">{remindersNoShows.reminded}</p>
-            <p className="text-xs text-black/40">handled automatically</p>
+            <p className="text-xs text-black">handled automatically</p>
           </div>
           <div>
-            <p className="text-xs text-black/50 font-medium">Total Covers</p>
+            <p className="text-xs text-black font-medium">Total Covers</p>
             <p className="text-xl sm:text-2xl font-bold text-black">{totalCovers}</p>
-            <p className="text-xs text-black/40">{totalReservations} reservations</p>
+            <p className="text-xs text-black">{totalReservations} reservations</p>
           </div>
         </div>
       </div>
@@ -288,9 +288,9 @@ export default function DashboardPage() {
           <div key={card.label} className="rounded-xl p-3 sm:p-5 border-2" style={{ background: "rgba(252,246,237,0.85)", borderColor: "#c4956a" }}>
             <div className="flex items-center justify-between">
               <div className="min-w-0">
-                <p className="text-xs sm:text-sm font-medium text-black/60 truncate">{card.label}</p>
+                <p className="text-xs sm:text-sm font-medium text-black truncate">{card.label}</p>
                 <p className="text-lg sm:text-2xl font-bold mt-0.5 sm:mt-1" style={{ color: card.valueColor || "black" }}>{card.value}</p>
-                {card.sub && <p className="text-xs text-black/40 mt-0.5">{card.sub}</p>}
+                {card.sub && <p className="text-xs text-black mt-0.5">{card.sub}</p>}
               </div>
               <card.icon className="h-6 w-6 sm:h-8 sm:w-8 text-[#c4956a] flex-shrink-0 ml-2" />
             </div>
@@ -307,30 +307,30 @@ export default function DashboardPage() {
             <h3 className="text-sm font-bold text-black uppercase tracking-wider">
               {isViewingCurrentMonth ? "Today" : "Top Day"}
             </h3>
-            <span className="text-xs text-black/40">
+            <span className="text-xs text-black">
               {isViewingCurrentMonth ? new Date().toLocaleDateString() : todayRes.length > 0 ? todayRes[0]?.date : monthNames[selectedMonth]}
             </span>
           </div>
           {isViewingCurrentMonth && new Date().getDay() === 1 ? (
             <div className="flex items-center gap-3 p-4 rounded-lg" style={{ background: "rgba(196,149,106,0.08)" }}>
-              <XCircle className="w-6 h-6 text-black/30 flex-shrink-0" />
+              <XCircle className="w-6 h-6 text-black flex-shrink-0" />
               <div>
                 <p className="text-sm font-bold text-black">No hay turno hoy</p>
-                <p className="text-xs text-black/40">El restaurante está cerrado los lunes</p>
+                <p className="text-xs text-black">El restaurante está cerrado los lunes</p>
               </div>
             </div>
           ) : (
             <>
               <div className="flex items-baseline gap-2 mb-3">
                 <span className="text-3xl font-bold text-black">{todayRes.length}</span>
-                <span className="text-sm text-black/40">reservas</span>
+                <span className="text-sm text-black">reservas</span>
                 <span className="text-lg font-bold text-[#c4956a] ml-2">{todayRes.reduce((s: number, r: any) => s + r.party_size, 0)}p</span>
               </div>
               {nextRes ? (
                 <div className="flex items-center gap-2 p-3 rounded-lg" style={{ background: "rgba(196,149,106,0.1)" }}>
                   <Clock className="w-4 h-4 text-[#c4956a]" />
                   <div>
-                    <p className="text-xs text-black/40">Next</p>
+                    <p className="text-xs text-black">Next</p>
                     <p className="text-sm font-bold text-black">{nextRes.time} — {nextRes.guests?.name || "Guest"} ({nextRes.party_size}p)</p>
                   </div>
                 </div>
@@ -338,12 +338,12 @@ export default function DashboardPage() {
                 <div className="flex items-center gap-2 p-3 rounded-lg" style={{ background: "rgba(196,149,106,0.1)" }}>
                   <CalendarCheck className="w-4 h-4 text-[#c4956a]" />
                   <div>
-                    <p className="text-xs text-black/40">First</p>
+                    <p className="text-xs text-black">First</p>
                     <p className="text-sm font-bold text-black">{todayRes[0]?.time} — {todayRes[0]?.guests?.name || "Guest"} ({todayRes[0]?.party_size}p)</p>
                   </div>
                 </div>
               ) : (
-                <p className="text-xs text-black/30">No reservations</p>
+                <p className="text-xs text-black">No reservations</p>
               )}
             </>
           )}
@@ -364,9 +364,9 @@ export default function DashboardPage() {
             </div>
             <div className="flex items-baseline gap-3">
               <span className="text-3xl font-bold text-black">{monthTotal.count}</span>
-              <span className="text-sm text-black/40">reservas</span>
+              <span className="text-sm text-black">reservas</span>
             </div>
-            <div className="flex items-center gap-4 mt-1 text-xs text-black/40">
+            <div className="flex items-center gap-4 mt-1 text-xs text-black">
               <span>{monthTotal.guests} personas</span>
               <span>·</span>
               <span>prev: {prevMonthTotal.count}</span>
@@ -381,9 +381,9 @@ export default function DashboardPage() {
             <h3 className="text-sm font-bold text-black uppercase tracking-wider mb-2">{selectedYear}</h3>
             <div className="flex items-baseline gap-3">
               <span className="text-3xl font-bold text-black">{yearTotal.count}</span>
-              <span className="text-sm text-black/40">reservas</span>
+              <span className="text-sm text-black">reservas</span>
             </div>
-            <p className="text-xs text-black/40 mt-1">{yearTotal.guests} personas total</p>
+            <p className="text-xs text-black mt-1">{yearTotal.guests} personas total</p>
           </div>
         </div>
       </div>
@@ -409,7 +409,7 @@ export default function DashboardPage() {
           <h3 className="text-xs sm:text-sm font-bold text-black uppercase tracking-wider mb-4 sm:mb-6">{t("chart_source_title")}</h3>
           <div className="h-48 sm:h-64">
             {sourceData.length === 0 ? (
-              <p className="text-sm text-black/40 text-center pt-20">No data yet</p>
+              <p className="text-sm text-black text-center pt-20">No data yet</p>
             ) : (
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
