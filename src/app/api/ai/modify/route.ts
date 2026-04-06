@@ -109,9 +109,8 @@ export async function PUT(request: Request) {
       updated_at: new Date().toISOString(),
     };
 
-    if (payload.notes) {
-      const prev = existing.notes || '';
-      updates.notes = prev ? `${prev}\n${payload.notes}`.trim() : payload.notes;
+    if (payload.notes !== undefined) {
+      updates.notes = payload.notes;
     }
 
     // Update the reservation
