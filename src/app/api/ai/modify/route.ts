@@ -49,7 +49,7 @@ export async function PUT(request: Request) {
           .select('id')
           .eq('tenant_id', payload.tenant_id)
           .eq('guest_id', matchGuest.id)
-          .in('status', ['confirmed', 'pending_confirmation', 'escalated'])
+          .in('status', ['confirmed', 'pending_confirmation', 'escalated', 'seated', 'completed'])
           .order('created_at', { ascending: false })
           .limit(1);
 
