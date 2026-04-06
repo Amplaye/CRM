@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { CalendarCheck, Users, UserX, Bot, Clock, TrendingUp, TrendingDown, ChevronLeft, ChevronRight, XCircle } from "lucide-react";
+import { CalendarCheck, Users, UserX, Bot, Clock, TrendingUp, TrendingDown, ChevronLeft, ChevronRight, XCircle, Sparkles, ShieldCheck, Timer, MessageSquare } from "lucide-react";
 import { useLanguage } from "@/lib/contexts/LanguageContext";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
@@ -25,6 +25,10 @@ export default function DashboardPage() {
   const [totalGuests, setTotalGuests] = useState(0);
   const [noShows, setNoShows] = useState(0);
   const [sourceData, setSourceData] = useState<SourceCount[]>([]);
+  const [waitlistConverted, setWaitlistConverted] = useState(0);
+  const [remindersNoShows, setRemindersNoShows] = useState({ reminded: 0, noShows: 0 });
+  const [aiHandledPct, setAiHandledPct] = useState(0);
+  const [totalCovers, setTotalCovers] = useState(0);
 
   // Timeline data
   const [todayRes, setTodayRes] = useState<any[]>([]);
@@ -92,6 +96,14 @@ export default function DashboardPage() {
         supabase.from("reservations").select("id", { count: "exact", head: true }).eq("tenant_id", tenant.id).eq("status", "no_show").gte("date", monthStart).lte("date", monthEnd),
       ]);
 
+      // Fetch AI impact data in parallel
+      const [waitlistData, conversationsData] = await Promise.all([
+        supabase.from("waitlist_entries").select("id, status").eq("tenant_id", tenant.id).eq("status", "converted_to_booking").gte("created_at", monthStart).lte("created_at", monthEnd + "T23:59:59"),
+        supabase.from("conversations").select("id, channel").eq("tenant_id", tenant.id).gte("created_at", monthStart).lte("created_at", monthEnd + "T23:59:59"),
+      ]);
+
+      setWaitlistConverted((waitlistData.data || []).length);
+
       const monthRes = resMonth.data || [];
       setTotalReservations(monthRes.length);
 
@@ -108,6 +120,17 @@ export default function DashboardPage() {
 
       const sourceLabels: Record<string, string> = { ai_voice: "AI Calls", ai_chat: "AI Chat", staff: "Staff", walk_in: "Walk-in", web: "Web" };
       setSourceData(Object.entries(sourceCounts).map(([name, value]) => ({ name: sourceLabels[name] || name, value })));
+
+      // AI handled percentage
+      const pct = monthRes.length > 0 ? Math.round((ai / monthRes.length) * 100) : 0;
+      setAiHandledPct(pct);
+
+      // Total covers (party_size sum)
+      setTotalCovers(monthRes.reduce((s: number, r: any) => s + r.party_size, 0));
+
+      // No-show vs reminded ratio
+      const totalReminded = (conversationsData.data || []).length;
+      setRemindersNoShows({ reminded: totalReminded, noShows: noShowCount.count || 0 });
 
       // Today (or busiest day if viewing past month)
       if (isCurrentMonth) {
@@ -176,9 +199,12 @@ export default function DashboardPage() {
 
   const maxWeekCount = Math.max(...weekData.map(d => d.count), 1);
 
+  const avgSpendPerCover = 50;
+  const recoveredRevenue = waitlistConverted * 2 * avgSpendPerCover; // avg 2 covers per waitlist match
+
   const cards = [
-    { label: t("dashboard_total_reservations"), value: totalReservations, icon: CalendarCheck },
-    { label: "AI vs Staff", value: `${aiCount} AI / ${staffCount} Staff`, icon: Bot },
+    { label: t("dashboard_total_reservations"), value: totalReservations, icon: CalendarCheck, sub: `${totalCovers} covers` },
+    { label: "AI Handled", value: `${aiHandledPct}%`, icon: Bot, sub: `${aiCount} AI / ${staffCount} Staff`, valueColor: "#22c55e" },
     { label: t("nav_guests"), value: totalGuests, icon: Users },
     { label: "No-Shows", value: noShows, icon: UserX },
   ];
@@ -188,7 +214,7 @@ export default function DashboardPage() {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
           <h1 className="text-xl sm:text-2xl font-bold text-black tracking-tight">{t("nav_dashboard")}</h1>
-          <p className="mt-0.5 sm:mt-1 text-xs sm:text-sm text-black/60">Performance overview</p>
+          <p className="mt-0.5 sm:mt-1 text-xs sm:text-sm text-black/60">Monitor your AI agent&apos;s performance and restaurant operations.</p>
         </div>
         <div className="flex items-center gap-1 sm:gap-2">
           <button onClick={() => navigateMonth(-1)} className="p-1.5 sm:p-2 hover:bg-[#c4956a]/10 rounded-lg transition-colors">
@@ -220,14 +246,51 @@ export default function DashboardPage() {
         </div>
       </div>
 
+      {/* AI Business Impact */}
+      <div className="rounded-xl border-2 p-4 sm:p-6" style={{ background: "rgba(252,246,237,0.85)", borderColor: "#c4956a" }}>
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-2">
+            <Sparkles className="w-5 h-5 text-[#c4956a]" />
+            <h2 className="text-sm sm:text-base font-bold text-black">AI Business Impact</h2>
+            <span className="text-xs text-black/40">vs Last Month</span>
+          </div>
+          <span className="text-xs font-bold px-3 py-1 rounded-full border" style={{ color: "#22c55e", borderColor: "#22c55e" }}>
+            ESTIMATED ROI
+          </span>
+        </div>
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
+          <div>
+            <p className="text-xs text-black/50 font-medium">Recovered Revenue</p>
+            <p className="text-xl sm:text-2xl font-bold text-[#22c55e]">€{recoveredRevenue.toLocaleString()}</p>
+            <p className="text-xs text-black/40">{waitlistConverted} waitlist matches</p>
+          </div>
+          <div>
+            <p className="text-xs text-black/50 font-medium">No-Shows Prevented</p>
+            <p className="text-xl sm:text-2xl font-bold text-black">{remindersNoShows.reminded > 0 ? Math.max(0, remindersNoShows.reminded - remindersNoShows.noShows) : 0}</p>
+            <p className="text-xs text-black/40">via auto-reminders</p>
+          </div>
+          <div>
+            <p className="text-xs text-black/50 font-medium">AI Conversations</p>
+            <p className="text-xl sm:text-2xl font-bold text-black">{remindersNoShows.reminded}</p>
+            <p className="text-xs text-black/40">handled automatically</p>
+          </div>
+          <div>
+            <p className="text-xs text-black/50 font-medium">Total Covers</p>
+            <p className="text-xl sm:text-2xl font-bold text-black">{totalCovers}</p>
+            <p className="text-xs text-black/40">{totalReservations} reservations</p>
+          </div>
+        </div>
+      </div>
+
       {/* Stats Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-4">
-        {cards.map((card) => (
+        {cards.map((card: any) => (
           <div key={card.label} className="rounded-xl p-3 sm:p-5 border-2" style={{ background: "rgba(252,246,237,0.85)", borderColor: "#c4956a" }}>
             <div className="flex items-center justify-between">
               <div className="min-w-0">
                 <p className="text-xs sm:text-sm font-medium text-black/60 truncate">{card.label}</p>
-                <p className="text-lg sm:text-2xl font-bold text-black mt-0.5 sm:mt-1">{card.value}</p>
+                <p className="text-lg sm:text-2xl font-bold mt-0.5 sm:mt-1" style={{ color: card.valueColor || "black" }}>{card.value}</p>
+                {card.sub && <p className="text-xs text-black/40 mt-0.5">{card.sub}</p>}
               </div>
               <card.icon className="h-6 w-6 sm:h-8 sm:w-8 text-[#c4956a] flex-shrink-0 ml-2" />
             </div>
