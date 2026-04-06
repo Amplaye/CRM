@@ -221,7 +221,7 @@ export async function POST(request: Request) {
        date: payload.date,
        time: payload.time,
        party_size: payload.party_size,
-       status: 'confirmed',
+       status: (payload as any).status || 'confirmed',
        source: payload.source || 'ai_voice',
        created_by_type: 'ai',
        notes: payload.notes || "",
