@@ -12,6 +12,7 @@ interface ModifyPayload {
   tenant_id: string;
   reservation_id?: string;
   guest_phone?: string;
+  guest_name?: string;
   date?: string;
   time?: string;
   party_size?: number;
@@ -77,6 +78,11 @@ export async function PUT(request: Request) {
 
     if (existing.tenant_id !== payload.tenant_id) {
       return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 403 });
+    }
+
+    // Update guest name if provided
+    if (payload.guest_name && payload.guest_name !== existing.guest_id) {
+      await supabase.from('guests').update({ name: payload.guest_name }).eq('id', existing.guest_id);
     }
 
     // Build updates
