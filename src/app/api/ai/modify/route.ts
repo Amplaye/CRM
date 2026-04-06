@@ -13,6 +13,7 @@ interface ModifyPayload {
   reservation_id?: string;
   guest_phone?: string;
   guest_name?: string;
+  new_phone?: string;
   date?: string;
   time?: string;
   party_size?: number;
@@ -82,9 +83,12 @@ export async function PUT(request: Request) {
       return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 403 });
     }
 
-    // Update guest name if provided
-    if (payload.guest_name && payload.guest_name !== existing.guest_id) {
-      await supabase.from('guests').update({ name: payload.guest_name }).eq('id', existing.guest_id);
+    // Update guest name/phone if provided
+    const guestUpdates: Record<string, string> = {};
+    if (payload.guest_name) guestUpdates.name = payload.guest_name;
+    if (payload.new_phone) guestUpdates.phone = payload.new_phone;
+    if (Object.keys(guestUpdates).length > 0) {
+      await supabase.from('guests').update(guestUpdates).eq('id', existing.guest_id);
     }
 
     // Build updates
