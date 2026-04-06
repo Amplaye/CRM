@@ -40,6 +40,7 @@ export async function PUT(request: Request) {
 
       const matchGuest = (guests || []).find((g: any) => {
         const gDigits = (g.phone || '').replace(/\D/g, '');
+        if (!gDigits || gDigits.length < 7) return false;
         return gDigits.includes(phoneDigits) || phoneDigits.includes(gDigits);
       });
 
