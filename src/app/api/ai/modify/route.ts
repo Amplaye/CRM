@@ -110,7 +110,12 @@ export async function PUT(request: Request) {
     };
 
     if (payload.notes !== undefined) {
-      updates.notes = payload.notes;
+      if (payload.notes && existing.notes && !payload.notes.includes(existing.notes)) {
+        // Append new notes to existing (voice agent can't see previous notes)
+        updates.notes = `${existing.notes}, ${payload.notes}`;
+      } else {
+        updates.notes = payload.notes;
+      }
     }
 
     // Update the reservation
