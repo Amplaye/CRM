@@ -110,7 +110,8 @@ export async function PUT(request: Request) {
     };
 
     if (payload.notes) {
-      updates.notes = `${existing.notes || ''}\n[Modificado]: ${payload.notes}`.trim();
+      const prev = existing.notes || '';
+      updates.notes = prev ? `${prev}\n${payload.notes}`.trim() : payload.notes;
     }
 
     // Update the reservation
