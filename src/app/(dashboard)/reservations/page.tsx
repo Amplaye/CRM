@@ -58,6 +58,13 @@ export default function ReservationsPage() {
   const searchParams = useSearchParams();
   const today = new Date().toISOString().split('T')[0];
   const [date, setDate] = useState(searchParams.get('date') || today);
+
+  // React to URL date changes (e.g. from notifications)
+  useEffect(() => {
+    const urlDate = searchParams.get('date');
+    if (urlDate && urlDate !== date) setDate(urlDate);
+  }, [searchParams]);
+
   const shiftDate = (days: number) => {
     const d = new Date(date + 'T12:00:00');
     d.setDate(d.getDate() + days);

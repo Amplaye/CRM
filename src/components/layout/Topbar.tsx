@@ -94,6 +94,25 @@ export function Topbar({ onMenuToggle }: TopbarProps) {
       .on(
         'postgres_changes',
         {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'reservations',
+          filter: `tenant_id=eq.${activeTenant.id}`
+        },
+        (payload: any) => {
+          const res = payload.new;
+          if (res.status === 'cancelled') {
+            const n: Notification = { id: res.id + '-cancel', type: "reservation", message: `Reserva cancelada: ${res.date} ${res.time}`, time: new Date().toLocaleTimeString(), read: false, href: `/reservations?date=${res.date}` };
+            setNotifications(prev => [n, ...prev].slice(0, 20));
+          } else if (res.status === 'no_show') {
+            const n: Notification = { id: res.id + '-noshow', type: "incident", message: `No-show: ${res.date} ${res.time}`, time: new Date().toLocaleTimeString(), read: false, href: `/reservations?date=${res.date}` };
+            setNotifications(prev => [n, ...prev].slice(0, 20));
+          }
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
           event: 'INSERT',
           schema: 'public',
           table: 'waitlist_entries',
