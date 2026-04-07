@@ -39,19 +39,19 @@ export async function GET(req: NextRequest) {
     const d7prevStr = toDateStr(d7prev);
     const todayStr = toDateStr(now);
 
-    // Fetch all reservations last 30 days, all incidents, system_logs
+    // Fetch minimal columns for speed
     const [allRes30, allRes7prev, allIncidents, allLogs] = await Promise.all([
       supabase.from("reservations")
-        .select("id, tenant_id, source, party_size, status, date, created_at")
+        .select("tenant_id, source, party_size, status, date, created_at")
         .gte("date", d30Str).lte("date", todayStr),
       supabase.from("reservations")
-        .select("id, tenant_id, source, party_size, status, date")
+        .select("tenant_id, source, party_size, status")
         .gte("date", d7prevStr).lt("date", d7Str),
       supabase.from("incidents")
-        .select("id, tenant_id, status, severity, created_at")
+        .select("tenant_id, severity")
         .in("status", ["open", "investigating"]),
       supabase.from("system_logs")
-        .select("id, tenant_id, severity, status, created_at")
+        .select("tenant_id, severity")
         .eq("status", "open"),
     ]);
 

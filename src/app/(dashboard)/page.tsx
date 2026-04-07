@@ -99,12 +99,6 @@ export default function DashboardPage() {
     };
 
     fetchAll();
-
-    const channel = supabase.channel("dashboard-realtime")
-      .on("postgres_changes" as any, { event: "*", schema: "public", table: "reservations", filter: `tenant_id=eq.${tenant.id}` }, () => fetchAll())
-      .subscribe();
-
-    return () => { supabase.removeChannel(channel); };
   }, [tenant, selectedMonth, selectedYear]);
 
   /* ─── insights ─── */

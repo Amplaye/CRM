@@ -83,9 +83,9 @@ export const TenantProvider = ({ children }: { children: ReactNode }) => {
 
         if (tenants.length > 0) {
           const savedId = localStorage.getItem("active_tenant_id");
-          active = tenants.find(t => t.id === savedId) || tenants[0];
+          active = tenants.find((t: Tenant) => t.id === savedId) || tenants[0];
           activeR = memberships!.find((m: any) => m.tenant_id === active!.id)?.role || null;
-          localStorage.setItem("active_tenant_id", active.id);
+          localStorage.setItem("active_tenant_id", active!.id);
         }
 
         setActiveTenant(active);

@@ -14,17 +14,19 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
 
-  const isPlatformOnly = globalRole === "platform_admin" && !activeTenant;
+  const isPlatformOnly = !loading && globalRole === "platform_admin" && !activeTenant;
+  const isOnAdminPage = pathname?.startsWith("/admin");
 
   // Platform admin with no tenant → redirect to /admin
   useEffect(() => {
-    if (!loading && isPlatformOnly && !pathname?.startsWith("/admin")) {
+    if (!loading && isPlatformOnly && !isOnAdminPage) {
       router.replace("/admin");
     }
-  }, [loading, isPlatformOnly, pathname, router]);
+  }, [loading, isPlatformOnly, isOnAdminPage, router]);
 
-  // While loading, show nothing to prevent flash of wrong sidebar
-  if (loading) {
+  // Show spinner only briefly while auth is resolving — not on every navigation
+  // Skip spinner entirely if on admin pages (they don't need tenant)
+  if (loading && !isOnAdminPage) {
     return (
       <div className="h-[100dvh] flex items-center justify-center" style={{ background: "rgba(252,246,237,0.85)" }}>
         <Loader2 className="w-8 h-8 animate-spin text-[#c4956a]" />
