@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { createServiceRoleClient } from '@/lib/supabase/server';
 import { CreateBookingRequest } from '@/lib/types';
 import { logAuditEvent } from '@/lib/audit';
+import { logSystemEvent } from '@/lib/system-log';
 import {
   getShift,
   getRotationMinutes,
@@ -298,6 +299,12 @@ export async function POST(request: Request) {
 
   } catch (error: any) {
     console.error("Booking Error:", error);
+    logSystemEvent({
+      category: "booking_error",
+      severity: "critical",
+      title: "Booking creation failed",
+      description: error.message,
+    });
     return NextResponse.json({ success: false, error: "Internal Server Error" }, { status: 500 });
   }
 }

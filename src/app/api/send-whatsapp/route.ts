@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { logSystemEvent } from "@/lib/system-log";
 
 export async function POST(req: NextRequest) {
   try {
@@ -44,11 +45,24 @@ export async function POST(req: NextRequest) {
     const data = await res.json();
 
     if (!res.ok) {
+      logSystemEvent({
+        category: "message_failure",
+        severity: "high",
+        title: `WhatsApp send failed to ${to}`,
+        description: data.message || "Twilio error",
+        metadata: { to, twilioError: data },
+      });
       return NextResponse.json({ error: data.message || "Twilio error", details: data }, { status: res.status });
     }
 
     return NextResponse.json({ success: true, sid: data.sid });
   } catch (err: any) {
+    logSystemEvent({
+      category: "message_failure",
+      severity: "critical",
+      title: "WhatsApp send crashed",
+      description: err.message,
+    });
     return NextResponse.json({ error: err.message }, { status: 500 });
   }
 }
