@@ -112,7 +112,9 @@ export default function KnowledgePage() {
         if (selectedArticleId) {
            const currentVersion = selectedArticle?.version || 1;
            payload.version = currentVersion + 1;
-           await supabase.from("knowledge_articles").update(payload).eq("id", selectedArticleId);
+           const { tenant_id: _tid, ...updatePayload } = payload as any;
+           const { error: updateErr } = await supabase.from("knowledge_articles").update(updatePayload).eq("id", selectedArticleId);
+           if (updateErr) { console.error("KB update error:", updateErr); alert("Error: " + updateErr.message); }
         } else {
            payload.version = 1;
            payload.created_at = new Date().toISOString();
