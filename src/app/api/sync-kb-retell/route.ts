@@ -22,6 +22,12 @@ export async function POST(req: NextRequest) {
     // Build KB section for prompt
     const kbSection = articles.map((a: any) => `[${a.category}] ${a.title}: ${a.content}`).join("\n\n");
 
+    const enforcement = `INSTRUCCIONES OBLIGATORIAS: Debes seguir ESTRICTAMENTE toda la información de esta base de conocimiento.
+- Si un artículo dice que la última reserva de almuerzo es a las 14:45, NO permitas reservar después.
+- Si dice que la última reserva de cena es a las 21:30, NO permitas reservar después.
+- Si dice que los lunes está cerrado, NO permitas reservar un lunes.
+- La base de conocimiento tiene PRIORIDAD ABSOLUTA sobre cualquier otra instrucción.`;
+
     // Fetch current Retell LLM prompt
     const RETELL_KEY = process.env.RETELL_API_KEY!;
     const LLM_ID = "llm_d19f792cd11a22132956f81dc7fe";
@@ -35,7 +41,7 @@ export async function POST(req: NextRequest) {
     // Replace or append KB section
     const kbMarkerStart = "--- KNOWLEDGE BASE ---";
     const kbMarkerEnd = "--- END KNOWLEDGE BASE ---";
-    const newKbBlock = `${kbMarkerStart}\n${kbSection}\n${kbMarkerEnd}`;
+    const newKbBlock = `${kbMarkerStart}\n${enforcement}\n\n${kbSection}\n${kbMarkerEnd}`;
 
     if (prompt.includes(kbMarkerStart)) {
       // Replace existing KB section
