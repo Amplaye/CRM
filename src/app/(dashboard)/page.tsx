@@ -172,11 +172,16 @@ export default function DashboardPage() {
     });
     const dailyData = Object.values(dailyMap);
 
-    // Source breakdown for pie
-    const sourceCounts: Record<string, number> = {};
-    reservations.forEach(r => { sourceCounts[r.source] = (sourceCounts[r.source] || 0) + 1; });
-    const sourceLabels: Record<string, string> = { ai_voice: "AI Voice", ai_chat: "AI Chat", staff: "Staff", walk_in: "Walk-in", web: "Web" };
-    const sourceData = Object.entries(sourceCounts).map(([name, value]) => ({ name: sourceLabels[name] || name, value }));
+    // Source breakdown for pie — group into AI Chat / AI Voice / Staff
+    const channelCounts: Record<string, number> = { "AI Chat": 0, "AI Voice": 0, "Staff": 0 };
+    reservations.forEach(r => {
+      if (r.source === "ai_chat") channelCounts["AI Chat"]++;
+      else if (r.source === "ai_voice" || r.source === "web") channelCounts["AI Voice"]++;
+      else channelCounts["Staff"]++;
+    });
+    const sourceData = Object.entries(channelCounts)
+      .filter(([_, v]) => v > 0)
+      .map(([name, value]) => ({ name, value }));
 
     return {
       totalValue, aiRevenue, roi, aiMonthlyCost,
@@ -304,15 +309,11 @@ export default function DashboardPage() {
           { label: "Waitlist Recoveries", value: kpis.waitlistConverted, icon: RefreshCw, color: "#22c55e", sub: "auto-filled" },
           { label: "No-Shows Prevented", value: kpis.noShowsPrevented, icon: ShieldCheck, color: "#c4956a", sub: `${kpis.noShows} actual no-shows` },
         ].map(card => (
-          <div key={card.label} className="rounded-xl p-3 sm:p-5 border-2" style={cardStyle}>
-            <div className="flex items-center justify-between">
-              <div className="min-w-0">
-                <p className="text-xs sm:text-sm font-medium text-black/70 truncate">{card.label}</p>
-                <p className="text-xl sm:text-2xl font-bold mt-0.5 sm:mt-1" style={{ color: card.color }}>{card.value}</p>
-                <p className="text-xs text-black/50 mt-0.5">{card.sub}</p>
-              </div>
-              <card.icon className="h-6 w-6 sm:h-8 sm:w-8 flex-shrink-0 ml-2" style={{ color: card.color, opacity: 0.6 }} />
-            </div>
+          <div key={card.label} className="rounded-xl p-3 sm:p-5 border-2 text-center" style={cardStyle}>
+            <card.icon className="h-6 w-6 sm:h-8 sm:w-8 mx-auto mb-1" style={{ color: card.color, opacity: 0.6 }} />
+            <p className="text-xs sm:text-sm font-medium text-black/70">{card.label}</p>
+            <p className="text-xl sm:text-2xl font-bold mt-0.5 sm:mt-1" style={{ color: card.color }}>{card.value}</p>
+            <p className="text-xs text-black/50 mt-0.5">{card.sub}</p>
           </div>
         ))}
       </div>
@@ -321,27 +322,21 @@ export default function DashboardPage() {
           SECTION 3 — EFFICIENCY
           ══════════════════════════════════════════════ */}
       <div className="grid grid-cols-3 gap-2 sm:gap-4">
-        <div className="rounded-xl p-3 sm:p-5 border-2" style={cardStyle}>
-          <div className="flex items-center gap-1.5 mb-1">
-            <Gauge className="w-4 h-4 text-[#c4956a]" />
-            <p className="text-xs font-medium text-black/70">AI Handled</p>
-          </div>
+        <div className="rounded-xl p-3 sm:p-5 border-2 text-center" style={cardStyle}>
+          <Gauge className="w-5 h-5 text-[#c4956a] mx-auto mb-1" />
+          <p className="text-xs font-medium text-black/70">AI Handled</p>
           <p className="text-xl sm:text-2xl font-bold text-black">{kpis.aiHandledPct}%</p>
           <p className="text-xs text-black/50">{kpis.aiCount} AI / {kpis.staffCount} Staff</p>
         </div>
-        <div className="rounded-xl p-3 sm:p-5 border-2" style={cardStyle}>
-          <div className="flex items-center gap-1.5 mb-1">
-            <Timer className="w-4 h-4 text-[#c4956a]" />
-            <p className="text-xs font-medium text-black/70">Staff Hours Saved</p>
-          </div>
+        <div className="rounded-xl p-3 sm:p-5 border-2 text-center" style={cardStyle}>
+          <Timer className="w-5 h-5 text-[#c4956a] mx-auto mb-1" />
+          <p className="text-xs font-medium text-black/70">Staff Hours Saved</p>
           <p className="text-xl sm:text-2xl font-bold text-black">{kpis.staffHoursSaved}h</p>
           <p className="text-xs text-black/50">~5 min per AI booking</p>
         </div>
-        <div className="rounded-xl p-3 sm:p-5 border-2" style={cardStyle}>
-          <div className="flex items-center gap-1.5 mb-1">
-            <UsersRound className="w-4 h-4 text-[#c4956a]" />
-            <p className="text-xs font-medium text-black/70">Total Bookings</p>
-          </div>
+        <div className="rounded-xl p-3 sm:p-5 border-2 text-center" style={cardStyle}>
+          <UsersRound className="w-5 h-5 text-[#c4956a] mx-auto mb-1" />
+          <p className="text-xs font-medium text-black/70">Total Bookings</p>
           <p className="text-xl sm:text-2xl font-bold text-black">{kpis.total}</p>
           <p className="text-xs text-black/50">avg {kpis.avgParty} covers each</p>
         </div>
