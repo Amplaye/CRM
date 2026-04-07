@@ -8,8 +8,18 @@ import Link from "next/link";
 import { useLanguage } from "@/lib/contexts/LanguageContext";
 
 export default function LoginPage() {
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
+  const [email, setEmail] = useState(() => {
+    if (typeof window !== "undefined") return localStorage.getItem("login_email") || "";
+    return "";
+  });
+  const [password, setPassword] = useState(() => {
+    if (typeof window !== "undefined") return localStorage.getItem("login_password") || "";
+    return "";
+  });
+  const [rememberMe, setRememberMe] = useState(() => {
+    if (typeof window !== "undefined") return localStorage.getItem("login_remember") === "true";
+    return false;
+  });
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
@@ -21,6 +31,17 @@ export default function LoginPage() {
     e.preventDefault();
     setError("");
     setLoading(true);
+
+    // Save or clear remembered credentials
+    if (rememberMe) {
+      localStorage.setItem("login_email", email);
+      localStorage.setItem("login_password", password);
+      localStorage.setItem("login_remember", "true");
+    } else {
+      localStorage.removeItem("login_email");
+      localStorage.removeItem("login_password");
+      localStorage.removeItem("login_remember");
+    }
 
     try {
       const { error } = await supabase.auth.signInWithPassword({ email, password });
@@ -121,7 +142,17 @@ export default function LoginPage() {
               </div>
             </div>
 
-            <div className="flex items-center justify-end">
+            <div className="flex items-center justify-between">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={rememberMe}
+                  onChange={e => setRememberMe(e.target.checked)}
+                  className="w-4 h-4 rounded border-2 accent-[#c4956a]"
+                  style={{ borderColor: "#c4956a" }}
+                />
+                <span className="text-sm text-black/60">Remember me</span>
+              </label>
               <Link href="/forgot-password" className="text-sm font-medium text-[#c4956a] hover:text-[#b8845c]">
                 Forgot password?
               </Link>
