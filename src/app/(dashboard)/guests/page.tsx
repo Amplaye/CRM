@@ -359,7 +359,7 @@ export default function GuestsPage() {
                      ) : null}
                   </div>
 
-                  <div className="grid grid-cols-3 gap-2 border-y border-zinc-100 py-3 mb-3">
+                  <div className="grid grid-cols-2 gap-2 border-y border-zinc-100 py-3 mb-3">
                      <div className="text-center">
                         <p className="text-lg font-bold text-zinc-900">{guest.visit_count}</p>
                         <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-wider mt-0.5">Visits</p>
@@ -367,18 +367,6 @@ export default function GuestsPage() {
                      <div className="text-center border-l border-zinc-100">
                         <p className={`text-lg font-bold ${guest.no_show_count > 0 ? 'text-red-600' : 'text-zinc-900'}`}>{guest.no_show_count}</p>
                         <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-wider mt-0.5">No-Shows</p>
-                     </div>
-                     <div className="text-center border-l border-zinc-100">
-                        <p className="text-lg font-bold text-zinc-900">${guest.estimated_spend || 0}</p>
-                        <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-wider mt-0.5">Value</p>
-                     </div>
-                  </div>
-
-                  <div>
-                     <div className="flex flex-wrap gap-1.5">
-                        {guest.dietary_notes && <span className="px-2 py-1 bg-blue-50 text-blue-700 text-[10px] font-bold uppercase tracking-widest rounded border border-blue-100">Dietary</span>}
-                        {guest.accessibility_notes && <span className="px-2 py-1 bg-purple-50 text-purple-700 text-[10px] font-bold uppercase tracking-widest rounded border border-purple-100">Access</span>}
-                        {!guest.dietary_notes && !guest.accessibility_notes && <span className="text-xs text-zinc-400 italic">No special alerts</span>}
                      </div>
                   </div>
                </div>
@@ -395,8 +383,6 @@ export default function GuestsPage() {
                   <th className="px-3 sm:px-6 py-3 text-left text-xs font-semibold text-black uppercase tracking-wider">Phone</th>
                   <th className="px-3 sm:px-6 py-3 text-center text-xs font-semibold text-black uppercase tracking-wider">Visits</th>
                   <th className="px-3 sm:px-6 py-3 text-center text-xs font-semibold text-black uppercase tracking-wider">No-Shows</th>
-                  <th className="px-3 sm:px-6 py-3 text-center text-xs font-semibold text-black uppercase tracking-wider">Value</th>
-                  <th className="px-3 sm:px-6 py-3 text-left text-xs font-semibold text-black uppercase tracking-wider">Tags</th>
                   <th className="px-3 py-3 w-10"></th>
                 </tr>
               </thead>
@@ -432,15 +418,6 @@ export default function GuestsPage() {
                     <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-sm font-medium text-zinc-900 text-center">{guest.visit_count}</td>
                     <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-sm font-medium text-center">
                       <span className={guest.no_show_count > 0 ? 'text-red-600' : 'text-zinc-900'}>{guest.no_show_count}</span>
-                    </td>
-                    <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-sm font-medium text-zinc-900 text-center">${guest.estimated_spend || 0}</td>
-                    <td className="px-3 sm:px-6 py-4 whitespace-nowrap">
-                      <div className="flex flex-wrap gap-1">
-                        {isHighRisk(guest) && <span className="bg-red-100 text-red-800 text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider">Risk</span>}
-                        {isVip(guest) && <span className="bg-emerald-100 text-emerald-800 text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider">VIP</span>}
-                        {guest.dietary_notes && <span className="px-2 py-0.5 bg-blue-50 text-blue-700 text-[10px] font-bold uppercase tracking-widest rounded border border-blue-100">Dietary</span>}
-                        {guest.accessibility_notes && <span className="px-2 py-0.5 bg-purple-50 text-purple-700 text-[10px] font-bold uppercase tracking-widest rounded border border-purple-100">Access</span>}
-                      </div>
                     </td>
                     <td className="px-3 py-4 whitespace-nowrap">
                       <button
@@ -479,30 +456,6 @@ export default function GuestsPage() {
           <form onSubmit={handleUpdate} className="flex-1 flex flex-col overflow-hidden">
              <div className="flex-1 overflow-y-auto w-full p-6 space-y-8">
 
-                {/* Guest CRM Data */}
-                <div className="space-y-4">
-                  <h3 className="text-xs font-bold text-zinc-500 uppercase tracking-widest mb-2 border-b border-zinc-200 pb-2">Profile Details</h3>
-                  <div>
-                    <label className="block text-xs font-bold text-zinc-700 mb-1">Email</label>
-                    <input name="email" type="email" defaultValue={selectedGuest.email} className="w-full border border-zinc-200 bg-white rounded-md px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-zinc-900" placeholder="guest@email.com" />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-bold text-zinc-700 mb-1">Dietary Requirements</label>
-                    <textarea name="dietary_notes" defaultValue={selectedGuest.dietary_notes} rows={2} className="w-full border border-blue-200 bg-blue-50/30 rounded-md px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-blue-500" placeholder="e.g. Vegan, Gluten-free..." />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-bold text-zinc-700 mb-1">Accessibility Notes</label>
-                    <input name="accessibility_notes" type="text" defaultValue={selectedGuest.accessibility_notes} className="w-full border border-purple-200 bg-purple-50/30 rounded-md px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-purple-500" placeholder="Wheelchair access needed..." />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-bold text-zinc-700 mb-1">Family / Seating Prefs</label>
-                    <input name="family_notes" type="text" defaultValue={selectedGuest.family_notes} className="w-full border border-zinc-200 bg-white rounded-md px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-zinc-900" placeholder="High chair required, booth..." />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-bold text-zinc-700 mb-1">Internal Staff Notes</label>
-                    <textarea name="notes" defaultValue={selectedGuest.notes} rows={3} className="w-full border border-zinc-200 bg-white rounded-md px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-zinc-900" placeholder="Usually orders the expensive wine..." />
-                  </div>
-                </div>
 
                 {/* Booking History */}
                 <div>
