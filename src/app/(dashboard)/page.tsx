@@ -1,46 +1,56 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { CalendarCheck, Users, UserX, Bot, Clock, TrendingUp, TrendingDown, ChevronLeft, ChevronRight, XCircle, Sparkles, ShieldCheck, Timer, MessageSquare } from "lucide-react";
+import { useEffect, useState, useMemo } from "react";
+import {
+  CalendarCheck, Users, UserX, Bot, Clock, TrendingUp, TrendingDown,
+  ChevronLeft, ChevronRight, Sparkles, Moon, Phone, RefreshCw, ShieldCheck,
+  Gauge, Timer, UsersRound,
+} from "lucide-react";
 import { useLanguage } from "@/lib/contexts/LanguageContext";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
-  PieChart, Pie, Cell,
+  PieChart, Pie, Cell, Legend, LineChart, Line,
 } from "recharts";
 import { createClient } from "@/lib/supabase/client";
 import { useTenant } from "@/lib/contexts/TenantContext";
 
-interface DayCount { date: string; label: string; count: number; guests: number; }
-interface SourceCount { name: string; value: number; }
+/* ─── helpers ─── */
 
-const PIE_COLORS = ["#fb7740", "#c4956a", "#3f3f46", "#94a3b8", "#22c55e"];
+interface TimeSlot { open: string; close: string }
+type OpeningHours = Record<string, TimeSlot[]>;
+
+function isOutOfHours(createdAt: string, openingHours: OpeningHours, timezone: string): boolean {
+  if (!openingHours || Object.keys(openingHours).length === 0) return false;
+  const date = new Date(createdAt);
+  const localStr = date.toLocaleString("en-US", { timeZone: timezone || "UTC" });
+  const local = new Date(localStr);
+  const dow = local.getDay();
+  const minutes = local.getHours() * 60 + local.getMinutes();
+  const daySlots = openingHours[String(dow)] || [];
+  if (daySlots.length === 0) return true; // closed day
+  for (const slot of daySlots) {
+    const [oh, om] = slot.open.split(":").map(Number);
+    const [ch, cm] = slot.close.split(":").map(Number);
+    if (minutes >= oh * 60 + om && minutes <= ch * 60 + cm) return false;
+  }
+  return true;
+}
+
+const PIE_COLORS = ["#fb7740", "#6366f1", "#3f3f46", "#94a3b8", "#22c55e"];
+
+/* ─── component ─── */
 
 export default function DashboardPage() {
   const { t } = useLanguage();
   const { activeTenant: tenant } = useTenant();
 
-  const [totalReservations, setTotalReservations] = useState(0);
-  const [aiCount, setAiCount] = useState(0);
-  const [staffCount, setStaffCount] = useState(0);
-  const [totalGuests, setTotalGuests] = useState(0);
-  const [noShows, setNoShows] = useState(0);
-  const [sourceData, setSourceData] = useState<SourceCount[]>([]);
+  const [reservations, setReservations] = useState<any[]>([]);
   const [waitlistConverted, setWaitlistConverted] = useState(0);
-  const [remindersNoShows, setRemindersNoShows] = useState({ reminded: 0, noShows: 0 });
-  const [aiHandledPct, setAiHandledPct] = useState(0);
-  const [totalCovers, setTotalCovers] = useState(0);
+  const [prevMonthRes, setPrevMonthRes] = useState<any[]>([]);
 
-  // Timeline data
-  const [todayRes, setTodayRes] = useState<any[]>([]);
-  const [weekData, setWeekData] = useState<DayCount[]>([]);
-  const [monthTotal, setMonthTotal] = useState({ count: 0, guests: 0 });
-  const [prevMonthTotal, setPrevMonthTotal] = useState({ count: 0, guests: 0 });
-  const [yearTotal, setYearTotal] = useState({ count: 0, guests: 0 });
-
-  // Selected period
+  // Month navigation
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth());
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
-
   const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
   const navigateMonth = (dir: number) => {
@@ -52,189 +62,168 @@ export default function DashboardPage() {
     setSelectedYear(y);
   };
 
+  /* ─── data fetch ─── */
+
   useEffect(() => {
     if (!tenant) return;
     const supabase = createClient();
-
-    // Timezone-safe date formatting (avoids UTC shift from toISOString)
     const pad = (n: number) => String(n).padStart(2, "0");
     const toDateStr = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 
-    const now = new Date();
-    const todayStr = toDateStr(now);
-    const monthStartDate = new Date(selectedYear, selectedMonth, 1);
-    const monthEndDate = new Date(selectedYear, selectedMonth + 1, 0);
-    const monthStart = toDateStr(monthStartDate);
-    const monthEnd = toDateStr(monthEndDate);
+    const monthStart = toDateStr(new Date(selectedYear, selectedMonth, 1));
+    const monthEnd = toDateStr(new Date(selectedYear, selectedMonth + 1, 0));
     const prevMonthStart = toDateStr(new Date(selectedYear, selectedMonth - 1, 1));
     const prevMonthEnd = toDateStr(new Date(selectedYear, selectedMonth, 0));
-    const yearStart = `${selectedYear}-01-01`;
-    const yearEnd = `${selectedYear}-12-31`;
-
-    const dayNames = ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"];
-    const isCurrentMonth = selectedMonth === now.getMonth() && selectedYear === now.getFullYear();
-
-    // For week chart: show next 7 days from today (current month) or first 7 days with data (past month)
-    const last7 = Array.from({ length: 7 }, (_, i) => {
-      const d = isCurrentMonth ? new Date(now) : new Date(selectedYear, selectedMonth, 1);
-      d.setDate(d.getDate() + i);
-      return { date: toDateStr(d), label: dayNames[d.getDay()] };
-    });
-
-    // For "today" box: if viewing current month show today's data, otherwise show busiest day of month
-    const todayQuery = isCurrentMonth ? todayStr : null;
 
     const fetchAll = async () => {
-      const [resMonth, prevMonth, resYear, resToday, guestsCount, noShowCount] = await Promise.all([
-        supabase.from("reservations").select("id, source, date, party_size").eq("tenant_id", tenant.id).gte("date", monthStart).lte("date", monthEnd),
-        supabase.from("reservations").select("id, party_size").eq("tenant_id", tenant.id).gte("date", prevMonthStart).lte("date", prevMonthEnd),
-        supabase.from("reservations").select("id, party_size").eq("tenant_id", tenant.id).gte("date", yearStart).lte("date", yearEnd),
-        todayQuery
-          ? supabase.from("reservations").select("*, guests(name)").eq("tenant_id", tenant.id).eq("date", todayQuery).in("status", ["confirmed", "seated", "completed", "escalated"]).order("time")
-          : Promise.resolve({ data: [], error: null }),
-        supabase.from("guests").select("id", { count: "exact", head: true }).eq("tenant_id", tenant.id),
-        supabase.from("reservations").select("id", { count: "exact", head: true }).eq("tenant_id", tenant.id).eq("status", "no_show").gte("date", monthStart).lte("date", monthEnd),
+      const [resMonth, resPrev, waitlistData] = await Promise.all([
+        supabase.from("reservations")
+          .select("id, source, date, time, party_size, status, created_at")
+          .eq("tenant_id", tenant.id)
+          .gte("date", monthStart).lte("date", monthEnd),
+        supabase.from("reservations")
+          .select("id, source, date, party_size, status, created_at")
+          .eq("tenant_id", tenant.id)
+          .gte("date", prevMonthStart).lte("date", prevMonthEnd),
+        supabase.from("waitlist_entries")
+          .select("id")
+          .eq("tenant_id", tenant.id)
+          .eq("status", "converted_to_booking")
+          .gte("created_at", monthStart)
+          .lte("created_at", monthEnd + "T23:59:59"),
       ]);
 
-      // Fetch AI impact data in parallel
-      const [waitlistData, conversationsData] = await Promise.all([
-        supabase.from("waitlist_entries").select("id, status").eq("tenant_id", tenant.id).eq("status", "converted_to_booking").gte("created_at", monthStart).lte("created_at", monthEnd + "T23:59:59"),
-        supabase.from("conversations").select("id, channel").eq("tenant_id", tenant.id).gte("created_at", monthStart).lte("created_at", monthEnd + "T23:59:59"),
-      ]);
-
+      setReservations(resMonth.data || []);
+      setPrevMonthRes(resPrev.data || []);
       setWaitlistConverted((waitlistData.data || []).length);
-
-      const monthRes = resMonth.data || [];
-      setTotalReservations(monthRes.length);
-
-      let ai = 0, staff = 0;
-      const sourceCounts: Record<string, number> = {};
-      monthRes.forEach((r: any) => {
-        if (r.source === "ai_chat" || r.source === "ai_voice") ai++; else staff++;
-        sourceCounts[r.source] = (sourceCounts[r.source] || 0) + 1;
-      });
-      setAiCount(ai);
-      setStaffCount(staff);
-      setTotalGuests(guestsCount.count || 0);
-      setNoShows(noShowCount.count || 0);
-
-      const sourceLabels: Record<string, string> = { ai_voice: "AI Calls", ai_chat: "AI Chat", staff: "Staff", walk_in: "Walk-in", web: "Web" };
-      setSourceData(Object.entries(sourceCounts).map(([name, value]) => ({ name: sourceLabels[name] || name, value })));
-
-      // AI handled percentage
-      const pct = monthRes.length > 0 ? Math.round((ai / monthRes.length) * 100) : 0;
-      setAiHandledPct(pct);
-
-      // Total covers (party_size sum)
-      setTotalCovers(monthRes.reduce((s: number, r: any) => s + r.party_size, 0));
-
-      // No-show vs reminded ratio
-      const totalReminded = (conversationsData.data || []).length;
-      setRemindersNoShows({ reminded: totalReminded, noShows: noShowCount.count || 0 });
-
-      // Today (or busiest day if viewing past month)
-      if (isCurrentMonth) {
-        setTodayRes(resToday.data || []);
-      } else {
-        // Find busiest day of the selected month
-        const dayTotals: Record<string, { count: number; guests: number }> = {};
-        monthRes.forEach((r: any) => {
-          if (!dayTotals[r.date]) dayTotals[r.date] = { count: 0, guests: 0 };
-          dayTotals[r.date].count++;
-          dayTotals[r.date].guests += r.party_size;
-        });
-        const busiest = Object.entries(dayTotals).sort((a, b) => b[1].count - a[1].count)[0];
-        if (busiest) {
-          const { data: busiestData } = await supabase.from("reservations").select("*, guests(name)").eq("tenant_id", tenant.id).eq("date", busiest[0]).in("status", ["confirmed", "seated", "completed", "escalated"]).order("time");
-          setTodayRes(busiestData || []);
-        } else {
-          setTodayRes([]);
-        }
-      }
-
-      // Week data — fetch directly for the 7-day range
-      const weekStart = last7[0].date;
-      const weekEnd = last7[6].date;
-      const { data: weekRes } = await supabase.from("reservations").select("date, party_size").eq("tenant_id", tenant.id).gte("date", weekStart).lte("date", weekEnd);
-      const weekCounts: Record<string, { count: number; guests: number }> = {};
-      last7.forEach(d => weekCounts[d.date] = { count: 0, guests: 0 });
-      (weekRes || []).forEach((r: any) => {
-        if (weekCounts[r.date] !== undefined) {
-          weekCounts[r.date].count++;
-          weekCounts[r.date].guests += r.party_size;
-        }
-      });
-      setWeekData(last7.map(d => ({ ...d, count: weekCounts[d.date].count, guests: weekCounts[d.date].guests })));
-
-      // Month totals
-      setMonthTotal({ count: monthRes.length, guests: monthRes.reduce((s: number, r: any) => s + r.party_size, 0) });
-      const pm = prevMonth.data || [];
-      setPrevMonthTotal({ count: pm.length, guests: pm.reduce((s: number, r: any) => s + r.party_size, 0) });
-
-      // Year total
-      const yr = resYear.data || [];
-      setYearTotal({ count: yr.length, guests: yr.reduce((s: number, r: any) => s + r.party_size, 0) });
     };
 
     fetchAll();
 
     const channel = supabase.channel("dashboard-realtime")
       .on("postgres_changes" as any, { event: "*", schema: "public", table: "reservations", filter: `tenant_id=eq.${tenant.id}` }, () => fetchAll())
-      .on("postgres_changes" as any, { event: "*", schema: "public", table: "guests", filter: `tenant_id=eq.${tenant.id}` }, () => fetchAll())
       .subscribe();
 
     return () => { supabase.removeChannel(channel); };
   }, [tenant, selectedMonth, selectedYear]);
 
-  const isViewingCurrentMonth = selectedMonth === new Date().getMonth() && selectedYear === new Date().getFullYear();
-  const nowHH = new Date().getHours() * 60 + new Date().getMinutes();
-  const nextRes = isViewingCurrentMonth ? todayRes.find((r: any) => {
-    const [h, m] = r.time.split(":").map(Number);
-    return h * 60 + m > nowHH;
-  }) : null;
+  /* ─── KPI computation ─── */
 
-  const monthChange = prevMonthTotal.count > 0
-    ? Math.round(((monthTotal.count - prevMonthTotal.count) / prevMonthTotal.count) * 100)
-    : monthTotal.count > 0 ? 100 : 0;
+  const kpis = useMemo(() => {
+    const s = (tenant?.settings || {}) as any;
+    const avgSpend = s.avg_spend || 50;
+    const aiMonthlyCost = s.ai_monthly_cost || 0;
+    const noShowBaseline = s.no_show_baseline_pct || 15;
+    const openingHours: OpeningHours = s.opening_hours || {};
+    const tz = s.timezone || "Atlantic/Canary";
 
-  const maxWeekCount = Math.max(...weekData.map(d => d.count), 1);
+    const total = reservations.length;
+    const aiRes = reservations.filter(r => r.source === "ai_chat" || r.source === "ai_voice");
+    const staffRes = reservations.filter(r => r.source !== "ai_chat" && r.source !== "ai_voice");
 
-  const avgSpendPerCover = 50;
-  const recoveredRevenue = waitlistConverted * 2 * avgSpendPerCover; // avg 2 covers per waitlist match
+    // Revenue
+    const aiRevenue = aiRes.reduce((sum, r) => sum + r.party_size * avgSpend, 0);
 
-  const cards = [
-    { label: t("dashboard_total_reservations"), value: totalReservations, icon: CalendarCheck, sub: `${totalCovers} covers` },
-    { label: "AI Handled", value: `${aiHandledPct}%`, icon: Bot, sub: `${aiCount} AI / ${staffCount} Staff`, valueColor: "#22c55e" },
-    { label: t("nav_guests"), value: totalGuests, icon: Users },
-    { label: "No-Shows", value: noShows, icon: UserX },
-  ];
+    // Out-of-hours
+    const outOfHours = aiRes.filter(r => r.created_at && isOutOfHours(r.created_at, openingHours, tz));
+    const outOfHoursRevenue = outOfHours.reduce((sum, r) => sum + r.party_size * avgSpend, 0);
+
+    // Voice (missed calls captured)
+    const voiceRes = reservations.filter(r => r.source === "ai_voice");
+    const voiceRevenue = voiceRes.reduce((sum, r) => sum + r.party_size * avgSpend, 0);
+
+    // Chat
+    const chatRes = reservations.filter(r => r.source === "ai_chat");
+    const chatRevenue = chatRes.reduce((sum, r) => sum + r.party_size * avgSpend, 0);
+
+    // Waitlist
+    const avgParty = total > 0 ? reservations.reduce((s, r) => s + r.party_size, 0) / total : 2;
+    const waitlistRevenue = Math.round(waitlistConverted * avgParty * avgSpend);
+
+    // No-shows prevented
+    const noShows = reservations.filter(r => r.status === "no_show").length;
+    const actualPct = total > 0 ? (noShows / total) * 100 : 0;
+    const noShowsPrevented = Math.max(0, Math.round((noShowBaseline - actualPct) / 100 * total));
+    const noShowValue = Math.round(noShowsPrevented * avgParty * avgSpend);
+
+    // ROI
+    const totalValue = aiRevenue + waitlistRevenue + noShowValue;
+    const roi = aiMonthlyCost > 0 ? Math.round((totalValue / aiMonthlyCost) * 100) : 0;
+
+    // Efficiency
+    const aiHandledPct = total > 0 ? Math.round((aiRes.length / total) * 100) : 0;
+    const staffHoursSaved = Math.round(aiRes.length * 5 / 60 * 10) / 10; // 5 min per booking
+
+    // Previous month comparison
+    const prevAi = prevMonthRes.filter(r => r.source === "ai_chat" || r.source === "ai_voice");
+    const prevAiRevenue = prevAi.reduce((sum, r) => sum + r.party_size * avgSpend, 0);
+    const revenueChange = prevAiRevenue > 0 ? Math.round(((aiRevenue - prevAiRevenue) / prevAiRevenue) * 100) : (aiRevenue > 0 ? 100 : 0);
+
+    // Daily chart data (AI vs Staff per day)
+    const dailyMap: Record<string, { date: string; ai: number; staff: number; revenue: number }> = {};
+    const daysInMonth = new Date(selectedYear, selectedMonth + 1, 0).getDate();
+    for (let d = 1; d <= daysInMonth; d++) {
+      const key = `${selectedYear}-${String(selectedMonth + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+      dailyMap[key] = { date: String(d), ai: 0, staff: 0, revenue: 0 };
+    }
+    reservations.forEach(r => {
+      if (dailyMap[r.date]) {
+        if (r.source === "ai_chat" || r.source === "ai_voice") {
+          dailyMap[r.date].ai++;
+          dailyMap[r.date].revenue += r.party_size * avgSpend;
+        } else {
+          dailyMap[r.date].staff++;
+        }
+      }
+    });
+    const dailyData = Object.values(dailyMap);
+
+    // Source breakdown for pie
+    const sourceCounts: Record<string, number> = {};
+    reservations.forEach(r => { sourceCounts[r.source] = (sourceCounts[r.source] || 0) + 1; });
+    const sourceLabels: Record<string, string> = { ai_voice: "AI Voice", ai_chat: "AI Chat", staff: "Staff", walk_in: "Walk-in", web: "Web" };
+    const sourceData = Object.entries(sourceCounts).map(([name, value]) => ({ name: sourceLabels[name] || name, value }));
+
+    return {
+      totalValue, aiRevenue, roi, aiMonthlyCost,
+      outOfHoursCount: outOfHours.length, outOfHoursRevenue,
+      voiceCount: voiceRes.length, voiceRevenue,
+      chatCount: chatRes.length, chatRevenue,
+      waitlistConverted, waitlistRevenue,
+      noShowsPrevented, noShowValue, noShows,
+      aiHandledPct, staffHoursSaved, aiCount: aiRes.length, staffCount: staffRes.length,
+      total, revenueChange,
+      dailyData, sourceData,
+      avgParty: Math.round(avgParty * 10) / 10,
+    };
+  }, [reservations, prevMonthRes, waitlistConverted, tenant, selectedMonth, selectedYear]);
+
+  /* ─── render ─── */
+
+  const cardStyle = { background: "rgba(252,246,237,0.85)", borderColor: "#c4956a" };
 
   return (
-    <div className="p-4 sm:p-6 lg:p-8 w-full space-y-4 sm:space-y-6 lg:space-y-8">
+    <div className="p-4 sm:p-6 lg:p-8 w-full space-y-4 sm:space-y-6">
+
+      {/* ── Header ── */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
           <h1 className="text-xl sm:text-2xl font-bold text-black tracking-tight">{t("nav_dashboard")}</h1>
-          <p className="mt-0.5 sm:mt-1 text-xs sm:text-sm text-black">Monitor your AI agent&apos;s performance and restaurant operations.</p>
+          <p className="mt-0.5 text-xs sm:text-sm text-black/60">AI performance &amp; business impact</p>
         </div>
         <div className="flex items-center gap-1 sm:gap-2">
           <button onClick={() => navigateMonth(-1)} className="p-1.5 sm:p-2 hover:bg-[#c4956a]/10 rounded-lg transition-colors">
             <ChevronLeft className="w-4 h-4 sm:w-5 sm:h-5 text-black" />
           </button>
           <div className="flex items-center gap-1 min-w-[120px] sm:min-w-[140px] justify-center">
-            <select
-              value={selectedMonth}
-              onChange={(e) => setSelectedMonth(Number(e.target.value))}
+            <select value={selectedMonth} onChange={(e) => setSelectedMonth(Number(e.target.value))}
               className="border-2 rounded-lg px-1.5 sm:px-2 py-1 sm:py-1.5 text-xs sm:text-sm font-semibold text-black focus:outline-none focus:ring-1 focus:ring-[#c4956a]"
-              style={{ borderColor: '#c4956a', background: 'rgba(252,246,237,0.6)' }}
-            >
+              style={{ borderColor: "#c4956a", background: "rgba(252,246,237,0.6)" }}>
               {monthNames.map((m, i) => <option key={i} value={i}>{m}</option>)}
             </select>
-            <select
-              value={selectedYear}
-              onChange={(e) => setSelectedYear(Number(e.target.value))}
+            <select value={selectedYear} onChange={(e) => setSelectedYear(Number(e.target.value))}
               className="border-2 rounded-lg px-1.5 sm:px-2 py-1 sm:py-1.5 text-xs sm:text-sm font-semibold text-black focus:outline-none focus:ring-1 focus:ring-[#c4956a]"
-              style={{ borderColor: '#c4956a', background: 'rgba(252,246,237,0.6)' }}
-            >
+              style={{ borderColor: "#c4956a", background: "rgba(252,246,237,0.6)" }}>
               {Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - 2 + i).map(y => (
                 <option key={y} value={y}>{y}</option>
               ))}
@@ -246,176 +235,160 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* AI Business Impact */}
-      <div className="rounded-xl border-2 p-4 sm:p-6" style={{ background: "rgba(252,246,237,0.85)", borderColor: "#c4956a" }}>
-        <div className="flex items-center justify-between mb-4">
+      {/* ══════════════════════════════════════════════
+          SECTION 1 — HERO: AI Generated Value
+          ══════════════════════════════════════════════ */}
+      <div className="rounded-xl border-2 p-4 sm:p-6" style={cardStyle}>
+        <div className="flex items-center justify-between mb-5">
           <div className="flex items-center gap-2">
             <Sparkles className="w-5 h-5 text-[#c4956a]" />
-            <h2 className="text-sm sm:text-base font-bold text-black">AI Business Impact</h2>
-            <span className="text-xs text-black">vs Last Month</span>
+            <h2 className="text-sm sm:text-base font-bold text-black">AI Generated Value</h2>
+            <span className="text-xs text-black/50">{monthNames[selectedMonth]} {selectedYear}</span>
           </div>
-          <span className="text-xs font-bold px-3 py-1 rounded-full border" style={{ color: "#22c55e", borderColor: "#22c55e" }}>
-            ESTIMATED ROI
-          </span>
+          {kpis.roi > 0 && (
+            <span className="text-xs font-bold px-3 py-1 rounded-full border" style={{ color: "#22c55e", borderColor: "#22c55e" }}>
+              +{kpis.roi}% ROI
+            </span>
+          )}
         </div>
+
+        {/* Big number */}
+        <div className="mb-6">
+          <p className="text-3xl sm:text-4xl font-bold text-[#22c55e]">€{kpis.totalValue.toLocaleString()}</p>
+          {kpis.revenueChange !== 0 && (
+            <div className={`flex items-center gap-1 mt-1 text-xs font-semibold ${kpis.revenueChange > 0 ? "text-green-600" : "text-red-500"}`}>
+              {kpis.revenueChange > 0 ? <TrendingUp className="w-3.5 h-3.5" /> : <TrendingDown className="w-3.5 h-3.5" />}
+              {kpis.revenueChange > 0 ? "+" : ""}{kpis.revenueChange}% vs prev month
+            </div>
+          )}
+        </div>
+
+        {/* Breakdown */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
-          <div>
-            <p className="text-xs text-black font-medium">Recovered Revenue</p>
-            <p className="text-xl sm:text-2xl font-bold text-[#22c55e]">€{recoveredRevenue.toLocaleString()}</p>
-            <p className="text-xs text-black">{waitlistConverted} waitlist matches</p>
+          <div className="p-3 rounded-lg" style={{ background: "rgba(196,149,106,0.08)" }}>
+            <div className="flex items-center gap-1.5 mb-1">
+              <Moon className="w-3.5 h-3.5 text-indigo-500" />
+              <p className="text-xs text-black/70 font-medium">Out-of-Hours</p>
+            </div>
+            <p className="text-lg sm:text-xl font-bold text-black">€{kpis.outOfHoursRevenue.toLocaleString()}</p>
+            <p className="text-xs text-black/50">{kpis.outOfHoursCount} bookings while closed</p>
           </div>
-          <div>
-            <p className="text-xs text-black font-medium">No-Shows Prevented</p>
-            <p className="text-xl sm:text-2xl font-bold text-black">{remindersNoShows.reminded > 0 ? Math.max(0, remindersNoShows.reminded - remindersNoShows.noShows) : 0}</p>
-            <p className="text-xs text-black">via auto-reminders</p>
+          <div className="p-3 rounded-lg" style={{ background: "rgba(196,149,106,0.08)" }}>
+            <div className="flex items-center gap-1.5 mb-1">
+              <Phone className="w-3.5 h-3.5 text-[#fb7740]" />
+              <p className="text-xs text-black/70 font-medium">AI Voice Calls</p>
+            </div>
+            <p className="text-lg sm:text-xl font-bold text-black">€{kpis.voiceRevenue.toLocaleString()}</p>
+            <p className="text-xs text-black/50">{kpis.voiceCount} calls converted</p>
           </div>
-          <div>
-            <p className="text-xs text-black font-medium">AI Conversations</p>
-            <p className="text-xl sm:text-2xl font-bold text-black">{remindersNoShows.reminded}</p>
-            <p className="text-xs text-black">handled automatically</p>
+          <div className="p-3 rounded-lg" style={{ background: "rgba(196,149,106,0.08)" }}>
+            <div className="flex items-center gap-1.5 mb-1">
+              <RefreshCw className="w-3.5 h-3.5 text-emerald-500" />
+              <p className="text-xs text-black/70 font-medium">Waitlist Recovered</p>
+            </div>
+            <p className="text-lg sm:text-xl font-bold text-black">€{kpis.waitlistRevenue.toLocaleString()}</p>
+            <p className="text-xs text-black/50">{kpis.waitlistConverted} recoveries</p>
           </div>
-          <div>
-            <p className="text-xs text-black font-medium">Total Covers</p>
-            <p className="text-xl sm:text-2xl font-bold text-black">{totalCovers}</p>
-            <p className="text-xs text-black">{totalReservations} reservations</p>
+          <div className="p-3 rounded-lg" style={{ background: "rgba(196,149,106,0.08)" }}>
+            <div className="flex items-center gap-1.5 mb-1">
+              <Bot className="w-3.5 h-3.5 text-[#c4956a]" />
+              <p className="text-xs text-black/70 font-medium">AI Chat</p>
+            </div>
+            <p className="text-lg sm:text-xl font-bold text-black">€{kpis.chatRevenue.toLocaleString()}</p>
+            <p className="text-xs text-black/50">{kpis.chatCount} WhatsApp bookings</p>
           </div>
         </div>
       </div>
 
-      {/* Stats Cards */}
+      {/* ══════════════════════════════════════════════
+          SECTION 2 — DRIVERS
+          ══════════════════════════════════════════════ */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-4">
-        {cards.map((card: any) => (
-          <div key={card.label} className="rounded-xl p-3 sm:p-5 border-2" style={{ background: "rgba(252,246,237,0.85)", borderColor: "#c4956a" }}>
+        {[
+          { label: "Bookings While Closed", value: kpis.outOfHoursCount, icon: Moon, color: "#6366f1", sub: "out-of-hours" },
+          { label: "Calls Converted", value: kpis.voiceCount, icon: Phone, color: "#fb7740", sub: "by AI voice" },
+          { label: "Waitlist Recoveries", value: kpis.waitlistConverted, icon: RefreshCw, color: "#22c55e", sub: "auto-filled" },
+          { label: "No-Shows Prevented", value: kpis.noShowsPrevented, icon: ShieldCheck, color: "#c4956a", sub: `${kpis.noShows} actual no-shows` },
+        ].map(card => (
+          <div key={card.label} className="rounded-xl p-3 sm:p-5 border-2" style={cardStyle}>
             <div className="flex items-center justify-between">
               <div className="min-w-0">
-                <p className="text-xs sm:text-sm font-medium text-black truncate">{card.label}</p>
-                <p className="text-lg sm:text-2xl font-bold mt-0.5 sm:mt-1" style={{ color: card.valueColor || "black" }}>{card.value}</p>
-                {card.sub && <p className="text-xs text-black mt-0.5">{card.sub}</p>}
+                <p className="text-xs sm:text-sm font-medium text-black/70 truncate">{card.label}</p>
+                <p className="text-xl sm:text-2xl font-bold mt-0.5 sm:mt-1" style={{ color: card.color }}>{card.value}</p>
+                <p className="text-xs text-black/50 mt-0.5">{card.sub}</p>
               </div>
-              <card.icon className="h-6 w-6 sm:h-8 sm:w-8 text-[#c4956a] flex-shrink-0 ml-2" />
+              <card.icon className="h-6 w-6 sm:h-8 sm:w-8 flex-shrink-0 ml-2" style={{ color: card.color, opacity: 0.6 }} />
             </div>
           </div>
         ))}
       </div>
 
-      {/* Timeline: Today → Month → Year */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-
-        {/* TODAY */}
-        <div className="rounded-xl border-2 p-5" style={{ background: "rgba(252,246,237,0.85)", borderColor: "#c4956a" }}>
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-sm font-bold text-black uppercase tracking-wider">
-              {isViewingCurrentMonth ? "Today" : "Top Day"}
-            </h3>
-            <span className="text-xs text-black">
-              {isViewingCurrentMonth ? new Date().toLocaleDateString() : todayRes.length > 0 ? todayRes[0]?.date : monthNames[selectedMonth]}
-            </span>
+      {/* ══════════════════════════════════════════════
+          SECTION 3 — EFFICIENCY
+          ══════════════════════════════════════════════ */}
+      <div className="grid grid-cols-3 gap-2 sm:gap-4">
+        <div className="rounded-xl p-3 sm:p-5 border-2" style={cardStyle}>
+          <div className="flex items-center gap-1.5 mb-1">
+            <Gauge className="w-4 h-4 text-[#c4956a]" />
+            <p className="text-xs font-medium text-black/70">AI Handled</p>
           </div>
-          {isViewingCurrentMonth && new Date().getDay() === 1 ? (
-            <div className="flex items-center gap-3 p-4 rounded-lg" style={{ background: "rgba(196,149,106,0.08)" }}>
-              <XCircle className="w-6 h-6 text-black flex-shrink-0" />
-              <div>
-                <p className="text-sm font-bold text-black">No hay turno hoy</p>
-                <p className="text-xs text-black">El restaurante está cerrado los lunes</p>
-              </div>
-            </div>
-          ) : (
-            <>
-              <div className="flex items-baseline gap-2 mb-3">
-                <span className="text-3xl font-bold text-black">{todayRes.length}</span>
-                <span className="text-sm text-black">reservas</span>
-                <span className="text-lg font-bold text-[#c4956a] ml-2">{todayRes.reduce((s: number, r: any) => s + r.party_size, 0)}p</span>
-              </div>
-              {nextRes ? (
-                <div className="flex items-center gap-2 p-3 rounded-lg" style={{ background: "rgba(196,149,106,0.1)" }}>
-                  <Clock className="w-4 h-4 text-[#c4956a]" />
-                  <div>
-                    <p className="text-xs text-black">Next</p>
-                    <p className="text-sm font-bold text-black">{nextRes.time} — {nextRes.guests?.name || "Guest"} ({nextRes.party_size}p)</p>
-                  </div>
-                </div>
-              ) : todayRes.length > 0 ? (
-                <div className="flex items-center gap-2 p-3 rounded-lg" style={{ background: "rgba(196,149,106,0.1)" }}>
-                  <CalendarCheck className="w-4 h-4 text-[#c4956a]" />
-                  <div>
-                    <p className="text-xs text-black">First</p>
-                    <p className="text-sm font-bold text-black">{todayRes[0]?.time} — {todayRes[0]?.guests?.name || "Guest"} ({todayRes[0]?.party_size}p)</p>
-                  </div>
-                </div>
-              ) : (
-                <p className="text-xs text-black">No reservations</p>
-              )}
-            </>
-          )}
+          <p className="text-xl sm:text-2xl font-bold text-black">{kpis.aiHandledPct}%</p>
+          <p className="text-xs text-black/50">{kpis.aiCount} AI / {kpis.staffCount} Staff</p>
         </div>
-
-        {/* MONTH + YEAR */}
-        <div className="rounded-xl border-2 p-5 flex flex-col justify-between" style={{ background: "rgba(252,246,237,0.85)", borderColor: "#c4956a" }}>
-          {/* Month */}
-          <div>
-            <div className="flex items-center justify-between mb-2">
-              <h3 className="text-sm font-bold text-black uppercase tracking-wider">{monthNames[selectedMonth]} {selectedYear}</h3>
-              {monthChange !== 0 && (
-                <div className={`flex items-center gap-1 text-xs font-bold ${monthChange > 0 ? "text-green-600" : "text-red-500"}`}>
-                  {monthChange > 0 ? <TrendingUp className="w-3.5 h-3.5" /> : <TrendingDown className="w-3.5 h-3.5" />}
-                  {monthChange > 0 ? "+" : ""}{monthChange}%
-                </div>
-              )}
-            </div>
-            <div className="flex items-baseline gap-3">
-              <span className="text-3xl font-bold text-black">{monthTotal.count}</span>
-              <span className="text-sm text-black">reservas</span>
-            </div>
-            <div className="flex items-center gap-4 mt-1 text-xs text-black">
-              <span>{monthTotal.guests} personas</span>
-              <span>·</span>
-              <span>prev: {prevMonthTotal.count}</span>
-            </div>
+        <div className="rounded-xl p-3 sm:p-5 border-2" style={cardStyle}>
+          <div className="flex items-center gap-1.5 mb-1">
+            <Timer className="w-4 h-4 text-[#c4956a]" />
+            <p className="text-xs font-medium text-black/70">Staff Hours Saved</p>
           </div>
-
-          {/* Divider */}
-          <div className="my-4 border-t" style={{ borderColor: "rgba(196,149,106,0.3)" }} />
-
-          {/* Year */}
-          <div>
-            <h3 className="text-sm font-bold text-black uppercase tracking-wider mb-2">{selectedYear}</h3>
-            <div className="flex items-baseline gap-3">
-              <span className="text-3xl font-bold text-black">{yearTotal.count}</span>
-              <span className="text-sm text-black">reservas</span>
-            </div>
-            <p className="text-xs text-black mt-1">{yearTotal.guests} personas total</p>
+          <p className="text-xl sm:text-2xl font-bold text-black">{kpis.staffHoursSaved}h</p>
+          <p className="text-xs text-black/50">~5 min per AI booking</p>
+        </div>
+        <div className="rounded-xl p-3 sm:p-5 border-2" style={cardStyle}>
+          <div className="flex items-center gap-1.5 mb-1">
+            <UsersRound className="w-4 h-4 text-[#c4956a]" />
+            <p className="text-xs font-medium text-black/70">Total Bookings</p>
           </div>
+          <p className="text-xl sm:text-2xl font-bold text-black">{kpis.total}</p>
+          <p className="text-xs text-black/50">avg {kpis.avgParty} covers each</p>
         </div>
       </div>
 
-      {/* Charts */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-8">
-        <div className="p-4 sm:p-6 rounded-2xl border-2" style={{ background: "rgba(252,246,237,0.85)", borderColor: "#c4956a" }}>
-          <h3 className="text-xs sm:text-sm font-bold text-black uppercase tracking-wider mb-4 sm:mb-6">{isViewingCurrentMonth ? "Next 7 Days" : `${monthNames[selectedMonth]} ${selectedYear}`}</h3>
+      {/* ══════════════════════════════════════════════
+          SECTION 4 — CHARTS
+          ══════════════════════════════════════════════ */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
+
+        {/* AI vs Staff bookings over time */}
+        <div className="p-4 sm:p-6 rounded-xl border-2" style={cardStyle}>
+          <h3 className="text-xs sm:text-sm font-bold text-black uppercase tracking-wider mb-4">AI vs Staff Bookings</h3>
           <div className="h-48 sm:h-64">
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={weekData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+              <BarChart data={kpis.dailyData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e4e4e7" />
-                <XAxis dataKey="label" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: "#71717a" }} dy={10} />
+                <XAxis dataKey="date" axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: "#71717a" }}
+                  interval={Math.max(0, Math.floor(kpis.dailyData.length / 10))} />
                 <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: "#71717a" }} allowDecimals={false} />
                 <Tooltip contentStyle={{ borderRadius: "12px", border: "1px solid #c4956a", fontSize: "13px" }} />
-                <Bar dataKey="count" fill="#c4956a" radius={[4, 4, 0, 0]} maxBarSize={40} name="Reservations" />
+                <Legend wrapperStyle={{ fontSize: "12px" }} />
+                <Bar dataKey="ai" stackId="a" fill="#fb7740" radius={[0, 0, 0, 0]} name="AI" />
+                <Bar dataKey="staff" stackId="a" fill="#c4956a" radius={[4, 4, 0, 0]} name="Staff" />
               </BarChart>
             </ResponsiveContainer>
           </div>
         </div>
 
-        <div className="p-4 sm:p-6 rounded-2xl border-2" style={{ background: "rgba(252,246,237,0.85)", borderColor: "#c4956a" }}>
-          <h3 className="text-xs sm:text-sm font-bold text-black uppercase tracking-wider mb-4 sm:mb-6">{t("chart_source_title")}</h3>
+        {/* Channel breakdown pie */}
+        <div className="p-4 sm:p-6 rounded-xl border-2" style={cardStyle}>
+          <h3 className="text-xs sm:text-sm font-bold text-black uppercase tracking-wider mb-4">Channel Breakdown</h3>
           <div className="h-48 sm:h-64">
-            {sourceData.length === 0 ? (
-              <p className="text-sm text-black text-center pt-20">No data yet</p>
+            {kpis.sourceData.length === 0 ? (
+              <p className="text-sm text-black/50 text-center pt-20">No data yet</p>
             ) : (
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
-                  <Pie data={sourceData} cx="50%" cy="50%" innerRadius={50} outerRadius={90} paddingAngle={3} dataKey="value"
+                  <Pie data={kpis.sourceData} cx="50%" cy="50%" innerRadius={50} outerRadius={90} paddingAngle={3} dataKey="value"
                     label={({ name, value }) => `${name} (${value})`}>
-                    {sourceData.map((_entry, index) => (
+                    {kpis.sourceData.map((_entry: any, index: number) => (
                       <Cell key={`cell-${index}`} fill={PIE_COLORS[index % PIE_COLORS.length]} />
                     ))}
                   </Pie>
@@ -424,6 +397,25 @@ export default function DashboardPage() {
               </ResponsiveContainer>
             )}
           </div>
+        </div>
+      </div>
+
+      {/* Revenue over time (line chart) */}
+      <div className="p-4 sm:p-6 rounded-xl border-2" style={cardStyle}>
+        <h3 className="text-xs sm:text-sm font-bold text-black uppercase tracking-wider mb-4">AI Revenue Over Time</h3>
+        <div className="h-48 sm:h-56">
+          <ResponsiveContainer width="100%" height="100%">
+            <LineChart data={kpis.dailyData} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
+              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e4e4e7" />
+              <XAxis dataKey="date" axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: "#71717a" }}
+                interval={Math.max(0, Math.floor(kpis.dailyData.length / 10))} />
+              <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: "#71717a" }}
+                tickFormatter={(v: number) => `€${v}`} />
+              <Tooltip contentStyle={{ borderRadius: "12px", border: "1px solid #c4956a", fontSize: "13px" }}
+                formatter={(value) => [`€${value}`, "AI Revenue"]} />
+              <Line type="monotone" dataKey="revenue" stroke="#22c55e" strokeWidth={2} dot={false} />
+            </LineChart>
+          </ResponsiveContainer>
         </div>
       </div>
     </div>
