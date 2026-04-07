@@ -115,11 +115,19 @@ export default function KnowledgePage() {
            const { tenant_id: _tid, ...updatePayload } = payload as any;
            const { error: updateErr } = await supabase.from("knowledge_articles").update(updatePayload).eq("id", selectedArticleId);
            if (updateErr) { console.error("KB update error:", updateErr); alert("Error: " + updateErr.message); }
+           else {
+             // Update local state immediately
+             setArticles(prev => prev.map(a => a.id === selectedArticleId ? { ...a, ...payload, id: selectedArticleId } as KnowledgeArticle : a));
+           }
         } else {
            payload.version = 1;
            payload.created_at = new Date().toISOString();
-           const { data: inserted } = await supabase.from("knowledge_articles").insert(payload).select("id").single();
-           if (inserted) setSelectedArticleId(inserted.id);
+           const { data: inserted, error: insertErr } = await supabase.from("knowledge_articles").insert(payload).select("*").single();
+           if (insertErr) { console.error("KB insert error:", insertErr); alert("Error: " + insertErr.message); }
+           else if (inserted) {
+             setSelectedArticleId(inserted.id);
+             setArticles(prev => [inserted as KnowledgeArticle, ...prev]);
+           }
         }
         setIsEditing(false);
         syncRetellKB();
@@ -260,15 +268,6 @@ export default function KnowledgePage() {
                            placeholder="legal, safety, high-risk..."
                         />
                      </div>
-                  </div>
-                  <div className="bg-zinc-900/5 rounded-2xl p-6 flex flex-col">
-                     <div className="flex items-center space-x-2 text-zinc-400 mb-4">
-                        <AlertTriangle className="w-4 h-4" />
-                        <span className="text-[10px] font-bold uppercase tracking-widest">{t("know_ai_note")}</span>
-                     </div>
-                     <p className="text-xs text-zinc-600 leading-relaxed font-medium">
-                        {t("know_ai_note_desc")}
-                     </p>
                   </div>
                </div>
 
