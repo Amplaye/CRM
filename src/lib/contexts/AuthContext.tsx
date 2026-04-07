@@ -17,9 +17,14 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const supabase = useMemo(() => createClient(), []);
 
   useEffect(() => {
-    // Only use onAuthStateChange — it fires immediately with current session
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUser(session?.user ?? null);
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      // Only update state on real auth changes, not token refreshes
+      if (event === "TOKEN_REFRESHED") return;
+      const newUser = session?.user ?? null;
+      setUser(prev => {
+        if (prev?.id === newUser?.id) return prev; // same user, keep same reference
+        return newUser;
+      });
       setLoading(false);
     });
 
