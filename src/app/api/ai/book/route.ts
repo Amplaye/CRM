@@ -153,10 +153,6 @@ export async function POST(request: Request) {
       const freeTables = (activeTables || []).filter((t: any) => !occupiedTableIds.has(t.id));
       const hasCapacity = freeTables.length >= needed;
 
-      const capacityNote = hasCapacity
-        ? `Hay espacio: ${freeTables.length} mesas libres de ${(activeTables || []).length} (necesarias: ${needed})`
-        : `SIN CAPACIDAD: solo ${freeTables.length} mesas libres de ${(activeTables || []).length} (necesarias: ${needed})`;
-
       const reservation = {
         tenant_id: payload.tenant_id,
         guest_id: guestId,
@@ -166,7 +162,7 @@ export async function POST(request: Request) {
         status: 'escalated',
         source: payload.source || 'ai_voice',
         created_by_type: 'ai',
-        notes: `${payload.notes || "Grupo grande - pendiente de revisión"} — ${capacityNote}`,
+        notes: payload.notes || "",
         linked_conversation_id: payload.linked_conversation_id,
         end_time: endTime,
         shift,
