@@ -340,36 +340,36 @@ export default function FloorPage() {
           </h1>
           <p className="mt-1 text-sm text-black">{t("floor_subtitle")}</p>
         </div>
-        <div className="mt-4 sm:mt-0 flex items-center gap-3">
-          <div className="flex border-2 rounded-lg overflow-hidden" style={{ borderColor: '#c4956a' }}>
+        <div className="mt-3 sm:mt-0 flex flex-wrap items-center gap-2 sm:gap-3">
+          <div className="flex border-2 rounded-lg overflow-hidden flex-shrink-0" style={{ borderColor: '#c4956a' }}>
             <button
               onClick={() => setSelectedShift("lunch")}
-              className={`px-4 py-1.5 text-sm font-semibold transition-colors ${selectedShift === "lunch" ? "text-white" : "text-black"}`}
+              className={`px-3 sm:px-4 py-1.5 text-xs sm:text-sm font-semibold transition-colors ${selectedShift === "lunch" ? "text-white" : "text-black"}`}
               style={{ background: selectedShift === "lunch" ? '#c4956a' : 'rgba(252,246,237,0.6)' }}
             >
               {t("floor_lunch")}
             </button>
             <button
               onClick={() => setSelectedShift("dinner")}
-              className={`px-4 py-1.5 text-sm font-semibold transition-colors ${selectedShift === "dinner" ? "text-white" : "text-black"}`}
+              className={`px-3 sm:px-4 py-1.5 text-xs sm:text-sm font-semibold transition-colors ${selectedShift === "dinner" ? "text-white" : "text-black"}`}
               style={{ background: selectedShift === "dinner" ? '#c4956a' : 'rgba(252,246,237,0.6)' }}
             >
               {t("floor_dinner")}
             </button>
           </div>
           <div className="flex items-center gap-1">
-            <button onClick={() => { const d = new Date(selectedDate + 'T12:00:00'); d.setDate(d.getDate() - 1); setSelectedDate(d.toISOString().split('T')[0]); }} className="p-1.5 rounded-lg hover:bg-[#c4956a]/10 transition-colors">
-              <ChevronLeft className="w-5 h-5 text-black" />
+            <button onClick={() => { const d = new Date(selectedDate + 'T12:00:00'); d.setDate(d.getDate() - 1); setSelectedDate(d.toISOString().split('T')[0]); }} className="p-1 sm:p-1.5 rounded-lg hover:bg-[#c4956a]/10 transition-colors">
+              <ChevronLeft className="w-4 h-4 sm:w-5 sm:h-5 text-black" />
             </button>
             <input
               type="date"
               value={selectedDate}
               onChange={(e) => setSelectedDate(e.target.value)}
-              className="border-2 rounded-lg px-3 py-1.5 text-sm font-medium text-black focus:ring-1 focus:ring-[#c4956a] focus:outline-none"
+              className="border-2 rounded-lg px-2 sm:px-3 py-1.5 text-xs sm:text-sm font-medium text-black focus:ring-1 focus:ring-[#c4956a] focus:outline-none"
               style={{ borderColor: '#c4956a', background: 'rgba(252,246,237,0.6)' }}
             />
-            <button onClick={() => { const d = new Date(selectedDate + 'T12:00:00'); d.setDate(d.getDate() + 1); setSelectedDate(d.toISOString().split('T')[0]); }} className="p-1.5 rounded-lg hover:bg-[#c4956a]/10 transition-colors">
-              <ChevronRight className="w-5 h-5 text-black" />
+            <button onClick={() => { const d = new Date(selectedDate + 'T12:00:00'); d.setDate(d.getDate() + 1); setSelectedDate(d.toISOString().split('T')[0]); }} className="p-1 sm:p-1.5 rounded-lg hover:bg-[#c4956a]/10 transition-colors">
+              <ChevronRight className="w-4 h-4 sm:w-5 sm:h-5 text-black" />
             </button>
           </div>
         </div>

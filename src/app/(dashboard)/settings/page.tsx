@@ -67,19 +67,30 @@ export default function SettingsPage() {
     if (aiBooking) channels.push("whatsapp");
     if (aiVoice) channels.push("voice");
 
-    await supabase.from("tenants").update({
+    const newSettings = {
+      timezone,
+      currency: "EUR",
+      ai_enabled_channels: channels,
+      avg_spend: avgSpend,
+      avg_cost: avgCost,
+      ai_monthly_cost: aiMonthlyCost,
+      no_show_baseline_pct: noShowBaseline,
+      opening_hours: openingHours,
+    };
+
+    const { error } = await supabase.from("tenants").update({
       name,
-      settings: {
-        timezone,
-        currency: "EUR",
-        ai_enabled_channels: channels,
-        avg_spend: avgSpend,
-        avg_cost: avgCost,
-        ai_monthly_cost: aiMonthlyCost,
-        no_show_baseline_pct: noShowBaseline,
-        opening_hours: openingHours,
-      }
+      settings: newSettings,
     }).eq("id", tenant.id);
+
+    if (error) {
+      console.error("Save failed:", error);
+      setSaving(false);
+      return;
+    }
+
+    // Clear tenant cache so dashboard picks up new settings
+    try { sessionStorage.clear(); } catch {}
 
     setSaving(false);
     setSaved(true);
