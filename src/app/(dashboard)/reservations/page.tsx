@@ -14,6 +14,7 @@ import { useLanguage } from "@/lib/contexts/LanguageContext";
 import { useTenant } from "@/lib/contexts/TenantContext";
 import { createReservationAction, updateReservationDetailsAction } from "@/app/actions/reservations";
 import { createClient } from "@/lib/supabase/client";
+import { useSearchParams } from "next/navigation";
 
 const downloadCSV = (data: string[][], filename: string) => {
   const csv = data.map(row => row.map(cell => `"${(cell || '').replace(/"/g, '""')}"`).join(',')).join('\n');
@@ -54,8 +55,9 @@ export default function ReservationsPage() {
   const [isCreating, setIsCreating] = useState(false);
   const [saving, setSaving] = useState(false);
 
+  const searchParams = useSearchParams();
   const today = new Date().toISOString().split('T')[0];
-  const [date, setDate] = useState(today);
+  const [date, setDate] = useState(searchParams.get('date') || today);
   const shiftDate = (days: number) => {
     const d = new Date(date + 'T12:00:00');
     d.setDate(d.getDate() + days);

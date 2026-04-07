@@ -82,11 +82,11 @@ export function Topbar({ onMenuToggle }: TopbarProps) {
             id: res.id,
             type: isEscalated ? "incident" : "reservation",
             message: isEscalated
-              ? `⚠️ Solicitud pendiente: ${res.party_size} personas - ${res.date} ${res.time}`
-              : `📅 Nueva reserva: ${res.party_size} personas - ${res.date} ${res.time}`,
+              ? `Solicitud pendiente: ${res.party_size} personas - ${res.date} ${res.time}`
+              : `Nueva reserva: ${res.party_size} personas - ${res.date} ${res.time}`,
             time: new Date().toLocaleTimeString(),
             read: false,
-            href: isEscalated ? "/pending" : "/reservations",
+            href: isEscalated ? `/pending` : `/reservations?date=${res.date}`,
           };
           setNotifications(prev => [notif, ...prev].slice(0, 20));
         }
@@ -104,7 +104,7 @@ export function Topbar({ onMenuToggle }: TopbarProps) {
           const notif: Notification = {
             id: entry.id,
             type: "waitlist",
-            message: `⏳ Waitlist: ${entry.party_size} personas - ${entry.date}`,
+            message: `Waitlist: ${entry.party_size} personas - ${entry.requested_date || ''}`,
             time: new Date().toLocaleTimeString(),
             read: false,
             href: "/waitlist",
