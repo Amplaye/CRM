@@ -88,3 +88,33 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: err.message }, { status: 500 });
   }
 }
+
+export async function PATCH(req: NextRequest) {
+  try {
+    const { tenant_id, settings } = await req.json();
+    if (!tenant_id || !settings) {
+      return NextResponse.json({ error: "Missing tenant_id or settings" }, { status: 400 });
+    }
+
+    const supabase = createServiceRoleClient();
+
+    // Merge with existing settings
+    const { data: tenant } = await supabase
+      .from("tenants")
+      .select("settings")
+      .eq("id", tenant_id)
+      .single();
+
+    const merged = { ...(tenant?.settings || {}), ...settings };
+
+    const { error } = await supabase
+      .from("tenants")
+      .update({ settings: merged })
+      .eq("id", tenant_id);
+
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ success: true, settings: merged });
+  } catch (err: any) {
+    return NextResponse.json({ error: err.message }, { status: 500 });
+  }
+}
