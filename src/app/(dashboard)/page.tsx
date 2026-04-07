@@ -4,7 +4,7 @@ import { useEffect, useState, useMemo } from "react";
 import {
   Bot, TrendingUp, TrendingDown,
   ChevronLeft, ChevronRight, Sparkles, Moon, Phone, RefreshCw, ShieldCheck,
-  Gauge, Timer, UsersRound,
+  Gauge, Timer, UsersRound, Lightbulb, DollarSign, AlertTriangle, Zap, Eye,
 } from "lucide-react";
 import { useLanguage } from "@/lib/contexts/LanguageContext";
 import {
@@ -106,6 +106,18 @@ export default function DashboardPage() {
 
     return () => { supabase.removeChannel(channel); };
   }, [tenant, selectedMonth, selectedYear]);
+
+  /* ─── insights ─── */
+
+  const [insights, setInsights] = useState<any[]>([]);
+
+  useEffect(() => {
+    if (!tenant) return;
+    fetch(`/api/insights?tenant_id=${tenant.id}`)
+      .then(r => r.json())
+      .then(d => setInsights(d.insights || []))
+      .catch(() => {});
+  }, [tenant]);
 
   /* ─── KPI computation ─── */
 
@@ -352,6 +364,41 @@ export default function DashboardPage() {
           <p className="text-xs text-black/50">avg {kpis.avgParty} covers each</p>
         </div>
       </div>
+
+      {/* ══════════════════════════════════════════════
+          OPPORTUNITIES
+          ══════════════════════════════════════════════ */}
+      {insights.length > 0 && (
+        <div className="rounded-xl border-2 p-4 sm:p-6" style={cardStyle}>
+          <div className="flex items-center gap-2 mb-4">
+            <Lightbulb className="w-5 h-5 text-amber-500" />
+            <h2 className="text-sm sm:text-base font-bold text-black">Opportunities</h2>
+          </div>
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
+            {insights.map((ins: any, i: number) => {
+              const iconMap: Record<string, any> = {
+                revenue_opportunity: <DollarSign className="w-4 h-4 text-emerald-500" />,
+                performance_drop: <AlertTriangle className="w-4 h-4 text-red-500" />,
+                ai_optimization: <Zap className="w-4 h-4 text-purple-500" />,
+                loss_prevention: <ShieldCheck className="w-4 h-4 text-orange-500" />,
+                hidden_value: <Eye className="w-4 h-4 text-indigo-500" />,
+              };
+              return (
+                <div key={i} className="p-3 rounded-lg border" style={{ borderColor: "rgba(196,149,106,0.3)", background: "rgba(196,149,106,0.04)" }}>
+                  <div className="flex items-center gap-2 mb-2">
+                    {iconMap[ins.type] || <Lightbulb className="w-4 h-4 text-amber-500" />}
+                    <span className="text-xs font-bold text-black/50 uppercase">{ins.type.replace(/_/g, " ")}</span>
+                  </div>
+                  {ins.estimated_value > 0 && (
+                    <p className="text-lg font-bold text-[#22c55e] mb-1">€{ins.estimated_value.toLocaleString()}/mo</p>
+                  )}
+                  <p className="text-xs text-black leading-relaxed">{ins.description}</p>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* ══════════════════════════════════════════════
           SECTION 4 — CHARTS

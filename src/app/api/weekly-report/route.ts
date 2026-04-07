@@ -166,6 +166,17 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    // Fetch top insight
+    try {
+      const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "https://crm.baliflowagency.com";
+      const insightRes = await fetch(`${baseUrl}/api/insights?tenant_id=${tenant_id}`);
+      const insightData = await insightRes.json();
+      const topInsight = (insightData.insights || [])[0];
+      if (topInsight && topInsight.estimated_value > 0) {
+        msg += `\n\n💡 ${topInsight.description}`;
+      }
+    } catch { /* insights are optional */ }
+
     msg += `\n\n👉 Ver detalles en tu dashboard`;
 
     return NextResponse.json({

@@ -6,7 +6,7 @@ import { useParams } from "next/navigation";
 import Link from "next/link";
 import {
   ArrowLeft, Bot, AlertTriangle, MessageSquare, Calendar,
-  Phone, TrendingUp, UserX, Zap, Clock,
+  Phone, TrendingUp, UserX, Zap, Clock, Lightbulb, DollarSign, ShieldCheck, Eye,
 } from "lucide-react";
 
 interface TenantDetail {
@@ -42,16 +42,22 @@ export default function TenantDetailPage() {
   const tenantId = params?.id as string;
   const [data, setData] = useState<TenantDetail | null>(null);
   const [loading, setLoading] = useState(true);
+  const [insights, setInsights] = useState<any[]>([]);
 
   useEffect(() => {
     if (!tenantId) return;
     const fetchDetail = async () => {
       setLoading(true);
       try {
-        const res = await fetch(`/api/admin/tenant?id=${tenantId}`);
-        const json = await res.json();
+        const [detailRes, insightRes] = await Promise.all([
+          fetch(`/api/admin/tenant?id=${tenantId}`),
+          fetch(`/api/insights?tenant_id=${tenantId}`),
+        ]);
+        const json = await detailRes.json();
         if (json.error) throw new Error(json.error);
         setData(json);
+        const insightData = await insightRes.json();
+        setInsights(insightData.all_insights || []);
       } catch (err) { console.error(err); }
       setLoading(false);
     };
@@ -121,6 +127,46 @@ export default function TenantDetailPage() {
           <p className="text-[10px] text-black/40">{kpis.escalations} escalated</p>
         </div>
       </div>
+
+      {/* Insights */}
+      {insights.length > 0 && (
+        <div className="rounded-xl border-2 p-4" style={cardStyle}>
+          <div className="flex items-center gap-2 mb-3">
+            <Lightbulb className="w-4 h-4 text-amber-500" />
+            <h3 className="text-xs font-bold text-black uppercase tracking-wider">Insights & Opportunities</h3>
+          </div>
+          <div className="space-y-2">
+            {insights.map((ins: any, i: number) => {
+              const iconMap: Record<string, any> = {
+                revenue_opportunity: <DollarSign className="w-3.5 h-3.5 text-emerald-500" />,
+                performance_drop: <AlertTriangle className="w-3.5 h-3.5 text-red-500" />,
+                ai_optimization: <Zap className="w-3.5 h-3.5 text-purple-500" />,
+                loss_prevention: <ShieldCheck className="w-3.5 h-3.5 text-orange-500" />,
+                hidden_value: <Eye className="w-3.5 h-3.5 text-indigo-500" />,
+              };
+              return (
+                <div key={i} className="flex items-start gap-3 p-3 rounded-lg" style={{ background: "rgba(196,149,106,0.06)" }}>
+                  <div className="mt-0.5">{iconMap[ins.type] || <Lightbulb className="w-3.5 h-3.5 text-amber-500" />}</div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <p className="text-xs font-medium text-black">{ins.title}</p>
+                      {ins.estimated_value > 0 && (
+                        <span className="text-xs font-bold text-[#22c55e]">€{ins.estimated_value.toLocaleString()}/mo</span>
+                      )}
+                    </div>
+                    <p className="text-[10px] text-black/50 mt-0.5">{ins.description}</p>
+                  </div>
+                  <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${
+                    ins.confidence === "high" ? "bg-emerald-50 text-emerald-700" :
+                    ins.confidence === "medium" ? "bg-yellow-50 text-yellow-700" :
+                    "bg-zinc-50 text-zinc-500"
+                  }`}>{ins.confidence}</span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* Two columns: Reservations + Conversations */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
