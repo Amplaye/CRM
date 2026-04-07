@@ -144,14 +144,8 @@ export function Topbar({ onMenuToggle }: TopbarProps) {
     setNotifications(prev => prev.map(n => ({ ...n, read: true })));
   };
 
-  const typeIcon = (type: string) => {
-    switch (type) {
-      case "reservation": return "📅";
-      case "waitlist": return "⏳";
-      case "conversation": return "💬";
-      case "incident": return "⚠️";
-      default: return "🔔";
-    }
+  const typeIcon = (_type: string) => {
+    return "";
   };
 
   return (
@@ -226,7 +220,6 @@ export function Topbar({ onMenuToggle }: TopbarProps) {
                       style={{ borderColor: 'rgba(196,149,106,0.2)' }}
                     >
                       <div className="flex items-start gap-2">
-                        <span className="text-lg">{typeIcon(n.type)}</span>
                         <div className="flex-1 min-w-0">
                           <p className="text-sm text-black">{n.message}</p>
                           <p className="text-xs text-black/40 mt-1">{n.time}</p>
