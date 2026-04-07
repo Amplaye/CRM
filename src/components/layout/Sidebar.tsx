@@ -62,14 +62,21 @@ export function Sidebar({ mobileOpen = false, onClose }: SidebarProps) {
     onClose?.();
   };
 
+  const isPlatformOnly = globalRole === "platform_admin" && !activeTenant;
+
+  const adminNavItems = [
+    { href: "/admin", icon: Shield, label: "Tenants" },
+    { href: "/admin/health", icon: Activity, label: "System Health" },
+    { href: "/admin/incidents", icon: AlertOctagon, label: "All Incidents" },
+  ];
+
   const sidebarContent = (
     <>
       <div className="h-14 md:h-16 flex items-center px-4 border-b" style={{ borderColor: '#c4956a' }}>
         <img src="/logo.png" alt="BaliFlow" className="w-7 h-7 md:w-8 md:h-8 rounded-md flex-shrink-0 shadow-sm object-cover" />
         <span className="font-semibold text-black text-base md:text-lg flex-1 text-center">
-          {activeTenant?.name || "BaliFlow"}
+          {isPlatformOnly ? "Platform Admin" : activeTenant?.name || "BaliFlow"}
         </span>
-        {/* Close button - mobile only */}
         <button onClick={onClose} className="md:hidden p-1 -mr-1 hover:bg-[#c4956a]/10 rounded-lg">
           <X className="w-5 h-5 text-black" />
         </button>
@@ -77,7 +84,8 @@ export function Sidebar({ mobileOpen = false, onClose }: SidebarProps) {
 
       <div className="flex-1 overflow-y-auto py-3 md:py-4">
         <nav className="space-y-0.5 md:space-y-1 px-2 md:px-3">
-          {navItems.map((item) => {
+          {/* Restaurant nav — only show if user has a tenant */}
+          {!isPlatformOnly && navItems.map((item) => {
             const isActive = pathname === item.href || (item.href !== "/" && pathname?.startsWith(item.href));
             return (
               <Link
@@ -100,24 +108,23 @@ export function Sidebar({ mobileOpen = false, onClose }: SidebarProps) {
             )
           })}
 
+          {/* Admin nav */}
           {globalRole === "platform_admin" && (
-            <div className="pt-3 mt-3 md:pt-4 md:mt-4 border-t space-y-0.5" style={{ borderColor: '#c4956a' }}>
-              {[
-                { href: "/admin", icon: Shield, label: "Tenants" },
-                { href: "/admin/health", icon: Activity, label: "System Health" },
-                { href: "/admin/incidents", icon: AlertOctagon, label: "All Incidents" },
-              ].map(item => (
-                <Link key={item.href} href={item.href} onClick={handleNavClick}
-                  className={cn(
-                    "flex items-center px-3 py-2.5 md:py-2 text-sm font-medium rounded-md transition-colors",
-                    pathname === item.href || (item.href !== "/admin" && pathname?.startsWith(item.href))
-                      ? "bg-[#c4956a]/20 text-black"
-                      : "text-black hover:bg-[#c4956a]/10 hover:text-black"
-                  )}>
-                  <item.icon className="mr-3 flex-shrink-0 h-5 w-5 text-black" />
-                  {item.label}
-                </Link>
-              ))}
+            <div className={isPlatformOnly ? "" : "pt-3 mt-3 md:pt-4 md:mt-4 border-t"} style={isPlatformOnly ? {} : { borderColor: '#c4956a' }}>
+              <div className="space-y-0.5">
+                {adminNavItems.map(item => (
+                  <Link key={item.href} href={item.href} onClick={handleNavClick}
+                    className={cn(
+                      "flex items-center px-3 py-2.5 md:py-2 text-sm font-medium rounded-md transition-colors",
+                      pathname === item.href || (item.href !== "/admin" && pathname?.startsWith(item.href))
+                        ? "bg-[#c4956a]/20 text-black"
+                        : "text-black hover:bg-[#c4956a]/10 hover:text-black"
+                    )}>
+                    <item.icon className="mr-3 flex-shrink-0 h-5 w-5 text-black" />
+                    {item.label}
+                  </Link>
+                ))}
+              </div>
             </div>
           )}
         </nav>
@@ -130,7 +137,7 @@ export function Sidebar({ mobileOpen = false, onClose }: SidebarProps) {
             </div>
             <div className="ml-3 overflow-hidden">
               <p className="text-sm font-medium text-black truncate">{user?.email || "User"}</p>
-              <p className="text-xs font-medium text-black/60 uppercase tracking-wider mt-0.5">{activeRole?.replace('_', ' ') || "Guest"}</p>
+              <p className="text-xs font-medium text-black/60 uppercase tracking-wider mt-0.5">{isPlatformOnly ? "Platform Admin" : activeRole?.replace('_', ' ') || "Guest"}</p>
             </div>
          </div>
          <button

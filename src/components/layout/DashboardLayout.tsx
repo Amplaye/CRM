@@ -2,11 +2,23 @@
 
 import { Sidebar } from "./Sidebar";
 import { Topbar } from "./Topbar";
-import { ReactNode, useState } from "react";
+import { ReactNode, useState, useEffect } from "react";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
+import { useTenant } from "@/lib/contexts/TenantContext";
+import { useRouter, usePathname } from "next/navigation";
 
 export function DashboardLayout({ children }: { children: ReactNode }) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const { globalRole, activeTenant, loading } = useTenant();
+  const router = useRouter();
+  const pathname = usePathname();
+
+  // Platform admin with no tenant → redirect to /admin
+  useEffect(() => {
+    if (!loading && globalRole === "platform_admin" && !activeTenant && !pathname?.startsWith("/admin")) {
+      router.replace("/admin");
+    }
+  }, [loading, globalRole, activeTenant, pathname, router]);
 
   return (
     <ProtectedRoute>
