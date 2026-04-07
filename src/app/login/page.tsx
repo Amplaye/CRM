@@ -25,7 +25,7 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const router = useRouter();
   const supabase = createClient();
-  const { language, setLanguage } = useLanguage();
+  const { language, setLanguage, t } = useLanguage();
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -95,7 +95,7 @@ export default function LoginPage() {
             )}
 
             <div>
-              <label className="block text-sm font-medium text-black">Email address</label>
+              <label className="block text-sm font-medium text-black">{t("auth_email")}</label>
               <div className="mt-1 relative rounded-lg">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                   <Mail className="h-4 w-4 text-black" />
@@ -110,13 +110,13 @@ export default function LoginPage() {
                     background: 'rgba(252,246,237,0.6)',
                     borderColor: '#c4956a',
                   }}
-                  placeholder="you@example.com"
+                  placeholder={t("auth_email_placeholder")}
                 />
               </div>
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-black">Password</label>
+              <label className="block text-sm font-medium text-black">{t("auth_password")}</label>
               <div className="mt-1 relative rounded-lg">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                   <Lock className="h-4 w-4 text-black" />
@@ -158,10 +158,10 @@ export default function LoginPage() {
                     </svg>
                   )}
                 </div>
-                <span className="text-sm text-black">Remember me</span>
+                <span className="text-sm text-black">{t("auth_remember_me")}</span>
               </label>
               <Link href="/forgot-password" className="text-sm font-medium text-[#c4956a] hover:text-[#b8845c]">
-                Forgot password?
+                {t("auth_forgot_password")}
               </Link>
             </div>
 
@@ -173,15 +173,15 @@ export default function LoginPage() {
                 background: 'linear-gradient(135deg, #c4956a 0%, #b8845c 100%)',
               }}
             >
-              {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : "Sign in"}
+              {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : t("auth_sign_in")}
             </button>
           </form>
 
 
           <p className="mt-4 sm:mt-5 text-center text-sm text-black">
-            Don't have an account?{" "}
+            {t("auth_no_account")}{" "}
             <Link href="/register" className="font-medium text-[#c4956a] hover:text-[#b8845c]">
-              Create one
+              {t("auth_create_one")}
             </Link>
           </p>
         </div>

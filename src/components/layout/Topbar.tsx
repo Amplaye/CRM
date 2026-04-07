@@ -21,7 +21,7 @@ interface TopbarProps {
 }
 
 export function Topbar({ onMenuToggle }: TopbarProps) {
-  const { language, setLanguage } = useLanguage();
+  const { language, setLanguage, t } = useLanguage();
   const { activeTenant } = useTenant();
   const router = useRouter();
   const [isClient, setIsClient] = useState(false);
@@ -82,8 +82,8 @@ export function Topbar({ onMenuToggle }: TopbarProps) {
             id: res.id,
             type: isEscalated ? "incident" : "reservation",
             message: isEscalated
-              ? `Solicitud pendiente: ${res.party_size} personas - ${res.date} ${res.time}`
-              : `Nueva reserva: ${res.party_size} personas - ${res.date} ${res.time}`,
+              ? `${t("topbar_new_reservation")}: ${res.party_size} ${t("topbar_people")} - ${res.date} ${res.time}`
+              : `${t("topbar_new_reservation")}: ${res.party_size} ${t("topbar_people")} - ${res.date} ${res.time}`,
             time: new Date().toLocaleTimeString(),
             read: false,
             href: isEscalated ? `/pending` : `/reservations?date=${res.date}`,
@@ -102,10 +102,10 @@ export function Topbar({ onMenuToggle }: TopbarProps) {
         (payload: any) => {
           const res = payload.new;
           if (res.status === 'cancelled') {
-            const n: Notification = { id: res.id + '-cancel', type: "reservation", message: `Reserva cancelada: ${res.date} ${res.time}`, time: new Date().toLocaleTimeString(), read: false, href: `/reservations?date=${res.date}` };
+            const n: Notification = { id: res.id + '-cancel', type: "reservation", message: `${t("topbar_reservation_cancelled")}: ${res.date} ${res.time}`, time: new Date().toLocaleTimeString(), read: false, href: `/reservations?date=${res.date}` };
             setNotifications(prev => [n, ...prev].slice(0, 20));
           } else if (res.status === 'no_show') {
-            const n: Notification = { id: res.id + '-noshow', type: "incident", message: `No-show: ${res.date} ${res.time}`, time: new Date().toLocaleTimeString(), read: false, href: `/reservations?date=${res.date}` };
+            const n: Notification = { id: res.id + '-noshow', type: "incident", message: `${t("topbar_noshow")}: ${res.date} ${res.time}`, time: new Date().toLocaleTimeString(), read: false, href: `/reservations?date=${res.date}` };
             setNotifications(prev => [n, ...prev].slice(0, 20));
           }
         }
@@ -123,7 +123,7 @@ export function Topbar({ onMenuToggle }: TopbarProps) {
           const notif: Notification = {
             id: entry.id,
             type: "waitlist",
-            message: `Waitlist: ${entry.party_size} personas - ${entry.requested_date || ''}`,
+            message: `${t("topbar_waitlist")}: ${entry.party_size} ${t("topbar_people")} - ${entry.requested_date || ''}`,
             time: new Date().toLocaleTimeString(),
             read: false,
             href: "/waitlist",
@@ -196,20 +196,20 @@ export function Topbar({ onMenuToggle }: TopbarProps) {
           {showDropdown && (
             <div className="absolute right-0 mt-2 w-[calc(100vw-2rem)] sm:w-80 max-w-80 border-2 rounded-xl shadow-lg overflow-hidden z-50" style={{ background: 'rgba(252,246,237,0.98)', borderColor: '#c4956a' }}>
               <div className="px-4 py-3 border-b flex items-center justify-between" style={{ borderColor: '#c4956a' }}>
-                <span className="text-sm font-semibold text-black">Notifications</span>
+                <span className="text-sm font-semibold text-black">{t("topbar_notifications")}</span>
                 {notifications.length > 0 && (
                   <button
                     onClick={() => setNotifications([])}
                     className="text-xs text-[#c4956a] hover:text-[#b8845c]"
                   >
-                    Clear all
+                    {t("topbar_clear_all")}
                   </button>
                 )}
               </div>
               <div className="max-h-64 overflow-y-auto">
                 {notifications.length === 0 ? (
                   <div className="px-4 py-8 text-center text-sm text-black/50">
-                    No notifications yet
+                    {t("topbar_no_notifications")}
                   </div>
                 ) : (
                   notifications.map((n) => (

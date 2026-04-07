@@ -9,7 +9,7 @@ import { createClient } from "@/lib/supabase/client";
 interface TimeSlot { open: string; close: string }
 type OpeningHours = Record<string, TimeSlot[]>;
 
-const DAY_LABELS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+const DAY_LABELS_KEYS = ["settings_day_sun", "settings_day_mon", "settings_day_tue", "settings_day_wed", "settings_day_thu", "settings_day_fri", "settings_day_sat"] as const;
 
 const DEFAULT_OPENING_HOURS: OpeningHours = {
   "0": [{ open: "12:30", close: "15:30" }],
@@ -120,7 +120,7 @@ export default function SettingsPage() {
           <p className="mt-1 text-sm text-black">{t("settings_subtitle")}</p>
         </div>
         <div className="mt-4 sm:mt-0 flex items-center space-x-3">
-          {saved && <span className="text-sm font-medium text-green-600">Saved!</span>}
+          {saved && <span className="text-sm font-medium text-green-600">{t("settings_saved")}</span>}
           <button onClick={handleSave} disabled={saving}
             className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-lg shadow-sm text-white transition-colors disabled:opacity-50"
             style={{ background: "linear-gradient(135deg, #c4956a 0%, #b8845c 100%)" }}>
@@ -142,7 +142,7 @@ export default function SettingsPage() {
                 className={`mt-1 ${inputStyle}`} style={inputBorder} />
             </div>
             <div>
-              <label className="block text-sm font-medium text-black">Timezone</label>
+              <label className="block text-sm font-medium text-black">{t("settings_timezone")}</label>
               <input type="text" value={timezone} onChange={e => setTimezone(e.target.value)}
                 className={`mt-1 ${inputStyle}`} style={inputBorder} />
             </div>
@@ -162,7 +162,7 @@ export default function SettingsPage() {
                 <input type="number" value={avgSpend} onChange={e => setAvgSpend(Number(e.target.value))}
                   className={`pl-7 ${inputStyle}`} style={inputBorder} />
               </div>
-              <p className="mt-1 text-xs text-black/50">Average spend per person (used for revenue calculations)</p>
+              <p className="mt-1 text-xs text-black/50">{t("settings_avg_spend_desc")}</p>
             </div>
             <div>
               <label className="block text-sm font-medium text-black">{t("settings_avg_cost")}</label>
@@ -175,7 +175,7 @@ export default function SettingsPage() {
               </div>
             </div>
             <div>
-              <label className="block text-sm font-medium text-black">AI Monthly Cost</label>
+              <label className="block text-sm font-medium text-black">{t("settings_ai_monthly_cost")}</label>
               <div className="mt-1 relative">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                   <span className="text-black text-sm">€</span>
@@ -183,10 +183,10 @@ export default function SettingsPage() {
                 <input type="number" value={aiMonthlyCost} onChange={e => setAiMonthlyCost(Number(e.target.value))}
                   className={`pl-7 ${inputStyle}`} style={inputBorder} />
               </div>
-              <p className="mt-1 text-xs text-black/50">Monthly AI service cost (for ROI calculation on dashboard)</p>
+              <p className="mt-1 text-xs text-black/50">{t("settings_ai_monthly_cost_desc")}</p>
             </div>
             <div>
-              <label className="block text-sm font-medium text-black">No-Show Baseline %</label>
+              <label className="block text-sm font-medium text-black">{t("settings_noshow_baseline")}</label>
               <div className="mt-1 relative">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                   <span className="text-black text-sm">%</span>
@@ -194,17 +194,18 @@ export default function SettingsPage() {
                 <input type="number" value={noShowBaseline} onChange={e => setNoShowBaseline(Number(e.target.value))}
                   className={`pl-7 ${inputStyle}`} style={inputBorder} min={0} max={100} />
               </div>
-              <p className="mt-1 text-xs text-black/50">Industry average no-show rate before AI (default 15%)</p>
+              <p className="mt-1 text-xs text-black/50">{t("settings_noshow_baseline_desc")}</p>
             </div>
           </div>
         </section>
 
         {/* Opening Hours */}
         <section className="p-6 rounded-xl border-2" style={{ background: "rgba(252,246,237,0.85)", borderColor: "#c4956a" }}>
-          <h2 className="text-lg font-bold text-zinc-900 mb-1">Opening Hours</h2>
-          <p className="text-xs text-black/50 mb-4">Used to calculate out-of-hours bookings on the dashboard</p>
+          <h2 className="text-lg font-bold text-zinc-900 mb-1">{t("settings_opening_hours")}</h2>
+          <p className="text-xs text-black/50 mb-4">{t("settings_opening_hours_desc")}</p>
           <div className="space-y-3">
-            {DAY_LABELS.map((dayLabel, dayIdx) => {
+            {DAY_LABELS_KEYS.map((dayKey_, dayIdx) => {
+              const dayLabel = t(dayKey_);
               const dayKey = String(dayIdx);
               const slots = openingHours[dayKey] || [];
               return (
@@ -212,7 +213,7 @@ export default function SettingsPage() {
                   <span className="text-sm font-medium text-black w-24 pt-1.5 flex-shrink-0">{dayLabel}</span>
                   <div className="flex-1 space-y-2">
                     {slots.length === 0 ? (
-                      <span className="text-xs text-black/40 italic pt-1.5">Closed</span>
+                      <span className="text-xs text-black/40 italic pt-1.5">{t("settings_closed")}</span>
                     ) : (
                       slots.map((slot, idx) => (
                         <div key={idx} className="flex items-center gap-2">
@@ -220,7 +221,7 @@ export default function SettingsPage() {
                             onChange={e => updateSlot(dayKey, idx, "open", e.target.value)}
                             className="rounded-lg border-2 px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-[#c4956a]"
                             style={inputBorder} />
-                          <span className="text-xs text-black/50">to</span>
+                          <span className="text-xs text-black/50">{t("settings_to")}</span>
                           <input type="time" value={slot.close}
                             onChange={e => updateSlot(dayKey, idx, "close", e.target.value)}
                             className="rounded-lg border-2 px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-[#c4956a]"

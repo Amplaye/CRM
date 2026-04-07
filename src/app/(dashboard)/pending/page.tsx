@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { useTenant } from "@/lib/contexts/TenantContext";
+import { useLanguage } from "@/lib/contexts/LanguageContext";
 import { AlertTriangle, Check, X, MessageSquare, Phone, Calendar, Users, Clock } from "lucide-react";
 import Link from "next/link";
 
@@ -28,6 +29,7 @@ interface TableOption {
 
 export default function PendingPage() {
   const { activeTenant: tenant } = useTenant();
+  const { t } = useLanguage();
   const supabase = createClient();
 
   const [pending, setPending] = useState<PendingReservation[]>([]);
@@ -139,7 +141,7 @@ export default function PendingPage() {
       }, 0);
       if (totalSeats < req.party_size) {
         const ok = window.confirm(
-          `Las mesas seleccionadas tienen ${totalSeats} plazas pero la reserva es para ${req.party_size} personas. ¿Continuar?`
+          t("pending_seats_warning").replace("{seats}", String(totalSeats)).replace("{size}", String(req.party_size))
         );
         if (!ok) return;
       }
@@ -148,7 +150,7 @@ export default function PendingPage() {
     // Warn if no tables selected for a large group
     if (req && selectedTables.size === 0) {
       const ok = window.confirm(
-        `No has seleccionado ninguna mesa para ${req.party_size} personas. ¿Confirmar sin asignar mesas?`
+        t("pending_no_tables_warning").replace("{size}", String(req.party_size))
       );
       if (!ok) return;
     }
@@ -189,7 +191,7 @@ export default function PendingPage() {
   };
 
   const handleReject = async (id: string) => {
-    if (!confirm("¿Estás seguro de rechazar esta solicitud?")) return;
+    if (!confirm(t("pending_reject_confirm"))) return;
     const rejectedReq = pending.find(p => p.id === id);
     await supabase.from("reservations").update({ status: "cancelled" }).eq("id", id);
 
@@ -211,17 +213,17 @@ export default function PendingPage() {
   return (
     <div className="p-4 sm:p-6 lg:p-8 w-full space-y-4 sm:space-y-6 lg:space-y-8">
       <div>
-        <h1 className="text-2xl font-bold text-black tracking-tight">Solicitudes Pendientes</h1>
-        <p className="mt-1 text-sm text-black/60">Reservas de grupos grandes pendientes de aprobación manual.</p>
+        <h1 className="text-2xl font-bold text-black tracking-tight">{t("pending_title")}</h1>
+        <p className="mt-1 text-sm text-black/60">{t("pending_subtitle")}</p>
       </div>
 
       {loading ? (
-        <div className="text-sm text-black/40">Loading...</div>
+        <div className="text-sm text-black/40">{t("loading")}</div>
       ) : pending.length === 0 ? (
         <div className="border-2 rounded-xl py-16 text-center" style={{ background: 'rgba(252,246,237,0.85)', borderColor: '#c4956a' }}>
           <AlertTriangle className="mx-auto h-12 w-12 text-black/20 mb-4" />
-          <p className="text-sm font-medium text-black">No hay solicitudes pendientes</p>
-          <p className="text-xs text-black/40 mt-1">Las solicitudes de grupos grandes aparecerán aquí.</p>
+          <p className="text-sm font-medium text-black">{t("pending_no_requests")}</p>
+          <p className="text-xs text-black/40 mt-1">{t("pending_no_requests_desc")}</p>
         </div>
       ) : (
         <div className="space-y-4">
@@ -242,7 +244,7 @@ export default function PendingPage() {
                       <div className="flex items-center gap-3 mb-3">
                         <span className="inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-bold uppercase tracking-wider bg-orange-100 text-orange-800 border border-orange-200">
                           <AlertTriangle className="w-3 h-3 mr-1" />
-                          Pendiente
+                          {t("pending_status")}
                         </span>
                         <span className="inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-medium bg-[#c4956a]/10 text-[#8b6540] border border-[#c4956a]/30">
                           {req.source === "ai_chat" ? "WhatsApp" : req.source === "ai_voice" ? "Voice" : "Staff"}
@@ -252,7 +254,7 @@ export default function PendingPage() {
                             ? 'bg-amber-100 text-amber-800 border border-amber-200'
                             : 'bg-indigo-100 text-indigo-800 border border-indigo-200'
                         }`}>
-                          {getShift(req.time) === 'lunch' ? 'Almuerzo' : 'Cena'}
+                          {getShift(req.time) === 'lunch' ? t("pending_lunch") : t("pending_dinner")}
                         </span>
                       </div>
 
@@ -260,28 +262,28 @@ export default function PendingPage() {
                         <div className="flex items-center gap-2">
                           <Users className="w-4 h-4 text-black/40" />
                           <div>
-                            <p className="text-xs text-black/40">Personas</p>
+                            <p className="text-xs text-black/40">{t("pending_people_label")}</p>
                             <p className="text-sm font-bold text-black">{req.party_size}</p>
                           </div>
                         </div>
                         <div className="flex items-center gap-2">
                           <Calendar className="w-4 h-4 text-black/40" />
                           <div>
-                            <p className="text-xs text-black/40">Fecha</p>
+                            <p className="text-xs text-black/40">{t("pending_date_label")}</p>
                             <p className="text-sm font-bold text-black">{req.date}</p>
                           </div>
                         </div>
                         <div className="flex items-center gap-2">
                           <Clock className="w-4 h-4 text-black/40" />
                           <div>
-                            <p className="text-xs text-black/40">Hora</p>
+                            <p className="text-xs text-black/40">{t("pending_time_label")}</p>
                             <p className="text-sm font-bold text-black">{req.time}</p>
                           </div>
                         </div>
                         <div className="flex items-center gap-2">
                           <Phone className="w-4 h-4 text-black/40" />
                           <div>
-                            <p className="text-xs text-black/40">Teléfono</p>
+                            <p className="text-xs text-black/40">{t("pending_phone_label")}</p>
                             <p className="text-sm font-bold text-black">{guestPhone || "—"}</p>
                           </div>
                         </div>
@@ -289,7 +291,7 @@ export default function PendingPage() {
 
                       <div className="flex items-center gap-2 mb-2">
                         <span className="text-sm font-semibold text-black">{guestName}</span>
-                        <Link href={`/conversations?guest=${req.guest_id}`} className="text-[#c4956a] hover:text-[#b8845c]" title="Ver conversación">
+                        <Link href={`/conversations?guest=${req.guest_id}`} className="text-[#c4956a] hover:text-[#b8845c]" title={t("pending_view_conversation")}>
                           <MessageSquare className="w-4 h-4" />
                         </Link>
                       </div>
@@ -306,14 +308,14 @@ export default function PendingPage() {
                           style={{ background: 'linear-gradient(135deg, #22c55e 0%, #16a34a 100%)' }}
                         >
                           <Check className="w-4 h-4" />
-                          Confirmar
+                          {t("pending_confirm_btn")}
                         </button>
                         <button
                           onClick={() => handleReject(req.id)}
                           className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-bold text-red-600 bg-red-50 border border-red-200 hover:bg-red-100 transition-all"
                         >
                           <X className="w-4 h-4" />
-                          Rechazar
+                          {t("pending_reject_btn")}
                         </button>
                       </div>
                     )}
@@ -324,7 +326,7 @@ export default function PendingPage() {
                 {isConfirming && (
                   <div className="border-t-2 p-5" style={{ borderColor: '#22c55e', background: 'rgba(34,197,94,0.03)' }}>
                     <h3 className="text-sm font-bold text-black mb-3">
-                      Asignar mesas — {getShift(req.time) === 'lunch' ? 'Almuerzo' : 'Cena'} del {req.date} ({Math.ceil(req.party_size / 4)} necesarias para {req.party_size} personas)
+                      {t("pending_assign_tables")} — {getShift(req.time) === 'lunch' ? t("pending_lunch") : t("pending_dinner")} {req.date} ({Math.ceil(req.party_size / 4)} {t("pending_needed_for")} {req.party_size} {t("pending_people")})
                     </h3>
                     <div className="grid grid-cols-4 sm:grid-cols-5 gap-2 mb-4">
                       {tables.map(table => {
@@ -345,7 +347,7 @@ export default function PendingPage() {
                             style={!isOccupied && !isSelected ? { background: 'rgba(252,246,237,0.6)' } : undefined}
                           >
                             {table.name}
-                            {isOccupied && <span className="text-[10px] block text-red-400">occupied</span>}
+                            {isOccupied && <span className="text-[10px] block text-red-400">{t("res_occupied")}</span>}
                           </button>
                         );
                       })}
@@ -357,13 +359,13 @@ export default function PendingPage() {
                         style={{ background: 'linear-gradient(135deg, #22c55e 0%, #16a34a 100%)' }}
                       >
                         <Check className="w-4 h-4" />
-                        Confirmar con {selectedTables.size} mesa{selectedTables.size !== 1 ? 's' : ''}
+                        {t("pending_confirm_with")} {selectedTables.size} {selectedTables.size !== 1 ? t("pending_tables") : t("pending_table")}
                       </button>
                       <button
                         onClick={() => { setConfirmingId(null); setSelectedTables(new Set()); }}
                         className="px-4 py-2.5 rounded-lg text-sm font-medium text-black/60 hover:text-black transition-colors"
                       >
-                        Cancelar
+                        {t("pending_cancel")}
                       </button>
                     </div>
                   </div>

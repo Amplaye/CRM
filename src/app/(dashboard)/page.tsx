@@ -51,7 +51,7 @@ export default function DashboardPage() {
   // Month navigation
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth());
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
-  const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  const monthNames = [t("dash_month_jan"), t("dash_month_feb"), t("dash_month_mar"), t("dash_month_apr"), t("dash_month_may"), t("dash_month_jun"), t("dash_month_jul"), t("dash_month_aug"), t("dash_month_sep"), t("dash_month_oct"), t("dash_month_nov"), t("dash_month_dec")];
 
   const navigateMonth = (dir: number) => {
     let m = selectedMonth + dir;
@@ -208,7 +208,7 @@ export default function DashboardPage() {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
           <h1 className="text-xl sm:text-2xl font-bold text-black tracking-tight">{t("nav_dashboard")}</h1>
-          <p className="mt-0.5 text-xs sm:text-sm text-black">AI performance &amp; business impact</p>
+          <p className="mt-0.5 text-xs sm:text-sm text-black">{t("dash_ai_performance")}</p>
         </div>
         <div className="flex items-center gap-1 sm:gap-2">
           <button onClick={() => navigateMonth(-1)} className="p-1.5 sm:p-2 hover:bg-[#c4956a]/10 rounded-lg transition-colors">
@@ -240,7 +240,7 @@ export default function DashboardPage() {
       <div className="rounded-xl border-2 p-4 sm:p-6 text-center" style={cardStyle}>
         <div className="flex items-center justify-center gap-2 mb-1">
           <Sparkles className="w-5 h-5 text-[#c4956a]" />
-          <h2 className="text-sm sm:text-base font-bold text-black">AI Generated Value</h2>
+          <h2 className="text-sm sm:text-base font-bold text-black">{t("dash_ai_generated_value")}</h2>
         </div>
         <p className="text-xs text-black mb-4">{monthNames[selectedMonth]} {selectedYear}</p>
 
@@ -255,7 +255,7 @@ export default function DashboardPage() {
           {kpis.revenueChange !== 0 && (
             <div className={`flex items-center justify-center gap-1 mt-2 text-xs font-semibold ${kpis.revenueChange > 0 ? "text-green-600" : "text-red-500"}`}>
               {kpis.revenueChange > 0 ? <TrendingUp className="w-3.5 h-3.5" /> : <TrendingDown className="w-3.5 h-3.5" />}
-              {kpis.revenueChange > 0 ? "+" : ""}{kpis.revenueChange}% vs prev month
+              {kpis.revenueChange > 0 ? "+" : ""}{kpis.revenueChange}% {t("dash_vs_prev_month")}
             </div>
           )}
         </div>
@@ -264,27 +264,27 @@ export default function DashboardPage() {
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
           <div className="p-3 rounded-lg" style={{ background: "rgba(196,149,106,0.08)" }}>
             <Moon className="w-4 h-4 text-indigo-500 mx-auto mb-1" />
-            <p className="text-xs text-black font-medium">Out-of-Hours</p>
+            <p className="text-xs text-black font-medium">{t("dash_out_of_hours")}</p>
             <p className="text-lg sm:text-xl font-bold text-black">€{kpis.outOfHoursRevenue.toLocaleString()}</p>
-            <p className="text-xs text-black">{kpis.outOfHoursCount} bookings while closed</p>
+            <p className="text-xs text-black">{kpis.outOfHoursCount} {t("dash_bookings_while_closed")}</p>
           </div>
           <div className="p-3 rounded-lg" style={{ background: "rgba(196,149,106,0.08)" }}>
             <Phone className="w-4 h-4 text-[#fb7740] mx-auto mb-1" />
-            <p className="text-xs text-black font-medium">AI Voice Calls</p>
+            <p className="text-xs text-black font-medium">{t("dash_ai_voice_calls")}</p>
             <p className="text-lg sm:text-xl font-bold text-black">€{kpis.voiceRevenue.toLocaleString()}</p>
-            <p className="text-xs text-black">{kpis.voiceCount} calls converted</p>
+            <p className="text-xs text-black">{kpis.voiceCount} {t("dash_calls_converted")}</p>
           </div>
           <div className="p-3 rounded-lg" style={{ background: "rgba(196,149,106,0.08)" }}>
             <RefreshCw className="w-4 h-4 text-emerald-500 mx-auto mb-1" />
-            <p className="text-xs text-black font-medium">Waitlist Recovered</p>
+            <p className="text-xs text-black font-medium">{t("dash_waitlist_recovered")}</p>
             <p className="text-lg sm:text-xl font-bold text-black">€{kpis.waitlistRevenue.toLocaleString()}</p>
-            <p className="text-xs text-black">{kpis.waitlistConverted} recoveries</p>
+            <p className="text-xs text-black">{kpis.waitlistConverted} {t("dash_recoveries")}</p>
           </div>
           <div className="p-3 rounded-lg" style={{ background: "rgba(196,149,106,0.08)" }}>
             <Bot className="w-4 h-4 text-[#c4956a] mx-auto mb-1" />
-            <p className="text-xs text-black font-medium">AI Chat</p>
+            <p className="text-xs text-black font-medium">{t("dash_ai_chat")}</p>
             <p className="text-lg sm:text-xl font-bold text-black">€{kpis.chatRevenue.toLocaleString()}</p>
-            <p className="text-xs text-black">{kpis.chatCount} WhatsApp bookings</p>
+            <p className="text-xs text-black">{kpis.chatCount} {t("dash_whatsapp_bookings")}</p>
           </div>
         </div>
       </div>
@@ -294,10 +294,10 @@ export default function DashboardPage() {
           ══════════════════════════════════════════════ */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-4">
         {[
-          { label: "Bookings While Closed", value: kpis.outOfHoursCount, icon: Moon, color: "#6366f1", sub: "out-of-hours" },
-          { label: "Calls Converted", value: kpis.voiceCount, icon: Phone, color: "#fb7740", sub: "by AI voice" },
-          { label: "Waitlist Recoveries", value: kpis.waitlistConverted, icon: RefreshCw, color: "#22c55e", sub: "auto-filled" },
-          { label: "No-Shows Prevented", value: kpis.noShowsPrevented, icon: ShieldCheck, color: "#c4956a", sub: `${kpis.noShows} actual no-shows` },
+          { label: t("dash_bookings_closed"), value: kpis.outOfHoursCount, icon: Moon, color: "#6366f1", sub: t("dash_out_of_hours_sub") },
+          { label: t("dash_calls_converted_label"), value: kpis.voiceCount, icon: Phone, color: "#fb7740", sub: t("dash_by_ai_voice") },
+          { label: t("dash_waitlist_recoveries"), value: kpis.waitlistConverted, icon: RefreshCw, color: "#22c55e", sub: t("dash_auto_filled") },
+          { label: t("dash_noshows_prevented"), value: kpis.noShowsPrevented, icon: ShieldCheck, color: "#c4956a", sub: `${kpis.noShows} ${t("dash_actual_noshows")}` },
         ].map(card => (
           <div key={card.label} className="rounded-xl p-3 sm:p-5 border-2 text-center" style={cardStyle}>
             <card.icon className="h-6 w-6 sm:h-8 sm:w-8 mx-auto mb-1" style={{ color: card.color, opacity: 0.6 }} />
@@ -314,21 +314,21 @@ export default function DashboardPage() {
       <div className="grid grid-cols-3 gap-2 sm:gap-4">
         <div className="rounded-xl p-3 sm:p-5 border-2 text-center" style={cardStyle}>
           <Gauge className="w-5 h-5 text-[#c4956a] mx-auto mb-1" />
-          <p className="text-xs font-medium text-black">AI Handled</p>
+          <p className="text-xs font-medium text-black">{t("dash_ai_handled")}</p>
           <p className="text-xl sm:text-2xl font-bold text-black">{kpis.aiHandledPct}%</p>
           <p className="text-xs text-black">{kpis.aiCount} AI / {kpis.staffCount} Staff</p>
         </div>
         <div className="rounded-xl p-3 sm:p-5 border-2 text-center" style={cardStyle}>
           <Timer className="w-5 h-5 text-[#c4956a] mx-auto mb-1" />
-          <p className="text-xs font-medium text-black">Staff Hours Saved</p>
+          <p className="text-xs font-medium text-black">{t("dash_staff_hours_saved")}</p>
           <p className="text-xl sm:text-2xl font-bold text-black">{kpis.staffHoursSaved}h</p>
-          <p className="text-xs text-black">~5 min per AI booking</p>
+          <p className="text-xs text-black">{t("dash_min_per_booking")}</p>
         </div>
         <div className="rounded-xl p-3 sm:p-5 border-2 text-center" style={cardStyle}>
           <UsersRound className="w-5 h-5 text-[#c4956a] mx-auto mb-1" />
-          <p className="text-xs font-medium text-black">Total Bookings</p>
+          <p className="text-xs font-medium text-black">{t("dash_total_bookings")}</p>
           <p className="text-xl sm:text-2xl font-bold text-black">{kpis.total}</p>
-          <p className="text-xs text-black">avg {kpis.avgParty} covers each</p>
+          <p className="text-xs text-black">{kpis.avgParty} {t("dash_avg_covers")}</p>
         </div>
       </div>
 
@@ -339,7 +339,7 @@ export default function DashboardPage() {
 
         {/* AI vs Staff bookings over time */}
         <div className="p-4 sm:p-6 rounded-xl border-2" style={cardStyle}>
-          <h3 className="text-xs sm:text-sm font-bold text-black uppercase tracking-wider mb-4">AI vs Staff Bookings</h3>
+          <h3 className="text-xs sm:text-sm font-bold text-black uppercase tracking-wider mb-4">{t("dash_ai_vs_staff")}</h3>
           <div className="h-48 sm:h-64">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={kpis.dailyData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
@@ -358,10 +358,10 @@ export default function DashboardPage() {
 
         {/* Channel breakdown pie */}
         <div className="p-4 sm:p-6 rounded-xl border-2" style={cardStyle}>
-          <h3 className="text-xs sm:text-sm font-bold text-black uppercase tracking-wider mb-4">Channel Breakdown</h3>
+          <h3 className="text-xs sm:text-sm font-bold text-black uppercase tracking-wider mb-4">{t("dash_channel_breakdown")}</h3>
           <div className="h-48 sm:h-64">
             {kpis.sourceData.length === 0 ? (
-              <p className="text-sm text-black text-center pt-20">No data yet</p>
+              <p className="text-sm text-black text-center pt-20">{t("dash_no_data")}</p>
             ) : (
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
@@ -381,7 +381,7 @@ export default function DashboardPage() {
 
       {/* Revenue over time (line chart) */}
       <div className="p-4 sm:p-6 rounded-xl border-2" style={cardStyle}>
-        <h3 className="text-xs sm:text-sm font-bold text-black uppercase tracking-wider mb-4">AI Revenue Over Time</h3>
+        <h3 className="text-xs sm:text-sm font-bold text-black uppercase tracking-wider mb-4">{t("dash_ai_revenue_time")}</h3>
         <div className="h-48 sm:h-56">
           <ResponsiveContainer width="100%" height="100%">
             <LineChart data={kpis.dailyData} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
@@ -391,7 +391,7 @@ export default function DashboardPage() {
               <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: "#71717a" }}
                 tickFormatter={(v: number) => `€${v}`} />
               <Tooltip contentStyle={{ borderRadius: "12px", border: "1px solid #c4956a", fontSize: "13px" }}
-                formatter={(value) => [`€${value}`, "AI Revenue"]} />
+                formatter={(value) => [`€${value}`, t("dash_ai_revenue")]} />
               <Line type="monotone" dataKey="revenue" stroke="#22c55e" strokeWidth={2} dot={false} />
             </LineChart>
           </ResponsiveContainer>

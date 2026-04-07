@@ -4,6 +4,7 @@ import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { Loader2, Mail, ArrowLeft, CheckCircle } from "lucide-react";
 import Link from "next/link";
+import { useLanguage } from "@/lib/contexts/LanguageContext";
 
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState("");
@@ -11,6 +12,7 @@ export default function ForgotPasswordPage() {
   const [loading, setLoading] = useState(false);
   const [sent, setSent] = useState(false);
   const supabase = createClient();
+  const { t } = useLanguage();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -40,7 +42,7 @@ export default function ForgotPasswordPage() {
            }} />
         </div>
         <p className="mt-2 text-center text-sm text-black">
-          Enter your email and we'll send you a reset link
+          {t("auth_reset_desc")}
         </p>
       </div>
 
@@ -49,15 +51,15 @@ export default function ForgotPasswordPage() {
           {sent ? (
             <div className="text-center space-y-4">
               <CheckCircle className="mx-auto h-12 w-12 text-emerald-500" />
-              <h3 className="text-lg font-semibold text-zinc-900">Check your email</h3>
+              <h3 className="text-lg font-semibold text-zinc-900">{t("auth_check_email")}</h3>
               <p className="text-sm text-black">
-                We sent a password reset link to <strong>{email}</strong>. Click the link in the email to reset your password.
+                {t("auth_reset_sent")} <strong>{email}</strong>. Click the link in the email to reset your password.
               </p>
               <Link
                 href="/login"
                 className="inline-flex items-center text-sm font-medium text-[#c4956a] hover:text-[#b8845c]"
               >
-                <ArrowLeft className="h-4 w-4 mr-1" /> Back to sign in
+                <ArrowLeft className="h-4 w-4 mr-1" /> {t("auth_back_to_login")}
               </Link>
             </div>
           ) : (
@@ -69,7 +71,7 @@ export default function ForgotPasswordPage() {
               )}
 
               <div>
-                <label className="block text-sm font-medium text-black">Email address</label>
+                <label className="block text-sm font-medium text-black">{t("auth_email")}</label>
                 <div className="mt-1 relative rounded-md shadow-sm">
                   <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                     <Mail className="h-4 w-4 text-black" />
@@ -81,7 +83,7 @@ export default function ForgotPasswordPage() {
                     onChange={(e) => setEmail(e.target.value)}
                     className="block w-full pl-10 sm:text-sm border-2 p-2.5 rounded-md focus:ring-[#c4956a] focus:border-[#c4956a]"
                     style={{ borderColor: '#c4956a', background: 'rgba(252,246,237,0.6)' }}
-                    placeholder="you@example.com"
+                    placeholder={t("auth_email_placeholder")}
                   />
                 </div>
               </div>
@@ -92,7 +94,7 @@ export default function ForgotPasswordPage() {
                 className="w-full flex justify-center py-2.5 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#c4956a] disabled:opacity-50 transition-colors"
                 style={{ background: 'linear-gradient(135deg, #c4956a 0%, #b8845c 100%)' }}
               >
-                {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : "Send reset link"}
+                {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : t("auth_send_reset")}
               </button>
 
               <div className="text-center">
@@ -100,7 +102,7 @@ export default function ForgotPasswordPage() {
                   href="/login"
                   className="inline-flex items-center text-sm font-medium text-black hover:text-black"
                 >
-                  <ArrowLeft className="h-4 w-4 mr-1" /> Back to sign in
+                  <ArrowLeft className="h-4 w-4 mr-1" /> {t("auth_back_to_login")}
                 </Link>
               </div>
             </form>

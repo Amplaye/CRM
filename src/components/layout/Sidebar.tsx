@@ -150,7 +150,7 @@ export function Sidebar({ mobileOpen = false, onClose }: SidebarProps) {
            onClick={handleSignOut}
            className="mt-3 md:mt-4 w-full text-xs text-black hover:text-black/70 font-medium text-left px-1 transition-colors"
          >
-           Sign out
+           {t("auth_sign_out")}
          </button>
       </div>
     </>

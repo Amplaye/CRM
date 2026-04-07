@@ -487,7 +487,7 @@ export default function FloorPage() {
                 })()}
                 {tStatus === "free" && (
                   <p className="text-xs text-black/60">
-                    {table.seats} seats
+                    {t("floor_seats").replace("{count}", String(table.seats))}
                   </p>
                 )}
               </div>
@@ -564,12 +564,12 @@ export default function FloorPage() {
             onClick={(e) => e.stopPropagation()}
           >
             <h3 className="text-lg font-bold text-black mb-4">
-              Quick Seat - {quickSeatTable.name}
+              {t("floor_quick_seat").replace("{name}", quickSeatTable.name)}
             </h3>
 
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-black mb-1">Party size</label>
+                <label className="block text-sm font-medium text-black mb-1">{t("floor_party_size")}</label>
                 <input
                   type="number"
                   min={1}
@@ -581,12 +581,12 @@ export default function FloorPage() {
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-black mb-1">Guest name (optional)</label>
+                <label className="block text-sm font-medium text-black mb-1">{t("floor_guest_name_optional")}</label>
                 <input
                   type="text"
                   value={quickSeatName}
                   onChange={(e) => setQuickSeatName(e.target.value)}
-                  placeholder="Walk-in"
+                  placeholder={t("floor_walkin")}
                   className="w-full border-2 rounded-lg px-3 py-2 text-sm text-black focus:ring-1 focus:ring-[#c4956a] focus:outline-none"
                   style={{ borderColor: "#c4956a", background: "rgba(252,246,237,0.6)" }}
                 />
@@ -599,7 +599,7 @@ export default function FloorPage() {
                 className="flex-1 px-4 py-2 text-sm font-semibold rounded-lg border-2 text-black transition-colors hover:bg-[#c4956a]/10"
                 style={{ borderColor: "#c4956a" }}
               >
-                Cancel
+                {t("floor_cancel")}
               </button>
               <button
                 onClick={handleQuickSeat}
@@ -607,7 +607,7 @@ export default function FloorPage() {
                 className="flex-1 px-4 py-2 text-sm font-semibold rounded-lg text-white transition-colors disabled:opacity-50"
                 style={{ background: "#c4956a" }}
               >
-                {quickSeatLoading ? "..." : "Seat Now"}
+                {quickSeatLoading ? "..." : t("floor_seat_now")}
               </button>
             </div>
           </div>

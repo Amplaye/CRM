@@ -136,7 +136,7 @@ export default function KnowledgePage() {
   };
 
   const handleDelete = async (id: string) => {
-     if (!confirm("Are you sure you want to delete this article?")) return;
+     if (!confirm(t("know_delete_confirm"))) return;
      try {
         await supabase.from("knowledge_articles").delete().eq("id", id);
         if (selectedArticleId === id) setSelectedArticleId(null);
@@ -239,10 +239,10 @@ export default function KnowledgePage() {
                               onChange={e => setEditCategory(e.target.value as any)}
                               className="w-full border-2 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-[#c4956a]" style={{ borderColor: '#c4956a', background: 'rgba(252,246,237,0.6)' }}
                            >
-                              <option value="general">General</option>
-                              <option value="policies">Policies</option>
-                              <option value="menu">Menu</option>
-                              <option value="troubleshooting">Troubleshooting</option>
+                              <option value="general">{t("know_general")}</option>
+                              <option value="policies">{t("know_policies")}</option>
+                              <option value="menu">{t("know_menu")}</option>
+                              <option value="troubleshooting">{t("know_troubleshooting")}</option>
                            </select>
                         </div>
                         <div>
@@ -252,9 +252,9 @@ export default function KnowledgePage() {
                               onChange={e => setEditStatus(e.target.value as any)}
                               className="w-full border-2 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-[#c4956a]" style={{ borderColor: '#c4956a', background: 'rgba(252,246,237,0.6)' }}
                            >
-                              <option value="draft">Draft</option>
-                              <option value="published">Published</option>
-                              <option value="archived">Archived</option>
+                              <option value="draft">{t("know_draft")}</option>
+                              <option value="published">{t("know_published")}</option>
+                              <option value="archived">{t("know_archived")}</option>
                            </select>
                         </div>
                      </div>
@@ -265,7 +265,7 @@ export default function KnowledgePage() {
                            value={editRiskTags}
                            onChange={e => setEditRiskTags(e.target.value)}
                            className="w-full border-2 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-[#c4956a]" style={{ borderColor: '#c4956a', background: 'rgba(252,246,237,0.6)' }}
-                           placeholder="legal, safety, high-risk..."
+                           placeholder={t("know_risk_placeholder")}
                         />
                      </div>
                   </div>
@@ -278,7 +278,7 @@ export default function KnowledgePage() {
                      onChange={e => setEditContent(e.target.value)}
                      className="flex-1 w-full border-2 rounded-xl p-6 text-sm leading-relaxed focus:outline-none focus:ring-1 focus:ring-[#c4956a] font-mono"
                      style={{ borderColor: '#c4956a', background: 'rgba(252,246,237,0.6)' }}
-                     placeholder="# Policies... \n\n1. Always ask about allergies..."
+                     placeholder={t("know_content_placeholder")}
                   />
                </div>
             </div>
@@ -286,7 +286,7 @@ export default function KnowledgePage() {
             <div className="flex-1 flex flex-col p-4 sm:p-6 lg:p-8 max-w-4xl mx-auto w-full animate-in fade-in slide-in-from-right-2">
                {/* Mobile back button */}
                <button onClick={() => setSelectedArticleId(null)} className="md:hidden flex items-center text-sm font-medium text-black/60 mb-3 -ml-1">
-                  <ChevronLeft className="w-4 h-4 mr-1" /> Volver
+                  <ChevronLeft className="w-4 h-4 mr-1" /> {t("know_back")}
                </button>
                <div className="flex flex-col md:flex-row md:items-center justify-between border-b pb-4 md:pb-8 mb-4 md:mb-8 gap-3" style={{ borderColor: '#c4956a' }}>
                   <div className="flex items-center space-x-3 md:space-x-4 min-w-0">

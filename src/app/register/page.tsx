@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
 import { Loader2, Lock, Mail, User, Building2, UtensilsCrossed, ShoppingBag, CalendarCheck, CheckCircle } from "lucide-react";
 import Link from "next/link";
+import { useLanguage } from "@/lib/contexts/LanguageContext";
 
 const businessTypes = [
   {
@@ -38,6 +39,7 @@ export default function RegisterPage() {
   const [step, setStep] = useState(1);
   const router = useRouter();
   const supabase = createClient();
+  const { t } = useLanguage();
 
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -123,7 +125,7 @@ export default function RegisterPage() {
            }} />
         </div>
         <p className="mt-2 text-center text-sm text-black">
-          Set up your CRM in 30 seconds
+          {t("auth_setup_tagline")}
         </p>
       </div>
 
@@ -138,7 +140,7 @@ export default function RegisterPage() {
           {step === 1 && (
             <div className="space-y-6">
               <div>
-                <label className="block text-sm font-semibold text-zinc-900 mb-3">What type of business do you run?</label>
+                <label className="block text-sm font-semibold text-zinc-900 mb-3">{t("auth_business_type")}</label>
                 <div className="space-y-3">
                   {businessTypes.map((bt) => (
                     <button
@@ -180,7 +182,7 @@ export default function RegisterPage() {
                 className="w-full flex justify-center py-2.5 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#c4956a] transition-colors"
                 style={{ background: 'linear-gradient(135deg, #c4956a 0%, #b8845c 100%)' }}
               >
-                Continue
+                {t("auth_continue")}
               </button>
             </div>
           )}
@@ -188,7 +190,7 @@ export default function RegisterPage() {
           {step === 2 && (
             <form className="space-y-5" onSubmit={handleRegister}>
               <div>
-                <label className="block text-sm font-medium text-black">Your name</label>
+                <label className="block text-sm font-medium text-black">{t("auth_your_name")}</label>
                 <div className="mt-1 relative rounded-md shadow-sm">
                   <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                     <User className="h-4 w-4 text-black" />
@@ -200,13 +202,13 @@ export default function RegisterPage() {
                     onChange={(e) => setName(e.target.value)}
                     className="block w-full pl-10 sm:text-sm border-2 p-2.5 rounded-md focus:ring-[#c4956a] focus:border-[#c4956a]"
                     style={{ borderColor: '#c4956a', background: 'rgba(252,246,237,0.6)' }}
-                    placeholder="John Doe"
+                    placeholder={t("auth_name_placeholder")}
                   />
                 </div>
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-black">Business name</label>
+                <label className="block text-sm font-medium text-black">{t("auth_business_name")}</label>
                 <div className="mt-1 relative rounded-md shadow-sm">
                   <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                     <Building2 className="h-4 w-4 text-black" />
@@ -218,13 +220,13 @@ export default function RegisterPage() {
                     onChange={(e) => setBusinessName(e.target.value)}
                     className="block w-full pl-10 sm:text-sm border-2 p-2.5 rounded-md focus:ring-[#c4956a] focus:border-[#c4956a]"
                     style={{ borderColor: '#c4956a', background: 'rgba(252,246,237,0.6)' }}
-                    placeholder="My Restaurant"
+                    placeholder={t("auth_business_placeholder")}
                   />
                 </div>
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-black">Email address</label>
+                <label className="block text-sm font-medium text-black">{t("auth_email")}</label>
                 <div className="mt-1 relative rounded-md shadow-sm">
                   <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                     <Mail className="h-4 w-4 text-black" />
@@ -236,13 +238,13 @@ export default function RegisterPage() {
                     onChange={(e) => setEmail(e.target.value)}
                     className="block w-full pl-10 sm:text-sm border-2 p-2.5 rounded-md focus:ring-[#c4956a] focus:border-[#c4956a]"
                     style={{ borderColor: '#c4956a', background: 'rgba(252,246,237,0.6)' }}
-                    placeholder="you@example.com"
+                    placeholder={t("auth_email_placeholder")}
                   />
                 </div>
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-black">Password</label>
+                <label className="block text-sm font-medium text-black">{t("auth_password")}</label>
                 <div className="mt-1 relative rounded-md shadow-sm">
                   <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                     <Lock className="h-4 w-4 text-black" />
@@ -255,7 +257,7 @@ export default function RegisterPage() {
                     onChange={(e) => setPassword(e.target.value)}
                     className="block w-full pl-10 sm:text-sm border-2 p-2.5 rounded-md focus:ring-[#c4956a] focus:border-[#c4956a]"
                     style={{ borderColor: '#c4956a', background: 'rgba(252,246,237,0.6)' }}
-                    placeholder="Min. 6 characters"
+                    placeholder={t("auth_min_chars")}
                   />
                 </div>
               </div>
@@ -267,7 +269,7 @@ export default function RegisterPage() {
                   className="flex-1 flex justify-center py-2.5 px-4 border-2 rounded-md shadow-sm text-sm font-medium text-black transition-colors"
                   style={{ borderColor: '#c4956a', background: 'rgba(252,246,237,0.6)' }}
                 >
-                  Back
+                  {t("auth_back")}
                 </button>
                 <button
                   type="submit"
@@ -275,7 +277,7 @@ export default function RegisterPage() {
                   className="flex-[2] flex justify-center py-2.5 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#c4956a] disabled:opacity-50 transition-colors"
                   style={{ background: 'linear-gradient(135deg, #c4956a 0%, #b8845c 100%)' }}
                 >
-                  {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : "Create account"}
+                  {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : t("auth_create_account")}
                 </button>
               </div>
             </form>
@@ -284,9 +286,9 @@ export default function RegisterPage() {
           {step === 3 && (
             <div className="text-center space-y-4">
               <CheckCircle className="mx-auto h-12 w-12 text-emerald-500" />
-              <h3 className="text-lg font-semibold text-zinc-900">Check your email</h3>
+              <h3 className="text-lg font-semibold text-zinc-900">{t("auth_check_email")}</h3>
               <p className="text-sm text-black">
-                We sent a confirmation link to <strong>{email}</strong>. Click the link to activate your account.
+                {t("auth_confirm_sent")} <strong>{email}</strong>. Click the link to activate your account.
               </p>
               <Link
                 href="/login"
@@ -299,9 +301,9 @@ export default function RegisterPage() {
 
           {step !== 3 && (
             <p className="mt-6 text-center text-sm text-black">
-              Already have an account?{" "}
+              {t("auth_has_account")}{" "}
               <Link href="/login" className="font-medium text-[#c4956a] hover:text-[#b8845c]">
-                Sign in
+                {t("auth_sign_in")}
               </Link>
             </p>
           )}

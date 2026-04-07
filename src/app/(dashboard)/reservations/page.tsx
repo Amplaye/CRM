@@ -97,7 +97,7 @@ export default function ReservationsPage() {
       .eq('date', date);
 
     if (!reservations || reservations.length === 0) {
-      alert('No reservations to export for this date');
+      alert(t('res_no_export'));
       return;
     }
 
@@ -149,7 +149,7 @@ export default function ReservationsPage() {
     const notesIdx = headers.indexOf('notes');
 
     if (dateIdx === -1 || timeIdx === -1 || nameIdx === -1 || phoneIdx === -1) {
-      alert('CSV must have Date, Time, Guest Name, and Phone columns');
+      alert(t('res_csv_error'));
       return;
     }
 
@@ -182,7 +182,7 @@ export default function ReservationsPage() {
       }
     }
 
-    alert(`Imported ${imported} reservations`);
+    alert(t('res_imported').replace('{count}', String(imported)));
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
@@ -276,7 +276,7 @@ export default function ReservationsPage() {
       }, 0);
       if (totalSeats < partySize) {
         const confirmed = window.confirm(
-          `Las mesas seleccionadas tienen ${totalSeats} plazas pero la reserva es para ${partySize} personas. ¿Continuar?`
+          t('res_table_confirm').replace('{seats}', String(totalSeats)).replace('{size}', String(partySize))
         );
         if (!confirmed) { setSaving(false); return; }
       }
@@ -332,7 +332,7 @@ export default function ReservationsPage() {
                 <Download className="-ml-1 mr-2 h-4 w-4" /> {t("res_export")}
              </button>
              <button onClick={() => fileInputRef.current?.click()} className="hidden sm:inline-flex items-center px-4 py-2 border-2 text-sm font-medium rounded-lg shadow-sm text-black transition-colors" style={{ borderColor: '#c4956a', background: 'rgba(252,246,237,0.6)' }}>
-                <Upload className="-ml-1 mr-2 h-4 w-4" /> Import
+                <Upload className="-ml-1 mr-2 h-4 w-4" /> {t("res_import")}
              </button>
              <input ref={fileInputRef} type="file" accept=".csv" className="hidden" onChange={handleImport} />
              <button
@@ -400,14 +400,14 @@ export default function ReservationsPage() {
                   className={`px-3 py-1 text-sm font-semibold rounded-md flex items-center transition-colors ${viewMode === 'list' ? 'text-white' : 'text-black'}`}
                   style={{ background: viewMode === 'list' ? '#c4956a' : 'transparent' }}
                 >
-                  <Menu className="w-4 h-4 mr-1.5" /> List
+                  <Menu className="w-4 h-4 mr-1.5" /> {t("res_list")}
                 </button>
                 <button
                   onClick={() => setViewMode("timeline")}
                   className={`px-3 py-1 text-sm font-semibold rounded-md flex items-center transition-colors ${viewMode === 'timeline' ? 'text-white' : 'text-black'}`}
                   style={{ background: viewMode === 'timeline' ? '#c4956a' : 'transparent' }}
                 >
-                  <Clock className="w-4 h-4 mr-1.5" /> Timeline
+                  <Clock className="w-4 h-4 mr-1.5" /> {t("res_timeline")}
                 </button>
               </div>
            </div>
@@ -456,7 +456,7 @@ export default function ReservationsPage() {
                      defaultValue={selectedRes.status}
                      className="w-full border-2 rounded-lg px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-[#c4956a] font-medium" style={{ borderColor: '#c4956a', background: 'rgba(252,246,237,0.6)' }}
                    >
-                      <option value="pending_confirmation">Pending Confirmation</option>
+                      <option value="pending_confirmation">{t("res_pending_confirmation")}</option>
                       <option value="confirmed">{t("status_confirmed")}</option>
                       <option value="seated">{t("status_seated")}</option>
                       <option value="completed">{t("status_completed")}</option>
@@ -518,10 +518,10 @@ export default function ReservationsPage() {
              <div className="flex-1 overflow-y-auto p-6 space-y-5">
                 <div>
                    <label className="block text-sm font-medium text-black mb-1">{t("res_col_guest")}</label>
-                   <input required name="guestName" type="text" placeholder="John Doe" className="w-full border-2 rounded-lg px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-[#c4956a]" style={{ borderColor: '#c4956a', background: 'rgba(252,246,237,0.6)' }} />
+                   <input required name="guestName" type="text" placeholder={t("auth_name_placeholder")} className="w-full border-2 rounded-lg px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-[#c4956a]" style={{ borderColor: '#c4956a', background: 'rgba(252,246,237,0.6)' }} />
                 </div>
                 <div>
-                   <label className="block text-sm font-medium text-black mb-1">{language === "es" ? "Teléfono" : "Phone"}</label>
+                   <label className="block text-sm font-medium text-black mb-1">{t("res_phone")}</label>
                    <input required name="guestPhone" type="tel" placeholder="+1 555-0192" className="w-full border-2 rounded-lg px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-[#c4956a]" style={{ borderColor: '#c4956a', background: 'rgba(252,246,237,0.6)' }} />
                 </div>
 

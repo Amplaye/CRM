@@ -120,9 +120,9 @@ export default function IncidentsPage() {
   };
 
   const columns: { id: Incident["status"]; label: string; bg: string }[] = [
-    { id: "open", label: "Open Triage", bg: "bg-red-50/50 border-red-100" },
-    { id: "investigating", label: "Investigating", bg: "bg-amber-50/50 border-amber-100" },
-    { id: "resolved", label: "Resolved", bg: "bg-emerald-50/50 border-emerald-100" }
+    { id: "open", label: t("inc_open_triage"), bg: "bg-red-50/50 border-red-100" },
+    { id: "investigating", label: t("inc_investigating"), bg: "bg-amber-50/50 border-amber-100" },
+    { id: "resolved", label: t("inc_resolved_col"), bg: "bg-emerald-50/50 border-emerald-100" }
   ];
 
   const getIncidentIcon = (type: string) => {
@@ -138,22 +138,22 @@ export default function IncidentsPage() {
     <div className="p-4 sm:p-6 lg:p-8 max-w-[1600px] h-[calc(100vh-4rem)] flex flex-col mx-auto">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-8 shrink-0">
         <div>
-          <h1 className="text-2xl font-bold text-zinc-900 tracking-tight">Incidents & Audits</h1>
-          <p className="mt-1 text-sm text-black">Track AI errors, operational conflicts, and guest complaints.</p>
+          <h1 className="text-2xl font-bold text-zinc-900 tracking-tight">{t("inc_title")}</h1>
+          <p className="mt-1 text-sm text-black">{t("inc_subtitle")}</p>
         </div>
         <div className="flex space-x-3 mt-4 sm:mt-0">
             <div className="relative">
                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-black" />
-               <input type="text" placeholder="Search incidents..." className="w-64 pl-9 pr-3 py-2 border-2 rounded-lg text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-[#c4956a]" style={{ borderColor: '#c4956a', background: 'rgba(252,246,237,0.6)' }} />
+               <input type="text" placeholder={t("inc_search")} className="w-64 pl-9 pr-3 py-2 border-2 rounded-lg text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-[#c4956a]" style={{ borderColor: '#c4956a', background: 'rgba(252,246,237,0.6)' }} />
             </div>
             <button className="px-4 py-2 bg-zinc-900 text-white text-sm font-bold rounded-lg shadow-sm hover:bg-zinc-800 transition-colors">
-               Report Manual
+               {t("inc_report_manual")}
             </button>
         </div>
       </div>
 
       {loading ? (
-        <div className="flex-1 flex items-center justify-center text-black animate-pulse font-medium">Loading Operations Board...</div>
+        <div className="flex-1 flex items-center justify-center text-black animate-pulse font-medium">{t("inc_loading")}</div>
       ) : (
         <div className="flex-1 flex gap-6 overflow-hidden pb-4">
            {columns.map(col => {
@@ -215,7 +215,7 @@ export default function IncidentsPage() {
                                         onClick={(e) => { e.stopPropagation(); handleStatusChange(inc.id, 'investigating'); }}
                                         className="text-[10px] font-bold bg-zinc-900 text-white px-3 py-1.5 rounded-md shadow-sm hover:bg-zinc-800 transition-colors"
                                       >
-                                        Claim
+                                        {t("inc_claim")}
                                       </button>
                                    )}
                                    {col.id === 'investigating' && (
@@ -223,7 +223,7 @@ export default function IncidentsPage() {
                                         onClick={(e) => { e.stopPropagation(); handleStatusChange(inc.id, 'resolved'); }}
                                         className="text-[10px] font-bold bg-emerald-100 text-emerald-700 border border-emerald-200 px-3 py-1.5 rounded-md shadow-sm hover:bg-emerald-200 transition-colors flex items-center"
                                       >
-                                        <CheckCircle2 className="w-3 h-3 mr-1" /> Resolve
+                                        <CheckCircle2 className="w-3 h-3 mr-1" /> {t("inc_resolve_btn")}
                                       </button>
                                    )}
                                    {inc.owner_id ? (
@@ -241,7 +241,7 @@ export default function IncidentsPage() {
                        ))}
                        {colIncidents.length === 0 && (
                           <div className="h-24 flex items-center justify-center border-2 border-dashed border-black/5 rounded-xl">
-                             <span className="text-xs font-bold text-zinc-400 uppercase tracking-widest">Empty</span>
+                             <span className="text-xs font-bold text-zinc-400 uppercase tracking-widest">{t("inc_empty")}</span>
                           </div>
                        )}
                     </div>
