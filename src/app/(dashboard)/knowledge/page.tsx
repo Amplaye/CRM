@@ -56,7 +56,7 @@ export default function KnowledgePage() {
       }
 
       const docs = (data || []) as KnowledgeArticle[];
-      docs.sort((a,b) => b.updated_at - a.updated_at);
+      docs.sort((a,b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime());
       setArticles(docs);
       setLoading(false);
     };
@@ -105,7 +105,7 @@ export default function KnowledgePage() {
            category: editCategory,
            status: editStatus,
            risk_tags: editRiskTags.split(",").map(t => t.trim()).filter(t => t !== ""),
-           updated_at: Date.now(),
+           updated_at: new Date().toISOString(),
            author_id: user.id
         };
 
@@ -115,7 +115,7 @@ export default function KnowledgePage() {
            await supabase.from("knowledge_articles").update(payload).eq("id", selectedArticleId);
         } else {
            payload.version = 1;
-           payload.created_at = Date.now();
+           payload.created_at = new Date().toISOString();
            const { data: inserted } = await supabase.from("knowledge_articles").insert(payload).select("id").single();
            if (inserted) setSelectedArticleId(inserted.id);
         }

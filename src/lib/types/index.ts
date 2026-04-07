@@ -69,8 +69,8 @@ export interface KnowledgeArticle {
   status: "draft" | "published" | "archived";
   version: number;
   author_id: string;
-  created_at: number;
-  updated_at: number;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface Guest {
