@@ -126,8 +126,8 @@ export default function GuestsPage() {
 
   const filtered = guests.filter(g => {
     if (!search) return true;
-    const s = search.toLowerCase();
-    return g.name.toLowerCase().includes(s) || g.phone.includes(s);
+    const s = search.toLowerCase().trim();
+    return g.name.toLowerCase().startsWith(s) || g.phone.replace(/\D/g, '').includes(s.replace(/\D/g, ''));
   });
 
   return (
