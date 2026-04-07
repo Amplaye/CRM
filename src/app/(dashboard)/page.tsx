@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useMemo } from "react";
 import {
-  CalendarCheck, Users, UserX, Bot, Clock, TrendingUp, TrendingDown,
+  Bot, TrendingUp, TrendingDown,
   ChevronLeft, ChevronRight, Sparkles, Moon, Phone, RefreshCw, ShieldCheck,
   Gauge, Timer, UsersRound,
 } from "lucide-react";
