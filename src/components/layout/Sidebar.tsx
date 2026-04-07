@@ -14,6 +14,8 @@ import {
   LayoutGrid,
   ClipboardList,
   X,
+  Activity,
+  AlertOctagon,
 } from "lucide-react";
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
@@ -99,20 +101,23 @@ export function Sidebar({ mobileOpen = false, onClose }: SidebarProps) {
           })}
 
           {globalRole === "platform_admin" && (
-            <div className="pt-3 mt-3 md:pt-4 md:mt-4 border-t" style={{ borderColor: '#c4956a' }}>
-              <Link
-               href="/admin"
-                onClick={handleNavClick}
-                className={cn(
-                  "flex items-center px-3 py-2.5 md:py-2 text-sm font-medium rounded-md transition-colors",
-                  pathname?.startsWith("/admin")
-                    ? "bg-[#c4956a]/20 text-black"
-                    : "text-black hover:bg-[#c4956a]/10 hover:text-black"
-                )}
-              >
-                <Shield className="mr-3 flex-shrink-0 h-5 w-5 text-black" />
-                {t("nav_admin")}
-              </Link>
+            <div className="pt-3 mt-3 md:pt-4 md:mt-4 border-t space-y-0.5" style={{ borderColor: '#c4956a' }}>
+              {[
+                { href: "/admin", icon: Shield, label: "Tenants" },
+                { href: "/admin/health", icon: Activity, label: "System Health" },
+                { href: "/admin/incidents", icon: AlertOctagon, label: "All Incidents" },
+              ].map(item => (
+                <Link key={item.href} href={item.href} onClick={handleNavClick}
+                  className={cn(
+                    "flex items-center px-3 py-2.5 md:py-2 text-sm font-medium rounded-md transition-colors",
+                    pathname === item.href || (item.href !== "/admin" && pathname?.startsWith(item.href))
+                      ? "bg-[#c4956a]/20 text-black"
+                      : "text-black hover:bg-[#c4956a]/10 hover:text-black"
+                  )}>
+                  <item.icon className="mr-3 flex-shrink-0 h-5 w-5 text-black" />
+                  {item.label}
+                </Link>
+              ))}
             </div>
           )}
         </nav>
