@@ -1,6 +1,6 @@
 "use client";
 
-import { Download, Upload, Search, Star, AlertTriangle, X, Save, CalendarCheck, User, LayoutGrid, List, Trash2 } from "lucide-react";
+import { Download, Upload, Search, X, CalendarCheck, User, LayoutGrid, List, Trash2, Phone } from "lucide-react";
 import { useLanguage } from "@/lib/contexts/LanguageContext";
 import { useEffect, useState, useRef } from "react";
 import { useTenant } from "@/lib/contexts/TenantContext";
@@ -41,26 +41,17 @@ export default function GuestsPage() {
 
   const [guests, setGuests] = useState<Guest[]>([]);
   const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState("");
   const [selectedGuest, setSelectedGuest] = useState<Guest | null>(null);
   const [guestReservations, setGuestReservations] = useState<Reservation[]>([]);
-  const [saving, setSaving] = useState(false);
-  const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
+  const [viewMode, setViewMode] = useState<"grid" | "list">("list");
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [deleting, setDeleting] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleExport = () => {
-    const headers = ['Name', 'Phone', 'Email', 'Visits', 'No-Shows', 'Cancellations', 'Tags', 'Notes'];
-    const rows = guests.map(g => [
-      g.name,
-      g.phone,
-      g.email || '',
-      String(g.visit_count),
-      String(g.no_show_count),
-      String(g.cancellation_count),
-      (g.tags || []).join('; '),
-      g.notes || ''
-    ]);
+    const headers = ['Name', 'Phone', 'Visits', 'No-Shows', 'Notes'];
+    const rows = guests.map(g => [g.name, g.phone, String(g.visit_count), String(g.no_show_count), g.notes || '']);
     downloadCSV([headers, ...rows], 'guests_export.csv');
   };
 
@@ -70,44 +61,19 @@ export default function GuestsPage() {
     const text = await file.text();
     const rows = parseCSV(text);
     if (rows.length < 2) return;
-
     const headers = rows[0].map(h => h.toLowerCase());
     const nameIdx = headers.indexOf('name');
     const phoneIdx = headers.indexOf('phone');
-    const emailIdx = headers.indexOf('email');
-
-    if (nameIdx === -1 || phoneIdx === -1) {
-      alert('CSV must have Name and Phone columns');
-      return;
-    }
-
+    if (nameIdx === -1 || phoneIdx === -1) { alert('CSV must have Name and Phone columns'); return; }
     let imported = 0;
     for (let i = 1; i < rows.length; i++) {
       const row = rows[i];
       const name = row[nameIdx]?.trim();
       const phone = row[phoneIdx]?.trim();
       if (!name || !phone) continue;
-
-      const guest: Record<string, any> = {
-        tenant_id: activeTenant.id,
-        name,
-        phone,
-        visit_count: 0,
-        no_show_count: 0,
-        cancellation_count: 0,
-        tags: [],
-        notes: '',
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
-      };
-      if (emailIdx !== -1 && row[emailIdx]?.trim()) {
-        guest.email = row[emailIdx].trim();
-      }
-
-      const { error } = await supabase.from('guests').insert(guest);
+      const { error } = await supabase.from('guests').insert({ tenant_id: activeTenant.id, name, phone, visit_count: 0, no_show_count: 0, cancellation_count: 0, tags: [], notes: '' });
       if (!error) imported++;
     }
-
     alert(`Imported ${imported} guests`);
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
@@ -115,385 +81,240 @@ export default function GuestsPage() {
   useEffect(() => {
     if (!activeTenant) return;
     setLoading(true);
-
     const fetchGuests = async () => {
-      const { data, error } = await supabase
-        .from("guests")
-        .select("*")
-        .eq("tenant_id", activeTenant.id);
-
-      if (error) {
-        console.error(error);
-        setLoading(false);
-        return;
-      }
-
+      const { data } = await supabase.from("guests").select("*").eq("tenant_id", activeTenant.id);
       setGuests((data || []) as Guest[]);
       setLoading(false);
     };
-
     fetchGuests();
-
-    const channel = supabase
-      .channel("guests_realtime")
-      .on("postgres_changes", { event: "*", schema: "public", table: "guests", filter: `tenant_id=eq.${activeTenant.id}` }, () => {
-        fetchGuests();
-      })
+    const channel = supabase.channel("guests_realtime")
+      .on("postgres_changes", { event: "*", schema: "public", table: "guests", filter: `tenant_id=eq.${activeTenant.id}` }, () => fetchGuests())
       .subscribe();
-
     return () => { supabase.removeChannel(channel); };
   }, [activeTenant]);
 
-  // Fetch reservations when a specific guest is selected
   useEffect(() => {
     if (!selectedGuest || !activeTenant) return;
     const fetchRes = async () => {
-       const { data, error } = await supabase
-         .from("reservations")
-         .select("*")
-         .eq("tenant_id", activeTenant.id)
-         .eq("guest_id", selectedGuest.id);
-
-       if (error) {
-         console.error(error);
-         return;
-       }
-
-       const res = (data || []) as Reservation[];
-       // sort by date descending
-       res.sort((a,b) => b.date.localeCompare(a.date));
-       setGuestReservations(res);
+      const { data } = await supabase.from("reservations").select("*").eq("tenant_id", activeTenant.id).eq("guest_id", selectedGuest.id);
+      const res = (data || []) as Reservation[];
+      res.sort((a, b) => b.date.localeCompare(a.date));
+      setGuestReservations(res);
     };
     fetchRes();
   }, [selectedGuest, activeTenant]);
 
-  const handleUpdate = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    if (!selectedGuest) return;
-
-    setSaving(true);
-    const formData = new FormData(e.currentTarget);
-    try {
-      await supabase.from("guests").update({
-        email: formData.get("email"),
-        dietary_notes: formData.get("dietary_notes"),
-        accessibility_notes: formData.get("accessibility_notes"),
-        family_notes: formData.get("family_notes"),
-        notes: formData.get("notes"),
-        updated_at: Date.now()
-      }).eq("id", selectedGuest.id);
-      // updating local state to reflect UI changes instantly if needed or let realtime handle it
-      setSelectedGuest(null);
-    } catch(err) {
-      console.error(err);
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const isVip = (g: Guest) => g.visit_count >= 10 || (g.estimated_spend && g.estimated_spend > 1000);
-  const isHighRisk = (g: Guest) => g.no_show_count >= 2;
-
   const toggleSelect = (id: string) => {
-    setSelectedIds(prev => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id); else next.add(id);
-      return next;
-    });
+    setSelectedIds(prev => { const next = new Set(prev); if (next.has(id)) next.delete(id); else next.add(id); return next; });
   };
-
-  const selectAll = () => {
-    if (selectedIds.size === guests.length) {
-      setSelectedIds(new Set());
-    } else {
-      setSelectedIds(new Set(guests.map(g => g.id)));
-    }
-  };
-
+  const selectAll = () => { selectedIds.size === guests.length ? setSelectedIds(new Set()) : setSelectedIds(new Set(guests.map(g => g.id))); };
   const deleteSelected = async () => {
     if (selectedIds.size === 0) return;
     setDeleting(true);
-    const idsToDelete = Array.from(selectedIds);
+    const ids = Array.from(selectedIds);
     setGuests(prev => prev.filter(g => !selectedIds.has(g.id)));
     if (selectedGuest && selectedIds.has(selectedGuest.id)) setSelectedGuest(null);
     setSelectedIds(new Set());
-    await supabase.from("guests").delete().in("id", idsToDelete);
+    await supabase.from("guests").delete().in("id", ids);
     setDeleting(false);
   };
-
   const deleteSingle = async (id: string) => {
     setGuests(prev => prev.filter(g => g.id !== id));
     if (selectedGuest?.id === id) setSelectedGuest(null);
-    selectedIds.delete(id);
-    setSelectedIds(new Set(selectedIds));
     await supabase.from("guests").delete().eq("id", id);
   };
 
+  const filtered = guests.filter(g => {
+    if (!search) return true;
+    const s = search.toLowerCase();
+    return g.name.toLowerCase().includes(s) || g.phone.includes(s);
+  });
+
   return (
-    <div className="p-4 sm:p-6 lg:p-8 w-full space-y-4 sm:space-y-6 lg:space-y-8 flex">
-      <div className={`flex-1 transition-all duration-300 ${selectedGuest ? 'pr-[400px]' : ''}`}>
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-8">
+    <div className="p-4 sm:p-6 lg:p-8 w-full space-y-4 sm:space-y-6">
+      <div className={`transition-all duration-300 ${selectedGuest ? 'pr-0 sm:pr-[400px]' : ''}`}>
+        {/* Header */}
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6">
           <div>
-            <h1 className="text-2xl font-bold text-zinc-900">{t("guests_title")}</h1>
-            <p className="mt-1 text-sm text-black">{t("guests_subtitle")}</p>
+            <h1 className="text-xl sm:text-2xl font-bold text-black">{t("guests_title")}</h1>
+            <p className="text-xs sm:text-sm text-black mt-0.5">{filtered.length} clientes</p>
           </div>
-          <div className="mt-4 sm:mt-0 flex space-x-3">
-            <div className="flex p-1 rounded-lg border-2" style={{ borderColor: '#c4956a', background: 'rgba(252,246,237,0.6)' }}>
-              <button
-                onClick={() => setViewMode("grid")}
-                className={`p-1.5 rounded-md transition-colors ${viewMode === 'grid' ? 'shadow-sm' : ''}`}
-                style={{ background: viewMode === 'grid' ? '#c4956a' : 'transparent' }}
-                title="Grid view"
-              >
+          <div className="mt-3 sm:mt-0 flex items-center gap-2">
+            <div className="flex p-0.5 rounded-lg border-2" style={{ borderColor: '#c4956a', background: 'rgba(252,246,237,0.6)' }}>
+              <button onClick={() => setViewMode("grid")} className={`p-1.5 rounded-md transition-colors`} style={{ background: viewMode === 'grid' ? '#c4956a' : 'transparent' }}>
                 <LayoutGrid className={`h-4 w-4 ${viewMode === 'grid' ? 'text-white' : 'text-black'}`} />
               </button>
-              <button
-                onClick={() => setViewMode("list")}
-                className={`p-1.5 rounded-md transition-colors ${viewMode === 'list' ? 'shadow-sm' : ''}`}
-                style={{ background: viewMode === 'list' ? '#c4956a' : 'transparent' }}
-                title="List view"
-              >
+              <button onClick={() => setViewMode("list")} className={`p-1.5 rounded-md transition-colors`} style={{ background: viewMode === 'list' ? '#c4956a' : 'transparent' }}>
                 <List className={`h-4 w-4 ${viewMode === 'list' ? 'text-white' : 'text-black'}`} />
               </button>
             </div>
-            <button onClick={handleExport} className="inline-flex items-center px-4 py-2 border-2 text-sm font-medium rounded-md shadow-sm text-black transition-colors" style={{ borderColor: '#c4956a', background: 'rgba(252,246,237,0.6)' }}>
-              <Download className="-ml-1 mr-2 h-4 w-4" />
-              {t("guests_export")}
+            <button onClick={handleExport} className="inline-flex items-center px-3 py-2 border-2 text-xs font-medium rounded-lg text-black" style={{ borderColor: '#c4956a', background: 'rgba(252,246,237,0.6)' }}>
+              <Download className="h-3.5 w-3.5 mr-1.5" /> Exportar
             </button>
-            <button onClick={() => fileInputRef.current?.click()} className="inline-flex items-center px-4 py-2 border-2 text-sm font-medium rounded-md shadow-sm text-black transition-colors" style={{ borderColor: '#c4956a', background: 'rgba(252,246,237,0.6)' }}>
-              <Upload className="-ml-1 mr-2 h-4 w-4" />
-              Import
+            <button onClick={() => fileInputRef.current?.click()} className="inline-flex items-center px-3 py-2 border-2 text-xs font-medium rounded-lg text-black" style={{ borderColor: '#c4956a', background: 'rgba(252,246,237,0.6)' }}>
+              <Upload className="h-3.5 w-3.5 mr-1.5" /> Importar
             </button>
             <input ref={fileInputRef} type="file" accept=".csv" className="hidden" onChange={handleImport} />
           </div>
         </div>
 
-        <div className="flex flex-col sm:flex-row space-y-3 sm:space-y-0 sm:space-x-4 mb-4">
-           <div className="relative flex-1 max-w-lg">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-black" />
-              <input
-                type="text"
-                placeholder={t("guests_search")}
-                className="w-full pl-9 pr-3 py-2 border-2 rounded-md text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-[#c4956a]"
-                style={{ borderColor: '#c4956a', background: 'rgba(252,246,237,0.6)' }}
-              />
-           </div>
+        {/* Search + bulk actions */}
+        <div className="flex items-center gap-3 mb-4">
+          <div className="relative flex-1 max-w-md">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-black" />
+            <input type="text" value={search} onChange={e => setSearch(e.target.value)} placeholder="Buscar por nombre o teléfono..." className="w-full pl-9 pr-3 py-2 border-2 rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-[#c4956a]" style={{ borderColor: '#c4956a', background: 'rgba(252,246,237,0.6)' }} />
+          </div>
+          {filtered.length > 0 && (
+            <button onClick={selectAll} className="text-xs font-medium text-black/60 hover:text-black">
+              {selectedIds.size === guests.length ? 'Deseleccionar' : 'Seleccionar todo'}
+            </button>
+          )}
+          {selectedIds.size > 0 && (
+            <button onClick={deleteSelected} disabled={deleting} className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-bold text-red-600 bg-red-50 border border-red-200 hover:bg-red-100 disabled:opacity-50">
+              <Trash2 className="w-3.5 h-3.5" /> Eliminar ({selectedIds.size})
+            </button>
+          )}
         </div>
 
-        {guests.length > 0 && (
-          <div className="flex items-center justify-between mb-6">
-            <button onClick={selectAll} className="flex items-center gap-1.5 text-xs font-medium text-black/60 hover:text-black">
-              <input
-                type="checkbox"
-                checked={selectedIds.size === guests.length && guests.length > 0}
-                onChange={selectAll}
-                className="w-3.5 h-3.5 rounded accent-[#c4956a] cursor-pointer"
-              />
-              {selectedIds.size === guests.length ? 'Deselect all' : 'Select all'}
-            </button>
-            {selectedIds.size > 0 && (
-              <button
-                onClick={deleteSelected}
-                disabled={deleting}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold text-red-600 bg-red-50 border border-red-200 hover:bg-red-100 disabled:opacity-50"
-              >
-                <Trash2 className="w-3.5 h-3.5" />
-                Delete ({selectedIds.size})
-              </button>
-            )}
-          </div>
-        )}
-
+        {/* Content */}
         {loading ? (
-           <div className="text-sm text-black">Loading guests...</div>
-        ) : guests.length === 0 ? (
-           <div className="border-2 rounded-xl py-16 text-center" style={{ background: 'rgba(252,246,237,0.85)', borderColor: '#c4956a', boxShadow: '0 20px 60px rgba(196,149,106,0.25), 0 8px 24px rgba(196,149,106,0.15)' }}>
-              <User className="mx-auto h-12 w-12 text-zinc-300 mb-4" />
-              <h3 className="text-sm font-medium text-zinc-900">No Guests Found</h3>
-              <p className="mt-1 text-sm text-zinc-500">Guests will automatically populate here when reservations are booked.</p>
-           </div>
-        ) : (
-          viewMode === "grid" ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-             {guests.map((guest) => (
-               <div
-                 key={guest.id}
-                 onClick={() => setSelectedGuest(guest)}
-                 className={`rounded-xl border-2 p-6 hover:border-[#c4956a] cursor-pointer transition-colors relative overflow-hidden ${isHighRisk(guest) ? 'border-red-200' : ''}`}
-                 style={{ background: 'rgba(252,246,237,0.85)', borderColor: isHighRisk(guest) ? undefined : '#c4956a', boxShadow: '0 20px 60px rgba(196,149,106,0.25), 0 8px 24px rgba(196,149,106,0.15)' }}
-               >
-                  {isHighRisk(guest) && <div className="absolute top-0 inset-x-0 h-1 bg-red-500"></div>}
-                  <div className="absolute top-3 right-3 flex items-center gap-1.5">
-                    <button
-                      onClick={(e) => { e.stopPropagation(); deleteSingle(guest.id); }}
-                      className="p-1 text-black/20 hover:text-red-500 transition-colors"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
-                    <input
-                      type="checkbox"
-                      checked={selectedIds.has(guest.id)}
-                      onChange={(e) => { e.stopPropagation(); toggleSelect(guest.id); }}
-                      className="w-4 h-4 rounded accent-[#c4956a] cursor-pointer"
-                    />
-                  </div>
-                  <div className="flex justify-between items-start mb-4">
-                     <div className="flex items-center overflow-hidden pr-2">
-                        <div className="h-10 w-10 rounded-full flex items-center justify-center text-black font-bold text-sm flex-shrink-0" style={{ background: 'rgba(196,149,106,0.2)' }}>
-                           {guest.name.charAt(0).toUpperCase()}
-                        </div>
-                        <div className="ml-3 truncate">
-                           <h3 className="text-base font-bold text-zinc-900 flex items-center truncate">
-                              {guest.name}
-                              {isVip(guest) && <Star className="h-4 w-4 text-amber-400 ml-1.5 fill-current flex-shrink-0" />}
-                           </h3>
-                           <p className="text-xs text-black truncate">{guest.phone}</p>
-                        </div>
-                     </div>
-                     {isHighRisk(guest) ? (
-                        <span className="bg-red-100 text-red-800 text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center uppercase tracking-wider flex-shrink-0">
-                           <AlertTriangle className="h-3 w-3 mr-1" /> Risk
-                        </span>
-                     ) : isVip(guest) ? (
-                        <span className="bg-emerald-100 text-emerald-800 text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider flex-shrink-0">VIP</span>
-                     ) : null}
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-2 border-y border-zinc-100 py-3 mb-3">
-                     <div className="text-center">
-                        <p className="text-lg font-bold text-zinc-900">{guest.visit_count}</p>
-                        <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-wider mt-0.5">Visits</p>
-                     </div>
-                     <div className="text-center border-l border-zinc-100">
-                        <p className={`text-lg font-bold ${guest.no_show_count > 0 ? 'text-red-600' : 'text-zinc-900'}`}>{guest.no_show_count}</p>
-                        <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-wider mt-0.5">No-Shows</p>
-                     </div>
-                  </div>
-               </div>
-             ))}
+          <div className="text-sm text-black">Cargando...</div>
+        ) : filtered.length === 0 ? (
+          <div className="border-2 rounded-xl py-16 text-center" style={{ background: 'rgba(252,246,237,0.85)', borderColor: '#c4956a' }}>
+            <User className="mx-auto h-12 w-12 text-zinc-300 mb-4" />
+            <h3 className="text-sm font-medium text-black">{search ? 'Sin resultados' : 'Sin clientes'}</h3>
           </div>
-          ) : (
-          <div className="border-2 rounded-xl overflow-hidden" style={{ background: 'rgba(252,246,237,0.85)', borderColor: '#c4956a', boxShadow: '0 20px 60px rgba(196,149,106,0.25), 0 8px 24px rgba(196,149,106,0.15)' }}>
-            <div className="overflow-x-auto">
+        ) : viewMode === "grid" ? (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            {filtered.map(guest => (
+              <div key={guest.id} onClick={() => setSelectedGuest(guest)}
+                className="rounded-xl border-2 p-4 hover:shadow-md cursor-pointer transition-all"
+                style={{ background: 'rgba(252,246,237,0.85)', borderColor: '#c4956a' }}>
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="h-9 w-9 rounded-full flex items-center justify-center text-black font-bold text-sm flex-shrink-0" style={{ background: 'rgba(196,149,106,0.2)' }}>
+                      {guest.name.charAt(0).toUpperCase()}
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-sm font-bold text-black truncate">{guest.name}</p>
+                      <p className="text-xs text-black truncate">{guest.phone}</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-1.5 flex-shrink-0">
+                    <button onClick={(e) => { e.stopPropagation(); deleteSingle(guest.id); }} className="p-1 text-black/20 hover:text-red-500"><Trash2 className="w-3.5 h-3.5" /></button>
+                    <input type="checkbox" checked={selectedIds.has(guest.id)} onChange={(e) => { e.stopPropagation(); toggleSelect(guest.id); }} className="w-4 h-4 rounded accent-[#c4956a] cursor-pointer" />
+                  </div>
+                </div>
+                <div className="flex gap-4 text-center">
+                  <div className="flex-1">
+                    <p className="text-lg font-bold text-black">{guest.visit_count}</p>
+                    <p className="text-[10px] text-black font-medium uppercase">Visitas</p>
+                  </div>
+                  <div className="flex-1 border-l" style={{ borderColor: 'rgba(196,149,106,0.3)' }}>
+                    <p className={`text-lg font-bold ${guest.no_show_count > 0 ? 'text-red-600' : 'text-black'}`}>{guest.no_show_count}</p>
+                    <p className="text-[10px] text-black font-medium uppercase">No-Shows</p>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="border-2 rounded-xl overflow-hidden" style={{ background: 'rgba(252,246,237,0.85)', borderColor: '#c4956a' }}>
             <table className="min-w-full divide-y" style={{ borderColor: '#c4956a' }}>
               <thead>
                 <tr>
                   <th className="px-3 py-3 w-10"></th>
-                  <th className="px-3 sm:px-6 py-3 text-left text-xs font-semibold text-black uppercase tracking-wider">Name</th>
-                  <th className="px-3 sm:px-6 py-3 text-left text-xs font-semibold text-black uppercase tracking-wider">Phone</th>
-                  <th className="px-3 sm:px-6 py-3 text-center text-xs font-semibold text-black uppercase tracking-wider">Visits</th>
-                  <th className="px-3 sm:px-6 py-3 text-center text-xs font-semibold text-black uppercase tracking-wider">No-Shows</th>
+                  <th className="px-3 sm:px-6 py-3 text-left text-xs font-semibold text-black uppercase">Nombre</th>
+                  <th className="px-3 sm:px-6 py-3 text-left text-xs font-semibold text-black uppercase">Teléfono</th>
+                  <th className="px-3 sm:px-6 py-3 text-center text-xs font-semibold text-black uppercase">Visitas</th>
+                  <th className="px-3 sm:px-6 py-3 text-center text-xs font-semibold text-black uppercase">No-Shows</th>
                   <th className="px-3 py-3 w-10"></th>
                 </tr>
               </thead>
               <tbody className="divide-y" style={{ borderColor: 'rgba(196,149,106,0.3)' }}>
-                {guests.map((guest) => (
-                  <tr
-                    key={guest.id}
-                    onClick={() => setSelectedGuest(guest)}
-                    className="hover:bg-[#c4956a]/10 transition-colors cursor-pointer"
-                  >
-                    <td className="px-3 py-4 whitespace-nowrap">
-                      <input
-                        type="checkbox"
-                        checked={selectedIds.has(guest.id)}
-                        onChange={(e) => { e.stopPropagation(); toggleSelect(guest.id); }}
-                        className="w-4 h-4 rounded accent-[#c4956a] cursor-pointer"
-                      />
+                {filtered.map(guest => (
+                  <tr key={guest.id} onClick={() => setSelectedGuest(guest)} className="hover:bg-[#c4956a]/10 transition-colors cursor-pointer">
+                    <td className="px-3 py-3">
+                      <input type="checkbox" checked={selectedIds.has(guest.id)} onChange={(e) => { e.stopPropagation(); toggleSelect(guest.id); }} className="w-4 h-4 rounded accent-[#c4956a] cursor-pointer" />
                     </td>
-                    <td className="px-3 sm:px-6 py-4 whitespace-nowrap">
-                      <div className="flex items-center">
-                        <div className="h-8 w-8 rounded-full flex items-center justify-center text-black font-bold text-xs flex-shrink-0" style={{ background: 'rgba(196,149,106,0.2)' }}>
-                          {guest.name.charAt(0).toUpperCase()}
-                        </div>
-                        <div className="ml-3">
-                          <span className="text-sm font-bold text-zinc-900 flex items-center">
-                            {guest.name}
-                            {isVip(guest) && <Star className="h-3.5 w-3.5 text-amber-400 ml-1 fill-current" />}
-                          </span>
-                        </div>
+                    <td className="px-3 sm:px-6 py-3">
+                      <div className="flex items-center gap-2">
+                        <div className="h-7 w-7 rounded-full flex items-center justify-center text-black font-bold text-xs flex-shrink-0" style={{ background: 'rgba(196,149,106,0.2)' }}>{guest.name.charAt(0).toUpperCase()}</div>
+                        <span className="text-sm font-bold text-black">{guest.name}</span>
                       </div>
                     </td>
-                    <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-sm text-black">{guest.phone}</td>
-                    <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-sm font-medium text-zinc-900 text-center">{guest.visit_count}</td>
-                    <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-sm font-medium text-center">
-                      <span className={guest.no_show_count > 0 ? 'text-red-600' : 'text-zinc-900'}>{guest.no_show_count}</span>
+                    <td className="px-3 sm:px-6 py-3 text-sm text-black">{guest.phone}</td>
+                    <td className="px-3 sm:px-6 py-3 text-sm font-medium text-black text-center">{guest.visit_count}</td>
+                    <td className="px-3 sm:px-6 py-3 text-sm font-medium text-center">
+                      <span className={guest.no_show_count > 0 ? 'text-red-600' : 'text-black'}>{guest.no_show_count}</span>
                     </td>
-                    <td className="px-3 py-4 whitespace-nowrap">
-                      <button
-                        onClick={(e) => { e.stopPropagation(); deleteSingle(guest.id); }}
-                        className="p-1 text-black/20 hover:text-red-500 transition-colors"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
+                    <td className="px-3 py-3">
+                      <button onClick={(e) => { e.stopPropagation(); deleteSingle(guest.id); }} className="p-1 text-black/20 hover:text-red-500"><Trash2 className="w-3.5 h-3.5" /></button>
                     </td>
                   </tr>
                 ))}
               </tbody>
             </table>
-            </div>
           </div>
-          )
         )}
       </div>
 
-      {/* GUEST DETAIL DRAWER */}
+      {/* Guest Detail Drawer */}
       {selectedGuest && (
-        <div className="fixed inset-y-0 right-0 w-full sm:w-[400px] border-l shadow-2xl z-40 transform transition-transform duration-300 flex flex-col" style={{ background: 'rgba(252,246,237,0.95)', borderColor: '#c4956a' }}>
+        <div className="fixed inset-y-0 right-0 w-full sm:w-[400px] border-l shadow-2xl z-40 flex flex-col" style={{ background: 'rgba(252,246,237,0.98)', borderColor: '#c4956a' }}>
           <div className="px-6 py-4 flex items-center justify-between border-b" style={{ borderColor: '#c4956a' }}>
-             <div>
-               <h2 className="text-lg font-bold text-zinc-900 tracking-tight flex items-center">
-                 {selectedGuest.name}
-                 {isVip(selectedGuest) && <Star className="h-4 w-4 text-amber-400 ml-2 fill-current" />}
-               </h2>
-               <p className="text-xs text-black font-medium">{selectedGuest.phone}</p>
-             </div>
-             <button onClick={() => setSelectedGuest(null)} className="p-2 text-black hover:bg-[#c4956a]/10 hover:text-black rounded-full transition-colors">
-                <X className="h-5 w-5" />
-             </button>
+            <div className="flex items-center gap-3">
+              <div className="h-10 w-10 rounded-full flex items-center justify-center text-black font-bold" style={{ background: 'rgba(196,149,106,0.2)' }}>
+                {selectedGuest.name.charAt(0).toUpperCase()}
+              </div>
+              <div>
+                <h2 className="text-lg font-bold text-black">{selectedGuest.name}</h2>
+                <p className="text-xs text-black flex items-center gap-1"><Phone className="w-3 h-3" />{selectedGuest.phone}</p>
+              </div>
+            </div>
+            <button onClick={() => setSelectedGuest(null)} className="p-2 hover:bg-[#c4956a]/10 rounded-full"><X className="h-5 w-5 text-black" /></button>
           </div>
 
-          <form onSubmit={handleUpdate} className="flex-1 flex flex-col overflow-hidden">
-             <div className="flex-1 overflow-y-auto w-full p-6 space-y-8">
+          <div className="flex-1 overflow-y-auto p-6 space-y-6">
+            {/* Stats */}
+            <div className="grid grid-cols-2 gap-3">
+              <div className="rounded-lg border-2 p-3 text-center" style={{ borderColor: '#c4956a', background: 'rgba(252,246,237,0.6)' }}>
+                <p className="text-2xl font-bold text-black">{selectedGuest.visit_count}</p>
+                <p className="text-xs text-black font-medium">Visitas</p>
+              </div>
+              <div className="rounded-lg border-2 p-3 text-center" style={{ borderColor: selectedGuest.no_show_count > 0 ? '#ef4444' : '#c4956a', background: selectedGuest.no_show_count > 0 ? 'rgba(239,68,68,0.05)' : 'rgba(252,246,237,0.6)' }}>
+                <p className={`text-2xl font-bold ${selectedGuest.no_show_count > 0 ? 'text-red-600' : 'text-black'}`}>{selectedGuest.no_show_count}</p>
+                <p className="text-xs text-black font-medium">No-Shows</p>
+              </div>
+            </div>
 
-
-                {/* Booking History */}
-                <div>
-                   <h3 className="text-xs font-bold text-zinc-500 uppercase tracking-widest mb-3 border-b border-zinc-200 pb-2">Reservation History</h3>
-                   {guestReservations.length === 0 ? (
-                      <p className="text-xs text-zinc-500 italic">No historical reservations found.</p>
-                   ) : (
-                      <div className="space-y-3">
-                         {guestReservations.map(res => (
-                            <div key={res.id} className="flex items-center justify-between bg-white border border-zinc-200 p-3 rounded-lg shadow-sm">
-                               <div>
-                                  <p className="text-sm font-bold text-zinc-900">{res.date}</p>
-                                  <p className="text-xs text-zinc-500">{res.time} • v.{res.party_size}</p>
-                               </div>
-                               <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-1 rounded-md ${
-                                 res.status === 'completed' ? 'bg-green-100 text-green-800' :
-                                 res.status === 'cancelled' || res.status === 'no_show' ? 'bg-red-100 text-red-800' :
-                                 'bg-zinc-100 text-zinc-800'
-                               }`}>
-                                 {res.status.replace('_', ' ')}
-                               </span>
-                            </div>
-                         ))}
+            {/* Reservation History */}
+            <div>
+              <h3 className="text-xs font-bold text-black uppercase tracking-wider mb-3">Historial de reservas</h3>
+              {guestReservations.length === 0 ? (
+                <p className="text-xs text-black/50 italic">Sin reservas.</p>
+              ) : (
+                <div className="space-y-2">
+                  {guestReservations.map(res => (
+                    <div key={res.id} className="flex items-center justify-between border-2 rounded-lg p-3" style={{ borderColor: 'rgba(196,149,106,0.3)', background: 'rgba(252,246,237,0.6)' }}>
+                      <div className="flex items-center gap-2">
+                        <CalendarCheck className="w-4 h-4 text-[#c4956a] flex-shrink-0" />
+                        <div>
+                          <p className="text-sm font-bold text-black">{res.date}</p>
+                          <p className="text-xs text-black">{res.time} · {res.party_size}p</p>
+                        </div>
                       </div>
-                   )}
+                      <span className={`text-[10px] font-bold uppercase px-2 py-1 rounded ${
+                        res.status === 'confirmed' ? 'bg-emerald-50 text-emerald-700' :
+                        res.status === 'cancelled' || res.status === 'no_show' ? 'bg-red-50 text-red-700' :
+                        'bg-zinc-100 text-zinc-700'
+                      }`}>{res.status.replace('_', ' ')}</span>
+                    </div>
+                  ))}
                 </div>
-
-             </div>
-             <div className="p-6 border-t flex space-x-3" style={{ borderColor: '#c4956a' }}>
-                <button
-                   type="submit"
-                   disabled={saving}
-                   className="flex-1 flex items-center justify-center bg-zinc-900 hover:bg-zinc-800 text-white font-medium py-2.5 px-4 rounded-lg transition-colors shadow-sm disabled:opacity-50 text-sm"
-                >
-                   <Save className="h-4 w-4 mr-2" /> {saving ? "Saving..." : "Save Profile"}
-                </button>
-             </div>
-          </form>
+              )}
+            </div>
+          </div>
         </div>
       )}
     </div>
