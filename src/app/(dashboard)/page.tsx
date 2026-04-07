@@ -172,16 +172,17 @@ export default function DashboardPage() {
     });
     const dailyData = Object.values(dailyMap);
 
-    // Source breakdown for pie — group into AI Chat / AI Voice / Staff
-    const channelCounts: Record<string, number> = { "AI Chat": 0, "AI Voice": 0, "Staff": 0 };
+    // Source breakdown for pie — group into Chat IA / Voz IA / Staff
+    const channelKeys = ["ai_chat", "ai_voice", "staff"] as const;
+    const channelRaw: Record<string, number> = { ai_chat: 0, ai_voice: 0, staff: 0 };
     reservations.forEach(r => {
-      if (r.source === "ai_chat") channelCounts["AI Chat"]++;
-      else if (r.source === "ai_voice" || r.source === "web") channelCounts["AI Voice"]++;
-      else channelCounts["Staff"]++;
+      if (r.source === "ai_chat") channelRaw.ai_chat++;
+      else if (r.source === "ai_voice" || r.source === "web") channelRaw.ai_voice++;
+      else channelRaw.staff++;
     });
-    const sourceData = Object.entries(channelCounts)
-      .filter(([_, v]) => v > 0)
-      .map(([name, value]) => ({ name, value }));
+    const sourceData = channelKeys
+      .filter(k => channelRaw[k] > 0)
+      .map(k => ({ name: k, value: channelRaw[k] }));
 
     return {
       totalValue, aiRevenue, roi, aiMonthlyCost,
@@ -198,6 +199,11 @@ export default function DashboardPage() {
   }, [reservations, prevMonthRes, waitlistConverted, tenant, selectedMonth, selectedYear]);
 
   /* ─── render ─── */
+
+  const channelLabel = (key: string) => {
+    const map: Record<string, string> = { ai_chat: t("dash_ai_chat"), ai_voice: t("dash_ai_voice_calls"), staff: t("dash_legend_staff") };
+    return map[key] || key;
+  };
 
   const cardStyle = { background: "rgba(252,246,237,0.85)", borderColor: "#c4956a" };
 
@@ -349,8 +355,8 @@ export default function DashboardPage() {
                 <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: "#71717a" }} allowDecimals={false} />
                 <Tooltip contentStyle={{ borderRadius: "12px", border: "1px solid #c4956a", fontSize: "13px" }} />
                 <Legend wrapperStyle={{ fontSize: "12px" }} />
-                <Bar dataKey="ai" stackId="a" fill="#fb7740" radius={[0, 0, 0, 0]} name="AI" />
-                <Bar dataKey="staff" stackId="a" fill="#c4956a" radius={[4, 4, 0, 0]} name="Staff" />
+                <Bar dataKey="ai" stackId="a" fill="#fb7740" radius={[0, 0, 0, 0]} name={t("dash_legend_ai")} />
+                <Bar dataKey="staff" stackId="a" fill="#c4956a" radius={[4, 4, 0, 0]} name={t("dash_legend_staff")} />
               </BarChart>
             </ResponsiveContainer>
           </div>
@@ -365,13 +371,13 @@ export default function DashboardPage() {
             ) : (
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
-                  <Pie data={kpis.sourceData} cx="50%" cy="50%" innerRadius={50} outerRadius={90} paddingAngle={3} dataKey="value"
-                    label={({ name, value }) => `${name} (${value})`}>
+                  <Pie data={kpis.sourceData.map(d => ({ ...d, label: channelLabel(d.name) }))} cx="50%" cy="50%" innerRadius={45} outerRadius={75} paddingAngle={3} dataKey="value" nameKey="label">
                     {kpis.sourceData.map((_entry: any, index: number) => (
                       <Cell key={`cell-${index}`} fill={PIE_COLORS[index % PIE_COLORS.length]} />
                     ))}
                   </Pie>
                   <Tooltip contentStyle={{ borderRadius: "12px", border: "1px solid #c4956a", fontSize: "13px" }} />
+                  <Legend wrapperStyle={{ fontSize: "12px" }} formatter={(value: string) => value} />
                 </PieChart>
               </ResponsiveContainer>
             )}
