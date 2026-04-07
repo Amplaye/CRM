@@ -45,32 +45,56 @@ export const TenantProvider = ({ children }: { children: ReactNode }) => {
       return;
     }
 
+    // Check sessionStorage cache to avoid re-fetching on every navigation
+    const cacheKey = `tenant_ctx_${user.id}`;
+    const cached = sessionStorage.getItem(cacheKey);
+    if (cached) {
+      try {
+        const c = JSON.parse(cached);
+        setGlobalRole(c.globalRole);
+        setAvailableTenants(c.tenants);
+        setActiveTenant(c.activeTenant);
+        setActiveRole(c.activeRole);
+        setLoading(false);
+        return;
+      } catch { /* fall through to fetch */ }
+    }
+
     const loadTenantData = async () => {
       try {
         setLoading(true);
 
-        // Single parallel fetch for both user role and memberships
         const [userRes, membershipsRes] = await Promise.all([
           supabase.from("users").select("global_role").eq("id", user.id).single(),
           supabase.from("tenant_members").select("tenant_id, role, tenants(*)").eq("user_id", user.id)
         ]);
 
-        if (userRes.data) setGlobalRole(userRes.data.global_role as GlobalRole);
+        const role = (userRes.data?.global_role || "user") as GlobalRole;
+        setGlobalRole(role);
 
         const memberships = membershipsRes.data;
-        if (memberships && memberships.length > 0) {
-          const tenants = memberships.map((m: any) => m.tenants as Tenant);
-          setAvailableTenants(tenants);
+        const tenants = memberships && memberships.length > 0
+          ? memberships.map((m: any) => m.tenants as Tenant)
+          : [];
+        setAvailableTenants(tenants);
 
+        let active: Tenant | null = null;
+        let activeR: string | null = null;
+
+        if (tenants.length > 0) {
           const savedId = localStorage.getItem("active_tenant_id");
-          const targetTenant = tenants.find(t => t.id === savedId) || tenants[0];
-
-          if (targetTenant) {
-            setActiveTenant(targetTenant);
-            setActiveRole(memberships.find((m: any) => m.tenant_id === targetTenant.id)?.role || null);
-            localStorage.setItem("active_tenant_id", targetTenant.id);
-          }
+          active = tenants.find(t => t.id === savedId) || tenants[0];
+          activeR = memberships!.find((m: any) => m.tenant_id === active!.id)?.role || null;
+          localStorage.setItem("active_tenant_id", active.id);
         }
+
+        setActiveTenant(active);
+        setActiveRole(activeR);
+
+        // Cache in sessionStorage
+        sessionStorage.setItem(cacheKey, JSON.stringify({
+          globalRole: role, tenants, activeTenant: active, activeRole: activeR,
+        }));
       } catch (err) {
         console.error("Failed to load tenant context", err);
       } finally {
@@ -86,6 +110,8 @@ export const TenantProvider = ({ children }: { children: ReactNode }) => {
     if (target) {
       setActiveTenant(target);
       localStorage.setItem("active_tenant_id", target.id);
+      // Clear cache so it reloads with new tenant
+      if (user) sessionStorage.removeItem(`tenant_ctx_${user.id}`);
       window.location.reload();
     }
   };
