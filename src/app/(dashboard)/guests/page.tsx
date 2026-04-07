@@ -2,7 +2,7 @@
 
 import { Download, Upload, Search, X, CalendarCheck, User, LayoutGrid, List, Trash2, Phone } from "lucide-react";
 import { useLanguage } from "@/lib/contexts/LanguageContext";
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useMemo } from "react";
 import { useTenant } from "@/lib/contexts/TenantContext";
 import { Guest, Reservation } from "@/lib/types";
 import { createClient } from "@/lib/supabase/client";
@@ -124,13 +124,19 @@ export default function GuestsPage() {
     await supabase.from("guests").delete().eq("id", id);
   };
 
-  const filtered = guests.filter(g => {
-    if (!search) return true;
+  const filtered = useMemo(() => {
+    if (!search || !search.trim()) return guests;
     const s = search.toLowerCase().trim();
-    const name = (g.name || '').toLowerCase();
-    const phone = (g.phone || '').replace(/\D/g, '');
-    return name.includes(s) || phone.includes(s.replace(/\D/g, ''));
-  });
+    return guests.filter(g => {
+      const name = (g.name || '').toLowerCase();
+      const phone = (g.phone || '').replace(/\D/g, '');
+      const searchDigits = s.replace(/\D/g, '');
+      if (searchDigits && searchDigits.length > 0) {
+        return name.includes(s) || phone.includes(searchDigits);
+      }
+      return name.includes(s);
+    });
+  }, [guests, search]);
 
   return (
     <div className="p-4 sm:p-6 lg:p-8 w-full space-y-4 sm:space-y-6">
