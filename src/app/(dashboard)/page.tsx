@@ -208,7 +208,7 @@ export default function DashboardPage() {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
           <h1 className="text-xl sm:text-2xl font-bold text-black tracking-tight">{t("nav_dashboard")}</h1>
-          <p className="mt-0.5 text-xs sm:text-sm text-black/60">AI performance &amp; business impact</p>
+          <p className="mt-0.5 text-xs sm:text-sm text-black">AI performance &amp; business impact</p>
         </div>
         <div className="flex items-center gap-1 sm:gap-2">
           <button onClick={() => navigateMonth(-1)} className="p-1.5 sm:p-2 hover:bg-[#c4956a]/10 rounded-lg transition-colors">
@@ -237,25 +237,23 @@ export default function DashboardPage() {
       {/* ══════════════════════════════════════════════
           SECTION 1 — HERO: AI Generated Value
           ══════════════════════════════════════════════ */}
-      <div className="rounded-xl border-2 p-4 sm:p-6" style={cardStyle}>
-        <div className="flex items-center justify-between mb-5">
-          <div className="flex items-center gap-2">
-            <Sparkles className="w-5 h-5 text-[#c4956a]" />
-            <h2 className="text-sm sm:text-base font-bold text-black">AI Generated Value</h2>
-            <span className="text-xs text-black/50">{monthNames[selectedMonth]} {selectedYear}</span>
-          </div>
-          {kpis.roi > 0 && (
-            <span className="text-xs font-bold px-3 py-1 rounded-full border" style={{ color: "#22c55e", borderColor: "#22c55e" }}>
-              +{kpis.roi}% ROI
-            </span>
-          )}
+      <div className="rounded-xl border-2 p-4 sm:p-6 text-center" style={cardStyle}>
+        <div className="flex items-center justify-center gap-2 mb-1">
+          <Sparkles className="w-5 h-5 text-[#c4956a]" />
+          <h2 className="text-sm sm:text-base font-bold text-black">AI Generated Value</h2>
         </div>
+        <p className="text-xs text-black mb-4">{monthNames[selectedMonth]} {selectedYear}</p>
 
         {/* Big number */}
         <div className="mb-6">
           <p className="text-3xl sm:text-4xl font-bold text-[#22c55e]">€{kpis.totalValue.toLocaleString()}</p>
+          {kpis.roi > 0 && (
+            <span className="inline-block mt-2 text-xs font-bold px-3 py-1 rounded-full border" style={{ color: "#22c55e", borderColor: "#22c55e" }}>
+              +{kpis.roi}% ROI
+            </span>
+          )}
           {kpis.revenueChange !== 0 && (
-            <div className={`flex items-center gap-1 mt-1 text-xs font-semibold ${kpis.revenueChange > 0 ? "text-green-600" : "text-red-500"}`}>
+            <div className={`flex items-center justify-center gap-1 mt-2 text-xs font-semibold ${kpis.revenueChange > 0 ? "text-green-600" : "text-red-500"}`}>
               {kpis.revenueChange > 0 ? <TrendingUp className="w-3.5 h-3.5" /> : <TrendingDown className="w-3.5 h-3.5" />}
               {kpis.revenueChange > 0 ? "+" : ""}{kpis.revenueChange}% vs prev month
             </div>
@@ -265,36 +263,28 @@ export default function DashboardPage() {
         {/* Breakdown */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
           <div className="p-3 rounded-lg" style={{ background: "rgba(196,149,106,0.08)" }}>
-            <div className="flex items-center gap-1.5 mb-1">
-              <Moon className="w-3.5 h-3.5 text-indigo-500" />
-              <p className="text-xs text-black/70 font-medium">Out-of-Hours</p>
-            </div>
+            <Moon className="w-4 h-4 text-indigo-500 mx-auto mb-1" />
+            <p className="text-xs text-black font-medium">Out-of-Hours</p>
             <p className="text-lg sm:text-xl font-bold text-black">€{kpis.outOfHoursRevenue.toLocaleString()}</p>
-            <p className="text-xs text-black/50">{kpis.outOfHoursCount} bookings while closed</p>
+            <p className="text-xs text-black">{kpis.outOfHoursCount} bookings while closed</p>
           </div>
           <div className="p-3 rounded-lg" style={{ background: "rgba(196,149,106,0.08)" }}>
-            <div className="flex items-center gap-1.5 mb-1">
-              <Phone className="w-3.5 h-3.5 text-[#fb7740]" />
-              <p className="text-xs text-black/70 font-medium">AI Voice Calls</p>
-            </div>
+            <Phone className="w-4 h-4 text-[#fb7740] mx-auto mb-1" />
+            <p className="text-xs text-black font-medium">AI Voice Calls</p>
             <p className="text-lg sm:text-xl font-bold text-black">€{kpis.voiceRevenue.toLocaleString()}</p>
-            <p className="text-xs text-black/50">{kpis.voiceCount} calls converted</p>
+            <p className="text-xs text-black">{kpis.voiceCount} calls converted</p>
           </div>
           <div className="p-3 rounded-lg" style={{ background: "rgba(196,149,106,0.08)" }}>
-            <div className="flex items-center gap-1.5 mb-1">
-              <RefreshCw className="w-3.5 h-3.5 text-emerald-500" />
-              <p className="text-xs text-black/70 font-medium">Waitlist Recovered</p>
-            </div>
+            <RefreshCw className="w-4 h-4 text-emerald-500 mx-auto mb-1" />
+            <p className="text-xs text-black font-medium">Waitlist Recovered</p>
             <p className="text-lg sm:text-xl font-bold text-black">€{kpis.waitlistRevenue.toLocaleString()}</p>
-            <p className="text-xs text-black/50">{kpis.waitlistConverted} recoveries</p>
+            <p className="text-xs text-black">{kpis.waitlistConverted} recoveries</p>
           </div>
           <div className="p-3 rounded-lg" style={{ background: "rgba(196,149,106,0.08)" }}>
-            <div className="flex items-center gap-1.5 mb-1">
-              <Bot className="w-3.5 h-3.5 text-[#c4956a]" />
-              <p className="text-xs text-black/70 font-medium">AI Chat</p>
-            </div>
+            <Bot className="w-4 h-4 text-[#c4956a] mx-auto mb-1" />
+            <p className="text-xs text-black font-medium">AI Chat</p>
             <p className="text-lg sm:text-xl font-bold text-black">€{kpis.chatRevenue.toLocaleString()}</p>
-            <p className="text-xs text-black/50">{kpis.chatCount} WhatsApp bookings</p>
+            <p className="text-xs text-black">{kpis.chatCount} WhatsApp bookings</p>
           </div>
         </div>
       </div>
@@ -311,9 +301,9 @@ export default function DashboardPage() {
         ].map(card => (
           <div key={card.label} className="rounded-xl p-3 sm:p-5 border-2 text-center" style={cardStyle}>
             <card.icon className="h-6 w-6 sm:h-8 sm:w-8 mx-auto mb-1" style={{ color: card.color, opacity: 0.6 }} />
-            <p className="text-xs sm:text-sm font-medium text-black/70">{card.label}</p>
+            <p className="text-xs sm:text-sm font-medium text-black">{card.label}</p>
             <p className="text-xl sm:text-2xl font-bold mt-0.5 sm:mt-1" style={{ color: card.color }}>{card.value}</p>
-            <p className="text-xs text-black/50 mt-0.5">{card.sub}</p>
+            <p className="text-xs text-black mt-0.5">{card.sub}</p>
           </div>
         ))}
       </div>
@@ -324,21 +314,21 @@ export default function DashboardPage() {
       <div className="grid grid-cols-3 gap-2 sm:gap-4">
         <div className="rounded-xl p-3 sm:p-5 border-2 text-center" style={cardStyle}>
           <Gauge className="w-5 h-5 text-[#c4956a] mx-auto mb-1" />
-          <p className="text-xs font-medium text-black/70">AI Handled</p>
+          <p className="text-xs font-medium text-black">AI Handled</p>
           <p className="text-xl sm:text-2xl font-bold text-black">{kpis.aiHandledPct}%</p>
-          <p className="text-xs text-black/50">{kpis.aiCount} AI / {kpis.staffCount} Staff</p>
+          <p className="text-xs text-black">{kpis.aiCount} AI / {kpis.staffCount} Staff</p>
         </div>
         <div className="rounded-xl p-3 sm:p-5 border-2 text-center" style={cardStyle}>
           <Timer className="w-5 h-5 text-[#c4956a] mx-auto mb-1" />
-          <p className="text-xs font-medium text-black/70">Staff Hours Saved</p>
+          <p className="text-xs font-medium text-black">Staff Hours Saved</p>
           <p className="text-xl sm:text-2xl font-bold text-black">{kpis.staffHoursSaved}h</p>
-          <p className="text-xs text-black/50">~5 min per AI booking</p>
+          <p className="text-xs text-black">~5 min per AI booking</p>
         </div>
         <div className="rounded-xl p-3 sm:p-5 border-2 text-center" style={cardStyle}>
           <UsersRound className="w-5 h-5 text-[#c4956a] mx-auto mb-1" />
-          <p className="text-xs font-medium text-black/70">Total Bookings</p>
+          <p className="text-xs font-medium text-black">Total Bookings</p>
           <p className="text-xl sm:text-2xl font-bold text-black">{kpis.total}</p>
-          <p className="text-xs text-black/50">avg {kpis.avgParty} covers each</p>
+          <p className="text-xs text-black">avg {kpis.avgParty} covers each</p>
         </div>
       </div>
 
@@ -371,7 +361,7 @@ export default function DashboardPage() {
           <h3 className="text-xs sm:text-sm font-bold text-black uppercase tracking-wider mb-4">Channel Breakdown</h3>
           <div className="h-48 sm:h-64">
             {kpis.sourceData.length === 0 ? (
-              <p className="text-sm text-black/50 text-center pt-20">No data yet</p>
+              <p className="text-sm text-black text-center pt-20">No data yet</p>
             ) : (
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
