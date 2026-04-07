@@ -16,6 +16,9 @@ import {
   X,
   Activity,
   AlertOctagon,
+  DollarSign,
+  Bug,
+  StickyNote,
 } from "lucide-react";
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
@@ -66,6 +69,9 @@ export function Sidebar({ mobileOpen = false, onClose }: SidebarProps) {
 
   const adminNavItems = [
     { href: "/admin", icon: Shield, label: "Tenants" },
+    { href: "/admin/costs", icon: DollarSign, label: "Usage & Costs" },
+    { href: "/admin/debug", icon: Bug, label: "Quick Debug" },
+    { href: "/admin/clients", icon: StickyNote, label: "Client Notes" },
     { href: "/admin/health", icon: Activity, label: "System Health" },
     { href: "/admin/incidents", icon: AlertOctagon, label: "All Incidents" },
   ];
