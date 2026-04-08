@@ -500,6 +500,8 @@ export const en = {
   pending_seats_warning: "The selected tables have {seats} seats but the reservation is for {size} people. Continue?",
   pending_too_many_warning: "You assigned more tables than needed ({seats} seats for {size} people). Continue?",
   pending_zone_all: "All zones",
+  zone_inside: "Inside",
+  zone_outside: "Outside",
   pending_no_tables_warning: "You haven't selected any tables for {size} people. Confirm without assigning tables?",
   pending_reject_confirm: "Are you sure you want to reject this request?",
   pending_view_conversation: "View conversation",

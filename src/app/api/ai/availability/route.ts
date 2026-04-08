@@ -25,10 +25,15 @@ export async function GET(request: Request) {
     const tenant_id = searchParams.get('tenant_id');
     const date = searchParams.get('date');
     const party_size = searchParams.get('party_size');
+    const zoneParam = (searchParams.get('zone') || '').toLowerCase();
 
     if (!tenant_id || !date || !party_size) {
       return NextResponse.json({ success: false, error: "Missing required params" }, { status: 400 });
     }
+
+    let zone: 'inside' | 'outside' | null = null;
+    if (zoneParam.includes('inside') || zoneParam.includes('interior') || zoneParam.includes('dentro') || zoneParam.includes('interno')) zone = 'inside';
+    else if (zoneParam.includes('outside') || zoneParam.includes('exterior') || zoneParam.includes('fuera') || zoneParam.includes('terraza') || zoneParam.includes('outdoor')) zone = 'outside';
 
     const pax = parseInt(party_size);
     const dayOfWeek = new Date(date + 'T12:00:00').getDay();
@@ -47,15 +52,17 @@ export async function GET(request: Request) {
     const supabase = createServiceRoleClient();
 
     // Fetch active tables (seats matter — variable seat counts)
-    const { data: tables, error: tablesErr } = await supabase
+    let tablesQuery = supabase
       .from('restaurant_tables')
-      .select('id, seats')
+      .select('id, seats, zone')
       .eq('tenant_id', tenant_id)
       .eq('status', 'active');
+    if (zone) tablesQuery = tablesQuery.eq('zone', zone);
+    const { data: tables, error: tablesErr } = await tablesQuery;
 
     if (tablesErr) throw tablesErr;
 
-    const allTables = (tables || []) as { id: string; seats: number }[];
+    const allTables = (tables || []) as { id: string; seats: number; zone: string }[];
 
     // Fetch reservations for the date with their assigned tables
     const { data: reservations, error: resErr } = await supabase

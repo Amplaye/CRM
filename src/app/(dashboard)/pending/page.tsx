@@ -6,6 +6,7 @@ import { useTenant } from "@/lib/contexts/TenantContext";
 import { useLanguage } from "@/lib/contexts/LanguageContext";
 import { AlertTriangle, Check, X, MessageSquare, Phone, Calendar, Users, Clock } from "lucide-react";
 import Link from "next/link";
+import { zoneLabel } from "@/lib/restaurant-rules";
 
 interface PendingReservation {
   id: string;
@@ -376,7 +377,7 @@ export default function PendingPage() {
                               color: zoneFilter === z ? "#fff" : "#000",
                             }}
                           >
-                            {z}
+                            {zoneLabel(z, t)}
                           </button>
                         ))}
                       </div>

@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { useLanguage } from "@/lib/contexts/LanguageContext";
 import { useTenant } from "@/lib/contexts/TenantContext";
 import { createClient } from "@/lib/supabase/client";
-import { getShift } from "@/lib/restaurant-rules";
+import { getShift, zoneLabel } from "@/lib/restaurant-rules";
 
 interface TableData {
   id: string;
@@ -80,7 +80,7 @@ export default function FloorPage() {
   // View mode + plan editor
   const [viewMode, setViewMode] = useState<"list" | "plan">("list");
   const [editingPlan, setEditingPlan] = useState(false);
-  const [activeZone, setActiveZone] = useState<string>("Principal");
+  const [activeZone, setActiveZone] = useState<string>("inside");
 
   // Delete table modal (edit mode)
   const [deleteTableModal, setDeleteTableModal] = useState<TableData | null>(null);
@@ -268,7 +268,7 @@ export default function FloorPage() {
 
   // ─── Plan view: zones, drag, add, delete ───
   const zones = Array.from(new Set(tables.map((t) => t.zone || "Principal"))).sort();
-  if (zones.length === 0) zones.push("Principal");
+  if (zones.length === 0) zones.push("inside");
   // Make sure activeZone is valid
   const currentZone = zones.includes(activeZone) ? activeZone : zones[0];
   const zoneTables = tables.filter((t) => (t.zone || "Principal") === currentZone);
@@ -632,7 +632,7 @@ export default function FloorPage() {
                     color: currentZone === z ? "#fff" : "#000",
                   }}
                 >
-                  {z}
+                  {zoneLabel(z, t)}
                 </button>
               ))}
               {editingPlan && (

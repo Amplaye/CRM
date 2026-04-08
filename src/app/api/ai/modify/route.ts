@@ -155,6 +155,7 @@ export async function PUT(request: Request) {
         p_shift: newShift,
         p_tables_needed: tablesNeeded(newPartySize),
         p_reservation_id: reservationId,
+        p_zone_preference: null,
       });
 
       if (atomicErr) throw atomicErr;

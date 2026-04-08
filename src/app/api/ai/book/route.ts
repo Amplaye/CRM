@@ -212,6 +212,16 @@ export async function POST(request: Request) {
       });
     }
 
+    // Normalize zone preference: accept inside/outside, fuera/dentro, etc.
+    function normalizeZone(z: any): string | null {
+      if (!z || typeof z !== 'string') return null;
+      const v = z.toLowerCase().trim();
+      if (v.includes('inside') || v.includes('interior') || v.includes('dentro') || v.includes('interno')) return 'inside';
+      if (v.includes('outside') || v.includes('exterior') || v.includes('fuera') || v.includes('terraza') || v.includes('terrazza') || v.includes('outdoor') || v === 'out') return 'outside';
+      return null;
+    }
+    const zonePref = normalizeZone((payload as any).zone || (payload as any).zone_preference);
+
     // 6. Normal booking (1-6 people) - create reservation then atomically assign tables
     const reservation = {
        tenant_id: payload.tenant_id,
@@ -223,7 +233,9 @@ export async function POST(request: Request) {
        source: payload.source || 'ai_voice',
        from_web: (payload as any).from_web === true,
        created_by_type: 'ai',
-       notes: payload.notes || "",
+       notes: zonePref
+         ? `${payload.notes || ''}${payload.notes ? ' — ' : ''}Prefiere ${zonePref === 'inside' ? 'interior' : 'exterior'}`.trim()
+         : (payload.notes || ""),
        linked_conversation_id: payload.linked_conversation_id,
        end_time: endTime,
        shift,
@@ -238,15 +250,34 @@ export async function POST(request: Request) {
     if (newResErr) throw newResErr;
 
     // Atomic table assignment — prevents double-booking under concurrent requests
-    const { data: atomicResult, error: atomicErr } = await supabase.rpc('atomic_book_tables', {
+    let { data: atomicResult, error: atomicErr } = await supabase.rpc('atomic_book_tables', {
       p_tenant_id: payload.tenant_id,
       p_date: payload.date,
       p_shift: shift,
       p_tables_needed: needed,
       p_reservation_id: newRes.id,
+      p_zone_preference: zonePref,
     });
 
     if (atomicErr) throw atomicErr;
+
+    // Fallback: preferred zone is full, retry without zone constraint so the
+    // booking still goes through. The note already records the preference,
+    // so staff can move the table later if a spot opens.
+    let fellBack = false;
+    if (!atomicResult?.success && zonePref) {
+      const retry = await supabase.rpc('atomic_book_tables', {
+        p_tenant_id: payload.tenant_id,
+        p_date: payload.date,
+        p_shift: shift,
+        p_tables_needed: needed,
+        p_reservation_id: newRes.id,
+        p_zone_preference: null,
+      });
+      if (retry.error) throw retry.error;
+      atomicResult = retry.data;
+      fellBack = atomicResult?.success === true;
+    }
 
     if (!atomicResult.success) {
       // Not enough tables — change to escalated
@@ -296,7 +327,11 @@ export async function POST(request: Request) {
        shift,
        end_time: endTime,
        tables_assigned: atomicResult.tables_assigned,
-       message: "Reservation successfully created."
+       zone_assigned: zonePref && !fellBack ? zonePref : null,
+       zone_preference_unavailable: fellBack,
+       message: fellBack
+         ? `Reserva confirmada — ${zonePref === 'inside' ? 'interior' : 'exterior'} sin disponibilidad, asignada a la otra zona.`
+         : "Reservation successfully created."
     });
 
   } catch (error: any) {

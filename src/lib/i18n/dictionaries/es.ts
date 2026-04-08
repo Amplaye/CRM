@@ -503,6 +503,8 @@ export const es: Dictionary = {
   pending_seats_warning: "Las mesas seleccionadas tienen {seats} plazas pero la reserva es para {size} personas. ¿Continuar?",
   pending_too_many_warning: "Has asignado más mesas de las necesarias ({seats} plazas para {size} personas). ¿Continuar?",
   pending_zone_all: "Todas las zonas",
+  zone_inside: "Interior",
+  zone_outside: "Exterior",
   pending_no_tables_warning: "No has seleccionado ninguna mesa para {size} personas. ¿Confirmar sin asignar mesas?",
   pending_reject_confirm: "¿Estás seguro de rechazar esta solicitud?",
   pending_view_conversation: "Ver conversación",

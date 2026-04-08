@@ -95,3 +95,11 @@ export function getTimeSlots(dayOfWeek: number): string[] {
 }
 
 export { TOTAL_TABLES };
+
+// Localized label for canonical zone slugs ('inside' / 'outside').
+// Custom zones (e.g. 'Terraza') are returned untouched.
+export function zoneLabel(zone: string, t: (key: any) => string): string {
+  if (zone === 'inside') return t('zone_inside');
+  if (zone === 'outside') return t('zone_outside');
+  return zone;
+}
