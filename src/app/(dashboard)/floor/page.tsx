@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback, useRef } from "react";
-import { Calendar, Users, LayoutGrid, AlertTriangle, ChevronLeft, ChevronRight, List, LayoutPanelTop, Plus, Trash2, Pencil, Check } from "lucide-react";
+import { Calendar, Users, LayoutGrid, AlertTriangle, ChevronLeft, ChevronRight, List, LayoutPanelTop, Plus, Pencil, Check } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useLanguage } from "@/lib/contexts/LanguageContext";
 import { useTenant } from "@/lib/contexts/TenantContext";
@@ -81,6 +81,10 @@ export default function FloorPage() {
   const [viewMode, setViewMode] = useState<"list" | "plan">("list");
   const [editingPlan, setEditingPlan] = useState(false);
   const [activeZone, setActiveZone] = useState<string>("Principal");
+
+  // Delete table modal (edit mode)
+  const [deleteTableModal, setDeleteTableModal] = useState<TableData | null>(null);
+  const [deleteTableLoading, setDeleteTableLoading] = useState(false);
 
   const today = selectedDate;
 
@@ -308,14 +312,20 @@ export default function FloorPage() {
     // Real-time will refetch
   }
 
-  async function deleteTable(tableId: string) {
-    if (!confirm(t("floor_delete_table_confirm"))) return;
-    const supabase = createClient();
-    // Hard delete so the number is freed and can be reused on next add.
-    // reservation_tables links cascade or are orphaned — past reservations
-    // keep their party_size/notes intact even without the table link.
-    await supabase.from("reservation_tables").delete().eq("table_id", tableId);
-    await supabase.from("restaurant_tables").delete().eq("id", tableId);
+  async function confirmDeleteTable() {
+    if (!deleteTableModal) return;
+    setDeleteTableLoading(true);
+    try {
+      const supabase = createClient();
+      // Hard delete so the number is freed and can be reused on next add.
+      await supabase.from("reservation_tables").delete().eq("table_id", deleteTableModal.id);
+      await supabase.from("restaurant_tables").delete().eq("id", deleteTableModal.id);
+      setDeleteTableModal(null);
+    } catch (err) {
+      console.error("Delete table error:", err);
+    } finally {
+      setDeleteTableLoading(false);
+    }
   }
 
   async function addZone() {
@@ -670,7 +680,10 @@ export default function FloorPage() {
               editing={editingPlan}
               onTableMove={persistTablePosition}
               onTableClick={(table) => {
-                if (editingPlan) return;
+                if (editingPlan) {
+                  setDeleteTableModal(table);
+                  return;
+                }
                 const { status: tStatus, reservation: tRes } = getTableStatus(table.id);
                 if (tStatus === "free") {
                   setQuickSeatTable(table);
@@ -680,7 +693,6 @@ export default function FloorPage() {
                   setFreeTableModal({ table, reservation: tRes });
                 }
               }}
-              onTableDelete={deleteTable}
               t={t}
             />
           </div>
@@ -849,6 +861,40 @@ export default function FloorPage() {
           </div>
         </div>
       )}
+
+      {/* Delete Table Modal — opened when clicking a table in edit mode */}
+      {deleteTableModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={() => setDeleteTableModal(null)}>
+          <div
+            className="rounded-2xl p-6 w-full max-w-sm border-2 shadow-xl"
+            style={{ background: "rgba(252,246,237,0.97)", borderColor: "#c4956a" }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="text-lg font-bold text-black mb-2">
+              {t("floor_delete_table_title").replace("{name}", deleteTableModal.name)}
+            </h3>
+            <p className="text-sm text-black/70 mb-4">
+              {t("floor_delete_table_confirm")}
+            </p>
+            <div className="flex gap-3 mt-6">
+              <button
+                onClick={() => setDeleteTableModal(null)}
+                className="flex-1 px-4 py-2 text-sm font-semibold rounded-lg border-2 text-black transition-colors hover:bg-[#c4956a]/10"
+                style={{ borderColor: "#c4956a" }}
+              >
+                {t("floor_cancel")}
+              </button>
+              <button
+                onClick={confirmDeleteTable}
+                disabled={deleteTableLoading}
+                className="flex-1 px-4 py-2 text-sm font-semibold rounded-lg text-white transition-colors disabled:opacity-50 bg-red-500 hover:bg-red-600"
+              >
+                {deleteTableLoading ? "..." : t("floor_delete_table")}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -865,11 +911,10 @@ interface PlanCanvasProps {
   editing: boolean;
   onTableMove: (id: string, x: number, y: number) => void;
   onTableClick: (table: TableData) => void;
-  onTableDelete: (id: string) => void;
   t: (key: any) => string;
 }
 
-function PlanCanvas({ tables, resTableLinks, shiftReservations, activeStatuses, editing, onTableMove, onTableClick, onTableDelete, t }: PlanCanvasProps) {
+function PlanCanvas({ tables, resTableLinks, shiftReservations, activeStatuses, editing, onTableMove, onTableClick, t }: PlanCanvasProps) {
   // Local optimistic positions during drag
   const [localPositions, setLocalPositions] = useState<Record<string, { x: number; y: number }>>({});
   const [draggingId, setDraggingId] = useState<string | null>(null);
@@ -937,6 +982,57 @@ function PlanCanvas({ tables, resTableLinks, shiftReservations, activeStatuses, 
         </div>
       )}
 
+      {/* Merge connection lines — drawn under tables when the bot has joined
+          two or more for a single reservation */}
+      {(() => {
+        // Group tables in this zone by their reservation id
+        const groups: Record<string, { table: TableData; cx: number; cy: number }[]> = {};
+        for (const tbl of tables) {
+          const res = getResForTable(tbl.id);
+          if (!res) continue;
+          const dims = tableDims(tbl.shape, tbl.seats);
+          const local = localPositions[tbl.id];
+          const x = (local?.x ?? tbl.position_x ?? 60) + dims.w / 2;
+          const y = (local?.y ?? tbl.position_y ?? 60) + dims.h / 2;
+          if (!groups[res.id]) groups[res.id] = [];
+          groups[res.id].push({ table: tbl, cx: x, cy: y });
+        }
+        const segments: { x1: number; y1: number; x2: number; y2: number; key: string }[] = [];
+        for (const resId in groups) {
+          const g = groups[resId];
+          if (g.length < 2) continue;
+          // Connect every consecutive pair (sorted by x then y for stable order)
+          const sorted = [...g].sort((a, b) => a.cx - b.cx || a.cy - b.cy);
+          for (let i = 0; i < sorted.length - 1; i++) {
+            segments.push({
+              x1: sorted[i].cx,
+              y1: sorted[i].cy,
+              x2: sorted[i + 1].cx,
+              y2: sorted[i + 1].cy,
+              key: `${resId}-${i}`,
+            });
+          }
+        }
+        if (segments.length === 0) return null;
+        return (
+          <svg className="absolute inset-0 pointer-events-none" width="100%" height="100%" style={{ zIndex: 5 }}>
+            {segments.map((s) => (
+              <line
+                key={s.key}
+                x1={s.x1}
+                y1={s.y1}
+                x2={s.x2}
+                y2={s.y2}
+                stroke="#c4956a"
+                strokeWidth={6}
+                strokeLinecap="round"
+                strokeOpacity={0.7}
+              />
+            ))}
+          </svg>
+        );
+      })()}
+
       {tables.map((table) => {
         const dims = tableDims(table.shape, table.seats);
         const local = localPositions[table.id];
@@ -981,18 +1077,6 @@ function PlanCanvas({ tables, resTableLinks, shiftReservations, activeStatuses, 
               <span className="absolute -top-2 -right-2 px-1 py-0.5 text-[8px] font-bold text-white rounded-full" style={{ background: "#c4956a" }}>
                 ×{resTablesCount}
               </span>
-            )}
-            {editing && (
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onTableDelete(table.id);
-                }}
-                className="absolute -top-2 -left-2 w-5 h-5 rounded-full bg-red-500 text-white text-[10px] flex items-center justify-center hover:bg-red-600"
-                title={t("floor_delete_table")}
-              >
-                <Trash2 className="w-3 h-3" />
-              </button>
             )}
           </div>
         );
