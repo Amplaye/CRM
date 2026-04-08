@@ -1,12 +1,12 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { Calendar, Users, LayoutGrid, AlertTriangle, ChevronLeft, ChevronRight } from "lucide-react";
+import { Calendar, Users, LayoutGrid, AlertTriangle, ChevronLeft, ChevronRight, LogOut } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useLanguage } from "@/lib/contexts/LanguageContext";
 import { useTenant } from "@/lib/contexts/TenantContext";
 import { createClient } from "@/lib/supabase/client";
-import { TOTAL_TABLES, getShift, calculateEndTime, getRotationMinutes } from "@/lib/restaurant-rules";
+import { TOTAL_TABLES, getShift } from "@/lib/restaurant-rules";
 
 interface TableData {
   id: string;
@@ -50,7 +50,6 @@ export default function FloorPage() {
   const [quickSeatLoading, setQuickSeatLoading] = useState(false);
 
   const today = selectedDate;
-  const nowMinutes = new Date().getHours() * 60 + new Date().getMinutes();
 
   const fetchData = useCallback(async () => {
     if (!activeTenant) return;
@@ -131,57 +130,32 @@ export default function FloorPage() {
     };
   }, [activeTenant, fetchData]);
 
-  // Helpers
-  function timeToMin(time: string): number {
-    const [h, m] = time.split(":").map(Number);
-    return h * 60 + m;
-  }
-
   // Filter reservations by selected shift
   const shiftReservations = reservations.filter((r) => {
     const resShift = r.shift || getShift(r.time);
     return resShift === selectedShift;
   });
 
+  // A table is occupied as long as the linked reservation is in an active
+  // state. Tables are NEVER auto-released by time — staff must free them
+  // manually via the "Liberar mesa" button (which sets status=completed).
+  // This keeps the visual floor and the bot's availability check in sync.
   function getTableStatus(tableId: string): {
-    status: "free" | "occupied" | "ending_soon";
+    status: "free" | "occupied";
     reservation?: ReservationWithGuest;
   } {
     for (const link of resTableLinks) {
       if (link.table_id !== tableId) continue;
       const res = shiftReservations.find((r) => r.id === link.reservation_id);
       if (!res) continue;
-      if (res.status !== "seated" && res.status !== "confirmed" && res.status !== "escalated" && res.status !== "pending_confirmation") continue;
-
-      const dayOfWeek = new Date(today + "T12:00:00").getDay();
-      const shift = res.shift || getShift(res.time);
-      const endTime =
-        res.end_time ||
-        calculateEndTime(
-          res.time,
-          getRotationMinutes(res.party_size, shift, dayOfWeek)
-        );
-      const endMin = timeToMin(endTime);
-      const startMin = timeToMin(res.time);
-      const isToday = selectedDate === new Date().toISOString().split("T")[0];
-
-      if (isToday) {
-        // For today: show occupied only if currently active
-        if (nowMinutes >= startMin && nowMinutes < endMin) {
-          const minutesLeft = endMin - nowMinutes;
-          return {
-            status: minutesLeft <= 15 ? "ending_soon" : "occupied",
-            reservation: res,
-          };
-        }
-        // Also show upcoming reservations as occupied
-        if (nowMinutes < startMin) {
-          return { status: "occupied", reservation: res };
-        }
-      } else {
-        // For other dates: show all reservations for the shift as occupied
-        return { status: "occupied", reservation: res };
-      }
+      // Same active set used by atomic_book_tables (DB-side) — keep aligned
+      if (
+        res.status !== "seated" &&
+        res.status !== "confirmed" &&
+        res.status !== "escalated" &&
+        res.status !== "pending_confirmation"
+      ) continue;
+      return { status: "occupied", reservation: res };
     }
     return { status: "free" };
   }
@@ -231,12 +205,19 @@ export default function FloorPage() {
     );
   }
 
-  function tableBorderColor(
-    tableStatus: "free" | "occupied" | "ending_soon"
-  ): string {
-    if (tableStatus === "occupied") return "#ef4444";
-    if (tableStatus === "ending_soon") return "#f97316";
-    return "#22c55e";
+  function tableBorderColor(tableStatus: "free" | "occupied"): string {
+    return tableStatus === "occupied" ? "#ef4444" : "#22c55e";
+  }
+
+  async function handleFreeTable(reservationId: string) {
+    if (!activeTenant) return;
+    if (!confirm(t("floor_free_confirm"))) return;
+    const supabase = createClient();
+    await supabase
+      .from("reservations")
+      .update({ status: "completed", updated_at: new Date().toISOString() })
+      .eq("id", reservationId);
+    // Real-time subscription will refetch automatically
   }
 
   async function handleQuickSeat() {
@@ -249,8 +230,6 @@ export default function FloorPage() {
       const todayStr = now.toISOString().split("T")[0];
       const timeStr = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
       const walkInShift = getShift(timeStr);
-      const rotationMin = getRotationMinutes(quickSeatSize, walkInShift, now.getDay());
-      const endTime = calculateEndTime(timeStr, rotationMin);
 
       // Create or find guest
       let guestId: string;
@@ -285,7 +264,7 @@ export default function FloorPage() {
         guestId = newGuest.id;
       }
 
-      // Create reservation
+      // Create reservation — no end_time: walk-ins stay until manually freed
       const { data: newRes, error: resErr } = await supabase
         .from("reservations")
         .insert({
@@ -293,7 +272,6 @@ export default function FloorPage() {
           guest_id: guestId,
           date: todayStr,
           time: timeStr,
-          end_time: endTime,
           shift: walkInShift,
           party_size: quickSeatSize,
           status: "seated",
@@ -461,18 +439,10 @@ export default function FloorPage() {
                   </span>
                   <span
                     className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
-                      tStatus === "free"
-                        ? "bg-green-100 text-green-800"
-                        : tStatus === "ending_soon"
-                          ? "bg-orange-100 text-orange-800"
-                          : "bg-red-100 text-red-800"
+                      tStatus === "free" ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"
                     }`}
                   >
-                    {tStatus === "free"
-                      ? t("floor_free")
-                      : tStatus === "ending_soon"
-                        ? t("floor_ending_soon")
-                        : t("floor_occupied")}
+                    {tStatus === "free" ? t("floor_free") : t("floor_occupied")}
                   </span>
                 </div>
                 {tRes && guestName && (() => {
@@ -482,6 +452,17 @@ export default function FloorPage() {
                     <div>
                       <p className="text-xs text-black truncate font-medium">{guestName}</p>
                       <p className="text-[10px] text-black/50">{tRes.party_size}p · {tRes.time}{resTablesCount > 1 ? ` · ${resTablesCount} mesas` : ''}</p>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleFreeTable(tRes.id);
+                        }}
+                        className="mt-2 w-full inline-flex items-center justify-center gap-1 px-2 py-1 rounded-md text-[11px] font-bold text-white transition-colors hover:opacity-90"
+                        style={{ background: "#c4956a" }}
+                      >
+                        <LogOut className="w-3 h-3" />
+                        {t("floor_free_table")}
+                      </button>
                     </div>
                   );
                 })()}

@@ -326,6 +326,8 @@ export const en = {
   floor_free: "Free",
   floor_occupied: "Occupied",
   floor_ending_soon: "Ending soon",
+  floor_free_table: "Free table",
+  floor_free_confirm: "Free this table? The bot will be able to book it again immediately.",
   floor_no_reservations: "No reservations this shift",
 
   // Dashboard - new KPI section
