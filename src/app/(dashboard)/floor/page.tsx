@@ -165,7 +165,9 @@ export default function FloorPage() {
   }
 
   // Stats (filtered by shift)
-  const activeStatuses = ["confirmed", "seated", "completed", "pending_confirmation"];
+  // Single source of truth for "table is currently in use" — must match
+  // getTableStatus and atomic_book_tables. 'completed' frees the table.
+  const activeStatuses = ["confirmed", "seated", "escalated", "pending_confirmation"];
   const shiftActiveRes = shiftReservations.filter((r) =>
     activeStatuses.includes(r.status)
   );
