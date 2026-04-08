@@ -25,6 +25,7 @@ interface TableOption {
   id: string;
   name: string;
   seats: number;
+  zone: string;
 }
 
 export default function PendingPage() {
@@ -38,6 +39,8 @@ export default function PendingPage() {
   const [confirmingId, setConfirmingId] = useState<string | null>(null);
   const [selectedTables, setSelectedTables] = useState<Set<string>>(new Set());
   const [occupiedTableIds, setOccupiedTableIds] = useState<Set<string>>(new Set());
+  // Zone filter for the table picker (null = all zones)
+  const [zoneFilter, setZoneFilter] = useState<string | null>(null);
 
   const fetchPending = async () => {
     if (!tenant) return;
@@ -56,7 +59,7 @@ export default function PendingPage() {
     if (!tenant) return;
     const { data } = await supabase
       .from("restaurant_tables")
-      .select("id, name, seats")
+      .select("id, name, seats, zone")
       .eq("tenant_id", tenant.id)
       .eq("status", "active");
 
@@ -90,6 +93,7 @@ export default function PendingPage() {
   const startConfirm = async (id: string) => {
     setConfirmingId(id);
     setSelectedTables(new Set());
+    setZoneFilter(null);
 
     // Find the request's date and shift, fetch occupied tables for that date+shift
     const req = pending.find(p => p.id === id);
@@ -340,13 +344,45 @@ export default function PendingPage() {
                 </div>
 
                 {/* Table selection panel — shown when confirming */}
-                {isConfirming && (
+                {isConfirming && (() => {
+                  const allZones = Array.from(new Set(tables.map(t => t.zone || "Principal"))).sort();
+                  const visibleTables = zoneFilter ? tables.filter(t => (t.zone || "Principal") === zoneFilter) : tables;
+                  return (
                   <div className="border-t-2 p-5" style={{ borderColor: '#22c55e', background: 'rgba(34,197,94,0.03)' }}>
                     <h3 className="text-sm font-bold text-black mb-3">
                       {t("pending_assign_tables")} — {getShift(req.time) === 'lunch' ? t("pending_lunch") : t("pending_dinner")} {req.date} ({Math.ceil(req.party_size / 4)} {t("pending_needed_for")} {req.party_size} {t("pending_people")})
                     </h3>
+                    {allZones.length > 1 && (
+                      <div className="flex items-center gap-1 mb-3 flex-wrap">
+                        <button
+                          onClick={() => setZoneFilter(null)}
+                          className="px-3 py-1 text-xs font-semibold rounded-lg border-2 transition-colors"
+                          style={{
+                            borderColor: "#c4956a",
+                            background: zoneFilter === null ? "#c4956a" : "rgba(252,246,237,0.6)",
+                            color: zoneFilter === null ? "#fff" : "#000",
+                          }}
+                        >
+                          {t("pending_zone_all")}
+                        </button>
+                        {allZones.map(z => (
+                          <button
+                            key={z}
+                            onClick={() => setZoneFilter(z)}
+                            className="px-3 py-1 text-xs font-semibold rounded-lg border-2 transition-colors"
+                            style={{
+                              borderColor: "#c4956a",
+                              background: zoneFilter === z ? "#c4956a" : "rgba(252,246,237,0.6)",
+                              color: zoneFilter === z ? "#fff" : "#000",
+                            }}
+                          >
+                            {z}
+                          </button>
+                        ))}
+                      </div>
+                    )}
                     <div className="grid grid-cols-4 sm:grid-cols-5 gap-2 mb-4">
-                      {tables.map(table => {
+                      {visibleTables.map(table => {
                         const isOccupied = occupiedTableIds.has(table.id);
                         const isSelected = selectedTables.has(table.id);
                         return (
@@ -364,6 +400,7 @@ export default function PendingPage() {
                             style={!isOccupied && !isSelected ? { background: 'rgba(252,246,237,0.6)' } : undefined}
                           >
                             {table.name}
+                            <span className="text-[10px] block text-black/50">{table.seats}p</span>
                             {isOccupied && <span className="text-[10px] block text-red-400">{t("res_occupied")}</span>}
                           </button>
                         );
@@ -386,7 +423,8 @@ export default function PendingPage() {
                       </button>
                     </div>
                   </div>
-                )}
+                  );
+                })()}
               </div>
             );
           })}
