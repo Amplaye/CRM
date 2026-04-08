@@ -144,60 +144,34 @@ export async function PUT(request: Request) {
     let tablesAssigned: string[] = [];
 
     if (dateChanged || shiftChanged || sizeChanged) {
-      // Remove old table assignments
+      // Remove old table assignments and let atomic_book_tables decide
+      // the new optimal assignment based on the (possibly variable) seat
+      // counts of the available tables.
       await supabase.from('reservation_tables').delete().eq('reservation_id', reservationId);
 
-      // Find free tables for the new date+shift
-      const needed = tablesNeeded(newPartySize);
+      const { data: atomicResult, error: atomicErr } = await supabase.rpc('atomic_book_tables', {
+        p_tenant_id: payload.tenant_id,
+        p_date: newDate,
+        p_shift: newShift,
+        p_tables_needed: tablesNeeded(newPartySize),
+        p_reservation_id: reservationId,
+      });
 
-      const { data: activeTables } = await supabase
-        .from('restaurant_tables')
-        .select('id, name')
-        .eq('tenant_id', payload.tenant_id)
-        .eq('status', 'active');
+      if (atomicErr) throw atomicErr;
 
-      const { data: otherRes } = await supabase
-        .from('reservations')
-        .select('id, time, shift')
-        .eq('tenant_id', payload.tenant_id)
-        .eq('date', newDate)
-        .in('status', ['confirmed', 'seated', 'pending_confirmation', 'escalated'])
-        .neq('id', reservationId);
-
-      const otherIds = (otherRes || []).filter((r: any) => {
-        const rShift = r.shift || getShift(r.time);
-        return rShift === newShift;
-      }).map((r: any) => r.id);
-
-      const occupiedTableIds = new Set<string>();
-      if (otherIds.length > 0) {
-        const { data: otherLinks } = await supabase
-          .from('reservation_tables')
-          .select('table_id')
-          .in('reservation_id', otherIds);
-        for (const link of (otherLinks || [])) {
-          occupiedTableIds.add(link.table_id);
-        }
-      }
-
-      const freeTables = (activeTables || []).filter((t: any) => !occupiedTableIds.has(t.id));
-
-      if (freeTables.length >= needed) {
-        const assigned = freeTables.slice(0, needed);
-        await supabase.from('reservation_tables').insert(
-          assigned.map((t: any) => ({ reservation_id: reservationId, table_id: t.id }))
-        );
-        tablesAssigned = assigned.map((t: any) => t.name);
-      } else {
-        // Not enough tables — escalate
-        await supabase.from('reservations').update({ status: 'escalated', notes: `${updates.notes || existing.notes || ''}\nNo hay mesas disponibles tras modificación`.trim() }).eq('id', reservationId);
+      if (!atomicResult?.success) {
+        // Not enough capacity — escalate
+        await supabase.from('reservations').update({
+          status: 'escalated',
+          notes: `${updates.notes || existing.notes || ''}\nNo hay mesas disponibles tras modificación`.trim(),
+        }).eq('id', reservationId);
 
         await logAuditEvent({
           tenant_id: payload.tenant_id,
           action: "modify_reservation",
           entity_id: reservationId,
           source: "ai_agent",
-          details: { previous: { date: existing.date, time: existing.time, party_size: existing.party_size }, updates, escalated: true }
+          details: { previous: { date: existing.date, time: existing.time, party_size: existing.party_size }, updates, escalated: true },
         });
 
         return NextResponse.json({
@@ -207,9 +181,11 @@ export async function PUT(request: Request) {
           shift: newShift,
           end_time: newEndTime,
           tables_assigned: [],
-          message: `Reserva modificada pero no hay mesas suficientes (necesarias: ${needed}, libres: ${freeTables.length}). Pendiente de revisión.`
+          message: `Reserva modificada pero no hay capacidad suficiente. Pendiente de revisión.`,
         });
       }
+
+      tablesAssigned = atomicResult.tables_assigned || [];
     } else {
       // No table reassignment needed — keep existing tables
       const { data: currentLinks } = await supabase

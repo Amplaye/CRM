@@ -1,5 +1,7 @@
 // PICNIC restaurant business rules
-// 13 tables of 4 seats each, joinable
+// Tables now have variable shapes and seat counts; the DB function
+// atomic_book_tables decides which (and how many) tables to assign
+// based on the party size. Constants below are kept only as fallback.
 
 const TOTAL_TABLES = 13;
 const SEATS_PER_TABLE = 4;

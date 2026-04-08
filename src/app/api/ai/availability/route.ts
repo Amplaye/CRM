@@ -2,9 +2,6 @@ import { NextResponse } from 'next/server';
 import { createServiceRoleClient } from '@/lib/supabase/server';
 import {
   getShift,
-  getRotationMinutes,
-  calculateEndTime,
-  tablesNeeded,
   getTimeSlots,
   isOpen,
 } from '@/lib/restaurant-rules';
@@ -34,7 +31,6 @@ export async function GET(request: Request) {
     }
 
     const pax = parseInt(party_size);
-    const needed = tablesNeeded(pax);
     const dayOfWeek = new Date(date + 'T12:00:00').getDay();
     const slots = getTimeSlots(dayOfWeek);
 
@@ -50,17 +46,16 @@ export async function GET(request: Request) {
 
     const supabase = createServiceRoleClient();
 
-    // Fetch active tables
+    // Fetch active tables (seats matter — variable seat counts)
     const { data: tables, error: tablesErr } = await supabase
       .from('restaurant_tables')
-      .select('id')
+      .select('id, seats')
       .eq('tenant_id', tenant_id)
       .eq('status', 'active');
 
     if (tablesErr) throw tablesErr;
 
-    const totalActiveTables = (tables || []).length;
-    const tableIds = (tables || []).map((t: any) => t.id);
+    const allTables = (tables || []) as { id: string; seats: number }[];
 
     // Fetch reservations for the date with their assigned tables
     const { data: reservations, error: resErr } = await supabase
@@ -92,33 +87,34 @@ export async function GET(request: Request) {
       }
     }
 
-    // For each slot, count free tables
-    // Tables are occupied for the ENTIRE shift (customers can stay as long as they want)
+    // For each slot, mirror atomic_book_tables: a slot is available if
+    //   1) any single free table has seats >= party_size, OR
+    //   2) the sum of free table seats (largest first) >= party_size
+    // Tables are occupied for the ENTIRE shift.
     const availability = slots.map(time => {
       const slotShift = getShift(time);
       if (!isOpen(dayOfWeek, slotShift)) {
         return { time, available: false, free_tables: 0 };
       }
 
-      // Find which tables are occupied in the same shift
       const occupiedTableIds = new Set<string>();
-
       for (const res of (reservations || [])) {
         const resShift = res.shift || getShift(res.time);
         if (resShift === slotShift) {
           const assignedTables = reservationTableMap[res.id] || [];
-          for (const tid of assignedTables) {
-            occupiedTableIds.add(tid);
-          }
+          for (const tid of assignedTables) occupiedTableIds.add(tid);
         }
       }
 
-      const freeTables = totalActiveTables - occupiedTableIds.size;
+      const freeTables = allTables.filter((t) => !occupiedTableIds.has(t.id));
+      const hasSingleFit = freeTables.some((t) => t.seats >= pax);
+      const totalFreeSeats = freeTables.reduce((s, t) => s + t.seats, 0);
+      const fits = hasSingleFit || totalFreeSeats >= pax;
 
       return {
         time,
-        available: freeTables >= needed,
-        free_tables: freeTables,
+        available: fits,
+        free_tables: freeTables.length,
       };
     });
 
@@ -126,7 +122,6 @@ export async function GET(request: Request) {
       success: true,
       date,
       party_size: pax,
-      tables_needed: needed,
       availability
     });
 

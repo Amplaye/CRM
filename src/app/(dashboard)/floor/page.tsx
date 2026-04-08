@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { useLanguage } from "@/lib/contexts/LanguageContext";
 import { useTenant } from "@/lib/contexts/TenantContext";
 import { createClient } from "@/lib/supabase/client";
-import { TOTAL_TABLES, getShift } from "@/lib/restaurant-rules";
+import { getShift } from "@/lib/restaurant-rules";
 
 interface TableData {
   id: string;
@@ -499,7 +499,7 @@ export default function FloorPage() {
           },
           {
             label: t("floor_tables"),
-            value: `${occupiedCount}/${tables.length || TOTAL_TABLES}`,
+            value: `${occupiedCount}/${tables.length}`,
             icon: LayoutGrid,
             href: null,
           },
@@ -919,6 +919,10 @@ function PlanCanvas({ tables, resTableLinks, shiftReservations, activeStatuses, 
   const [localPositions, setLocalPositions] = useState<Record<string, { x: number; y: number }>>({});
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const dragOffsetRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
+  // Track if the pointer actually moved during the press — distinguishes
+  // a real drag from a pure click in edit mode.
+  const movedRef = useRef(false);
+  const pressStartRef = useRef<{ x: number; y: number } | null>(null);
 
   // Reset local positions when tables change from the server
   const tablesKey = tables.map((t) => t.id + ":" + t.position_x + ":" + t.position_y).join("|");
@@ -944,11 +948,21 @@ function PlanCanvas({ tables, resTableLinks, shiftReservations, activeStatuses, 
     e.stopPropagation();
     const target = (e.currentTarget as HTMLElement).getBoundingClientRect();
     dragOffsetRef.current = { x: e.clientX - target.left, y: e.clientY - target.top };
+    pressStartRef.current = { x: e.clientX, y: e.clientY };
+    movedRef.current = false;
     setDraggingId(table.id);
   }
 
   function handleMouseMove(e: React.MouseEvent) {
     if (!draggingId) return;
+    // Only consider it a real drag once the pointer moves more than ~4px,
+    // so a stationary click can still trigger onTableClick.
+    if (!movedRef.current && pressStartRef.current) {
+      const dx = Math.abs(e.clientX - pressStartRef.current.x);
+      const dy = Math.abs(e.clientY - pressStartRef.current.y);
+      if (dx + dy < 4) return;
+      movedRef.current = true;
+    }
     const canvas = (e.currentTarget as HTMLElement).getBoundingClientRect();
     const x = e.clientX - canvas.left - dragOffsetRef.current.x;
     const y = e.clientY - canvas.top - dragOffsetRef.current.y;
@@ -957,9 +971,19 @@ function PlanCanvas({ tables, resTableLinks, shiftReservations, activeStatuses, 
 
   function handleMouseUp() {
     if (!draggingId) return;
-    const pos = localPositions[draggingId];
-    if (pos) onTableMove(draggingId, pos.x, pos.y);
+    const id = draggingId;
+    const moved = movedRef.current;
+    const pos = localPositions[id];
     setDraggingId(null);
+    pressStartRef.current = null;
+    if (moved && pos) {
+      onTableMove(id, pos.x, pos.y);
+    } else if (!moved && editing) {
+      // Pure click in edit mode → trigger the click handler (delete modal)
+      const tbl = tables.find((t) => t.id === id);
+      if (tbl) onTableClick(tbl);
+    }
+    movedRef.current = false;
   }
 
   return (
