@@ -278,15 +278,23 @@ export default function FloorPage() {
       .eq("id", tableId);
   }, []);
 
+  // Find the lowest unused table number (fills gaps from deletions)
+  function nextTableNumber(): number {
+    const used = new Set(
+      tables
+        .map((t) => parseInt((t.name.match(/\d+/) || ["0"])[0], 10))
+        .filter((n) => !isNaN(n) && n > 0)
+    );
+    let n = 1;
+    while (used.has(n)) n++;
+    return n;
+  }
+
   // Add a new table from the palette to the current zone
   async function addTableFromPreset(preset: { shape: TableShape; seats: number }) {
     if (!activeTenant) return;
     const supabase = createClient();
-    // Pick next available number based on existing names like "T1", "T2"
-    const existingNums = tables
-      .map((t) => parseInt((t.name.match(/\d+/) || ["0"])[0], 10))
-      .filter((n) => !isNaN(n));
-    const nextNum = (existingNums.length ? Math.max(...existingNums) : 0) + 1;
+    const nextNum = nextTableNumber();
     await supabase.from("restaurant_tables").insert({
       tenant_id: activeTenant.id,
       name: `T${nextNum}`,
@@ -303,11 +311,11 @@ export default function FloorPage() {
   async function deleteTable(tableId: string) {
     if (!confirm(t("floor_delete_table_confirm"))) return;
     const supabase = createClient();
-    // Mark as inactive instead of deleting (preserves history)
-    await supabase
-      .from("restaurant_tables")
-      .update({ status: "inactive" })
-      .eq("id", tableId);
+    // Hard delete so the number is freed and can be reused on next add.
+    // reservation_tables links cascade or are orphaned — past reservations
+    // keep their party_size/notes intact even without the table link.
+    await supabase.from("reservation_tables").delete().eq("table_id", tableId);
+    await supabase.from("restaurant_tables").delete().eq("id", tableId);
   }
 
   async function addZone() {
@@ -317,10 +325,7 @@ export default function FloorPage() {
     // Create a placeholder table in the new zone so the zone exists
     // (zones are derived from existing tables). Use a small round 2p.
     const supabase = createClient();
-    const existingNums = tables
-      .map((t) => parseInt((t.name.match(/\d+/) || ["0"])[0], 10))
-      .filter((n) => !isNaN(n));
-    const nextNum = (existingNums.length ? Math.max(...existingNums) : 0) + 1;
+    const nextNum = nextTableNumber();
     await supabase.from("restaurant_tables").insert({
       tenant_id: activeTenant.id,
       name: `T${nextNum}`,
@@ -955,7 +960,7 @@ function PlanCanvas({ tables, resTableLinks, shiftReservations, activeStatuses, 
               e.stopPropagation();
               onTableClick(table);
             }}
-            className={`absolute flex flex-col items-center justify-center text-center select-none transition-shadow ${editing ? "cursor-move" : "cursor-pointer hover:shadow-lg"} ${isMerged ? "ring-4 ring-[#c4956a]/60" : ""}`}
+            className={`absolute flex flex-col items-center justify-center text-center select-none transition-shadow ${editing ? "cursor-move" : "cursor-pointer hover:shadow-lg"}`}
             style={{
               left: x,
               top: y,
