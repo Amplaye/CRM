@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { Calendar, Users, LayoutGrid, AlertTriangle, ChevronLeft, ChevronRight, LogOut } from "lucide-react";
+import { Calendar, Users, LayoutGrid, AlertTriangle, ChevronLeft, ChevronRight } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useLanguage } from "@/lib/contexts/LanguageContext";
 import { useTenant } from "@/lib/contexts/TenantContext";
@@ -48,6 +48,10 @@ export default function FloorPage() {
   const [quickSeatSize, setQuickSeatSize] = useState(2);
   const [quickSeatName, setQuickSeatName] = useState("");
   const [quickSeatLoading, setQuickSeatLoading] = useState(false);
+
+  // Free Table modal state
+  const [freeTableModal, setFreeTableModal] = useState<{ table: TableData; reservation: ReservationWithGuest } | null>(null);
+  const [freeTableLoading, setFreeTableLoading] = useState(false);
 
   const today = selectedDate;
 
@@ -209,15 +213,22 @@ export default function FloorPage() {
     return tableStatus === "occupied" ? "#ef4444" : "#22c55e";
   }
 
-  async function handleFreeTable(reservationId: string) {
-    if (!activeTenant) return;
-    if (!confirm(t("floor_free_confirm"))) return;
-    const supabase = createClient();
-    await supabase
-      .from("reservations")
-      .update({ status: "completed", updated_at: new Date().toISOString() })
-      .eq("id", reservationId);
-    // Real-time subscription will refetch automatically
+  async function confirmFreeTable() {
+    if (!activeTenant || !freeTableModal) return;
+    setFreeTableLoading(true);
+    try {
+      const supabase = createClient();
+      await supabase
+        .from("reservations")
+        .update({ status: "completed", updated_at: new Date().toISOString() })
+        .eq("id", freeTableModal.reservation.id);
+      setFreeTableModal(null);
+      // Real-time subscription will refetch automatically
+    } catch (err) {
+      console.error("Free table error:", err);
+    } finally {
+      setFreeTableLoading(false);
+    }
   }
 
   async function handleQuickSeat() {
@@ -420,7 +431,7 @@ export default function FloorPage() {
             return (
               <div
                 key={table.id}
-                className={`rounded-xl p-4 border-2 transition-all ${tStatus === "free" ? "cursor-pointer hover:shadow-lg hover:scale-[1.02]" : ""}`}
+                className="rounded-xl p-4 border-2 transition-all cursor-pointer hover:shadow-lg hover:scale-[1.02]"
                 style={{
                   background: "rgba(252,246,237,0.85)",
                   borderColor: tableBorderColor(tStatus),
@@ -430,6 +441,8 @@ export default function FloorPage() {
                     setQuickSeatTable(table);
                     setQuickSeatSize(2);
                     setQuickSeatName("");
+                  } else if (tRes) {
+                    setFreeTableModal({ table, reservation: tRes });
                   }
                 }}
               >
@@ -452,17 +465,6 @@ export default function FloorPage() {
                     <div>
                       <p className="text-xs text-black truncate font-medium">{guestName}</p>
                       <p className="text-[10px] text-black/50">{tRes.party_size}p · {tRes.time}{resTablesCount > 1 ? ` · ${resTablesCount} mesas` : ''}</p>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleFreeTable(tRes.id);
-                        }}
-                        className="mt-2 w-full inline-flex items-center justify-center gap-1 px-2 py-1 rounded-md text-[11px] font-bold text-white transition-colors hover:opacity-90"
-                        style={{ background: "#c4956a" }}
-                      >
-                        <LogOut className="w-3 h-3" />
-                        {t("floor_free_table")}
-                      </button>
                     </div>
                   );
                 })()}
@@ -589,6 +591,51 @@ export default function FloorPage() {
                 style={{ background: "#c4956a" }}
               >
                 {quickSeatLoading ? "..." : t("floor_seat_now")}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Free Table Modal */}
+      {freeTableModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={() => setFreeTableModal(null)}>
+          <div
+            className="rounded-2xl p-6 w-full max-w-sm border-2 shadow-xl"
+            style={{ background: "rgba(252,246,237,0.97)", borderColor: "#c4956a" }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="text-lg font-bold text-black mb-2">
+              {t("floor_free_table_title").replace("{name}", freeTableModal.table.name)}
+            </h3>
+            <div className="text-sm text-black/70 mb-4 space-y-1">
+              <p>
+                <span className="font-semibold">
+                  {freeTableModal.reservation.guests && typeof freeTableModal.reservation.guests === "object"
+                    ? (freeTableModal.reservation.guests as any).name
+                    : "Guest"}
+                </span>
+                {" · "}
+                {freeTableModal.reservation.party_size}p · {freeTableModal.reservation.time}
+              </p>
+              <p className="text-xs text-black/60">{t("floor_free_confirm")}</p>
+            </div>
+
+            <div className="flex gap-3 mt-6">
+              <button
+                onClick={() => setFreeTableModal(null)}
+                className="flex-1 px-4 py-2 text-sm font-semibold rounded-lg border-2 text-black transition-colors hover:bg-[#c4956a]/10"
+                style={{ borderColor: "#c4956a" }}
+              >
+                {t("floor_cancel")}
+              </button>
+              <button
+                onClick={confirmFreeTable}
+                disabled={freeTableLoading}
+                className="flex-1 px-4 py-2 text-sm font-semibold rounded-lg text-white transition-colors disabled:opacity-50"
+                style={{ background: "#c4956a" }}
+              >
+                {freeTableLoading ? "..." : t("floor_free_table")}
               </button>
             </div>
           </div>

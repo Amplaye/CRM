@@ -330,6 +330,7 @@ export const es: Dictionary = {
   floor_occupied: "Ocupada",
   floor_ending_soon: "Terminando pronto",
   floor_free_table: "Liberar mesa",
+  floor_free_table_title: "Liberar mesa {name}",
   floor_free_confirm: "¿Liberar esta mesa? El bot podrá reservarla de nuevo de inmediato.",
   floor_no_reservations: "No hay reservas en este turno",
 
