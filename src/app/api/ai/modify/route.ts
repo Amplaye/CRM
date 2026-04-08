@@ -118,6 +118,15 @@ export async function PUT(request: Request) {
       }
     }
 
+    // If the new party_size becomes a large group (7+), force re-review
+    // so the owner can re-confirm in real time. Skip if it was already a large group.
+    const becameLargeGroup = newPartySize >= 7 && existing.party_size < 7;
+    if (becameLargeGroup) {
+      updates.status = 'escalated';
+      const reviewNote = 'GRUPO MODIFICADO A ' + newPartySize + ' PERSONAS — REVISAR';
+      updates.notes = updates.notes ? `${updates.notes} — ${reviewNote}` : reviewNote;
+    }
+
     // Update the reservation
     const { error: updateErr } = await supabase
       .from('reservations')
@@ -225,11 +234,16 @@ export async function PUT(request: Request) {
     return NextResponse.json({
       success: true,
       reservation_id: reservationId,
-      status: existing.status,
+      status: becameLargeGroup ? 'escalated' : existing.status,
       shift: newShift,
       end_time: newEndTime,
       tables_assigned: tablesAssigned,
-      message: "Reserva modificada correctamente."
+      requires_review: becameLargeGroup,
+      previous_party_size: existing.party_size,
+      new_party_size: newPartySize,
+      message: becameLargeGroup
+        ? `Reserva modificada a ${newPartySize} personas — pendiente de revisión por ser grupo grande.`
+        : "Reserva modificada correctamente."
     });
 
   } catch (error: any) {
