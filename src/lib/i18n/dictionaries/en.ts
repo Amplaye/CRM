@@ -329,6 +329,17 @@ export const en = {
   floor_free_table: "Free table",
   floor_free_table_title: "Free table {name}",
   floor_free_confirm: "Free this table? The bot will be able to book it again immediately.",
+  floor_view_list: "List",
+  floor_view_plan: "Plan",
+  floor_edit_plan: "Edit plan",
+  floor_done_editing: "Done",
+  floor_palette: "Drag a shape to add a table",
+  floor_add_zone: "Add zone",
+  floor_zone_name_prompt: "Zone name (e.g. Terrace, Inside):",
+  floor_delete_table: "Delete table",
+  floor_delete_table_confirm: "Delete this table? It will be hidden from the floor and the bot.",
+  floor_plan_empty: "No tables in this zone yet.",
+  floor_plan_empty_edit: "Use the palette above to add tables, then drag them to position.",
   floor_no_reservations: "No reservations this shift",
 
   // Dashboard - new KPI section

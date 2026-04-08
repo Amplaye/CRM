@@ -332,6 +332,17 @@ export const es: Dictionary = {
   floor_free_table: "Liberar mesa",
   floor_free_table_title: "Liberar mesa {name}",
   floor_free_confirm: "¿Liberar esta mesa? El bot podrá reservarla de nuevo de inmediato.",
+  floor_view_list: "Lista",
+  floor_view_plan: "Plano",
+  floor_edit_plan: "Editar plano",
+  floor_done_editing: "Listo",
+  floor_palette: "Elige una forma para añadir una mesa",
+  floor_add_zone: "Añadir zona",
+  floor_zone_name_prompt: "Nombre de la zona (ej. Terraza, Interior):",
+  floor_delete_table: "Eliminar mesa",
+  floor_delete_table_confirm: "¿Eliminar esta mesa? Quedará oculta del plano y del bot.",
+  floor_plan_empty: "Aún no hay mesas en esta zona.",
+  floor_plan_empty_edit: "Usa la paleta de arriba para añadir mesas y arrástralas para colocarlas.",
   floor_no_reservations: "No hay reservas en este turno",
 
   // Dashboard - new KPI section

@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
-import { Calendar, Users, LayoutGrid, AlertTriangle, ChevronLeft, ChevronRight } from "lucide-react";
+import { useEffect, useState, useCallback, useRef } from "react";
+import { Calendar, Users, LayoutGrid, AlertTriangle, ChevronLeft, ChevronRight, List, LayoutPanelTop, Plus, Trash2, Pencil, Check } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useLanguage } from "@/lib/contexts/LanguageContext";
 import { useTenant } from "@/lib/contexts/TenantContext";
@@ -13,6 +13,30 @@ interface TableData {
   name: string;
   seats: number;
   status: "active" | "inactive";
+  shape: "round" | "square" | "rectangle";
+  zone: string;
+  position_x: number | null;
+  position_y: number | null;
+}
+
+type TableShape = "round" | "square" | "rectangle";
+
+// Palette presets — fixed shape + seat combinations
+const TABLE_PRESETS: { shape: TableShape; seats: number; label: string }[] = [
+  { shape: "round", seats: 2, label: "Round 2p" },
+  { shape: "round", seats: 4, label: "Round 4p" },
+  { shape: "square", seats: 2, label: "Square 2p" },
+  { shape: "square", seats: 4, label: "Square 4p" },
+  { shape: "rectangle", seats: 6, label: "Rect 6p" },
+  { shape: "rectangle", seats: 8, label: "Rect 8p" },
+];
+
+// Visual size in px for each (shape, seats) combination
+function tableDims(shape: TableShape, seats: number): { w: number; h: number } {
+  if (shape === "round") return seats <= 2 ? { w: 60, h: 60 } : { w: 80, h: 80 };
+  if (shape === "square") return seats <= 2 ? { w: 60, h: 60 } : { w: 80, h: 80 };
+  // rectangle
+  return seats <= 6 ? { w: 130, h: 70 } : { w: 160, h: 70 };
 }
 
 interface ReservationWithGuest {
@@ -53,6 +77,11 @@ export default function FloorPage() {
   const [freeTableModal, setFreeTableModal] = useState<{ table: TableData; reservation: ReservationWithGuest } | null>(null);
   const [freeTableLoading, setFreeTableLoading] = useState(false);
 
+  // View mode + plan editor
+  const [viewMode, setViewMode] = useState<"list" | "plan">("list");
+  const [editingPlan, setEditingPlan] = useState(false);
+  const [activeZone, setActiveZone] = useState<string>("Principal");
+
   const today = selectedDate;
 
   const fetchData = useCallback(async () => {
@@ -62,7 +91,7 @@ export default function FloorPage() {
     const [tablesRes, reservationsRes] = await Promise.all([
       supabase
         .from("restaurant_tables")
-        .select("id, name, seats, status")
+        .select("id, name, seats, status, shape, zone, position_x, position_y")
         .eq("tenant_id", activeTenant.id)
         .eq("status", "active")
         .order("name"),
@@ -231,6 +260,78 @@ export default function FloorPage() {
     } finally {
       setFreeTableLoading(false);
     }
+  }
+
+  // ─── Plan view: zones, drag, add, delete ───
+  const zones = Array.from(new Set(tables.map((t) => t.zone || "Principal"))).sort();
+  if (zones.length === 0) zones.push("Principal");
+  // Make sure activeZone is valid
+  const currentZone = zones.includes(activeZone) ? activeZone : zones[0];
+  const zoneTables = tables.filter((t) => (t.zone || "Principal") === currentZone);
+
+  // Persist a single table's position after drag
+  const persistTablePosition = useCallback(async (tableId: string, x: number, y: number) => {
+    const supabase = createClient();
+    await supabase
+      .from("restaurant_tables")
+      .update({ position_x: Math.round(x), position_y: Math.round(y) })
+      .eq("id", tableId);
+  }, []);
+
+  // Add a new table from the palette to the current zone
+  async function addTableFromPreset(preset: { shape: TableShape; seats: number }) {
+    if (!activeTenant) return;
+    const supabase = createClient();
+    // Pick next available number based on existing names like "T1", "T2"
+    const existingNums = tables
+      .map((t) => parseInt((t.name.match(/\d+/) || ["0"])[0], 10))
+      .filter((n) => !isNaN(n));
+    const nextNum = (existingNums.length ? Math.max(...existingNums) : 0) + 1;
+    await supabase.from("restaurant_tables").insert({
+      tenant_id: activeTenant.id,
+      name: `T${nextNum}`,
+      seats: preset.seats,
+      shape: preset.shape,
+      zone: currentZone,
+      status: "active",
+      position_x: 60,
+      position_y: 60,
+    });
+    // Real-time will refetch
+  }
+
+  async function deleteTable(tableId: string) {
+    if (!confirm(t("floor_delete_table_confirm"))) return;
+    const supabase = createClient();
+    // Mark as inactive instead of deleting (preserves history)
+    await supabase
+      .from("restaurant_tables")
+      .update({ status: "inactive" })
+      .eq("id", tableId);
+  }
+
+  async function addZone() {
+    const name = prompt(t("floor_zone_name_prompt"));
+    if (!name || !name.trim() || !activeTenant) return;
+    const trimmed = name.trim();
+    // Create a placeholder table in the new zone so the zone exists
+    // (zones are derived from existing tables). Use a small round 2p.
+    const supabase = createClient();
+    const existingNums = tables
+      .map((t) => parseInt((t.name.match(/\d+/) || ["0"])[0], 10))
+      .filter((n) => !isNaN(n));
+    const nextNum = (existingNums.length ? Math.max(...existingNums) : 0) + 1;
+    await supabase.from("restaurant_tables").insert({
+      tenant_id: activeTenant.id,
+      name: `T${nextNum}`,
+      seats: 2,
+      shape: "round",
+      zone: trimmed,
+      status: "active",
+      position_x: 60,
+      position_y: 60,
+    });
+    setActiveZone(trimmed);
   }
 
   async function handleQuickSeat() {
@@ -416,69 +517,169 @@ export default function FloorPage() {
         ))}
       </div>
 
-      {/* Table Map */}
+      {/* Table Map — Lista | Plano toggle */}
       <div>
-        <h2 className="text-lg font-bold text-black mb-4">
-          {t("floor_tables")}
-        </h2>
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
-          {tables.map((table) => {
-            const { status: tStatus, reservation: tRes } =
-              getTableStatus(table.id);
-            const guestName =
-              tRes?.guests && typeof tRes.guests === "object"
-                ? (tRes.guests as any).name
-                : null;
-
-            return (
-              <div
-                key={table.id}
-                className="rounded-xl p-4 border-2 transition-all cursor-pointer hover:shadow-lg hover:scale-[1.02]"
-                style={{
-                  background: "rgba(252,246,237,0.85)",
-                  borderColor: tableBorderColor(tStatus),
-                }}
-                onClick={() => {
-                  if (tStatus === "free") {
-                    setQuickSeatTable(table);
-                    setQuickSeatSize(2);
-                    setQuickSeatName("");
-                  } else if (tRes) {
-                    setFreeTableModal({ table, reservation: tRes });
-                  }
-                }}
+        <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
+          <h2 className="text-lg font-bold text-black">{t("floor_tables")}</h2>
+          <div className="flex items-center gap-2">
+            {viewMode === "plan" && (
+              <button
+                onClick={() => setEditingPlan((v) => !v)}
+                className="inline-flex items-center gap-1 px-3 py-1.5 text-xs sm:text-sm font-semibold rounded-lg border-2 text-black hover:bg-[#c4956a]/10 transition-colors"
+                style={{ borderColor: "#c4956a", background: editingPlan ? "#c4956a" : "rgba(252,246,237,0.6)", color: editingPlan ? "#fff" : "#000" }}
               >
-                <div className="flex items-center justify-between mb-2">
-                  <span className="font-bold text-black text-sm">
-                    {table.name}
-                  </span>
-                  <span
-                    className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
-                      tStatus === "free" ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"
-                    }`}
-                  >
-                    {tStatus === "free" ? t("floor_free") : t("floor_occupied")}
-                  </span>
-                </div>
-                {tRes && guestName && (() => {
-                  // Count how many tables this reservation uses
-                  const resTablesCount = resTableLinks.filter(l => l.reservation_id === tRes.id).length;
-                  return (
-                    <div>
-                      <p className="text-xs text-black truncate font-medium">{guestName}</p>
-                      <p className="text-[10px] text-black/50">{tRes.party_size}p · {tRes.time}{resTablesCount > 1 ? ` · ${resTablesCount} mesas` : ''}</p>
-                    </div>
-                  );
-                })()}
-                {tStatus === "free" && (
-                  <p className="text-xs text-black/60">
-                    {t("floor_seats").replace("{count}", String(table.seats))}
-                  </p>
-                )}
-              </div>
-            );
-          })}
+                {editingPlan ? <Check className="w-4 h-4" /> : <Pencil className="w-4 h-4" />}
+                {editingPlan ? t("floor_done_editing") : t("floor_edit_plan")}
+              </button>
+            )}
+            <div className="inline-flex rounded-lg border-2 overflow-hidden" style={{ borderColor: "#c4956a" }}>
+              <button
+                onClick={() => { setViewMode("list"); setEditingPlan(false); }}
+                className="inline-flex items-center gap-1 px-3 py-1.5 text-xs sm:text-sm font-semibold transition-colors"
+                style={{ background: viewMode === "list" ? "#c4956a" : "rgba(252,246,237,0.6)", color: viewMode === "list" ? "#fff" : "#000" }}
+              >
+                <List className="w-4 h-4" /> {t("floor_view_list")}
+              </button>
+              <button
+                onClick={() => setViewMode("plan")}
+                className="inline-flex items-center gap-1 px-3 py-1.5 text-xs sm:text-sm font-semibold transition-colors"
+                style={{ background: viewMode === "plan" ? "#c4956a" : "rgba(252,246,237,0.6)", color: viewMode === "plan" ? "#fff" : "#000" }}
+              >
+                <LayoutPanelTop className="w-4 h-4" /> {t("floor_view_plan")}
+              </button>
+            </div>
+          </div>
         </div>
+
+        {viewMode === "list" ? (
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+            {tables.map((table) => {
+              const { status: tStatus, reservation: tRes } = getTableStatus(table.id);
+              const guestName = tRes?.guests && typeof tRes.guests === "object" ? (tRes.guests as any).name : null;
+              return (
+                <div
+                  key={table.id}
+                  className="rounded-xl p-4 border-2 transition-all cursor-pointer hover:shadow-lg hover:scale-[1.02]"
+                  style={{ background: "rgba(252,246,237,0.85)", borderColor: tableBorderColor(tStatus) }}
+                  onClick={() => {
+                    if (tStatus === "free") {
+                      setQuickSeatTable(table);
+                      setQuickSeatSize(2);
+                      setQuickSeatName("");
+                    } else if (tRes) {
+                      setFreeTableModal({ table, reservation: tRes });
+                    }
+                  }}
+                >
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="font-bold text-black text-sm">{table.name}</span>
+                    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${tStatus === "free" ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"}`}>
+                      {tStatus === "free" ? t("floor_free") : t("floor_occupied")}
+                    </span>
+                  </div>
+                  {tRes && guestName && (() => {
+                    const resTablesCount = resTableLinks.filter((l) => l.reservation_id === tRes.id).length;
+                    return (
+                      <div>
+                        <p className="text-xs text-black truncate font-medium">{guestName}</p>
+                        <p className="text-[10px] text-black/50">{tRes.party_size}p · {tRes.time}{resTablesCount > 1 ? ` · ${resTablesCount} mesas` : ""}</p>
+                      </div>
+                    );
+                  })()}
+                  {tStatus === "free" && (
+                    <p className="text-xs text-black/60">{t("floor_seats").replace("{count}", String(table.seats))}</p>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          /* Plan View */
+          <div>
+            {/* Zone tabs */}
+            <div className="flex items-center gap-1 mb-3 flex-wrap">
+              {zones.map((z) => (
+                <button
+                  key={z}
+                  onClick={() => setActiveZone(z)}
+                  className="px-3 py-1 text-xs sm:text-sm font-semibold rounded-lg border-2 transition-colors"
+                  style={{
+                    borderColor: "#c4956a",
+                    background: currentZone === z ? "#c4956a" : "rgba(252,246,237,0.6)",
+                    color: currentZone === z ? "#fff" : "#000",
+                  }}
+                >
+                  {z}
+                </button>
+              ))}
+              {editingPlan && (
+                <button
+                  onClick={addZone}
+                  className="px-2 py-1 text-xs font-semibold rounded-lg border-2 text-black hover:bg-[#c4956a]/10 transition-colors"
+                  style={{ borderColor: "#c4956a", background: "rgba(252,246,237,0.6)" }}
+                  title={t("floor_add_zone")}
+                >
+                  <Plus className="w-4 h-4" />
+                </button>
+              )}
+            </div>
+
+            {/* Edit palette */}
+            {editingPlan && (
+              <div className="mb-3 p-3 rounded-xl border-2" style={{ borderColor: "#c4956a", background: "rgba(252,246,237,0.6)" }}>
+                <p className="text-xs font-semibold text-black/70 mb-2">{t("floor_palette")}</p>
+                <div className="flex flex-wrap gap-2">
+                  {TABLE_PRESETS.map((p) => {
+                    const dims = tableDims(p.shape, p.seats);
+                    return (
+                      <button
+                        key={p.label}
+                        onClick={() => addTableFromPreset(p)}
+                        className="flex flex-col items-center gap-1 px-2 py-2 rounded-lg border-2 hover:bg-[#c4956a]/10 transition-colors"
+                        style={{ borderColor: "#c4956a", background: "rgba(252,246,237,0.85)" }}
+                        title={p.label}
+                      >
+                        <div
+                          style={{
+                            width: dims.w * 0.5,
+                            height: dims.h * 0.5,
+                            background: "#c4956a",
+                            borderRadius: p.shape === "round" ? "50%" : p.shape === "square" ? "8px" : "12px",
+                          }}
+                        />
+                        <span className="text-[10px] font-bold text-black">{p.seats}p</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* Canvas */}
+            <PlanCanvas
+              key={currentZone}
+              tables={zoneTables}
+              resTableLinks={resTableLinks}
+              shiftReservations={shiftReservations}
+              activeStatuses={activeStatuses}
+              editing={editingPlan}
+              onTableMove={persistTablePosition}
+              onTableClick={(table) => {
+                if (editingPlan) return;
+                const { status: tStatus, reservation: tRes } = getTableStatus(table.id);
+                if (tStatus === "free") {
+                  setQuickSeatTable(table);
+                  setQuickSeatSize(2);
+                  setQuickSeatName("");
+                } else if (tRes) {
+                  setFreeTableModal({ table, reservation: tRes });
+                }
+              }}
+              onTableDelete={deleteTable}
+              t={t}
+            />
+          </div>
+        )}
       </div>
 
       {/* Reservations for selected shift */}
@@ -643,6 +844,154 @@ export default function FloorPage() {
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+/* ────────────────────────────────────────────────────────
+   PlanCanvas — drag-and-drop floor plan with native mouse
+   ──────────────────────────────────────────────────────── */
+
+interface PlanCanvasProps {
+  tables: TableData[];
+  resTableLinks: ResTableLink[];
+  shiftReservations: ReservationWithGuest[];
+  activeStatuses: string[];
+  editing: boolean;
+  onTableMove: (id: string, x: number, y: number) => void;
+  onTableClick: (table: TableData) => void;
+  onTableDelete: (id: string) => void;
+  t: (key: any) => string;
+}
+
+function PlanCanvas({ tables, resTableLinks, shiftReservations, activeStatuses, editing, onTableMove, onTableClick, onTableDelete, t }: PlanCanvasProps) {
+  // Local optimistic positions during drag
+  const [localPositions, setLocalPositions] = useState<Record<string, { x: number; y: number }>>({});
+  const [draggingId, setDraggingId] = useState<string | null>(null);
+  const dragOffsetRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
+
+  // Reset local positions when tables change from the server
+  const tablesKey = tables.map((t) => t.id + ":" + t.position_x + ":" + t.position_y).join("|");
+  useEffect(() => {
+    setLocalPositions({});
+  }, [tablesKey]);
+
+  // Map a tableId → its current reservation (if any) using same logic as FloorPage
+  function getResForTable(tableId: string): ReservationWithGuest | null {
+    for (const link of resTableLinks) {
+      if (link.table_id !== tableId) continue;
+      const res = shiftReservations.find((r) => r.id === link.reservation_id);
+      if (!res) continue;
+      if (!activeStatuses.includes(res.status)) continue;
+      return res;
+    }
+    return null;
+  }
+
+  function handleMouseDown(e: React.MouseEvent, table: TableData) {
+    if (!editing) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const target = (e.currentTarget as HTMLElement).getBoundingClientRect();
+    dragOffsetRef.current = { x: e.clientX - target.left, y: e.clientY - target.top };
+    setDraggingId(table.id);
+  }
+
+  function handleMouseMove(e: React.MouseEvent) {
+    if (!draggingId) return;
+    const canvas = (e.currentTarget as HTMLElement).getBoundingClientRect();
+    const x = e.clientX - canvas.left - dragOffsetRef.current.x;
+    const y = e.clientY - canvas.top - dragOffsetRef.current.y;
+    setLocalPositions((prev) => ({ ...prev, [draggingId]: { x: Math.max(0, x), y: Math.max(0, y) } }));
+  }
+
+  function handleMouseUp() {
+    if (!draggingId) return;
+    const pos = localPositions[draggingId];
+    if (pos) onTableMove(draggingId, pos.x, pos.y);
+    setDraggingId(null);
+  }
+
+  return (
+    <div
+      onMouseMove={handleMouseMove}
+      onMouseUp={handleMouseUp}
+      onMouseLeave={handleMouseUp}
+      className="relative w-full rounded-xl border-2 overflow-hidden"
+      style={{
+        background: "rgba(252,246,237,0.6)",
+        borderColor: "#c4956a",
+        height: "560px",
+        backgroundImage: "radial-gradient(rgba(196,149,106,0.25) 1px, transparent 1px)",
+        backgroundSize: "20px 20px",
+      }}
+    >
+      {tables.length === 0 && (
+        <div className="absolute inset-0 flex items-center justify-center text-sm text-black/50">
+          {editing ? t("floor_plan_empty_edit") : t("floor_plan_empty")}
+        </div>
+      )}
+
+      {tables.map((table) => {
+        const dims = tableDims(table.shape, table.seats);
+        const local = localPositions[table.id];
+        const x = local?.x ?? table.position_x ?? 60;
+        const y = local?.y ?? table.position_y ?? 60;
+        const res = getResForTable(table.id);
+        const occupied = !!res;
+        const resTablesCount = res ? resTableLinks.filter((l) => l.reservation_id === res.id).length : 0;
+        const isMerged = resTablesCount > 1;
+        const guestName = res?.guests && typeof res.guests === "object" ? (res.guests as any).name : null;
+
+        const borderColor = occupied ? "#ef4444" : "#22c55e";
+        const bg = occupied ? "rgba(254,226,226,0.95)" : "rgba(220,252,231,0.95)";
+
+        return (
+          <div
+            key={table.id}
+            onMouseDown={(e) => handleMouseDown(e, table)}
+            onClick={(e) => {
+              if (editing || draggingId) return;
+              e.stopPropagation();
+              onTableClick(table);
+            }}
+            className={`absolute flex flex-col items-center justify-center text-center select-none transition-shadow ${editing ? "cursor-move" : "cursor-pointer hover:shadow-lg"} ${isMerged ? "ring-4 ring-[#c4956a]/60" : ""}`}
+            style={{
+              left: x,
+              top: y,
+              width: dims.w,
+              height: dims.h,
+              borderRadius: table.shape === "round" ? "50%" : table.shape === "square" ? "10px" : "14px",
+              border: `3px solid ${borderColor}`,
+              background: bg,
+              zIndex: draggingId === table.id ? 20 : 10,
+            }}
+          >
+            <span className="text-[11px] font-bold text-black leading-none">{table.name}</span>
+            <span className="text-[9px] text-black/60 leading-tight">{table.seats}p</span>
+            {guestName && (
+              <span className="text-[8px] text-black/70 truncate max-w-[90%] mt-0.5">{guestName}</span>
+            )}
+            {isMerged && (
+              <span className="absolute -top-2 -right-2 px-1 py-0.5 text-[8px] font-bold text-white rounded-full" style={{ background: "#c4956a" }}>
+                ×{resTablesCount}
+              </span>
+            )}
+            {editing && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onTableDelete(table.id);
+                }}
+                className="absolute -top-2 -left-2 w-5 h-5 rounded-full bg-red-500 text-white text-[10px] flex items-center justify-center hover:bg-red-600"
+                title={t("floor_delete_table")}
+              >
+                <Trash2 className="w-3 h-3" />
+              </button>
+            )}
+          </div>
+        );
+      })}
     </div>
   );
 }

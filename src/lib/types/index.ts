@@ -132,6 +132,8 @@ export interface RestaurantTable {
   status: 'active' | 'inactive';
   position_x: number;
   position_y: number;
+  shape: 'round' | 'square' | 'rectangle';
+  zone: string;
   created_at: number;
 }
 
