@@ -10,8 +10,8 @@ import {
   BookOpen,
   Settings,
   Shield,
-  LayoutDashboard,
   LayoutGrid,
+  BarChart3,
   ClipboardList,
   X,
   Activity,
@@ -39,7 +39,7 @@ const navItems = [
   { name: "Pending", href: "/pending", icon: ClipboardList },
   { name: "Conversations", href: "/conversations", icon: MessageSquare },
   { name: "Guests", href: "/guests", icon: Users },
-  { name: "Dashboard", href: "/", icon: LayoutDashboard },
+  { name: "Analytics", href: "/", icon: BarChart3 },
   { name: "Knowledge Base", href: "/knowledge", icon: BookOpen },
   { name: "Settings", href: "/settings", icon: Settings },
 ];
