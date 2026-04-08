@@ -357,6 +357,7 @@ export const es: Dictionary = {
   dash_avg_covers: "media de comensales",
   dash_ai_vs_staff: "Reservas IA vs Personal",
   dash_channel_breakdown: "Desglose por Canal",
+  dash_from_web: "Desde la web",
   dash_no_data: "Sin datos aún",
   dash_ai_revenue_time: "Ingresos IA en el Tiempo",
   dash_ai_revenue: "Ingresos IA",

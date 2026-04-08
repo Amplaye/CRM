@@ -78,7 +78,7 @@ export default function DashboardPage() {
     const fetchAll = async () => {
       const [resMonth, resPrev, waitlistData] = await Promise.all([
         supabase.from("reservations")
-          .select("id, source, date, time, party_size, status, created_at")
+          .select("id, source, from_web, date, time, party_size, status, created_at")
           .eq("tenant_id", tenant.id)
           .gte("date", monthStart).lte("date", monthEnd),
         supabase.from("reservations")
@@ -184,6 +184,11 @@ export default function DashboardPage() {
       .filter(k => channelRaw[k] > 0)
       .map(k => ({ name: k, value: channelRaw[k] }));
 
+    // Web origin tracking — % of AI bookings that came from picnic.base44.app
+    const aiResAll = reservations.filter((r: any) => r.source === "ai_chat" || r.source === "ai_voice");
+    const fromWebCount = aiResAll.filter((r: any) => r.from_web === true).length;
+    const fromWebPct = aiResAll.length > 0 ? Math.round((fromWebCount / aiResAll.length) * 100) : 0;
+
     return {
       totalValue, aiRevenue, roi, aiMonthlyCost,
       outOfHoursCount: outOfHours.length, outOfHoursRevenue,
@@ -194,6 +199,7 @@ export default function DashboardPage() {
       aiHandledPct, staffHoursSaved, aiCount: aiRes.length, staffCount: staffRes.length,
       total, revenueChange,
       dailyData, sourceData,
+      fromWebCount, fromWebPct,
       avgParty: Math.round(avgParty * 10) / 10,
     };
   }, [reservations, prevMonthRes, waitlistConverted, tenant, selectedMonth, selectedYear]);
@@ -382,6 +388,11 @@ export default function DashboardPage() {
               </ResponsiveContainer>
             )}
           </div>
+          {kpis.fromWebCount > 0 && (
+            <p className="text-xs text-center text-black/70 mt-2">
+              {t("dash_from_web")}: <span className="font-bold">{kpis.fromWebPct}%</span> ({kpis.fromWebCount})
+            </p>
+          )}
         </div>
       </div>
 

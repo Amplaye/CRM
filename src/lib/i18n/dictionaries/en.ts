@@ -354,6 +354,7 @@ export const en = {
   dash_avg_covers: "avg covers each",
   dash_ai_vs_staff: "AI vs Staff Bookings",
   dash_channel_breakdown: "Channel Breakdown",
+  dash_from_web: "From website",
   dash_no_data: "No data yet",
   dash_ai_revenue_time: "AI Revenue Over Time",
   dash_ai_revenue: "AI Revenue",
