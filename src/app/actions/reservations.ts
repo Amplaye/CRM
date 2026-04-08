@@ -4,7 +4,7 @@ import { createServerSupabaseClient, createServiceRoleClient } from "@/lib/supab
 import { Reservation, ReservationEvent, ReservationStatus, Guest } from "@/lib/types";
 import { revalidatePath } from "next/cache";
 import { matchWaitlistForSlotAction } from "./waitlist";
-import { getShift, getRotationMinutes, calculateEndTime } from "@/lib/restaurant-rules";
+import { getShift, getRotationMinutes, calculateEndTime, tablesNeeded } from "@/lib/restaurant-rules";
 
 /**
  * Creates a Reservation.
@@ -128,6 +128,26 @@ export async function createReservationAction(params: {
       .single();
 
     if (createResErr) throw createResErr;
+
+    // 3b. Atomic table assignment — distributes party across multiple tables when needed
+    const needed = tablesNeeded(params.partySize);
+    const { data: atomicResult, error: atomicErr } = await supabase.rpc('atomic_book_tables', {
+      p_tenant_id: params.tenantId,
+      p_date: params.date,
+      p_shift: computedShift,
+      p_tables_needed: needed,
+      p_reservation_id: newRes.id,
+    });
+
+    if (atomicErr) throw atomicErr;
+
+    if (!atomicResult?.success) {
+      // Not enough tables — flag as escalated so staff can review
+      await supabase.from('reservations').update({
+        status: 'escalated',
+        notes: (params.notes || '') + ' — No hay suficientes mesas, pendiente de revisión',
+      }).eq('id', newRes.id);
+    }
 
     // 4. Create Audit Event
     const { error: eventErr } = await supabase

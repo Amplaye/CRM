@@ -170,9 +170,17 @@ export default function DashboardPage() {
     const noShowsPrevented = Math.max(0, Math.round((noShowBaseline - actualPct) / 100 * total));
     const noShowValue = Math.round(noShowsPrevented * avgParty * avgSpend);
 
-    // ROI
-    const totalValue = aiRevenue + waitlistRevenue + noShowValue;
-    const roi = aiMonthlyCost > 0 ? Math.round((totalValue / aiMonthlyCost) * 100) : 0;
+    // AI cost prorated to selected period (settings stores monthly cost)
+    let periodCost = 0;
+    if (viewMode === "day") periodCost = aiMonthlyCost / 30;
+    else if (viewMode === "year") periodCost = aiMonthlyCost * 12;
+    else periodCost = aiMonthlyCost;
+    periodCost = Math.round(periodCost);
+
+    // ROI — net value (gross revenue from AI minus operating cost)
+    const grossValue = aiRevenue + waitlistRevenue + noShowValue;
+    const totalValue = Math.max(0, grossValue - periodCost);
+    const roi = periodCost > 0 ? Math.round((totalValue / periodCost) * 100) : 0;
 
     // Efficiency
     const aiHandledPct = total > 0 ? Math.round((aiRes.length / total) * 100) : 0;
@@ -265,6 +273,7 @@ export default function DashboardPage() {
       total, revenueChange,
       dailyData, sourceData,
       fromWebCount, fromWebPct,
+      grossValue, periodCost,
       avgParty: Math.round(avgParty * 10) / 10,
     };
   }, [reservations, prevMonthRes, waitlistConverted, tenant, viewMode, selectedDay, selectedMonth, selectedYear]);
@@ -358,6 +367,11 @@ export default function DashboardPage() {
         {/* Big number */}
         <div className="mb-6">
           <p className="text-3xl sm:text-4xl font-bold text-[#22c55e]">€{kpis.totalValue.toLocaleString()}</p>
+          {kpis.periodCost > 0 && (
+            <p className="text-xs text-black/60 mt-1">
+              €{kpis.grossValue.toLocaleString()} − €{kpis.periodCost.toLocaleString()} {t("dash_ai_cost")}
+            </p>
+          )}
           {kpis.roi > 0 && (
             <span className="inline-block mt-2 text-xs font-bold px-3 py-1 rounded-full border" style={{ color: "#22c55e", borderColor: "#22c55e" }}>
               +{kpis.roi}% ROI

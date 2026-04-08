@@ -358,6 +358,7 @@ export const en = {
   dash_view_day: "Day",
   dash_view_month: "Month",
   dash_view_year: "Year",
+  dash_ai_cost: "AI cost",
   dash_no_data: "No data yet",
   dash_ai_revenue_time: "AI Revenue Over Time",
   dash_ai_revenue: "AI Revenue",
