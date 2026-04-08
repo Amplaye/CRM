@@ -1,6 +1,6 @@
 "use client";
 
-import { FileText, Plus, Search, Archive, BookOpen, Clock, User, ChevronRight, ChevronLeft, Save, X, History, Trash2, Filter, AlertTriangle, Settings2 } from "lucide-react";
+import { FileText, Plus, Search, Archive, BookOpen, Clock, User, ChevronRight, ChevronLeft, Save, X, History, Trash2, Filter, AlertTriangle, Settings2, ArrowUp, ArrowDown } from "lucide-react";
 import { useLanguage } from "@/lib/contexts/LanguageContext";
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
@@ -56,7 +56,7 @@ export default function KnowledgePage() {
       }
 
       const docs = (data || []) as KnowledgeArticle[];
-      docs.sort((a,b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime());
+      docs.sort((a, b) => (a.display_order ?? 0) - (b.display_order ?? 0));
       setArticles(docs);
       setLoading(false);
     };
@@ -122,6 +122,7 @@ export default function KnowledgePage() {
         } else {
            payload.version = 1;
            payload.created_at = new Date().toISOString();
+           payload.display_order = (articles.reduce((max, a) => Math.max(max, a.display_order ?? 0), 0)) + 1;
            const { data: inserted, error: insertErr } = await supabase.from("knowledge_articles").insert(payload).select("*").single();
            if (insertErr) { console.error("KB insert error:", insertErr); alert("Error: " + insertErr.message); }
            else if (inserted) {
@@ -143,6 +144,26 @@ export default function KnowledgePage() {
         syncRetellKB();
      } catch (err) { console.error(err); }
   }
+
+  const moveArticle = async (id: string, direction: -1 | 1) => {
+    const idx = articles.findIndex(a => a.id === id);
+    const swapIdx = idx + direction;
+    if (idx < 0 || swapIdx < 0 || swapIdx >= articles.length) return;
+    const a = articles[idx];
+    const b = articles[swapIdx];
+    // Swap display_order locally for immediate feedback
+    const reordered = [...articles];
+    reordered[idx] = { ...b, display_order: a.display_order };
+    reordered[swapIdx] = { ...a, display_order: b.display_order };
+    reordered.sort((x, y) => (x.display_order ?? 0) - (y.display_order ?? 0));
+    setArticles(reordered);
+    // Persist
+    await Promise.all([
+      supabase.from("knowledge_articles").update({ display_order: b.display_order }).eq("id", a.id),
+      supabase.from("knowledge_articles").update({ display_order: a.display_order }).eq("id", b.id),
+    ]);
+    syncRetellKB();
+  };
 
   return (
     <div className="p-0 h-[calc(100dvh-3.5rem)] md:h-[calc(100dvh-4rem)] flex overflow-hidden">
@@ -176,7 +197,7 @@ export default function KnowledgePage() {
                </div>
             ) : (
                <div className="divide-y" style={{ borderColor: 'rgba(196,149,106,0.3)' }}>
-                  {articles.map(article => (
+                  {articles.map((article, idx) => (
                      <div
                         key={article.id}
                         onClick={() => setSelectedArticleId(article.id)}
@@ -186,7 +207,25 @@ export default function KnowledgePage() {
                            <span className={`text-[10px] uppercase font-bold tracking-widest ${article.status === 'published' ? 'text-emerald-600' : 'text-zinc-400'}`}>
                               {article.status}
                            </span>
-                           <span className="text-[10px] font-mono text-zinc-400">v{article.version}</span>
+                           <div className="flex items-center gap-1">
+                              <button
+                                 onClick={(e) => { e.stopPropagation(); moveArticle(article.id, -1); }}
+                                 disabled={idx === 0}
+                                 className="p-0.5 rounded hover:bg-[#c4956a]/20 text-zinc-500 disabled:opacity-30 disabled:hover:bg-transparent"
+                                 title={t("know_move_up")}
+                              >
+                                 <ArrowUp className="w-3.5 h-3.5" />
+                              </button>
+                              <button
+                                 onClick={(e) => { e.stopPropagation(); moveArticle(article.id, 1); }}
+                                 disabled={idx === articles.length - 1}
+                                 className="p-0.5 rounded hover:bg-[#c4956a]/20 text-zinc-500 disabled:opacity-30 disabled:hover:bg-transparent"
+                                 title={t("know_move_down")}
+                              >
+                                 <ArrowDown className="w-3.5 h-3.5" />
+                              </button>
+                              <span className="text-[10px] font-mono text-zinc-400 ml-1">v{article.version}</span>
+                           </div>
                         </div>
                         <h3 className="font-bold text-zinc-900 text-sm leading-tight truncate">{article.title}</h3>
                         <p className="text-xs text-zinc-500 line-clamp-1 mt-1">{article.category} • {t("know_updated_on") || "Updated"} {new Date(article.updated_at).toLocaleDateString()}</p>

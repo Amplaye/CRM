@@ -71,6 +71,7 @@ export interface KnowledgeArticle {
   author_id: string;
   created_at: string;
   updated_at: string;
+  display_order: number;
 }
 
 export interface Guest {

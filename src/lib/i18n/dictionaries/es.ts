@@ -362,6 +362,8 @@ export const es: Dictionary = {
   dash_view_month: "Mes",
   dash_view_year: "Año",
   dash_ai_cost: "coste IA",
+  know_move_up: "Mover arriba",
+  know_move_down: "Mover abajo",
   dash_no_data: "Sin datos aún",
   dash_ai_revenue_time: "Ingresos IA en el Tiempo",
   dash_ai_revenue: "Ingresos IA",
