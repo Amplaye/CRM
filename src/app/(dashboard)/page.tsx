@@ -48,18 +48,35 @@ export default function DashboardPage() {
   const [waitlistConverted, setWaitlistConverted] = useState(0);
   const [prevMonthRes, setPrevMonthRes] = useState<any[]>([]);
 
-  // Month navigation
-  const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth());
-  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
+  // Period navigation
+  type ViewMode = "day" | "month" | "year";
+  const [viewMode, setViewMode] = useState<ViewMode>("month");
+  const today = new Date();
+  const [selectedDay, setSelectedDay] = useState(today.getDate());
+  const [selectedMonth, setSelectedMonth] = useState(today.getMonth());
+  const [selectedYear, setSelectedYear] = useState(today.getFullYear());
   const monthNames = [t("dash_month_jan"), t("dash_month_feb"), t("dash_month_mar"), t("dash_month_apr"), t("dash_month_may"), t("dash_month_jun"), t("dash_month_jul"), t("dash_month_aug"), t("dash_month_sep"), t("dash_month_oct"), t("dash_month_nov"), t("dash_month_dec")];
 
-  const navigateMonth = (dir: number) => {
-    let m = selectedMonth + dir;
-    let y = selectedYear;
-    if (m > 11) { m = 0; y++; }
-    if (m < 0) { m = 11; y--; }
-    setSelectedMonth(m);
-    setSelectedYear(y);
+  const navigatePeriod = (dir: number) => {
+    if (viewMode === "year") {
+      setSelectedYear(selectedYear + dir);
+      return;
+    }
+    if (viewMode === "month") {
+      let m = selectedMonth + dir;
+      let y = selectedYear;
+      if (m > 11) { m = 0; y++; }
+      if (m < 0) { m = 11; y--; }
+      setSelectedMonth(m);
+      setSelectedYear(y);
+      return;
+    }
+    // day
+    const d = new Date(selectedYear, selectedMonth, selectedDay);
+    d.setDate(d.getDate() + dir);
+    setSelectedYear(d.getFullYear());
+    setSelectedMonth(d.getMonth());
+    setSelectedDay(d.getDate());
   };
 
   /* ─── data fetch ─── */
@@ -70,27 +87,40 @@ export default function DashboardPage() {
     const pad = (n: number) => String(n).padStart(2, "0");
     const toDateStr = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 
-    const monthStart = toDateStr(new Date(selectedYear, selectedMonth, 1));
-    const monthEnd = toDateStr(new Date(selectedYear, selectedMonth + 1, 0));
-    const prevMonthStart = toDateStr(new Date(selectedYear, selectedMonth - 1, 1));
-    const prevMonthEnd = toDateStr(new Date(selectedYear, selectedMonth, 0));
+    let periodStart: string, periodEnd: string, prevStart: string, prevEnd: string;
+    if (viewMode === "day") {
+      const d = new Date(selectedYear, selectedMonth, selectedDay);
+      periodStart = periodEnd = toDateStr(d);
+      const p = new Date(d); p.setDate(p.getDate() - 1);
+      prevStart = prevEnd = toDateStr(p);
+    } else if (viewMode === "year") {
+      periodStart = toDateStr(new Date(selectedYear, 0, 1));
+      periodEnd = toDateStr(new Date(selectedYear, 11, 31));
+      prevStart = toDateStr(new Date(selectedYear - 1, 0, 1));
+      prevEnd = toDateStr(new Date(selectedYear - 1, 11, 31));
+    } else {
+      periodStart = toDateStr(new Date(selectedYear, selectedMonth, 1));
+      periodEnd = toDateStr(new Date(selectedYear, selectedMonth + 1, 0));
+      prevStart = toDateStr(new Date(selectedYear, selectedMonth - 1, 1));
+      prevEnd = toDateStr(new Date(selectedYear, selectedMonth, 0));
+    }
 
     const fetchAll = async () => {
       const [resMonth, resPrev, waitlistData] = await Promise.all([
         supabase.from("reservations")
           .select("id, source, from_web, date, time, party_size, status, created_at")
           .eq("tenant_id", tenant.id)
-          .gte("date", monthStart).lte("date", monthEnd),
+          .gte("date", periodStart).lte("date", periodEnd),
         supabase.from("reservations")
           .select("id, source, date, party_size, status, created_at")
           .eq("tenant_id", tenant.id)
-          .gte("date", prevMonthStart).lte("date", prevMonthEnd),
+          .gte("date", prevStart).lte("date", prevEnd),
         supabase.from("waitlist_entries")
           .select("id")
           .eq("tenant_id", tenant.id)
           .eq("status", "converted_to_booking")
-          .gte("created_at", monthStart)
-          .lte("created_at", monthEnd + "T23:59:59"),
+          .gte("created_at", periodStart)
+          .lte("created_at", periodEnd + "T23:59:59"),
       ]);
 
       setReservations(resMonth.data || []);
@@ -99,7 +129,7 @@ export default function DashboardPage() {
     };
 
     fetchAll();
-  }, [tenant, selectedMonth, selectedYear]);
+  }, [tenant, viewMode, selectedDay, selectedMonth, selectedYear]);
 
   /* ─── KPI computation ─── */
 
@@ -153,24 +183,59 @@ export default function DashboardPage() {
     const prevAiRevenue = prevAi.reduce((sum, r) => sum + r.party_size * avgSpend, 0);
     const revenueChange = prevAiRevenue > 0 ? Math.round(((aiRevenue - prevAiRevenue) / prevAiRevenue) * 100) : (aiRevenue > 0 ? 100 : 0);
 
-    // Daily chart data (AI vs Staff per day)
-    const dailyMap: Record<string, { date: string; ai: number; staff: number; revenue: number }> = {};
-    const daysInMonth = new Date(selectedYear, selectedMonth + 1, 0).getDate();
-    for (let d = 1; d <= daysInMonth; d++) {
-      const key = `${selectedYear}-${String(selectedMonth + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
-      dailyMap[key] = { date: String(d), ai: 0, staff: 0, revenue: 0 };
-    }
-    reservations.forEach(r => {
-      if (dailyMap[r.date]) {
-        if (r.source === "ai_chat" || r.source === "ai_voice") {
-          dailyMap[r.date].ai++;
-          dailyMap[r.date].revenue += r.party_size * avgSpend;
-        } else {
-          dailyMap[r.date].staff++;
-        }
+    // Trend chart data — buckets adapt to viewMode
+    // day: 1 bucket per hour | month: 1 per day | year: 1 per month
+    const trendMap: Record<string, { date: string; ai: number; staff: number; revenue: number }> = {};
+    if (viewMode === "day") {
+      for (let h = 0; h < 24; h++) {
+        const key = String(h).padStart(2, "0");
+        trendMap[key] = { date: key + "h", ai: 0, staff: 0, revenue: 0 };
       }
-    });
-    const dailyData = Object.values(dailyMap);
+      reservations.forEach((r: any) => {
+        const hour = (r.time || "00:00").slice(0, 2);
+        if (trendMap[hour]) {
+          if (r.source === "ai_chat" || r.source === "ai_voice") {
+            trendMap[hour].ai++;
+            trendMap[hour].revenue += r.party_size * avgSpend;
+          } else {
+            trendMap[hour].staff++;
+          }
+        }
+      });
+    } else if (viewMode === "year") {
+      for (let m = 0; m < 12; m++) {
+        const key = `${selectedYear}-${String(m + 1).padStart(2, "0")}`;
+        trendMap[key] = { date: monthNames[m], ai: 0, staff: 0, revenue: 0 };
+      }
+      reservations.forEach((r: any) => {
+        const key = (r.date || "").slice(0, 7);
+        if (trendMap[key]) {
+          if (r.source === "ai_chat" || r.source === "ai_voice") {
+            trendMap[key].ai++;
+            trendMap[key].revenue += r.party_size * avgSpend;
+          } else {
+            trendMap[key].staff++;
+          }
+        }
+      });
+    } else {
+      const daysInMonth = new Date(selectedYear, selectedMonth + 1, 0).getDate();
+      for (let d = 1; d <= daysInMonth; d++) {
+        const key = `${selectedYear}-${String(selectedMonth + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+        trendMap[key] = { date: String(d), ai: 0, staff: 0, revenue: 0 };
+      }
+      reservations.forEach(r => {
+        if (trendMap[r.date]) {
+          if (r.source === "ai_chat" || r.source === "ai_voice") {
+            trendMap[r.date].ai++;
+            trendMap[r.date].revenue += r.party_size * avgSpend;
+          } else {
+            trendMap[r.date].staff++;
+          }
+        }
+      });
+    }
+    const dailyData = Object.values(trendMap);
 
     // Source breakdown for pie — group into Chat IA / Voz IA / Staff
     const channelKeys = ["ai_chat", "ai_voice", "staff"] as const;
@@ -202,7 +267,7 @@ export default function DashboardPage() {
       fromWebCount, fromWebPct,
       avgParty: Math.round(avgParty * 10) / 10,
     };
-  }, [reservations, prevMonthRes, waitlistConverted, tenant, selectedMonth, selectedYear]);
+  }, [reservations, prevMonthRes, waitlistConverted, tenant, viewMode, selectedDay, selectedMonth, selectedYear]);
 
   /* ─── render ─── */
 
@@ -222,27 +287,57 @@ export default function DashboardPage() {
           <h1 className="text-xl sm:text-2xl font-bold text-black tracking-tight">{t("nav_dashboard")}</h1>
           <p className="mt-0.5 text-xs sm:text-sm text-black">{t("dash_ai_performance")}</p>
         </div>
-        <div className="flex items-center gap-1 sm:gap-2">
-          <button onClick={() => navigateMonth(-1)} className="p-1.5 sm:p-2 hover:bg-[#c4956a]/10 rounded-lg transition-colors">
-            <ChevronLeft className="w-4 h-4 sm:w-5 sm:h-5 text-black" />
-          </button>
-          <div className="flex items-center gap-1 min-w-[120px] sm:min-w-[140px] justify-center">
-            <select value={selectedMonth} onChange={(e) => setSelectedMonth(Number(e.target.value))}
-              className="border-2 rounded-lg px-1.5 sm:px-2 py-1 sm:py-1.5 text-xs sm:text-sm font-semibold text-black focus:outline-none focus:ring-1 focus:ring-[#c4956a]"
-              style={{ borderColor: "#c4956a", background: "rgba(252,246,237,0.6)" }}>
-              {monthNames.map((m, i) => <option key={i} value={i}>{m}</option>)}
-            </select>
-            <select value={selectedYear} onChange={(e) => setSelectedYear(Number(e.target.value))}
-              className="border-2 rounded-lg px-1.5 sm:px-2 py-1 sm:py-1.5 text-xs sm:text-sm font-semibold text-black focus:outline-none focus:ring-1 focus:ring-[#c4956a]"
-              style={{ borderColor: "#c4956a", background: "rgba(252,246,237,0.6)" }}>
-              {Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - 2 + i).map(y => (
-                <option key={y} value={y}>{y}</option>
-              ))}
-            </select>
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+          {/* View mode toggle */}
+          <div className="inline-flex rounded-lg border-2 overflow-hidden self-start sm:self-auto" style={{ borderColor: "#c4956a" }}>
+            {(["day", "month", "year"] as const).map(mode => (
+              <button
+                key={mode}
+                onClick={() => setViewMode(mode)}
+                className="px-2.5 sm:px-3 py-1 sm:py-1.5 text-xs sm:text-sm font-semibold transition-colors"
+                style={{
+                  background: viewMode === mode ? "#c4956a" : "rgba(252,246,237,0.6)",
+                  color: viewMode === mode ? "#fff" : "#000",
+                }}
+              >
+                {t(`dash_view_${mode}`)}
+              </button>
+            ))}
           </div>
-          <button onClick={() => navigateMonth(1)} className="p-1.5 sm:p-2 hover:bg-[#c4956a]/10 rounded-lg transition-colors">
-            <ChevronRight className="w-4 h-4 sm:w-5 sm:h-5 text-black" />
-          </button>
+          {/* Period navigator */}
+          <div className="flex items-center gap-1 sm:gap-2">
+            <button onClick={() => navigatePeriod(-1)} className="p-1.5 sm:p-2 hover:bg-[#c4956a]/10 rounded-lg transition-colors">
+              <ChevronLeft className="w-4 h-4 sm:w-5 sm:h-5 text-black" />
+            </button>
+            <div className="flex items-center gap-1 justify-center">
+              {viewMode === "day" && (
+                <select value={selectedDay} onChange={(e) => setSelectedDay(Number(e.target.value))}
+                  className="border-2 rounded-lg px-1.5 sm:px-2 py-1 sm:py-1.5 text-xs sm:text-sm font-semibold text-black focus:outline-none focus:ring-1 focus:ring-[#c4956a]"
+                  style={{ borderColor: "#c4956a", background: "rgba(252,246,237,0.6)" }}>
+                  {Array.from({ length: new Date(selectedYear, selectedMonth + 1, 0).getDate() }, (_, i) => i + 1).map(d => (
+                    <option key={d} value={d}>{d}</option>
+                  ))}
+                </select>
+              )}
+              {viewMode !== "year" && (
+                <select value={selectedMonth} onChange={(e) => setSelectedMonth(Number(e.target.value))}
+                  className="border-2 rounded-lg px-1.5 sm:px-2 py-1 sm:py-1.5 text-xs sm:text-sm font-semibold text-black focus:outline-none focus:ring-1 focus:ring-[#c4956a]"
+                  style={{ borderColor: "#c4956a", background: "rgba(252,246,237,0.6)" }}>
+                  {monthNames.map((m, i) => <option key={i} value={i}>{m}</option>)}
+                </select>
+              )}
+              <select value={selectedYear} onChange={(e) => setSelectedYear(Number(e.target.value))}
+                className="border-2 rounded-lg px-1.5 sm:px-2 py-1 sm:py-1.5 text-xs sm:text-sm font-semibold text-black focus:outline-none focus:ring-1 focus:ring-[#c4956a]"
+                style={{ borderColor: "#c4956a", background: "rgba(252,246,237,0.6)" }}>
+                {Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - 2 + i).map(y => (
+                  <option key={y} value={y}>{y}</option>
+                ))}
+              </select>
+            </div>
+            <button onClick={() => navigatePeriod(1)} className="p-1.5 sm:p-2 hover:bg-[#c4956a]/10 rounded-lg transition-colors">
+              <ChevronRight className="w-4 h-4 sm:w-5 sm:h-5 text-black" />
+            </button>
+          </div>
         </div>
       </div>
 
@@ -254,7 +349,11 @@ export default function DashboardPage() {
           <Sparkles className="w-5 h-5 text-[#c4956a]" />
           <h2 className="text-sm sm:text-base font-bold text-black">{t("dash_ai_generated_value")}</h2>
         </div>
-        <p className="text-xs text-black mb-4">{monthNames[selectedMonth]} {selectedYear}</p>
+        <p className="text-xs text-black mb-4">
+          {viewMode === "day" && `${selectedDay} ${monthNames[selectedMonth]} ${selectedYear}`}
+          {viewMode === "month" && `${monthNames[selectedMonth]} ${selectedYear}`}
+          {viewMode === "year" && selectedYear}
+        </p>
 
         {/* Big number */}
         <div className="mb-6">
