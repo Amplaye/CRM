@@ -81,6 +81,8 @@ export default function FloorPage() {
   const [viewMode, setViewMode] = useState<"list" | "plan">("list");
   const [editingPlan, setEditingPlan] = useState(false);
   const [activeZone, setActiveZone] = useState<string>("inside");
+  // Zone filter for the LIST view (separate from plan's activeZone)
+  const [listZoneFilter, setListZoneFilter] = useState<string | null>(null);
 
   // Delete table modal (edit mode)
   const [deleteTableModal, setDeleteTableModal] = useState<TableData | null>(null);
@@ -575,8 +577,39 @@ export default function FloorPage() {
         </div>
 
         {viewMode === "list" ? (
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
-            {tables.map((table) => {
+          <div>
+            {/* Zone filter tabs (only when more than one zone exists) */}
+            {zones.length > 1 && (
+              <div className="flex items-center gap-1 mb-3 flex-wrap">
+                <button
+                  onClick={() => setListZoneFilter(null)}
+                  className="px-3 py-1 text-xs sm:text-sm font-semibold rounded-lg border-2 transition-colors"
+                  style={{
+                    borderColor: "#c4956a",
+                    background: listZoneFilter === null ? "#c4956a" : "rgba(252,246,237,0.6)",
+                    color: listZoneFilter === null ? "#fff" : "#000",
+                  }}
+                >
+                  {t("pending_zone_all")}
+                </button>
+                {zones.map((z) => (
+                  <button
+                    key={z}
+                    onClick={() => setListZoneFilter(z)}
+                    className="px-3 py-1 text-xs sm:text-sm font-semibold rounded-lg border-2 transition-colors"
+                    style={{
+                      borderColor: "#c4956a",
+                      background: listZoneFilter === z ? "#c4956a" : "rgba(252,246,237,0.6)",
+                      color: listZoneFilter === z ? "#fff" : "#000",
+                    }}
+                  >
+                    {zoneLabel(z, t)}
+                  </button>
+                ))}
+              </div>
+            )}
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+            {(listZoneFilter ? tables.filter(t => (t.zone || "inside") === listZoneFilter) : tables).map((table) => {
               const { status: tStatus, reservation: tRes } = getTableStatus(table.id);
               const guestName = tRes?.guests && typeof tRes.guests === "object" ? (tRes.guests as any).name : null;
               return (
@@ -615,6 +648,7 @@ export default function FloorPage() {
                 </div>
               );
             })}
+            </div>
           </div>
         ) : (
           /* Plan View */
