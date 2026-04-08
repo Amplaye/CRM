@@ -135,15 +135,32 @@ export default function PendingPage() {
 
     // Validate: warn if selected tables have fewer seats than party size
     if (req && selectedTables.size > 0) {
-      const totalSeats = Array.from(selectedTables).reduce((sum, tableId) => {
-        const table = tables.find(t => t.id === tableId);
-        return sum + (table?.seats || 0);
-      }, 0);
+      const selectedTableObjs = Array.from(selectedTables)
+        .map(tid => tables.find(t => t.id === tid))
+        .filter((t): t is typeof tables[number] => !!t);
+      const totalSeats = selectedTableObjs.reduce((sum, t) => sum + (t.seats || 0), 0);
+
       if (totalSeats < req.party_size) {
         const ok = window.confirm(
           t("pending_seats_warning").replace("{seats}", String(totalSeats)).replace("{size}", String(req.party_size))
         );
         if (!ok) return;
+      } else if (selectedTableObjs.length > 1) {
+        // Warn if there's at least one redundant table — i.e. removing the
+        // smallest selected table still covers the party. That means the
+        // assignment is wasteful and the staff probably picked one too many.
+        const smallest = selectedTableObjs.reduce(
+          (min, t) => (t.seats < min.seats ? t : min),
+          selectedTableObjs[0]
+        );
+        if (totalSeats - smallest.seats >= req.party_size) {
+          const ok = window.confirm(
+            t("pending_too_many_warning")
+              .replace("{seats}", String(totalSeats))
+              .replace("{size}", String(req.party_size))
+          );
+          if (!ok) return;
+        }
       }
     }
 
