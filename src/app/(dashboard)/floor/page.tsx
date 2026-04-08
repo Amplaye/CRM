@@ -315,14 +315,22 @@ export default function FloorPage() {
   async function confirmDeleteTable() {
     if (!deleteTableModal) return;
     setDeleteTableLoading(true);
+    const tableId = deleteTableModal.id;
     try {
       const supabase = createClient();
-      // Hard delete so the number is freed and can be reused on next add.
-      await supabase.from("reservation_tables").delete().eq("table_id", deleteTableModal.id);
-      await supabase.from("restaurant_tables").delete().eq("id", deleteTableModal.id);
+      // Optimistic update — remove from local state immediately so the
+      // canvas reflects the deletion without waiting for the realtime
+      // refetch (which can lag a few hundred ms).
+      setTables((prev) => prev.filter((t) => t.id !== tableId));
+      setResTableLinks((prev) => prev.filter((l) => l.table_id !== tableId));
       setDeleteTableModal(null);
+      // Hard delete so the number is freed and can be reused on next add.
+      await supabase.from("reservation_tables").delete().eq("table_id", tableId);
+      await supabase.from("restaurant_tables").delete().eq("id", tableId);
     } catch (err) {
       console.error("Delete table error:", err);
+      // Revert by refetching from server
+      fetchData();
     } finally {
       setDeleteTableLoading(false);
     }
