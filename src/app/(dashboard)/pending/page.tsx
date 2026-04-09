@@ -42,6 +42,8 @@ export default function PendingPage() {
   const [occupiedTableIds, setOccupiedTableIds] = useState<Set<string>>(new Set());
   // Zone filter for the table picker (null = all zones)
   const [zoneFilter, setZoneFilter] = useState<string | null>(null);
+  // Prevents double-click from confirming the same reservation twice
+  const [confirmInFlight, setConfirmInFlight] = useState(false);
 
   const fetchPending = async () => {
     if (!tenant) return;
@@ -135,7 +137,7 @@ export default function PendingPage() {
   };
 
   const handleConfirm = async () => {
-    if (!confirmingId) return;
+    if (!confirmingId || confirmInFlight) return;
     const req = pending.find(p => p.id === confirmingId);
 
     // Validate: warn if selected tables have fewer seats than party size
@@ -177,39 +179,44 @@ export default function PendingPage() {
       if (!ok) return;
     }
 
-    // Assign selected tables
-    if (selectedTables.size > 0) {
-      const inserts = Array.from(selectedTables).map(tableId => ({
-        reservation_id: confirmingId,
-        table_id: tableId,
-      }));
-      await supabase.from("reservation_tables").insert(inserts);
-    }
-
-    // Update status to confirmed
-    await supabase.from("reservations").update({ status: "confirmed" }).eq("id", confirmingId);
-
-    // Send WhatsApp confirmation to client
-    if (req) {
-      const guestPhone = req.guests?.phone || '';
-      if (guestPhone) {
-        const assignedTableNames = Array.from(selectedTables).map(tid => {
-          const t = tables.find(x => x.id === tid);
-          return t?.name || '';
-        }).filter(Boolean).join(', ');
-        const confirmMsg = `✅ *Reserva confirmada*\n📅 Fecha: ${req.date}\n⏰ Hora: ${req.time}\n👥 Personas: ${req.party_size}\n📝 Nombre: ${req.guests?.name || ''}${assignedTableNames ? '\n🪑 Mesas: ' + assignedTableNames : ''}\n\nSi necesitas cancelar, escríbenos con CANCELAR.`;
-        try {
-          await fetch("/api/send-whatsapp", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ to: guestPhone, message: confirmMsg }),
-          });
-        } catch (e) { console.error("WhatsApp confirm error:", e); }
+    setConfirmInFlight(true);
+    try {
+      // Assign selected tables
+      if (selectedTables.size > 0) {
+        const inserts = Array.from(selectedTables).map(tableId => ({
+          reservation_id: confirmingId,
+          table_id: tableId,
+        }));
+        await supabase.from("reservation_tables").insert(inserts);
       }
-    }
 
-    setConfirmingId(null);
-    setSelectedTables(new Set());
+      // Update status to confirmed
+      await supabase.from("reservations").update({ status: "confirmed" }).eq("id", confirmingId);
+
+      // Send WhatsApp confirmation to client
+      if (req) {
+        const guestPhone = req.guests?.phone || '';
+        if (guestPhone) {
+          const assignedTableNames = Array.from(selectedTables).map(tid => {
+            const t = tables.find(x => x.id === tid);
+            return t?.name || '';
+          }).filter(Boolean).join(', ');
+          const confirmMsg = `✅ *Reserva confirmada*\n📅 Fecha: ${req.date}\n⏰ Hora: ${req.time}\n👥 Personas: ${req.party_size}\n📝 Nombre: ${req.guests?.name || ''}${assignedTableNames ? '\n🪑 Mesas: ' + assignedTableNames : ''}\n\nSi necesitas cancelar, escríbenos con CANCELAR.`;
+          try {
+            await fetch("/api/send-whatsapp", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ to: guestPhone, message: confirmMsg }),
+            });
+          } catch (e) { console.error("WhatsApp confirm error:", e); }
+        }
+      }
+
+      setConfirmingId(null);
+      setSelectedTables(new Set());
+    } finally {
+      setConfirmInFlight(false);
+    }
   };
 
   const handleReject = async (id: string) => {
@@ -410,11 +417,12 @@ export default function PendingPage() {
                     <div className="flex items-center gap-3">
                       <button
                         onClick={handleConfirm}
-                        className="flex items-center gap-1.5 px-5 py-2.5 rounded-lg text-sm font-bold text-white transition-all hover:shadow-md"
+                        disabled={confirmInFlight}
+                        className="flex items-center gap-1.5 px-5 py-2.5 rounded-lg text-sm font-bold text-white transition-all hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
                         style={{ background: 'linear-gradient(135deg, #22c55e 0%, #16a34a 100%)' }}
                       >
                         <Check className="w-4 h-4" />
-                        {t("pending_confirm_with")} {selectedTables.size} {selectedTables.size !== 1 ? t("pending_tables") : t("pending_table")}
+                        {confirmInFlight ? '...' : `${t("pending_confirm_with")} ${selectedTables.size} ${selectedTables.size !== 1 ? t("pending_tables") : t("pending_table")}`}
                       </button>
                       <button
                         onClick={() => { setConfirmingId(null); setSelectedTables(new Set()); }}
