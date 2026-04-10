@@ -6,7 +6,7 @@ import { useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { Conversation, Guest, Reservation } from "@/lib/types";
 import { useLanguage } from "@/lib/contexts/LanguageContext";
-import { MessageSquare, Phone, CheckCircle2, Search, X, CalendarCheck, AlertTriangle, Send, Bot, User, Flame, Trash2 } from "lucide-react";
+import { MessageSquare, Phone, Search, X, AlertTriangle, Send, Bot, User, Trash2 } from "lucide-react";
 
 interface ConvoWithGuest extends Conversation {
   guests?: Guest;
@@ -26,7 +26,6 @@ export default function ConversationsPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [deleting, setDeleting] = useState(false);
-  const [linkedRes, setLinkedRes] = useState<Reservation | null>(null);
   const [replyText, setReplyText] = useState("");
   const [sending, setSending] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -68,17 +67,6 @@ export default function ConversationsPage() {
   const selectedGuest = selectedConvo?.guests || null;
 
   useEffect(() => {
-    if (!selectedConvo || !tenant) { setLinkedRes(null); return; }
-    const fetchLinked = async () => {
-      if (selectedConvo.linked_reservation_id) {
-        const { data } = await supabase.from("reservations").select("*").eq("id", selectedConvo.linked_reservation_id).single();
-        setLinkedRes(data as Reservation || null);
-      } else { setLinkedRes(null); }
-    };
-    fetchLinked();
-  }, [selectedConvo?.id, tenant]);
-
-  useEffect(() => {
     if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
   }, [selectedConvo?.transcript]);
 
@@ -103,17 +91,6 @@ export default function ConversationsPage() {
       setReplyText("");
     } catch (err) { console.error(err); }
     setSending(false);
-  };
-
-  const handleStatusChange = async (newStatus: Conversation["status"]) => {
-    if (!selectedConvo) return;
-    await supabase.from("conversations").update({ status: newStatus, updated_at: new Date().toISOString() }).eq("id", selectedConvo.id);
-  };
-
-  const toggleEscalation = async () => {
-    if (!selectedConvo) return;
-    const isEscalated = !selectedConvo.escalation_flag;
-    await supabase.from("conversations").update({ escalation_flag: isEscalated, status: isEscalated ? "escalated" : "active", updated_at: new Date().toISOString() }).eq("id", selectedConvo.id);
   };
 
   const toggleSelect = (id: string) => { setSelectedIds(prev => { const n = new Set(prev); if (n.has(id)) n.delete(id); else n.add(id); return n; }); };
@@ -209,7 +186,7 @@ export default function ConversationsPage() {
         </div>
       </div>
 
-      {/* TRANSCRIPT */}
+      {/* TRANSCRIPT — takes full remaining width */}
       {selectedConvo ? (
         <div className="fixed inset-0 md:static md:inset-auto flex-1 flex flex-col z-30 md:z-auto" style={{ background: '#EFEAE2' }}>
           <div className="px-4 md:px-6 py-3 border-b flex justify-between items-center" style={{ background: 'rgba(252,246,237,0.95)', borderColor: '#c4956a' }}>
@@ -222,19 +199,9 @@ export default function ConversationsPage() {
                 <p className="text-xs text-black">{selectedGuest?.phone || ""} · {selectedConvo.channel === 'whatsapp' ? 'WhatsApp' : 'Llamada'}</p>
               </div>
             </div>
-            <div className="flex items-center gap-2">
-              <button onClick={() => handleStatusChange(selectedConvo.status === 'resolved' ? 'active' : 'resolved')}
-                className={`p-1.5 rounded-lg border-2 transition-colors ${selectedConvo.status === 'resolved' ? 'border-emerald-400 text-emerald-600 bg-emerald-50' : 'border-[#c4956a] text-black'}`}>
-                <CheckCircle2 className="w-4 h-4" />
-              </button>
-              <button onClick={toggleEscalation}
-                className={`p-1.5 rounded-lg border-2 transition-colors ${selectedConvo.escalation_flag ? 'border-red-400 text-red-500 bg-red-50' : 'border-[#c4956a] text-black'}`}>
-                <Flame className="w-4 h-4" />
-              </button>
-              <button onClick={() => setSelectedConvoId(null)} className="p-1.5 border-2 border-red-400 text-red-500 hover:bg-red-50 rounded-lg transition-colors">
-                <X className="w-4 h-4" />
-              </button>
-            </div>
+            <button onClick={() => setSelectedConvoId(null)} className="p-1.5 border-2 border-red-400 text-red-500 hover:bg-red-50 rounded-lg transition-colors">
+              <X className="w-4 h-4" />
+            </button>
           </div>
 
           <div ref={scrollRef} className="flex-1 overflow-y-auto p-4 md:p-6 space-y-2">
@@ -292,80 +259,7 @@ export default function ConversationsPage() {
         </div>
       )}
 
-      {/* CONTEXT PANEL — desktop only */}
-      {selectedConvo && (
-        <div className="hidden lg:flex w-[300px] border-l flex-col overflow-y-auto" style={{ background: 'rgba(252,246,237,0.85)', borderColor: '#c4956a' }}>
-          <div className="p-4 border-b" style={{ borderColor: '#c4956a' }}>
-            <span className="text-xs font-bold text-black uppercase tracking-widest">{t("conv_details")}</span>
-          </div>
-          <div className="p-4 space-y-4">
-            {/* AI Analysis */}
-            <div className="rounded-xl border-2 p-3" style={{ borderColor: '#c4956a', background: 'rgba(252,246,237,0.5)' }}>
-              <div className="flex items-center mb-2 text-black">
-                <Bot className="w-4 h-4 mr-2" />
-                <h3 className="text-xs font-bold uppercase tracking-wider">{t("conv_ai_analysis")}</h3>
-              </div>
-              <div className="space-y-2">
-                <div className="flex items-center gap-2">
-                  <span className="text-[10px] font-bold text-black uppercase">{t("conv_intent_label")}:</span>
-                  <span className="text-xs font-semibold text-black">{selectedConvo.intent?.replace('_', ' ') || 'unknown'}</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className="text-[10px] font-bold text-black uppercase">{t("conv_sentiment_label")}:</span>
-                  <span className={`text-xs font-semibold ${
-                    selectedConvo.sentiment === 'positive' ? 'text-emerald-700' :
-                    selectedConvo.sentiment === 'negative' ? 'text-red-700' : 'text-black'
-                  }`}>{selectedConvo.sentiment || 'neutral'}</span>
-                </div>
-                <p className="text-xs text-black leading-relaxed">{selectedConvo.summary || "No summary"}</p>
-              </div>
-            </div>
-
-            {/* Guest Profile */}
-            {selectedGuest && (
-              <div className="rounded-xl border-2 p-3" style={{ borderColor: '#c4956a', background: 'rgba(252,246,237,0.5)' }}>
-                <div className="flex items-center gap-2 mb-2">
-                  <div className="w-8 h-8 rounded-full bg-[#c4956a]/20 flex items-center justify-center text-[#8b6540] font-bold text-sm">
-                    {selectedGuest.name.charAt(0)}
-                  </div>
-                  <div>
-                    <p className="text-sm font-bold text-black">{selectedGuest.name}</p>
-                    <p className="text-xs text-black">{selectedGuest.phone}</p>
-                  </div>
-                </div>
-                <div className="grid grid-cols-3 gap-2 text-center">
-                  <div>
-                    <p className="text-lg font-bold text-black">{selectedGuest.visit_count}</p>
-                    <p className="text-[9px] text-black uppercase">{t("conv_visits")}</p>
-                  </div>
-                  <div>
-                    <p className={`text-lg font-bold ${selectedGuest.no_show_count > 0 ? 'text-red-600' : 'text-black'}`}>{selectedGuest.no_show_count}</p>
-                    <p className="text-[9px] text-black uppercase">No-show</p>
-                  </div>
-                  <div>
-                    <p className="text-lg font-bold text-black">{selectedGuest.cancellation_count}</p>
-                    <p className="text-[9px] text-black uppercase">{t("conv_cancelled")}</p>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* Linked Reservation */}
-            {linkedRes && (
-              <div className="rounded-xl border-2 p-3" style={{ borderColor: '#c4956a', background: 'rgba(252,246,237,0.5)' }}>
-                <div className="flex items-center mb-2">
-                  <CalendarCheck className="w-4 h-4 text-[#c4956a] mr-2" />
-                  <h3 className="text-xs font-bold text-black uppercase tracking-wider">{t("conv_reservation")}</h3>
-                </div>
-                <div className="space-y-1">
-                  <p className="text-sm font-bold text-black">{linkedRes.date} · {linkedRes.time}</p>
-                  <p className="text-xs text-black">{linkedRes.party_size} personas · {linkedRes.status}</p>
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
+      {/* Context panel removed — chat takes full width */}
     </div>
   );
 }
