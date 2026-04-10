@@ -445,8 +445,8 @@ export default function ReservationsPage() {
                  </div>
                )}
              </div>
-             <button onClick={() => setSelectedRes(null)} className="p-2 text-black hover:bg-[#c4956a]/10 hover:text-black rounded-full transition-colors flex-shrink-0">
-                <X className="h-5 w-5" />
+             <button onClick={() => setSelectedRes(null)} className="p-1.5 border-2 border-red-400 text-red-500 hover:bg-red-50 rounded-full transition-colors flex-shrink-0">
+                <X className="h-4 w-4" />
              </button>
           </div>
           <form onSubmit={handleUpdate} className="flex-1 flex flex-col min-h-0">
@@ -515,8 +515,8 @@ export default function ReservationsPage() {
         <div className="fixed inset-y-0 right-0 w-full sm:w-[400px] border-l shadow-2xl z-40 transform transition-transform duration-300 flex flex-col overflow-hidden" style={{ background: 'rgb(252,246,237)', borderColor: '#c4956a' }}>
           <div className="px-4 sm:px-6 py-4 flex items-center justify-between border-b" style={{ borderColor: '#c4956a' }}>
              <h2 className="text-lg font-bold text-zinc-900 tracking-tight">{t("res_new")}</h2>
-             <button onClick={() => setIsCreating(false)} className="p-2 text-black hover:bg-[#c4956a]/10 hover:text-black rounded-full transition-colors">
-                <X className="h-5 w-5" />
+             <button onClick={() => setIsCreating(false)} className="p-1.5 border-2 border-red-400 text-red-500 hover:bg-red-50 rounded-full transition-colors">
+                <X className="h-4 w-4" />
              </button>
           </div>
           <form onSubmit={handleCreate} className="flex-1 flex flex-col min-h-0">
