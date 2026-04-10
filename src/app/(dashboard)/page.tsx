@@ -108,7 +108,7 @@ export default function DashboardPage() {
     const fetchAll = async () => {
       const [resMonth, resPrev, waitlistData] = await Promise.all([
         supabase.from("reservations")
-          .select("id, source, from_web, date, time, party_size, status, cancellation_source, created_at")
+          .select("id, source, from_web, date, time, party_size, status, cancellation_source, noshow_warning_responded, created_at")
           .eq("tenant_id", tenant.id)
           .gte("date", periodStart).lte("date", periodEnd),
         supabase.from("reservations")
@@ -171,11 +171,15 @@ export default function DashboardPage() {
     const avgParty = total > 0 ? reservations.reduce((s, r) => s + r.party_size, 0) / total : 2;
     const waitlistRevenue = Math.round(waitlistConverted * avgParty * avgSpend);
 
-    // No-shows prevented — count real cancellations triggered by AI (reminders, chat, voice)
+    // No-shows prevented — count AI-prevented no-shows:
+    // 1. Cancellations triggered by reminders/chat/voice (freed the table)
+    // 2. Late arrivals who responded to the 15-min warning (confirmed or modified)
     const preventedSources = ['reminder_24h', 'reminder_4h', 'chat_spontaneous', 'voice_spontaneous'];
-    const noShowsPrevented = reservations.filter(
+    const cancelledPrevented = reservations.filter(
       r => r.status === 'cancelled' && r.cancellation_source && preventedSources.includes(r.cancellation_source)
     ).length;
+    const warningResponded = reservations.filter(r => r.noshow_warning_responded === true).length;
+    const noShowsPrevented = cancelledPrevented + warningResponded;
     const noShows = reservations.filter(r => r.status === "no_show").length;
     const noShowValue = Math.round(noShowsPrevented * avgParty * avgSpend);
 

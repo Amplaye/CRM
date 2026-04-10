@@ -121,6 +121,7 @@ export interface Reservation {
   tags?: string[];
   linked_conversation_id?: string;
   cancellation_source?: CancellationSource;
+  noshow_warning_responded?: boolean;
   created_at: number;
   end_time?: string;
   shift?: 'lunch' | 'dinner';

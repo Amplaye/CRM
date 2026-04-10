@@ -74,6 +74,7 @@ create table public.reservations (
   status text not null default 'pending_confirmation' check (status in ('inquiry', 'pending_confirmation', 'confirmed', 'seated', 'completed', 'cancelled', 'no_show', 'waitlist_offered', 'escalated')),
   source text not null default 'staff' check (source in ('ai_chat', 'ai_voice', 'staff', 'web', 'walk_in')),
   cancellation_source text check (cancellation_source in ('reminder_24h', 'reminder_4h', 'chat_spontaneous', 'voice_spontaneous', 'auto_noshow', 'staff', 'web')),
+  noshow_warning_responded boolean not null default false,
   created_by_type text not null default 'staff' check (created_by_type in ('ai', 'staff', 'guest')),
   notes text not null default '',
   allergies text[],
