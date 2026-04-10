@@ -246,8 +246,27 @@ export default function FloorPage() {
     );
   }
 
-  function tableBorderColor(tableStatus: "free" | "occupied"): string {
-    return tableStatus === "occupied" ? "#ef4444" : "#22c55e";
+  function tableBorderColor(tableStatus: "free" | "occupied", resStatus?: string): string {
+    if (tableStatus === "free") return "#22c55e";
+    if (resStatus === "seated") return "#3b82f6"; // blue
+    return "#ef4444"; // red for confirmed/pending
+  }
+
+  async function confirmSeatTable() {
+    if (!activeTenant || !freeTableModal) return;
+    setFreeTableLoading(true);
+    try {
+      const supabase = createClient();
+      await supabase
+        .from("reservations")
+        .update({ status: "seated", updated_at: new Date().toISOString() })
+        .eq("id", freeTableModal.reservation.id);
+      setFreeTableModal(null);
+    } catch (err) {
+      console.error("Seat table error:", err);
+    } finally {
+      setFreeTableLoading(false);
+    }
   }
 
   async function confirmFreeTable() {
@@ -260,7 +279,6 @@ export default function FloorPage() {
         .update({ status: "completed", updated_at: new Date().toISOString() })
         .eq("id", freeTableModal.reservation.id);
       setFreeTableModal(null);
-      // Real-time subscription will refetch automatically
     } catch (err) {
       console.error("Free table error:", err);
     } finally {
@@ -616,7 +634,7 @@ export default function FloorPage() {
                 <div
                   key={table.id}
                   className="rounded-xl p-4 border-2 transition-all cursor-pointer hover:shadow-lg hover:scale-[1.02]"
-                  style={{ background: "rgba(252,246,237,0.85)", borderColor: tableBorderColor(tStatus) }}
+                  style={{ background: "rgba(252,246,237,0.85)", borderColor: tableBorderColor(tStatus, tRes?.status) }}
                   onClick={() => {
                     if (tStatus === "free") {
                       setQuickSeatTable(table);
@@ -629,8 +647,12 @@ export default function FloorPage() {
                 >
                   <div className="flex items-center justify-between mb-2">
                     <span className="font-bold text-black text-sm">{table.name}</span>
-                    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${tStatus === "free" ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"}`}>
-                      {tStatus === "free" ? t("floor_free") : t("floor_occupied")}
+                    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
+                      tStatus === "free" ? "bg-green-100 text-green-800"
+                        : tRes?.status === "seated" ? "bg-blue-100 text-blue-800"
+                          : "bg-red-100 text-red-800"
+                    }`}>
+                      {tStatus === "free" ? t("floor_free") : tRes?.status === "seated" ? "Sentado" : t("floor_occupied")}
                     </span>
                   </div>
                   {tRes && guestName && (() => {
@@ -859,8 +881,13 @@ export default function FloorPage() {
         </div>
       )}
 
-      {/* Free Table Modal */}
-      {freeTableModal && (
+      {/* Table Action Modal — Seat (confirmed→seated) or Free (seated→completed) */}
+      {freeTableModal && (() => {
+        const isConfirmed = freeTableModal.reservation.status === "confirmed" || freeTableModal.reservation.status === "pending_confirmation";
+        const isSeated = freeTableModal.reservation.status === "seated";
+        const guestName = freeTableModal.reservation.guests && typeof freeTableModal.reservation.guests === "object"
+          ? (freeTableModal.reservation.guests as any).name : "Guest";
+        return (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={() => setFreeTableModal(null)}>
           <div
             className="rounded-2xl p-6 w-full max-w-sm border-2 shadow-xl"
@@ -868,41 +895,44 @@ export default function FloorPage() {
             onClick={(e) => e.stopPropagation()}
           >
             <h3 className="text-lg font-bold text-black mb-2">
-              {t("floor_free_table_title").replace("{name}", freeTableModal.table.name)}
+              {freeTableModal.table.name} — {guestName}
             </h3>
             <div className="text-sm text-black/70 mb-4 space-y-1">
-              <p>
-                <span className="font-semibold">
-                  {freeTableModal.reservation.guests && typeof freeTableModal.reservation.guests === "object"
-                    ? (freeTableModal.reservation.guests as any).name
-                    : "Guest"}
-                </span>
-                {" · "}
-                {freeTableModal.reservation.party_size}p · {freeTableModal.reservation.time}
-              </p>
-              <p className="text-xs text-black/60">{t("floor_free_confirm")}</p>
+              <p>{freeTableModal.reservation.party_size}p · {freeTableModal.reservation.time}</p>
+              <p className="text-xs">{statusPill(freeTableModal.reservation.status)}</p>
             </div>
 
-            <div className="flex gap-3 mt-6">
+            <div className="flex flex-col gap-2">
+              {isConfirmed && (
+                <button
+                  onClick={confirmSeatTable}
+                  disabled={freeTableLoading}
+                  className="w-full px-4 py-2.5 text-sm font-bold rounded-lg text-white transition-colors disabled:opacity-50 bg-blue-500 hover:bg-blue-600"
+                >
+                  {freeTableLoading ? "..." : "Sentar mesa"}
+                </button>
+              )}
+              {(isConfirmed || isSeated) && (
+                <button
+                  onClick={confirmFreeTable}
+                  disabled={freeTableLoading}
+                  className="w-full px-4 py-2.5 text-sm font-bold rounded-lg text-white transition-colors disabled:opacity-50"
+                  style={{ background: "#c4956a" }}
+                >
+                  {freeTableLoading ? "..." : t("floor_free_table")}
+                </button>
+              )}
               <button
                 onClick={() => setFreeTableModal(null)}
-                className="flex-1 px-4 py-2 text-sm font-semibold rounded-lg border-2 text-black transition-colors hover:bg-[#c4956a]/10"
-                style={{ borderColor: "#c4956a" }}
+                className="w-full px-4 py-2 text-sm font-medium rounded-lg text-black/60 hover:text-black transition-colors"
               >
                 {t("floor_cancel")}
-              </button>
-              <button
-                onClick={confirmFreeTable}
-                disabled={freeTableLoading}
-                className="flex-1 px-4 py-2 text-sm font-semibold rounded-lg text-white transition-colors disabled:opacity-50"
-                style={{ background: "#c4956a" }}
-              >
-                {freeTableLoading ? "..." : t("floor_free_table")}
               </button>
             </div>
           </div>
         </div>
-      )}
+        );
+      })()}
 
       {/* Delete Table Modal — opened when clicking a table in edit mode */}
       {deleteTableModal && (
@@ -1158,8 +1188,9 @@ function PlanCanvas({ tables, resTableLinks, shiftReservations, activeStatuses, 
         const isMerged = resTablesCount > 1;
         const guestName = res?.guests && typeof res.guests === "object" ? (res.guests as any).name : null;
 
-        const borderColor = occupied ? "#ef4444" : "#22c55e";
-        const bg = occupied ? "rgba(254,226,226,0.95)" : "rgba(220,252,231,0.95)";
+        const isSeated = res?.status === "seated";
+        const borderColor = !occupied ? "#22c55e" : isSeated ? "#3b82f6" : "#ef4444";
+        const bg = !occupied ? "rgba(220,252,231,0.95)" : isSeated ? "rgba(219,234,254,0.95)" : "rgba(254,226,226,0.95)";
 
         return (
           <div

@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { Reservation } from "@/lib/types";
 import { useLanguage } from "@/lib/contexts/LanguageContext";
-import { Clock, User, Phone, MessageSquare, Globe, UserCheck, AlertTriangle, UserMinus, CalendarCheck, Plus, Users, XCircle } from "lucide-react";
+import { Clock, User, Phone, MessageSquare, Globe, UserCheck, AlertTriangle, UserMinus, CalendarCheck, Plus, Users, XCircle, Armchair } from "lucide-react";
 import Link from "next/link";
 
 interface ReservationListProps {
@@ -100,6 +100,12 @@ export function ReservationList({ date, onRowClick }: ReservationListProps) {
     await supabase.from("reservations").update({ status: "cancelled" }).eq("id", resId);
   };
 
+  const handleSeat = async (e: React.MouseEvent, resId: string) => {
+    e.stopPropagation();
+    const supabase = createClient();
+    await supabase.from("reservations").update({ status: "seated", updated_at: new Date().toISOString() }).eq("id", resId);
+  };
+
   if (loading) {
     return (
       <div className="border-2 rounded-b-xl md:rounded-xl animate-pulse" style={{ background: 'rgba(252,246,237,0.85)', borderColor: '#c4956a' }}>
@@ -153,14 +159,21 @@ export function ReservationList({ date, onRowClick }: ReservationListProps) {
               </div>
               <p className="text-xs text-black/60 truncate">{res.guest_phone || "—"}</p>
             </div>
-            <div className="flex flex-col items-end gap-1 flex-shrink-0">
-              <StatusPill status={res.status} />
-              {res.table_names && res.table_names.length > 0 && (
-                <span className="text-[10px] text-black/40">{res.table_names.join(", ")}</span>
+            <div className="flex items-center gap-1.5 flex-shrink-0">
+              {res.status === 'confirmed' && (
+                <button onClick={(e) => handleSeat(e, res.id)} className="px-2 py-1 text-xs font-bold rounded-lg bg-blue-500 text-white hover:bg-blue-600 transition-colors" title="Sentar">
+                  <Armchair className="w-3.5 h-3.5" />
+                </button>
               )}
+              <StatusPill status={res.status} />
             </div>
           </div>
-          {res.notes && <p className="text-[11px] text-black/40 truncate mt-1.5 pl-15">{res.notes}</p>}
+          {(res.notes || (res.table_names && res.table_names.length > 0)) && (
+            <div className="flex items-center gap-2 mt-1.5 pl-[60px]">
+              {res.table_names && res.table_names.length > 0 && <span className="text-[10px] text-black/40">{res.table_names.join(", ")}</span>}
+              {res.notes && <p className="text-[11px] text-black/40 truncate">{res.notes}</p>}
+            </div>
+          )}
         </div>
       ))}
     </div>
