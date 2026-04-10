@@ -129,6 +129,13 @@ export default function DashboardPage() {
     };
 
     fetchAll();
+
+    const channel = supabase
+      .channel("dashboard-reservations")
+      .on("postgres_changes", { event: "*", schema: "public", table: "reservations", filter: `tenant_id=eq.${tenant.id}` }, () => fetchAll())
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
   }, [tenant, viewMode, selectedDay, selectedMonth, selectedYear]);
 
   /* ─── KPI computation ─── */
