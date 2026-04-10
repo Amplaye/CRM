@@ -227,16 +227,16 @@ export default function GuestsPage() {
             ))}
           </div>
         ) : (
-          <div className="border-2 rounded-xl overflow-x-auto" style={{ background: 'rgba(252,246,237,0.85)', borderColor: '#c4956a' }}>
-            <table className="min-w-[520px] w-full divide-y" style={{ borderColor: '#c4956a' }}>
+          <div className="border-2 rounded-xl overflow-hidden" style={{ background: 'rgba(252,246,237,0.85)', borderColor: '#c4956a' }}>
+            <table className="w-full divide-y" style={{ borderColor: '#c4956a' }}>
               <thead>
                 <tr>
-                  <th className="px-2 sm:px-3 py-3 w-10"></th>
+                  <th className="px-2 sm:px-3 py-3 w-8 sm:w-10"></th>
                   <th className="px-2 sm:px-6 py-3 text-left text-xs font-semibold text-black uppercase">{t("guests_name")}</th>
-                  <th className="px-2 sm:px-6 py-3 text-left text-xs font-semibold text-black uppercase">{t("guests_phone")}</th>
+                  <th className="hidden sm:table-cell px-2 sm:px-6 py-3 text-left text-xs font-semibold text-black uppercase">{t("guests_phone")}</th>
                   <th className="px-2 sm:px-6 py-3 text-center text-xs font-semibold text-black uppercase">{t("guests_visits_col")}</th>
-                  <th className="px-2 sm:px-6 py-3 text-center text-xs font-semibold text-black uppercase">{t("guests_noshows_col")}</th>
-                  <th className="px-2 sm:px-3 py-3 w-10"></th>
+                  <th className="hidden sm:table-cell px-2 sm:px-6 py-3 text-center text-xs font-semibold text-black uppercase">{t("guests_noshows_col")}</th>
+                  <th className="px-2 sm:px-3 py-3 w-8 sm:w-10"></th>
                 </tr>
               </thead>
               <tbody className="divide-y" style={{ borderColor: 'rgba(196,149,106,0.3)' }}>
@@ -248,12 +248,15 @@ export default function GuestsPage() {
                     <td className="px-2 sm:px-6 py-3">
                       <div className="flex items-center gap-2">
                         <div className="h-7 w-7 rounded-full flex items-center justify-center text-black font-bold text-xs flex-shrink-0" style={{ background: 'rgba(196,149,106,0.2)' }}>{guest.name.charAt(0).toUpperCase()}</div>
-                        <span className="text-sm font-bold text-black truncate max-w-[100px] sm:max-w-none">{guest.name}</span>
+                        <div className="min-w-0">
+                          <span className="text-sm font-bold text-black block truncate">{guest.name}</span>
+                          <span className="text-xs text-black/60 block truncate sm:hidden">{guest.phone}</span>
+                        </div>
                       </div>
                     </td>
-                    <td className="px-2 sm:px-6 py-3 text-sm text-black whitespace-nowrap">{guest.phone}</td>
+                    <td className="hidden sm:table-cell px-2 sm:px-6 py-3 text-sm text-black whitespace-nowrap">{guest.phone}</td>
                     <td className="px-2 sm:px-6 py-3 text-sm font-medium text-black text-center">{guest.visit_count}</td>
-                    <td className="px-2 sm:px-6 py-3 text-sm font-medium text-center">
+                    <td className="hidden sm:table-cell px-2 sm:px-6 py-3 text-sm font-medium text-center">
                       <span className={guest.no_show_count > 0 ? 'text-red-600' : 'text-black'}>{guest.no_show_count}</span>
                     </td>
                     <td className="px-2 sm:px-3 py-3">
