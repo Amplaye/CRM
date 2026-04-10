@@ -429,7 +429,7 @@ export default function DashboardPage() {
           { label: t("dash_bookings_closed"), value: kpis.outOfHoursCount, icon: Moon, color: "#6366f1", sub: t("dash_out_of_hours_sub") },
           { label: t("dash_calls_converted_label"), value: kpis.voiceCount, icon: Phone, color: "#fb7740", sub: t("dash_by_ai_voice") },
           { label: t("dash_waitlist_recoveries"), value: kpis.waitlistConverted, icon: RefreshCw, color: "#22c55e", sub: t("dash_auto_filled") },
-          { label: t("dash_noshows_prevented"), value: kpis.noShowsPrevented, icon: ShieldCheck, color: "#c4956a", sub: `${kpis.noShows} ${t("dash_actual_noshows")}` },
+          { label: t("dash_noshows_label"), value: kpis.noShows, icon: ShieldCheck, color: kpis.noShows > 0 ? "#ef4444" : "#22c55e", sub: kpis.noShowsPrevented > 0 ? `${kpis.noShowsPrevented} ${t("dash_noshows_prevented")}` : t("dash_noshows_sub") },
         ].map(card => (
           <div key={card.label} className="rounded-xl p-3 sm:p-5 border-2 text-center" style={cardStyle}>
             <card.icon className="h-6 w-6 sm:h-8 sm:w-8 mx-auto mb-1" style={{ color: card.color, opacity: 0.6 }} />
