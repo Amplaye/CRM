@@ -467,7 +467,7 @@ export default function ReservationsPage() {
                    </select>
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                    <div>
                      <label className="block text-sm font-medium text-black mb-1">{t("res_edit_date")}</label>
                      <input name="date" type="date" defaultValue={selectedRes.date} className="w-full border-2 rounded-lg px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-[#c4956a]" style={{ borderColor: '#c4956a', background: 'rgba(252,246,237,0.6)' }} />
