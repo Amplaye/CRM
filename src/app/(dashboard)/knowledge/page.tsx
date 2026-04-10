@@ -223,7 +223,7 @@ export default function KnowledgePage() {
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-black" />
                   <input type="text" placeholder={t("know_search_placeholder") || "Search articles..."} className="w-full pl-9 pr-3 py-2 border-2 rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-[#c4956a]" style={{ borderColor: '#c4956a', background: 'rgba(252,246,237,0.6)' }} />
                </div>
-               <button onClick={() => handleStartEdit()} className="p-2 text-white rounded-lg transition-colors shadow-sm" style={{ background: 'linear-gradient(135deg, #c4956a, #a0764e)' }} title="New article">
+               <button onClick={() => handleStartEdit()} className="p-2 text-white rounded-lg transition-colors shadow-sm" style={{ background: 'linear-gradient(135deg, #d4a574, #c4956a)' }} title="New article">
                   <Plus className="w-5 h-5" />
                </button>
             </div>
@@ -298,7 +298,7 @@ export default function KnowledgePage() {
                      onClick={handleSave}
                      disabled={saving || !editTitle.trim()}
                      className="px-6 py-2 text-white text-sm font-bold rounded-lg shadow-sm transition-colors flex items-center disabled:opacity-50"
-                     style={{ background: 'linear-gradient(135deg, #c4956a, #a0764e)' }}
+                     style={{ background: 'linear-gradient(135deg, #d4a574, #c4956a)' }}
                   >
                      <Save className="w-4 h-4 mr-2" />
                      {saving ? t("saving") : t("know_save_publish")}
@@ -376,7 +376,7 @@ export default function KnowledgePage() {
                </button>
                <div className="flex flex-col md:flex-row md:items-center justify-between border-b pb-4 md:pb-8 mb-4 md:mb-8 gap-3" style={{ borderColor: '#c4956a' }}>
                   <div className="flex items-center space-x-3 md:space-x-4 min-w-0">
-                     <div className="h-10 w-10 md:h-14 md:w-14 rounded-xl md:rounded-2xl flex items-center justify-center text-white shadow-lg flex-shrink-0" style={{ background: 'linear-gradient(135deg, #c4956a, #a0764e)' }}>
+                     <div className="h-10 w-10 md:h-14 md:w-14 rounded-xl md:rounded-2xl flex items-center justify-center text-white shadow-lg flex-shrink-0" style={{ background: 'linear-gradient(135deg, #d4a574, #c4956a)' }}>
                         <FileText className="w-5 h-5 md:w-7 md:h-7" />
                      </div>
                      <div className="min-w-0">
@@ -394,7 +394,7 @@ export default function KnowledgePage() {
                      <button
                         onClick={() => handleStartEdit(selectedArticle)}
                         className="px-6 py-2.5 text-white text-sm font-bold rounded-xl shadow-lg hover:shadow-xl hover:-translate-y-0.5 transition-all flex items-center"
-                        style={{ background: 'linear-gradient(135deg, #c4956a, #a0764e)' }}
+                        style={{ background: 'linear-gradient(135deg, #d4a574, #c4956a)' }}
                      >
                         <Settings2 className="w-4 h-4 mr-2" />
                         {t("know_edit_article")}
@@ -437,7 +437,7 @@ export default function KnowledgePage() {
                <button
                   onClick={() => handleStartEdit()}
                   className="mt-8 px-8 py-3 text-white font-bold rounded-2xl transition-all flex items-center group"
-                  style={{ background: 'linear-gradient(135deg, #c4956a, #a0764e)' }}
+                  style={{ background: 'linear-gradient(135deg, #d4a574, #c4956a)' }}
                >
                   <Plus className="w-5 h-5 mr-3 group-hover:rotate-90 transition-transform" />
                   {t("know_create_first") || "Create First Article"}
