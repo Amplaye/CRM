@@ -367,7 +367,6 @@ export default function PendingPage() {
                 {/* Table selection panel — shown when confirming */}
                 {isConfirming && (() => {
                   const allZones = Array.from(new Set(tables.map(t => t.zone || "Principal"))).sort();
-                  const visibleTables = zoneFilter ? tables.filter(t => (t.zone || "Principal") === zoneFilter) : tables;
                   return (
                   <div className="border-t-2 p-3 sm:p-5" style={{ borderColor: '#22c55e', background: 'rgba(34,197,94,0.03)' }}>
                     <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
@@ -393,37 +392,49 @@ export default function PendingPage() {
                     </div>
                     {allZones.length > 1 && (
                       <div className="flex items-center gap-1 mb-3 flex-wrap">
-                        <button
-                          onClick={() => setZoneFilter(null)}
-                          className="px-3 py-1 text-xs font-semibold rounded-lg border-2 transition-colors"
-                          style={{
-                            borderColor: "#c4956a",
-                            background: zoneFilter === null ? "#c4956a" : "rgba(252,246,237,0.6)",
-                            color: zoneFilter === null ? "#fff" : "#000",
-                          }}
-                        >
-                          {t("pending_zone_all")}
-                        </button>
-                        {allZones.map(z => (
+                        {/* "All zones" only in grid view — plan view needs one zone at a time */}
+                        {tablePickerView === "grid" && (
+                          <button
+                            onClick={() => setZoneFilter(null)}
+                            className="px-3 py-1 text-xs font-semibold rounded-lg border-2 transition-colors"
+                            style={{
+                              borderColor: "#c4956a",
+                              background: zoneFilter === null ? "#c4956a" : "rgba(252,246,237,0.6)",
+                              color: zoneFilter === null ? "#fff" : "#000",
+                            }}
+                          >
+                            {t("pending_zone_all")}
+                          </button>
+                        )}
+                        {allZones.map(z => {
+                          const isActive = tablePickerView === "plan"
+                            ? (zoneFilter || allZones[0]) === z
+                            : zoneFilter === z;
+                          return (
                           <button
                             key={z}
                             onClick={() => setZoneFilter(z)}
                             className="px-3 py-1 text-xs font-semibold rounded-lg border-2 transition-colors"
                             style={{
                               borderColor: "#c4956a",
-                              background: zoneFilter === z ? "#c4956a" : "rgba(252,246,237,0.6)",
-                              color: zoneFilter === z ? "#fff" : "#000",
+                              background: isActive ? "#c4956a" : "rgba(252,246,237,0.6)",
+                              color: isActive ? "#fff" : "#000",
                             }}
                           >
                             {zoneLabel(z, t)}
                           </button>
-                        ))}
+                          );
+                        })}
                       </div>
                     )}
 
-                    {tablePickerView === "grid" ? (
+                    {(() => {
+                      // In plan view, force a zone (no "all" — tables overlap)
+                      const planZone = tablePickerView === "plan" && !zoneFilter ? allZones[0] : zoneFilter;
+                      const displayTables = planZone ? tables.filter(t => (t.zone || "Principal") === planZone) : tables;
+                      return tablePickerView === "grid" ? (
                     <div className="grid grid-cols-3 sm:grid-cols-5 gap-2 mb-4">
-                      {visibleTables.map(table => {
+                      {displayTables.map(table => {
                         const isOccupied = occupiedTableIds.has(table.id);
                         const isSelected = selectedTables.has(table.id);
                         return (
@@ -449,12 +460,13 @@ export default function PendingPage() {
                     </div>
                     ) : (
                     <TablePickerCanvas
-                      tables={visibleTables}
+                      tables={displayTables}
                       occupiedTableIds={occupiedTableIds}
                       selectedTables={selectedTables}
                       onToggleTable={toggleTable}
                     />
-                    )}
+                    );
+                    })()}
 
                     <div className="flex items-center gap-3">
                       <button
