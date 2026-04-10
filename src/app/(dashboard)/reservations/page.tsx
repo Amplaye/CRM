@@ -428,14 +428,14 @@ export default function ReservationsPage() {
 
       {/* QUICK STATUS EDIT DRAWER */}
       {selectedRes && (() => {
-        const inputCls = "w-full border-2 rounded-lg px-3 py-2.5 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-[#c4956a] box-border";
-        const inputStyle = { borderColor: '#c4956a', background: 'rgba(252,246,237,0.6)' };
+        const inputCls = "block w-full border-2 rounded-lg px-3 py-2.5 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-[#c4956a]";
+        const inputStyle: React.CSSProperties = { borderColor: '#c4956a', background: 'rgba(252,246,237,0.6)', maxWidth: '100%', boxSizing: 'border-box', WebkitAppearance: 'none' as const, MozAppearance: 'none' as const };
         return (
         <>
         <div className="fixed inset-0 bg-black/40 z-30 sm:hidden" onClick={() => setSelectedRes(null)} />
-        <div className="fixed inset-0 sm:inset-y-0 sm:left-auto sm:right-0 sm:w-[400px] border-l shadow-2xl z-40 flex flex-col" style={{ background: 'rgb(252,246,237)', borderColor: '#c4956a' }}>
-          <div className="px-4 sm:px-6 py-3 sm:py-4 flex items-center justify-between border-b" style={{ borderColor: '#c4956a' }}>
-             <div className="min-w-0 flex-1">
+        <div className="fixed inset-0 sm:inset-y-0 sm:left-auto sm:right-0 sm:w-[400px] border-l shadow-2xl z-40 flex flex-col overflow-hidden" style={{ background: 'rgb(252,246,237)', borderColor: '#c4956a' }}>
+          <div className="mx-5 sm:mx-6 py-3 sm:py-4 flex items-center justify-between border-b" style={{ borderColor: '#c4956a' }}>
+             <div className="min-w-0 flex-1 mr-3">
                <h2 className="text-base sm:text-lg font-bold text-zinc-900 tracking-tight">{t("res_quick_edit")}</h2>
                {(selectedRes.guest_name || selectedRes.guest_phone) && (
                  <div className="flex items-center gap-2 mt-0.5 flex-wrap">
@@ -452,8 +452,8 @@ export default function ReservationsPage() {
                 <X className="h-4 w-4" />
              </button>
           </div>
-          <form onSubmit={handleUpdate} className="flex-1 flex flex-col min-h-0">
-             <div className="flex-1 overflow-y-auto px-4 sm:px-6 py-4 sm:py-5 space-y-4 sm:space-y-5">
+          <form onSubmit={handleUpdate} className="flex-1 flex flex-col min-h-0 overflow-hidden">
+             <div className="flex-1 overflow-y-auto px-5 sm:px-6 py-4 sm:py-5 space-y-4">
                 <div>
                    <label className="block text-sm font-medium text-black mb-1">{t("res_edit_status")}</label>
                    <select name="status" defaultValue={selectedRes.status} className={inputCls} style={inputStyle}>
@@ -489,7 +489,7 @@ export default function ReservationsPage() {
                    />
                 </div>
              </div>
-             <div className="px-4 sm:px-6 py-3 sm:py-4 pb-6 sm:pb-4 border-t" style={{ borderColor: '#c4956a' }}>
+             <div className="mx-5 sm:mx-6 py-3 sm:py-4 pb-6 sm:pb-4 border-t" style={{ borderColor: '#c4956a' }}>
                 <button type="submit" disabled={saving}
                    className="w-full flex items-center justify-center bg-zinc-900 hover:bg-zinc-800 text-white font-medium py-2.5 px-4 rounded-lg transition-colors shadow-sm disabled:opacity-50">
                    <Save className="h-4 w-4 mr-2" /> {saving ? "Saving..." : t("res_edit_save")}
