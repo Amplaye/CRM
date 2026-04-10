@@ -424,10 +424,10 @@ export default function DashboardPage() {
             <p className="text-lg sm:text-xl font-bold text-emerald-500">€{kpis.waitlistRevenue.toLocaleString()}</p>
             <p className="text-xs text-black">{kpis.waitlistConverted} {t("dash_recoveries")}</p>
           </div>
-          <div className="p-3 rounded-xl border-2" style={{ background: "rgba(252,246,237,0.85)", borderColor: "#c4956a" }}>
-            <Bot className="w-6 h-6 text-[#c4956a] mx-auto mb-1.5" />
+          <div className="p-3 rounded-xl border-2" style={{ background: "rgba(252,246,237,0.85)", borderColor: "#8b5cf6" }}>
+            <Bot className="w-6 h-6 text-violet-500 mx-auto mb-1.5" />
             <p className="text-xs text-black font-medium">{t("dash_ai_chat")}</p>
-            <p className="text-lg sm:text-xl font-bold text-[#c4956a]">€{kpis.chatRevenue.toLocaleString()}</p>
+            <p className="text-lg sm:text-xl font-bold text-violet-500">€{kpis.chatRevenue.toLocaleString()}</p>
             <p className="text-xs text-black">{kpis.chatCount} {t("dash_whatsapp_bookings")}</p>
           </div>
         </div>
