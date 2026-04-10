@@ -422,28 +422,9 @@ export default function DashboardPage() {
       </div>
 
       {/* ══════════════════════════════════════════════
-          SECTION 2 — DRIVERS
+          SECTION 2 — KEY METRICS
           ══════════════════════════════════════════════ */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-4">
-        {[
-          { label: t("dash_bookings_closed"), value: kpis.outOfHoursCount, icon: Moon, color: "#6366f1", sub: t("dash_out_of_hours_sub") },
-          { label: t("dash_calls_converted_label"), value: kpis.voiceCount, icon: Phone, color: "#fb7740", sub: t("dash_by_ai_voice") },
-          { label: t("dash_waitlist_recoveries"), value: kpis.waitlistConverted, icon: RefreshCw, color: "#22c55e", sub: t("dash_auto_filled") },
-          { label: t("dash_noshows_label"), value: kpis.noShows, icon: ShieldCheck, color: kpis.noShows > 0 ? "#ef4444" : "#22c55e", sub: kpis.noShowsPrevented > 0 ? `${kpis.noShowsPrevented} ${t("dash_noshows_prevented")}` : t("dash_noshows_sub") },
-        ].map(card => (
-          <div key={card.label} className="rounded-xl p-3 sm:p-5 border-2 text-center" style={cardStyle}>
-            <card.icon className="h-6 w-6 sm:h-8 sm:w-8 mx-auto mb-1" style={{ color: card.color, opacity: 0.6 }} />
-            <p className="text-xs sm:text-sm font-medium text-black">{card.label}</p>
-            <p className="text-xl sm:text-2xl font-bold mt-0.5 sm:mt-1" style={{ color: card.color }}>{card.value}</p>
-            <p className="text-xs text-black mt-0.5">{card.sub}</p>
-          </div>
-        ))}
-      </div>
-
-      {/* ══════════════════════════════════════════════
-          SECTION 3 — EFFICIENCY
-          ══════════════════════════════════════════════ */}
-      <div className="grid grid-cols-3 gap-2 sm:gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-4">
         <div className="rounded-xl p-3 sm:p-5 border-2 text-center" style={cardStyle}>
           <Gauge className="w-5 h-5 text-[#c4956a] mx-auto mb-1" />
           <p className="text-xs font-medium text-black">{t("dash_ai_handled")}</p>
@@ -461,6 +442,12 @@ export default function DashboardPage() {
           <p className="text-xs font-medium text-black">{t("dash_total_bookings")}</p>
           <p className="text-xl sm:text-2xl font-bold text-black">{kpis.total}</p>
           <p className="text-xs text-black">{kpis.avgParty} {t("dash_avg_covers")}</p>
+        </div>
+        <div className="rounded-xl p-3 sm:p-5 border-2 text-center" style={cardStyle}>
+          <ShieldCheck className="w-5 h-5 mx-auto mb-1" style={{ color: kpis.noShows > 0 ? "#ef4444" : "#c4956a" }} />
+          <p className="text-xs font-medium text-black">{t("dash_noshows_label")}</p>
+          <p className={`text-xl sm:text-2xl font-bold ${kpis.noShows > 0 ? 'text-red-500' : 'text-black'}`}>{kpis.noShows}</p>
+          <p className="text-xs text-black">{kpis.noShowsPrevented > 0 ? `${kpis.noShowsPrevented} ${t("dash_noshows_prevented")}` : t("dash_noshows_sub")}</p>
         </div>
       </div>
 
