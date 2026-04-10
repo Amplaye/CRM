@@ -772,21 +772,21 @@ export default function FloorPage() {
               return (
                 <div
                   key={res.id}
-                  className="px-4 py-3 flex items-center justify-between"
+                  className="px-3 sm:px-4 py-3 flex items-center justify-between gap-2"
                 >
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center space-x-3">
-                      <span className="text-sm font-bold text-black">
+                    <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
+                      <span className="text-sm font-bold text-black flex-shrink-0">
                         {res.time}
                       </span>
-                      <span className="text-sm text-black truncate">
+                      <span className="text-sm text-black truncate max-w-[120px] sm:max-w-none">
                         {guestName}
                       </span>
-                      <span className="text-xs text-black/60">
+                      <span className="text-xs text-black/60 flex-shrink-0">
                         {res.party_size}p
                       </span>
                       {tableNames.length > 0 && (
-                        <span className="text-xs text-black/40">
+                        <span className="text-xs text-black/40 flex-shrink-0">
                           {tableNames.join(", ")}
                         </span>
                       )}
@@ -965,6 +965,7 @@ function PlanCanvas({ tables, resTableLinks, shiftReservations, activeStatuses, 
   // a real drag from a pure click in edit mode.
   const movedRef = useRef(false);
   const pressStartRef = useRef<{ x: number; y: number } | null>(null);
+  const canvasRef = useRef<HTMLDivElement>(null);
 
   // Reset local positions when tables change from the server
   const tablesKey = tables.map((t) => t.id + ":" + t.position_x + ":" + t.position_y).join("|");
@@ -984,34 +985,32 @@ function PlanCanvas({ tables, resTableLinks, shiftReservations, activeStatuses, 
     return null;
   }
 
-  function handleMouseDown(e: React.MouseEvent, table: TableData) {
+  // --- Shared drag helpers (mouse + touch) ---
+  function startDrag(clientX: number, clientY: number, table: TableData, targetRect: DOMRect) {
     if (!editing) return;
-    e.preventDefault();
-    e.stopPropagation();
-    const target = (e.currentTarget as HTMLElement).getBoundingClientRect();
-    dragOffsetRef.current = { x: e.clientX - target.left, y: e.clientY - target.top };
-    pressStartRef.current = { x: e.clientX, y: e.clientY };
+    dragOffsetRef.current = { x: clientX - targetRect.left, y: clientY - targetRect.top };
+    pressStartRef.current = { x: clientX, y: clientY };
     movedRef.current = false;
     setDraggingId(table.id);
   }
 
-  function handleMouseMove(e: React.MouseEvent) {
+  function moveDrag(clientX: number, clientY: number) {
     if (!draggingId) return;
-    // Only consider it a real drag once the pointer moves more than ~4px,
-    // so a stationary click can still trigger onTableClick.
     if (!movedRef.current && pressStartRef.current) {
-      const dx = Math.abs(e.clientX - pressStartRef.current.x);
-      const dy = Math.abs(e.clientY - pressStartRef.current.y);
+      const dx = Math.abs(clientX - pressStartRef.current.x);
+      const dy = Math.abs(clientY - pressStartRef.current.y);
       if (dx + dy < 4) return;
       movedRef.current = true;
     }
-    const canvas = (e.currentTarget as HTMLElement).getBoundingClientRect();
-    const x = e.clientX - canvas.left - dragOffsetRef.current.x;
-    const y = e.clientY - canvas.top - dragOffsetRef.current.y;
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const rect = canvas.getBoundingClientRect();
+    const x = clientX - rect.left + canvas.scrollLeft - dragOffsetRef.current.x;
+    const y = clientY - rect.top + canvas.scrollTop - dragOffsetRef.current.y;
     setLocalPositions((prev) => ({ ...prev, [draggingId]: { x: Math.max(0, x), y: Math.max(0, y) } }));
   }
 
-  function handleMouseUp() {
+  function endDrag() {
     if (!draggingId) return;
     const id = draggingId;
     const moved = movedRef.current;
@@ -1021,19 +1020,56 @@ function PlanCanvas({ tables, resTableLinks, shiftReservations, activeStatuses, 
     if (moved && pos) {
       onTableMove(id, pos.x, pos.y);
     } else if (!moved && editing) {
-      // Pure click in edit mode → trigger the click handler (delete modal)
       const tbl = tables.find((t) => t.id === id);
       if (tbl) onTableClick(tbl);
     }
     movedRef.current = false;
   }
 
+  // --- Mouse handlers ---
+  function handleMouseDown(e: React.MouseEvent, table: TableData) {
+    if (!editing) return;
+    e.preventDefault();
+    e.stopPropagation();
+    startDrag(e.clientX, e.clientY, table, (e.currentTarget as HTMLElement).getBoundingClientRect());
+  }
+
+  function handleMouseMove(e: React.MouseEvent) {
+    moveDrag(e.clientX, e.clientY);
+  }
+
+  function handleMouseUp() {
+    endDrag();
+  }
+
+  // --- Touch handlers ---
+  function handleTouchStart(e: React.TouchEvent, table: TableData) {
+    if (!editing) return;
+    const touch = e.touches[0];
+    startDrag(touch.clientX, touch.clientY, table, (e.currentTarget as HTMLElement).getBoundingClientRect());
+  }
+
+  function handleTouchMove(e: React.TouchEvent) {
+    if (!draggingId) return;
+    e.preventDefault(); // prevent scroll while dragging
+    const touch = e.touches[0];
+    moveDrag(touch.clientX, touch.clientY);
+  }
+
+  function handleTouchEnd() {
+    endDrag();
+  }
+
   return (
     <div
+      ref={canvasRef}
       onMouseMove={handleMouseMove}
       onMouseUp={handleMouseUp}
       onMouseLeave={handleMouseUp}
-      className="relative w-full rounded-xl border-2 overflow-hidden"
+      onTouchMove={handleTouchMove}
+      onTouchEnd={handleTouchEnd}
+      onTouchCancel={handleTouchEnd}
+      className="relative rounded-xl border-2 overflow-auto"
       style={{
         background: "rgba(252,246,237,0.6)",
         borderColor: "#c4956a",
@@ -1042,6 +1078,8 @@ function PlanCanvas({ tables, resTableLinks, shiftReservations, activeStatuses, 
         backgroundSize: "20px 20px",
       }}
     >
+      {/* Inner container with min-width for horizontal scroll on mobile */}
+      <div className="relative" style={{ minWidth: "600px", minHeight: "560px" }}>
       {tables.length === 0 && (
         <div className="absolute inset-0 flex items-center justify-center text-sm text-black/50">
           {editing ? t("floor_plan_empty_edit") : t("floor_plan_empty")}
@@ -1117,6 +1155,7 @@ function PlanCanvas({ tables, resTableLinks, shiftReservations, activeStatuses, 
           <div
             key={table.id}
             onMouseDown={(e) => handleMouseDown(e, table)}
+            onTouchStart={(e) => handleTouchStart(e, table)}
             onClick={(e) => {
               if (editing || draggingId) return;
               e.stopPropagation();
@@ -1147,6 +1186,7 @@ function PlanCanvas({ tables, resTableLinks, shiftReservations, activeStatuses, 
           </div>
         );
       })}
+      </div>{/* close inner container */}
     </div>
   );
 }
