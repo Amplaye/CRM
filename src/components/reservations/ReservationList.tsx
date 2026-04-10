@@ -79,7 +79,7 @@ export function ReservationList({ date, onRowClick }: ReservationListProps) {
       case 'confirmed': return <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200"><UserCheck className="w-3 h-3 mr-1" /> {t("status_confirmed")}</span>;
       case 'seated': return <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-50 text-blue-700 ring-1 ring-blue-200">Seated</span>;
       case 'cancelled': return <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-red-50 text-red-700 ring-1 ring-red-200"><UserMinus className="w-3 h-3 mr-1" /> {t("status_cancelled")}</span>;
-      case 'no_show': return <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-zinc-800 text-zinc-100"><AlertTriangle className="w-3 h-3 mr-1" /> {t("status_no_show")}</span>;
+      case 'no_show': return <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-red-50 text-red-700 ring-1 ring-red-200"><AlertTriangle className="w-3 h-3 mr-1" /> {t("status_no_show")}</span>;
       default: return <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-amber-50 text-amber-700 ring-1 ring-amber-200">Pending</span>;
     }
   };
