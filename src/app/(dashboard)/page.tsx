@@ -458,8 +458,8 @@ export default function DashboardPage() {
         <div className="rounded-xl p-3 sm:p-5 border-2 text-center" style={cardStyle}>
           <ShieldCheck className="w-5 h-5 mx-auto mb-1 text-[#c4956a]" />
           <p className="text-xs font-medium text-black">{t("dash_noshows_label")}</p>
-          <p className={`text-xl sm:text-2xl font-bold ${kpis.noShows > 0 ? 'text-red-500' : 'text-black'}`}>{kpis.noShows}</p>
-          <p className="text-xs text-black">{kpis.noShowsPrevented > 0 ? `${kpis.noShowsPrevented} ${t("dash_noshows_prevented")}` : t("dash_noshows_sub")}</p>
+          <p className="text-xl sm:text-2xl font-bold text-black">{kpis.noShows}</p>
+          <p className="text-xs text-black">No-shows</p>
         </div>
       </div>
 
