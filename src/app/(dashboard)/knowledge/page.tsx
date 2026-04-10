@@ -409,7 +409,7 @@ export default function KnowledgePage() {
                </div>
 
                <div className="flex-1 prose prose-zinc max-w-none">
-                  <div className="whitespace-pre-wrap text-black leading-relaxed text-lg bg-zinc-50/50 p-8 rounded-3xl border border-zinc-100 shadow-sm">
+                  <div className="whitespace-pre-wrap text-black leading-relaxed text-lg bg-zinc-50/50 p-8 rounded-3xl border-2" style={{ borderColor: '#c4956a' }}>
                      {selectedArticle.content}
                   </div>
                </div>
@@ -436,7 +436,7 @@ export default function KnowledgePage() {
                <p className="text-black max-w-sm mt-2 leading-relaxed font-medium">{t("know_empty_desc") || "Select an article from the list or create a new one to start training your operational agents."}</p>
                <button
                   onClick={() => handleStartEdit()}
-                  className="mt-8 px-8 py-3 text-white font-bold rounded-2xl shadow-xl hover:shadow-2xl transition-all flex items-center group"
+                  className="mt-8 px-8 py-3 text-white font-bold rounded-2xl transition-all flex items-center group"
                   style={{ background: 'linear-gradient(135deg, #c4956a, #a0764e)' }}
                >
                   <Plus className="w-5 h-5 mr-3 group-hover:rotate-90 transition-transform" />
