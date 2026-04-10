@@ -194,33 +194,29 @@ export function Topbar({ onMenuToggle }: TopbarProps) {
           </button>
 
           {showDropdown && (
-            <div className="absolute right-0 sm:right-0 mt-2 w-[calc(100vw-1rem)] sm:w-80 border-2 rounded-xl shadow-lg overflow-hidden z-50" style={{ background: 'rgb(252,246,237)', borderColor: '#c4956a', maxWidth: 'calc(100vw - 1rem)' }}>
-              <div className="px-4 py-3 border-b flex items-center justify-between" style={{ borderColor: '#c4956a' }}>
+            <>
+            {/* Mobile: fixed full-width panel below topbar */}
+            <div className="sm:hidden fixed left-0 right-0 top-14 bottom-0 z-50 flex flex-col" style={{ background: 'rgb(252,246,237)' }}>
+              <div className="px-4 py-3 border-b flex items-center justify-between flex-shrink-0" style={{ borderColor: '#c4956a' }}>
                 <span className="text-sm font-semibold text-black">{t("topbar_notifications")}</span>
-                {notifications.length > 0 && (
-                  <button
-                    onClick={() => setNotifications([])}
-                    className="text-xs text-[#c4956a] hover:text-[#b8845c]"
-                  >
-                    {t("topbar_clear_all")}
-                  </button>
-                )}
+                <div className="flex items-center gap-3">
+                  {notifications.length > 0 && (
+                    <button onClick={() => setNotifications([])} className="text-xs text-[#c4956a] hover:text-[#b8845c]">
+                      {t("topbar_clear_all")}
+                    </button>
+                  )}
+                  <button onClick={() => setShowDropdown(false)} className="text-xs font-semibold text-black/60">✕</button>
+                </div>
               </div>
-              <div className="max-h-[60vh] sm:max-h-96 overflow-y-auto overscroll-contain">
+              <div className="flex-1 overflow-y-auto overscroll-contain">
                 {notifications.length === 0 ? (
-                  <div className="px-4 py-8 text-center text-sm text-black/50">
-                    {t("topbar_no_notifications")}
-                  </div>
-                ) : (
-                  notifications.map((n) => {
-                    const icon = n.type === "incident" ? "⚠️" : n.type === "waitlist" ? "📋" : n.type === "reservation" ? "📅" : "💬";
-                    return (
-                    <div
-                      key={n.id}
-                      onClick={() => { router.push(n.href); setShowDropdown(false); }}
-                      className="px-4 py-3 border-b hover:bg-[#c4956a]/10 active:bg-[#c4956a]/20 transition-colors cursor-pointer"
-                      style={{ borderColor: 'rgba(196,149,106,0.2)' }}
-                    >
+                  <div className="px-4 py-8 text-center text-sm text-black/50">{t("topbar_no_notifications")}</div>
+                ) : notifications.map((n) => {
+                  const icon = n.type === "incident" ? "⚠️" : n.type === "waitlist" ? "📋" : n.type === "reservation" ? "📅" : "💬";
+                  return (
+                    <div key={n.id} onClick={() => { router.push(n.href); setShowDropdown(false); }}
+                      className="px-4 py-3 border-b active:bg-[#c4956a]/20 transition-colors cursor-pointer"
+                      style={{ borderColor: 'rgba(196,149,106,0.2)' }}>
                       <div className="flex items-start gap-2.5">
                         <span className="text-base flex-shrink-0 mt-0.5">{icon}</span>
                         <div className="flex-1 min-w-0">
@@ -230,11 +226,44 @@ export function Topbar({ onMenuToggle }: TopbarProps) {
                         <span className="text-xs text-[#c4956a] flex-shrink-0 mt-0.5">→</span>
                       </div>
                     </div>
-                    );
-                  })
-                )}
+                  );
+                })}
               </div>
             </div>
+
+            {/* Desktop: absolute dropdown */}
+            <div className="hidden sm:block absolute right-0 mt-2 w-80 border-2 rounded-xl shadow-lg overflow-hidden z-50" style={{ background: 'rgb(252,246,237)', borderColor: '#c4956a' }}>
+              <div className="px-4 py-3 border-b flex items-center justify-between" style={{ borderColor: '#c4956a' }}>
+                <span className="text-sm font-semibold text-black">{t("topbar_notifications")}</span>
+                {notifications.length > 0 && (
+                  <button onClick={() => setNotifications([])} className="text-xs text-[#c4956a] hover:text-[#b8845c]">
+                    {t("topbar_clear_all")}
+                  </button>
+                )}
+              </div>
+              <div className="max-h-96 overflow-y-auto">
+                {notifications.length === 0 ? (
+                  <div className="px-4 py-8 text-center text-sm text-black/50">{t("topbar_no_notifications")}</div>
+                ) : notifications.map((n) => {
+                  const icon = n.type === "incident" ? "⚠️" : n.type === "waitlist" ? "📋" : n.type === "reservation" ? "📅" : "💬";
+                  return (
+                    <div key={n.id} onClick={() => { router.push(n.href); setShowDropdown(false); }}
+                      className="px-4 py-3 border-b hover:bg-[#c4956a]/10 transition-colors cursor-pointer"
+                      style={{ borderColor: 'rgba(196,149,106,0.2)' }}>
+                      <div className="flex items-start gap-2.5">
+                        <span className="text-base flex-shrink-0 mt-0.5">{icon}</span>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm text-black">{n.message}</p>
+                          <p className="text-xs text-black/40 mt-1">{n.time}</p>
+                        </div>
+                        <span className="text-xs text-[#c4956a] flex-shrink-0 mt-0.5">→</span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+            </>
           )}
         </div>
       </div>
