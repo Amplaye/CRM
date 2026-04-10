@@ -433,7 +433,7 @@ export default function ReservationsPage() {
         return (
         <>
         <div className="fixed inset-0 bg-black/40 z-30 sm:hidden" onClick={() => setSelectedRes(null)} />
-        <div className="fixed inset-0 sm:inset-y-0 sm:left-auto sm:right-0 sm:w-[400px] border-l shadow-2xl z-50 flex flex-col overflow-hidden" style={{ background: 'rgb(252,246,237)', borderColor: '#c4956a' }}>
+        <div className="fixed top-14 left-0 right-0 bottom-0 sm:top-0 sm:left-auto sm:right-0 sm:w-[400px] border-l shadow-2xl z-40 flex flex-col overflow-hidden" style={{ background: 'rgb(252,246,237)', borderColor: '#c4956a' }}>
           <div className="mx-5 sm:mx-6 pt-2 pb-2 sm:py-4 flex items-center justify-between border-b" style={{ borderColor: '#c4956a' }}>
              <div className="min-w-0 flex-1 mr-3">
                <h2 className="text-base sm:text-lg font-bold text-zinc-900 tracking-tight">{t("res_quick_edit")}</h2>
@@ -505,8 +505,8 @@ export default function ReservationsPage() {
       {isCreating && (
         <>
         <div className="fixed inset-0 bg-black/40 z-30 sm:hidden" onClick={() => setIsCreating(false)} />
-        <div className="fixed inset-0 sm:inset-y-0 sm:left-auto sm:right-0 sm:w-[400px] border-l shadow-2xl z-40 flex flex-col" style={{ background: 'rgb(252,246,237)', borderColor: '#c4956a' }}>
-          <div className="px-4 sm:px-6 py-3 sm:py-4 flex items-center justify-between border-b" style={{ borderColor: '#c4956a' }}>
+        <div className="fixed top-14 left-0 right-0 bottom-0 sm:top-0 sm:left-auto sm:right-0 sm:w-[400px] border-l shadow-2xl z-40 flex flex-col overflow-hidden" style={{ background: 'rgb(252,246,237)', borderColor: '#c4956a' }}>
+          <div className="mx-5 sm:mx-6 pt-2 pb-2 sm:py-4 flex items-center justify-between border-b" style={{ borderColor: '#c4956a' }}>
              <h2 className="text-base sm:text-lg font-bold text-zinc-900 tracking-tight">{t("res_new")}</h2>
              <button onClick={() => setIsCreating(false)} className="p-1.5 border-2 border-red-400 text-red-500 hover:bg-red-50 rounded-lg transition-colors">
                 <X className="h-4 w-4" />
