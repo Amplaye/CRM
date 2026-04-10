@@ -46,14 +46,15 @@ export async function PUT(request: Request) {
         return gDigits.includes(phoneDigits) || phoneDigits.includes(gDigits);
       });
 
-      // Try each matching guest until we find one with an active reservation
+      // Try each matching guest — find the most recent ACTIVE reservation (not completed/cancelled/no_show)
       for (const guest of matchingGuests) {
         const { data: resList } = await supabase
           .from('reservations')
-          .select('id')
+          .select('id, date')
           .eq('tenant_id', payload.tenant_id)
           .eq('guest_id', guest.id)
-          .in('status', ['confirmed', 'pending_confirmation', 'escalated', 'seated', 'completed'])
+          .in('status', ['confirmed', 'pending_confirmation', 'escalated', 'seated'])
+          .order('date', { ascending: false })
           .order('created_at', { ascending: false })
           .limit(1);
 
