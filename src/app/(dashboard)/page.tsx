@@ -303,9 +303,9 @@ export default function DashboardPage() {
           <h1 className="text-xl sm:text-2xl font-bold text-black tracking-tight">{t("nav_dashboard")}</h1>
           <p className="mt-0.5 text-xs sm:text-sm text-black">{t("dash_ai_performance")}</p>
         </div>
-        <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
+        <div className="flex items-center gap-1.5 sm:gap-2">
           {/* View mode toggle */}
-          <div className="inline-flex rounded-lg border-2 overflow-hidden" style={{ borderColor: "#c4956a" }}>
+          <div className="inline-flex rounded-lg border-2 overflow-hidden flex-shrink-0" style={{ borderColor: "#c4956a" }}>
             {(["day", "month", "year"] as const).map(mode => (
               <button
                 key={mode}
@@ -320,34 +320,50 @@ export default function DashboardPage() {
               </button>
             ))}
           </div>
-          {/* Period navigator — all inline */}
-          <button onClick={() => navigatePeriod(-1)} className="p-1.5 hover:bg-[#c4956a]/10 rounded-lg transition-colors">
+          {/* Period navigator */}
+          <button onClick={() => navigatePeriod(-1)} className="p-1 hover:bg-[#c4956a]/10 rounded-lg transition-colors flex-shrink-0">
             <ChevronLeft className="w-4 h-4 text-black" />
           </button>
-          {viewMode === "day" && (
-            <select value={selectedDay} onChange={(e) => setSelectedDay(Number(e.target.value))}
+          {viewMode === "day" ? (
+            <input
+              type="date"
+              value={`${selectedYear}-${String(selectedMonth + 1).padStart(2, '0')}-${String(selectedDay).padStart(2, '0')}`}
+              onChange={(e) => {
+                const d = new Date(e.target.value + 'T12:00:00');
+                if (!isNaN(d.getTime())) {
+                  setSelectedDay(d.getDate());
+                  setSelectedMonth(d.getMonth());
+                  setSelectedYear(d.getFullYear());
+                }
+              }}
+              className="border-2 rounded-lg px-1.5 py-1 text-xs font-semibold text-black focus:outline-none focus:ring-1 focus:ring-[#c4956a] min-w-0 flex-1 max-w-[130px]"
+              style={{ borderColor: "#c4956a", background: "rgba(252,246,237,0.6)" }}
+            />
+          ) : viewMode === "month" ? (
+            <div className="flex items-center gap-1">
+              <select value={selectedMonth} onChange={(e) => setSelectedMonth(Number(e.target.value))}
+                className="border-2 rounded-lg px-1.5 py-1 text-xs font-semibold text-black focus:outline-none focus:ring-1 focus:ring-[#c4956a]"
+                style={{ borderColor: "#c4956a", background: "rgba(252,246,237,0.6)" }}>
+                {monthNames.map((m, i) => <option key={i} value={i}>{m}</option>)}
+              </select>
+              <select value={selectedYear} onChange={(e) => setSelectedYear(Number(e.target.value))}
+                className="border-2 rounded-lg px-1.5 py-1 text-xs font-semibold text-black focus:outline-none focus:ring-1 focus:ring-[#c4956a]"
+                style={{ borderColor: "#c4956a", background: "rgba(252,246,237,0.6)" }}>
+                {Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - 2 + i).map(y => (
+                  <option key={y} value={y}>{y}</option>
+                ))}
+              </select>
+            </div>
+          ) : (
+            <select value={selectedYear} onChange={(e) => setSelectedYear(Number(e.target.value))}
               className="border-2 rounded-lg px-1.5 py-1 text-xs font-semibold text-black focus:outline-none focus:ring-1 focus:ring-[#c4956a]"
               style={{ borderColor: "#c4956a", background: "rgba(252,246,237,0.6)" }}>
-              {Array.from({ length: new Date(selectedYear, selectedMonth + 1, 0).getDate() }, (_, i) => i + 1).map(d => (
-                <option key={d} value={d}>{d}</option>
+              {Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - 2 + i).map(y => (
+                <option key={y} value={y}>{y}</option>
               ))}
             </select>
           )}
-          {viewMode !== "year" && (
-            <select value={selectedMonth} onChange={(e) => setSelectedMonth(Number(e.target.value))}
-              className="border-2 rounded-lg px-1.5 py-1 text-xs font-semibold text-black focus:outline-none focus:ring-1 focus:ring-[#c4956a]"
-              style={{ borderColor: "#c4956a", background: "rgba(252,246,237,0.6)" }}>
-              {monthNames.map((m, i) => <option key={i} value={i}>{m}</option>)}
-            </select>
-          )}
-          <select value={selectedYear} onChange={(e) => setSelectedYear(Number(e.target.value))}
-            className="border-2 rounded-lg px-1.5 py-1 text-xs font-semibold text-black focus:outline-none focus:ring-1 focus:ring-[#c4956a]"
-            style={{ borderColor: "#c4956a", background: "rgba(252,246,237,0.6)" }}>
-            {Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - 2 + i).map(y => (
-              <option key={y} value={y}>{y}</option>
-            ))}
-          </select>
-          <button onClick={() => navigatePeriod(1)} className="p-1.5 hover:bg-[#c4956a]/10 rounded-lg transition-colors">
+          <button onClick={() => navigatePeriod(1)} className="p-1 hover:bg-[#c4956a]/10 rounded-lg transition-colors flex-shrink-0">
             <ChevronRight className="w-4 h-4 text-black" />
           </button>
         </div>
