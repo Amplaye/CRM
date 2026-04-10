@@ -131,9 +131,43 @@ export function ReservationList({ date, onRowClick }: ReservationListProps) {
   }
 
   return (
-    <div className="border-2 rounded-b-xl md:rounded-xl overflow-hidden" style={{ background: 'rgba(252,246,237,0.85)', borderColor: '#c4956a', boxShadow: '0 20px 60px rgba(196,149,106,0.25), 0 8px 24px rgba(196,149,106,0.15)' }}>
-      {/* Desktop table - hidden on mobile */}
-      <table className="hidden md:table min-w-full table-fixed divide-y" style={{ borderColor: '#c4956a' }}>
+    <>
+    {/* Mobile: card list */}
+    <div className="md:hidden space-y-2">
+      {reservations.map((res) => (
+        <div
+          key={res.id}
+          onClick={() => onRowClick?.(res)}
+          className={`rounded-xl border-2 p-3 transition-all ${onRowClick ? 'cursor-pointer active:scale-[0.98]' : ''}`}
+          style={{ background: 'rgba(252,246,237,0.85)', borderColor: 'rgba(196,149,106,0.4)' }}
+        >
+          <div className="flex items-center gap-3">
+            <div className="flex flex-col items-center justify-center w-12 flex-shrink-0">
+              <span className="text-sm font-bold text-black">{res.time}</span>
+              <span className="text-[10px] text-black/50">{res.party_size}p</span>
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2">
+                <p className="text-sm font-bold text-black truncate">{res.guest_name || "Guest"}</p>
+                <SourceIcon source={res.source} />
+              </div>
+              <p className="text-xs text-black/60 truncate">{res.guest_phone || "—"}</p>
+            </div>
+            <div className="flex flex-col items-end gap-1 flex-shrink-0">
+              <StatusPill status={res.status} />
+              {res.table_names && res.table_names.length > 0 && (
+                <span className="text-[10px] text-black/40">{res.table_names.join(", ")}</span>
+              )}
+            </div>
+          </div>
+          {res.notes && <p className="text-[11px] text-black/40 truncate mt-1.5 pl-15">{res.notes}</p>}
+        </div>
+      ))}
+    </div>
+
+    {/* Desktop: full table */}
+    <div className="hidden md:block border-2 rounded-xl overflow-hidden" style={{ background: 'rgba(252,246,237,0.85)', borderColor: '#c4956a', boxShadow: '0 20px 60px rgba(196,149,106,0.25), 0 8px 24px rgba(196,149,106,0.15)' }}>
+      <table className="min-w-full table-fixed divide-y" style={{ borderColor: '#c4956a' }}>
         <thead>
           <tr>
             <th scope="col" className="px-4 py-3 text-center text-xs font-semibold text-black uppercase tracking-wider">{t("res_col_time")}</th>
@@ -193,55 +227,7 @@ export function ReservationList({ date, onRowClick }: ReservationListProps) {
           ))}
         </tbody>
       </table>
-
-      {/* Mobile card layout */}
-      <div className="md:hidden divide-y" style={{ borderColor: 'rgba(196,149,106,0.3)' }}>
-        {reservations.map((res) => (
-          <div
-            key={res.id}
-            onClick={() => onRowClick?.(res)}
-            className={`p-3 hover:bg-[#c4956a]/10 transition-colors ${onRowClick ? 'cursor-pointer' : ''}`}
-          >
-            <div className="flex items-center justify-between mb-1.5">
-              <div className="flex items-center gap-2">
-                <div className="flex items-center text-sm font-bold text-zinc-900">
-                  <Clock className="w-3.5 h-3.5 text-black mr-1" />
-                  {res.time}
-                </div>
-                <div className="flex items-center text-xs text-black/60">
-                  <Users className="w-3 h-3 mr-0.5" />
-                  {res.party_size}
-                </div>
-                <SourceIcon source={res.source} />
-              </div>
-              <div className="flex items-center gap-2">
-                <StatusPill status={res.status} />
-                {!['cancelled', 'no_show'].includes(res.status) && (
-                  <button onClick={(e) => handleCancel(e, res.id)} className="text-red-400 hover:text-red-600 transition-colors" title="Cancelar">
-                    <XCircle className="w-4 h-4" />
-                  </button>
-                )}
-              </div>
-            </div>
-            <div className="flex items-center justify-between">
-              <div className="min-w-0">
-                <p className="text-sm font-medium text-zinc-900 truncate">
-                  {res.guest_name || `Guest (${res.guest_id.substring(0,8)})`}
-                </p>
-                {res.guest_phone && (
-                  <p className="text-xs text-black/50">{res.guest_phone}</p>
-                )}
-              </div>
-              {res.table_names && res.table_names.length > 0 && (
-                <span className="text-xs font-medium text-black/50 ml-2 flex-shrink-0">
-                  {res.table_names.join(", ")}
-                </span>
-              )}
-            </div>
-            {res.notes && <p className="text-xs text-black/40 truncate mt-1">{res.notes}</p>}
-          </div>
-        ))}
-      </div>
     </div>
+    </>
   );
 }
