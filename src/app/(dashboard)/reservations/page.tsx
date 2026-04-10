@@ -428,16 +428,18 @@ export default function ReservationsPage() {
 
       {/* QUICK STATUS EDIT DRAWER */}
       {selectedRes && (
-        <div className="fixed inset-y-0 right-0 w-full sm:w-[400px] border-l shadow-2xl z-40 transform transition-transform duration-300 flex flex-col overflow-hidden" style={{ background: 'rgba(252,246,237,0.95)', borderColor: '#c4956a' }}>
+        <>
+        <div className="fixed inset-0 bg-black/40 z-30 sm:hidden" onClick={() => setSelectedRes(null)} />
+        <div className="fixed inset-y-0 right-0 w-full sm:w-[400px] border-l shadow-2xl z-40 transform transition-transform duration-300 flex flex-col overflow-hidden" style={{ background: 'rgb(252,246,237)', borderColor: '#c4956a' }}>
           <div className="px-6 py-4 flex items-center justify-between border-b" style={{ borderColor: '#c4956a' }}>
-             <div>
+             <div className="min-w-0 flex-1">
                <h2 className="text-lg font-bold text-zinc-900 tracking-tight">{t("res_quick_edit")}</h2>
                {(selectedRes.guest_name || selectedRes.guest_phone) && (
-                 <div className="flex items-center gap-2 mt-1">
+                 <div className="flex items-center gap-2 mt-1 flex-wrap">
                    {selectedRes.guest_name && <span className="text-sm font-medium text-black">{selectedRes.guest_name}</span>}
                    {selectedRes.guest_phone && (
-                     <span className="flex items-center text-xs text-black/60">
-                       <Phone className="w-3 h-3 mr-1" />{selectedRes.guest_phone}
+                     <span className="flex items-center gap-1 text-sm text-black/70">
+                       <Phone className="w-3.5 h-3.5 flex-shrink-0" />{selectedRes.guest_phone}
                      </span>
                    )}
                  </div>
@@ -492,7 +494,7 @@ export default function ReservationsPage() {
                    />
                 </div>
              </div>
-             <div className="p-6 border-t" style={{ borderColor: '#c4956a' }}>
+             <div className="p-4 sm:p-6 pb-8 sm:pb-6 border-t" style={{ borderColor: '#c4956a' }}>
                 <button
                    type="submit"
                    disabled={saving}
@@ -503,11 +505,14 @@ export default function ReservationsPage() {
              </div>
           </form>
         </div>
+        </>
       )}
 
       {/* NEW RESERVATION DRAWER */}
       {isCreating && (
-        <div className="fixed inset-y-0 right-0 w-full sm:w-[400px] border-l shadow-2xl z-40 transform transition-transform duration-300 flex flex-col overflow-hidden" style={{ background: 'rgba(252,246,237,0.95)', borderColor: '#c4956a' }}>
+        <>
+        <div className="fixed inset-0 bg-black/40 z-30 sm:hidden" onClick={() => setIsCreating(false)} />
+        <div className="fixed inset-y-0 right-0 w-full sm:w-[400px] border-l shadow-2xl z-40 transform transition-transform duration-300 flex flex-col overflow-hidden" style={{ background: 'rgb(252,246,237)', borderColor: '#c4956a' }}>
           <div className="px-6 py-4 flex items-center justify-between border-b" style={{ borderColor: '#c4956a' }}>
              <h2 className="text-lg font-bold text-zinc-900 tracking-tight">{t("res_new")}</h2>
              <button onClick={() => setIsCreating(false)} className="p-2 text-black hover:bg-[#c4956a]/10 hover:text-black rounded-full transition-colors">
@@ -607,7 +612,7 @@ export default function ReservationsPage() {
                    />
                 </div>
              </div>
-             <div className="p-6 border-t" style={{ borderColor: '#c4956a' }}>
+             <div className="p-4 sm:p-6 pb-8 sm:pb-6 border-t" style={{ borderColor: '#c4956a' }}>
                 <button
                    type="submit"
                    disabled={saving}
@@ -619,6 +624,7 @@ export default function ReservationsPage() {
              </div>
           </form>
         </div>
+        </>
       )}
     </div>
   );
