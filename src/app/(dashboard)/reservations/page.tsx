@@ -433,17 +433,17 @@ export default function ReservationsPage() {
         return (
         <>
         <div className="fixed inset-0 bg-black/40 z-30 sm:hidden" onClick={() => setSelectedRes(null)} />
-        <div className="fixed inset-0 sm:inset-y-0 sm:left-auto sm:right-0 sm:w-[400px] border-l shadow-2xl z-40 flex flex-col overflow-hidden" style={{ background: 'rgb(252,246,237)', borderColor: '#c4956a' }}>
-          <div className="mx-5 sm:mx-6 py-3 sm:py-4 flex items-center justify-between border-b" style={{ borderColor: '#c4956a' }}>
+        <div className="fixed inset-0 sm:inset-y-0 sm:left-auto sm:right-0 sm:w-[400px] border-l shadow-2xl z-50 flex flex-col overflow-hidden" style={{ background: 'rgb(252,246,237)', borderColor: '#c4956a' }}>
+          <div className="mx-5 sm:mx-6 pt-2 pb-2 sm:py-4 flex items-center justify-between border-b" style={{ borderColor: '#c4956a' }}>
              <div className="min-w-0 flex-1 mr-3">
                <h2 className="text-base sm:text-lg font-bold text-zinc-900 tracking-tight">{t("res_quick_edit")}</h2>
                {(selectedRes.guest_name || selectedRes.guest_phone) && (
-                 <div className="flex items-center gap-2 mt-0.5 flex-wrap">
-                   {selectedRes.guest_name && <span className="text-sm font-medium text-black">{selectedRes.guest_name}</span>}
+                 <div className="mt-0.5">
+                   {selectedRes.guest_name && <p className="text-sm font-medium text-black">{selectedRes.guest_name}</p>}
                    {selectedRes.guest_phone && (
-                     <span className="flex items-center gap-1 text-sm text-black/70">
+                     <p className="flex items-center gap-1 text-sm text-black mt-0.5">
                        <Phone className="w-3.5 h-3.5 flex-shrink-0" />{selectedRes.guest_phone}
-                     </span>
+                     </p>
                    )}
                  </div>
                )}
@@ -453,7 +453,7 @@ export default function ReservationsPage() {
              </button>
           </div>
           <form onSubmit={handleUpdate} className="flex-1 flex flex-col min-h-0 overflow-hidden">
-             <div className="flex-1 overflow-y-auto px-5 sm:px-6 py-4 sm:py-5 space-y-4">
+             <div className="flex-1 overflow-y-auto px-5 sm:px-6 py-3 sm:py-5 space-y-3 sm:space-y-4">
                 <div>
                    <label className="block text-sm font-medium text-black mb-1">{t("res_edit_status")}</label>
                    <select name="status" defaultValue={selectedRes.status} className={inputCls} style={inputStyle}>
@@ -483,13 +483,13 @@ export default function ReservationsPage() {
 
                 <div>
                    <label className="block text-sm font-medium text-black mb-1">{t("res_edit_notes")}</label>
-                   <textarea name="notes" defaultValue={selectedRes.notes} rows={3}
+                   <textarea name="notes" defaultValue={selectedRes.notes} rows={2}
                      className={inputCls} style={inputStyle}
                      placeholder={t("res_edit_placeholder")}
                    />
                 </div>
              </div>
-             <div className="mx-5 sm:mx-6 py-3 sm:py-4 pb-6 sm:pb-4 border-t" style={{ borderColor: '#c4956a' }}>
+             <div className="mx-5 sm:mx-6 py-2 sm:py-4 pb-4 sm:pb-4 border-t" style={{ borderColor: '#c4956a' }}>
                 <button type="submit" disabled={saving}
                    className="w-full flex items-center justify-center bg-zinc-900 hover:bg-zinc-800 text-white font-medium py-2.5 px-4 rounded-lg transition-colors shadow-sm disabled:opacity-50">
                    <Save className="h-4 w-4 mr-2" /> {saving ? "Saving..." : t("res_edit_save")}
