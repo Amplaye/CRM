@@ -320,7 +320,7 @@ export default function ReservationsPage() {
   };
 
   return (
-    <div className="p-4 sm:p-6 lg:p-8 w-full space-y-4 sm:space-y-6 lg:space-y-8 flex">
+    <div className="p-4 sm:p-6 lg:p-8 w-full space-y-4 sm:space-y-6 lg:space-y-8">
       <div className={`flex-1 transition-all duration-300 ${(selectedRes || isCreating) ? 'md:pr-[400px]' : ''}`}>
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-4 sm:mb-6 lg:mb-8">
           <div>

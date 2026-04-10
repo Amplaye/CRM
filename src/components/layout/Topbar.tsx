@@ -57,6 +57,14 @@ export function Topbar({ onMenuToggle }: TopbarProps) {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
+  // Lock body scroll when mobile notifications panel is open
+  useEffect(() => {
+    if (showDropdown && window.innerWidth < 640) {
+      document.body.style.overflow = "hidden";
+      return () => { document.body.style.overflow = ""; };
+    }
+  }, [showDropdown]);
+
   // Real-time notifications for new reservations
   useEffect(() => {
     if (!activeTenant?.id) return;
