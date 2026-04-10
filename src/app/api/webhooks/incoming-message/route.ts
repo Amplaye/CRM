@@ -12,20 +12,26 @@ export async function POST(request: Request) {
 
     const supabase = createServiceRoleClient();
 
-    // 1. Find or create guest
+    // 1. Find or create guest (fuzzy phone match to handle +34xxx vs xxx)
     let guestId: string;
     let guestName = payload.guest_name || "";
-    const { data: existingGuests } = await supabase
-      .from('guests')
-      .select('id, name')
-      .eq('tenant_id', payload.tenant_id)
-      .eq('phone', payload.guest_phone)
-      .limit(1);
+    const phoneDigits = (payload.guest_phone || '').replace(/\D/g, '');
 
-    if (existingGuests && existingGuests.length > 0) {
-      guestId = existingGuests[0].id;
+    const { data: allGuests } = await supabase
+      .from('guests')
+      .select('id, name, phone')
+      .eq('tenant_id', payload.tenant_id);
+
+    const matchedGuest = (allGuests || []).find((g: any) => {
+      const gDigits = (g.phone || '').replace(/\D/g, '');
+      if (!gDigits || gDigits.length < 7 || !phoneDigits || phoneDigits.length < 7) return false;
+      return gDigits.includes(phoneDigits) || phoneDigits.includes(gDigits);
+    });
+
+    if (matchedGuest) {
+      guestId = matchedGuest.id;
       // Update guest name if we now know it and it was unknown
-      if (guestName && guestName !== "Unknown Guest" && existingGuests[0].name === "Unknown Guest") {
+      if (guestName && guestName !== "Unknown Guest" && matchedGuest.name === "Unknown Guest") {
         await supabase.from('guests').update({ name: guestName }).eq('id', guestId);
       }
     } else {
