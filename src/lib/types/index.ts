@@ -104,6 +104,8 @@ export type ReservationStatus =
   | "waitlist_offered"
   | "escalated";
 
+export type CancellationSource = "reminder_24h" | "reminder_4h" | "chat_spontaneous" | "voice_spontaneous" | "auto_noshow" | "staff" | "web";
+
 export interface Reservation {
   id: string;
   tenant_id: string;
@@ -118,6 +120,7 @@ export interface Reservation {
   allergies?: string[];
   tags?: string[];
   linked_conversation_id?: string;
+  cancellation_source?: CancellationSource;
   created_at: number;
   end_time?: string;
   shift?: 'lunch' | 'dinner';

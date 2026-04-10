@@ -82,12 +82,17 @@ export async function POST(req: NextRequest) {
            break;
 
         case "reservation.cancel":
-           // Payload must include reservationId
+           // Payload must include reservationId, optionally cancellation_source
+           const cancelData: Record<string, any> = { status: "cancelled" };
+           const validCancelSources = ['reminder_24h', 'reminder_4h', 'chat_spontaneous', 'voice_spontaneous', 'auto_noshow', 'staff', 'web'];
+           if (payload.cancellation_source && validCancelSources.includes(payload.cancellation_source)) {
+              cancelData.cancellation_source = payload.cancellation_source;
+           }
            const cancelRes = await updateReservationDetailsAction({
               adminTenantId: tenantId,
               tenantId: tenantId,
               reservationId: payload.reservation_id,
-              data: { status: "cancelled" }
+              data: cancelData
            });
            if (!cancelRes.success) throw new Error((cancelRes as any).error);
            break;

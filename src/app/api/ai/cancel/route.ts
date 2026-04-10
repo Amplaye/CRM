@@ -7,10 +7,13 @@ export async function DELETE(request: Request) {
      const { searchParams } = new URL(request.url);
      const tenant_id = searchParams.get('tenant_id');
      const reservation_id = searchParams.get('reservation_id');
+     const cancellation_source = searchParams.get('cancellation_source');
 
      if (!tenant_id || !reservation_id) {
         return NextResponse.json({ success: false, error: "Missing required params" }, { status: 400 });
      }
+
+     const validSources = ['reminder_24h', 'reminder_4h', 'chat_spontaneous', 'voice_spontaneous', 'auto_noshow', 'staff', 'web'];
 
      const supabase = createServiceRoleClient();
 
@@ -29,12 +32,17 @@ export async function DELETE(request: Request) {
      }
 
      // Instead of hard deleting, we soft delete / status change
+     const updateData: Record<string, any> = {
+        status: 'cancelled',
+        updated_at: new Date().toISOString()
+     };
+     if (cancellation_source && validSources.includes(cancellation_source)) {
+        updateData.cancellation_source = cancellation_source;
+     }
+
      const { error: updateErr } = await supabase
        .from('reservations')
-       .update({
-          status: 'cancelled',
-          updated_at: new Date().toISOString()
-       })
+       .update(updateData)
        .eq('id', reservation_id);
 
      if (updateErr) throw updateErr;
@@ -44,12 +52,13 @@ export async function DELETE(request: Request) {
         action: "cancel_reservation",
         entity_id: reservation_id,
         source: "ai_agent",
-        details: { reason: "User requested cancellation via AI" }
+        details: { reason: "User requested cancellation via AI", cancellation_source: cancellation_source || "unknown" }
      });
 
      return NextResponse.json({
         success: true,
-        message: "Reservation successfully cancelled."
+        message: "Reservation successfully cancelled.",
+        cancellation_source: cancellation_source || null
      });
 
   } catch (error: any) {

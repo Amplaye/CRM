@@ -73,6 +73,7 @@ create table public.reservations (
   party_size integer not null default 2,
   status text not null default 'pending_confirmation' check (status in ('inquiry', 'pending_confirmation', 'confirmed', 'seated', 'completed', 'cancelled', 'no_show', 'waitlist_offered', 'escalated')),
   source text not null default 'staff' check (source in ('ai_chat', 'ai_voice', 'staff', 'web', 'walk_in')),
+  cancellation_source text check (cancellation_source in ('reminder_24h', 'reminder_4h', 'chat_spontaneous', 'voice_spontaneous', 'auto_noshow', 'staff', 'web')),
   created_by_type text not null default 'staff' check (created_by_type in ('ai', 'staff', 'guest')),
   notes text not null default '',
   allergies text[],
