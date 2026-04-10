@@ -1,8 +1,8 @@
 "use client";
 
-import { FileText, Plus, Search, Archive, BookOpen, Clock, User, ChevronRight, ChevronLeft, Save, X, History, Trash2, Filter, AlertTriangle, Settings2, ArrowUp, ArrowDown } from "lucide-react";
+import { FileText, Plus, Search, Archive, BookOpen, Clock, User, ChevronRight, ChevronLeft, Save, X, History, Trash2, Filter, AlertTriangle, Settings2, GripVertical } from "lucide-react";
 import { useLanguage } from "@/lib/contexts/LanguageContext";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { useTenant } from "@/lib/contexts/TenantContext";
 import { KnowledgeArticle } from "@/lib/types";
@@ -145,25 +145,69 @@ export default function KnowledgePage() {
      } catch (err) { console.error(err); }
   }
 
-  const moveArticle = async (id: string, direction: -1 | 1) => {
-    const idx = articles.findIndex(a => a.id === id);
-    const swapIdx = idx + direction;
-    if (idx < 0 || swapIdx < 0 || swapIdx >= articles.length) return;
-    const a = articles[idx];
-    const b = articles[swapIdx];
-    // Swap display_order locally for immediate feedback
+  // Drag-and-drop reorder state
+  const [dragIdx, setDragIdx] = useState<number | null>(null);
+  const [dragOverIdx, setDragOverIdx] = useState<number | null>(null);
+  const touchStartY = useRef<number>(0);
+  const touchDragIdx = useRef<number | null>(null);
+  const listRef = useRef<HTMLDivElement>(null);
+
+  const finishReorder = useCallback(async (fromIdx: number, toIdx: number) => {
+    if (fromIdx === toIdx) return;
     const reordered = [...articles];
-    reordered[idx] = { ...b, display_order: a.display_order };
-    reordered[swapIdx] = { ...a, display_order: b.display_order };
-    reordered.sort((x, y) => (x.display_order ?? 0) - (y.display_order ?? 0));
-    setArticles(reordered);
-    // Persist
-    await Promise.all([
-      supabase.from("knowledge_articles").update({ display_order: b.display_order }).eq("id", a.id),
-      supabase.from("knowledge_articles").update({ display_order: a.display_order }).eq("id", b.id),
-    ]);
+    const [moved] = reordered.splice(fromIdx, 1);
+    reordered.splice(toIdx, 0, moved);
+    // Reassign display_order sequentially
+    const updated = reordered.map((a, i) => ({ ...a, display_order: i }));
+    setArticles(updated);
+    setDragIdx(null);
+    setDragOverIdx(null);
+    // Persist all changed orders
+    await Promise.all(updated.map(a =>
+      supabase.from("knowledge_articles").update({ display_order: a.display_order }).eq("id", a.id)
+    ));
     syncRetellKB();
+  }, [articles, supabase]);
+
+  // Touch drag handlers for mobile
+  const handleTouchStartDrag = (e: React.TouchEvent, idx: number) => {
+    touchStartY.current = e.touches[0].clientY;
+    touchDragIdx.current = idx;
+    setDragIdx(idx);
   };
+
+  const handleTouchMoveDrag = useCallback((e: React.TouchEvent) => {
+    if (touchDragIdx.current === null || !listRef.current) return;
+    e.preventDefault();
+    const y = e.touches[0].clientY;
+    const items = listRef.current.querySelectorAll('[data-drag-item]');
+    let overIdx = touchDragIdx.current;
+    items.forEach((el, i) => {
+      const rect = el.getBoundingClientRect();
+      if (y > rect.top && y < rect.bottom) overIdx = i;
+    });
+    setDragOverIdx(overIdx);
+  }, []);
+
+  const handleTouchEndDrag = useCallback(() => {
+    if (touchDragIdx.current !== null && dragOverIdx !== null) {
+      finishReorder(touchDragIdx.current, dragOverIdx);
+    }
+    touchDragIdx.current = null;
+    setDragIdx(null);
+    setDragOverIdx(null);
+  }, [dragOverIdx, finishReorder]);
+
+  // Native touch listener to prevent scroll while dragging
+  useEffect(() => {
+    const el = listRef.current;
+    if (!el) return;
+    const onTouchMove = (e: TouchEvent) => {
+      if (touchDragIdx.current !== null) e.preventDefault();
+    };
+    el.addEventListener('touchmove', onTouchMove, { passive: false });
+    return () => el.removeEventListener('touchmove', onTouchMove);
+  });
 
   return (
     <div className="p-0 h-[calc(100dvh-3.5rem)] md:h-[calc(100dvh-4rem)] flex overflow-hidden">
@@ -196,39 +240,42 @@ export default function KnowledgePage() {
                   <p className="text-sm font-bold">{t("know_no_articles") || "No articles yet"}</p>
                </div>
             ) : (
-               <div className="divide-y" style={{ borderColor: 'rgba(196,149,106,0.3)' }}>
+               <div ref={listRef} className="divide-y" style={{ borderColor: 'rgba(196,149,106,0.3)' }}
+                 onTouchMove={handleTouchMoveDrag} onTouchEnd={handleTouchEndDrag} onTouchCancel={handleTouchEndDrag}
+               >
                   {articles.map((article, idx) => (
                      <div
                         key={article.id}
+                        data-drag-item
+                        draggable
+                        onDragStart={() => setDragIdx(idx)}
+                        onDragOver={(e) => { e.preventDefault(); setDragOverIdx(idx); }}
+                        onDragEnd={() => { if (dragIdx !== null && dragOverIdx !== null) finishReorder(dragIdx, dragOverIdx); setDragIdx(null); setDragOverIdx(null); }}
                         onClick={() => setSelectedArticleId(article.id)}
-                        className={`p-5 cursor-pointer transition-all relative ${selectedArticleId === article.id ? 'bg-white shadow-sm ring-1 ring-zinc-200 z-10' : 'bg-transparent hover:bg-zinc-50/80'}`}
+                        className={`p-4 sm:p-5 cursor-pointer transition-all relative ${
+                          dragOverIdx === idx && dragIdx !== null && dragIdx !== idx ? 'border-t-2 border-blue-400' : ''
+                        } ${dragIdx === idx ? 'opacity-40' : ''} ${
+                          selectedArticleId === article.id ? 'bg-white shadow-sm ring-1 ring-zinc-200 z-10' : 'bg-transparent hover:bg-zinc-50/80'
+                        }`}
                      >
-                        <div className="flex justify-between items-start mb-1">
-                           <span className={`text-[10px] uppercase font-bold tracking-widest ${article.status === 'published' ? 'text-emerald-600' : 'text-zinc-400'}`}>
-                              {article.status}
-                           </span>
-                           <div className="flex items-center gap-1">
-                              <button
-                                 onClick={(e) => { e.stopPropagation(); moveArticle(article.id, -1); }}
-                                 disabled={idx === 0}
-                                 className="p-0.5 rounded hover:bg-[#c4956a]/20 text-zinc-500 disabled:opacity-30 disabled:hover:bg-transparent"
-                                 title={t("know_move_up")}
-                              >
-                                 <ArrowUp className="w-3.5 h-3.5" />
-                              </button>
-                              <button
-                                 onClick={(e) => { e.stopPropagation(); moveArticle(article.id, 1); }}
-                                 disabled={idx === articles.length - 1}
-                                 className="p-0.5 rounded hover:bg-[#c4956a]/20 text-zinc-500 disabled:opacity-30 disabled:hover:bg-transparent"
-                                 title={t("know_move_down")}
-                              >
-                                 <ArrowDown className="w-3.5 h-3.5" />
-                              </button>
-                              <span className="text-[10px] font-mono text-zinc-400 ml-1">v{article.version}</span>
+                        <div className="flex items-start gap-2">
+                           <div
+                             className="pt-1 cursor-grab active:cursor-grabbing text-black/30 hover:text-black/60 touch-none flex-shrink-0"
+                             onTouchStart={(e) => { e.stopPropagation(); handleTouchStartDrag(e, idx); }}
+                           >
+                              <GripVertical className="w-4 h-4" />
+                           </div>
+                           <div className="flex-1 min-w-0">
+                              <div className="flex justify-between items-center mb-1">
+                                 <span className={`text-[10px] uppercase font-bold tracking-widest ${article.status === 'published' ? 'text-emerald-600' : 'text-zinc-400'}`}>
+                                    {article.status}
+                                 </span>
+                                 <span className="text-[10px] font-mono text-zinc-400">v{article.version}</span>
+                              </div>
+                              <h3 className="font-bold text-zinc-900 text-sm leading-tight truncate">{article.title}</h3>
+                              <p className="text-xs text-zinc-500 line-clamp-1 mt-1">{article.category} • {t("know_updated_on") || "Updated"} {new Date(article.updated_at).toLocaleDateString()}</p>
                            </div>
                         </div>
-                        <h3 className="font-bold text-zinc-900 text-sm leading-tight truncate">{article.title}</h3>
-                        <p className="text-xs text-zinc-500 line-clamp-1 mt-1">{article.category} • {t("know_updated_on") || "Updated"} {new Date(article.updated_at).toLocaleDateString()}</p>
                      </div>
                   ))}
                </div>
