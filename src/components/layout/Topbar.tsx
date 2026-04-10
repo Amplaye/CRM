@@ -207,14 +207,11 @@ export function Topbar({ onMenuToggle }: TopbarProps) {
             <div className="sm:hidden fixed left-0 right-0 top-14 bottom-0 z-50 flex flex-col" style={{ background: 'rgb(252,246,237)' }}>
               <div className="px-4 py-3 border-b flex items-center justify-between flex-shrink-0" style={{ borderColor: '#c4956a' }}>
                 <span className="text-sm font-semibold text-black">{t("topbar_notifications")}</span>
-                <div className="flex items-center gap-3">
-                  {notifications.length > 0 && (
-                    <button onClick={() => setNotifications([])} className="text-xs text-[#c4956a] hover:text-[#b8845c]">
-                      {t("topbar_clear_all")}
-                    </button>
-                  )}
-                  <button onClick={() => setShowDropdown(false)} className="text-xs font-semibold text-black/60">✕</button>
-                </div>
+                {notifications.length > 0 && (
+                  <button onClick={() => setNotifications([])} className="text-xs text-[#c4956a] hover:text-[#b8845c]">
+                    {t("topbar_clear_all")}
+                  </button>
+                )}
               </div>
               <div className="flex-1 overflow-y-auto overscroll-contain">
                 {notifications.length === 0 ? (
