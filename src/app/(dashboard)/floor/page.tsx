@@ -890,14 +890,21 @@ export default function FloorPage() {
         return (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={() => setFreeTableModal(null)}>
           <div
-            className="rounded-2xl p-6 w-full max-w-sm border-2 shadow-xl"
+            className="rounded-2xl p-5 w-full max-w-sm border-2 shadow-xl relative"
             style={{ background: "rgba(252,246,237,0.97)", borderColor: "#c4956a" }}
             onClick={(e) => e.stopPropagation()}
           >
-            <h3 className="text-lg font-bold text-black mb-2">
+            <button
+              onClick={() => setFreeTableModal(null)}
+              className="absolute top-3 right-3 p-1.5 border-2 border-red-400 text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+            >
+              <X className="h-4 w-4" />
+            </button>
+
+            <h3 className="text-lg font-bold text-black mb-1 pr-10">
               {freeTableModal.table.name} — {guestName}
             </h3>
-            <div className="text-sm text-black/70 mb-4 space-y-1">
+            <div className="text-sm text-black/70 mb-5 space-y-1">
               <p>{freeTableModal.reservation.party_size}p · {freeTableModal.reservation.time}</p>
               <p className="text-xs">{statusPill(freeTableModal.reservation.status)}</p>
             </div>
@@ -907,27 +914,21 @@ export default function FloorPage() {
                 <button
                   onClick={confirmSeatTable}
                   disabled={freeTableLoading}
-                  className="w-full px-4 py-2.5 text-sm font-bold rounded-lg text-white transition-colors disabled:opacity-50 bg-blue-500 hover:bg-blue-600"
+                  className="w-full px-4 py-2.5 text-sm font-bold rounded-lg border-2 border-blue-500 text-blue-600 hover:bg-blue-50 transition-colors disabled:opacity-50"
                 >
-                  {freeTableLoading ? "..." : "Sentar mesa"}
+                  {freeTableLoading ? "..." : "Sentar"}
                 </button>
               )}
               {(isConfirmed || isSeated) && (
                 <button
                   onClick={confirmFreeTable}
                   disabled={freeTableLoading}
-                  className="w-full px-4 py-2.5 text-sm font-bold rounded-lg text-white transition-colors disabled:opacity-50"
-                  style={{ background: "#c4956a" }}
+                  className="w-full px-4 py-2.5 text-sm font-bold rounded-lg border-2 transition-colors disabled:opacity-50"
+                  style={{ borderColor: "#c4956a", color: "#c4956a" }}
                 >
                   {freeTableLoading ? "..." : t("floor_free_table")}
                 </button>
               )}
-              <button
-                onClick={() => setFreeTableModal(null)}
-                className="w-full px-4 py-2 text-sm font-medium rounded-lg text-black/60 hover:text-black transition-colors"
-              >
-                {t("floor_cancel")}
-              </button>
             </div>
           </div>
         </div>
