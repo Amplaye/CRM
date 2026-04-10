@@ -484,9 +484,10 @@ export default function ReservationsPage() {
                 <div>
                    <label className="block text-sm font-medium text-black mb-1">{t("res_edit_notes")}</label>
                    <textarea name="notes" defaultValue={selectedRes.notes} rows={2}
-                     className={inputCls} style={inputStyle}
+                     className={`${inputCls} sm:rows-4`} style={inputStyle}
                      placeholder={t("res_edit_placeholder")}
                    />
+                   <style>{`@media (min-width: 640px) { textarea[name="notes"] { min-height: 120px; } }`}</style>
                 </div>
              </div>
              <div className="mx-5 sm:mx-6 py-2 sm:py-4 pb-4 sm:pb-4 border-t" style={{ borderColor: '#c4956a' }}>
