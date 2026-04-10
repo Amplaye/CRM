@@ -1079,8 +1079,8 @@ function PlanCanvas({ tables, resTableLinks, shiftReservations, activeStatuses, 
       onTouchEnd={handleTouchEnd}
       onTouchCancel={handleTouchEnd}
       className="relative rounded-xl border-2"
-      style={{ overflow: canvasOverflow }}
       style={{
+        overflow: canvasOverflow,
         background: "rgba(252,246,237,0.6)",
         borderColor: "#c4956a",
         height: "560px",
