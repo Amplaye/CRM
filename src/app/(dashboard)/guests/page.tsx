@@ -227,36 +227,36 @@ export default function GuestsPage() {
             ))}
           </div>
         ) : (
-          <div className="border-2 rounded-xl overflow-hidden" style={{ background: 'rgba(252,246,237,0.85)', borderColor: '#c4956a' }}>
-            <table className="min-w-full divide-y" style={{ borderColor: '#c4956a' }}>
+          <div className="border-2 rounded-xl overflow-x-auto" style={{ background: 'rgba(252,246,237,0.85)', borderColor: '#c4956a' }}>
+            <table className="min-w-[520px] w-full divide-y" style={{ borderColor: '#c4956a' }}>
               <thead>
                 <tr>
-                  <th className="px-3 py-3 w-10"></th>
-                  <th className="px-3 sm:px-6 py-3 text-left text-xs font-semibold text-black uppercase">{t("guests_name")}</th>
-                  <th className="px-3 sm:px-6 py-3 text-left text-xs font-semibold text-black uppercase">{t("guests_phone")}</th>
-                  <th className="px-3 sm:px-6 py-3 text-center text-xs font-semibold text-black uppercase">{t("guests_visits_col")}</th>
-                  <th className="px-3 sm:px-6 py-3 text-center text-xs font-semibold text-black uppercase">{t("guests_noshows_col")}</th>
-                  <th className="px-3 py-3 w-10"></th>
+                  <th className="px-2 sm:px-3 py-3 w-10"></th>
+                  <th className="px-2 sm:px-6 py-3 text-left text-xs font-semibold text-black uppercase">{t("guests_name")}</th>
+                  <th className="px-2 sm:px-6 py-3 text-left text-xs font-semibold text-black uppercase">{t("guests_phone")}</th>
+                  <th className="px-2 sm:px-6 py-3 text-center text-xs font-semibold text-black uppercase">{t("guests_visits_col")}</th>
+                  <th className="px-2 sm:px-6 py-3 text-center text-xs font-semibold text-black uppercase">{t("guests_noshows_col")}</th>
+                  <th className="px-2 sm:px-3 py-3 w-10"></th>
                 </tr>
               </thead>
               <tbody className="divide-y" style={{ borderColor: 'rgba(196,149,106,0.3)' }}>
                 {filtered.map(guest => (
                   <tr key={guest.id} onClick={() => setSelectedGuest(guest)} className="hover:bg-[#c4956a]/10 transition-colors cursor-pointer">
-                    <td className="px-3 py-3">
+                    <td className="px-2 sm:px-3 py-3">
                       <input type="checkbox" checked={selectedIds.has(guest.id)} onChange={(e) => { e.stopPropagation(); toggleSelect(guest.id); }} className="w-4 h-4 rounded accent-[#c4956a] cursor-pointer" />
                     </td>
-                    <td className="px-3 sm:px-6 py-3">
+                    <td className="px-2 sm:px-6 py-3">
                       <div className="flex items-center gap-2">
                         <div className="h-7 w-7 rounded-full flex items-center justify-center text-black font-bold text-xs flex-shrink-0" style={{ background: 'rgba(196,149,106,0.2)' }}>{guest.name.charAt(0).toUpperCase()}</div>
-                        <span className="text-sm font-bold text-black">{guest.name}</span>
+                        <span className="text-sm font-bold text-black truncate max-w-[100px] sm:max-w-none">{guest.name}</span>
                       </div>
                     </td>
-                    <td className="px-3 sm:px-6 py-3 text-sm text-black">{guest.phone}</td>
-                    <td className="px-3 sm:px-6 py-3 text-sm font-medium text-black text-center">{guest.visit_count}</td>
-                    <td className="px-3 sm:px-6 py-3 text-sm font-medium text-center">
+                    <td className="px-2 sm:px-6 py-3 text-sm text-black whitespace-nowrap">{guest.phone}</td>
+                    <td className="px-2 sm:px-6 py-3 text-sm font-medium text-black text-center">{guest.visit_count}</td>
+                    <td className="px-2 sm:px-6 py-3 text-sm font-medium text-center">
                       <span className={guest.no_show_count > 0 ? 'text-red-600' : 'text-black'}>{guest.no_show_count}</span>
                     </td>
-                    <td className="px-3 py-3">
+                    <td className="px-2 sm:px-3 py-3">
                       <button onClick={(e) => { e.stopPropagation(); deleteSingle(guest.id); }} className="p-1 text-black/20 hover:text-red-500"><Trash2 className="w-3.5 h-3.5" /></button>
                     </td>
                   </tr>

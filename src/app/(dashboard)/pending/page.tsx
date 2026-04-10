@@ -267,18 +267,18 @@ export default function PendingPage() {
                 className="border-2 rounded-xl overflow-hidden transition-all"
                 style={{ background: 'rgba(252,246,237,0.85)', borderColor: isConfirming ? '#22c55e' : '#c4956a' }}
               >
-                <div className="p-5">
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-3 mb-3">
-                        <span className="inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-bold uppercase tracking-wider bg-orange-100 text-orange-800 border border-orange-200">
+                <div className="p-4 sm:p-5">
+                  <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 sm:gap-3 mb-3 flex-wrap">
+                        <span className="inline-flex items-center px-2 sm:px-2.5 py-1 rounded-lg text-[10px] sm:text-xs font-bold uppercase tracking-wider bg-orange-100 text-orange-800 border border-orange-200">
                           <AlertTriangle className="w-3 h-3 mr-1" />
                           {t("pending_status")}
                         </span>
-                        <span className="inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-medium bg-[#c4956a]/10 text-[#8b6540] border border-[#c4956a]/30">
+                        <span className="inline-flex items-center px-2 sm:px-2.5 py-1 rounded-lg text-[10px] sm:text-xs font-medium bg-[#c4956a]/10 text-[#8b6540] border border-[#c4956a]/30">
                           {req.source === "ai_chat" ? "WhatsApp" : req.source === "ai_voice" ? "Voice" : "Staff"}
                         </span>
-                        <span className={`inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-bold uppercase tracking-wider ${
+                        <span className={`inline-flex items-center px-2 sm:px-2.5 py-1 rounded-lg text-[10px] sm:text-xs font-bold uppercase tracking-wider ${
                           getShift(req.time) === 'lunch'
                             ? 'bg-amber-100 text-amber-800 border border-amber-200'
                             : 'bg-indigo-100 text-indigo-800 border border-indigo-200'
@@ -287,33 +287,33 @@ export default function PendingPage() {
                         </span>
                       </div>
 
-                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-3">
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4 mb-3">
                         <div className="flex items-center gap-2">
-                          <Users className="w-4 h-4 text-black/40" />
-                          <div>
+                          <Users className="w-4 h-4 text-black/40 flex-shrink-0" />
+                          <div className="min-w-0">
                             <p className="text-xs text-black/40">{t("pending_people_label")}</p>
                             <p className="text-sm font-bold text-black">{req.party_size}</p>
                           </div>
                         </div>
                         <div className="flex items-center gap-2">
-                          <Calendar className="w-4 h-4 text-black/40" />
-                          <div>
+                          <Calendar className="w-4 h-4 text-black/40 flex-shrink-0" />
+                          <div className="min-w-0">
                             <p className="text-xs text-black/40">{t("pending_date_label")}</p>
                             <p className="text-sm font-bold text-black">{req.date}</p>
                           </div>
                         </div>
                         <div className="flex items-center gap-2">
-                          <Clock className="w-4 h-4 text-black/40" />
-                          <div>
+                          <Clock className="w-4 h-4 text-black/40 flex-shrink-0" />
+                          <div className="min-w-0">
                             <p className="text-xs text-black/40">{t("pending_time_label")}</p>
                             <p className="text-sm font-bold text-black">{req.time}</p>
                           </div>
                         </div>
                         <div className="flex items-center gap-2">
-                          <Phone className="w-4 h-4 text-black/40" />
-                          <div>
+                          <Phone className="w-4 h-4 text-black/40 flex-shrink-0" />
+                          <div className="min-w-0">
                             <p className="text-xs text-black/40">{t("pending_phone_label")}</p>
-                            <p className="text-sm font-bold text-black">{guestPhone || "—"}</p>
+                            <p className="text-sm font-bold text-black truncate">{guestPhone || "—"}</p>
                           </div>
                         </div>
                       </div>
@@ -330,10 +330,10 @@ export default function PendingPage() {
                     </div>
 
                     {!isConfirming && (
-                      <div className="flex flex-col gap-2 ml-4">
+                      <div className="flex flex-row sm:flex-col gap-2 sm:ml-4">
                         <button
                           onClick={() => startConfirm(req.id)}
-                          className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-bold text-white transition-all hover:shadow-md"
+                          className="flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-3 sm:px-4 py-2 rounded-lg text-sm font-bold text-white transition-all hover:shadow-md"
                           style={{ background: 'linear-gradient(135deg, #22c55e 0%, #16a34a 100%)' }}
                         >
                           <Check className="w-4 h-4" />
@@ -341,7 +341,7 @@ export default function PendingPage() {
                         </button>
                         <button
                           onClick={() => handleReject(req.id)}
-                          className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-bold text-red-600 bg-red-50 border border-red-200 hover:bg-red-100 transition-all"
+                          className="flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-3 sm:px-4 py-2 rounded-lg text-sm font-bold text-red-600 bg-red-50 border border-red-200 hover:bg-red-100 transition-all"
                         >
                           <X className="w-4 h-4" />
                           {t("pending_reject_btn")}
@@ -356,8 +356,8 @@ export default function PendingPage() {
                   const allZones = Array.from(new Set(tables.map(t => t.zone || "Principal"))).sort();
                   const visibleTables = zoneFilter ? tables.filter(t => (t.zone || "Principal") === zoneFilter) : tables;
                   return (
-                  <div className="border-t-2 p-5" style={{ borderColor: '#22c55e', background: 'rgba(34,197,94,0.03)' }}>
-                    <h3 className="text-sm font-bold text-black mb-3">
+                  <div className="border-t-2 p-3 sm:p-5" style={{ borderColor: '#22c55e', background: 'rgba(34,197,94,0.03)' }}>
+                    <h3 className="text-xs sm:text-sm font-bold text-black mb-3">
                       {t("pending_assign_tables")} — {getShift(req.time) === 'lunch' ? t("pending_lunch") : t("pending_dinner")} {req.date} ({Math.ceil(req.party_size / 4)} {t("pending_needed_for")} {req.party_size} {t("pending_people")})
                     </h3>
                     {allZones.length > 1 && (
@@ -389,7 +389,7 @@ export default function PendingPage() {
                         ))}
                       </div>
                     )}
-                    <div className="grid grid-cols-4 sm:grid-cols-5 gap-2 mb-4">
+                    <div className="grid grid-cols-3 sm:grid-cols-5 gap-2 mb-4">
                       {visibleTables.map(table => {
                         const isOccupied = occupiedTableIds.has(table.id);
                         const isSelected = selectedTables.has(table.id);
