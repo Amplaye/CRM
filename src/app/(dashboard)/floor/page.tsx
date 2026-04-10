@@ -665,7 +665,7 @@ export default function FloorPage() {
                     );
                   })()}
                   {tStatus === "free" && (
-                    <p className="text-xs text-black/60">{t("floor_seats").replace("{count}", String(table.seats))}</p>
+                    <p className="text-xs text-black">{t("floor_seats").replace("{count}", String(table.seats))}</p>
                   )}
                 </div>
               );
