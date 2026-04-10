@@ -1049,16 +1049,26 @@ function PlanCanvas({ tables, resTableLinks, shiftReservations, activeStatuses, 
     startDrag(touch.clientX, touch.clientY, table, (e.currentTarget as HTMLElement).getBoundingClientRect());
   }
 
-  function handleTouchMove(e: React.TouchEvent) {
-    if (!draggingId) return;
-    e.preventDefault(); // prevent scroll while dragging
-    const touch = e.touches[0];
-    moveDrag(touch.clientX, touch.clientY);
-  }
-
   function handleTouchEnd() {
     endDrag();
   }
+
+  // Block canvas scroll while dragging a table (native listener with passive:false)
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const onTouchMove = (e: TouchEvent) => {
+      if (!draggingId) return; // allow normal scroll when not dragging
+      e.preventDefault();
+      const touch = e.touches[0];
+      moveDrag(touch.clientX, touch.clientY);
+    };
+    canvas.addEventListener('touchmove', onTouchMove, { passive: false });
+    return () => canvas.removeEventListener('touchmove', onTouchMove);
+  });
+
+  // Lock overflow on canvas while dragging to prevent any scroll
+  const canvasOverflow = draggingId ? "hidden" : "auto";
 
   return (
     <div
@@ -1066,10 +1076,10 @@ function PlanCanvas({ tables, resTableLinks, shiftReservations, activeStatuses, 
       onMouseMove={handleMouseMove}
       onMouseUp={handleMouseUp}
       onMouseLeave={handleMouseUp}
-      onTouchMove={handleTouchMove}
       onTouchEnd={handleTouchEnd}
       onTouchCancel={handleTouchEnd}
-      className="relative rounded-xl border-2 overflow-auto"
+      className="relative rounded-xl border-2"
+      style={{ overflow: canvasOverflow }}
       style={{
         background: "rgba(252,246,237,0.6)",
         borderColor: "#c4956a",
