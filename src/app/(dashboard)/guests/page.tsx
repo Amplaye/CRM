@@ -149,11 +149,11 @@ export default function GuestsPage() {
           </div>
           <div className="mt-3 sm:mt-0 flex items-center gap-2">
             <div className="flex p-0.5 rounded-lg border-2" style={{ borderColor: '#c4956a', background: 'rgba(252,246,237,0.6)' }}>
-              <button onClick={() => setViewMode("grid")} className={`p-1.5 rounded-md transition-colors`} style={{ background: viewMode === 'grid' ? '#c4956a' : 'transparent' }}>
-                <LayoutGrid className={`h-4 w-4 ${viewMode === 'grid' ? 'text-white' : 'text-black'}`} />
-              </button>
               <button onClick={() => setViewMode("list")} className={`p-1.5 rounded-md transition-colors`} style={{ background: viewMode === 'list' ? '#c4956a' : 'transparent' }}>
                 <List className={`h-4 w-4 ${viewMode === 'list' ? 'text-white' : 'text-black'}`} />
+              </button>
+              <button onClick={() => setViewMode("grid")} className={`p-1.5 rounded-md transition-colors`} style={{ background: viewMode === 'grid' ? '#c4956a' : 'transparent' }}>
+                <LayoutGrid className={`h-4 w-4 ${viewMode === 'grid' ? 'text-white' : 'text-black'}`} />
               </button>
             </div>
             <button onClick={handleExport} className="inline-flex items-center px-3 py-2 border-2 text-xs font-medium rounded-lg text-black" style={{ borderColor: '#c4956a', background: 'rgba(252,246,237,0.6)' }}>

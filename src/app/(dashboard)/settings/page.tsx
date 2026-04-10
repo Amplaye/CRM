@@ -146,17 +146,10 @@ export default function SettingsPage() {
         {/* General */}
         <section className="p-6 rounded-xl border-2" style={{ background: "rgba(252,246,237,0.85)", borderColor: "#c4956a" }}>
           <h2 className="text-lg font-bold text-zinc-900 mb-4">{t("settings_general")}</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div>
-              <label className="block text-sm font-medium text-black">{t("settings_name")}</label>
-              <input type="text" value={name} onChange={e => setName(e.target.value)}
-                className={`mt-1 ${inputStyle}`} style={inputBorder} />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-black">{t("settings_timezone")}</label>
-              <input type="text" value={timezone} onChange={e => setTimezone(e.target.value)}
-                className={`mt-1 ${inputStyle}`} style={inputBorder} />
-            </div>
+          <div>
+            <label className="block text-sm font-medium text-black">{t("settings_name")}</label>
+            <input type="text" value={name} onChange={e => setName(e.target.value)}
+              className={`mt-1 ${inputStyle}`} style={inputBorder} />
           </div>
         </section>
 
@@ -210,50 +203,7 @@ export default function SettingsPage() {
           </div>
         </section>
 
-        {/* Opening Hours */}
-        <section className="p-6 rounded-xl border-2" style={{ background: "rgba(252,246,237,0.85)", borderColor: "#c4956a" }}>
-          <h2 className="text-lg font-bold text-zinc-900 mb-1">{t("settings_opening_hours")}</h2>
-          <p className="text-xs text-black/50 mb-4">{t("settings_opening_hours_desc")}</p>
-          <div className="space-y-3">
-            {DAY_LABELS_KEYS.map((dayKey_, dayIdx) => {
-              const dayLabel = t(dayKey_);
-              const dayKey = String(dayIdx);
-              const slots = openingHours[dayKey] || [];
-              return (
-                <div key={dayIdx} className="flex flex-col sm:flex-row sm:items-start gap-2 py-2 border-b last:border-b-0" style={{ borderColor: "rgba(196,149,106,0.2)" }}>
-                  <span className="text-sm font-medium text-black w-24 pt-1.5 flex-shrink-0">{dayLabel}</span>
-                  <div className="flex-1 space-y-2">
-                    {slots.length === 0 ? (
-                      <span className="text-xs text-black/40 italic pt-1.5">{t("settings_closed")}</span>
-                    ) : (
-                      slots.map((slot, idx) => (
-                        <div key={idx} className="flex items-center gap-2">
-                          <input type="time" value={slot.open}
-                            onChange={e => updateSlot(dayKey, idx, "open", e.target.value)}
-                            className="rounded-lg border-2 px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-[#c4956a]"
-                            style={inputBorder} />
-                          <span className="text-xs text-black/50">{t("settings_to")}</span>
-                          <input type="time" value={slot.close}
-                            onChange={e => updateSlot(dayKey, idx, "close", e.target.value)}
-                            className="rounded-lg border-2 px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-[#c4956a]"
-                            style={inputBorder} />
-                          <button onClick={() => removeSlot(dayKey, idx)}
-                            className="p-1.5 hover:bg-red-50 rounded-lg transition-colors text-red-400 hover:text-red-600">
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
-                        </div>
-                      ))
-                    )}
-                  </div>
-                  <button onClick={() => addSlot(dayKey)}
-                    className="p-1.5 hover:bg-[#c4956a]/10 rounded-lg transition-colors text-[#c4956a] self-start mt-1">
-                    <Plus className="w-4 h-4" />
-                  </button>
-                </div>
-              );
-            })}
-          </div>
-        </section>
+        {/* Opening Hours removed — managed in Knowledge Base */}
 
       </div>
     </div>
