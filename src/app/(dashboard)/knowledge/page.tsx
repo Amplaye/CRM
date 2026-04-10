@@ -288,9 +288,8 @@ export default function KnowledgePage() {
             <div className="flex-1 flex flex-col p-4 sm:p-6 lg:p-8 max-w-4xl mx-auto w-full space-y-4 sm:space-y-6 lg:space-y-8 animate-in fade-in slide-in-from-bottom-2">
                <div className="flex items-center justify-between border-b pb-4 md:pb-6" style={{ borderColor: '#c4956a' }}>
                   <div className="flex items-center space-x-1">
-                     <button onClick={() => { setIsEditing(false); setSelectedArticleId(null); }} className="p-2 text-black hover:text-black hover:bg-[#c4956a]/10 rounded-full transition-colors mr-2">
-                        <ChevronLeft className="w-5 h-5 md:hidden" />
-                        <X className="w-5 h-5 hidden md:block" />
+                     <button onClick={() => { setIsEditing(false); setSelectedArticleId(null); }} className="p-1.5 border-2 border-red-400 text-red-500 hover:bg-red-50 rounded-lg transition-colors mr-2">
+                        <X className="w-4 h-4" />
                      </button>
                      <h2 className="text-xl font-bold text-black">{selectedArticleId ? t("know_edit_article") : t("know_new_article")}</h2>
                   </div>
@@ -350,7 +349,7 @@ export default function KnowledgePage() {
                            type="text"
                            value={editRiskTags}
                            onChange={e => setEditRiskTags(e.target.value)}
-                           className="w-full border-2 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-[#c4956a]" style={{ borderColor: '#c4956a', background: 'rgba(252,246,237,0.6)' }}
+                           className="w-full border-2 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-[#c4956a] placeholder:text-black/50" style={{ borderColor: '#c4956a', background: 'rgba(252,246,237,0.6)' }}
                            placeholder={t("know_risk_placeholder")}
                         />
                      </div>
@@ -362,7 +361,7 @@ export default function KnowledgePage() {
                   <textarea
                      value={editContent}
                      onChange={e => setEditContent(e.target.value)}
-                     className="flex-1 w-full border-2 rounded-xl p-6 text-sm leading-relaxed focus:outline-none focus:ring-1 focus:ring-[#c4956a] font-mono"
+                     className="flex-1 w-full border-2 rounded-xl p-6 text-sm leading-relaxed focus:outline-none focus:ring-1 focus:ring-[#c4956a] font-mono placeholder:text-black/50"
                      style={{ borderColor: '#c4956a', background: 'rgba(252,246,237,0.6)' }}
                      placeholder={t("know_content_placeholder")}
                   />
