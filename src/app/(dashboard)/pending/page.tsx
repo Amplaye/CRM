@@ -1,10 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { useTenant } from "@/lib/contexts/TenantContext";
 import { useLanguage } from "@/lib/contexts/LanguageContext";
-import { AlertTriangle, Check, X, MessageSquare, Phone, Calendar, Users, Clock } from "lucide-react";
+import { AlertTriangle, Check, X, MessageSquare, Phone, Calendar, Users, Clock, List, LayoutPanelTop } from "lucide-react";
 import Link from "next/link";
 import { zoneLabel } from "@/lib/restaurant-rules";
 
@@ -27,6 +27,17 @@ interface TableOption {
   name: string;
   seats: number;
   zone: string;
+  shape: "round" | "square" | "rectangle";
+  position_x: number | null;
+  position_y: number | null;
+}
+
+type TableShape = "round" | "square" | "rectangle";
+
+function tableDims(shape: TableShape, seats: number): { w: number; h: number } {
+  if (shape === "round") return seats <= 2 ? { w: 60, h: 60 } : { w: 80, h: 80 };
+  if (shape === "square") return seats <= 2 ? { w: 60, h: 60 } : { w: 80, h: 80 };
+  return seats <= 6 ? { w: 130, h: 70 } : { w: 160, h: 70 };
 }
 
 export default function PendingPage() {
@@ -44,6 +55,8 @@ export default function PendingPage() {
   const [zoneFilter, setZoneFilter] = useState<string | null>(null);
   // Prevents double-click from confirming the same reservation twice
   const [confirmInFlight, setConfirmInFlight] = useState(false);
+  // Table picker view mode: grid (buttons) or plan (visual canvas)
+  const [tablePickerView, setTablePickerView] = useState<"grid" | "plan">("grid");
 
   const fetchPending = async () => {
     if (!tenant) return;
@@ -62,7 +75,7 @@ export default function PendingPage() {
     if (!tenant) return;
     const { data } = await supabase
       .from("restaurant_tables")
-      .select("id, name, seats, zone")
+      .select("id, name, seats, zone, shape, position_x, position_y")
       .eq("tenant_id", tenant.id)
       .eq("status", "active");
 
@@ -357,9 +370,27 @@ export default function PendingPage() {
                   const visibleTables = zoneFilter ? tables.filter(t => (t.zone || "Principal") === zoneFilter) : tables;
                   return (
                   <div className="border-t-2 p-3 sm:p-5" style={{ borderColor: '#22c55e', background: 'rgba(34,197,94,0.03)' }}>
-                    <h3 className="text-xs sm:text-sm font-bold text-black mb-3">
-                      {t("pending_assign_tables")} — {getShift(req.time) === 'lunch' ? t("pending_lunch") : t("pending_dinner")} {req.date} ({Math.ceil(req.party_size / 4)} {t("pending_needed_for")} {req.party_size} {t("pending_people")})
-                    </h3>
+                    <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
+                      <h3 className="text-xs sm:text-sm font-bold text-black">
+                        {t("pending_assign_tables")} — {getShift(req.time) === 'lunch' ? t("pending_lunch") : t("pending_dinner")} {req.date} ({Math.ceil(req.party_size / 4)} {t("pending_needed_for")} {req.party_size} {t("pending_people")})
+                      </h3>
+                      <div className="inline-flex rounded-lg border-2 overflow-hidden" style={{ borderColor: "#c4956a" }}>
+                        <button
+                          onClick={() => setTablePickerView("grid")}
+                          className="inline-flex items-center gap-1 px-2 py-1 text-xs font-semibold transition-colors"
+                          style={{ background: tablePickerView === "grid" ? "#c4956a" : "rgba(252,246,237,0.6)", color: tablePickerView === "grid" ? "#fff" : "#000" }}
+                        >
+                          <List className="w-3 h-3" /> Lista
+                        </button>
+                        <button
+                          onClick={() => setTablePickerView("plan")}
+                          className="inline-flex items-center gap-1 px-2 py-1 text-xs font-semibold transition-colors"
+                          style={{ background: tablePickerView === "plan" ? "#c4956a" : "rgba(252,246,237,0.6)", color: tablePickerView === "plan" ? "#fff" : "#000" }}
+                        >
+                          <LayoutPanelTop className="w-3 h-3" /> Plano
+                        </button>
+                      </div>
+                    </div>
                     {allZones.length > 1 && (
                       <div className="flex items-center gap-1 mb-3 flex-wrap">
                         <button
@@ -389,6 +420,8 @@ export default function PendingPage() {
                         ))}
                       </div>
                     )}
+
+                    {tablePickerView === "grid" ? (
                     <div className="grid grid-cols-3 sm:grid-cols-5 gap-2 mb-4">
                       {visibleTables.map(table => {
                         const isOccupied = occupiedTableIds.has(table.id);
@@ -414,6 +447,15 @@ export default function PendingPage() {
                         );
                       })}
                     </div>
+                    ) : (
+                    <TablePickerCanvas
+                      tables={visibleTables}
+                      occupiedTableIds={occupiedTableIds}
+                      selectedTables={selectedTables}
+                      onToggleTable={toggleTable}
+                    />
+                    )}
+
                     <div className="flex items-center gap-3">
                       <button
                         onClick={handleConfirm}
@@ -439,6 +481,82 @@ export default function PendingPage() {
           })}
         </div>
       )}
+    </div>
+  );
+}
+
+/* ────────────────────────────────────────────────────────
+   TablePickerCanvas — visual floor plan for table selection
+   ──────────────────────────────────────────────────────── */
+
+interface TablePickerCanvasProps {
+  tables: TableOption[];
+  occupiedTableIds: Set<string>;
+  selectedTables: Set<string>;
+  onToggleTable: (id: string) => void;
+}
+
+function TablePickerCanvas({ tables, occupiedTableIds, selectedTables, onToggleTable }: TablePickerCanvasProps) {
+  const canvasRef = useRef<HTMLDivElement>(null);
+
+  return (
+    <div
+      ref={canvasRef}
+      className="relative rounded-xl border-2 mb-4"
+      style={{
+        overflow: "auto",
+        background: "rgba(252,246,237,0.6)",
+        borderColor: "#c4956a",
+        height: "400px",
+        backgroundImage: "radial-gradient(rgba(196,149,106,0.25) 1px, transparent 1px)",
+        backgroundSize: "20px 20px",
+      }}
+    >
+      <div className="relative" style={{ minWidth: "500px", minHeight: "400px" }}>
+        {tables.map((table) => {
+          const shape = table.shape || "square";
+          const dims = tableDims(shape, table.seats);
+          const x = table.position_x ?? 60;
+          const y = table.position_y ?? 60;
+          const isOccupied = occupiedTableIds.has(table.id);
+          const isSelected = selectedTables.has(table.id);
+
+          const borderColor = isOccupied ? "#ef4444" : isSelected ? "#22c55e" : "#c4956a";
+          const bg = isOccupied
+            ? "rgba(254,226,226,0.95)"
+            : isSelected
+              ? "rgba(220,252,231,0.95)"
+              : "rgba(252,246,237,0.95)";
+
+          return (
+            <div
+              key={table.id}
+              onClick={() => !isOccupied && onToggleTable(table.id)}
+              className={`absolute flex flex-col items-center justify-center text-center select-none transition-all ${
+                isOccupied ? "cursor-not-allowed opacity-50" : "cursor-pointer hover:shadow-lg hover:scale-105"
+              }`}
+              style={{
+                left: x,
+                top: y,
+                width: dims.w,
+                height: dims.h,
+                borderRadius: shape === "round" ? "50%" : shape === "square" ? "10px" : "14px",
+                border: `3px solid ${borderColor}`,
+                background: bg,
+                zIndex: 10,
+              }}
+            >
+              <span className="text-[11px] font-bold text-black leading-none">{table.name}</span>
+              <span className="text-[9px] text-black/60 leading-tight">{table.seats}p</span>
+              {isSelected && (
+                <span className="absolute -top-2 -right-2 w-5 h-5 flex items-center justify-center text-white rounded-full" style={{ background: "#22c55e" }}>
+                  <Check className="w-3 h-3" />
+                </span>
+              )}
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }
