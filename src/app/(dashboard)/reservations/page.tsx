@@ -427,15 +427,18 @@ export default function ReservationsPage() {
       </div>
 
       {/* QUICK STATUS EDIT DRAWER */}
-      {selectedRes && (
+      {selectedRes && (() => {
+        const inputCls = "w-full border-2 rounded-lg px-3 py-2.5 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-[#c4956a] box-border";
+        const inputStyle = { borderColor: '#c4956a', background: 'rgba(252,246,237,0.6)' };
+        return (
         <>
         <div className="fixed inset-0 bg-black/40 z-30 sm:hidden" onClick={() => setSelectedRes(null)} />
-        <div className="fixed inset-y-0 right-0 w-full sm:w-[400px] border-l shadow-2xl z-40 transform transition-transform duration-300 flex flex-col overflow-hidden" style={{ background: 'rgb(252,246,237)', borderColor: '#c4956a' }}>
-          <div className="px-4 sm:px-6 py-4 flex items-center justify-between border-b" style={{ borderColor: '#c4956a' }}>
+        <div className="fixed inset-0 sm:inset-y-0 sm:left-auto sm:right-0 sm:w-[400px] border-l shadow-2xl z-40 flex flex-col" style={{ background: 'rgb(252,246,237)', borderColor: '#c4956a' }}>
+          <div className="px-4 sm:px-6 py-3 sm:py-4 flex items-center justify-between border-b" style={{ borderColor: '#c4956a' }}>
              <div className="min-w-0 flex-1">
-               <h2 className="text-lg font-bold text-zinc-900 tracking-tight">{t("res_quick_edit")}</h2>
+               <h2 className="text-base sm:text-lg font-bold text-zinc-900 tracking-tight">{t("res_quick_edit")}</h2>
                {(selectedRes.guest_name || selectedRes.guest_phone) && (
-                 <div className="flex items-center gap-2 mt-1 flex-wrap">
+                 <div className="flex items-center gap-2 mt-0.5 flex-wrap">
                    {selectedRes.guest_name && <span className="text-sm font-medium text-black">{selectedRes.guest_name}</span>}
                    {selectedRes.guest_phone && (
                      <span className="flex items-center gap-1 text-sm text-black/70">
@@ -445,19 +448,15 @@ export default function ReservationsPage() {
                  </div>
                )}
              </div>
-             <button onClick={() => setSelectedRes(null)} className="p-1.5 border-2 border-red-400 text-red-500 hover:bg-red-50 rounded-full transition-colors flex-shrink-0">
+             <button onClick={() => setSelectedRes(null)} className="p-1.5 border-2 border-red-400 text-red-500 hover:bg-red-50 rounded-lg transition-colors flex-shrink-0">
                 <X className="h-4 w-4" />
              </button>
           </div>
           <form onSubmit={handleUpdate} className="flex-1 flex flex-col min-h-0">
-             <div className="flex-1 overflow-y-auto w-full p-4 sm:p-6 space-y-5 sm:space-y-6">
+             <div className="flex-1 overflow-y-auto px-4 sm:px-6 py-4 sm:py-5 space-y-4 sm:space-y-5">
                 <div>
                    <label className="block text-sm font-medium text-black mb-1">{t("res_edit_status")}</label>
-                   <select
-                     name="status"
-                     defaultValue={selectedRes.status}
-                     className="w-full border-2 rounded-lg px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-[#c4956a] font-medium" style={{ borderColor: '#c4956a', background: 'rgba(252,246,237,0.6)' }}
-                   >
+                   <select name="status" defaultValue={selectedRes.status} className={inputCls} style={inputStyle}>
                       <option value="pending_confirmation">{t("res_pending_confirmation")}</option>
                       <option value="confirmed">{t("status_confirmed")}</option>
                       <option value="seated">{t("status_seated")}</option>
@@ -467,111 +466,98 @@ export default function ReservationsPage() {
                    </select>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                   <div>
-                     <label className="block text-sm font-medium text-black mb-1">{t("res_edit_date")}</label>
-                     <input name="date" type="date" defaultValue={selectedRes.date} className="w-full max-w-full border-2 rounded-lg px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-[#c4956a] box-border" style={{ borderColor: '#c4956a', background: 'rgba(252,246,237,0.6)' }} />
-                   </div>
-                   <div>
-                     <label className="block text-sm font-medium text-black mb-1">{t("res_edit_time")}</label>
-                     <input name="time" type="time" defaultValue={selectedRes.time} className="w-full max-w-full border-2 rounded-lg px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-[#c4956a] box-border" style={{ borderColor: '#c4956a', background: 'rgba(252,246,237,0.6)' }} />
-                   </div>
+                <div>
+                   <label className="block text-sm font-medium text-black mb-1">{t("res_edit_date")}</label>
+                   <input name="date" type="date" defaultValue={selectedRes.date} className={inputCls} style={inputStyle} />
+                </div>
+
+                <div>
+                   <label className="block text-sm font-medium text-black mb-1">{t("res_edit_time")}</label>
+                   <input name="time" type="time" defaultValue={selectedRes.time} className={inputCls} style={inputStyle} />
                 </div>
 
                 <div>
                    <label className="block text-sm font-medium text-black mb-1">{t("res_edit_party")}</label>
-                   <input name="party_size" type="number" defaultValue={selectedRes.party_size} className="w-full border-2 rounded-lg px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-[#c4956a]" style={{ borderColor: '#c4956a', background: 'rgba(252,246,237,0.6)' }} />
+                   <input name="party_size" type="number" defaultValue={selectedRes.party_size} className={inputCls} style={inputStyle} />
                 </div>
 
                 <div>
                    <label className="block text-sm font-medium text-black mb-1">{t("res_edit_notes")}</label>
-                   <textarea
-                     name="notes"
-                     defaultValue={selectedRes.notes}
-                     rows={4}
-                     className="w-full border-2 rounded-lg px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-[#c4956a]" style={{ borderColor: '#c4956a', background: 'rgba(252,246,237,0.6)' }}
+                   <textarea name="notes" defaultValue={selectedRes.notes} rows={3}
+                     className={inputCls} style={inputStyle}
                      placeholder={t("res_edit_placeholder")}
                    />
                 </div>
              </div>
-             <div className="p-4 sm:p-6 pb-8 sm:pb-6 border-t" style={{ borderColor: '#c4956a' }}>
-                <button
-                   type="submit"
-                   disabled={saving}
-                   className="w-full flex items-center justify-center bg-zinc-900 hover:bg-zinc-800 text-white font-medium py-2.5 px-4 rounded-lg transition-colors shadow-sm disabled:opacity-50"
-                >
+             <div className="px-4 sm:px-6 py-3 sm:py-4 pb-6 sm:pb-4 border-t" style={{ borderColor: '#c4956a' }}>
+                <button type="submit" disabled={saving}
+                   className="w-full flex items-center justify-center bg-zinc-900 hover:bg-zinc-800 text-white font-medium py-2.5 px-4 rounded-lg transition-colors shadow-sm disabled:opacity-50">
                    <Save className="h-4 w-4 mr-2" /> {saving ? "Saving..." : t("res_edit_save")}
                 </button>
              </div>
           </form>
         </div>
         </>
-      )}
+        );
+      })()}
 
       {/* NEW RESERVATION DRAWER */}
       {isCreating && (
         <>
         <div className="fixed inset-0 bg-black/40 z-30 sm:hidden" onClick={() => setIsCreating(false)} />
-        <div className="fixed inset-y-0 right-0 w-full sm:w-[400px] border-l shadow-2xl z-40 transform transition-transform duration-300 flex flex-col overflow-hidden" style={{ background: 'rgb(252,246,237)', borderColor: '#c4956a' }}>
-          <div className="px-4 sm:px-6 py-4 flex items-center justify-between border-b" style={{ borderColor: '#c4956a' }}>
-             <h2 className="text-lg font-bold text-zinc-900 tracking-tight">{t("res_new")}</h2>
-             <button onClick={() => setIsCreating(false)} className="p-1.5 border-2 border-red-400 text-red-500 hover:bg-red-50 rounded-full transition-colors">
+        <div className="fixed inset-0 sm:inset-y-0 sm:left-auto sm:right-0 sm:w-[400px] border-l shadow-2xl z-40 flex flex-col" style={{ background: 'rgb(252,246,237)', borderColor: '#c4956a' }}>
+          <div className="px-4 sm:px-6 py-3 sm:py-4 flex items-center justify-between border-b" style={{ borderColor: '#c4956a' }}>
+             <h2 className="text-base sm:text-lg font-bold text-zinc-900 tracking-tight">{t("res_new")}</h2>
+             <button onClick={() => setIsCreating(false)} className="p-1.5 border-2 border-red-400 text-red-500 hover:bg-red-50 rounded-lg transition-colors">
                 <X className="h-4 w-4" />
              </button>
           </div>
+          {(() => {
+            const iCls = "w-full border-2 rounded-lg px-3 py-2.5 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-[#c4956a] box-border";
+            const iSty = { borderColor: '#c4956a', background: 'rgba(252,246,237,0.6)' };
+            return (
           <form onSubmit={handleCreate} className="flex-1 flex flex-col min-h-0">
-             <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-5">
+             <div className="flex-1 overflow-y-auto px-4 sm:px-6 py-4 sm:py-5 space-y-4 sm:space-y-5">
                 <div>
                    <label className="block text-sm font-medium text-black mb-1">{t("res_col_guest")}</label>
-                   <input required name="guestName" type="text" placeholder={t("auth_name_placeholder")} className="w-full border-2 rounded-lg px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-[#c4956a]" style={{ borderColor: '#c4956a', background: 'rgba(252,246,237,0.6)' }} />
+                   <input required name="guestName" type="text" placeholder={t("auth_name_placeholder")} className={iCls} style={iSty} />
                 </div>
                 <div>
                    <label className="block text-sm font-medium text-black mb-1">{t("res_phone")}</label>
-                   <input required name="guestPhone" type="tel" placeholder="+1 555-0192" className="w-full border-2 rounded-lg px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-[#c4956a]" style={{ borderColor: '#c4956a', background: 'rgba(252,246,237,0.6)' }} />
+                   <input required name="guestPhone" type="tel" placeholder="+34 600 000 000" className={iCls} style={iSty} />
                 </div>
-
                 <div>
                    <label className="block text-sm font-medium text-black mb-1">{t("res_edit_date")}</label>
-                   <input required name="date" type="date" value={createDate} onChange={(e) => { setCreateDate(e.target.value); setSelectedTableIds([]); }} className="w-full border-2 rounded-lg px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-[#c4956a]" style={{ borderColor: '#c4956a', background: 'rgba(252,246,237,0.6)' }} />
+                   <input required name="date" type="date" value={createDate} onChange={(e) => { setCreateDate(e.target.value); setSelectedTableIds([]); }} className={iCls} style={iSty} />
                 </div>
-
                 <div>
-                   <label className="block text-sm font-medium text-black mb-2">{t("floor_lunch")} / {t("floor_dinner")}</label>
+                   <label className="block text-sm font-medium text-black mb-1">{t("floor_lunch")} / {t("floor_dinner")}</label>
                    <input type="hidden" name="shift" value={createShift} />
                    <div className="flex border-2 rounded-lg overflow-hidden" style={{ borderColor: '#c4956a' }}>
-                     <button
-                       type="button"
-                       onClick={() => setCreateShift("lunch")}
-                       className={`flex-1 py-2 text-sm font-semibold transition-colors ${createShift === "lunch" ? "bg-[#c4956a] text-white" : "text-black"}`}
-                       style={createShift !== "lunch" ? { background: 'rgba(252,246,237,0.6)' } : undefined}
-                     >
-                       {t("floor_lunch")} (12:30-15:30)
+                     <button type="button" onClick={() => setCreateShift("lunch")}
+                       className={`flex-1 py-2.5 text-sm font-semibold transition-colors ${createShift === "lunch" ? "bg-[#c4956a] text-white" : "text-black"}`}
+                       style={createShift !== "lunch" ? { background: 'rgba(252,246,237,0.6)' } : undefined}>
+                       {t("floor_lunch")}
                      </button>
-                     <button
-                       type="button"
-                       onClick={() => setCreateShift("dinner")}
-                       className={`flex-1 py-2 text-sm font-semibold transition-colors ${createShift === "dinner" ? "bg-[#c4956a] text-white" : "text-black"}`}
-                       style={createShift !== "dinner" ? { background: 'rgba(252,246,237,0.6)' } : undefined}
-                     >
-                       {t("floor_dinner")} (19:30-22:30)
+                     <button type="button" onClick={() => setCreateShift("dinner")}
+                       className={`flex-1 py-2.5 text-sm font-semibold transition-colors ${createShift === "dinner" ? "bg-[#c4956a] text-white" : "text-black"}`}
+                       style={createShift !== "dinner" ? { background: 'rgba(252,246,237,0.6)' } : undefined}>
+                       {t("floor_dinner")}
                      </button>
                    </div>
                 </div>
-
                 <div>
                    <label className="block text-sm font-medium text-black mb-1">{t("res_edit_time")}</label>
-                   <select required name="time" defaultValue={createShift === "lunch" ? "13:00" : "20:00"} className="w-full border-2 rounded-lg px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-[#c4956a]" style={{ borderColor: '#c4956a', background: 'rgba(252,246,237,0.6)' }}>
+                   <select required name="time" defaultValue={createShift === "lunch" ? "13:00" : "20:00"} className={iCls} style={iSty}>
                      {shiftTimes[createShift].map(time => (
                        <option key={time} value={time}>{time}</option>
                      ))}
                    </select>
                 </div>
-
                 <div>
                    <label className="block text-sm font-medium text-black mb-1">{t("res_edit_party")}</label>
-                   <input required name="partySize" type="number" min="1" max="20" defaultValue="2" className="w-full border-2 rounded-lg px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-[#c4956a]" style={{ borderColor: '#c4956a', background: 'rgba(252,246,237,0.6)' }} />
+                   <input required name="partySize" type="number" min="1" max="20" defaultValue="2" className={iCls} style={iSty} />
                 </div>
-
                 {availableTables.length > 0 && (
                   <div>
                     <label className="block text-sm font-medium text-black mb-2">{t("floor_tables")} <span className="text-xs font-normal text-black/40">(Opcional)</span></label>
@@ -580,20 +566,14 @@ export default function ReservationsPage() {
                         const isOccupied = occupiedTableIds.has(table.id);
                         const isSelected = selectedTableIds.includes(table.id);
                         return (
-                          <button
-                            key={table.id}
-                            type="button"
-                            disabled={isOccupied}
+                          <button key={table.id} type="button" disabled={isOccupied}
                             onClick={() => !isOccupied && toggleTable(table.id)}
                             className={`py-2 px-1 text-xs font-semibold rounded-lg border-2 transition-colors ${
-                              isOccupied
-                                ? "border-red-400 text-red-400 opacity-50 cursor-not-allowed"
-                                : isSelected
-                                  ? "border-green-500 bg-green-500 text-white"
+                              isOccupied ? "border-red-400 text-red-400 opacity-50 cursor-not-allowed"
+                                : isSelected ? "border-green-500 bg-green-500 text-white"
                                   : "border-[#c4956a] text-black"
                             }`}
-                            style={!isOccupied && !isSelected ? { background: 'rgba(252,246,237,0.6)' } : undefined}
-                          >
+                            style={!isOccupied && !isSelected ? { background: 'rgba(252,246,237,0.6)' } : undefined}>
                             {table.name}
                           </button>
                         );
@@ -601,28 +581,21 @@ export default function ReservationsPage() {
                     </div>
                   </div>
                 )}
-
                 <div>
                    <label className="block text-sm font-medium text-black mb-1">{t("res_edit_notes")}</label>
-                   <textarea
-                     name="notes"
-                     rows={3}
-                     className="w-full border-2 rounded-lg px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-[#c4956a]" style={{ borderColor: '#c4956a', background: 'rgba(252,246,237,0.6)' }}
-                     placeholder={t("res_edit_placeholder")}
-                   />
+                   <textarea name="notes" rows={3} className={iCls} style={iSty} placeholder={t("res_edit_placeholder")} />
                 </div>
              </div>
-             <div className="p-4 sm:p-6 pb-8 sm:pb-6 border-t" style={{ borderColor: '#c4956a' }}>
-                <button
-                   type="submit"
-                   disabled={saving}
+             <div className="px-4 sm:px-6 py-3 sm:py-4 pb-6 sm:pb-4 border-t" style={{ borderColor: '#c4956a' }}>
+                <button type="submit" disabled={saving}
                    className="w-full flex items-center justify-center text-white font-medium py-2.5 px-4 rounded-lg transition-colors shadow-sm disabled:opacity-50"
-                   style={{ background: 'linear-gradient(135deg, #c4956a, #a0764e)' }}
-                >
+                   style={{ background: 'linear-gradient(135deg, #c4956a, #a0764e)' }}>
                    <Save className="h-4 w-4 mr-2" /> {saving ? "..." : t("res_new")}
                 </button>
              </div>
           </form>
+            );
+          })()}
         </div>
         </>
       )}
