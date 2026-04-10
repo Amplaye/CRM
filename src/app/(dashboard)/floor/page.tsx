@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback, useRef } from "react";
-import { Calendar, Users, LayoutGrid, AlertTriangle, ChevronLeft, ChevronRight, List, LayoutPanelTop, Plus, Pencil, Check } from "lucide-react";
+import { Calendar, Users, LayoutGrid, AlertTriangle, ChevronLeft, ChevronRight, List, LayoutPanelTop, Plus, Pencil, Check, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useLanguage } from "@/lib/contexts/LanguageContext";
 import { useTenant } from "@/lib/contexts/TenantContext";
