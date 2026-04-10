@@ -363,7 +363,7 @@ export const es: Dictionary = {
   dash_by_ai_voice: "por voz IA",
   dash_waitlist_recoveries: "Recuperaciones de Espera",
   dash_auto_filled: "auto-completadas",
-  dash_noshows_prevented: "evitados",
+  dash_noshows_prevented: "No-Shows Prevenidos",
   dash_actual_noshows: "no-shows reales",
   dash_noshows_label: "No-Shows",
   dash_noshows_sub: "Sin no-shows",

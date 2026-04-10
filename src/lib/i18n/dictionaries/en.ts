@@ -360,7 +360,7 @@ export const en = {
   dash_by_ai_voice: "by AI voice",
   dash_waitlist_recoveries: "Waitlist Recoveries",
   dash_auto_filled: "auto-filled",
-  dash_noshows_prevented: "prevented",
+  dash_noshows_prevented: "No-Shows Prevented",
   dash_actual_noshows: "actual no-shows",
   dash_noshows_label: "No-Shows",
   dash_noshows_sub: "No no-shows",
