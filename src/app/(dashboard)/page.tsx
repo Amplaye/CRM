@@ -298,19 +298,19 @@ export default function DashboardPage() {
     <div className="p-4 sm:p-6 lg:p-8 w-full space-y-4 sm:space-y-6">
 
       {/* ── Header ── */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+      <div className="space-y-2">
         <div>
           <h1 className="text-xl sm:text-2xl font-bold text-black tracking-tight">{t("nav_dashboard")}</h1>
           <p className="mt-0.5 text-xs sm:text-sm text-black">{t("dash_ai_performance")}</p>
         </div>
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+        <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
           {/* View mode toggle */}
-          <div className="inline-flex rounded-lg border-2 overflow-hidden self-start sm:self-auto" style={{ borderColor: "#c4956a" }}>
+          <div className="inline-flex rounded-lg border-2 overflow-hidden" style={{ borderColor: "#c4956a" }}>
             {(["day", "month", "year"] as const).map(mode => (
               <button
                 key={mode}
                 onClick={() => setViewMode(mode)}
-                className="px-2.5 sm:px-3 py-1 sm:py-1.5 text-xs sm:text-sm font-semibold transition-colors"
+                className="px-2 sm:px-3 py-1 sm:py-1.5 text-xs sm:text-sm font-semibold transition-colors"
                 style={{
                   background: viewMode === mode ? "#c4956a" : "rgba(252,246,237,0.6)",
                   color: viewMode === mode ? "#fff" : "#000",
@@ -320,40 +320,36 @@ export default function DashboardPage() {
               </button>
             ))}
           </div>
-          {/* Period navigator */}
-          <div className="flex items-center gap-1 sm:gap-2">
-            <button onClick={() => navigatePeriod(-1)} className="p-1.5 sm:p-2 hover:bg-[#c4956a]/10 rounded-lg transition-colors">
-              <ChevronLeft className="w-4 h-4 sm:w-5 sm:h-5 text-black" />
-            </button>
-            <div className="flex items-center gap-1 justify-center">
-              {viewMode === "day" && (
-                <select value={selectedDay} onChange={(e) => setSelectedDay(Number(e.target.value))}
-                  className="border-2 rounded-lg px-1.5 sm:px-2 py-1 sm:py-1.5 text-xs sm:text-sm font-semibold text-black focus:outline-none focus:ring-1 focus:ring-[#c4956a]"
-                  style={{ borderColor: "#c4956a", background: "rgba(252,246,237,0.6)" }}>
-                  {Array.from({ length: new Date(selectedYear, selectedMonth + 1, 0).getDate() }, (_, i) => i + 1).map(d => (
-                    <option key={d} value={d}>{d}</option>
-                  ))}
-                </select>
-              )}
-              {viewMode !== "year" && (
-                <select value={selectedMonth} onChange={(e) => setSelectedMonth(Number(e.target.value))}
-                  className="border-2 rounded-lg px-1.5 sm:px-2 py-1 sm:py-1.5 text-xs sm:text-sm font-semibold text-black focus:outline-none focus:ring-1 focus:ring-[#c4956a]"
-                  style={{ borderColor: "#c4956a", background: "rgba(252,246,237,0.6)" }}>
-                  {monthNames.map((m, i) => <option key={i} value={i}>{m}</option>)}
-                </select>
-              )}
-              <select value={selectedYear} onChange={(e) => setSelectedYear(Number(e.target.value))}
-                className="border-2 rounded-lg px-1.5 sm:px-2 py-1 sm:py-1.5 text-xs sm:text-sm font-semibold text-black focus:outline-none focus:ring-1 focus:ring-[#c4956a]"
-                style={{ borderColor: "#c4956a", background: "rgba(252,246,237,0.6)" }}>
-                {Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - 2 + i).map(y => (
-                  <option key={y} value={y}>{y}</option>
-                ))}
-              </select>
-            </div>
-            <button onClick={() => navigatePeriod(1)} className="p-1.5 sm:p-2 hover:bg-[#c4956a]/10 rounded-lg transition-colors">
-              <ChevronRight className="w-4 h-4 sm:w-5 sm:h-5 text-black" />
-            </button>
-          </div>
+          {/* Period navigator — all inline */}
+          <button onClick={() => navigatePeriod(-1)} className="p-1.5 hover:bg-[#c4956a]/10 rounded-lg transition-colors">
+            <ChevronLeft className="w-4 h-4 text-black" />
+          </button>
+          {viewMode === "day" && (
+            <select value={selectedDay} onChange={(e) => setSelectedDay(Number(e.target.value))}
+              className="border-2 rounded-lg px-1.5 py-1 text-xs font-semibold text-black focus:outline-none focus:ring-1 focus:ring-[#c4956a]"
+              style={{ borderColor: "#c4956a", background: "rgba(252,246,237,0.6)" }}>
+              {Array.from({ length: new Date(selectedYear, selectedMonth + 1, 0).getDate() }, (_, i) => i + 1).map(d => (
+                <option key={d} value={d}>{d}</option>
+              ))}
+            </select>
+          )}
+          {viewMode !== "year" && (
+            <select value={selectedMonth} onChange={(e) => setSelectedMonth(Number(e.target.value))}
+              className="border-2 rounded-lg px-1.5 py-1 text-xs font-semibold text-black focus:outline-none focus:ring-1 focus:ring-[#c4956a]"
+              style={{ borderColor: "#c4956a", background: "rgba(252,246,237,0.6)" }}>
+              {monthNames.map((m, i) => <option key={i} value={i}>{m}</option>)}
+            </select>
+          )}
+          <select value={selectedYear} onChange={(e) => setSelectedYear(Number(e.target.value))}
+            className="border-2 rounded-lg px-1.5 py-1 text-xs font-semibold text-black focus:outline-none focus:ring-1 focus:ring-[#c4956a]"
+            style={{ borderColor: "#c4956a", background: "rgba(252,246,237,0.6)" }}>
+            {Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - 2 + i).map(y => (
+              <option key={y} value={y}>{y}</option>
+            ))}
+          </select>
+          <button onClick={() => navigatePeriod(1)} className="p-1.5 hover:bg-[#c4956a]/10 rounded-lg transition-colors">
+            <ChevronRight className="w-4 h-4 text-black" />
+          </button>
         </div>
       </div>
 
@@ -393,29 +389,29 @@ export default function DashboardPage() {
         </div>
 
         {/* Breakdown */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
-          <div className="p-3 rounded-lg" style={{ background: "rgba(196,149,106,0.08)" }}>
-            <Moon className="w-4 h-4 text-indigo-500 mx-auto mb-1" />
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+          <div className="p-3 rounded-xl border-2" style={{ background: "rgba(252,246,237,0.85)", borderColor: "#6366f1" }}>
+            <Moon className="w-6 h-6 text-indigo-500 mx-auto mb-1.5" />
             <p className="text-xs text-black font-medium">{t("dash_out_of_hours")}</p>
-            <p className="text-lg sm:text-xl font-bold text-black">€{kpis.outOfHoursRevenue.toLocaleString()}</p>
+            <p className="text-lg sm:text-xl font-bold text-indigo-500">€{kpis.outOfHoursRevenue.toLocaleString()}</p>
             <p className="text-xs text-black">{kpis.outOfHoursCount} {t("dash_bookings_while_closed")}</p>
           </div>
-          <div className="p-3 rounded-lg" style={{ background: "rgba(196,149,106,0.08)" }}>
-            <Phone className="w-4 h-4 text-[#fb7740] mx-auto mb-1" />
+          <div className="p-3 rounded-xl border-2" style={{ background: "rgba(252,246,237,0.85)", borderColor: "#fb7740" }}>
+            <Phone className="w-6 h-6 text-[#fb7740] mx-auto mb-1.5" />
             <p className="text-xs text-black font-medium">{t("dash_ai_voice_calls")}</p>
-            <p className="text-lg sm:text-xl font-bold text-black">€{kpis.voiceRevenue.toLocaleString()}</p>
+            <p className="text-lg sm:text-xl font-bold text-[#fb7740]">€{kpis.voiceRevenue.toLocaleString()}</p>
             <p className="text-xs text-black">{kpis.voiceCount} {t("dash_calls_converted")}</p>
           </div>
-          <div className="p-3 rounded-lg" style={{ background: "rgba(196,149,106,0.08)" }}>
-            <RefreshCw className="w-4 h-4 text-emerald-500 mx-auto mb-1" />
+          <div className="p-3 rounded-xl border-2" style={{ background: "rgba(252,246,237,0.85)", borderColor: "#22c55e" }}>
+            <RefreshCw className="w-6 h-6 text-emerald-500 mx-auto mb-1.5" />
             <p className="text-xs text-black font-medium">{t("dash_waitlist_recovered")}</p>
-            <p className="text-lg sm:text-xl font-bold text-black">€{kpis.waitlistRevenue.toLocaleString()}</p>
+            <p className="text-lg sm:text-xl font-bold text-emerald-500">€{kpis.waitlistRevenue.toLocaleString()}</p>
             <p className="text-xs text-black">{kpis.waitlistConverted} {t("dash_recoveries")}</p>
           </div>
-          <div className="p-3 rounded-lg" style={{ background: "rgba(196,149,106,0.08)" }}>
-            <Bot className="w-4 h-4 text-[#c4956a] mx-auto mb-1" />
+          <div className="p-3 rounded-xl border-2" style={{ background: "rgba(252,246,237,0.85)", borderColor: "#c4956a" }}>
+            <Bot className="w-6 h-6 text-[#c4956a] mx-auto mb-1.5" />
             <p className="text-xs text-black font-medium">{t("dash_ai_chat")}</p>
-            <p className="text-lg sm:text-xl font-bold text-black">€{kpis.chatRevenue.toLocaleString()}</p>
+            <p className="text-lg sm:text-xl font-bold text-[#c4956a]">€{kpis.chatRevenue.toLocaleString()}</p>
             <p className="text-xs text-black">{kpis.chatCount} {t("dash_whatsapp_bookings")}</p>
           </div>
         </div>
@@ -444,7 +440,7 @@ export default function DashboardPage() {
           <p className="text-xs text-black">{kpis.avgParty} {t("dash_avg_covers")}</p>
         </div>
         <div className="rounded-xl p-3 sm:p-5 border-2 text-center" style={cardStyle}>
-          <ShieldCheck className="w-5 h-5 mx-auto mb-1" style={{ color: kpis.noShows > 0 ? "#ef4444" : "#c4956a" }} />
+          <ShieldCheck className="w-5 h-5 mx-auto mb-1 text-[#c4956a]" />
           <p className="text-xs font-medium text-black">{t("dash_noshows_label")}</p>
           <p className={`text-xl sm:text-2xl font-bold ${kpis.noShows > 0 ? 'text-red-500' : 'text-black'}`}>{kpis.noShows}</p>
           <p className="text-xs text-black">{kpis.noShowsPrevented > 0 ? `${kpis.noShowsPrevented} ${t("dash_noshows_prevented")}` : t("dash_noshows_sub")}</p>
