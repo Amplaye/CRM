@@ -256,16 +256,16 @@ export default function PendingPage() {
     <div className="p-4 sm:p-6 lg:p-8 w-full space-y-4 sm:space-y-6 lg:space-y-8">
       <div>
         <h1 className="text-2xl font-bold text-black tracking-tight">{t("pending_title")}</h1>
-        <p className="mt-1 text-sm text-black/60">{t("pending_subtitle")}</p>
+        <p className="mt-1 text-sm text-black">{t("pending_subtitle")}</p>
       </div>
 
       {loading ? (
-        <div className="text-sm text-black/40">{t("loading")}</div>
+        <div className="text-sm text-black">{t("loading")}</div>
       ) : pending.length === 0 ? (
         <div className="border-2 rounded-xl py-16 text-center" style={{ background: 'rgba(252,246,237,0.85)', borderColor: '#c4956a' }}>
           <AlertTriangle className="mx-auto h-12 w-12 text-black/20 mb-4" />
           <p className="text-sm font-medium text-black">{t("pending_no_requests")}</p>
-          <p className="text-xs text-black/40 mt-1">{t("pending_no_requests_desc")}</p>
+          <p className="text-xs text-black mt-1">{t("pending_no_requests_desc")}</p>
         </div>
       ) : (
         <div className="space-y-4">
@@ -338,8 +338,8 @@ export default function PendingPage() {
                         </Link>
                       </div>
 
-                      {req.notes && <p className="text-xs text-black/50">{req.notes}</p>}
-                      <p className="text-[10px] text-black/30 mt-2">{new Date(req.created_at).toLocaleString()}</p>
+                      {req.notes && <p className="text-xs text-black">{req.notes}</p>}
+                      <p className="text-[10px] text-black mt-2">{new Date(req.created_at).toLocaleString()}</p>
                     </div>
 
                     {!isConfirming && (
@@ -452,7 +452,7 @@ export default function PendingPage() {
                             style={!isOccupied && !isSelected ? { background: 'rgba(252,246,237,0.6)' } : undefined}
                           >
                             {table.name}
-                            <span className="text-[10px] block text-black/50">{table.seats}p</span>
+                            <span className="text-[10px] block text-black">{table.seats}p</span>
                             {isOccupied && <span className="text-[10px] block text-red-400">{t("res_occupied")}</span>}
                           </button>
                         );
@@ -480,7 +480,7 @@ export default function PendingPage() {
                       </button>
                       <button
                         onClick={() => { setConfirmingId(null); setSelectedTables(new Set()); }}
-                        className="px-4 py-2.5 rounded-lg text-sm font-medium text-black/60 hover:text-black transition-colors"
+                        className="px-4 py-2.5 rounded-lg text-sm font-medium text-black hover:text-black transition-colors"
                       >
                         {t("pending_cancel")}
                       </button>
@@ -559,7 +559,7 @@ function TablePickerCanvas({ tables, occupiedTableIds, selectedTables, onToggleT
               }}
             >
               <span className="text-[11px] font-bold text-black leading-none">{table.name}</span>
-              <span className="text-[9px] text-black/60 leading-tight">{table.seats}p</span>
+              <span className="text-[9px] text-black leading-tight">{table.seats}p</span>
               {isSelected && (
                 <span className="absolute -top-2 -right-2 w-5 h-5 flex items-center justify-center text-white rounded-full" style={{ background: "#22c55e" }}>
                   <Check className="w-3 h-3" />

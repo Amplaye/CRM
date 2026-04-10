@@ -173,7 +173,7 @@ export default function GuestsPage() {
             <input type="text" value={search} onChange={e => setSearch(e.target.value)} placeholder={t("guests_search_placeholder")} className="w-full pl-9 pr-3 py-2 border-2 rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-[#c4956a]" style={{ borderColor: '#c4956a', background: 'rgba(252,246,237,0.6)' }} />
           </div>
           {filtered.length > 0 && (
-            <button onClick={selectAll} className="text-xs font-medium text-black/60 hover:text-black">
+            <button onClick={selectAll} className="text-xs font-medium text-black hover:text-black">
               {selectedIds.size === guests.length ? t("guests_deselect") : t("guests_select_all")}
             </button>
           )}
@@ -189,7 +189,7 @@ export default function GuestsPage() {
           <div className="text-sm text-black">{t("loading")}</div>
         ) : filtered.length === 0 ? (
           <div className="border-2 rounded-xl py-16 text-center" style={{ background: 'rgba(252,246,237,0.85)', borderColor: '#c4956a' }}>
-            <User className="mx-auto h-12 w-12 text-zinc-300 mb-4" />
+            <User className="mx-auto h-12 w-12 text-black mb-4" />
             <h3 className="text-sm font-medium text-black">{search ? t("guests_no_results") : t("guests_no_clients")}</h3>
           </div>
         ) : viewMode === "grid" ? (
@@ -242,16 +242,16 @@ export default function GuestsPage() {
                   <div className="h-8 w-8 rounded-full flex items-center justify-center text-black font-bold text-sm flex-shrink-0" style={{ background: 'rgba(196,149,106,0.2)' }}>{guest.name.charAt(0).toUpperCase()}</div>
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-bold text-black truncate">{guest.name}</p>
-                    <p className="text-xs text-black/60 truncate">{guest.phone || '—'}</p>
+                    <p className="text-xs text-black truncate">{guest.phone || '—'}</p>
                   </div>
                   <div className="flex gap-3 text-center flex-shrink-0">
                     <div>
                       <p className="text-sm font-bold text-black">{guest.visit_count}</p>
-                      <p className="text-[9px] text-black/50 uppercase">{t("guests_visits_col")}</p>
+                      <p className="text-[9px] text-black uppercase">{t("guests_visits_col")}</p>
                     </div>
                     <div>
                       <p className={`text-sm font-bold ${guest.no_show_count > 0 ? 'text-red-600' : 'text-black'}`}>{guest.no_show_count}</p>
-                      <p className="text-[9px] text-black/50 uppercase">No-show</p>
+                      <p className="text-[9px] text-black uppercase">No-show</p>
                     </div>
                   </div>
                 </div>
@@ -334,7 +334,7 @@ export default function GuestsPage() {
             <div>
               <h3 className="text-xs font-bold text-black uppercase tracking-wider mb-3">{t("guests_reservation_history")}</h3>
               {guestReservations.length === 0 ? (
-                <p className="text-xs text-black/50 italic">{t("guests_no_reservations")}</p>
+                <p className="text-xs text-black italic">{t("guests_no_reservations")}</p>
               ) : (
                 <div className="space-y-2">
                   {guestReservations.map(res => (
@@ -349,7 +349,7 @@ export default function GuestsPage() {
                       <span className={`text-[10px] font-bold uppercase px-2 py-1 rounded ${
                         res.status === 'confirmed' ? 'bg-emerald-50 text-emerald-700' :
                         res.status === 'cancelled' || res.status === 'no_show' ? 'bg-red-50 text-red-700' :
-                        'bg-zinc-100 text-zinc-700'
+                        'bg-zinc-100 text-black'
                       }`}>{res.status.replace('_', ' ')}</span>
                     </div>
                   ))}

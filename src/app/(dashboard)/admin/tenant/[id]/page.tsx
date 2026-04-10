@@ -32,7 +32,7 @@ const sourceIcon = (s: string) => {
   switch (s) {
     case "ai_chat": return <MessageSquare className="w-3.5 h-3.5 text-[#c4956a]" />;
     case "ai_voice": return <Phone className="w-3.5 h-3.5 text-indigo-500" />;
-    default: return <Calendar className="w-3.5 h-3.5 text-zinc-400" />;
+    default: return <Calendar className="w-3.5 h-3.5 text-black" />;
   }
 };
 
@@ -71,11 +71,11 @@ export default function TenantDetailPage() {
   const cardStyle = { background: "rgba(252,246,237,0.85)", borderColor: "#c4956a" };
 
   if (loading) {
-    return <div className="p-12 text-center text-black/50 animate-pulse">Loading tenant details...</div>;
+    return <div className="p-12 text-center text-black animate-pulse">Loading tenant details...</div>;
   }
 
   if (!data) {
-    return <div className="p-12 text-center text-black/50">Tenant not found</div>;
+    return <div className="p-12 text-center text-black">Tenant not found</div>;
   }
 
   const { tenant, kpis, recentReservations, recentConversations, recentIncidents, recentLogs } = data;
@@ -89,42 +89,42 @@ export default function TenantDetailPage() {
         </Link>
         <div>
           <h1 className="text-xl sm:text-2xl font-bold text-black">{tenant.name}</h1>
-          <p className="text-xs text-black/50">Tenant since {new Date(tenant.created_at).toLocaleDateString()}</p>
+          <p className="text-xs text-black">Tenant since {new Date(tenant.created_at).toLocaleDateString()}</p>
         </div>
       </div>
 
       {/* KPI Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-2 sm:gap-4">
         <div className="rounded-xl p-3 sm:p-4 border-2" style={cardStyle}>
-          <p className="text-xs text-black/60 font-medium">AI Revenue (7d)</p>
+          <p className="text-xs text-black font-medium">AI Revenue (7d)</p>
           <p className="text-xl font-bold text-[#22c55e]">€{kpis.aiRevenue7.toLocaleString()}</p>
         </div>
         <div className="rounded-xl p-3 sm:p-4 border-2" style={cardStyle}>
-          <p className="text-xs text-black/60 font-medium">AI Revenue (30d)</p>
+          <p className="text-xs text-black font-medium">AI Revenue (30d)</p>
           <p className="text-xl font-bold text-[#22c55e]">€{kpis.aiRevenue30.toLocaleString()}</p>
         </div>
         <div className="rounded-xl p-3 sm:p-4 border-2" style={cardStyle}>
           <div className="flex items-center gap-1">
             <Bot className="w-3.5 h-3.5 text-[#c4956a]" />
-            <p className="text-xs text-black/60 font-medium">AI Handled</p>
+            <p className="text-xs text-black font-medium">AI Handled</p>
           </div>
           <p className="text-xl font-bold text-black">{kpis.aiPct}%</p>
-          <p className="text-[10px] text-black/40">{kpis.aiCount} AI / {kpis.totalBookings30 - kpis.aiCount} Staff</p>
+          <p className="text-[10px] text-black">{kpis.aiCount} AI / {kpis.totalBookings30 - kpis.aiCount} Staff</p>
         </div>
         <div className="rounded-xl p-3 sm:p-4 border-2" style={cardStyle}>
           <div className="flex items-center gap-1">
             <UserX className="w-3.5 h-3.5 text-red-400" />
-            <p className="text-xs text-black/60 font-medium">No-Shows (30d)</p>
+            <p className="text-xs text-black font-medium">No-Shows (30d)</p>
           </div>
           <p className="text-xl font-bold text-black">{kpis.noShows}</p>
         </div>
         <div className="rounded-xl p-3 sm:p-4 border-2" style={cardStyle}>
           <div className="flex items-center gap-1">
             <TrendingUp className="w-3.5 h-3.5 text-orange-400" />
-            <p className="text-xs text-black/60 font-medium">Escalation Rate</p>
+            <p className="text-xs text-black font-medium">Escalation Rate</p>
           </div>
           <p className="text-xl font-bold text-black">{kpis.escalationRate}%</p>
-          <p className="text-[10px] text-black/40">{kpis.escalations} escalated</p>
+          <p className="text-[10px] text-black">{kpis.escalations} escalated</p>
         </div>
       </div>
 
@@ -154,12 +154,12 @@ export default function TenantDetailPage() {
                         <span className="text-xs font-bold text-[#22c55e]">€{ins.estimated_value.toLocaleString()}/mo</span>
                       )}
                     </div>
-                    <p className="text-[10px] text-black/50 mt-0.5">{ins.description}</p>
+                    <p className="text-[10px] text-black mt-0.5">{ins.description}</p>
                   </div>
                   <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${
                     ins.confidence === "high" ? "bg-emerald-50 text-emerald-700" :
                     ins.confidence === "medium" ? "bg-yellow-50 text-yellow-700" :
-                    "bg-zinc-50 text-zinc-500"
+                    "bg-zinc-50 text-black"
                   }`}>{ins.confidence}</span>
                 </div>
               );
@@ -178,7 +178,7 @@ export default function TenantDetailPage() {
           </div>
           <div className="max-h-[320px] overflow-y-auto">
             {recentReservations.length === 0 ? (
-              <p className="p-4 text-xs text-black/40 text-center">No recent reservations</p>
+              <p className="p-4 text-xs text-black text-center">No recent reservations</p>
             ) : (
               <div className="divide-y" style={{ borderColor: "rgba(196,149,106,0.15)" }}>
                 {recentReservations.map((r: any) => (
@@ -188,12 +188,12 @@ export default function TenantDetailPage() {
                       <p className="text-xs font-medium text-black truncate">
                         {r.guests?.name || "Guest"} — {r.party_size}p
                       </p>
-                      <p className="text-[10px] text-black/40">{r.date} {r.time}</p>
+                      <p className="text-[10px] text-black">{r.date} {r.time}</p>
                     </div>
                     <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
                       r.status === "confirmed" ? "bg-emerald-50 text-emerald-700" :
                       r.status === "no_show" ? "bg-red-50 text-red-700" :
-                      r.status === "cancelled" ? "bg-zinc-100 text-zinc-500" :
+                      r.status === "cancelled" ? "bg-zinc-100 text-black" :
                       "bg-yellow-50 text-yellow-700"
                     }`}>
                       {r.status}
@@ -212,7 +212,7 @@ export default function TenantDetailPage() {
           </div>
           <div className="max-h-[320px] overflow-y-auto">
             {recentConversations.length === 0 ? (
-              <p className="p-4 text-xs text-black/40 text-center">No recent conversations</p>
+              <p className="p-4 text-xs text-black text-center">No recent conversations</p>
             ) : (
               <div className="divide-y" style={{ borderColor: "rgba(196,149,106,0.15)" }}>
                 {recentConversations.map((c: any) => (
@@ -224,12 +224,12 @@ export default function TenantDetailPage() {
                     )}
                     <div className="flex-1 min-w-0">
                       <p className="text-xs font-medium text-black truncate">{c.summary || "No summary"}</p>
-                      <p className="text-[10px] text-black/40">{new Date(c.created_at).toLocaleString()}</p>
+                      <p className="text-[10px] text-black">{new Date(c.created_at).toLocaleString()}</p>
                     </div>
                     <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
                       c.status === "escalated" ? "bg-red-50 text-red-700" :
                       c.status === "resolved" ? "bg-emerald-50 text-emerald-700" :
-                      "bg-zinc-100 text-zinc-500"
+                      "bg-zinc-100 text-black"
                     }`}>
                       {c.status}
                     </span>
@@ -251,7 +251,7 @@ export default function TenantDetailPage() {
           </div>
           <div className="max-h-[280px] overflow-y-auto">
             {recentIncidents.length === 0 ? (
-              <p className="p-4 text-xs text-black/40 text-center">No incidents</p>
+              <p className="p-4 text-xs text-black text-center">No incidents</p>
             ) : (
               <div className="divide-y" style={{ borderColor: "rgba(196,149,106,0.15)" }}>
                 {recentIncidents.map((inc: any) => (
@@ -261,10 +261,10 @@ export default function TenantDetailPage() {
                         inc.severity === "critical" ? "bg-red-50 text-red-700 border-red-200" :
                         "bg-yellow-50 text-yellow-700 border-yellow-200"
                       }`}>{inc.severity}</span>
-                      <span className="text-[10px] text-black/40">{inc.type.replace("_", " ")}</span>
+                      <span className="text-[10px] text-black">{inc.type.replace("_", " ")}</span>
                     </div>
                     <p className="text-xs font-medium text-black">{inc.title}</p>
-                    <p className="text-[10px] text-black/40">{new Date(inc.created_at).toLocaleDateString()} — {inc.status}</p>
+                    <p className="text-[10px] text-black">{new Date(inc.created_at).toLocaleDateString()} — {inc.status}</p>
                   </div>
                 ))}
               </div>
@@ -279,7 +279,7 @@ export default function TenantDetailPage() {
           </div>
           <div className="max-h-[280px] overflow-y-auto">
             {recentLogs.length === 0 ? (
-              <p className="p-4 text-xs text-black/40 text-center">No system logs</p>
+              <p className="p-4 text-xs text-black text-center">No system logs</p>
             ) : (
               <div className="divide-y" style={{ borderColor: "rgba(196,149,106,0.15)" }}>
                 {recentLogs.map((log: any) => (
@@ -290,10 +290,10 @@ export default function TenantDetailPage() {
                         log.severity === "high" ? "bg-orange-50 text-orange-700 border-orange-200" :
                         "bg-yellow-50 text-yellow-700 border-yellow-200"
                       }`}>{log.severity}</span>
-                      <span className="text-[10px] text-black/40">{log.category}</span>
+                      <span className="text-[10px] text-black">{log.category}</span>
                     </div>
                     <p className="text-xs font-medium text-black">{log.title}</p>
-                    <p className="text-[10px] text-black/40">{new Date(log.created_at).toLocaleDateString()} — {log.status}</p>
+                    <p className="text-[10px] text-black">{new Date(log.created_at).toLocaleDateString()} — {log.status}</p>
                   </div>
                 ))}
               </div>

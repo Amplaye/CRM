@@ -1,0 +1,29 @@
+{
+  "node": {
+    "405efd841e953667414fbf77491bdb9014abe690ad": {
+      "workers": {
+        "app/(dashboard)/reservations/page": {
+          "moduleId": 37019,
+          "async": false,
+          "exportedName": "createReservationAction",
+          "filename": "src/app/actions/reservations.ts"
+        }
+      },
+      "exportedName": "createReservationAction",
+      "filename": "src/app/actions/reservations.ts"
+    },
+    "40badeba0fed3339687eaba257819c9065ec514ff8": {
+      "workers": {
+        "app/(dashboard)/reservations/page": {
+          "moduleId": 37019,
+          "async": false,
+          "exportedName": "updateReservationDetailsAction",
+          "filename": "src/app/actions/reservations.ts"
+        }
+      },
+      "exportedName": "updateReservationDetailsAction",
+      "filename": "src/app/actions/reservations.ts"
+    }
+  },
+  "edge": {}
+}

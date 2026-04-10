@@ -30,7 +30,7 @@ export function KPICard({ title, value, trend, icon, className, valueClassName }
             <dl>
               <dt className="text-sm font-medium text-black truncate">{title}</dt>
               <dd>
-                <div className={cn("text-2xl font-bold text-zinc-900 tracking-tight", valueClassName)}>{value}</div>
+                <div className={cn("text-2xl font-bold text-black tracking-tight", valueClassName)}>{value}</div>
               </dd>
             </dl>
           </div>

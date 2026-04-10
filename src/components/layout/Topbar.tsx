@@ -215,7 +215,7 @@ export function Topbar({ onMenuToggle }: TopbarProps) {
               </div>
               <div className="flex-1 overflow-y-auto overscroll-contain">
                 {notifications.length === 0 ? (
-                  <div className="px-4 py-8 text-center text-sm text-black/50">{t("topbar_no_notifications")}</div>
+                  <div className="px-4 py-8 text-center text-sm text-black">{t("topbar_no_notifications")}</div>
                 ) : notifications.map((n) => {
                   const icon = n.type === "incident" ? "⚠️" : n.type === "waitlist" ? "📋" : n.type === "reservation" ? "📅" : "💬";
                   return (
@@ -226,7 +226,7 @@ export function Topbar({ onMenuToggle }: TopbarProps) {
                         <span className="text-base flex-shrink-0 mt-0.5">{icon}</span>
                         <div className="flex-1 min-w-0">
                           <p className="text-sm text-black">{n.message}</p>
-                          <p className="text-xs text-black/40 mt-1">{n.time}</p>
+                          <p className="text-xs text-black mt-1">{n.time}</p>
                         </div>
                         <span className="text-xs text-[#c4956a] flex-shrink-0 mt-0.5">→</span>
                       </div>
@@ -248,7 +248,7 @@ export function Topbar({ onMenuToggle }: TopbarProps) {
               </div>
               <div className="max-h-96 overflow-y-auto">
                 {notifications.length === 0 ? (
-                  <div className="px-4 py-8 text-center text-sm text-black/50">{t("topbar_no_notifications")}</div>
+                  <div className="px-4 py-8 text-center text-sm text-black">{t("topbar_no_notifications")}</div>
                 ) : notifications.map((n) => {
                   const icon = n.type === "incident" ? "⚠️" : n.type === "waitlist" ? "📋" : n.type === "reservation" ? "📅" : "💬";
                   return (
@@ -259,7 +259,7 @@ export function Topbar({ onMenuToggle }: TopbarProps) {
                         <span className="text-base flex-shrink-0 mt-0.5">{icon}</span>
                         <div className="flex-1 min-w-0">
                           <p className="text-sm text-black">{n.message}</p>
-                          <p className="text-xs text-black/40 mt-1">{n.time}</p>
+                          <p className="text-xs text-black mt-1">{n.time}</p>
                         </div>
                         <span className="text-xs text-[#c4956a] flex-shrink-0 mt-0.5">→</span>
                       </div>

@@ -21,7 +21,7 @@ export default function Error({
           <AlertTriangle className="h-6 w-6 text-red-600" />
         </div>
         <div>
-           <h2 className="text-xl font-bold text-zinc-900 tracking-tight">Something went wrong!</h2>
+           <h2 className="text-xl font-bold text-black tracking-tight">Something went wrong!</h2>
            <p className="mt-2 text-sm text-black">An unexpected error occurred while loading this view.</p>
         </div>
         <button

@@ -127,7 +127,7 @@ export default function SettingsPage() {
     <div className="p-4 sm:p-6 lg:p-8 w-full space-y-4 sm:space-y-6 lg:space-y-8">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between border-b pb-5" style={{ borderColor: "#c4956a" }}>
         <div>
-          <h1 className="text-2xl font-bold text-zinc-900">{t("settings_title")}</h1>
+          <h1 className="text-2xl font-bold text-black">{t("settings_title")}</h1>
           <p className="mt-1 text-sm text-black">{t("settings_subtitle")}</p>
         </div>
         <div className="mt-4 sm:mt-0 flex items-center space-x-3">
@@ -145,7 +145,7 @@ export default function SettingsPage() {
 
         {/* General */}
         <section className="p-6 rounded-xl border-2" style={{ background: "rgba(252,246,237,0.85)", borderColor: "#c4956a" }}>
-          <h2 className="text-lg font-bold text-zinc-900 mb-4">{t("settings_general")}</h2>
+          <h2 className="text-lg font-bold text-black mb-4">{t("settings_general")}</h2>
           <div>
             <label className="block text-sm font-medium text-black">{t("settings_name")}</label>
             <input type="text" value={name} onChange={e => setName(e.target.value)}
@@ -155,7 +155,7 @@ export default function SettingsPage() {
 
         {/* Analytics & KPI */}
         <section className="p-6 rounded-xl border-2" style={{ background: "rgba(252,246,237,0.85)", borderColor: "#c4956a" }}>
-          <h2 className="text-lg font-bold text-zinc-900 mb-4">{t("settings_analytics")}</h2>
+          <h2 className="text-lg font-bold text-black mb-4">{t("settings_analytics")}</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>
               <label className="block text-sm font-medium text-black">{t("settings_avg_spend")}</label>
@@ -166,7 +166,7 @@ export default function SettingsPage() {
                 <input type="number" value={avgSpend} onChange={e => setAvgSpend(Number(e.target.value))}
                   className={`pl-7 ${inputStyle}`} style={inputBorder} />
               </div>
-              <p className="mt-1 text-xs text-black/50">{t("settings_avg_spend_desc")}</p>
+              <p className="mt-1 text-xs text-black">{t("settings_avg_spend_desc")}</p>
             </div>
             <div>
               <label className="block text-sm font-medium text-black">{t("settings_avg_cost")}</label>
@@ -187,7 +187,7 @@ export default function SettingsPage() {
                 <input type="number" value={aiMonthlyCost} onChange={e => setAiMonthlyCost(Number(e.target.value))}
                   className={`pl-7 ${inputStyle}`} style={inputBorder} />
               </div>
-              <p className="mt-1 text-xs text-black/50">{t("settings_ai_monthly_cost_desc")}</p>
+              <p className="mt-1 text-xs text-black">{t("settings_ai_monthly_cost_desc")}</p>
             </div>
             <div>
               <label className="block text-sm font-medium text-black">{t("settings_noshow_baseline")}</label>
@@ -198,7 +198,7 @@ export default function SettingsPage() {
                 <input type="number" value={noShowBaseline} onChange={e => setNoShowBaseline(Number(e.target.value))}
                   className={`pl-7 ${inputStyle}`} style={inputBorder} min={0} max={100} />
               </div>
-              <p className="mt-1 text-xs text-black/50">{t("settings_noshow_baseline_desc")}</p>
+              <p className="mt-1 text-xs text-black">{t("settings_noshow_baseline_desc")}</p>
             </div>
           </div>
         </section>

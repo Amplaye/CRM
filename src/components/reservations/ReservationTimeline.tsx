@@ -122,18 +122,18 @@ export function ReservationTimeline({ date, onRowClick }: { date: string, onRowC
                     res.status === 'seated' ? "bg-blue-50 border-blue-200 text-blue-900" :
                     res.status === 'completed' ? "bg-green-50 border-green-200 text-green-900" :
                     res.status === 'escalated' ? "bg-orange-50 border-orange-200 text-orange-900" :
-                    "bg-zinc-100 border-zinc-200 text-zinc-500 opacity-60"
+                    "bg-zinc-100 border-zinc-200 text-black opacity-60"
                   )}
                 >
                   <div className="flex items-center justify-between mb-1">
-                    <span className="font-bold text-zinc-900">{res.time}</span>
-                    <span className="text-xs px-1.5 py-0.5 rounded-md bg-zinc-100 text-zinc-600 font-medium">{res.party_size}p</span>
+                    <span className="font-bold text-black">{res.time}</span>
+                    <span className="text-xs px-1.5 py-0.5 rounded-md bg-zinc-100 text-black font-medium">{res.party_size}p</span>
                   </div>
                   <div className="text-xs font-medium text-black truncate">
                     {res.guest_name || "Unknown"}
                   </div>
                   {res.table_names && res.table_names.length > 0 && (
-                    <div className="text-[10px] text-black/50 mt-0.5">
+                    <div className="text-[10px] text-black mt-0.5">
                       {res.table_names.join(", ")}
                     </div>
                   )}

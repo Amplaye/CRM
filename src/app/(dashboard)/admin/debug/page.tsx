@@ -68,30 +68,30 @@ export default function DebugPage() {
             style={{ borderColor: "#c4956a", background: "rgba(252,246,237,0.6)" }}>
             {tenants.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
           </select>
-          <ChevronDown className="w-4 h-4 text-black/40 absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none" />
+          <ChevronDown className="w-4 h-4 text-black absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none" />
         </div>
       </div>
 
       {loading ? (
-        <div className="p-12 text-center text-black/50 animate-pulse">Loading...</div>
+        <div className="p-12 text-center text-black animate-pulse">Loading...</div>
       ) : debugData ? (
         <div className="space-y-4">
           {/* Quick status */}
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-4">
             <div className="rounded-xl p-3 border-2" style={cardStyle}>
-              <p className="text-xs text-black/60">Bookings (7d)</p>
+              <p className="text-xs text-black">Bookings (7d)</p>
               <p className="text-xl font-bold text-black">{debugData.kpis?.totalBookings7 || 0}</p>
             </div>
             <div className="rounded-xl p-3 border-2" style={cardStyle}>
-              <p className="text-xs text-black/60">AI Handled</p>
+              <p className="text-xs text-black">AI Handled</p>
               <p className="text-xl font-bold text-black">{debugData.kpis?.aiPct || 0}%</p>
             </div>
             <div className="rounded-xl p-3 border-2" style={cardStyle}>
-              <p className="text-xs text-black/60">Escalations</p>
+              <p className="text-xs text-black">Escalations</p>
               <p className={`text-xl font-bold ${debugData.kpis?.escalations > 0 ? "text-red-500" : "text-black"}`}>{debugData.kpis?.escalations || 0}</p>
             </div>
             <div className="rounded-xl p-3 border-2" style={cardStyle}>
-              <p className="text-xs text-black/60">Open Errors</p>
+              <p className="text-xs text-black">Open Errors</p>
               <p className={`text-xl font-bold ${(debugData.systemLogs || []).filter((l: any) => l.status === "open").length > 0 ? "text-red-500" : "text-black"}`}>
                 {(debugData.systemLogs || []).filter((l: any) => l.status === "open").length}
               </p>
@@ -109,31 +109,31 @@ export default function DebugPage() {
               </div>
               <div className="max-h-[500px] overflow-y-auto divide-y" style={{ borderColor: "rgba(196,149,106,0.15)" }}>
                 {(debugData.recentConversations || []).length === 0 ? (
-                  <p className="p-4 text-xs text-black/40 text-center">No conversations</p>
+                  <p className="p-4 text-xs text-black text-center">No conversations</p>
                 ) : (debugData.recentConversations || []).map((c: any) => (
                   <div key={c.id} className="cursor-pointer hover:bg-[#c4956a]/5 transition-colors"
                     onClick={() => setExpandedConv(expandedConv === c.id ? null : c.id)}>
                     <div className="px-4 py-2.5">
                       <div className="flex items-center gap-2 mb-1">
-                        <ChevronRight className={`w-3 h-3 text-black/30 transition-transform ${expandedConv === c.id ? "rotate-90" : ""}`} />
+                        <ChevronRight className={`w-3 h-3 text-black transition-transform ${expandedConv === c.id ? "rotate-90" : ""}`} />
                         {c.channel === "whatsapp" ? <MessageSquare className="w-3 h-3 text-[#c4956a]" /> : <Phone className="w-3 h-3 text-indigo-500" />}
                         <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${
                           c.status === "escalated" ? "bg-red-50 text-red-700" :
                           c.status === "resolved" ? "bg-emerald-50 text-emerald-700" :
-                          "bg-zinc-100 text-zinc-500"
+                          "bg-zinc-100 text-black"
                         }`}>{c.status}</span>
                         {c.sentiment && c.sentiment !== "neutral" && (
                           <span className={`text-[10px] px-1.5 py-0.5 rounded ${c.sentiment === "negative" ? "bg-red-50 text-red-600" : "bg-emerald-50 text-emerald-600"}`}>
                             {c.sentiment}
                           </span>
                         )}
-                        <span className="text-[10px] text-black/30 ml-auto">{new Date(c.created_at).toLocaleString()}</span>
+                        <span className="text-[10px] text-black ml-auto">{new Date(c.created_at).toLocaleString()}</span>
                       </div>
                       <p className="text-xs text-black pl-5">{c.summary || "No summary"}</p>
                     </div>
                     {expandedConv === c.id && (
                       <div className="px-4 pb-3 pl-9">
-                        <div className="text-[10px] text-black/50 space-y-1 p-2 rounded-lg" style={{ background: "rgba(196,149,106,0.06)" }}>
+                        <div className="text-[10px] text-black space-y-1 p-2 rounded-lg" style={{ background: "rgba(196,149,106,0.06)" }}>
                           <p><strong>ID:</strong> {c.id}</p>
                           <p><strong>Channel:</strong> {c.channel}</p>
                           <p><strong>Status:</strong> {c.status}</p>
@@ -155,33 +155,33 @@ export default function DebugPage() {
               </div>
               <div className="max-h-[500px] overflow-y-auto divide-y" style={{ borderColor: "rgba(196,149,106,0.15)" }}>
                 {(debugData.recentReservations || []).length === 0 ? (
-                  <p className="p-4 text-xs text-black/40 text-center">No reservations</p>
+                  <p className="p-4 text-xs text-black text-center">No reservations</p>
                 ) : (debugData.recentReservations || []).map((r: any) => (
                   <div key={r.id} className="cursor-pointer hover:bg-[#c4956a]/5 transition-colors"
                     onClick={() => setExpandedRes(expandedRes === r.id ? null : r.id)}>
                     <div className="px-4 py-2.5">
                       <div className="flex items-center justify-between mb-1">
                         <div className="flex items-center gap-2">
-                          <ChevronRight className={`w-3 h-3 text-black/30 transition-transform ${expandedRes === r.id ? "rotate-90" : ""}`} />
+                          <ChevronRight className={`w-3 h-3 text-black transition-transform ${expandedRes === r.id ? "rotate-90" : ""}`} />
                           <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${
                             r.source === "ai_chat" ? "bg-orange-50 text-orange-700" :
                             r.source === "ai_voice" ? "bg-indigo-50 text-indigo-700" :
-                            "bg-zinc-100 text-zinc-500"
+                            "bg-zinc-100 text-black"
                           }`}>{r.source}</span>
                           <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${
                             r.status === "confirmed" ? "bg-emerald-50 text-emerald-700" :
                             r.status === "no_show" ? "bg-red-50 text-red-700" :
-                            r.status === "cancelled" ? "bg-zinc-100 text-zinc-500" :
+                            r.status === "cancelled" ? "bg-zinc-100 text-black" :
                             "bg-yellow-50 text-yellow-700"
                           }`}>{r.status}</span>
                         </div>
-                        <span className="text-[10px] text-black/30">{r.date} {r.time}</span>
+                        <span className="text-[10px] text-black">{r.date} {r.time}</span>
                       </div>
                       <p className="text-xs text-black pl-5">{r.guests?.name || "Guest"} — {r.party_size}p</p>
                     </div>
                     {expandedRes === r.id && (
                       <div className="px-4 pb-3 pl-9">
-                        <div className="text-[10px] text-black/50 space-y-1 p-2 rounded-lg" style={{ background: "rgba(196,149,106,0.06)" }}>
+                        <div className="text-[10px] text-black space-y-1 p-2 rounded-lg" style={{ background: "rgba(196,149,106,0.06)" }}>
                           <p><strong>ID:</strong> {r.id}</p>
                           <p><strong>Guest:</strong> {r.guests?.name || "—"} {r.guests?.phone ? `(${r.guests.phone})` : ""}</p>
                           <p><strong>Date/Time:</strong> {r.date} {r.time}</p>
@@ -210,7 +210,7 @@ export default function DebugPage() {
                     ...(debugData.systemLogs || []).map((l: any) => ({ ...l, _type: "log", _time: l.created_at })),
                   ].sort((a: any, b: any) => new Date(b._time).getTime() - new Date(a._time).getTime()).slice(0, 20);
 
-                  if (items.length === 0) return <p className="p-4 text-xs text-black/40 text-center">No errors</p>;
+                  if (items.length === 0) return <p className="p-4 text-xs text-black text-center">No errors</p>;
 
                   return items.map((item: any, i: number) => (
                     <div key={i} className="px-4 py-2.5">
@@ -220,7 +220,7 @@ export default function DebugPage() {
                             (item.severity === "critical" || item.severity === "high") ? "bg-red-50 text-red-700 border-red-200" :
                             "bg-yellow-50 text-yellow-700 border-yellow-200"
                           }`}>{item.severity}</span>
-                          <span className="text-[10px] text-black/30">{item._type === "log" ? item.category : item.type?.replace("_", " ")}</span>
+                          <span className="text-[10px] text-black">{item._type === "log" ? item.category : item.type?.replace("_", " ")}</span>
                         </div>
                         <div className="flex items-center gap-2">
                           {item._type === "log" && item.status === "open" && (
@@ -238,7 +238,7 @@ export default function DebugPage() {
                         </div>
                       </div>
                       <p className="text-xs font-medium text-black">{item.title}</p>
-                      {item.description && <p className="text-[10px] text-black/40 mt-0.5">{item.description}</p>}
+                      {item.description && <p className="text-[10px] text-black mt-0.5">{item.description}</p>}
                       <p className="text-[10px] text-black/25 mt-1">{new Date(item._time).toLocaleString()}</p>
                     </div>
                   ));

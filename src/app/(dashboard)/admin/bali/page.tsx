@@ -219,7 +219,7 @@ export default function BaliInboxPage() {
             <h1 className="text-lg font-bold text-black">Bali Inbox</h1>
           </div>
           <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-black/50" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-black" />
             <input
               type="text"
               value={search}
@@ -239,7 +239,7 @@ export default function BaliInboxPage() {
               ))}
             </div>
           ) : filtered.length === 0 ? (
-            <div className="p-12 text-center text-black/60">
+            <div className="p-12 text-center text-black">
               <MessageSquare className="w-10 h-10 mx-auto mb-3 opacity-30" />
               <p className="text-sm">
                 {search ? "Sin resultados" : "Aún no hay conversaciones"}
@@ -263,16 +263,16 @@ export default function BaliInboxPage() {
                       <span className="text-sm font-bold text-black truncate flex-1">
                         {c.guest_name || c.guest_phone}
                       </span>
-                      <span className="text-[10px] text-black/50 ml-2 shrink-0">
+                      <span className="text-[10px] text-black ml-2 shrink-0">
                         {formatTime(c.last_message_at)}
                       </span>
                     </div>
                     {c.guest_name && (
-                      <p className="text-[10px] text-black/50 mb-1">{c.guest_phone}</p>
+                      <p className="text-[10px] text-black mb-1">{c.guest_phone}</p>
                     )}
-                    <p className="text-xs text-black/70 line-clamp-1">
+                    <p className="text-xs text-black line-clamp-1">
                       {c.last_message_direction === "outbound" ? (
-                        <span className="text-black/40">→ </span>
+                        <span className="text-black">→ </span>
                       ) : null}
                       {c.last_message_preview || "—"}
                     </p>
@@ -297,7 +297,7 @@ export default function BaliInboxPage() {
         style={{ background: "rgba(252,246,237,0.7)" }}
       >
         {!selectedConvo ? (
-          <div className="flex-1 flex items-center justify-center text-center text-black/50 p-12">
+          <div className="flex-1 flex items-center justify-center text-center text-black p-12">
             <div>
               <MessageSquare className="w-12 h-12 mx-auto mb-4 opacity-30" />
               <p className="text-sm">Selecciona una conversación para empezar.</p>
@@ -321,7 +321,7 @@ export default function BaliInboxPage() {
                   <h2 className="text-base font-bold text-black truncate">
                     {selectedConvo.guest_name || selectedConvo.guest_phone}
                   </h2>
-                  <p className="text-xs text-black/60">{selectedConvo.guest_phone}</p>
+                  <p className="text-xs text-black">{selectedConvo.guest_phone}</p>
                 </div>
               </div>
               <button
@@ -371,7 +371,7 @@ export default function BaliInboxPage() {
                   ))}
                 </div>
               ) : messages.length === 0 ? (
-                <p className="text-center text-sm text-black/50 mt-8">
+                <p className="text-center text-sm text-black mt-8">
                   Sin mensajes aún.
                 </p>
               ) : (
@@ -437,7 +437,7 @@ export default function BaliInboxPage() {
                           {m.body}
                         </div>
                         <p
-                          className={`text-[10px] text-black/40 mt-1 ${
+                          className={`text-[10px] text-black mt-1 ${
                             isInbound ? "text-left" : "text-right"
                           }`}
                         >

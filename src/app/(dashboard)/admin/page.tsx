@@ -88,23 +88,23 @@ export default function AdminPage() {
       {platform && (
         <div className="grid grid-cols-2 lg:grid-cols-5 gap-2 sm:gap-4">
           <div className="rounded-xl p-3 sm:p-4 border-2" style={cardStyle}>
-            <p className="text-xs text-black/60 font-medium">Tenants</p>
+            <p className="text-xs text-black font-medium">Tenants</p>
             <p className="text-xl font-bold text-black">{platform.totalTenants}</p>
           </div>
           <div className="rounded-xl p-3 sm:p-4 border-2" style={cardStyle}>
-            <p className="text-xs text-black/60 font-medium">Bookings (7d)</p>
+            <p className="text-xs text-black font-medium">Bookings (7d)</p>
             <p className="text-xl font-bold text-black">{platform.totalBookings7}</p>
           </div>
           <div className="rounded-xl p-3 sm:p-4 border-2" style={cardStyle}>
-            <p className="text-xs text-black/60 font-medium">AI Revenue (7d)</p>
+            <p className="text-xs text-black font-medium">AI Revenue (7d)</p>
             <p className="text-xl font-bold text-[#22c55e]">€{platform.totalAiRevenue7.toLocaleString()}</p>
           </div>
           <div className="rounded-xl p-3 sm:p-4 border-2" style={cardStyle}>
-            <p className="text-xs text-black/60 font-medium">Open Issues</p>
+            <p className="text-xs text-black font-medium">Open Issues</p>
             <p className="text-xl font-bold text-black">{platform.totalOpenIssues}</p>
           </div>
           <div className="rounded-xl p-3 sm:p-4 border-2" style={cardStyle}>
-            <p className="text-xs text-black/60 font-medium">Critical</p>
+            <p className="text-xs text-black font-medium">Critical</p>
             <p className={`text-xl font-bold ${platform.totalCritical > 0 ? "text-red-600" : "text-black"}`}>{platform.totalCritical}</p>
           </div>
         </div>
@@ -116,12 +116,12 @@ export default function AdminPage() {
           <h2 className="text-sm font-bold text-black uppercase tracking-wider">All Tenants</h2>
         </div>
         {loading ? (
-          <div className="p-12 text-center text-black/50 animate-pulse">Loading...</div>
+          <div className="p-12 text-center text-black animate-pulse">Loading...</div>
         ) : (
           <div className="overflow-x-auto">
             <table className="min-w-full text-sm">
               <thead>
-                <tr className="text-xs text-black/50 uppercase tracking-wider">
+                <tr className="text-xs text-black uppercase tracking-wider">
                   <th className="px-4 py-3 text-left font-medium">Status</th>
                   <th className="px-4 py-3 text-left font-medium">Restaurant</th>
                   <th className="px-4 py-3 text-right font-medium">AI Rev (7d)</th>
@@ -147,8 +147,8 @@ export default function AdminPage() {
                       </td>
                       <td className="px-4 py-3 font-medium text-black">{t.name}</td>
                       <td className="px-4 py-3 text-right font-medium text-[#22c55e]">€{t.aiRevenue7.toLocaleString()}</td>
-                      <td className="px-4 py-3 text-right text-black/70">€{t.aiRevenue30.toLocaleString()}</td>
-                      <td className="px-4 py-3 text-right text-black/70">{t.aiPct}%</td>
+                      <td className="px-4 py-3 text-right text-black">€{t.aiRevenue30.toLocaleString()}</td>
+                      <td className="px-4 py-3 text-right text-black">{t.aiPct}%</td>
                       <td className="px-4 py-3 text-right">
                         <span className="text-black">{t.totalBookings7}</span>
                         {t.bookingChange !== 0 && (
@@ -162,7 +162,7 @@ export default function AdminPage() {
                           <span className="text-black">{t.noShows7}</span>
                           {t.noShowTrend === "up" && <TrendingUp className="w-3 h-3 text-red-500" />}
                           {t.noShowTrend === "down" && <TrendingDown className="w-3 h-3 text-green-500" />}
-                          {t.noShowTrend === "stable" && <Minus className="w-3 h-3 text-black/30" />}
+                          {t.noShowTrend === "stable" && <Minus className="w-3 h-3 text-black" />}
                         </div>
                       </td>
                       <td className="px-4 py-3 text-center">
@@ -172,10 +172,10 @@ export default function AdminPage() {
                             {t.activeIssues}
                           </span>
                         ) : (
-                          <span className="text-black/30">0</span>
+                          <span className="text-black">0</span>
                         )}
                       </td>
-                      <td className="px-4 py-3 text-right text-xs text-black/50">
+                      <td className="px-4 py-3 text-right text-xs text-black">
                         {new Date(t.lastActivity).toLocaleDateString()}
                       </td>
                       <td className="px-4 py-3 text-right">

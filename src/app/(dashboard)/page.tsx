@@ -387,7 +387,7 @@ export default function DashboardPage() {
         <div className="mb-6">
           <p className="text-3xl sm:text-4xl font-bold text-[#22c55e]">€{kpis.totalValue.toLocaleString()}</p>
           {kpis.periodCost > 0 && (
-            <p className="text-xs text-black/60 mt-1">
+            <p className="text-xs text-black mt-1">
               €{kpis.grossValue.toLocaleString()} − €{kpis.periodCost.toLocaleString()} {t("dash_ai_cost")}
             </p>
           )}
@@ -508,7 +508,7 @@ export default function DashboardPage() {
             )}
           </div>
           {kpis.fromWebCount > 0 && (
-            <p className="text-xs text-center text-black/70 mt-2">
+            <p className="text-xs text-center text-black mt-2">
               {t("dash_from_web")}: <span className="font-bold">{kpis.fromWebPct}%</span> ({kpis.fromWebCount})
             </p>
           )}

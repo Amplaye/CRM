@@ -110,7 +110,7 @@ export default function AutomationsPage() {
     <div className="p-4 sm:p-6 lg:p-8 w-full space-y-4 sm:space-y-6 lg:space-y-8">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-8">
         <div>
-          <h1 className="text-2xl font-bold text-zinc-900 tracking-tight">AI Integrations & Rules</h1>
+          <h1 className="text-2xl font-bold text-black tracking-tight">AI Integrations & Rules</h1>
           <p className="mt-1 text-sm text-black">Configure boundaries and external webhook triggers for your AI agents.</p>
         </div>
       </div>
@@ -139,11 +139,11 @@ export default function AutomationsPage() {
                    </div>
                  )}
 
-                 <div className={`h-12 w-12 rounded-xl flex items-center justify-center mb-5 border ${rule.is_active ? 'bg-gradient-to-br from-emerald-50 to-emerald-100/50 text-emerald-600 border-emerald-200 shadow-sm' : 'bg-zinc-100 text-zinc-500 border-zinc-200'}`}>
+                 <div className={`h-12 w-12 rounded-xl flex items-center justify-center mb-5 border ${rule.is_active ? 'bg-gradient-to-br from-emerald-50 to-emerald-100/50 text-emerald-600 border-emerald-200 shadow-sm' : 'bg-zinc-100 text-black border-zinc-200'}`}>
                     <Bot className="h-6 w-6" />
                  </div>
 
-                 <h3 className={`text-lg font-bold tracking-tight ${rule.is_active ? 'text-zinc-900' : 'text-zinc-500'}`}>
+                 <h3 className={`text-lg font-bold tracking-tight ${rule.is_active ? 'text-black' : 'text-black'}`}>
                    {rule.name}
                  </h3>
 
@@ -156,17 +156,17 @@ export default function AutomationsPage() {
                        {rule.is_active ? (
                           <span className="text-emerald-600 bg-emerald-50 px-2.5 py-1 rounded-md border border-emerald-100">Live Config</span>
                        ) : (
-                          <span className="text-zinc-500 bg-white px-2.5 py-1 rounded-md border border-zinc-200">Sleeping</span>
+                          <span className="text-black bg-white px-2.5 py-1 rounded-md border border-zinc-200">Sleeping</span>
                        )}
-                       <span className="text-zinc-300">•</span>
-                       <span className="text-zinc-400 font-mono text-[10px]">{rule.trigger}</span>
+                       <span className="text-black">•</span>
+                       <span className="text-black font-mono text-[10px]">{rule.trigger}</span>
                     </div>
 
                     <button
                        onClick={() => toggleRule(rule.id, rule.is_active)}
-                       className={`inline-flex items-center px-4 py-2 text-xs font-bold rounded-lg transition-colors shadow-sm ${rule.is_active ? 'text-zinc-900 bg-white border border-zinc-200 hover:bg-zinc-50' : 'text-white bg-zinc-900 hover:bg-zinc-800'}`}
+                       className={`inline-flex items-center px-4 py-2 text-xs font-bold rounded-lg transition-colors shadow-sm ${rule.is_active ? 'text-black bg-white border border-zinc-200 hover:bg-zinc-50' : 'text-white bg-zinc-900 hover:bg-zinc-800'}`}
                     >
-                      <Power className={`h-3 w-3 mr-1.5 ${rule.is_active ? 'text-zinc-400' : 'text-zinc-300'}`} />
+                      <Power className={`h-3 w-3 mr-1.5 ${rule.is_active ? 'text-black' : 'text-black'}`} />
                       {rule.is_active ? 'Disable' : 'Activate'}
                     </button>
                  </div>

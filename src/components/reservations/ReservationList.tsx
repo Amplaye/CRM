@@ -88,8 +88,8 @@ export function ReservationList({ date, onRowClick }: ReservationListProps) {
     switch(source) {
        case 'ai_chat': return <div title="AI WhatsApp" className="flex h-6 w-6 items-center justify-center rounded bg-terracotta-50 text-terracotta-600 ring-1 ring-terracotta-200"><MessageSquare className="h-3 w-3" /></div>;
        case 'ai_voice': return <div title="AI Voice" className="flex h-6 w-6 items-center justify-center rounded bg-indigo-50 text-indigo-600 ring-1 ring-indigo-200"><Phone className="h-3 w-3" /></div>;
-       case 'web': return <div title="Website" className="flex h-6 w-6 items-center justify-center rounded bg-zinc-100 text-zinc-600 ring-1 ring-zinc-200"><Globe className="h-3 w-3" /></div>;
-       default: return <div title="Staff" className="flex h-6 w-6 items-center justify-center rounded bg-zinc-100 text-zinc-600 ring-1 ring-zinc-200"><User className="h-3 w-3" /></div>;
+       case 'web': return <div title="Website" className="flex h-6 w-6 items-center justify-center rounded bg-zinc-100 text-black ring-1 ring-zinc-200"><Globe className="h-3 w-3" /></div>;
+       default: return <div title="Staff" className="flex h-6 w-6 items-center justify-center rounded bg-zinc-100 text-black ring-1 ring-zinc-200"><User className="h-3 w-3" /></div>;
     }
   };
 
@@ -123,8 +123,8 @@ export function ReservationList({ date, onRowClick }: ReservationListProps) {
   if (!reservations || reservations.length === 0) {
       return (
          <div className="border-2 rounded-b-xl md:rounded-xl py-16 text-center" style={{ background: 'rgba(252,246,237,0.85)', borderColor: '#c4956a', boxShadow: '0 20px 60px rgba(196,149,106,0.25), 0 8px 24px rgba(196,149,106,0.15)' }}>
-            <CalendarCheck className="mx-auto h-12 w-12 text-zinc-300 mb-4" />
-            <h3 className="text-sm font-medium text-zinc-900">{t("res_empty_title")}</h3>
+            <CalendarCheck className="mx-auto h-12 w-12 text-black mb-4" />
+            <h3 className="text-sm font-medium text-black">{t("res_empty_title")}</h3>
             <p className="mt-1 text-sm text-black">{t("res_empty_subtitle")}</p>
             <div className="mt-6">
                <button className="inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium text-white bg-zinc-900 hover:bg-zinc-800 rounded-lg">
@@ -150,14 +150,14 @@ export function ReservationList({ date, onRowClick }: ReservationListProps) {
           <div className="flex items-center gap-3">
             <div className="flex flex-col items-center justify-center w-12 flex-shrink-0">
               <span className="text-sm font-bold text-black">{res.time}</span>
-              <span className="text-[10px] text-black/50">{res.party_size}p</span>
+              <span className="text-[10px] text-black">{res.party_size}p</span>
             </div>
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2">
                 <p className="text-sm font-bold text-black truncate">{res.guest_name || "Guest"}</p>
                 <SourceIcon source={res.source} />
               </div>
-              <p className="text-xs text-black/60 truncate">{res.guest_phone || "—"}</p>
+              <p className="text-xs text-black truncate">{res.guest_phone || "—"}</p>
             </div>
             <div className="flex items-center gap-1.5 flex-shrink-0">
               {res.status === 'confirmed' && (
@@ -170,8 +170,8 @@ export function ReservationList({ date, onRowClick }: ReservationListProps) {
           </div>
           {(res.notes || (res.table_names && res.table_names.length > 0)) && (
             <div className="flex items-center gap-2 mt-1.5 pl-[60px]">
-              {res.table_names && res.table_names.length > 0 && <span className="text-[10px] text-black/40">{res.table_names.join(", ")}</span>}
-              {res.notes && <p className="text-[11px] text-black/40 truncate">{res.notes}</p>}
+              {res.table_names && res.table_names.length > 0 && <span className="text-[10px] text-black">{res.table_names.join(", ")}</span>}
+              {res.notes && <p className="text-[11px] text-black truncate">{res.notes}</p>}
             </div>
           )}
         </div>
@@ -201,23 +201,23 @@ export function ReservationList({ date, onRowClick }: ReservationListProps) {
                className={`hover:bg-[#c4956a]/10 transition-colors ${onRowClick ? 'cursor-pointer' : ''}`}
             >
               <td className="px-4 py-4 whitespace-nowrap text-center">
-                <div className="flex items-center justify-center text-sm font-bold text-zinc-900">
+                <div className="flex items-center justify-center text-sm font-bold text-black">
                   <Clock className="w-4 h-4 text-black mr-2" />
                   {res.time}
                 </div>
               </td>
               <td className="px-4 py-4 whitespace-nowrap text-center">
-                <div className="text-sm font-medium text-zinc-900">{res.guest_name || `Guest (${res.guest_id.substring(0,8)})`}</div>
+                <div className="text-sm font-medium text-black">{res.guest_name || `Guest (${res.guest_id.substring(0,8)})`}</div>
                 {res.notes && <div className="text-xs text-black truncate max-w-[200px] mx-auto text-center">{res.notes}</div>}
               </td>
               <td className="px-4 py-4 whitespace-nowrap text-center">
                 <div className="text-sm text-black">{res.guest_phone || "—"}</div>
               </td>
               <td className="px-4 py-4 whitespace-nowrap text-center">
-                <div className="text-sm font-medium text-zinc-900">{res.party_size}</div>
+                <div className="text-sm font-medium text-black">{res.party_size}</div>
               </td>
               <td className="px-4 py-4 whitespace-nowrap text-center">
-                <div className="text-xs font-medium text-black/60">
+                <div className="text-xs font-medium text-black">
                   {res.table_names && res.table_names.length > 0 ? res.table_names.join(", ") : "—"}
                 </div>
               </td>

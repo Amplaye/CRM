@@ -130,7 +130,7 @@ export default function IncidentsPage() {
         case 'ai_error': return <Zap className="w-4 h-4 text-purple-500" />;
         case 'conflict': return <Clock className="w-4 h-4 text-orange-500" />;
         case 'health_safety': return <AlertOctagon className="w-4 h-4 text-red-500" />;
-        default: return <AlertTriangle className="w-4 h-4 text-zinc-500" />;
+        default: return <AlertTriangle className="w-4 h-4 text-black" />;
      }
   };
 
@@ -138,7 +138,7 @@ export default function IncidentsPage() {
     <div className="p-4 sm:p-6 lg:p-8 max-w-[1600px] h-[calc(100vh-4rem)] flex flex-col mx-auto">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-8 shrink-0">
         <div>
-          <h1 className="text-2xl font-bold text-zinc-900 tracking-tight">{t("inc_title")}</h1>
+          <h1 className="text-2xl font-bold text-black tracking-tight">{t("inc_title")}</h1>
           <p className="mt-1 text-sm text-black">{t("inc_subtitle")}</p>
         </div>
         <div className="flex space-x-3 mt-4 sm:mt-0">
@@ -162,8 +162,8 @@ export default function IncidentsPage() {
               return (
                  <div key={col.id} className={`flex-1 flex flex-col rounded-2xl border ${col.bg} overflow-hidden shadow-sm`}>
                     <div className="px-5 py-4 border-b border-black/5 bg-white/50 backdrop-blur-sm flex justify-between items-center shrink-0">
-                       <h2 className="font-bold text-zinc-900 tracking-tight">{col.label}</h2>
-                       <span className="bg-white border border-black/10 text-zinc-600 text-[10px] font-bold px-2 py-0.5 rounded-full shadow-sm">{colIncidents.length}</span>
+                       <h2 className="font-bold text-black tracking-tight">{col.label}</h2>
+                       <span className="bg-white border border-black/10 text-black text-[10px] font-bold px-2 py-0.5 rounded-full shadow-sm">{colIncidents.length}</span>
                     </div>
 
                     <div className="flex-1 overflow-y-auto p-4 space-y-4">
@@ -181,13 +181,13 @@ export default function IncidentsPage() {
                                    <div className="bg-zinc-50 p-1.5 rounded-md border border-zinc-100">
                                       {getIncidentIcon(inc.type)}
                                    </div>
-                                   <span className="text-[10px] uppercase font-bold tracking-wider text-zinc-500 bg-zinc-100 px-2 py-0.5 rounded border border-zinc-200">
+                                   <span className="text-[10px] uppercase font-bold tracking-wider text-black bg-zinc-100 px-2 py-0.5 rounded border border-zinc-200">
                                       {inc.type.replace('_', ' ')}
                                    </span>
                                 </div>
                              </div>
 
-                             <h3 className="font-bold text-zinc-900 leading-tight mb-1 pr-6">{inc.title}</h3>
+                             <h3 className="font-bold text-black leading-tight mb-1 pr-6">{inc.title}</h3>
                              <p className="text-xs text-black leading-relaxed mb-4 line-clamp-2">{inc.description}</p>
 
                              {(inc.linked_reservation_id || inc.linked_conversation_id) && (
@@ -227,7 +227,7 @@ export default function IncidentsPage() {
                                       </button>
                                    )}
                                    {inc.owner_id ? (
-                                      <div className="h-6 w-6 rounded-full bg-zinc-200 border border-white flex items-center justify-center text-[10px] font-bold text-zinc-500 shadow-sm" title="Assigned">
+                                      <div className="h-6 w-6 rounded-full bg-zinc-200 border border-white flex items-center justify-center text-[10px] font-bold text-black shadow-sm" title="Assigned">
                                          <User className="w-3 h-3" />
                                       </div>
                                    ) : (
@@ -241,7 +241,7 @@ export default function IncidentsPage() {
                        ))}
                        {colIncidents.length === 0 && (
                           <div className="h-24 flex items-center justify-center border-2 border-dashed border-black/5 rounded-xl">
-                             <span className="text-xs font-bold text-zinc-400 uppercase tracking-widest">{t("inc_empty")}</span>
+                             <span className="text-xs font-bold text-black uppercase tracking-widest">{t("inc_empty")}</span>
                           </div>
                        )}
                     </div>

@@ -70,7 +70,7 @@ export default function CostsPage() {
         <div className="flex items-center gap-2">
           <DollarSign className="w-5 h-5 text-[#c4956a]" />
           <h1 className="text-xl sm:text-2xl font-bold text-black">Usage & Costs</h1>
-          <span className="text-xs text-black/40">Last 30 days</span>
+          <span className="text-xs text-black">Last 30 days</span>
         </div>
         <button onClick={fetchData} className="p-2 hover:bg-[#c4956a]/10 rounded-lg transition-colors">
           <RefreshCw className={`w-4 h-4 text-black ${loading ? "animate-spin" : ""}`} />
@@ -81,22 +81,22 @@ export default function CostsPage() {
       {data?.platform && (
         <div className="grid grid-cols-3 gap-2 sm:gap-4">
           <div className="rounded-xl p-3 sm:p-4 border-2" style={cardStyle}>
-            <p className="text-xs text-black/60 font-medium">Total Client Fees</p>
+            <p className="text-xs text-black font-medium">Total Client Fees</p>
             <p className="text-xl font-bold text-black">€{data.platform.totalFees.toLocaleString()}/mo</p>
           </div>
           <div className="rounded-xl p-3 sm:p-4 border-2" style={cardStyle}>
-            <p className="text-xs text-black/60 font-medium">Total Costs</p>
+            <p className="text-xs text-black font-medium">Total Costs</p>
             <p className="text-xl font-bold text-red-500">€{data.platform.totalCosts.toLocaleString()}</p>
           </div>
           <div className="rounded-xl p-3 sm:p-4 border-2" style={cardStyle}>
-            <p className="text-xs text-black/60 font-medium">AI Revenue Generated</p>
+            <p className="text-xs text-black font-medium">AI Revenue Generated</p>
             <p className="text-xl font-bold text-[#22c55e]">€{data.platform.totalAiRevenue.toLocaleString()}</p>
           </div>
         </div>
       )}
 
       {loading ? (
-        <div className="p-12 text-center text-black/50 animate-pulse">Loading...</div>
+        <div className="p-12 text-center text-black animate-pulse">Loading...</div>
       ) : (
         <div className="space-y-3">
           {(data?.tenants || []).map(t => (
@@ -111,7 +111,7 @@ export default function CostsPage() {
                   </button>
                 ) : (
                   <button onClick={() => startEdit(t)}
-                    className="flex items-center gap-1 text-xs font-medium px-3 py-1.5 rounded-lg border-2 text-black/60 hover:bg-[#c4956a]/10 transition-colors"
+                    className="flex items-center gap-1 text-xs font-medium px-3 py-1.5 rounded-lg border-2 text-black hover:bg-[#c4956a]/10 transition-colors"
                     style={{ borderColor: "rgba(196,149,106,0.3)" }}>
                     <Settings className="w-3 h-3" /> Configure
                   </button>
@@ -122,25 +122,25 @@ export default function CostsPage() {
               {editingId === t.id && (
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4 p-3 rounded-lg" style={{ background: "rgba(196,149,106,0.06)" }}>
                   <div>
-                    <label className="text-[10px] font-medium text-black/50 block mb-1">Monthly Fee (€)</label>
+                    <label className="text-[10px] font-medium text-black block mb-1">Monthly Fee (€)</label>
                     <input type="number" value={editValues.client_monthly_fee}
                       onChange={e => setEditValues({ ...editValues, client_monthly_fee: Number(e.target.value) })}
                       className={inputStyle} style={inputBorder} />
                   </div>
                   <div>
-                    <label className="text-[10px] font-medium text-black/50 block mb-1">Cost/WhatsApp msg (€)</label>
+                    <label className="text-[10px] font-medium text-black block mb-1">Cost/WhatsApp msg (€)</label>
                     <input type="number" step="0.01" value={editValues.cost_per_whatsapp}
                       onChange={e => setEditValues({ ...editValues, cost_per_whatsapp: Number(e.target.value) })}
                       className={inputStyle} style={inputBorder} />
                   </div>
                   <div>
-                    <label className="text-[10px] font-medium text-black/50 block mb-1">Cost/Voice min (€)</label>
+                    <label className="text-[10px] font-medium text-black block mb-1">Cost/Voice min (€)</label>
                     <input type="number" step="0.01" value={editValues.cost_per_voice_min}
                       onChange={e => setEditValues({ ...editValues, cost_per_voice_min: Number(e.target.value) })}
                       className={inputStyle} style={inputBorder} />
                   </div>
                   <div>
-                    <label className="text-[10px] font-medium text-black/50 block mb-1">Avg call duration (min)</label>
+                    <label className="text-[10px] font-medium text-black block mb-1">Avg call duration (min)</label>
                     <input type="number" value={editValues.avg_voice_duration_min}
                       onChange={e => setEditValues({ ...editValues, avg_voice_duration_min: Number(e.target.value) })}
                       className={inputStyle} style={inputBorder} />
@@ -151,35 +151,35 @@ export default function CostsPage() {
               {/* Stats row */}
               <div className="grid grid-cols-3 sm:grid-cols-7 gap-3 text-center">
                 <div>
-                  <p className="text-[10px] text-black/40 font-medium">Fee/mo</p>
+                  <p className="text-[10px] text-black font-medium">Fee/mo</p>
                   <p className="text-sm font-bold text-black">{t.monthlyFee > 0 ? `€${t.monthlyFee}` : "—"}</p>
                 </div>
                 <div>
-                  <p className="text-[10px] text-black/40 font-medium">WhatsApp</p>
+                  <p className="text-[10px] text-black font-medium">WhatsApp</p>
                   <p className="text-sm font-bold text-black">€{t.costs.whatsapp.toFixed(2)}</p>
-                  <p className="text-[10px] text-black/30">{t.usage.whatsappConversations} msg</p>
+                  <p className="text-[10px] text-black">{t.usage.whatsappConversations} msg</p>
                 </div>
                 <div>
-                  <p className="text-[10px] text-black/40 font-medium">Voice</p>
+                  <p className="text-[10px] text-black font-medium">Voice</p>
                   <p className="text-sm font-bold text-black">€{t.costs.voice.toFixed(2)}</p>
-                  <p className="text-[10px] text-black/30">{t.usage.voiceCalls} calls</p>
+                  <p className="text-[10px] text-black">{t.usage.voiceCalls} calls</p>
                 </div>
                 <div>
-                  <p className="text-[10px] text-black/40 font-medium">API</p>
+                  <p className="text-[10px] text-black font-medium">API</p>
                   <p className="text-sm font-bold text-black">€{t.costs.api.toFixed(2)}</p>
                 </div>
                 <div>
-                  <p className="text-[10px] text-black/40 font-medium">Total Cost</p>
+                  <p className="text-[10px] text-black font-medium">Total Cost</p>
                   <p className="text-sm font-bold text-red-500">€{t.costs.total.toFixed(2)}</p>
                 </div>
                 <div>
-                  <p className="text-[10px] text-black/40 font-medium">Margin</p>
-                  <p className={`text-sm font-bold ${t.monthlyFee === 0 ? "text-black/30" : t.margin > 50 ? "text-emerald-600" : t.margin > 20 ? "text-yellow-600" : "text-red-600"}`}>
+                  <p className="text-[10px] text-black font-medium">Margin</p>
+                  <p className={`text-sm font-bold ${t.monthlyFee === 0 ? "text-black" : t.margin > 50 ? "text-emerald-600" : t.margin > 20 ? "text-yellow-600" : "text-red-600"}`}>
                     {t.monthlyFee > 0 ? `${t.margin}%` : "—"}
                   </p>
                 </div>
                 <div>
-                  <p className="text-[10px] text-black/40 font-medium">AI Revenue</p>
+                  <p className="text-[10px] text-black font-medium">AI Revenue</p>
                   <p className="text-sm font-bold text-[#22c55e]">€{t.aiRevenue.toLocaleString()}</p>
                 </div>
               </div>

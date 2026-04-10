@@ -22,7 +22,7 @@ const typeIcon = (type: string) => {
     case "ai_error": return <Zap className="w-4 h-4 text-purple-500" />;
     case "conflict": return <Clock className="w-4 h-4 text-orange-500" />;
     case "health_safety": return <AlertOctagon className="w-4 h-4 text-red-500" />;
-    default: return <AlertTriangle className="w-4 h-4 text-zinc-500" />;
+    default: return <AlertTriangle className="w-4 h-4 text-black" />;
   }
 };
 
@@ -30,7 +30,7 @@ const severityStyle = (s: string) => {
   switch (s) {
     case "critical": return "bg-red-50 text-red-700 border-red-200";
     case "medium": return "bg-yellow-50 text-yellow-700 border-yellow-200";
-    default: return "bg-zinc-50 text-zinc-600 border-zinc-200";
+    default: return "bg-zinc-50 text-black border-zinc-200";
   }
 };
 
@@ -39,7 +39,7 @@ const statusStyle = (s: string) => {
     case "open": return "bg-red-50 text-red-700";
     case "investigating": return "bg-yellow-50 text-yellow-700";
     case "resolved": return "bg-emerald-50 text-emerald-700";
-    default: return "bg-zinc-50 text-zinc-600";
+    default: return "bg-zinc-50 text-black";
   }
 };
 
@@ -88,10 +88,10 @@ export default function AdminIncidentsPage() {
         <div className="flex items-center gap-2">
           <AlertOctagon className="w-5 h-5 text-[#c4956a]" />
           <h1 className="text-xl sm:text-2xl font-bold text-black">All Incidents</h1>
-          <span className="text-xs text-black/40 ml-2">{filtered.length} results</span>
+          <span className="text-xs text-black ml-2">{filtered.length} results</span>
         </div>
         <div className="flex gap-2 items-center">
-          <Filter className="w-4 h-4 text-black/40" />
+          <Filter className="w-4 h-4 text-black" />
           <select value={filterSeverity} onChange={e => setFilterSeverity(e.target.value)}
             className="text-xs border-2 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-[#c4956a]"
             style={{ borderColor: "#c4956a", background: "rgba(252,246,237,0.6)" }}>
@@ -112,7 +112,7 @@ export default function AdminIncidentsPage() {
       </div>
 
       {loading ? (
-        <div className="p-12 text-center text-black/50 animate-pulse">Loading...</div>
+        <div className="p-12 text-center text-black animate-pulse">Loading...</div>
       ) : filtered.length === 0 ? (
         <div className="rounded-xl border-2 p-12 text-center" style={cardStyle}>
           <CheckCircle2 className="w-8 h-8 text-emerald-500 mx-auto mb-2" />
@@ -123,7 +123,7 @@ export default function AdminIncidentsPage() {
           <div className="overflow-x-auto">
             <table className="min-w-full text-sm">
               <thead>
-                <tr className="text-xs text-black/50 uppercase tracking-wider border-b" style={{ borderColor: "rgba(196,149,106,0.2)" }}>
+                <tr className="text-xs text-black uppercase tracking-wider border-b" style={{ borderColor: "rgba(196,149,106,0.2)" }}>
                   <th className="px-4 py-3 text-left font-medium">Severity</th>
                   <th className="px-4 py-3 text-left font-medium">Type</th>
                   <th className="px-4 py-3 text-left font-medium">Tenant</th>
@@ -143,7 +143,7 @@ export default function AdminIncidentsPage() {
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-1.5">
                         {typeIcon(inc.type)}
-                        <span className="text-xs text-black/60">{inc.type.replace("_", " ")}</span>
+                        <span className="text-xs text-black">{inc.type.replace("_", " ")}</span>
                       </div>
                     </td>
                     <td className="px-4 py-3 text-xs font-medium text-black">
@@ -151,14 +151,14 @@ export default function AdminIncidentsPage() {
                     </td>
                     <td className="px-4 py-3">
                       <p className="text-sm font-medium text-black truncate max-w-[300px]">{inc.title}</p>
-                      {inc.description && <p className="text-xs text-black/40 truncate max-w-[300px]">{inc.description}</p>}
+                      {inc.description && <p className="text-xs text-black truncate max-w-[300px]">{inc.description}</p>}
                     </td>
                     <td className="px-4 py-3">
                       <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${statusStyle(inc.status)}`}>
                         {inc.status}
                       </span>
                     </td>
-                    <td className="px-4 py-3 text-right text-xs text-black/50">
+                    <td className="px-4 py-3 text-right text-xs text-black">
                       {new Date(inc.created_at).toLocaleDateString()}
                     </td>
                   </tr>

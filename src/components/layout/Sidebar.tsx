@@ -145,12 +145,12 @@ export function Sidebar({ mobileOpen = false, onClose }: SidebarProps) {
             </div>
             <div className="ml-3 overflow-hidden">
               <p className="text-sm font-medium text-black truncate">{user?.email || "User"}</p>
-              <p className="text-xs font-medium text-black/60 uppercase tracking-wider mt-0.5">{isPlatformOnly ? "Platform Admin" : activeRole?.replace('_', ' ') || "Guest"}</p>
+              <p className="text-xs font-medium text-black uppercase tracking-wider mt-0.5">{isPlatformOnly ? "Platform Admin" : activeRole?.replace('_', ' ') || "Guest"}</p>
             </div>
          </div>
          <button
            onClick={handleSignOut}
-           className="mt-3 md:mt-4 w-full text-xs text-black hover:text-black/70 font-medium text-left px-1 transition-colors"
+           className="mt-3 md:mt-4 w-full text-xs text-black hover:text-black font-medium text-left px-1 transition-colors"
          >
            {t("auth_sign_out")}
          </button>

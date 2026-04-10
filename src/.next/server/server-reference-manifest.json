@@ -1,0 +1,60 @@
+{
+  "node": {
+    "405efd841e953667414fbf77491bdb9014abe690ad": {
+      "workers": {
+        "app/(dashboard)/reservations/page": {
+          "moduleId": 37019,
+          "async": false,
+          "exportedName": "createReservationAction",
+          "filename": "src/app/actions/reservations.ts"
+        },
+        "app/(dashboard)/waitlist/page": {
+          "moduleId": 49531,
+          "async": false,
+          "exportedName": "createReservationAction",
+          "filename": "src/app/actions/reservations.ts"
+        }
+      },
+      "filename": "src/app/actions/reservations.ts",
+      "exportedName": "createReservationAction"
+    },
+    "40badeba0fed3339687eaba257819c9065ec514ff8": {
+      "workers": {
+        "app/(dashboard)/reservations/page": {
+          "moduleId": 37019,
+          "async": false,
+          "exportedName": "updateReservationDetailsAction",
+          "filename": "src/app/actions/reservations.ts"
+        }
+      },
+      "filename": "src/app/actions/reservations.ts",
+      "exportedName": "updateReservationDetailsAction"
+    },
+    "4044e53a5783b24ef834233912c8ebcb5d8d10569b": {
+      "workers": {
+        "app/(dashboard)/waitlist/page": {
+          "moduleId": 49531,
+          "async": false,
+          "exportedName": "createWaitlistEntryAction",
+          "filename": "src/app/actions/waitlist.ts"
+        }
+      },
+      "filename": "src/app/actions/waitlist.ts",
+      "exportedName": "createWaitlistEntryAction"
+    },
+    "40ef6262f00a11d6335002c7eab3996956130a6c43": {
+      "workers": {
+        "app/(dashboard)/waitlist/page": {
+          "moduleId": 49531,
+          "async": false,
+          "exportedName": "updateWaitlistStatusAction",
+          "filename": "src/app/actions/waitlist.ts"
+        }
+      },
+      "filename": "src/app/actions/waitlist.ts",
+      "exportedName": "updateWaitlistStatusAction"
+    }
+  },
+  "edge": {},
+  "encryptionKey": "OtyPu4iHkp6eBtAlwE96p7PiqFl2qeN43poQxoI16rc="
+}

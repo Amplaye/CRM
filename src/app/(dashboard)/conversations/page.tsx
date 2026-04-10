@@ -220,7 +220,7 @@ export default function ConversationsPage() {
       {/* COLUMN 1: Inbox List */}
       <div className={`flex flex-col border-r transition-all duration-300 ${selectedConvo ? 'hidden md:flex md:w-[380px]' : 'w-full'}`} style={{ background: 'rgba(252,246,237,0.85)', borderColor: '#c4956a' }}>
         <div className="p-4 md:p-6 border-b z-10" style={{ borderColor: '#c4956a' }}>
-          <h1 className="text-xl md:text-2xl font-bold text-zinc-900 tracking-tight">{t("conv_title")}</h1>
+          <h1 className="text-xl md:text-2xl font-bold text-black tracking-tight">{t("conv_title")}</h1>
           <p className="mt-0.5 md:mt-1 text-xs md:text-sm text-black">{t("conv_subtitle")}</p>
           <div className="mt-4 relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-black" />
@@ -235,7 +235,7 @@ export default function ConversationsPage() {
           </div>
           {filtered.length > 0 && (
             <div className="mt-3 flex items-center justify-between">
-              <button onClick={selectAll} className="flex items-center gap-1.5 text-xs font-medium text-black/60 hover:text-black">
+              <button onClick={selectAll} className="flex items-center gap-1.5 text-xs font-medium text-black hover:text-black">
                 <input
                   type="checkbox"
                   checked={selectedIds.size === filtered.length && filtered.length > 0}
@@ -273,8 +273,8 @@ export default function ConversationsPage() {
             </div>
           ) : filtered.length === 0 ? (
             <div className="p-12 text-center text-black">
-              <MessageSquare className="w-12 h-12 text-zinc-300 mx-auto mb-4" />
-              <p className="text-sm font-medium text-zinc-900">{t("conv_empty")}</p>
+              <MessageSquare className="w-12 h-12 text-black mx-auto mb-4" />
+              <p className="text-sm font-medium text-black">{t("conv_empty")}</p>
               <p className="text-sm mt-1">{t("conv_empty_sub")}</p>
             </div>
           ) : (
@@ -306,12 +306,12 @@ export default function ConversationsPage() {
                     <div className="flex-1 min-w-0">
                       <div className="flex justify-between items-baseline">
                         <span className="font-bold text-sm text-black truncate">{getGuestDisplay(conv)}</span>
-                        <span className="text-[11px] text-black/40 flex-shrink-0 ml-2">
+                        <span className="text-[11px] text-black flex-shrink-0 ml-2">
                           {new Date(conv.updated_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
                         </span>
                       </div>
                       {getGuestPhone(conv) && (
-                        <p className="text-xs text-black/50 mt-0.5">{getGuestPhone(conv)}</p>
+                        <p className="text-xs text-black mt-0.5">{getGuestPhone(conv)}</p>
                       )}
                     </div>
                   </div>
@@ -321,7 +321,7 @@ export default function ConversationsPage() {
                       <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider border ${
                         conv.status === 'resolved' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
                         conv.status === 'escalated' ? 'bg-red-50 text-red-700 border-red-200' :
-                        'bg-zinc-100 text-zinc-700 border-zinc-200'
+                        'bg-zinc-100 text-black border-zinc-200'
                       }`}>
                         {conv.status}
                       </span>
@@ -358,7 +358,7 @@ export default function ConversationsPage() {
                 <h3 className="font-bold text-sm md:text-base text-black">
                   {selectedGuest?.name || "Unknown Guest"}
                 </h3>
-                <p className="text-[11px] md:text-xs text-black/50 font-medium">
+                <p className="text-[11px] md:text-xs text-black font-medium">
                   {selectedGuest?.phone || ""} • {selectedConvo.channel === 'whatsapp' ? 'WhatsApp' : 'Voice Call'}
                 </p>
               </div>
@@ -371,7 +371,7 @@ export default function ConversationsPage() {
           {/* Chat messages */}
           <div ref={scrollRef} className="flex-1 overflow-y-auto p-3 md:p-6 space-y-3 relative z-0">
             <div className="flex justify-center mb-4">
-              <span className="text-[11px] font-bold uppercase tracking-widest text-black/40 bg-white/60 px-3 py-1 rounded-md shadow-sm">
+              <span className="text-[11px] font-bold uppercase tracking-widest text-black bg-white/60 px-3 py-1 rounded-md shadow-sm">
                 {new Date(selectedConvo.created_at).toLocaleDateString()}
               </span>
             </div>
@@ -443,14 +443,14 @@ export default function ConversationsPage() {
                 onClick={() => handleStatusChange(selectedConvo.status === 'resolved' ? 'active' : 'resolved')}
                 className={`flex flex-col items-center justify-center p-3 rounded-lg border-2 transition-colors ${selectedConvo.status === 'resolved' ? 'border-emerald-300 bg-emerald-50 text-emerald-700' : 'border-[#c4956a] text-black hover:bg-[#c4956a]/5'}`}
               >
-                <CheckCircle2 className={`w-5 h-5 mb-1 ${selectedConvo.status === 'resolved' ? 'text-emerald-500' : 'text-black/40'}`} />
+                <CheckCircle2 className={`w-5 h-5 mb-1 ${selectedConvo.status === 'resolved' ? 'text-emerald-500' : 'text-black'}`} />
                 <span className="text-xs font-bold">{selectedConvo.status === 'resolved' ? t("conv_resolved_label") : t("conv_resolve")}</span>
               </button>
               <button
                 onClick={toggleEscalation}
                 className={`flex flex-col items-center justify-center p-3 rounded-lg border-2 transition-colors ${selectedConvo.escalation_flag ? 'border-red-300 bg-red-50 text-red-700' : 'border-[#c4956a] text-black hover:bg-[#c4956a]/5'}`}
               >
-                <Flame className={`w-5 h-5 mb-1 ${selectedConvo.escalation_flag ? 'text-red-500 fill-current' : 'text-black/40'}`} />
+                <Flame className={`w-5 h-5 mb-1 ${selectedConvo.escalation_flag ? 'text-red-500 fill-current' : 'text-black'}`} />
                 <span className="text-xs font-bold">{selectedConvo.escalation_flag ? t("conv_escalated_label") : t("conv_escalate")}</span>
               </button>
             </div>
@@ -463,23 +463,23 @@ export default function ConversationsPage() {
               </div>
               <div className="space-y-3">
                 <div>
-                  <span className="text-[10px] font-bold text-black/40 uppercase tracking-wider block mb-1">{t("conv_intent_label")}</span>
+                  <span className="text-[10px] font-bold text-black uppercase tracking-wider block mb-1">{t("conv_intent_label")}</span>
                   <span className="inline-flex border-2 text-black px-2.5 py-1 rounded text-xs font-semibold" style={{ borderColor: '#c4956a', background: 'rgba(252,246,237,0.6)' }}>
                     {selectedConvo.intent ? selectedConvo.intent.replace('_', ' ') : 'unknown'}
                   </span>
                 </div>
                 <div>
-                  <span className="text-[10px] font-bold text-black/40 uppercase tracking-wider block mb-1">{t("conv_sentiment_label")}</span>
+                  <span className="text-[10px] font-bold text-black uppercase tracking-wider block mb-1">{t("conv_sentiment_label")}</span>
                   <span className={`inline-flex px-2.5 py-1 rounded text-xs font-semibold ${
                     selectedConvo.sentiment === 'positive' ? 'bg-emerald-50 text-emerald-700' :
                     selectedConvo.sentiment === 'negative' ? 'bg-red-50 text-red-700' :
-                    'bg-zinc-100 text-zinc-700'
+                    'bg-zinc-100 text-black'
                   }`}>
                     {selectedConvo.sentiment || 'neutral'}
                   </span>
                 </div>
                 <div>
-                  <span className="text-[10px] font-bold text-black/40 uppercase tracking-wider block mb-1">{t("conv_summary_label")}</span>
+                  <span className="text-[10px] font-bold text-black uppercase tracking-wider block mb-1">{t("conv_summary_label")}</span>
                   <p className="text-sm text-black leading-relaxed">{selectedConvo.summary || "No summary"}</p>
                 </div>
               </div>
@@ -496,26 +496,26 @@ export default function ConversationsPage() {
                     </div>
                     <div className="ml-3">
                       <p className="text-sm font-bold text-black">{selectedGuest.name}</p>
-                      <p className="text-xs text-black/50">{selectedGuest.phone}</p>
+                      <p className="text-xs text-black">{selectedGuest.phone}</p>
                     </div>
                   </div>
                   <div className="mt-3 grid grid-cols-3 gap-2 text-center">
                     <div>
                       <p className="text-lg font-bold text-black">{selectedGuest.visit_count}</p>
-                      <p className="text-[10px] text-black/40 uppercase">{t("conv_visits")}</p>
+                      <p className="text-[10px] text-black uppercase">{t("conv_visits")}</p>
                     </div>
                     <div>
                       <p className="text-lg font-bold text-black">{selectedGuest.no_show_count}</p>
-                      <p className="text-[10px] text-black/40 uppercase">{t("conv_noshows")}</p>
+                      <p className="text-[10px] text-black uppercase">{t("conv_noshows")}</p>
                     </div>
                     <div>
                       <p className="text-lg font-bold text-black">{selectedGuest.cancellation_count}</p>
-                      <p className="text-[10px] text-black/40 uppercase">{t("conv_cancelled")}</p>
+                      <p className="text-[10px] text-black uppercase">{t("conv_cancelled")}</p>
                     </div>
                   </div>
                 </div>
               ) : (
-                <p className="text-xs text-black/40 italic">{t("conv_no_guest")}</p>
+                <p className="text-xs text-black italic">{t("conv_no_guest")}</p>
               )}
             </div>
 
@@ -531,12 +531,12 @@ export default function ConversationsPage() {
                     </div>
                     <span className="px-2 py-0.5 bg-emerald-50 text-emerald-700 rounded text-[10px] font-bold uppercase">{linkedRes.status}</span>
                   </div>
-                  <p className="text-xs text-black/60">{linkedRes.time} • {linkedRes.party_size} guests</p>
+                  <p className="text-xs text-black">{linkedRes.time} • {linkedRes.party_size} guests</p>
                 </div>
               ) : (
                 <div className="border-2 border-dashed rounded-lg p-3 text-center" style={{ borderColor: '#c4956a' }}>
-                  <Bookmark className="w-4 h-4 text-black/30 mx-auto mb-1" />
-                  <p className="text-xs text-black/40">{t("conv_no_reservation")}</p>
+                  <Bookmark className="w-4 h-4 text-black mx-auto mb-1" />
+                  <p className="text-xs text-black">{t("conv_no_reservation")}</p>
                 </div>
               )}
             </div>

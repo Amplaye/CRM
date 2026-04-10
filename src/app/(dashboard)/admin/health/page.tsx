@@ -22,7 +22,7 @@ const severityStyle = (s: string) => {
     case "critical": return "bg-red-50 text-red-700 border-red-200";
     case "high": return "bg-orange-50 text-orange-700 border-orange-200";
     case "medium": return "bg-yellow-50 text-yellow-700 border-yellow-200";
-    default: return "bg-zinc-50 text-zinc-600 border-zinc-200";
+    default: return "bg-zinc-50 text-black border-zinc-200";
   }
 };
 
@@ -86,7 +86,7 @@ export default function SystemHealthPage() {
       </div>
 
       {loading ? (
-        <div className="p-12 text-center text-black/50 animate-pulse">Loading...</div>
+        <div className="p-12 text-center text-black animate-pulse">Loading...</div>
       ) : logs.length === 0 ? (
         <div className="rounded-xl border-2 p-12 text-center" style={cardStyle}>
           <CheckCircle2 className="w-8 h-8 text-emerald-500 mx-auto mb-2" />
@@ -109,7 +109,7 @@ export default function SystemHealthPage() {
                   <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${severityStyle(log.severity)}`}>
                     {log.severity.toUpperCase()}
                   </span>
-                  <span className="text-[10px] font-medium text-black/40 bg-zinc-100 px-2 py-0.5 rounded">
+                  <span className="text-[10px] font-medium text-black bg-zinc-100 px-2 py-0.5 rounded">
                     {categoryLabel[log.category] || log.category}
                   </span>
                   {log.tenants?.name && (
@@ -117,8 +117,8 @@ export default function SystemHealthPage() {
                   )}
                 </div>
                 <p className="text-sm font-medium text-black">{log.title}</p>
-                {log.description && <p className="text-xs text-black/50 mt-0.5">{log.description}</p>}
-                <p className="text-[10px] text-black/30 mt-1">{new Date(log.created_at).toLocaleString()}</p>
+                {log.description && <p className="text-xs text-black mt-0.5">{log.description}</p>}
+                <p className="text-[10px] text-black mt-1">{new Date(log.created_at).toLocaleString()}</p>
               </div>
 
               {log.status === "open" && (

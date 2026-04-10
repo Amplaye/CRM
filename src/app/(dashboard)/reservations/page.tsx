@@ -324,7 +324,7 @@ export default function ReservationsPage() {
       <div className={`flex-1 transition-all duration-300 ${(selectedRes || isCreating) ? 'md:pr-[400px]' : ''}`}>
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-4 sm:mb-6 lg:mb-8">
           <div>
-            <h1 className="text-xl sm:text-2xl font-bold text-zinc-900 tracking-tight">{t("res_title")}</h1>
+            <h1 className="text-xl sm:text-2xl font-bold text-black tracking-tight">{t("res_title")}</h1>
             <p className="mt-0.5 sm:mt-1 text-xs sm:text-sm text-black">{t("res_subtitle")}</p>
           </div>
           <div className="mt-3 sm:mt-0 flex flex-wrap gap-2 sm:space-x-3">
@@ -436,7 +436,7 @@ export default function ReservationsPage() {
         <div className="fixed top-14 left-0 right-0 bottom-0 sm:top-0 sm:left-auto sm:right-0 sm:w-[400px] border-l shadow-2xl z-40 flex flex-col overflow-hidden" style={{ background: 'rgb(252,246,237)', borderColor: '#c4956a' }}>
           <div className="mx-5 sm:mx-6 pt-2 pb-2 sm:py-4 flex items-center justify-between border-b" style={{ borderColor: '#c4956a' }}>
              <div className="min-w-0 flex-1 mr-3">
-               <h2 className="text-base sm:text-lg font-bold text-zinc-900 tracking-tight">{t("res_quick_edit")}</h2>
+               <h2 className="text-base sm:text-lg font-bold text-black tracking-tight">{t("res_quick_edit")}</h2>
                {(selectedRes.guest_name || selectedRes.guest_phone) && (
                  <div className="mt-0.5">
                    {selectedRes.guest_name && <p className="text-sm font-medium text-black">{selectedRes.guest_name}</p>}
@@ -507,7 +507,7 @@ export default function ReservationsPage() {
         <div className="fixed inset-0 bg-black/40 z-30 sm:hidden" onClick={() => setIsCreating(false)} />
         <div className="fixed top-14 left-0 right-0 bottom-0 sm:top-0 sm:left-auto sm:right-0 sm:w-[400px] border-l shadow-2xl z-40 flex flex-col overflow-hidden" style={{ background: 'rgb(252,246,237)', borderColor: '#c4956a' }}>
           <div className="mx-5 sm:mx-6 pt-2 pb-2 sm:py-4 flex items-center justify-between border-b" style={{ borderColor: '#c4956a' }}>
-             <h2 className="text-base sm:text-lg font-bold text-zinc-900 tracking-tight">{t("res_new")}</h2>
+             <h2 className="text-base sm:text-lg font-bold text-black tracking-tight">{t("res_new")}</h2>
              <button onClick={() => setIsCreating(false)} className="p-1.5 border-2 border-red-400 text-red-500 hover:bg-red-50 rounded-lg transition-colors">
                 <X className="h-4 w-4" />
              </button>
@@ -560,7 +560,7 @@ export default function ReservationsPage() {
                 </div>
                 {availableTables.length > 0 && (
                   <div>
-                    <label className="block text-sm font-medium text-black mb-2">{t("floor_tables")} <span className="text-xs font-normal text-black/40">(Opcional)</span></label>
+                    <label className="block text-sm font-medium text-black mb-2">{t("floor_tables")} <span className="text-xs font-normal text-black">(Opcional)</span></label>
                     <div className="grid grid-cols-4 gap-2">
                       {availableTables.map(table => {
                         const isOccupied = occupiedTableIds.has(table.id);

@@ -215,7 +215,7 @@ export default function KnowledgePage() {
       {/* Article List Pane — hidden on mobile when article is open */}
       <div className={`border-r flex flex-col shrink-0 ${selectedArticleId || isEditing ? 'hidden md:flex md:w-[400px]' : 'w-full md:w-[400px]'}`} style={{ background: 'rgba(252,246,237,0.85)', borderColor: '#c4956a' }}>
          <div className="p-6 border-b shrink-0" style={{ borderColor: '#c4956a' }}>
-            <h1 className="text-xl font-bold text-zinc-900 tracking-tight">{t("know_title")}</h1>
+            <h1 className="text-xl font-bold text-black tracking-tight">{t("know_title")}</h1>
             <p className="text-xs text-black mt-1">{t("know_subtitle")}</p>
 
             <div className="mt-6 flex space-x-2">
@@ -260,19 +260,19 @@ export default function KnowledgePage() {
                      >
                         <div className="flex items-start gap-2">
                            <div
-                             className="pt-1 cursor-grab active:cursor-grabbing text-black/30 hover:text-black/60 touch-none flex-shrink-0"
+                             className="pt-1 cursor-grab active:cursor-grabbing text-black hover:text-black touch-none flex-shrink-0"
                              onTouchStart={(e) => { e.stopPropagation(); handleTouchStartDrag(e, idx); }}
                            >
                               <GripVertical className="w-4 h-4" />
                            </div>
                            <div className="flex-1 min-w-0">
                               <div className="flex justify-between items-center mb-1">
-                                 <span className={`text-[10px] uppercase font-bold tracking-widest ${article.status === 'published' ? 'text-emerald-600' : 'text-zinc-400'}`}>
+                                 <span className={`text-[10px] uppercase font-bold tracking-widest ${article.status === 'published' ? 'text-emerald-600' : 'text-black'}`}>
                                     {article.status}
                                  </span>
                               </div>
-                              <h3 className="font-bold text-zinc-900 text-sm leading-tight truncate">{article.title}</h3>
-                              <p className="text-xs text-zinc-500 line-clamp-1 mt-1">{article.category} • {t("know_updated_on") || "Updated"} {new Date(article.updated_at).toLocaleDateString()}</p>
+                              <h3 className="font-bold text-black text-sm leading-tight truncate">{article.title}</h3>
+                              <p className="text-xs text-black line-clamp-1 mt-1">{article.category} • {t("know_updated_on") || "Updated"} {new Date(article.updated_at).toLocaleDateString()}</p>
                            </div>
                         </div>
                      </div>
@@ -292,7 +292,7 @@ export default function KnowledgePage() {
                         <ChevronLeft className="w-5 h-5 md:hidden" />
                         <X className="w-5 h-5 hidden md:block" />
                      </button>
-                     <h2 className="text-xl font-bold text-zinc-900">{selectedArticleId ? t("know_edit_article") : t("know_new_article")}</h2>
+                     <h2 className="text-xl font-bold text-black">{selectedArticleId ? t("know_edit_article") : t("know_new_article")}</h2>
                   </div>
                   <button
                      onClick={handleSave}
@@ -308,18 +308,18 @@ export default function KnowledgePage() {
                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-8">
                   <div className="space-y-4">
                      <div>
-                        <label className="block text-xs font-bold text-zinc-500 uppercase tracking-widest mb-1.5 ml-1">{t("know_title_label")}</label>
+                        <label className="block text-xs font-bold text-black uppercase tracking-widest mb-1.5 ml-1">{t("know_title_label")}</label>
                         <input
                            type="text"
                            value={editTitle}
                            onChange={e => setEditTitle(e.target.value)}
-                           className="w-full text-2xl font-bold text-zinc-900 bg-transparent border-none focus:ring-0 p-1 placeholder:text-zinc-300"
+                           className="w-full text-2xl font-bold text-black bg-transparent border-none focus:ring-0 p-1 placeholder:text-black"
                            placeholder="How to handle nut allergies..."
                         />
                      </div>
                      <div className="grid grid-cols-2 gap-4">
                         <div>
-                           <label className="block text-xs font-bold text-zinc-500 uppercase tracking-widest mb-1.5 ml-1">{t("know_category_label")}</label>
+                           <label className="block text-xs font-bold text-black uppercase tracking-widest mb-1.5 ml-1">{t("know_category_label")}</label>
                            <select
                               value={editCategory}
                               onChange={e => setEditCategory(e.target.value as any)}
@@ -332,7 +332,7 @@ export default function KnowledgePage() {
                            </select>
                         </div>
                         <div>
-                           <label className="block text-xs font-bold text-zinc-500 uppercase tracking-widest mb-1.5 ml-1">{t("know_status_label")}</label>
+                           <label className="block text-xs font-bold text-black uppercase tracking-widest mb-1.5 ml-1">{t("know_status_label")}</label>
                            <select
                               value={editStatus}
                               onChange={e => setEditStatus(e.target.value as any)}
@@ -345,7 +345,7 @@ export default function KnowledgePage() {
                         </div>
                      </div>
                      <div>
-                        <label className="block text-xs font-bold text-zinc-500 uppercase tracking-widest mb-1.5 ml-1">{t("know_risk_tags")}</label>
+                        <label className="block text-xs font-bold text-black uppercase tracking-widest mb-1.5 ml-1">{t("know_risk_tags")}</label>
                         <input
                            type="text"
                            value={editRiskTags}
@@ -358,7 +358,7 @@ export default function KnowledgePage() {
                </div>
 
                <div className="flex-1 flex flex-col">
-                  <label className="block text-xs font-bold text-zinc-500 uppercase tracking-widest mb-2 ml-1">{t("know_content_label")}</label>
+                  <label className="block text-xs font-bold text-black uppercase tracking-widest mb-2 ml-1">{t("know_content_label")}</label>
                   <textarea
                      value={editContent}
                      onChange={e => setEditContent(e.target.value)}
@@ -371,7 +371,7 @@ export default function KnowledgePage() {
          ) : selectedArticle ? (
             <div className="flex-1 flex flex-col p-4 sm:p-6 lg:p-8 max-w-4xl mx-auto w-full animate-in fade-in slide-in-from-right-2">
                {/* Mobile back button */}
-               <button onClick={() => setSelectedArticleId(null)} className="md:hidden flex items-center text-sm font-medium text-black/60 mb-3 -ml-1">
+               <button onClick={() => setSelectedArticleId(null)} className="md:hidden flex items-center text-sm font-medium text-black mb-3 -ml-1">
                   <ChevronLeft className="w-4 h-4 mr-1" /> {t("know_back")}
                </button>
                <div className="flex flex-col md:flex-row md:items-center justify-between border-b pb-4 md:pb-8 mb-4 md:mb-8 gap-3" style={{ borderColor: '#c4956a' }}>
@@ -380,8 +380,8 @@ export default function KnowledgePage() {
                         <FileText className="w-5 h-5 md:w-7 md:h-7" />
                      </div>
                      <div className="min-w-0">
-                        <p className="text-[10px] md:text-xs font-black uppercase tracking-widest text-zinc-400">{selectedArticle.category}</p>
-                        <h2 className="text-xl md:text-3xl font-black text-zinc-900 tracking-tight truncate">{selectedArticle.title}</h2>
+                        <p className="text-[10px] md:text-xs font-black uppercase tracking-widest text-black">{selectedArticle.category}</p>
+                        <h2 className="text-xl md:text-3xl font-black text-black tracking-tight truncate">{selectedArticle.title}</h2>
                      </div>
                   </div>
                   <div className="flex items-center space-x-2 flex-shrink-0">
@@ -409,14 +409,14 @@ export default function KnowledgePage() {
                </div>
 
                <div className="flex-1 prose prose-zinc max-w-none">
-                  <div className="whitespace-pre-wrap text-zinc-800 leading-relaxed text-lg bg-zinc-50/50 p-8 rounded-3xl border border-zinc-100 shadow-sm">
+                  <div className="whitespace-pre-wrap text-black leading-relaxed text-lg bg-zinc-50/50 p-8 rounded-3xl border border-zinc-100 shadow-sm">
                      {selectedArticle.content}
                   </div>
                </div>
 
                {selectedArticle.risk_tags.length > 0 && (
                   <div className="mt-10 border-t pt-8" style={{ borderColor: '#c4956a' }}>
-                     <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-zinc-400 mb-4 ml-1">{t("know_ai_safety_risk") || "AI Safety Risk Tags"}</h4>
+                     <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-black mb-4 ml-1">{t("know_ai_safety_risk") || "AI Safety Risk Tags"}</h4>
                      <div className="flex flex-wrap gap-2">
                         {selectedArticle.risk_tags.map(tag => (
                            <span key={tag} className="px-3 py-1.5 bg-red-50 text-red-700 text-[10px] font-bold uppercase tracking-wider rounded-lg border border-red-100 flex items-center">
@@ -432,7 +432,7 @@ export default function KnowledgePage() {
                <div className="h-24 w-24 bg-zinc-50 rounded-full flex items-center justify-center mb-6">
                   <BookOpen className="w-10 h-10 text-zinc-200" />
                </div>
-               <h2 className="text-2xl font-black text-zinc-900 tracking-tight">{t("know_title")}</h2>
+               <h2 className="text-2xl font-black text-black tracking-tight">{t("know_title")}</h2>
                <p className="text-black max-w-sm mt-2 leading-relaxed font-medium">{t("know_empty_desc") || "Select an article from the list or create a new one to start training your operational agents."}</p>
                <button
                   onClick={() => handleStartEdit()}

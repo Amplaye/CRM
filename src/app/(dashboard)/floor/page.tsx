@@ -660,7 +660,7 @@ export default function FloorPage() {
                     return (
                       <div>
                         <p className="text-xs text-black truncate font-medium">{guestName}</p>
-                        <p className="text-[10px] text-black/50">{tRes.party_size}p · {tRes.time}{resTablesCount > 1 ? ` · ${resTablesCount} mesas` : ""}</p>
+                        <p className="text-[10px] text-black">{tRes.party_size}p · {tRes.time}{resTablesCount > 1 ? ` · ${resTablesCount} mesas` : ""}</p>
                       </div>
                     );
                   })()}
@@ -706,7 +706,7 @@ export default function FloorPage() {
             {/* Edit palette */}
             {editingPlan && (
               <div className="mb-3 p-3 rounded-xl border-2" style={{ borderColor: "#c4956a", background: "rgba(252,246,237,0.6)" }}>
-                <p className="text-xs font-semibold text-black/70 mb-2">{t("floor_palette")}</p>
+                <p className="text-xs font-semibold text-black mb-2">{t("floor_palette")}</p>
                 <div className="flex flex-wrap gap-2">
                   {TABLE_PRESETS.map((p) => {
                     const dims = tableDims(p.shape, p.seats);
@@ -781,7 +781,7 @@ export default function FloorPage() {
         </div>
         <div className="divide-y" style={{ borderColor: "rgba(196,149,106,0.3)" }}>
           {currentShiftRes.length === 0 ? (
-            <p className="px-4 py-6 text-sm text-black/60 text-center">
+            <p className="px-4 py-6 text-sm text-black text-center">
               {t("floor_no_reservations")}
             </p>
           ) : (
@@ -804,11 +804,11 @@ export default function FloorPage() {
                       <span className="text-sm text-black truncate max-w-[120px] sm:max-w-none">
                         {guestName}
                       </span>
-                      <span className="text-xs text-black/60 flex-shrink-0">
+                      <span className="text-xs text-black flex-shrink-0">
                         {res.party_size}p
                       </span>
                       {tableNames.length > 0 && (
-                        <span className="text-xs text-black/40 flex-shrink-0">
+                        <span className="text-xs text-black flex-shrink-0">
                           {tableNames.join(", ")}
                         </span>
                       )}
@@ -904,7 +904,7 @@ export default function FloorPage() {
             <h3 className="text-lg font-bold text-black mb-1 pr-10">
               {freeTableModal.table.name} — {guestName}
             </h3>
-            <div className="text-sm text-black/70 mb-5 space-y-1">
+            <div className="text-sm text-black mb-5 space-y-1">
               <p>{freeTableModal.reservation.party_size}p · {freeTableModal.reservation.time}</p>
               <p className="text-xs">{statusPill(freeTableModal.reservation.status)}</p>
             </div>
@@ -946,7 +946,7 @@ export default function FloorPage() {
             <h3 className="text-lg font-bold text-black mb-2">
               {t("floor_delete_table_title").replace("{name}", deleteTableModal.name)}
             </h3>
-            <p className="text-sm text-black/70 mb-4">
+            <p className="text-sm text-black mb-4">
               {t("floor_delete_table_confirm")}
             </p>
             <div className="flex gap-3 mt-6">
@@ -1122,7 +1122,7 @@ function PlanCanvas({ tables, resTableLinks, shiftReservations, activeStatuses, 
       {/* Inner container with min-width for horizontal scroll on mobile */}
       <div className="relative" style={{ minWidth: "600px", minHeight: "560px" }}>
       {tables.length === 0 && (
-        <div className="absolute inset-0 flex items-center justify-center text-sm text-black/50">
+        <div className="absolute inset-0 flex items-center justify-center text-sm text-black">
           {editing ? t("floor_plan_empty_edit") : t("floor_plan_empty")}
         </div>
       )}
@@ -1216,9 +1216,9 @@ function PlanCanvas({ tables, resTableLinks, shiftReservations, activeStatuses, 
             }}
           >
             <span className="text-[11px] font-bold text-black leading-none">{table.name}</span>
-            <span className="text-[9px] text-black/60 leading-tight">{table.seats}p</span>
+            <span className="text-[9px] text-black leading-tight">{table.seats}p</span>
             {guestName && (
-              <span className="text-[8px] text-black/70 truncate max-w-[90%] mt-0.5">{guestName}</span>
+              <span className="text-[8px] text-black truncate max-w-[90%] mt-0.5">{guestName}</span>
             )}
             {isMerged && (
               <span className="absolute -top-2 -right-2 px-1 py-0.5 text-[8px] font-bold text-white rounded-full" style={{ background: "#c4956a" }}>

@@ -91,7 +91,7 @@ export default function ClientsPage() {
             <option value="all">All Clients</option>
             {tenants.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
           </select>
-          <ChevronDown className="w-4 h-4 text-black/40 absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none" />
+          <ChevronDown className="w-4 h-4 text-black absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none" />
         </div>
       </div>
 
@@ -104,7 +104,7 @@ export default function ClientsPage() {
               style={{ ...inputBorder }}>
               {tenants.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
             </select>
-            <ChevronDown className="w-3 h-3 text-black/40 absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none" />
+            <ChevronDown className="w-3 h-3 text-black absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none" />
           </div>
           <input
             type="text"
@@ -125,10 +125,10 @@ export default function ClientsPage() {
 
       {/* Notes list */}
       {loading ? (
-        <div className="p-12 text-center text-black/50 animate-pulse">Loading...</div>
+        <div className="p-12 text-center text-black animate-pulse">Loading...</div>
       ) : notes.length === 0 ? (
         <div className="rounded-xl border-2 p-12 text-center" style={cardStyle}>
-          <p className="text-sm text-black/40">No notes yet. Add your first note above.</p>
+          <p className="text-sm text-black">No notes yet. Add your first note above.</p>
         </div>
       ) : (
         <div className="space-y-2">
@@ -139,7 +139,7 @@ export default function ClientsPage() {
                   <span className="text-[10px] font-bold text-[#c4956a] bg-[#c4956a]/10 px-2 py-0.5 rounded">
                     {note.tenants?.name || "Unknown"}
                   </span>
-                  <span className="text-[10px] text-black/30">{new Date(note.created_at).toLocaleString()}</span>
+                  <span className="text-[10px] text-black">{new Date(note.created_at).toLocaleString()}</span>
                 </div>
                 <p className="text-sm text-black">{note.content}</p>
               </div>
