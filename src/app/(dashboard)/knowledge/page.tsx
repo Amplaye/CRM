@@ -270,7 +270,6 @@ export default function KnowledgePage() {
                                  <span className={`text-[10px] uppercase font-bold tracking-widest ${article.status === 'published' ? 'text-emerald-600' : 'text-zinc-400'}`}>
                                     {article.status}
                                  </span>
-                                 <span className="text-[10px] font-mono text-zinc-400">v{article.version}</span>
                               </div>
                               <h3 className="font-bold text-zinc-900 text-sm leading-tight truncate">{article.title}</h3>
                               <p className="text-xs text-zinc-500 line-clamp-1 mt-1">{article.category} • {t("know_updated_on") || "Updated"} {new Date(article.updated_at).toLocaleDateString()}</p>

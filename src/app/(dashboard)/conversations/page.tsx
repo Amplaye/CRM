@@ -315,7 +315,7 @@ export default function ConversationsPage() {
                       )}
                     </div>
                   </div>
-                  <p className="text-sm text-black/60 line-clamp-2 mt-2 leading-relaxed">{conv.summary || "No summary available..."}</p>
+                  <p className="text-sm text-black line-clamp-2 mt-2 leading-relaxed">{conv.summary || "No summary available..."}</p>
                   <div className="mt-2 flex items-center justify-between">
                     <div className="flex flex-wrap gap-1.5">
                       <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider border ${

@@ -209,7 +209,7 @@ export default function GuestsPage() {
                     </div>
                   </div>
                   <div className="flex items-center gap-1.5 flex-shrink-0">
-                    <button onClick={(e) => { e.stopPropagation(); deleteSingle(guest.id); }} className="p-1 text-black/20 hover:text-red-500"><Trash2 className="w-3.5 h-3.5" /></button>
+                    <button onClick={(e) => { e.stopPropagation(); deleteSingle(guest.id); }} className="p-1 text-black hover:text-red-500"><Trash2 className="w-3.5 h-3.5" /></button>
                     <input type="checkbox" checked={selectedIds.has(guest.id)} onChange={(e) => { e.stopPropagation(); toggleSelect(guest.id); }} className="w-4 h-4 rounded accent-[#c4956a] cursor-pointer" />
                   </div>
                 </div>
@@ -290,7 +290,7 @@ export default function GuestsPage() {
                       <span className={guest.no_show_count > 0 ? 'text-red-600' : 'text-black'}>{guest.no_show_count}</span>
                     </td>
                     <td className="px-3 py-3">
-                      <button onClick={(e) => { e.stopPropagation(); deleteSingle(guest.id); }} className="p-1 text-black/20 hover:text-red-500"><Trash2 className="w-3.5 h-3.5" /></button>
+                      <button onClick={(e) => { e.stopPropagation(); deleteSingle(guest.id); }} className="p-1 text-black hover:text-red-500"><Trash2 className="w-3.5 h-3.5" /></button>
                     </td>
                   </tr>
                 ))}

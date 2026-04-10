@@ -302,30 +302,30 @@ export default function PendingPage() {
 
                       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4 mb-3">
                         <div className="flex items-center gap-2">
-                          <Users className="w-4 h-4 text-black/40 flex-shrink-0" />
+                          <Users className="w-4 h-4 text-black flex-shrink-0" />
                           <div className="min-w-0">
-                            <p className="text-xs text-black/40">{t("pending_people_label")}</p>
+                            <p className="text-xs text-black">{t("pending_people_label")}</p>
                             <p className="text-sm font-bold text-black">{req.party_size}</p>
                           </div>
                         </div>
                         <div className="flex items-center gap-2">
-                          <Calendar className="w-4 h-4 text-black/40 flex-shrink-0" />
+                          <Calendar className="w-4 h-4 text-black flex-shrink-0" />
                           <div className="min-w-0">
-                            <p className="text-xs text-black/40">{t("pending_date_label")}</p>
+                            <p className="text-xs text-black">{t("pending_date_label")}</p>
                             <p className="text-sm font-bold text-black">{req.date}</p>
                           </div>
                         </div>
                         <div className="flex items-center gap-2">
-                          <Clock className="w-4 h-4 text-black/40 flex-shrink-0" />
+                          <Clock className="w-4 h-4 text-black flex-shrink-0" />
                           <div className="min-w-0">
-                            <p className="text-xs text-black/40">{t("pending_time_label")}</p>
+                            <p className="text-xs text-black">{t("pending_time_label")}</p>
                             <p className="text-sm font-bold text-black">{req.time}</p>
                           </div>
                         </div>
                         <div className="flex items-center gap-2">
-                          <Phone className="w-4 h-4 text-black/40 flex-shrink-0" />
+                          <Phone className="w-4 h-4 text-black flex-shrink-0" />
                           <div className="min-w-0">
-                            <p className="text-xs text-black/40">{t("pending_phone_label")}</p>
+                            <p className="text-xs text-black">{t("pending_phone_label")}</p>
                             <p className="text-sm font-bold text-black truncate">{guestPhone || "—"}</p>
                           </div>
                         </div>
