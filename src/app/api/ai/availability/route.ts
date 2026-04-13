@@ -4,20 +4,8 @@ import {
   getShift,
   getTimeSlots,
   isOpen,
+  type OpeningHours,
 } from '@/lib/restaurant-rules';
-
-function timeToMinutes(time: string): number {
-  const [h, m] = time.split(':').map(Number);
-  return h * 60 + m;
-}
-
-function rangesOverlap(startA: string, endA: string, startB: string, endB: string): boolean {
-  const a0 = timeToMinutes(startA);
-  const a1 = timeToMinutes(endA);
-  const b0 = timeToMinutes(startB);
-  const b1 = timeToMinutes(endB);
-  return a0 < b1 && b0 < a1;
-}
 
 export async function GET(request: Request) {
   try {
@@ -37,7 +25,20 @@ export async function GET(request: Request) {
 
     const pax = parseInt(party_size);
     const dayOfWeek = new Date(date + 'T12:00:00').getDay();
-    const slots = getTimeSlots(dayOfWeek);
+
+    const supabase = createServiceRoleClient();
+
+    // Fetch tenant opening_hours — single source of truth
+    const { data: tenantRow, error: tenantErr } = await supabase
+      .from('tenants')
+      .select('settings')
+      .eq('id', tenant_id)
+      .maybeSingle();
+
+    if (tenantErr) throw tenantErr;
+
+    const openingHours: OpeningHours = (tenantRow?.settings as any)?.opening_hours || {};
+    const slots = getTimeSlots(dayOfWeek, openingHours);
 
     if (slots.length === 0) {
       return NextResponse.json({
@@ -48,8 +49,6 @@ export async function GET(request: Request) {
         message: "Restaurant is closed on this day"
       });
     }
-
-    const supabase = createServiceRoleClient();
 
     // Fetch active tables (seats matter — variable seat counts)
     let tablesQuery = supabase
@@ -100,7 +99,7 @@ export async function GET(request: Request) {
     // Tables are occupied for the ENTIRE shift.
     const availability = slots.map(time => {
       const slotShift = getShift(time);
-      if (!isOpen(dayOfWeek, slotShift)) {
+      if (!isOpen(dayOfWeek, slotShift, openingHours)) {
         return { time, available: false, free_tables: 0 };
       }
 

@@ -1,32 +1,18 @@
-// PICNIC restaurant business rules
-// Tables now have variable shapes and seat counts; the DB function
-// atomic_book_tables decides which (and how many) tables to assign
-// based on the party size. Constants below are kept only as fallback.
+// Restaurant business rules.
+// Schedule/opening_hours is the single source of truth — stored in
+// tenant.settings.opening_hours and also exposed to bots via a
+// "Horario del restaurante" KB article. Nothing here is hardcoded
+// per-tenant anymore.
 
-const TOTAL_TABLES = 13;
 const SEATS_PER_TABLE = 4;
 
-// Schedule: dayOfWeek 0=Sun, 1=Mon, 2=Tue, ...
-// Mon(1): closed
-// Tue(2), Wed(3): dinner only 19:30-22:30
-// Thu(4): lunch 12:30-15:30, dinner 20:00-22:30
-// Fri(5), Sat(6): lunch 12:30-15:30, dinner 19:30-22:30
-// Sun(0): lunch only 12:30-15:30
+export interface TimeSlot { open: string; close: string }
+export type OpeningHours = Record<string, TimeSlot[]>;
 
-interface ShiftSchedule {
-  start: string;
-  end: string;
+function timeToMinutes(time: string): number {
+  const [h, m] = time.split(':').map(Number);
+  return h * 60 + m;
 }
-
-const SCHEDULE: Record<number, { lunch?: ShiftSchedule; dinner?: ShiftSchedule }> = {
-  0: { lunch: { start: '12:30', end: '15:30' } }, // Sun
-  1: {}, // Mon closed
-  2: { dinner: { start: '19:30', end: '22:30' } }, // Tue
-  3: { dinner: { start: '19:30', end: '22:30' } }, // Wed
-  4: { lunch: { start: '12:30', end: '15:30' }, dinner: { start: '20:00', end: '22:30' } }, // Thu
-  5: { lunch: { start: '12:30', end: '15:30' }, dinner: { start: '19:30', end: '22:30' } }, // Fri
-  6: { lunch: { start: '12:30', end: '15:30' }, dinner: { start: '19:30', end: '22:30' } }, // Sat
-};
 
 export function getShift(time: string): 'lunch' | 'dinner' {
   const [h, m] = time.split(':').map(Number);
@@ -55,10 +41,13 @@ export function tablesNeeded(partySize: number): number {
   return Math.ceil(partySize / SEATS_PER_TABLE);
 }
 
-export function isOpen(dayOfWeek: number, shift: 'lunch' | 'dinner'): boolean {
-  const day = SCHEDULE[dayOfWeek];
-  if (!day) return false;
-  return shift === 'lunch' ? !!day.lunch : !!day.dinner;
+export function isOpen(dayOfWeek: number, shift: 'lunch' | 'dinner', openingHours: OpeningHours): boolean {
+  const daySlots = openingHours[String(dayOfWeek)] || [];
+  return daySlots.some(s => {
+    const startMin = timeToMinutes(s.open);
+    const isLunch = startMin < 960;
+    return shift === 'lunch' ? isLunch : !isLunch;
+  });
 }
 
 export function getBookingAction(partySize: number): 'auto_confirm' | 'manual_review' | 'reject' {
@@ -67,34 +56,22 @@ export function getBookingAction(partySize: number): 'auto_confirm' | 'manual_re
   return 'reject';
 }
 
-function timeToMinutes(time: string): number {
-  const [h, m] = time.split(':').map(Number);
-  return h * 60 + m;
-}
-
-export function getTimeSlots(dayOfWeek: number): string[] {
-  const day = SCHEDULE[dayOfWeek];
-  if (!day) return [];
-
+export function getTimeSlots(dayOfWeek: number, openingHours: OpeningHours): string[] {
+  const daySlots = openingHours[String(dayOfWeek)] || [];
   const slots: string[] = [];
 
-  const addSlots = (schedule: ShiftSchedule) => {
-    const startMin = timeToMinutes(schedule.start);
-    const endMin = timeToMinutes(schedule.end);
+  for (const slot of daySlots) {
+    const startMin = timeToMinutes(slot.open);
+    const endMin = timeToMinutes(slot.close);
     for (let min = startMin; min <= endMin; min += 15) {
       const h = Math.floor(min / 60);
       const m = min % 60;
       slots.push(`${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`);
     }
-  };
-
-  if (day.lunch) addSlots(day.lunch);
-  if (day.dinner) addSlots(day.dinner);
+  }
 
   return slots;
 }
-
-export { TOTAL_TABLES };
 
 // Localized label for canonical zone slugs ('inside' / 'outside').
 // Custom zones (e.g. 'Terraza') are returned untouched.

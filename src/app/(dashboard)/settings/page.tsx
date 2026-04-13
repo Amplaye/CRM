@@ -89,6 +89,58 @@ export default function SettingsPage() {
       return;
     }
 
+    // Upsert KB article "Horario del restaurante" so the bots (voice + chat)
+    // always read the same schedule as the availability API.
+    try {
+      const dayNames = ["Domingo", "Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado"];
+      const lines: string[] = [];
+      for (let d = 0; d < 7; d++) {
+        const slots = openingHours[String(d)] || [];
+        if (slots.length === 0) {
+          lines.push(`${dayNames[d]}: CERRADO`);
+        } else {
+          const parts = slots.map((s) => {
+            const startMin = parseInt(s.open.split(":")[0]) * 60 + parseInt(s.open.split(":")[1]);
+            const label = startMin < 960 ? "almuerzo" : "cena";
+            return `${s.open}-${s.close} (${label})`;
+          });
+          lines.push(`${dayNames[d]}: ${parts.join(" y ")}`);
+        }
+      }
+      const content = lines.join("\n");
+
+      const { data: existing } = await supabase
+        .from("knowledge_articles")
+        .select("id")
+        .eq("tenant_id", tenant.id)
+        .eq("title", "Horario del restaurante")
+        .maybeSingle();
+
+      if (existing?.id) {
+        await supabase
+          .from("knowledge_articles")
+          .update({ content, status: "published", category: "general" })
+          .eq("id", existing.id);
+      } else {
+        await supabase.from("knowledge_articles").insert({
+          tenant_id: tenant.id,
+          title: "Horario del restaurante",
+          content,
+          category: "general",
+          status: "published",
+        });
+      }
+
+      // Push the updated KB to the voice agent prompt
+      await fetch("/api/sync-kb-retell", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tenant_id: tenant.id }),
+      });
+    } catch (syncErr) {
+      console.error("KB sync after settings save failed:", syncErr);
+    }
+
     // Clear tenant cache so dashboard picks up new settings
     try { sessionStorage.clear(); } catch {}
 
@@ -203,7 +255,63 @@ export default function SettingsPage() {
           </div>
         </section>
 
-        {/* Opening Hours removed — managed in Knowledge Base */}
+        {/* Opening Hours — single source of truth. Also auto-synced to the
+            "Horario del restaurante" KB article and pushed to the voice agent. */}
+        <section className="p-6 rounded-xl border-2" style={{ background: "rgba(252,246,237,0.85)", borderColor: "#c4956a" }}>
+          <h2 className="text-lg font-bold text-black mb-1">{t("settings_opening_hours")}</h2>
+          <p className="text-xs text-black mb-4">{t("settings_opening_hours_desc")}</p>
+          <div className="space-y-3">
+            {DAY_LABELS_KEYS.map((dayKey, dayIdx) => {
+              const dayStr = String(dayIdx);
+              const slots = openingHours[dayStr] || [];
+              return (
+                <div key={dayStr} className="flex items-start gap-3 flex-wrap">
+                  <div className="w-28 pt-2 text-sm font-semibold text-black">{t(dayKey as any)}</div>
+                  <div className="flex-1 min-w-[200px] space-y-2">
+                    {slots.length === 0 ? (
+                      <p className="text-xs text-black italic pt-2">—</p>
+                    ) : (
+                      slots.map((slot, idx) => (
+                        <div key={idx} className="flex items-center gap-2">
+                          <input
+                            type="time"
+                            value={slot.open}
+                            onChange={(e) => updateSlot(dayStr, idx, "open", e.target.value)}
+                            className={inputStyle + " !w-28"}
+                            style={inputBorder}
+                          />
+                          <span className="text-black">—</span>
+                          <input
+                            type="time"
+                            value={slot.close}
+                            onChange={(e) => updateSlot(dayStr, idx, "close", e.target.value)}
+                            className={inputStyle + " !w-28"}
+                            style={inputBorder}
+                          />
+                          <button
+                            onClick={() => removeSlot(dayStr, idx)}
+                            className="p-1.5 rounded-lg border-2 text-red-600 hover:bg-red-500/10 transition-colors"
+                            style={{ borderColor: "#c4956a" }}
+                            title="Remove"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                  <button
+                    onClick={() => addSlot(dayStr)}
+                    className="mt-1 inline-flex items-center gap-1 px-3 py-1.5 text-xs font-semibold rounded-lg border-2 text-black hover:bg-[#c4956a]/10 transition-colors"
+                    style={{ borderColor: "#c4956a", background: "rgba(252,246,237,0.6)" }}
+                  >
+                    <Plus className="w-3.5 h-3.5" /> {t("settings_add_slot")}
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        </section>
 
       </div>
     </div>
