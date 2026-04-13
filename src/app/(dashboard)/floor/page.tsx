@@ -88,6 +88,10 @@ export default function FloorPage() {
   const [deleteTableModal, setDeleteTableModal] = useState<TableData | null>(null);
   const [deleteTableLoading, setDeleteTableLoading] = useState(false);
 
+  // Delete zone modal (edit mode)
+  const [deleteZoneModal, setDeleteZoneModal] = useState<string | null>(null);
+  const [deleteZoneLoading, setDeleteZoneLoading] = useState(false);
+
   const today = selectedDate;
 
   const fetchData = useCallback(async () => {
@@ -375,6 +379,34 @@ export default function FloorPage() {
       position_y: 60,
     });
     setActiveZone(trimmed);
+  }
+
+  async function confirmDeleteZone() {
+    if (!deleteZoneModal) return;
+    const zoneName = deleteZoneModal;
+    setDeleteZoneLoading(true);
+    try {
+      const supabase = createClient();
+      const idsToDelete = tables.filter((t) => (t.zone || "Principal") === zoneName).map((t) => t.id);
+      // Optimistic update
+      setTables((prev) => prev.filter((t) => (t.zone || "Principal") !== zoneName));
+      setResTableLinks((prev) => prev.filter((l) => !idsToDelete.includes(l.table_id)));
+      setDeleteZoneModal(null);
+      // Switch to a remaining zone if we just deleted the active one
+      if (activeZone === zoneName) {
+        const remaining = Array.from(new Set(tables.map((t) => t.zone || "Principal"))).filter((z) => z !== zoneName);
+        if (remaining.length > 0) setActiveZone(remaining[0]);
+      }
+      if (idsToDelete.length > 0) {
+        await supabase.from("reservation_tables").delete().in("table_id", idsToDelete);
+        await supabase.from("restaurant_tables").delete().in("id", idsToDelete);
+      }
+    } catch (err) {
+      console.error("Delete zone error:", err);
+      fetchData();
+    } finally {
+      setDeleteZoneLoading(false);
+    }
   }
 
   async function handleQuickSeat() {
@@ -677,20 +709,44 @@ export default function FloorPage() {
           <div>
             {/* Zone tabs */}
             <div className="flex items-center gap-1 mb-3 flex-wrap">
-              {zones.map((z) => (
-                <button
-                  key={z}
-                  onClick={() => setActiveZone(z)}
-                  className="px-3 py-1 text-xs sm:text-sm font-semibold rounded-lg border-2 transition-colors"
-                  style={{
-                    borderColor: "#c4956a",
-                    background: currentZone === z ? "#c4956a" : "rgba(252,246,237,0.6)",
-                    color: currentZone === z ? "#fff" : "#000",
-                  }}
-                >
-                  {zoneLabel(z, t)}
-                </button>
-              ))}
+              {zones.map((z) => {
+                const isActive = currentZone === z;
+                return (
+                  <div
+                    key={z}
+                    className="inline-flex items-center rounded-lg border-2 overflow-hidden"
+                    style={{
+                      borderColor: "#c4956a",
+                      background: isActive ? "#c4956a" : "rgba(252,246,237,0.6)",
+                    }}
+                  >
+                    <button
+                      onClick={() => setActiveZone(z)}
+                      className="px-3 py-1 text-xs sm:text-sm font-semibold transition-colors"
+                      style={{ color: isActive ? "#fff" : "#000" }}
+                    >
+                      {zoneLabel(z, t)}
+                    </button>
+                    {editingPlan && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (zones.length <= 1) {
+                            alert(t("floor_delete_zone_last"));
+                            return;
+                          }
+                          setDeleteZoneModal(z);
+                        }}
+                        className="px-1.5 py-1 transition-colors hover:bg-red-500/30"
+                        style={{ color: isActive ? "#fff" : "#000" }}
+                        title={t("floor_delete_zone")}
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                  </div>
+                );
+              })}
               {editingPlan && (
                 <button
                   onClick={addZone}
@@ -963,6 +1019,43 @@ export default function FloorPage() {
                 className="flex-1 px-4 py-2 text-sm font-semibold rounded-lg text-white transition-colors disabled:opacity-50 bg-red-500 hover:bg-red-600"
               >
                 {deleteTableLoading ? "..." : t("floor_delete_table")}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Zone Modal */}
+      {deleteZoneModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={() => setDeleteZoneModal(null)}>
+          <div
+            className="rounded-2xl p-6 w-full max-w-sm border-2 shadow-xl"
+            style={{ background: "rgba(252,246,237,0.97)", borderColor: "#c4956a" }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="text-lg font-bold text-black mb-2">
+              {t("floor_delete_zone_title").replace("{name}", zoneLabel(deleteZoneModal, t))}
+            </h3>
+            <p className="text-sm text-black mb-4">
+              {t("floor_delete_zone_confirm").replace(
+                "{count}",
+                String(tables.filter((t) => (t.zone || "Principal") === deleteZoneModal).length)
+              )}
+            </p>
+            <div className="flex gap-3 mt-6">
+              <button
+                onClick={() => setDeleteZoneModal(null)}
+                className="flex-1 px-4 py-2 text-sm font-semibold rounded-lg border-2 text-black transition-colors hover:bg-[#c4956a]/10"
+                style={{ borderColor: "#c4956a" }}
+              >
+                {t("floor_cancel")}
+              </button>
+              <button
+                onClick={confirmDeleteZone}
+                disabled={deleteZoneLoading}
+                className="flex-1 px-4 py-2 text-sm font-semibold rounded-lg text-white transition-colors disabled:opacity-50 bg-red-500 hover:bg-red-600"
+              >
+                {deleteZoneLoading ? "..." : t("floor_delete_zone")}
               </button>
             </div>
           </div>
