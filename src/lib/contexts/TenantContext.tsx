@@ -11,6 +11,7 @@ interface TenantContextType {
   globalRole: GlobalRole | null;
   availableTenants: Tenant[];
   switchTenant: (tenantId: string) => void;
+  refreshActiveTenant: () => Promise<void>;
   loading: boolean;
 }
 
@@ -20,6 +21,7 @@ const TenantContext = createContext<TenantContextType>({
   globalRole: null,
   availableTenants: [],
   switchTenant: () => {},
+  refreshActiveTenant: async () => {},
   loading: true,
 });
 
@@ -116,8 +118,32 @@ export const TenantProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
+  // Re-fetch the active tenant's row from Supabase and update both state
+  // and the sessionStorage cache. Call this after mutations to Settings so
+  // the rest of the app sees the new values without a page reload.
+  const refreshActiveTenant = async () => {
+    if (!user || !activeTenant) return;
+    try {
+      const { data } = await supabase
+        .from("tenants")
+        .select("*")
+        .eq("id", activeTenant.id)
+        .maybeSingle();
+      if (!data) return;
+      const fresh = data as Tenant;
+      setActiveTenant(fresh);
+      const updatedList = availableTenants.map((t) => (t.id === fresh.id ? fresh : t));
+      setAvailableTenants(updatedList);
+      sessionStorage.setItem(`tenant_ctx_${user.id}`, JSON.stringify({
+        globalRole, tenants: updatedList, activeTenant: fresh, activeRole,
+      }));
+    } catch (err) {
+      console.error("Failed to refresh active tenant", err);
+    }
+  };
+
   return (
-    <TenantContext.Provider value={{ activeTenant, activeRole, globalRole, availableTenants, switchTenant, loading }}>
+    <TenantContext.Provider value={{ activeTenant, activeRole, globalRole, availableTenants, switchTenant, refreshActiveTenant, loading }}>
       {children}
     </TenantContext.Provider>
   );

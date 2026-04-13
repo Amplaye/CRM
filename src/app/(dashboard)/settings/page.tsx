@@ -23,7 +23,7 @@ const DEFAULT_OPENING_HOURS: OpeningHours = {
 
 export default function SettingsPage() {
   const { t } = useLanguage();
-  const { activeTenant: tenant } = useTenant();
+  const { activeTenant: tenant, refreshActiveTenant } = useTenant();
   const supabase = createClient();
 
   const [name, setName] = useState("");
@@ -141,8 +141,9 @@ export default function SettingsPage() {
       console.error("KB sync after settings save failed:", syncErr);
     }
 
-    // Clear tenant cache so dashboard picks up new settings
-    try { sessionStorage.clear(); } catch {}
+    // Refresh the active tenant in context so other pages (Dashboard,
+    // Floor, Reservations...) pick up the new settings without a reload.
+    await refreshActiveTenant();
 
     setSaving(false);
     setSaved(true);
@@ -260,53 +261,57 @@ export default function SettingsPage() {
         <section className="p-6 rounded-xl border-2" style={{ background: "rgba(252,246,237,0.85)", borderColor: "#c4956a" }}>
           <h2 className="text-lg font-bold text-black mb-1">{t("settings_opening_hours")}</h2>
           <p className="text-xs text-black mb-4">{t("settings_opening_hours_desc")}</p>
-          <div className="space-y-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
             {DAY_LABELS_KEYS.map((dayKey, dayIdx) => {
               const dayStr = String(dayIdx);
               const slots = openingHours[dayStr] || [];
               return (
-                <div key={dayStr} className="flex items-start gap-3 flex-wrap">
-                  <div className="w-28 pt-2 text-sm font-semibold text-black">{t(dayKey as any)}</div>
-                  <div className="flex-1 min-w-[200px] space-y-2">
-                    {slots.length === 0 ? (
-                      <p className="text-xs text-black italic pt-2">—</p>
-                    ) : (
-                      slots.map((slot, idx) => (
-                        <div key={idx} className="flex items-center gap-2">
-                          <input
-                            type="time"
-                            value={slot.open}
-                            onChange={(e) => updateSlot(dayStr, idx, "open", e.target.value)}
-                            className={inputStyle + " !w-28"}
-                            style={inputBorder}
-                          />
-                          <span className="text-black">—</span>
-                          <input
-                            type="time"
-                            value={slot.close}
-                            onChange={(e) => updateSlot(dayStr, idx, "close", e.target.value)}
-                            className={inputStyle + " !w-28"}
-                            style={inputBorder}
-                          />
-                          <button
-                            onClick={() => removeSlot(dayStr, idx)}
-                            className="p-1.5 rounded-lg border-2 text-red-600 hover:bg-red-500/10 transition-colors"
-                            style={{ borderColor: "#c4956a" }}
-                            title="Remove"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        </div>
-                      ))
+                <div
+                  key={dayStr}
+                  className="rounded-lg border-2 p-3 flex flex-col gap-2"
+                  style={{ borderColor: "#c4956a", background: "rgba(252,246,237,0.6)" }}
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-bold text-black">{t(dayKey as any)}</span>
+                    {slots.length === 0 && (
+                      <span className="text-[10px] italic text-black/60 uppercase tracking-wider">{t("settings_closed")}</span>
                     )}
                   </div>
-                  <button
-                    onClick={() => addSlot(dayStr)}
-                    className="mt-1 inline-flex items-center gap-1 px-3 py-1.5 text-xs font-semibold rounded-lg border-2 text-black hover:bg-[#c4956a]/10 transition-colors"
-                    style={{ borderColor: "#c4956a", background: "rgba(252,246,237,0.6)" }}
-                  >
-                    <Plus className="w-3.5 h-3.5" /> {t("settings_add_slot")}
-                  </button>
+                  <div className="flex flex-col gap-2">
+                    {slots.map((slot, idx) => (
+                      <div key={idx} className="flex items-center gap-1.5">
+                        <input
+                          type="time"
+                          value={slot.open}
+                          onChange={(e) => updateSlot(dayStr, idx, "open", e.target.value)}
+                          className="flex-1 min-w-0 rounded-md border-2 px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-[#c4956a]"
+                          style={{ borderColor: "#c4956a", background: "white" }}
+                        />
+                        <span className="text-black text-xs">—</span>
+                        <input
+                          type="time"
+                          value={slot.close}
+                          onChange={(e) => updateSlot(dayStr, idx, "close", e.target.value)}
+                          className="flex-1 min-w-0 rounded-md border-2 px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-[#c4956a]"
+                          style={{ borderColor: "#c4956a", background: "white" }}
+                        />
+                        <button
+                          onClick={() => removeSlot(dayStr, idx)}
+                          className="p-1 rounded-md text-red-600 hover:bg-red-500/10 transition-colors shrink-0"
+                          title={t("settings_remove_slot")}
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    ))}
+                    <button
+                      onClick={() => addSlot(dayStr)}
+                      className="w-full inline-flex items-center justify-center gap-1 px-2 py-1.5 text-xs font-semibold rounded-md border-2 border-dashed text-black hover:bg-[#c4956a]/10 transition-colors"
+                      style={{ borderColor: "#c4956a" }}
+                    >
+                      <Plus className="w-3.5 h-3.5" /> {t("settings_add_slot")}
+                    </button>
+                  </div>
                 </div>
               );
             })}

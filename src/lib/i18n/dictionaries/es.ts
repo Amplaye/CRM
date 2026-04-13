@@ -404,6 +404,7 @@ export const es: Dictionary = {
   settings_opening_hours: "Horario de Apertura",
   settings_opening_hours_desc: "Única fuente de verdad — usado por el motor de disponibilidad, el agente de voz y el bot de chat. Se sincroniza automáticamente con la base de conocimiento.",
   settings_add_slot: "Añadir franja",
+  settings_remove_slot: "Eliminar franja",
   settings_closed: "Cerrado",
   settings_to: "a",
   settings_day_sun: "Domingo", settings_day_mon: "Lunes", settings_day_tue: "Martes",
