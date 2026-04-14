@@ -249,37 +249,62 @@ export async function POST(request: Request) {
 
     if (newResErr) throw newResErr;
 
-    // Pre-compute free tables per zone from the data we already fetched.
-    // This lets us pick a SINGLE zone BEFORE calling the RPC, so a reservation
-    // never spans inside+outside tables.
+    // Pre-compute free tables per zone. A reservation MUST live entirely in one
+    // zone — never half inside and half outside. If neither zone alone has
+    // enough capacity, the booking is escalated.
     const freeByZone: Record<string, number> = { inside: 0, outside: 0 };
     for (const t of (activeTables || []) as any[]) {
       if (occupiedTableIds.has(t.id)) continue;
       if (t.zone === 'inside' || t.zone === 'outside') freeByZone[t.zone]++;
     }
 
-    // Decide which zone to request from the RPC:
-    //   1. client's preference if it has capacity
-    //   2. the other zone if it has capacity (falls back silently)
-    //   3. null = let the RPC pick across zones (last resort — truly full)
-    let requestedZone: string | null;
+    let requestedZone: 'inside' | 'outside' | null = null;
     let fellBack = false;
-    if (zonePref && freeByZone[zonePref] >= needed) {
-      requestedZone = zonePref;
-    } else if (zonePref) {
-      const other = zonePref === 'inside' ? 'outside' : 'inside';
-      if (freeByZone[other] >= needed) {
-        requestedZone = other;
-        fellBack = true;
+    if (zonePref === 'inside' || zonePref === 'outside') {
+      if (freeByZone[zonePref] >= needed) {
+        requestedZone = zonePref;
       } else {
-        requestedZone = null;
+        const other = zonePref === 'inside' ? 'outside' : 'inside';
+        if (freeByZone[other] >= needed) {
+          requestedZone = other;
+          fellBack = true;
+        }
       }
     } else if (freeByZone.inside >= needed) {
       requestedZone = 'inside';
     } else if (freeByZone.outside >= needed) {
       requestedZone = 'outside';
-    } else {
-      requestedZone = null;
+    }
+
+    // No single zone can host this party → escalate, do NOT mix zones.
+    if (!requestedZone) {
+      await supabase.from('reservations').update({
+        status: 'escalated',
+        notes: (payload.notes || '') + ' — No hay una zona con mesas suficientes, pendiente de revisión',
+      }).eq('id', newRes.id);
+
+      await logAuditEvent({
+        tenant_id: payload.tenant_id, action: "create_reservation",
+        entity_id: newRes.id, idempotency_key: payload.idempotency_key,
+        source: "ai_agent",
+        details: {
+          type: "no_capacity_single_zone",
+          free_inside: freeByZone.inside,
+          free_outside: freeByZone.outside,
+          tables_needed: needed,
+        }
+      });
+
+      return NextResponse.json({
+        success: true,
+        reservation_id: newRes.id,
+        status: 'escalated',
+        has_capacity: false,
+        free_tables: Math.max(freeByZone.inside, freeByZone.outside),
+        tables_needed: needed,
+        tables_assigned: [],
+        message: `No hay una zona con mesas suficientes (necesarias: ${needed}, libres interior: ${freeByZone.inside}, libres exterior: ${freeByZone.outside}). Solicitud registrada para revisión.`
+      });
     }
 
     // Atomic table assignment — prevents double-booking under concurrent requests
@@ -292,7 +317,7 @@ export async function POST(request: Request) {
       p_zone_preference: requestedZone,
     });
     if (atomicErr) throw atomicErr;
-    const assignedZone: string | null = atomicResult?.success ? requestedZone : null;
+    const assignedZone: 'inside' | 'outside' | null = atomicResult?.success ? requestedZone : null;
 
     if (!atomicResult.success) {
       // Not enough tables — change to escalated
