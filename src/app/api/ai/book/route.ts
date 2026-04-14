@@ -102,7 +102,7 @@ export async function POST(request: Request) {
     // 4. Find free tables for the time window
     const { data: activeTables, error: tablesErr } = await supabase
       .from('restaurant_tables')
-      .select('id, name')
+      .select('id, name, zone')
       .eq('tenant_id', payload.tenant_id)
       .eq('status', 'active');
 
@@ -249,35 +249,50 @@ export async function POST(request: Request) {
 
     if (newResErr) throw newResErr;
 
+    // Pre-compute free tables per zone from the data we already fetched.
+    // This lets us pick a SINGLE zone BEFORE calling the RPC, so a reservation
+    // never spans inside+outside tables.
+    const freeByZone: Record<string, number> = { inside: 0, outside: 0 };
+    for (const t of (activeTables || []) as any[]) {
+      if (occupiedTableIds.has(t.id)) continue;
+      if (t.zone === 'inside' || t.zone === 'outside') freeByZone[t.zone]++;
+    }
+
+    // Decide which zone to request from the RPC:
+    //   1. client's preference if it has capacity
+    //   2. the other zone if it has capacity (falls back silently)
+    //   3. null = let the RPC pick across zones (last resort — truly full)
+    let requestedZone: string | null;
+    let fellBack = false;
+    if (zonePref && freeByZone[zonePref] >= needed) {
+      requestedZone = zonePref;
+    } else if (zonePref) {
+      const other = zonePref === 'inside' ? 'outside' : 'inside';
+      if (freeByZone[other] >= needed) {
+        requestedZone = other;
+        fellBack = true;
+      } else {
+        requestedZone = null;
+      }
+    } else if (freeByZone.inside >= needed) {
+      requestedZone = 'inside';
+    } else if (freeByZone.outside >= needed) {
+      requestedZone = 'outside';
+    } else {
+      requestedZone = null;
+    }
+
     // Atomic table assignment — prevents double-booking under concurrent requests
-    let { data: atomicResult, error: atomicErr } = await supabase.rpc('atomic_book_tables', {
+    const { data: atomicResult, error: atomicErr } = await supabase.rpc('atomic_book_tables', {
       p_tenant_id: payload.tenant_id,
       p_date: payload.date,
       p_shift: shift,
       p_tables_needed: needed,
       p_reservation_id: newRes.id,
-      p_zone_preference: zonePref,
+      p_zone_preference: requestedZone,
     });
-
     if (atomicErr) throw atomicErr;
-
-    // Fallback: preferred zone is full, retry without zone constraint so the
-    // booking still goes through. The note already records the preference,
-    // so staff can move the table later if a spot opens.
-    let fellBack = false;
-    if (!atomicResult?.success && zonePref) {
-      const retry = await supabase.rpc('atomic_book_tables', {
-        p_tenant_id: payload.tenant_id,
-        p_date: payload.date,
-        p_shift: shift,
-        p_tables_needed: needed,
-        p_reservation_id: newRes.id,
-        p_zone_preference: null,
-      });
-      if (retry.error) throw retry.error;
-      atomicResult = retry.data;
-      fellBack = atomicResult?.success === true;
-    }
+    const assignedZone: string | null = atomicResult?.success ? requestedZone : null;
 
     if (!atomicResult.success) {
       // Not enough tables — change to escalated
@@ -327,7 +342,7 @@ export async function POST(request: Request) {
        shift,
        end_time: endTime,
        tables_assigned: atomicResult.tables_assigned,
-       zone_assigned: zonePref && !fellBack ? zonePref : null,
+       zone_assigned: assignedZone,
        zone_preference_unavailable: fellBack,
        message: fellBack
          ? `Reserva confirmada — ${zonePref === 'inside' ? 'interior' : 'exterior'} sin disponibilidad, asignada a la otra zona.`

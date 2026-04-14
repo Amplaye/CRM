@@ -48,7 +48,8 @@ export default function WaitlistPage() {
       }
 
       const docs = (data || []) as WaitlistWithGuest[];
-      docs.sort((a, b) => b.priority_score - a.priority_score || a.created_at - b.created_at);
+      const ts = (v: any) => (typeof v === 'number' ? v : new Date(v).getTime());
+      docs.sort((a, b) => b.priority_score - a.priority_score || ts(a.created_at) - ts(b.created_at));
       setEntries(docs);
       setLoading(false);
     };
@@ -226,7 +227,7 @@ export default function WaitlistPage() {
                          <div className="ml-2">
                            <div className={`text-sm font-bold flex items-center ${entry.status === 'match_found' ? 'text-black' : 'text-black'}`}>
                               <Clock className={`w-3.5 h-3.5 mr-1 ${entry.status === 'match_found' ? 'text-terracotta-500' : 'text-black'}`} />
-                              {Math.max(0, Math.floor((Date.now() - entry.created_at) / 60000))}{t("waitlist_wait_time")}
+                              {Math.max(0, Math.floor((Date.now() - (typeof entry.created_at === 'number' ? entry.created_at : new Date(entry.created_at as any).getTime())) / 60000))}{t("waitlist_wait_time")}
                            </div>
                          </div>
                        </div>
