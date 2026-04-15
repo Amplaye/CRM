@@ -36,12 +36,25 @@ export async function POST(request: Request) {
         .limit(1);
 
       if (pending && pending.length > 0) {
+        const resId = pending[0].id;
         await supabase
           .from('reservations')
           .update({ status: 'confirmed' })
-          .eq('id', pending[0].id);
+          .eq('id', resId);
 
-        return NextResponse.json({ confirmed: true, reservation_id: pending[0].id });
+        // If this reservation came from a waitlist offer, mark the waitlist
+        // entry as converted so it leaves the waiting list for good.
+        await supabase
+          .from('waitlist_entries')
+          .update({
+            status: 'converted_to_booking',
+            updated_at: new Date().toISOString(),
+          })
+          .eq('tenant_id', tenant_id)
+          .eq('matched_reservation_id', resId)
+          .eq('status', 'offered');
+
+        return NextResponse.json({ confirmed: true, reservation_id: resId });
       }
     }
 

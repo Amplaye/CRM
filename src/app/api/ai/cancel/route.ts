@@ -47,6 +47,19 @@ export async function DELETE(request: Request) {
 
      if (updateErr) throw updateErr;
 
+     // If this was a pending waitlist offer, free the waitlist entry so it
+     // can be re-offered to the same guest or a new candidate.
+     await supabase
+       .from('waitlist_entries')
+       .update({
+         status: 'waiting',
+         matched_reservation_id: null,
+         updated_at: new Date().toISOString(),
+       })
+       .eq('tenant_id', tenant_id)
+       .eq('matched_reservation_id', reservation_id)
+       .eq('status', 'offered');
+
      await logAuditEvent({
         tenant_id,
         action: "cancel_reservation",

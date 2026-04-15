@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createServiceRoleClient } from '@/lib/supabase/server';
 import { logAuditEvent } from '@/lib/audit';
-import { matchWaitlistForSlotAction } from '@/app/actions/waitlist';
 
 /**
  * Cancel a reservation by guest phone number.
@@ -76,6 +75,20 @@ export async function POST(request: Request) {
           .update(updateData)
           .eq('id', res.id);
 
+        // If this reservation was an active waitlist offer, free the entry
+        // back to `waiting` so a new offer can be made (either to the same
+        // guest on a future cycle or to the next candidate).
+        await supabase
+          .from('waitlist_entries')
+          .update({
+            status: 'waiting',
+            matched_reservation_id: null,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('tenant_id', tenant_id)
+          .eq('matched_reservation_id', res.id)
+          .eq('status', 'offered');
+
         // Audit
         await logAuditEvent({
           tenant_id,
@@ -84,9 +97,6 @@ export async function POST(request: Request) {
           source: "ai_agent",
           details: { reason: "Cancelled via phone lookup", cancellation_source: source || "unknown" }
         });
-
-        // Trigger waitlist matching for the freed slot
-        await matchWaitlistForSlotAction(tenant_id, res.id, res.date, res.time, res.party_size);
 
         return NextResponse.json({
           cancelled: true,

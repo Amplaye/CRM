@@ -13,13 +13,15 @@ function timeToMinutes(time: string): number {
   return h * 60 + m;
 }
 
+const OFFER_TTL_MINUTES = 15;
+
 /**
  * POST /api/ai/waitlist-process
  *
  * Called when a table frees up (cancellation, no-show, rejection).
- * Finds the best waitlist candidate and auto-assigns them.
- * Also supports gap-based booking: if all tables are occupied for the full shift,
- * checks if there's a 2-hour gap before an existing reservation to offer a time-limited slot.
+ * Finds the best waitlist candidate and OFFERS them the slot — holds tables
+ * with a `pending_confirmation` reservation and notifies the client asking
+ * for explicit CONFIRMO. Entries remain in waitlist until the client confirms.
  *
  * Body: { tenant_id, date, shift?, freed_table_ids?: string[] }
  */
@@ -32,6 +34,10 @@ export async function POST(request: Request) {
     }
 
     const supabase = createServiceRoleClient();
+
+    // Expire stale offers first (no reply within TTL) so their tables can be
+    // re-offered. Runs inline so every invocation naturally self-cleans.
+    await expireStaleOffers(supabase, tenant_id);
 
     // Determine which shifts to check
     const shiftsToCheck: Array<'lunch' | 'dinner'> = requestedShift
@@ -100,7 +106,8 @@ export async function POST(request: Request) {
       shiftDebug.occupiedTables = occupiedTableIds.size;
       shiftDebug.freeTables = freeTables.length;
 
-      // Get waiting waitlist entries for this date
+      // Get waiting waitlist entries for this date (skip 'offered' — their
+      // tables are already held by a pending_confirmation reservation)
       const { data: waitingEntries } = await supabase
         .from('waitlist_entries')
         .select('*, guests(name, phone)')
@@ -136,7 +143,8 @@ export async function POST(request: Request) {
           const rotation = getRotationMinutes(entry.party_size, entryShift, dayOfWeek);
           const endTime = calculateEndTime(entry.target_time, rotation);
 
-          // Create reservation
+          // Create reservation as pending_confirmation — holds the tables
+          // but will only become confirmed when the client replies CONFIRMO.
           const { data: newRes, error: resErr } = await supabase
             .from('reservations')
             .insert({
@@ -147,10 +155,10 @@ export async function POST(request: Request) {
               end_time: endTime,
               shift: entryShift,
               party_size: entry.party_size,
-              status: 'confirmed',
+              status: 'pending_confirmation',
               source: 'web',
               created_by_type: 'ai',
-              notes: `Auto-asignado desde lista de espera (prioridad: ${entry.priority_score})`,
+              notes: `Oferta desde lista de espera (prioridad: ${entry.priority_score}) — esperando CONFIRMO del cliente`,
             })
             .select('id')
             .single();
@@ -160,14 +168,14 @@ export async function POST(request: Request) {
             continue;
           }
 
-          // Assign tables
+          // Hold tables for the offer
           await supabase.from('reservation_tables').insert(
             assignedTables.map(t => ({ reservation_id: newRes.id, table_id: t.id }))
           );
 
-          // Update waitlist entry
+          // Mark waitlist entry as offered (still in waitlist — waiting for confirm)
           await supabase.from('waitlist_entries').update({
-            status: 'converted_to_booking',
+            status: 'offered',
             matched_reservation_id: newRes.id,
             updated_at: new Date().toISOString(),
           }).eq('id', entry.id);
@@ -177,7 +185,7 @@ export async function POST(request: Request) {
             occupiedTableIds.add(t.id);
           }
 
-          // Notify client via WhatsApp
+          // Notify client via WhatsApp — ask for explicit CONFIRMO
           if (guestPhone) {
             await notifyClient(guestPhone, guestName, date, entry.target_time, endTime, entry.party_size, assignedTables.map(t => t.name), null);
           }
@@ -186,7 +194,7 @@ export async function POST(request: Request) {
           await notifyOwner(guestName, date, entry.target_time, entry.party_size, assignedTables.map(t => t.name), guestPhone, false);
 
           totalMatched++;
-          results.push({ type: 'full_shift', entryId: entry.id, reservationId: newRes.id });
+          results.push({ type: 'full_shift_offered', entryId: entry.id, reservationId: newRes.id });
           continue;
         }
 
@@ -207,7 +215,7 @@ export async function POST(request: Request) {
             if (gapDuration >= 120) { // At least 2 hours
               const limitedEndTime = `${String(Math.floor(limitedEndMinutes / 60)).padStart(2, '0')}:${String(limitedEndMinutes % 60).padStart(2, '0')}`;
 
-              // Create time-limited reservation
+              // Create time-limited OFFER (pending_confirmation)
               const { data: newRes, error: resErr } = await supabase
                 .from('reservations')
                 .insert({
@@ -218,10 +226,10 @@ export async function POST(request: Request) {
                   end_time: limitedEndTime,
                   shift: entryShift,
                   party_size: entry.party_size,
-                  status: 'confirmed',
+                  status: 'pending_confirmation',
                   source: 'web',
                   created_by_type: 'ai',
-                  notes: `Auto-asignado desde lista de espera con tiempo limitado (hasta ${limitedEndTime}). Prioridad: ${entry.priority_score}`,
+                  notes: `Oferta desde lista de espera con tiempo limitado (hasta ${limitedEndTime}) — esperando CONFIRMO. Prioridad: ${entry.priority_score}`,
                 })
                 .select('id')
                 .single();
@@ -234,14 +242,14 @@ export async function POST(request: Request) {
               );
 
               await supabase.from('waitlist_entries').update({
-                status: 'converted_to_booking',
+                status: 'offered',
                 matched_reservation_id: newRes.id,
                 updated_at: new Date().toISOString(),
               }).eq('id', entry.id);
 
               const tableNames = selectedGapTables.map(gt => gt.tableName);
 
-              // Notify client with time limit
+              // Notify client with time limit — ask for explicit CONFIRMO
               if (guestPhone) {
                 await notifyClient(guestPhone, guestName, date, entry.target_time, limitedEndTime, entry.party_size, tableNames, limitedEndTime);
               }
@@ -249,7 +257,7 @@ export async function POST(request: Request) {
               await notifyOwner(guestName, date, entry.target_time, entry.party_size, tableNames, guestPhone, true, limitedEndTime);
 
               totalMatched++;
-              results.push({ type: 'gap_based', entryId: entry.id, reservationId: newRes.id, endTime: limitedEndTime });
+              results.push({ type: 'gap_based_offered', entryId: entry.id, reservationId: newRes.id, endTime: limitedEndTime });
             }
           }
         }
@@ -265,6 +273,62 @@ export async function POST(request: Request) {
   } catch (error: any) {
     console.error("Waitlist Process Error:", error);
     return NextResponse.json({ success: false, error: "Internal Server Error" }, { status: 500 });
+  }
+}
+
+/**
+ * Revert waitlist offers that received no reply within OFFER_TTL_MINUTES:
+ * cancel the held pending_confirmation reservation and put the waitlist
+ * entry back to `waiting` so it (or another candidate) can be re-offered.
+ */
+async function expireStaleOffers(supabase: any, tenant_id: string): Promise<void> {
+  const cutoff = new Date(Date.now() - OFFER_TTL_MINUTES * 60 * 1000).toISOString();
+
+  const { data: stale } = await supabase
+    .from('waitlist_entries')
+    .select('id, matched_reservation_id')
+    .eq('tenant_id', tenant_id)
+    .eq('status', 'offered')
+    .lt('updated_at', cutoff);
+
+  if (!stale || stale.length === 0) return;
+
+  for (const entry of stale) {
+    if (entry.matched_reservation_id) {
+      const { data: res } = await supabase
+        .from('reservations')
+        .select('status')
+        .eq('id', entry.matched_reservation_id)
+        .single();
+
+      // Only cancel if still pending — if the client already confirmed or
+      // it was cancelled through another path we don't touch it.
+      if (res?.status === 'pending_confirmation') {
+        await supabase
+          .from('reservations')
+          .update({
+            status: 'cancelled',
+            cancellation_source: 'staff',
+            notes: 'Oferta de lista de espera expirada sin CONFIRMO',
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', entry.matched_reservation_id);
+
+        await supabase
+          .from('reservation_tables')
+          .delete()
+          .eq('reservation_id', entry.matched_reservation_id);
+      }
+    }
+
+    await supabase
+      .from('waitlist_entries')
+      .update({
+        status: 'waiting',
+        matched_reservation_id: null,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', entry.id);
   }
 }
 
@@ -348,17 +412,13 @@ async function notifyClient(
     whatsappTo = 'whatsapp:' + whatsappTo;
   }
 
-  let msg = `✅ *¡Buenas noticias, ${name}!*\nSe ha liberado una mesa para ti.\n\n📅 Fecha: ${date}\n⏰ Hora: ${time}\n👥 Personas: ${partySize}`;
-
-  if (tableNames.length > 0) {
-    msg += `\n🪑 Mesas: ${tableNames.join(', ')}`;
-  }
+  let msg = `🎉 *¡Buenas noticias, ${name}!*\nSe ha liberado una mesa para tu lista de espera:\n\n📅 Fecha: ${date}\n⏰ Hora: ${time}\n👥 Personas: ${partySize}`;
 
   if (timeLimit) {
-    msg += `\n\n⚠️ *Importante:* La mesa está disponible hasta las ${timeLimit} ya que hay otra reserva después. Te pedimos puntualidad para disfrutar al máximo.`;
+    msg += `\n\n⚠️ *Importante:* La mesa estaría disponible hasta las ${timeLimit} ya que hay otra reserva después.`;
   }
 
-  msg += `\n\nSi necesitas cancelar, escríbenos con CANCELAR.`;
+  msg += `\n\n👉 Responde *CONFIRMO* en los próximos ${OFFER_TTL_MINUTES} minutos para reservar esta mesa.\nResponde *CANCELAR* si ya no la necesitas.\n\nSi no contestas a tiempo, la ofreceremos al siguiente de la lista.`;
 
   const body = new URLSearchParams({ From: TWILIO_FROM, To: whatsappTo, Body: msg });
 
