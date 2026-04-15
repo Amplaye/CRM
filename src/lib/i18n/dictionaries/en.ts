@@ -565,6 +565,9 @@ export const en = {
   floor_walkin: "Walk-in",
   floor_cancel: "Cancel",
   floor_seat_now: "Seat Now",
+  floor_oversize_title: "Table too small",
+  floor_oversize_msg: "Are you sure you want to seat {party} people at {table}? This table only has {seats} seats.",
+  floor_seat_anyway: "Seat anyway",
 
   // Knowledge - extra
   know_general: "General",

@@ -72,6 +72,7 @@ export default function FloorPage() {
   const [quickSeatSize, setQuickSeatSize] = useState(2);
   const [quickSeatName, setQuickSeatName] = useState("");
   const [quickSeatLoading, setQuickSeatLoading] = useState(false);
+  const [oversizeConfirm, setOversizeConfirm] = useState(false);
 
   // Free Table modal state
   const [freeTableModal, setFreeTableModal] = useState<{ table: TableData; reservation: ReservationWithGuest } | null>(null);
@@ -409,8 +410,18 @@ export default function FloorPage() {
     }
   }
 
-  async function handleQuickSeat() {
+  function handleQuickSeat() {
+    if (!quickSeatTable) return;
+    if (quickSeatSize > quickSeatTable.seats) {
+      setOversizeConfirm(true);
+      return;
+    }
+    performQuickSeat();
+  }
+
+  async function performQuickSeat() {
     if (!activeTenant || !quickSeatTable) return;
+    setOversizeConfirm(false);
     setQuickSeatLoading(true);
     const supabase = createClient();
 
@@ -931,6 +942,42 @@ export default function FloorPage() {
                 style={{ background: "#c4956a" }}
               >
                 {quickSeatLoading ? "..." : t("floor_seat_now")}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Oversize confirmation modal — overlays Quick Seat */}
+      {oversizeConfirm && quickSeatTable && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50" onClick={() => setOversizeConfirm(false)}>
+          <div
+            className="rounded-2xl p-6 w-full max-w-sm border-2 shadow-xl"
+            style={{ background: "rgba(252,246,237,0.97)", borderColor: "#dc2626" }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="text-lg font-bold text-red-600 mb-2">⚠️ {t("floor_oversize_title")}</h3>
+            <p className="text-sm text-black mb-4">
+              {t("floor_oversize_msg")
+                .replace("{party}", String(quickSeatSize))
+                .replace("{table}", quickSeatTable.name)
+                .replace("{seats}", String(quickSeatTable.seats))}
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setOversizeConfirm(false)}
+                className="flex-1 px-4 py-2 text-sm font-semibold rounded-lg border-2 text-black hover:bg-[#c4956a]/10"
+                style={{ borderColor: "#c4956a" }}
+              >
+                {t("floor_cancel")}
+              </button>
+              <button
+                onClick={performQuickSeat}
+                disabled={quickSeatLoading}
+                className="flex-1 px-4 py-2 text-sm font-semibold rounded-lg text-white disabled:opacity-50"
+                style={{ background: "#dc2626" }}
+              >
+                {quickSeatLoading ? "..." : t("floor_seat_anyway")}
               </button>
             </div>
           </div>

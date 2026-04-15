@@ -568,6 +568,9 @@ export const es: Dictionary = {
   floor_walkin: "Walk-in",
   floor_cancel: "Cancelar",
   floor_seat_now: "Sentar Ahora",
+  floor_oversize_title: "Mesa demasiado pequeña",
+  floor_oversize_msg: "¿Seguro que quieres sentar a {party} personas en {table}? Esta mesa solo tiene {seats} plazas.",
+  floor_seat_anyway: "Sentar igual",
 
   // Knowledge - extra
   know_general: "General",

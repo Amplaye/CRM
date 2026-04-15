@@ -43,8 +43,6 @@ export async function POST(req: NextRequest) {
 
     const s = (tenant.settings || {}) as any;
     const avgSpend = s.avg_spend || 50;
-    const noShowBaseline = s.no_show_baseline_pct || 15;
-    const aiMonthlyCost = s.ai_monthly_cost || 0;
     const openingHours: OpeningHours = s.opening_hours || {};
     const tz = s.timezone || "Atlantic/Canary";
 
@@ -65,7 +63,7 @@ export async function POST(req: NextRequest) {
     // Fetch this week + previous week + waitlist
     const [thisWeekRes, prevWeekRes, waitlistRes, prevWaitlistRes] = await Promise.all([
       supabase.from("reservations")
-        .select("id, source, date, party_size, status, created_at")
+        .select("id, source, date, party_size, status, cancellation_source, noshow_warning_responded, created_at")
         .eq("tenant_id", tenant_id)
         .gte("date", weekAgoStr).lte("date", todayStr),
       supabase.from("reservations")
@@ -94,31 +92,38 @@ export async function POST(req: NextRequest) {
     const prevTotal = prevReservations.length;
 
     const aiRes = reservations.filter((r: any) => r.source === "ai_chat" || r.source === "ai_voice");
-    const prevAiRes = prevReservations.filter((r: any) => r.source === "ai_chat" || r.source === "ai_voice");
+    const prevAiRes = prevReservations.filter((r: any) => (r.source === "ai_chat" || r.source === "ai_voice") && r.status !== "no_show");
 
-    // AI Revenue
-    const aiRevenue = aiRes.reduce((sum: number, r: any) => sum + r.party_size * avgSpend, 0);
+    // Revenue — exclude no_shows (cliente no apareció = no facturó)
+    const aiResPaid = aiRes.filter((r: any) => r.status !== "no_show");
+    const aiRevenue = aiResPaid.reduce((sum: number, r: any) => sum + r.party_size * avgSpend, 0);
 
     // Out-of-hours
-    const outOfHours = aiRes.filter((r: any) => r.created_at && isOutOfHours(r.created_at, openingHours, tz));
+    const outOfHours = aiResPaid.filter((r: any) => r.created_at && isOutOfHours(r.created_at, openingHours, tz));
     const outOfHoursRevenue = outOfHours.reduce((sum: number, r: any) => sum + r.party_size * avgSpend, 0);
 
     // Voice
-    const voiceRes = reservations.filter((r: any) => r.source === "ai_voice");
-    const voiceRevenue = voiceRes.reduce((sum: number, r: any) => sum + r.party_size * avgSpend, 0);
+    const voiceResPaid = reservations.filter((r: any) => r.source === "ai_voice" && r.status !== "no_show");
+    const voiceRevenue = voiceResPaid.reduce((sum: number, r: any) => sum + r.party_size * avgSpend, 0);
 
     // Chat
-    const chatRes = reservations.filter((r: any) => r.source === "ai_chat");
-    const chatRevenue = chatRes.reduce((sum: number, r: any) => sum + r.party_size * avgSpend, 0);
+    const chatResPaid = reservations.filter((r: any) => r.source === "ai_chat" && r.status !== "no_show");
+    const chatRevenue = chatResPaid.reduce((sum: number, r: any) => sum + r.party_size * avgSpend, 0);
 
     // Waitlist
     const avgParty = total > 0 ? reservations.reduce((s: number, r: any) => s + r.party_size, 0) / total : 2;
     const waitlistRevenue = Math.round(waitlistConverted * avgParty * avgSpend);
 
-    // No-shows prevented
+    // No-shows prevented — REAL tracking (matches analytics dashboard logic):
+    // 1. Cancellations triggered by reminders/chat/voice (freed the table in time)
+    // 2. Late arrivals who responded to the 15-min warning
+    const preventedSources = ['reminder_24h', 'reminder_4h', 'chat_spontaneous', 'voice_spontaneous'];
+    const cancelledPrevented = reservations.filter(
+      (r: any) => r.status === 'cancelled' && r.cancellation_source && preventedSources.includes(r.cancellation_source)
+    ).length;
+    const warningResponded = reservations.filter((r: any) => r.noshow_warning_responded === true).length;
+    const noShowsPrevented = cancelledPrevented + warningResponded;
     const noShows = reservations.filter((r: any) => r.status === "no_show").length;
-    const actualPct = total > 0 ? (noShows / total) * 100 : 0;
-    const noShowsPrevented = Math.max(0, Math.round((noShowBaseline - actualPct) / 100 * total));
     const noShowValue = Math.round(noShowsPrevented * avgParty * avgSpend);
 
     // Total value
@@ -134,6 +139,7 @@ export async function POST(req: NextRequest) {
 
     // Build message
     let msg = `💰 Esta semana, tu AI generó €${totalValue.toLocaleString("es-ES")}\n`;
+    msg += `_Calculado con €${avgSpend} por persona (ajustable en Configuración → Spesa media per cliente)._\n`;
     msg += `\nAquí el desglose:\n`;
 
     if (outOfHoursRevenue > 0) {
@@ -149,8 +155,11 @@ export async function POST(req: NextRequest) {
       msg += `\n💬 €${chatRevenue.toLocaleString("es-ES")} de reservas por WhatsApp`;
     }
 
-    if (noShowValue > 0) {
-      msg += `\n\n🚫 Evitaste €${noShowValue.toLocaleString("es-ES")} en pérdidas por no-shows`;
+    if (noShowsPrevented > 0) {
+      msg += `\n\n🛡️ ${noShowsPrevented} no-show${noShowsPrevented > 1 ? "s" : ""} evitado${noShowsPrevented > 1 ? "s" : ""} (€${noShowValue.toLocaleString("es-ES")} recuperados)`;
+    }
+    if (noShows > 0) {
+      msg += `\n⚠️ ${noShows} no-show${noShows > 1 ? "s" : ""} no evitado${noShows > 1 ? "s" : ""} esta semana`;
     }
 
     msg += `\n\n⚙️ AI gestionó el ${aiHandledPct}% de tus reservas`;
@@ -189,9 +198,10 @@ export async function POST(req: NextRequest) {
         total, aiCount: aiRes.length,
         bookingChange,
         outOfHoursCount: outOfHours.length,
-        voiceCount: voiceRes.length,
-        chatCount: chatRes.length,
+        voiceCount: voiceResPaid.length,
+        chatCount: chatResPaid.length,
         waitlistConverted,
+        avgSpend,
       },
       restaurant: tenant.name,
     });

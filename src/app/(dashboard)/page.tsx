@@ -152,20 +152,23 @@ export default function DashboardPage() {
     const aiRes = reservations.filter(r => r.source === "ai_chat" || r.source === "ai_voice");
     const staffRes = reservations.filter(r => r.source !== "ai_chat" && r.source !== "ai_voice");
 
-    // Revenue
-    const aiRevenue = aiRes.reduce((sum, r) => sum + r.party_size * avgSpend, 0);
+    // Revenue — exclude no_shows (cliente no apareció = no facturó)
+    const aiResPaid = aiRes.filter(r => r.status !== "no_show");
+    const aiRevenue = aiResPaid.reduce((sum, r) => sum + r.party_size * avgSpend, 0);
 
     // Out-of-hours
-    const outOfHours = aiRes.filter(r => r.created_at && isOutOfHours(r.created_at, openingHours, tz));
+    const outOfHours = aiResPaid.filter(r => r.created_at && isOutOfHours(r.created_at, openingHours, tz));
     const outOfHoursRevenue = outOfHours.reduce((sum, r) => sum + r.party_size * avgSpend, 0);
 
     // Voice (missed calls captured)
     const voiceRes = reservations.filter(r => r.source === "ai_voice");
-    const voiceRevenue = voiceRes.reduce((sum, r) => sum + r.party_size * avgSpend, 0);
+    const voiceResPaid = voiceRes.filter(r => r.status !== "no_show");
+    const voiceRevenue = voiceResPaid.reduce((sum, r) => sum + r.party_size * avgSpend, 0);
 
     // Chat
     const chatRes = reservations.filter(r => r.source === "ai_chat");
-    const chatRevenue = chatRes.reduce((sum, r) => sum + r.party_size * avgSpend, 0);
+    const chatResPaid = chatRes.filter(r => r.status !== "no_show");
+    const chatRevenue = chatResPaid.reduce((sum, r) => sum + r.party_size * avgSpend, 0);
 
     // Waitlist
     const avgParty = total > 0 ? reservations.reduce((s, r) => s + r.party_size, 0) / total : 2;
@@ -200,7 +203,7 @@ export default function DashboardPage() {
     const staffHoursSaved = Math.round(aiRes.length * 5 / 60 * 10) / 10; // 5 min per booking
 
     // Previous month comparison
-    const prevAi = prevMonthRes.filter(r => r.source === "ai_chat" || r.source === "ai_voice");
+    const prevAi = prevMonthRes.filter(r => (r.source === "ai_chat" || r.source === "ai_voice") && r.status !== "no_show");
     const prevAiRevenue = prevAi.reduce((sum, r) => sum + r.party_size * avgSpend, 0);
     const revenueChange = prevAiRevenue > 0 ? Math.round(((aiRevenue - prevAiRevenue) / prevAiRevenue) * 100) : (aiRevenue > 0 ? 100 : 0);
 
