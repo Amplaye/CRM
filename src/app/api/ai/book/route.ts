@@ -102,7 +102,7 @@ export async function POST(request: Request) {
     // 4. Find free tables for the time window
     const { data: activeTables, error: tablesErr } = await supabase
       .from('restaurant_tables')
-      .select('id, name, zone')
+      .select('id, name, zone, seats')
       .eq('tenant_id', payload.tenant_id)
       .eq('status', 'active');
 
@@ -152,7 +152,51 @@ export async function POST(request: Request) {
     // 5. Handle manual review (7-12 people) - check capacity first
     if (action === 'manual_review' || action === 'reject') {
       const freeTables = (activeTables || []).filter((t: any) => !occupiedTableIds.has(t.id));
-      const hasCapacity = freeTables.length >= needed;
+      const freeSeats = freeTables.reduce((s: number, t: any) => s + (t.seats || 0), 0);
+      const hasCapacity = freeSeats >= payload.party_size;
+
+      // No seats → add to waitlist instead of escalated (owner can't assign tables that don't exist)
+      if (!hasCapacity) {
+        const { data: newWait, error: waitErr } = await supabase
+          .from('waitlist_entries')
+          .insert({
+            tenant_id: payload.tenant_id,
+            guest_id: guestId,
+            date: payload.date,
+            target_time: payload.time,
+            party_size: payload.party_size,
+            status: 'waiting',
+            contact_preference: payload.source === 'ai_voice' ? 'call' : 'whatsapp',
+            priority_score: 50,
+            acceptable_time_range: { start: payload.time, end: payload.time },
+            notes: (payload.notes || "") + " — Sin plazas disponibles en el turno, añadido a lista de espera",
+          })
+          .select('id')
+          .single();
+
+        if (waitErr) throw waitErr;
+
+        await logAuditEvent({
+          tenant_id: payload.tenant_id,
+          action: "create_waitlist",
+          entity_id: newWait.id,
+          idempotency_key: payload.idempotency_key,
+          source: "ai_agent",
+          details: { reason: "no_seats_large_group", party_size: payload.party_size, free_seats: freeSeats, shift },
+        });
+
+        return NextResponse.json({
+          success: true,
+          on_waitlist: true,
+          waitlist_id: newWait.id,
+          status: 'waitlist',
+          has_capacity: false,
+          free_seats: freeSeats,
+          party_size: payload.party_size,
+          shift,
+          message: `No hay plazas suficientes para ${payload.party_size} personas en ese turno (plazas libres: ${freeSeats}). Te añadimos a la lista de espera y te avisamos si se libera sitio.`
+        });
+      }
 
       const reservation = {
         tenant_id: payload.tenant_id,
@@ -191,8 +235,8 @@ export async function POST(request: Request) {
           shift,
           type: "manual_review",
           has_capacity: hasCapacity,
+          free_seats: freeSeats,
           free_tables: freeTables.length,
-          tables_needed: needed,
         }
       });
 
@@ -200,15 +244,13 @@ export async function POST(request: Request) {
         success: true,
         reservation_id: newRes.id,
         status: 'escalated',
-        has_capacity: hasCapacity,
+        has_capacity: true,
+        free_seats: freeSeats,
         free_tables: freeTables.length,
-        tables_needed: needed,
         shift,
         end_time: endTime,
         tables_assigned: [],
-        message: hasCapacity
-          ? "Solicitud registrada. Pendiente de revisión del responsable."
-          : `No hay suficientes mesas disponibles (necesarias: ${needed}, libres: ${freeTables.length}). Solicitud registrada para revisión.`
+        message: "Solicitud registrada. Pendiente de revisión del responsable."
       });
     }
 
@@ -249,61 +291,93 @@ export async function POST(request: Request) {
 
     if (newResErr) throw newResErr;
 
-    // Pre-compute free tables per zone. A reservation MUST live entirely in one
+    // Pre-compute free SEATS per zone. A reservation MUST live entirely in one
     // zone — never half inside and half outside. If neither zone alone has
-    // enough capacity, the booking is escalated.
-    const freeByZone: Record<string, number> = { inside: 0, outside: 0 };
+    // enough seats, route to waitlist (not escalated).
+    const freeSeatsByZone: Record<string, number> = { inside: 0, outside: 0 };
     for (const t of (activeTables || []) as any[]) {
       if (occupiedTableIds.has(t.id)) continue;
-      if (t.zone === 'inside' || t.zone === 'outside') freeByZone[t.zone]++;
+      if (t.zone === 'inside' || t.zone === 'outside') freeSeatsByZone[t.zone] += (t.seats || 0);
     }
 
     let requestedZone: 'inside' | 'outside' | null = null;
-    let fellBack = false;
     if (zonePref === 'inside' || zonePref === 'outside') {
-      if (freeByZone[zonePref] >= needed) {
+      // Honour the client's zone choice. If it doesn't fit, DO NOT auto-switch —
+      // let the bot ask whether the other zone is acceptable.
+      if (freeSeatsByZone[zonePref] >= payload.party_size) {
         requestedZone = zonePref;
-      } else {
-        const other = zonePref === 'inside' ? 'outside' : 'inside';
-        if (freeByZone[other] >= needed) {
-          requestedZone = other;
-          fellBack = true;
-        }
       }
-    } else if (freeByZone.inside >= needed) {
+    } else if (freeSeatsByZone.inside >= payload.party_size) {
       requestedZone = 'inside';
-    } else if (freeByZone.outside >= needed) {
+    } else if (freeSeatsByZone.outside >= payload.party_size) {
       requestedZone = 'outside';
     }
 
-    // No single zone can host this party → escalate, do NOT mix zones.
+    // Client asked for a specific zone that's full, but the OTHER zone has seats.
+    // Don't book — ask the bot to offer the alternative to the client.
+    if (!requestedZone && (zonePref === 'inside' || zonePref === 'outside')) {
+      const other = zonePref === 'inside' ? 'outside' : 'inside';
+      if (freeSeatsByZone[other] >= payload.party_size) {
+        await supabase.from('reservations').delete().eq('id', newRes.id);
+        return NextResponse.json({
+          success: true,
+          zone_requested: zonePref,
+          zone_requested_available: false,
+          zone_alternative: other,
+          zone_alternative_available: true,
+          free_seats_inside: freeSeatsByZone.inside,
+          free_seats_outside: freeSeatsByZone.outside,
+          party_size: payload.party_size,
+          message: `No hay plazas en ${zonePref === 'inside' ? 'interior' : 'exterior'} para ${payload.party_size} personas. Sí hay disponibilidad en ${other === 'inside' ? 'interior' : 'exterior'} — preguntar al cliente si le va bien esa zona.`
+        });
+      }
+    }
+
+    // No single zone has enough seats → delete the tentative reservation and add to waitlist
     if (!requestedZone) {
-      await supabase.from('reservations').update({
-        status: 'escalated',
-        notes: (payload.notes || '') + ' — No hay una zona con mesas suficientes, pendiente de revisión',
-      }).eq('id', newRes.id);
+      await supabase.from('reservations').delete().eq('id', newRes.id);
+
+      const { data: newWait, error: waitErr } = await supabase
+        .from('waitlist_entries')
+        .insert({
+          tenant_id: payload.tenant_id,
+          guest_id: guestId,
+          date: payload.date,
+          target_time: payload.time,
+          party_size: payload.party_size,
+          status: 'waiting',
+          contact_preference: payload.source === 'ai_voice' ? 'call' : 'whatsapp',
+          priority_score: 50,
+          acceptable_time_range: { start: payload.time, end: payload.time },
+          notes: (payload.notes || '') + ' — Sin plazas disponibles en la zona, añadido a lista de espera',
+        })
+        .select('id')
+        .single();
+
+      if (waitErr) throw waitErr;
 
       await logAuditEvent({
-        tenant_id: payload.tenant_id, action: "create_reservation",
-        entity_id: newRes.id, idempotency_key: payload.idempotency_key,
+        tenant_id: payload.tenant_id, action: "create_waitlist",
+        entity_id: newWait.id, idempotency_key: payload.idempotency_key,
         source: "ai_agent",
         details: {
           type: "no_capacity_single_zone",
-          free_inside: freeByZone.inside,
-          free_outside: freeByZone.outside,
-          tables_needed: needed,
+          free_seats_inside: freeSeatsByZone.inside,
+          free_seats_outside: freeSeatsByZone.outside,
+          party_size: payload.party_size,
         }
       });
 
       return NextResponse.json({
         success: true,
-        reservation_id: newRes.id,
-        status: 'escalated',
+        on_waitlist: true,
+        waitlist_id: newWait.id,
+        status: 'waitlist',
         has_capacity: false,
-        free_tables: Math.max(freeByZone.inside, freeByZone.outside),
-        tables_needed: needed,
-        tables_assigned: [],
-        message: `No hay una zona con mesas suficientes (necesarias: ${needed}, libres interior: ${freeByZone.inside}, libres exterior: ${freeByZone.outside}). Solicitud registrada para revisión.`
+        free_seats_inside: freeSeatsByZone.inside,
+        free_seats_outside: freeSeatsByZone.outside,
+        party_size: payload.party_size,
+        message: `No hay plazas suficientes para ${payload.party_size} personas en ninguna zona (interior: ${freeSeatsByZone.inside}, exterior: ${freeSeatsByZone.outside}). Te añadimos a la lista de espera y te avisamos si se libera sitio.`
       });
     }
 
@@ -320,27 +394,43 @@ export async function POST(request: Request) {
     const assignedZone: 'inside' | 'outside' | null = atomicResult?.success ? requestedZone : null;
 
     if (!atomicResult.success) {
-      // Not enough tables — change to escalated
-      await supabase.from('reservations').update({
-        status: 'escalated',
-        notes: (payload.notes || '') + ' — No hay mesas disponibles, pendiente de revisión',
-      }).eq('id', newRes.id);
+      // Race condition — seats got taken between pre-check and RPC. Drop reservation, add to waitlist.
+      await supabase.from('reservations').delete().eq('id', newRes.id);
+
+      const { data: newWait, error: waitErr } = await supabase
+        .from('waitlist_entries')
+        .insert({
+          tenant_id: payload.tenant_id,
+          guest_id: guestId,
+          date: payload.date,
+          target_time: payload.time,
+          party_size: payload.party_size,
+          status: 'waiting',
+          contact_preference: payload.source === 'ai_voice' ? 'call' : 'whatsapp',
+          priority_score: 50,
+          acceptable_time_range: { start: payload.time, end: payload.time },
+          notes: (payload.notes || '') + ' — Sin plazas al confirmar, añadido a lista de espera',
+        })
+        .select('id')
+        .single();
+
+      if (waitErr) throw waitErr;
 
       await logAuditEvent({
-        tenant_id: payload.tenant_id, action: "create_reservation",
-        entity_id: newRes.id, idempotency_key: payload.idempotency_key,
-        source: "ai_agent", details: { type: "no_capacity", tables_free: atomicResult.free_tables, tables_needed: needed }
+        tenant_id: payload.tenant_id, action: "create_waitlist",
+        entity_id: newWait.id, idempotency_key: payload.idempotency_key,
+        source: "ai_agent", details: { type: "no_capacity_race", free_seats: atomicResult.free_seats, party_size: payload.party_size }
       });
 
       return NextResponse.json({
         success: true,
-        reservation_id: newRes.id,
-        status: 'escalated',
+        on_waitlist: true,
+        waitlist_id: newWait.id,
+        status: 'waitlist',
         has_capacity: false,
-        free_tables: atomicResult.free_tables,
-        tables_needed: needed,
-        tables_assigned: [],
-        message: `No hay suficientes mesas disponibles (necesarias: ${needed}, libres: ${atomicResult.free_tables}). Solicitud registrada para revisión.`
+        free_seats: atomicResult.free_seats,
+        party_size: payload.party_size,
+        message: `No hay plazas suficientes en el turno. Te añadimos a la lista de espera y te avisamos si se libera sitio.`
       });
     }
 
@@ -368,10 +458,7 @@ export async function POST(request: Request) {
        end_time: endTime,
        tables_assigned: atomicResult.tables_assigned,
        zone_assigned: assignedZone,
-       zone_preference_unavailable: fellBack,
-       message: fellBack
-         ? `Reserva confirmada — ${zonePref === 'inside' ? 'interior' : 'exterior'} sin disponibilidad, asignada a la otra zona.`
-         : "Reservation successfully created."
+       message: "Reservation successfully created."
     });
 
   } catch (error: any) {
