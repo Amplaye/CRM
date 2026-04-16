@@ -1286,16 +1286,28 @@ function PlanCanvas({ tables, resTableLinks, shiftReservations, activeStatuses, 
         for (const resId in groups) {
           const g = groups[resId];
           if (g.length < 2) continue;
-          // Connect every consecutive pair (sorted by x then y for stable order)
-          const sorted = [...g].sort((a, b) => a.cx - b.cx || a.cy - b.cy);
-          for (let i = 0; i < sorted.length - 1; i++) {
+          // Minimum spanning tree (Prim's) — each table connects to its
+          // nearest already-connected neighbour, so every table in the group
+          // is visually linked with the shortest total path.
+          const inTree = new Set<number>([0]);
+          while (inTree.size < g.length) {
+            let best: { a: number; b: number; d: number } | null = null;
+            for (const i of inTree) {
+              for (let j = 0; j < g.length; j++) {
+                if (inTree.has(j)) continue;
+                const d = Math.hypot(g[i].cx - g[j].cx, g[i].cy - g[j].cy);
+                if (!best || d < best.d) best = { a: i, b: j, d };
+              }
+            }
+            if (!best) break;
             segments.push({
-              x1: sorted[i].cx,
-              y1: sorted[i].cy,
-              x2: sorted[i + 1].cx,
-              y2: sorted[i + 1].cy,
-              key: `${resId}-${i}`,
+              x1: g[best.a].cx,
+              y1: g[best.a].cy,
+              x2: g[best.b].cx,
+              y2: g[best.b].cy,
+              key: `${resId}-${best.a}-${best.b}`,
             });
+            inTree.add(best.b);
           }
         }
         if (segments.length === 0) return null;
@@ -1308,10 +1320,11 @@ function PlanCanvas({ tables, resTableLinks, shiftReservations, activeStatuses, 
                 y1={s.y1}
                 x2={s.x2}
                 y2={s.y2}
-                stroke="#c4956a"
-                strokeWidth={6}
+                stroke="#475569"
+                strokeWidth={1.75}
                 strokeLinecap="round"
-                strokeOpacity={0.7}
+                strokeDasharray="4 5"
+                strokeOpacity={0.55}
               />
             ))}
           </svg>

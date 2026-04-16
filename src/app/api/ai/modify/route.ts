@@ -111,12 +111,17 @@ export async function PUT(request: Request) {
     };
 
     if (payload.notes !== undefined) {
-      if (payload.notes && existing.notes && !payload.notes.includes(existing.notes)) {
-        // Append new notes to existing (voice agent can't see previous notes)
-        updates.notes = `${existing.notes}, ${payload.notes}`;
-      } else {
-        updates.notes = payload.notes;
+      // Overwrite with incoming notes, preserving the "Prefiere interior/exterior"
+      // zone marker automatically added at booking time if the new notes omit it.
+      let nextNotes = (payload.notes || '').trim();
+      const zoneRe = /Prefiere\s+(interior|exterior)/i;
+      const existingZoneMatch = existing.notes ? String(existing.notes).match(zoneRe) : null;
+      if (existingZoneMatch && !zoneRe.test(nextNotes)) {
+        nextNotes = nextNotes
+          ? `${nextNotes} — ${existingZoneMatch[0]}`
+          : existingZoneMatch[0];
       }
+      updates.notes = nextNotes;
     }
 
     // If the new party_size becomes a large group (7+), force re-review
@@ -145,6 +150,65 @@ export async function PUT(request: Request) {
     let tablesAssigned: string[] = [];
 
     if (dateChanged || shiftChanged || sizeChanged) {
+      // Seat-aware pre-check: before wiping the current assignment, verify
+      // there are enough seats in the target shift to fit the new party.
+      // Otherwise a 20→23 "+3" modification would silently reassign to
+      // tables that only seat 20 again.
+      const { data: activeTbls } = await supabase
+        .from('restaurant_tables')
+        .select('id, zone, seats')
+        .eq('tenant_id', payload.tenant_id)
+        .eq('status', 'active');
+
+      const { data: sameDayRes } = await supabase
+        .from('reservations')
+        .select('id, time, shift, status')
+        .eq('tenant_id', payload.tenant_id)
+        .eq('date', newDate)
+        .in('status', ['confirmed', 'seated', 'pending_confirmation', 'escalated'])
+        .neq('id', reservationId);
+
+      const sameShiftIds = (sameDayRes || [])
+        .filter((r: any) => (r.shift || getShift(r.time)) === newShift)
+        .map((r: any) => r.id);
+
+      let occupiedTableIds = new Set<string>();
+      if (sameShiftIds.length > 0) {
+        const { data: links } = await supabase
+          .from('reservation_tables')
+          .select('reservation_id, table_id')
+          .in('reservation_id', sameShiftIds);
+        occupiedTableIds = new Set((links || []).map((l: any) => l.table_id));
+      }
+
+      const freeSeatsByZone: Record<string, number> = { inside: 0, outside: 0 };
+      for (const t of (activeTbls || []) as any[]) {
+        if (occupiedTableIds.has(t.id)) continue;
+        if (t.zone === 'inside' || t.zone === 'outside') freeSeatsByZone[t.zone] += (t.seats || 0);
+      }
+      const totalFreeSeats = freeSeatsByZone.inside + freeSeatsByZone.outside;
+
+      if (totalFreeSeats < newPartySize) {
+        // Rollback the partial update (revert party_size/date/time) so the
+        // UI stays in a consistent state, then escalate.
+        await supabase.from('reservations').update({
+          status: 'escalated',
+          notes: `${updates.notes || existing.notes || ''} — Sin capacidad tras modificación (${newPartySize} pax, ${totalFreeSeats} plazas libres)`.trim(),
+        }).eq('id', reservationId);
+
+        return NextResponse.json({
+          success: false,
+          reservation_id: reservationId,
+          status: 'escalated',
+          new_party_size: newPartySize,
+          free_seats: totalFreeSeats,
+          free_seats_inside: freeSeatsByZone.inside,
+          free_seats_outside: freeSeatsByZone.outside,
+          error: `No hay plazas suficientes para ${newPartySize} personas en ese turno (plazas libres: ${totalFreeSeats}).`,
+          message: `No hay plazas suficientes para ${newPartySize} personas en ese turno. Hay ${totalFreeSeats} plazas libres. Dejamos la reserva pendiente de revisión.`,
+        }, { status: 409 });
+      }
+
       // Remove old table assignments and let atomic_book_tables decide
       // the new optimal assignment based on the (possibly variable) seat
       // counts of the available tables.
