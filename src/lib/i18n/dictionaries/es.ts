@@ -601,6 +601,7 @@ export const es: Dictionary = {
   topbar_no_notifications: "Sin notificaciones aún",
   topbar_new_reservation: "Nueva reserva",
   topbar_reservation_cancelled: "Reserva cancelada",
+  topbar_reservation_modified: "Reserva modificada",
   topbar_noshow: "No-show",
   topbar_waitlist: "Lista de espera",
   topbar_people: "personas",

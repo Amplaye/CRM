@@ -243,6 +243,30 @@ export async function updateReservationDetailsAction(params: {
 
     if (eventErr) throw eventErr;
 
+    // Log a booking-detail modification so the CRM notification bell picks it up
+    const dateChanged = params.data.date && params.data.date !== current.date;
+    const timeChanged = params.data.time && params.data.time !== current.time;
+    const sizeChanged = params.data.party_size && params.data.party_size !== current.party_size;
+    const notesChanged = params.data.notes !== undefined && params.data.notes !== current.notes;
+    if (dateChanged || timeChanged || sizeChanged || notesChanged) {
+      await supabase.from("audit_events").insert({
+        tenant_id: params.tenantId,
+        action: "modify_reservation",
+        entity_id: params.reservationId,
+        source: operatorId === "ai_agent" ? "ai_agent" : "staff",
+        details: {
+          previous: { date: current.date, time: current.time, party_size: current.party_size, notes: current.notes },
+          updates: {
+            ...(dateChanged ? { date: params.data.date } : {}),
+            ...(timeChanged ? { time: params.data.time } : {}),
+            ...(sizeChanged ? { party_size: params.data.party_size } : {}),
+            ...(notesChanged ? { notes: params.data.notes } : {}),
+          },
+        },
+        created_at: new Date().toISOString(),
+      });
+    }
+
     // Auto-trigger waitlist matcher when a booking is cancelled
     if (params.data.status === "cancelled") {
       await matchWaitlistForSlotAction(

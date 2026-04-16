@@ -139,6 +139,36 @@ export function Topbar({ onMenuToggle }: TopbarProps) {
           setNotifications(prev => [notif, ...prev].slice(0, 20));
         }
       )
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'audit_events',
+          filter: `tenant_id=eq.${activeTenant.id}`
+        },
+        (payload: any) => {
+          const ev = payload.new;
+          if (ev.action !== 'modify_reservation') return;
+          const before = ev.details?.previous || {};
+          const upd = ev.details?.updates || {};
+          const parts: string[] = [];
+          if (upd.date && before.date && upd.date !== before.date) parts.push(`${before.date} → ${upd.date}`);
+          if (upd.time && before.time && upd.time !== before.time) parts.push(`${before.time} → ${upd.time}`);
+          if (upd.party_size && before.party_size && upd.party_size !== before.party_size) parts.push(`${before.party_size} → ${upd.party_size} ${t("topbar_people")}`);
+          const diff = parts.length ? ` (${parts.join(', ')})` : '';
+          const goDate = upd.date || before.date || '';
+          const notif: Notification = {
+            id: ev.id,
+            type: "reservation",
+            message: `${t("topbar_reservation_modified")}${diff}`,
+            time: new Date().toLocaleTimeString(),
+            read: false,
+            href: goDate ? `/reservations?date=${goDate}` : `/reservations`,
+          };
+          setNotifications(prev => [notif, ...prev].slice(0, 20));
+        }
+      )
       .subscribe();
 
     return () => {

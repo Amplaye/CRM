@@ -598,6 +598,7 @@ export const en = {
   topbar_no_notifications: "No notifications yet",
   topbar_new_reservation: "New reservation",
   topbar_reservation_cancelled: "Reservation cancelled",
+  topbar_reservation_modified: "Reservation modified",
   topbar_noshow: "No-show",
   topbar_waitlist: "Waitlist",
   topbar_people: "people",
