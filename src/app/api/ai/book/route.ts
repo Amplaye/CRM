@@ -108,6 +108,17 @@ export async function POST(request: Request) {
 
     if (tablesErr) throw tablesErr;
 
+    // Normalize zone preference: accept inside/outside, fuera/dentro, etc.
+    function normalizeZone(z: any): 'inside' | 'outside' | null {
+      if (!z || typeof z !== 'string') return null;
+      const v = z.toLowerCase().trim();
+      if (v.includes('inside') || v.includes('interior') || v.includes('dentro') || v.includes('interno')) return 'inside';
+      if (v.includes('outside') || v.includes('exterior') || v.includes('fuera') || v.includes('terraza') || v.includes('terrazza') || v.includes('outdoor') || v === 'out') return 'outside';
+      return null;
+    }
+    const zonePref = normalizeZone((payload as any).zone || (payload as any).zone_preference);
+    const zoneNote = zonePref ? `Prefiere ${zonePref === 'inside' ? 'interior' : 'exterior'}` : '';
+
     // Get existing reservations that overlap
     const { data: existingRes, error: resErr } = await supabase
       .from('reservations')
@@ -152,8 +163,35 @@ export async function POST(request: Request) {
     // 5. Handle manual review (7-12 people) - check capacity first
     if (action === 'manual_review' || action === 'reject') {
       const freeTables = (activeTables || []).filter((t: any) => !occupiedTableIds.has(t.id));
-      const freeSeats = freeTables.reduce((s: number, t: any) => s + (t.seats || 0), 0);
+      // Per-zone capacity so the bot can honour the client's zone preference
+      // for large groups too (no auto-switch).
+      const freeSeatsByZoneLG: Record<string, number> = { inside: 0, outside: 0 };
+      for (const t of freeTables as any[]) {
+        if (t.zone === 'inside' || t.zone === 'outside') freeSeatsByZoneLG[t.zone] += (t.seats || 0);
+      }
+      const freeSeats = freeSeatsByZoneLG.inside + freeSeatsByZoneLG.outside;
       const hasCapacity = freeSeats >= payload.party_size;
+
+      // Client asked for a specific zone that can't fit but the OTHER one can.
+      // Don't create the reservation — return a prompt so the bot asks the caller.
+      if (hasCapacity && (zonePref === 'inside' || zonePref === 'outside')) {
+        if (freeSeatsByZoneLG[zonePref] < payload.party_size) {
+          const other = zonePref === 'inside' ? 'outside' : 'inside';
+          if (freeSeatsByZoneLG[other] >= payload.party_size) {
+            return NextResponse.json({
+              success: true,
+              zone_requested: zonePref,
+              zone_requested_available: false,
+              zone_alternative: other,
+              zone_alternative_available: true,
+              free_seats_inside: freeSeatsByZoneLG.inside,
+              free_seats_outside: freeSeatsByZoneLG.outside,
+              party_size: payload.party_size,
+              message: `No hay plazas en ${zonePref === 'inside' ? 'interior' : 'exterior'} para ${payload.party_size} personas. Sí hay disponibilidad en ${other === 'inside' ? 'interior' : 'exterior'} — preguntar al cliente si le va bien esa zona.`
+            });
+          }
+        }
+      }
 
       // No seats → add to waitlist instead of escalated (owner can't assign tables that don't exist)
       if (!hasCapacity) {
@@ -208,7 +246,9 @@ export async function POST(request: Request) {
         source: payload.source || 'ai_voice',
         from_web: (payload as any).from_web === true,
         created_by_type: 'ai',
-        notes: payload.notes || "",
+        notes: zoneNote
+          ? `${payload.notes || ''}${payload.notes ? ' — ' : ''}${zoneNote}`.trim()
+          : (payload.notes || ""),
         linked_conversation_id: payload.linked_conversation_id,
         end_time: endTime,
         shift,
@@ -254,16 +294,6 @@ export async function POST(request: Request) {
       });
     }
 
-    // Normalize zone preference: accept inside/outside, fuera/dentro, etc.
-    function normalizeZone(z: any): string | null {
-      if (!z || typeof z !== 'string') return null;
-      const v = z.toLowerCase().trim();
-      if (v.includes('inside') || v.includes('interior') || v.includes('dentro') || v.includes('interno')) return 'inside';
-      if (v.includes('outside') || v.includes('exterior') || v.includes('fuera') || v.includes('terraza') || v.includes('terrazza') || v.includes('outdoor') || v === 'out') return 'outside';
-      return null;
-    }
-    const zonePref = normalizeZone((payload as any).zone || (payload as any).zone_preference);
-
     // 6. Normal booking (1-6 people) - create reservation then atomically assign tables
     const reservation = {
        tenant_id: payload.tenant_id,
@@ -275,8 +305,8 @@ export async function POST(request: Request) {
        source: payload.source || 'ai_voice',
        from_web: (payload as any).from_web === true,
        created_by_type: 'ai',
-       notes: zonePref
-         ? `${payload.notes || ''}${payload.notes ? ' — ' : ''}Prefiere ${zonePref === 'inside' ? 'interior' : 'exterior'}`.trim()
+       notes: zoneNote
+         ? `${payload.notes || ''}${payload.notes ? ' — ' : ''}${zoneNote}`.trim()
          : (payload.notes || ""),
        linked_conversation_id: payload.linked_conversation_id,
        end_time: endTime,

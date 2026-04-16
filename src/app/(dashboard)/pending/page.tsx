@@ -210,11 +210,16 @@ export default function PendingPage() {
       if (req) {
         const guestPhone = req.guests?.phone || '';
         if (guestPhone) {
-          const assignedTableNames = Array.from(selectedTables).map(tid => {
-            const t = tables.find(x => x.id === tid);
-            return t?.name || '';
-          }).filter(Boolean).join(', ');
-          const confirmMsg = `✅ *Reserva confirmada*\n📅 Fecha: ${req.date}\n⏰ Hora: ${req.time}\n👥 Personas: ${req.party_size}\n📝 Nombre: ${req.guests?.name || ''}${assignedTableNames ? '\n🪑 Mesas: ' + assignedTableNames : ''}\n\nSi necesitas cancelar, escríbenos con CANCELAR.`;
+          const assignedTableObjs = Array.from(selectedTables).map(tid => tables.find(x => x.id === tid)).filter(Boolean) as typeof tables;
+          const assignedTableNames = assignedTableObjs.map(t => t.name).join(', ');
+          // Zone comes from the assigned tables if any; fall back to
+          // "Prefiere interior/exterior" hint inside the reservation notes.
+          const zoneFromTables = assignedTableObjs[0]?.zone;
+          const notesRaw = ((req as any).notes || '').toLowerCase();
+          const zoneFromNotes = notesRaw.includes('interior') ? 'inside' : notesRaw.includes('exterior') ? 'outside' : null;
+          const zone = zoneFromTables || zoneFromNotes || null;
+          const zoneLine = zone ? `\n📍 Zona: ${zone === 'inside' ? 'Interior' : 'Exterior'}` : '';
+          const confirmMsg = `✅ *Reserva confirmada*\n📅 Fecha: ${req.date}\n⏰ Hora: ${req.time}\n👥 Personas: ${req.party_size}${zoneLine}\n📝 Nombre: ${req.guests?.name || ''}${assignedTableNames ? '\n🪑 Mesas: ' + assignedTableNames : ''}\n\nSi necesitas cancelar, escríbenos con CANCELAR.`;
           try {
             await fetch("/api/send-whatsapp", {
               method: "POST",
