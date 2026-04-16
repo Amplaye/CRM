@@ -367,11 +367,25 @@ export default function PendingPage() {
                 {/* Table selection panel — shown when confirming */}
                 {isConfirming && (() => {
                   const allZones = Array.from(new Set(tables.map(t => t.zone || "Principal"))).sort();
+                  const planZone = tablePickerView === "plan" && !zoneFilter ? allZones[0] : zoneFilter;
+                  const displayTables = planZone ? tables.filter(t => (t.zone || "Principal") === planZone) : tables;
+                  const availableSeats = displayTables
+                    .filter(t => !occupiedTableIds.has(t.id))
+                    .map(t => t.seats)
+                    .sort((a, b) => b - a);
+                  let minTablesNeeded = 0;
+                  let sumSeats = 0;
+                  for (const s of availableSeats) {
+                    if (sumSeats >= req.party_size) break;
+                    sumSeats += s;
+                    minTablesNeeded++;
+                  }
+                  if (sumSeats < req.party_size) minTablesNeeded = availableSeats.length;
                   return (
                   <div className="border-t-2 p-3 sm:p-5" style={{ borderColor: '#22c55e', background: 'rgba(34,197,94,0.03)' }}>
                     <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
                       <h3 className="text-xs sm:text-sm font-bold text-black">
-                        {t("pending_assign_tables")} — {getShift(req.time) === 'lunch' ? t("pending_lunch") : t("pending_dinner")} {req.date} ({Math.ceil(req.party_size / 4)} {t("pending_needed_for")} {req.party_size} {t("pending_people")})
+                        {t("pending_assign_tables")} — {getShift(req.time) === 'lunch' ? t("pending_lunch") : t("pending_dinner")} {req.date} ({minTablesNeeded} {t("pending_needed_for")} {req.party_size} {t("pending_people")})
                       </h3>
                       <div className="inline-flex rounded-lg border-2 overflow-hidden" style={{ borderColor: "#c4956a" }}>
                         <button
@@ -429,9 +443,6 @@ export default function PendingPage() {
                     )}
 
                     {(() => {
-                      // In plan view, force a zone (no "all" — tables overlap)
-                      const planZone = tablePickerView === "plan" && !zoneFilter ? allZones[0] : zoneFilter;
-                      const displayTables = planZone ? tables.filter(t => (t.zone || "Principal") === planZone) : tables;
                       return tablePickerView === "grid" ? (
                     <div className="grid grid-cols-3 sm:grid-cols-5 gap-2 mb-4">
                       {displayTables.map(table => {
