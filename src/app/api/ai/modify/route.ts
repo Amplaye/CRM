@@ -188,6 +188,35 @@ export async function PUT(request: Request) {
       }
       const totalFreeSeats = freeSeatsByZone.inside + freeSeatsByZone.outside;
 
+      // Detect the reservation's ORIGINAL zone so a modification never
+      // auto-switches the client from outside to inside (or vice versa).
+      // Source of truth: the zone of the currently assigned tables.
+      // Fallback: "Prefiere interior|exterior" marker in notes.
+      let originalZone: 'inside' | 'outside' | null = null;
+      const { data: currentAssignments } = await supabase
+        .from('reservation_tables')
+        .select('table_id')
+        .eq('reservation_id', reservationId);
+      const currentTableIds = new Set((currentAssignments || []).map((r: any) => r.table_id));
+      if (currentTableIds.size > 0) {
+        const zonesSeen = new Set<string>();
+        for (const t of (activeTbls || []) as any[]) {
+          if (currentTableIds.has(t.id) && (t.zone === 'inside' || t.zone === 'outside')) {
+            zonesSeen.add(t.zone);
+          }
+        }
+        if (zonesSeen.size === 1) {
+          const z = Array.from(zonesSeen)[0];
+          if (z === 'inside' || z === 'outside') originalZone = z;
+        }
+      }
+      if (!originalZone && existing.notes) {
+        const m = String(existing.notes).match(/Prefiere\s+(interior|exterior)/i);
+        if (m) {
+          originalZone = m[1].toLowerCase() === 'interior' ? 'inside' : 'outside';
+        }
+      }
+
       if (totalFreeSeats < newPartySize) {
         // Rollback the partial update (revert party_size/date/time) so the
         // UI stays in a consistent state, then escalate.
@@ -209,9 +238,39 @@ export async function PUT(request: Request) {
         }, { status: 409 });
       }
 
+      // Zone preservation: if the reservation was booked in a specific zone
+      // and the modification doesn't fit THAT zone (even if the other zone
+      // has space), escalate for manual review instead of silently moving
+      // the guest to the other zone.
+      if (originalZone && freeSeatsByZone[originalZone] < newPartySize) {
+        const zoneEs = originalZone === 'inside' ? 'interior' : 'exterior';
+        const zoneOtherEs = originalZone === 'inside' ? 'exterior' : 'interior';
+        const noteMismatch = `Ampliación a ${newPartySize} pax no cabe en ${zoneEs} (plazas libres: ${freeSeatsByZone[originalZone]}). En ${zoneOtherEs} hay ${freeSeatsByZone[originalZone === 'inside' ? 'outside' : 'inside']} plazas. Llamar al cliente para acordar.`;
+        await supabase.from('reservations').update({
+          status: 'escalated',
+          notes: `${updates.notes || existing.notes || ''} — ${noteMismatch}`.trim(),
+        }).eq('id', reservationId);
+
+        return NextResponse.json({
+          success: false,
+          reservation_id: reservationId,
+          status: 'escalated',
+          new_party_size: newPartySize,
+          zone_requested: originalZone,
+          zone_requested_available: false,
+          zone_alternative: originalZone === 'inside' ? 'outside' : 'inside',
+          zone_alternative_available: freeSeatsByZone[originalZone === 'inside' ? 'outside' : 'inside'] >= newPartySize,
+          free_seats_inside: freeSeatsByZone.inside,
+          free_seats_outside: freeSeatsByZone.outside,
+          error: `No hay plazas en ${zoneEs} para ampliar a ${newPartySize} personas.`,
+          message: `No hay plazas en ${zoneEs} para ${newPartySize} personas. Dejamos la reserva en solicitudes para que el responsable llame al cliente.`,
+        }, { status: 409 });
+      }
+
       // Remove old table assignments and let atomic_book_tables decide
-      // the new optimal assignment based on the (possibly variable) seat
-      // counts of the available tables.
+      // the new optimal assignment within the original zone (preserves
+      // the client's zone choice). Falls back to any zone only when
+      // the original zone is unknown.
       await supabase.from('reservation_tables').delete().eq('reservation_id', reservationId);
 
       const { data: atomicResult, error: atomicErr } = await supabase.rpc('atomic_book_tables', {
@@ -220,7 +279,7 @@ export async function PUT(request: Request) {
         p_shift: newShift,
         p_tables_needed: tablesNeeded(newPartySize),
         p_reservation_id: reservationId,
-        p_zone_preference: null,
+        p_zone_preference: originalZone,
       });
 
       if (atomicErr) throw atomicErr;
