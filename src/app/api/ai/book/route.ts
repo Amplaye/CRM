@@ -337,10 +337,33 @@ export async function POST(request: Request) {
       if (freeSeatsByZone[zonePref] >= payload.party_size) {
         requestedZone = zonePref;
       }
-    } else if (freeSeatsByZone.inside >= payload.party_size) {
-      requestedZone = 'inside';
-    } else if (freeSeatsByZone.outside >= payload.party_size) {
-      requestedZone = 'outside';
+    } else {
+      // No client preference — best-fit across zones: pick the zone whose
+      // smallest single free table ≥ party_size is the smallest (minimize
+      // wasted seats). Fall back to any zone with enough combined capacity.
+      // Tiebreak: inside first.
+      const smallestFitByZone: Record<'inside' | 'outside', number | null> = { inside: null, outside: null };
+      for (const t of (activeTables || []) as any[]) {
+        if (occupiedTableIds.has(t.id)) continue;
+        const tz: 'inside' | 'outside' | null = t.zone === 'inside' ? 'inside' : t.zone === 'outside' ? 'outside' : null;
+        if (!tz) continue;
+        const seats = t.seats || 0;
+        if (seats < payload.party_size) continue;
+        if (smallestFitByZone[tz] === null || seats < (smallestFitByZone[tz] as number)) {
+          smallestFitByZone[tz] = seats;
+        }
+      }
+      if (smallestFitByZone.inside !== null && smallestFitByZone.outside !== null) {
+        requestedZone = smallestFitByZone.inside <= smallestFitByZone.outside ? 'inside' : 'outside';
+      } else if (smallestFitByZone.inside !== null) {
+        requestedZone = 'inside';
+      } else if (smallestFitByZone.outside !== null) {
+        requestedZone = 'outside';
+      } else if (freeSeatsByZone.inside >= payload.party_size) {
+        requestedZone = 'inside';
+      } else if (freeSeatsByZone.outside >= payload.party_size) {
+        requestedZone = 'outside';
+      }
     }
 
     // Client asked for a specific zone that's full, but the OTHER zone has seats.
