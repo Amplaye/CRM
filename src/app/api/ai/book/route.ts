@@ -239,7 +239,7 @@ export async function POST(request: Request) {
             contact_preference: payload.source === 'ai_voice' ? 'call' : 'whatsapp',
             priority_score: 50,
             acceptable_time_range: { start: payload.time, end: payload.time },
-            notes: (payload.notes || "") + " — Sin plazas disponibles en el turno, añadido a lista de espera",
+            notes: [(payload.notes || ''), zoneNote, 'Sin plazas disponibles en el turno, añadido a lista de espera'].filter(Boolean).join(' — '),
           })
           .select('id')
           .single();
@@ -337,9 +337,10 @@ export async function POST(request: Request) {
        source: payload.source || 'ai_voice',
        from_web: (payload as any).from_web === true,
        created_by_type: 'ai',
-       notes: zoneNote
-         ? `${payload.notes || ''}${payload.notes ? ' — ' : ''}${zoneNote}`.trim()
-         : (payload.notes || ""),
+       // Don't auto-add "Prefiere X" here — the assigned tables already
+       // encode the zone. The marker is only useful for waitlist/escalated
+       // entries where tables aren't assigned yet.
+       notes: payload.notes || '',
        linked_conversation_id: payload.linked_conversation_id,
        end_time: endTime,
        shift,
@@ -434,7 +435,7 @@ export async function POST(request: Request) {
           contact_preference: payload.source === 'ai_voice' ? 'call' : 'whatsapp',
           priority_score: 50,
           acceptable_time_range: { start: payload.time, end: payload.time },
-          notes: (payload.notes || '') + ' — Sin plazas disponibles en la zona, añadido a lista de espera',
+          notes: [(payload.notes || ''), zoneNote, 'Sin plazas disponibles en la zona, añadido a lista de espera'].filter(Boolean).join(' — '),
         })
         .select('id')
         .single();
@@ -494,7 +495,7 @@ export async function POST(request: Request) {
           contact_preference: payload.source === 'ai_voice' ? 'call' : 'whatsapp',
           priority_score: 50,
           acceptable_time_range: { start: payload.time, end: payload.time },
-          notes: (payload.notes || '') + ' — Sin plazas al confirmar, añadido a lista de espera',
+          notes: [(payload.notes || ''), zoneNote, 'Sin plazas al confirmar, añadido a lista de espera'].filter(Boolean).join(' — '),
         })
         .select('id')
         .single();
