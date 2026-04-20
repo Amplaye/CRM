@@ -1268,27 +1268,50 @@ function PlanCanvas({ tables, resTableLinks, shiftReservations, activeStatuses, 
       )}
 
       {/* Merge connection lines — drawn under tables when the bot has joined
-          two or more for a single reservation */}
+          two or more for a single reservation. The path curves around any
+          unrelated tables sitting between the linked ones so the connection
+          is visually obvious without suggesting the in-between tables are
+          part of the group. */}
       {(() => {
-        // Group tables in this zone by their reservation id
+        type Rect = { x: number; y: number; w: number; h: number; cx: number; cy: number };
+        const tableRects: Record<string, Rect> = {};
+        for (const tbl of tables) {
+          const dims = tableDims(tbl.shape, tbl.seats);
+          const local = localPositions[tbl.id];
+          const x = local?.x ?? tbl.position_x ?? 60;
+          const y = local?.y ?? tbl.position_y ?? 60;
+          tableRects[tbl.id] = { x, y, w: dims.w, h: dims.h, cx: x + dims.w / 2, cy: y + dims.h / 2 };
+        }
+
         const groups: Record<string, { table: TableData; cx: number; cy: number }[]> = {};
         for (const tbl of tables) {
           const res = getResForTable(tbl.id);
           if (!res) continue;
-          const dims = tableDims(tbl.shape, tbl.seats);
-          const local = localPositions[tbl.id];
-          const x = (local?.x ?? tbl.position_x ?? 60) + dims.w / 2;
-          const y = (local?.y ?? tbl.position_y ?? 60) + dims.h / 2;
+          const r = tableRects[tbl.id];
           if (!groups[res.id]) groups[res.id] = [];
-          groups[res.id].push({ table: tbl, cx: x, cy: y });
+          groups[res.id].push({ table: tbl, cx: r.cx, cy: r.cy });
         }
-        const segments: { x1: number; y1: number; x2: number; y2: number; key: string }[] = [];
+
+        const rectIntersectsSegment = (r: Rect, x1: number, y1: number, x2: number, y2: number) => {
+          const minX = Math.min(x1, x2), maxX = Math.max(x1, x2);
+          const minY = Math.min(y1, y2), maxY = Math.max(y1, y2);
+          if (maxX < r.x || minX > r.x + r.w || maxY < r.y || minY > r.y + r.h) return false;
+          const side = (px: number, py: number) => (x2 - x1) * (py - y1) - (y2 - y1) * (px - x1);
+          const s1 = side(r.x, r.y);
+          const s2 = side(r.x + r.w, r.y);
+          const s3 = side(r.x + r.w, r.y + r.h);
+          const s4 = side(r.x, r.y + r.h);
+          const hasPos = s1 > 0 || s2 > 0 || s3 > 0 || s4 > 0;
+          const hasNeg = s1 < 0 || s2 < 0 || s3 < 0 || s4 < 0;
+          return hasPos && hasNeg;
+        };
+
+        const paths: { d: string; key: string }[] = [];
         for (const resId in groups) {
           const g = groups[resId];
           if (g.length < 2) continue;
-          // Minimum spanning tree (Prim's) — each table connects to its
-          // nearest already-connected neighbour, so every table in the group
-          // is visually linked with the shortest total path.
+          const groupIds = new Set(g.map((t) => t.table.id));
+          // Prim's MST → shortest total path linking every table in the group.
           const inTree = new Set<number>([0]);
           while (inTree.size < g.length) {
             let best: { a: number; b: number; d: number } | null = null;
@@ -1300,26 +1323,43 @@ function PlanCanvas({ tables, resTableLinks, shiftReservations, activeStatuses, 
               }
             }
             if (!best) break;
-            segments.push({
-              x1: g[best.a].cx,
-              y1: g[best.a].cy,
-              x2: g[best.b].cx,
-              y2: g[best.b].cy,
-              key: `${resId}-${best.a}-${best.b}`,
-            });
+            const a = g[best.a], b = g[best.b];
+            const x1 = a.cx, y1 = a.cy, x2 = b.cx, y2 = b.cy;
+            const obstacles: Rect[] = [];
+            for (const tbl of tables) {
+              if (groupIds.has(tbl.id)) continue;
+              const r = tableRects[tbl.id];
+              if (rectIntersectsSegment(r, x1, y1, x2, y2)) obstacles.push(r);
+            }
+            let d: string;
+            if (obstacles.length === 0) {
+              d = `M ${x1} ${y1} L ${x2} ${y2}`;
+            } else {
+              const dx = x2 - x1, dy = y2 - y1;
+              const len = Math.hypot(dx, dy) || 1;
+              const nx = -dy / len, ny = dx / len;
+              const mx = (x1 + x2) / 2, my = (y1 + y2) / 2;
+              let signSum = 0;
+              for (const o of obstacles) signSum += (o.cx - mx) * nx + (o.cy - my) * ny;
+              const sign = signSum >= 0 ? -1 : 1;
+              const maxHalf = Math.max(...obstacles.map((o) => Math.max(o.w, o.h) / 2));
+              const offset = (maxHalf + 28) * sign * 2; // ×2 so the Bezier apex clears by ~maxHalf+28
+              const cx = mx + nx * offset;
+              const cy = my + ny * offset;
+              d = `M ${x1} ${y1} Q ${cx} ${cy} ${x2} ${y2}`;
+            }
+            paths.push({ d, key: `${resId}-${best.a}-${best.b}` });
             inTree.add(best.b);
           }
         }
-        if (segments.length === 0) return null;
+        if (paths.length === 0) return null;
         return (
           <svg className="absolute inset-0 pointer-events-none" width="100%" height="100%" style={{ zIndex: 5 }}>
-            {segments.map((s) => (
-              <line
-                key={s.key}
-                x1={s.x1}
-                y1={s.y1}
-                x2={s.x2}
-                y2={s.y2}
+            {paths.map((p) => (
+              <path
+                key={p.key}
+                d={p.d}
+                fill="none"
                 stroke="#475569"
                 strokeWidth={1.75}
                 strokeLinecap="round"

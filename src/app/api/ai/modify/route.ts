@@ -110,6 +110,18 @@ export async function PUT(request: Request) {
       updated_at: new Date().toISOString(),
     };
 
+    // If the reservation was already seated/completed (staff had seated the
+    // party for the ORIGINAL date) and the client is now moving it to a
+    // different date/time, the reservation is effectively a fresh future
+    // booking — it can't still be "seated". Reset to confirmed so the UI
+    // shows red (occupied) instead of blue (seated).
+    const movedToDifferentDay = payload.date && payload.date !== existing.date;
+    const movedToDifferentTime = payload.time && payload.time !== existing.time;
+    if ((movedToDifferentDay || movedToDifferentTime) &&
+        (existing.status === 'seated' || existing.status === 'completed')) {
+      updates.status = 'confirmed';
+    }
+
     if (payload.notes !== undefined) {
       // Overwrite with incoming notes, preserving the "Prefiere interior/exterior"
       // zone marker automatically added at booking time if the new notes omit it.
