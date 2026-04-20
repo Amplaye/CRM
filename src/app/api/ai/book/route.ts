@@ -115,12 +115,15 @@ export async function POST(request: Request) {
 
       if (nearby && nearby.length > 0) {
         const summary = nearby.map((r: any) => `${r.date} ${r.time} (${r.party_size} pax)`).join(', ');
+        // Return 200 (not 409) so n8n httpRequest doesn't throw — keeps the
+        // structured response (reason, existing_reservations, message)
+        // reachable by the bot instead of surfacing as "problema técnico".
         return NextResponse.json({
           success: false,
           reason: 'possible_duplicate',
           existing_reservations: nearby,
           message: `El cliente ya tiene ${nearby.length === 1 ? 'una reserva activa' : nearby.length + ' reservas activas'}: ${summary}. Pregúntale si quiere MODIFICAR esa reserva (usa modify_reservation) o crear una NUEVA adicional (llama otra vez book_table con force_new=true).`,
-        }, { status: 409 });
+        });
       }
     }
 
