@@ -92,6 +92,38 @@ export async function POST(request: Request) {
        guestId = newGuest.id;
     }
 
+    // 2b. Duplicate-intent guard — the voice bot sometimes calls book_table
+    // when the caller wanted to MODIFY an existing booking. Before creating
+    // a new reservation, check whether the same guest already has an active
+    // reservation within ±3 days of the requested date. If so, return 409
+    // with enough detail for the bot to ask "new booking or modification?".
+    // The bot can re-send with `force_new: true` if the customer confirms.
+    if (!(payload as any).force_new) {
+      const reqDate = new Date(payload.date + 'T12:00:00');
+      const winStart = new Date(reqDate); winStart.setDate(winStart.getDate() - 3);
+      const winEnd = new Date(reqDate); winEnd.setDate(winEnd.getDate() + 3);
+      const fmt = (d: Date) => d.toISOString().slice(0, 10);
+      const { data: nearby } = await supabase
+        .from('reservations')
+        .select('id, date, time, party_size, status')
+        .eq('tenant_id', payload.tenant_id)
+        .eq('guest_id', guestId)
+        .in('status', ['confirmed', 'seated', 'pending_confirmation', 'escalated'])
+        .gte('date', fmt(winStart))
+        .lte('date', fmt(winEnd))
+        .order('date', { ascending: true });
+
+      if (nearby && nearby.length > 0) {
+        const summary = nearby.map((r: any) => `${r.date} ${r.time} (${r.party_size} pax)`).join(', ');
+        return NextResponse.json({
+          success: false,
+          reason: 'possible_duplicate',
+          existing_reservations: nearby,
+          message: `El cliente ya tiene ${nearby.length === 1 ? 'una reserva activa' : nearby.length + ' reservas activas'}: ${summary}. Pregúntale si quiere MODIFICAR esa reserva (usa modify_reservation) o crear una NUEVA adicional (llama otra vez book_table con force_new=true).`,
+        }, { status: 409 });
+      }
+    }
+
     // 3. Calculate shift and end_time
     const shift = getShift(payload.time);
     const dayOfWeek = new Date(payload.date + 'T12:00:00').getDay();
