@@ -36,11 +36,13 @@ function findNextOpenDay(openingHours: OpeningHours, fromDate: string, maxLookah
 }
 
 function lastBookingTime(shiftHours: { open: string; close: string }[], shift: 'lunch' | 'dinner'): string | null {
-  // Last reservation permitted 45 min before close
+  // Last reservation cutoff before close: lunch 45 min, dinner 60 min.
+  // Matches Picnic's KB policy (última reserva 14:45 / 21:30).
+  const offset = shift === 'dinner' ? 60 : 45;
   for (const s of shiftHours) {
     const startMin = timeToMin(s.open);
     if ((shift === 'lunch' && startMin < 17 * 60) || (shift === 'dinner' && startMin >= 17 * 60)) {
-      return minToTime(Math.max(startMin, timeToMin(s.close) - 45));
+      return minToTime(Math.max(startMin, timeToMin(s.close) - offset));
     }
   }
   return null;
