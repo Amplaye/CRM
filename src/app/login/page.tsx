@@ -63,11 +63,12 @@ export default function LoginPage() {
           <Globe className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-black mr-1.5 sm:mr-2" />
           <select
             value={language}
-            onChange={(e) => setLanguage(e.target.value as "en" | "es")}
+            onChange={(e) => setLanguage(e.target.value as "en" | "es" | "it")}
             className="bg-transparent text-xs sm:text-sm font-medium text-black outline-none cursor-pointer"
           >
             <option value="en">EN</option>
             <option value="es">ES</option>
+            <option value="it">IT</option>
           </select>
         </div>
       </div>

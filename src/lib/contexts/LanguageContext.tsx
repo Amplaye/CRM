@@ -3,8 +3,9 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from "react";
 import { en, Dictionary } from "../i18n/dictionaries/en";
 import { es } from "../i18n/dictionaries/es";
+import { it } from "../i18n/dictionaries/it";
 
-type LanguageCode = "en" | "es";
+type LanguageCode = "en" | "es" | "it";
 
 interface LanguageContextType {
   language: LanguageCode;
@@ -15,6 +16,7 @@ interface LanguageContextType {
 const dictionaries: Record<LanguageCode, Dictionary> = {
   en,
   es,
+  it,
 };
 
 const LanguageContext = createContext<LanguageContextType>({
@@ -29,8 +31,10 @@ export const LanguageProvider = ({ children }: { children: ReactNode }) => {
   // Load saved preference from localStorage on mount
   useEffect(() => {
     const saved = localStorage.getItem("app_lang") as LanguageCode;
-    if (saved === "en" || saved === "es") {
+    if (saved === "en" || saved === "es" || saved === "it") {
       setLanguageState(saved);
+    } else if (typeof navigator !== "undefined" && navigator.language.startsWith("it")) {
+      setLanguageState("it");
     }
   }, []);
 
