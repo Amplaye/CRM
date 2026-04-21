@@ -562,18 +562,23 @@ export default function DashboardPage() {
           ].map((m, i) => {
             const Icon = m.icon;
             return (
+              // 3-col grid: [icon | centered text | mirror spacer]. Lo spacer
+              // ha la stessa larghezza dell'icona, così il blocco testo
+              // risulta perfettamente centrato sia in larghezza che in
+              // altezza, e l'icona resta ancorata a sinistra ma verticalmente
+              // centrata (items-center).
               <div
                 key={i}
-                className="p-3 sm:p-5 flex items-center gap-2.5 sm:gap-4"
+                className="p-3 sm:p-5 grid items-center gap-2 sm:gap-3 min-h-[96px] grid-cols-[2.25rem_1fr_2.25rem] sm:grid-cols-[2.5rem_1fr_2.5rem]"
                 style={{ borderColor: "#c4956a" }}
               >
                 <div
-                  className="flex-shrink-0 inline-flex items-center justify-center w-9 h-9 sm:w-10 sm:h-10 rounded-lg"
+                  className="inline-flex items-center justify-center w-9 h-9 sm:w-10 sm:h-10 rounded-lg"
                   style={{ background: "rgba(196,149,106,0.14)" }}
                 >
                   <Icon className="w-4 h-4 sm:w-5 sm:h-5" style={{ color: BRAND_BROWN }} />
                 </div>
-                <div className="min-w-0 flex-1">
+                <div className="min-w-0 text-center">
                   <p className="text-[10px] sm:text-[11px] font-semibold uppercase tracking-wider text-black/65 leading-tight truncate">
                     {m.label}
                   </p>
@@ -582,6 +587,7 @@ export default function DashboardPage() {
                   </p>
                   <p className="text-[10px] sm:text-[11px] text-black/55 leading-tight mt-0.5 truncate">{m.sub}</p>
                 </div>
+                <div aria-hidden className="w-9 h-9 sm:w-10 sm:h-10" />
               </div>
             );
           })}
