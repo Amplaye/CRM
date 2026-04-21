@@ -328,7 +328,7 @@ export default function DashboardPage() {
     String(selectedYear);
 
   return (
-    <div className="p-4 sm:p-6 lg:p-8 w-full space-y-5 sm:space-y-7">
+    <div className="p-4 sm:p-6 lg:p-8 w-full max-w-full overflow-x-hidden space-y-5 sm:space-y-7">
 
       {/* ── Header ── */}
       <div className="space-y-2">
@@ -336,14 +336,14 @@ export default function DashboardPage() {
           <h1 className="text-xl sm:text-2xl font-bold text-black tracking-tight">{t("nav_dashboard")}</h1>
           <p className="mt-0.5 text-xs sm:text-sm text-black">{t("dash_ai_performance")}</p>
         </div>
-        <div className="flex items-center gap-1.5 sm:gap-2">
+        <div className="flex items-center flex-wrap gap-1.5 sm:gap-2">
           {/* View mode toggle */}
           <div className="inline-flex rounded-lg border-2 overflow-hidden flex-shrink-0" style={{ borderColor: "#c4956a" }}>
             {(["day", "month", "year"] as const).map(mode => (
               <button
                 key={mode}
                 onClick={() => setViewMode(mode)}
-                className="px-2 sm:px-3 py-1 sm:py-1.5 text-xs sm:text-sm font-semibold transition-colors"
+                className="px-2 sm:px-3 py-1.5 sm:py-1.5 text-xs sm:text-sm font-semibold transition-colors min-h-[36px]"
                 style={{
                   background: viewMode === mode ? "#c4956a" : "rgba(252,246,237,0.6)",
                   color: viewMode === mode ? "#fff" : "#000",
@@ -354,7 +354,11 @@ export default function DashboardPage() {
             ))}
           </div>
           {/* Period navigator */}
-          <button onClick={() => navigatePeriod(-1)} className="p-1 hover:bg-[#c4956a]/10 rounded-lg transition-colors flex-shrink-0">
+          <button
+            onClick={() => navigatePeriod(-1)}
+            aria-label="Previous period"
+            className="p-2 hover:bg-[#c4956a]/10 rounded-lg transition-colors flex-shrink-0 min-w-[36px] min-h-[36px] flex items-center justify-center"
+          >
             <ChevronLeft className="w-4 h-4 text-black" />
           </button>
           {viewMode === "day" ? (
@@ -396,7 +400,11 @@ export default function DashboardPage() {
               ))}
             </select>
           )}
-          <button onClick={() => navigatePeriod(1)} className="p-1 hover:bg-[#c4956a]/10 rounded-lg transition-colors flex-shrink-0">
+          <button
+            onClick={() => navigatePeriod(1)}
+            aria-label="Next period"
+            className="p-2 hover:bg-[#c4956a]/10 rounded-lg transition-colors flex-shrink-0 min-w-[36px] min-h-[36px] flex items-center justify-center"
+          >
             <ChevronRight className="w-4 h-4 text-black" />
           </button>
         </div>
@@ -431,9 +439,12 @@ export default function DashboardPage() {
         </div>
 
         {/* Hero headline — left-aligned editorial */}
-        <div className="relative">
-          <div className="flex items-baseline flex-wrap gap-x-5 gap-y-2">
-            <h2 className="text-5xl sm:text-6xl lg:text-7xl font-bold text-black tabular-nums leading-none tracking-tight">
+        <div className="relative min-w-0">
+          <div className="flex items-baseline flex-wrap gap-x-3 sm:gap-x-5 gap-y-2">
+            <h2
+              className="font-bold text-black tabular-nums leading-none tracking-tight"
+              style={{ fontSize: "clamp(2.25rem, 10vw, 4.5rem)" }}
+            >
               €{kpis.totalValue.toLocaleString("es-ES")}
             </h2>
 
@@ -488,7 +499,7 @@ export default function DashboardPage() {
             return (
               <div
                 key={i}
-                className="group relative rounded-xl p-4 sm:p-5 border-2 transition-all duration-200 hover:-translate-y-0.5"
+                className="group relative rounded-xl p-4 sm:p-5 border-2 transition-all duration-200 hover:-translate-y-0.5 flex flex-col items-center text-center"
                 style={{
                   background: "rgba(252,246,237,0.92)",
                   borderColor: "#c4956a",
@@ -511,7 +522,10 @@ export default function DashboardPage() {
                 </p>
 
                 {/* Hero number — Geist, larger than other cards */}
-                <p className="text-2xl sm:text-3xl font-bold text-black tabular-nums leading-none">
+                <p
+                  className="font-bold text-black tabular-nums leading-none w-full truncate"
+                  style={{ fontSize: "clamp(1.25rem, 5vw, 1.875rem)" }}
+                >
                   €{b.value.toLocaleString("es-ES")}
                 </p>
 
@@ -550,23 +564,23 @@ export default function DashboardPage() {
             return (
               <div
                 key={i}
-                className="p-4 sm:p-5 flex items-center gap-3 sm:gap-4"
+                className="p-3 sm:p-5 flex items-center gap-2.5 sm:gap-4"
                 style={{ borderColor: "#c4956a" }}
               >
                 <div
-                  className="flex-shrink-0 inline-flex items-center justify-center w-10 h-10 rounded-lg"
+                  className="flex-shrink-0 inline-flex items-center justify-center w-9 h-9 sm:w-10 sm:h-10 rounded-lg"
                   style={{ background: "rgba(196,149,106,0.14)" }}
                 >
-                  <Icon className="w-5 h-5" style={{ color: BRAND_BROWN }} />
+                  <Icon className="w-4 h-4 sm:w-5 sm:h-5" style={{ color: BRAND_BROWN }} />
                 </div>
                 <div className="min-w-0 flex-1">
-                  <p className="text-[10px] sm:text-[11px] font-semibold uppercase tracking-wider text-black/65 leading-tight">
+                  <p className="text-[10px] sm:text-[11px] font-semibold uppercase tracking-wider text-black/65 leading-tight truncate">
                     {m.label}
                   </p>
-                  <p className="text-xl sm:text-2xl font-bold text-black tabular-nums leading-tight mt-0.5">
+                  <p className="text-lg sm:text-2xl font-bold text-black tabular-nums leading-tight mt-0.5">
                     {m.value}
                   </p>
-                  <p className="text-[11px] text-black/55 leading-tight mt-0.5 truncate">{m.sub}</p>
+                  <p className="text-[10px] sm:text-[11px] text-black/55 leading-tight mt-0.5 truncate">{m.sub}</p>
                 </div>
               </div>
             );
@@ -575,69 +589,7 @@ export default function DashboardPage() {
       </section>
 
       {/* ══════════════════════════════════════════════
-          SECTION 3 — PRIMARY CHART: Revenue over time (full-width, editorial)
-          ══════════════════════════════════════════════ */}
-      <section
-        className="p-4 sm:p-6 rounded-xl border-2 transition-all duration-200 hover:-translate-y-0.5"
-        style={{ ...cardStyle, boxShadow: "0 1px 2px rgba(196,149,106,0.08)" }}
-        onMouseEnter={(e) => { e.currentTarget.style.boxShadow = "0 6px 16px rgba(196,149,106,0.18)"; }}
-        onMouseLeave={(e) => { e.currentTarget.style.boxShadow = "0 1px 2px rgba(196,149,106,0.08)"; }}
-      >
-        <div className="flex items-center justify-between mb-1">
-          <h3 className="text-[11px] sm:text-xs font-bold text-black uppercase tracking-[0.18em]">
-            {t("dash_ai_revenue_time")}
-          </h3>
-          <span className="text-[10px] sm:text-[11px] font-semibold uppercase tracking-wider text-black/55">
-            {periodLabel}
-          </span>
-        </div>
-        <div className="h-1 w-10 rounded-full mb-4" style={{ background: BRAND_BROWN }} />
-        <div className="h-56 sm:h-72">
-          <ResponsiveContainer width="100%" height="100%">
-            <AreaChart data={kpis.dailyData} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
-              <defs>
-                <linearGradient id="revGradient" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor={BRAND_BROWN} stopOpacity={0.35} />
-                  <stop offset="100%" stopColor={BRAND_BROWN} stopOpacity={0.02} />
-                </linearGradient>
-              </defs>
-              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(196,149,106,0.22)" />
-              <XAxis
-                dataKey="date"
-                axisLine={false}
-                tickLine={false}
-                tick={{ fontSize: 10, fill: "#6b6258" }}
-                interval={Math.max(0, Math.floor(kpis.dailyData.length / 10))}
-              />
-              <YAxis
-                axisLine={false}
-                tickLine={false}
-                tick={{ fontSize: 11, fill: "#6b6258" }}
-                tickFormatter={(v: number) => `€${v}`}
-              />
-              <Tooltip
-                contentStyle={tooltipContentStyle}
-                labelStyle={tooltipLabelStyle}
-                itemStyle={tooltipItemStyle}
-                cursor={{ stroke: BRAND_BROWN, strokeOpacity: 0.25, strokeWidth: 1 }}
-                formatter={(value: any) => [`€${Number(value).toLocaleString("es-ES")}`, t("dash_ai_revenue")]}
-              />
-              <Area
-                type="monotone"
-                dataKey="revenue"
-                stroke={BRAND_BROWN}
-                strokeWidth={2.5}
-                fill="url(#revGradient)"
-                dot={false}
-                activeDot={{ r: 5, fill: BRAND_BROWN, stroke: "#FCF6ED", strokeWidth: 2 }}
-              />
-            </AreaChart>
-          </ResponsiveContainer>
-        </div>
-      </section>
-
-      {/* ══════════════════════════════════════════════
-          SECTION 4 — SECONDARY CHARTS (bar + pie)
+          SECTION 3 — SECONDARY CHARTS (bar + pie)
           ══════════════════════════════════════════════ */}
       <section className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
 
@@ -729,6 +681,69 @@ export default function DashboardPage() {
           )}
         </div>
       </section>
+
+      {/* ══════════════════════════════════════════════
+          SECTION 4 — PRIMARY CHART (moved to bottom): Revenue over time
+          ══════════════════════════════════════════════ */}
+      <section
+        className="p-4 sm:p-6 rounded-xl border-2 transition-all duration-200 hover:-translate-y-0.5"
+        style={{ ...cardStyle, boxShadow: "0 1px 2px rgba(196,149,106,0.08)" }}
+        onMouseEnter={(e) => { e.currentTarget.style.boxShadow = "0 6px 16px rgba(196,149,106,0.18)"; }}
+        onMouseLeave={(e) => { e.currentTarget.style.boxShadow = "0 1px 2px rgba(196,149,106,0.08)"; }}
+      >
+        <div className="flex items-center justify-between mb-1">
+          <h3 className="text-[11px] sm:text-xs font-bold text-black uppercase tracking-[0.18em]">
+            {t("dash_ai_revenue_time")}
+          </h3>
+          <span className="text-[10px] sm:text-[11px] font-semibold uppercase tracking-wider text-black/55">
+            {periodLabel}
+          </span>
+        </div>
+        <div className="h-1 w-10 rounded-full mb-4" style={{ background: BRAND_BROWN }} />
+        <div className="h-56 sm:h-72">
+          <ResponsiveContainer width="100%" height="100%">
+            <AreaChart data={kpis.dailyData} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
+              <defs>
+                <linearGradient id="revGradient" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor={BRAND_BROWN} stopOpacity={0.35} />
+                  <stop offset="100%" stopColor={BRAND_BROWN} stopOpacity={0.02} />
+                </linearGradient>
+              </defs>
+              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(196,149,106,0.22)" />
+              <XAxis
+                dataKey="date"
+                axisLine={false}
+                tickLine={false}
+                tick={{ fontSize: 10, fill: "#6b6258" }}
+                interval={Math.max(0, Math.floor(kpis.dailyData.length / 10))}
+              />
+              <YAxis
+                axisLine={false}
+                tickLine={false}
+                tick={{ fontSize: 11, fill: "#6b6258" }}
+                tickFormatter={(v: number) => `€${v}`}
+              />
+              <Tooltip
+                contentStyle={tooltipContentStyle}
+                labelStyle={tooltipLabelStyle}
+                itemStyle={tooltipItemStyle}
+                cursor={{ stroke: BRAND_BROWN, strokeOpacity: 0.25, strokeWidth: 1 }}
+                formatter={(value: any) => [`€${Number(value).toLocaleString("es-ES")}`, t("dash_ai_revenue")]}
+              />
+              <Area
+                type="monotone"
+                dataKey="revenue"
+                stroke={BRAND_BROWN}
+                strokeWidth={2.5}
+                fill="url(#revGradient)"
+                dot={false}
+                activeDot={{ r: 5, fill: BRAND_BROWN, stroke: "#FCF6ED", strokeWidth: 2 }}
+              />
+            </AreaChart>
+          </ResponsiveContainer>
+        </div>
+      </section>
+
     </div>
   );
 }
