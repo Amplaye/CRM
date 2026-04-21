@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { NextResponse } from 'next/server';
 import { createServiceRoleClient } from '@/lib/supabase/server';
 import { assertAiSecret } from '@/lib/ai-auth';
@@ -87,7 +86,7 @@ export async function POST(request: Request) {
       });
 
       // Get table assignments for these reservations
-      const resIds = shiftReservations.map(r => r.id);
+      const resIds = shiftReservations.map((r: any) => r.id);
       let tableAssignments: Record<string, string[]> = {};
       let tableToReservation: Record<string, any[]> = {};
 
@@ -102,7 +101,7 @@ export async function POST(request: Request) {
           tableAssignments[link.reservation_id].push(link.table_id);
 
           if (!tableToReservation[link.table_id]) tableToReservation[link.table_id] = [];
-          const res = shiftReservations.find(r => r.id === link.reservation_id);
+          const res = shiftReservations.find((r: any) => r.id === link.reservation_id);
           if (res) tableToReservation[link.table_id].push(res);
         }
       }
@@ -114,7 +113,7 @@ export async function POST(request: Request) {
         for (const tid of assigned) occupiedTableIds.add(tid);
       }
 
-      const freeTables = allTables.filter(t => !occupiedTableIds.has(t.id));
+      const freeTables = allTables.filter((t: any) => !occupiedTableIds.has(t.id));
       shiftDebug.totalTables = allTables.length;
       shiftDebug.shiftReservations = shiftReservations.length;
       shiftDebug.occupiedTables = occupiedTableIds.size;
@@ -184,7 +183,7 @@ export async function POST(request: Request) {
 
           // Hold tables for the offer
           await supabase.from('reservation_tables').insert(
-            assignedTables.map(t => ({ reservation_id: newRes.id, table_id: t.id }))
+            assignedTables.map((t: any) => ({ reservation_id: newRes.id, table_id: t.id }))
           );
 
           // Mark waitlist entry as offered (still in waitlist — waiting for confirm)
@@ -201,11 +200,11 @@ export async function POST(request: Request) {
 
           // Notify client via WhatsApp — ask for explicit CONFIRMO
           if (guestPhone) {
-            await notifyClient(guestPhone, guestName, date, entry.target_time, endTime, entry.party_size, assignedTables.map(t => t.name), null);
+            await notifyClient(guestPhone, guestName, date, entry.target_time, endTime, entry.party_size, assignedTables.map((t: any) => t.name), null);
           }
 
           // Notify owner
-          await notifyOwner(ownerPhone, guestName, date, entry.target_time, entry.party_size, assignedTables.map(t => t.name), guestPhone, false);
+          await notifyOwner(ownerPhone, guestName, date, entry.target_time, entry.party_size, assignedTables.map((t: any) => t.name), guestPhone, false);
 
           totalMatched++;
           results.push({ type: 'full_shift_offered', entryId: entry.id, reservationId: newRes.id });

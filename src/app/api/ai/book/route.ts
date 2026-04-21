@@ -35,6 +35,16 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: false, error: "Missing required fields" }, { status: 400 });
     }
 
+    // Date/time format validation — avoid garbage reaching downstream SQL.
+    const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+    const TIME_RE = /^\d{2}:\d{2}$/;
+    if (!DATE_RE.test(payload.date)) {
+      return NextResponse.json({ success: false, error: 'date must be YYYY-MM-DD' }, { status: 400 });
+    }
+    if (!TIME_RE.test(payload.time)) {
+      return NextResponse.json({ success: false, error: 'time must be HH:MM' }, { status: 400 });
+    }
+
     // E.164 phone validation — optional leading "+", 7-15 digits, first non-zero
     if (payload.guest_phone !== undefined && payload.guest_phone !== null) {
       const phoneStr = String(payload.guest_phone).trim();

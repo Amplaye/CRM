@@ -23,6 +23,7 @@ interface ModifyPayload {
   // from the existing reservation (keeps the voice prompt simple).
   personas_delta?: number; // positive=add people, negative=remove
   retraso_minutos?: number; // delay to add to the original time
+  idempotency_key?: string;
 }
 
 export async function PUT(request: Request) {
@@ -54,7 +55,40 @@ export async function PUT(request: Request) {
       }
     }
 
+    // Date/time format validation — avoid garbage like "mañana" or "20:00:00" reaching downstream SQL.
+    const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+    const TIME_RE = /^\d{2}:\d{2}$/;
+    if (payload.date && !DATE_RE.test(payload.date)) {
+      return NextResponse.json({ success: false, error: 'date must be YYYY-MM-DD' }, { status: 400 });
+    }
+    if (payload.time && !TIME_RE.test(payload.time)) {
+      return NextResponse.json({ success: false, error: 'time must be HH:MM' }, { status: 400 });
+    }
+
     const supabase = createServiceRoleClient();
+
+    // Idempotency short-circuit — if n8n retries the same modify (network blip)
+    // the delta must not fire twice (+3 would become +6). We don't write the key
+    // via logAuditEvent (audit.ts doesn't expose it on this code path) but we
+    // check prior audit rows with a 10-minute window as a best-effort guard.
+    if (payload.idempotency_key) {
+      const { data: prior } = await supabase
+        .from('audit_events')
+        .select('entity_id, details')
+        .eq('tenant_id', payload.tenant_id)
+        .eq('idempotency_key', payload.idempotency_key)
+        .eq('action', 'modify_reservation')
+        .gte('created_at', new Date(Date.now() - 10 * 60 * 1000).toISOString())
+        .limit(1);
+      if (prior && prior.length > 0) {
+        return NextResponse.json({
+          success: true,
+          message: 'Reservation modify already processed (idempotent)',
+          reservation_id: prior[0].entity_id,
+          idempotent: true,
+        });
+      }
+    }
 
     // Find reservation by ID or by guest phone (most recent active)
     let reservationId = payload.reservation_id;
@@ -347,6 +381,7 @@ export async function PUT(request: Request) {
           tenant_id: payload.tenant_id,
           action: "modify_reservation",
           entity_id: reservationId,
+          idempotency_key: payload.idempotency_key,
           source: "ai_agent",
           details: { previous: { date: existing.date, time: existing.time, party_size: existing.party_size }, updates, escalated: true },
         });
@@ -376,6 +411,7 @@ export async function PUT(request: Request) {
       tenant_id: payload.tenant_id,
       action: "modify_reservation",
       entity_id: reservationId,
+      idempotency_key: payload.idempotency_key,
       source: "ai_agent",
       details: {
         previous: { date: existing.date, time: existing.time, party_size: existing.party_size, shift: existing.shift },
