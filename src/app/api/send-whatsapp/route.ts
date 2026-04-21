@@ -1,7 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { logSystemEvent } from "@/lib/system-log";
+import { assertAiSecret } from "@/lib/ai-auth";
 
 export async function POST(req: NextRequest) {
+  const unauth = assertAiSecret(req);
+  if (unauth) return unauth;
   try {
     const { to, message } = await req.json();
 

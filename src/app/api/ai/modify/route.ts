@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createServiceRoleClient } from '@/lib/supabase/server';
 import { logAuditEvent } from '@/lib/audit';
+import { assertAiSecret } from '@/lib/ai-auth';
 import {
   getShift,
   getRotationMinutes,
@@ -25,11 +26,32 @@ interface ModifyPayload {
 }
 
 export async function PUT(request: Request) {
+  const unauth = assertAiSecret(request);
+  if (unauth) return unauth;
   try {
     const payload: ModifyPayload = await request.json();
 
     if (!payload.tenant_id || (!payload.reservation_id && !payload.guest_phone)) {
       return NextResponse.json({ success: false, error: "Missing tenant_id and reservation_id or guest_phone" }, { status: 400 });
+    }
+
+    // Bounds validation on optional delta helpers so the bot can't pass
+    // absurd values (NaN, Infinity, huge deltas) and corrupt reservations.
+    if (payload.personas_delta !== undefined) {
+      if (!Number.isFinite(payload.personas_delta)) {
+        return NextResponse.json({ success: false, error: 'personas_delta must be a finite number' }, { status: 400 });
+      }
+      if (Math.abs(payload.personas_delta) > 50) {
+        return NextResponse.json({ success: false, error: 'personas_delta out of range (-50..50)' }, { status: 400 });
+      }
+    }
+    if (payload.retraso_minutos !== undefined) {
+      if (!Number.isFinite(payload.retraso_minutos)) {
+        return NextResponse.json({ success: false, error: 'retraso_minutos must be a finite number' }, { status: 400 });
+      }
+      if (Math.abs(payload.retraso_minutos) > 8 * 60) {
+        return NextResponse.json({ success: false, error: 'retraso_minutos out of range (-480..480)' }, { status: 400 });
+      }
     }
 
     const supabase = createServiceRoleClient();
@@ -112,6 +134,8 @@ export async function PUT(request: Request) {
     if (!payload.party_size && typeof payload.personas_delta === 'number' && payload.personas_delta !== 0) {
       newPartySize = Math.max(1, (existing.party_size || 0) + payload.personas_delta);
     }
+    // Final clamp — defense in depth against degenerate absolute values too.
+    newPartySize = Math.max(1, Math.min(50, newPartySize));
     const newShift = getShift(newTime);
     const dayOfWeek = new Date(newDate + 'T12:00:00').getDay();
     const rotation = getRotationMinutes(newPartySize, newShift, dayOfWeek);

@@ -1,8 +1,11 @@
 import { NextResponse } from 'next/server';
 import { createServiceRoleClient } from '@/lib/supabase/server';
 import { logAuditEvent } from '@/lib/audit';
+import { assertAiSecret } from '@/lib/ai-auth';
 
 export async function DELETE(request: Request) {
+  const unauth = assertAiSecret(request);
+  if (unauth) return unauth;
   try {
      const { searchParams } = new URL(request.url);
      const tenant_id = searchParams.get('tenant_id');
@@ -17,18 +20,18 @@ export async function DELETE(request: Request) {
 
      const supabase = createServiceRoleClient();
 
+     // Tenant-scoped fetch: a mismatched tenant_id produces a null row →
+     // unified 404 response kills the cross-tenant side channel (no
+     // distinction between "doesn't exist" and "wrong tenant").
      const { data: reservation, error: fetchErr } = await supabase
        .from('reservations')
        .select('*')
        .eq('id', reservation_id)
-       .single();
+       .eq('tenant_id', tenant_id)
+       .maybeSingle();
 
      if (fetchErr || !reservation) {
         return NextResponse.json({ success: false, error: "Reservation not found" }, { status: 404 });
-     }
-
-     if (reservation.tenant_id !== tenant_id) {
-        return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 403 });
      }
 
      // Instead of hard deleting, we soft delete / status change

@@ -3,6 +3,7 @@ import { createServiceRoleClient } from '@/lib/supabase/server';
 import { CreateBookingRequest } from '@/lib/types';
 import { logAuditEvent } from '@/lib/audit';
 import { logSystemEvent } from '@/lib/system-log';
+import { assertAiSecret } from '@/lib/ai-auth';
 import {
   getShift,
   getRotationMinutes,
@@ -25,11 +26,24 @@ function rangesOverlap(startA: string, endA: string, startB: string, endB: strin
 }
 
 export async function POST(request: Request) {
+  const unauth = assertAiSecret(request);
+  if (unauth) return unauth;
   try {
     const payload: CreateBookingRequest = await request.json();
 
     if (!payload.tenant_id || !payload.idempotency_key || !payload.date || !payload.time || !payload.party_size) {
       return NextResponse.json({ success: false, error: "Missing required fields" }, { status: 400 });
+    }
+
+    // E.164 phone validation — optional leading "+", 7-15 digits, first non-zero
+    if (payload.guest_phone !== undefined && payload.guest_phone !== null) {
+      const phoneStr = String(payload.guest_phone).trim();
+      if (phoneStr.length > 0 && !/^\+?[1-9]\d{6,14}$/.test(phoneStr)) {
+        return NextResponse.json(
+          { success: false, error: "Invalid guest_phone format — expected E.164 (e.g. +34612345678)" },
+          { status: 400 }
+        );
+      }
     }
 
     // Check party size rules — 7+ always goes to manual review (escalated), never reject
@@ -68,8 +82,18 @@ export async function POST(request: Request) {
 
     if (existingGuests && existingGuests.length > 0) {
        guestId = existingGuests[0].id;
-       // Always update guest name if provided and different
-       if (payload.guest_name && payload.guest_name !== "Unknown Guest" && payload.guest_name !== "Cliente" && existingGuests[0].name !== payload.guest_name) {
+       // Only fill in guest name if the existing record has no real name
+       // (null/empty/'Unknown Guest'/'Cliente'). Don't silently overwrite
+       // a real name the staff or previous call may have captured.
+       const existingName = (existingGuests[0].name || '').trim();
+       const isPlaceholder = !existingName || existingName === 'Unknown Guest' || existingName === 'Cliente';
+       if (
+         isPlaceholder &&
+         payload.guest_name &&
+         payload.guest_name !== 'Unknown Guest' &&
+         payload.guest_name !== 'Cliente' &&
+         existingName !== payload.guest_name
+       ) {
          await supabase.from('guests').update({ name: payload.guest_name }).eq('id', guestId);
        }
     } else {
@@ -121,7 +145,12 @@ export async function POST(request: Request) {
         return NextResponse.json({
           success: false,
           reason: 'possible_duplicate',
-          existing_reservations: nearby,
+          // Sanitized — expose only the fields the bot needs (no id/status/guest_id)
+          existing_reservations: nearby.map((r: any) => ({
+            date: r.date,
+            time: r.time,
+            party_size: r.party_size,
+          })),
           message: `El cliente ya tiene ${nearby.length === 1 ? 'una reserva activa' : nearby.length + ' reservas activas'}: ${summary}. Pregúntale si quiere MODIFICAR esa reserva (usa modify_reservation) o crear una NUEVA adicional (llama otra vez book_table con force_new=true).`,
         });
       }

@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createServiceRoleClient } from '@/lib/supabase/server';
+import { assertAiSecret } from '@/lib/ai-auth';
 import type { OpeningHours } from '@/lib/restaurant-rules';
 
 const DAY_NAMES_ES: Record<number, string> = {
@@ -51,6 +52,8 @@ const TOPIC_MAP: Record<string, { categories?: string[]; titleKeywords?: string[
 };
 
 export async function GET(request: Request) {
+  const unauth = assertAiSecret(request);
+  if (unauth) return unauth;
   try {
     const { searchParams } = new URL(request.url);
     const tenantId = searchParams.get('tenant_id');

@@ -1,6 +1,7 @@
 // @ts-nocheck
 import { NextResponse } from 'next/server';
 import { createServiceRoleClient } from '@/lib/supabase/server';
+import { assertAiSecret } from '@/lib/ai-auth';
 import {
   getShift,
   getRotationMinutes,
@@ -26,6 +27,8 @@ const OFFER_TTL_MINUTES = 15;
  * Body: { tenant_id, date, shift?, freed_table_ids?: string[] }
  */
 export async function POST(request: Request) {
+  const unauth = assertAiSecret(request);
+  if (unauth) return unauth;
   try {
     const { tenant_id, date, shift: requestedShift, freed_table_ids } = await request.json();
 
@@ -34,6 +37,17 @@ export async function POST(request: Request) {
     }
 
     const supabase = createServiceRoleClient();
+
+    // Per-tenant owner phone — fall back to Picnic default only if the
+    // tenant hasn't configured one yet. Prevents cross-tenant messages
+    // when more than one restaurant uses this endpoint.
+    const { data: tenantRow } = await supabase
+      .from('tenants')
+      .select('settings')
+      .eq('id', tenant_id)
+      .maybeSingle();
+    const ownerPhoneRaw = ((tenantRow?.settings as any)?.owner_phone) || '+34641790137';
+    const ownerPhone = ownerPhoneRaw.startsWith('whatsapp:') ? ownerPhoneRaw : `whatsapp:${ownerPhoneRaw}`;
 
     // Expire stale offers first (no reply within TTL) so their tables can be
     // re-offered. Runs inline so every invocation naturally self-cleans.
@@ -191,7 +205,7 @@ export async function POST(request: Request) {
           }
 
           // Notify owner
-          await notifyOwner(guestName, date, entry.target_time, entry.party_size, assignedTables.map(t => t.name), guestPhone, false);
+          await notifyOwner(ownerPhone, guestName, date, entry.target_time, entry.party_size, assignedTables.map(t => t.name), guestPhone, false);
 
           totalMatched++;
           results.push({ type: 'full_shift_offered', entryId: entry.id, reservationId: newRes.id });
@@ -254,7 +268,7 @@ export async function POST(request: Request) {
                 await notifyClient(guestPhone, guestName, date, entry.target_time, limitedEndTime, entry.party_size, tableNames, limitedEndTime);
               }
 
-              await notifyOwner(guestName, date, entry.target_time, entry.party_size, tableNames, guestPhone, true, limitedEndTime);
+              await notifyOwner(ownerPhone, guestName, date, entry.target_time, entry.party_size, tableNames, guestPhone, true, limitedEndTime);
 
               totalMatched++;
               results.push({ type: 'gap_based_offered', entryId: entry.id, reservationId: newRes.id, endTime: limitedEndTime });
@@ -436,6 +450,7 @@ async function notifyClient(
  * Send WhatsApp notification to restaurant owner.
  */
 async function notifyOwner(
+  ownerPhone: string,
   guestName: string,
   date: string,
   time: string,
@@ -448,7 +463,7 @@ async function notifyOwner(
   const TWILIO_SID = process.env.TWILIO_ACCOUNT_SID;
   const TWILIO_TOKEN = process.env.TWILIO_AUTH_TOKEN;
   const TWILIO_FROM = process.env.TWILIO_WHATSAPP_FROM || 'whatsapp:+14155238886';
-  const OWNER_PHONE = 'whatsapp:+34641790137';
+  const OWNER_PHONE = ownerPhone;
 
   if (!TWILIO_SID || !TWILIO_TOKEN) return;
 

@@ -2,8 +2,11 @@ import { NextResponse } from 'next/server';
 import { createServiceRoleClient } from '@/lib/supabase/server';
 import { Incident } from '@/lib/types';
 import { logAuditEvent } from '@/lib/audit';
+import { assertAiSecret } from '@/lib/ai-auth';
 
 export async function POST(request: Request) {
+  const unauth = assertAiSecret(request);
+  if (unauth) return unauth;
   try {
     const payload = await request.json();
 

@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createServiceRoleClient } from '@/lib/supabase/server';
 import { logAuditEvent } from '@/lib/audit';
+import { assertAiSecret } from '@/lib/ai-auth';
 
 /**
  * Cancel a reservation by guest phone number.
@@ -17,6 +18,8 @@ import { logAuditEvent } from '@/lib/audit';
  *   - auto_noshow: auto-cancelled by no-show workflow
  */
 export async function POST(request: Request) {
+  const unauth = assertAiSecret(request);
+  if (unauth) return unauth;
   try {
     const { tenant_id, guest_phone, cancellation_source } = await request.json();
     if (!tenant_id || !guest_phone) {
@@ -31,22 +34,34 @@ export async function POST(request: Request) {
     const supabase = createServiceRoleClient();
     const phoneDigits = guest_phone.replace(/\D/g, '');
 
-    // Fuzzy phone match (same logic as confirm-pending)
+    // Deterministic phone match — compare the last 9 digits (E.164
+    // subscriber part) instead of the old cross-includes() which could
+    // match a short shared suffix ("1234567" inside two unrelated numbers).
+    // Abort if more than one guest matches so we never cancel the wrong
+    // reservation silently.
+    const target = phoneDigits.slice(-9);
     const { data: guests } = await supabase
       .from('guests')
       .select('id, phone')
       .eq('tenant_id', tenant_id);
 
-    const matchIds = (guests || [])
-      .filter((g: any) => {
-        const gd = (g.phone || '').replace(/\D/g, '');
-        return gd.length >= 7 && (gd.includes(phoneDigits) || phoneDigits.includes(gd));
-      })
-      .map((g: any) => g.id);
+    const matches = (guests || []).filter((g: any) => {
+      const gd = (g.phone || '').replace(/\D/g, '');
+      if (gd.length < 7) return false;
+      return gd.slice(-9) === target || (gd.length < 9 && target.endsWith(gd));
+    });
 
-    if (matchIds.length === 0) {
+    if (matches.length === 0) {
       return NextResponse.json({ cancelled: false, message: "No guest found with that phone" });
     }
+    if (matches.length > 1) {
+      return NextResponse.json({
+        cancelled: false,
+        error: 'Multiple reservations match this phone — need a reservation_id to disambiguate',
+      }, { status: 409 });
+    }
+
+    const matchIds = matches.map((g: any) => g.id);
 
     // Find the nearest upcoming active reservation for any matching guest
     const today = new Date().toISOString().slice(0, 10);

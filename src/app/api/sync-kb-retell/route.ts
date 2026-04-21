@@ -1,7 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServiceRoleClient } from "@/lib/supabase/server";
+import { assertAiSecret } from "@/lib/ai-auth";
 
 export async function POST(req: NextRequest) {
+  const unauth = assertAiSecret(req);
+  if (unauth) return unauth;
   try {
     const { tenant_id } = await req.json();
     if (!tenant_id) return NextResponse.json({ error: "Missing tenant_id" }, { status: 400 });
