@@ -370,6 +370,8 @@ export async function PUT(request: Request) {
       requires_review: becameLargeGroup,
       previous_party_size: existing.party_size,
       new_party_size: newPartySize,
+      final_date: newDate,
+      final_time: newTime,
       message: becameLargeGroup
         ? `Reserva modificada a ${newPartySize} personas — pendiente de revisión por ser grupo grande.`
         : "Reserva modificada correctamente."
