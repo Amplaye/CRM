@@ -92,19 +92,16 @@ export async function POST(request: Request) {
 
     if (existingGuests && existingGuests.length > 0) {
        guestId = existingGuests[0].id;
-       // Only fill in guest name if the existing record has no real name
-       // (null/empty/'Unknown Guest'/'Cliente'). Don't silently overwrite
-       // a real name the staff or previous call may have captured.
-       const existingName = (existingGuests[0].name || '').trim();
-       const isPlaceholder = !existingName || existingName === 'Unknown Guest' || existingName === 'Cliente';
-       if (
-         isPlaceholder &&
-         payload.guest_name &&
-         payload.guest_name !== 'Unknown Guest' &&
-         payload.guest_name !== 'Cliente' &&
-         existingName !== payload.guest_name
-       ) {
-         await supabase.from('guests').update({ name: payload.guest_name }).eq('id', guestId);
+       // Update guest name when the (authenticated) caller provides a real
+       // name — even if a previous real name is already stored. Keeps the
+       // CRM in sync with the name the client gave in the latest call
+       // (e.g. "Stewart" replacing an older "Juan" on the same phone).
+       // Protection against malicious overwrite is the C1 shared-secret
+       // auth header, not a write-lock on the guest name.
+       const newName = (payload.guest_name || '').trim();
+       const isPlaceholder = !newName || newName === 'Unknown Guest' || newName === 'Cliente';
+       if (!isPlaceholder && existingGuests[0].name !== newName) {
+         await supabase.from('guests').update({ name: newName }).eq('id', guestId);
        }
     } else {
        const { data: newGuest, error: guestErr } = await supabase
