@@ -27,24 +27,9 @@ export default function WaitlistPage() {
   const [isCreating, setIsCreating] = useState(false);
   const [saving, setSaving] = useState(false);
   const [selectedEntry, setSelectedEntry] = useState<WaitlistWithGuest | null>(null);
-  const [selectedConversations, setSelectedConversations] = useState<Array<{ id: string; channel: string; summary: string; transcript: Array<{ role: string; content: string; timestamp: number }>; created_at: number }>>([]);
-  const [loadingDetail, setLoadingDetail] = useState(false);
 
-  const openDetail = async (entry: WaitlistWithGuest) => {
+  const openDetail = (entry: WaitlistWithGuest) => {
     setSelectedEntry(entry);
-    setSelectedConversations([]);
-    setLoadingDetail(true);
-    try {
-      const { data } = await supabase
-        .from("conversations")
-        .select("id, channel, summary, transcript, created_at")
-        .eq("tenant_id", tenant!.id)
-        .eq("guest_id", entry.guest_id)
-        .order("created_at", { ascending: false })
-        .limit(5);
-      setSelectedConversations((data || []) as any);
-    } catch { /* noop */ }
-    finally { setLoadingDetail(false); }
   };
 
   const today = new Date().toISOString().split('T')[0];
@@ -444,36 +429,6 @@ export default function WaitlistPage() {
               <div>
                 <div className="text-[10px] font-bold text-black uppercase tracking-widest mb-1">{t("waitlist_detail_notes")}</div>
                 <div className="text-sm text-black bg-white border border-zinc-200 rounded-lg p-3 min-h-[60px] whitespace-pre-wrap">{selectedEntry.notes?.trim() || t("waitlist_detail_no_notes")}</div>
-              </div>
-
-              <div>
-                <div className="text-[10px] font-bold text-black uppercase tracking-widest mb-2">{t("waitlist_detail_conversations")}</div>
-                {loadingDetail ? (
-                  <div className="text-sm text-black animate-pulse">Loading...</div>
-                ) : selectedConversations.length === 0 ? (
-                  <div className="text-sm text-black italic">{t("waitlist_detail_no_conversations")}</div>
-                ) : (
-                  <div className="space-y-3">
-                    {selectedConversations.map((c) => (
-                      <div key={c.id} className="bg-white border border-zinc-200 rounded-lg p-3">
-                        <div className="flex items-center justify-between mb-2">
-                          <span className="text-[10px] font-bold uppercase tracking-wider text-black bg-zinc-100 px-2 py-0.5 rounded-md border border-zinc-200">{c.channel}</span>
-                          <span className="text-[10px] text-black">{new Date(c.created_at).toLocaleString()}</span>
-                        </div>
-                        {c.summary && <div className="text-xs text-black mb-2 italic">{c.summary}</div>}
-                        {Array.isArray(c.transcript) && c.transcript.length > 0 && (
-                          <div className="max-h-48 overflow-y-auto space-y-1.5 pr-1">
-                            {c.transcript.map((m, i) => (
-                              <div key={i} className={`text-xs ${m.role === 'user' ? 'text-black' : 'text-[#8a6544]'}`}>
-                                <span className="font-bold capitalize">{m.role}:</span> {m.content}
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                )}
               </div>
             </div>
           </div>
