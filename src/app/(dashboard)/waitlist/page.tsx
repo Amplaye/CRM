@@ -61,8 +61,24 @@ export default function WaitlistPage() {
   const [zoneFilter, setZoneFilter] = useState<string | null>(null);
   const [bookingInFlight, setBookingInFlight] = useState(false);
 
+  // Drawer (list view) table-picker state — independent from floor view
+  const [drawerSelectedTables, setDrawerSelectedTables] = useState<Set<string>>(new Set());
+  const [drawerOccupiedTableIds, setDrawerOccupiedTableIds] = useState<Set<string>>(new Set());
+  const [drawerZoneFilter, setDrawerZoneFilter] = useState<string | null>(null);
+  const [drawerBookingInFlight, setDrawerBookingInFlight] = useState(false);
+
   const openDetail = (entry: WaitlistWithGuest) => {
     setSelectedEntry(entry);
+    setDrawerSelectedTables(new Set());
+    setDrawerZoneFilter(null);
+    loadOccupiedForEntryInto(entry, setDrawerOccupiedTableIds);
+  };
+
+  const closeDetail = () => {
+    setSelectedEntry(null);
+    setDrawerSelectedTables(new Set());
+    setDrawerOccupiedTableIds(new Set());
+    setDrawerZoneFilter(null);
   };
 
   const today = new Date().toISOString().split('T')[0];
@@ -126,7 +142,10 @@ export default function WaitlistPage() {
    * Load occupied tables for the shift/date of the selected entry so the
    * floor plan only enables truly free tables.
    */
-  const loadOccupiedForEntry = async (entry: WaitlistWithGuest) => {
+  const loadOccupiedForEntryInto = async (
+    entry: WaitlistWithGuest,
+    setter: React.Dispatch<React.SetStateAction<Set<string>>>
+  ) => {
     if (!tenant) return;
     const reqShift = getShift(entry.target_time);
     const { data: resData } = await supabase
@@ -146,11 +165,14 @@ export default function WaitlistPage() {
         .from("reservation_tables")
         .select("table_id")
         .in("reservation_id", sameShiftIds);
-      setOccupiedTableIds(new Set((links || []).map((l: any) => l.table_id)));
+      setter(new Set((links || []).map((l: any) => l.table_id)));
     } else {
-      setOccupiedTableIds(new Set());
+      setter(new Set());
     }
   };
+
+  const loadOccupiedForEntry = (entry: WaitlistWithGuest) =>
+    loadOccupiedForEntryInto(entry, setOccupiedTableIds);
 
   const pickEntryForFloor = async (entry: WaitlistWithGuest) => {
     setPickerEntryId(entry.id);
@@ -165,6 +187,31 @@ export default function WaitlistPage() {
       if (next.has(tableId)) next.delete(tableId); else next.add(tableId);
       return next;
     });
+  };
+
+  const toggleDrawerTable = (tableId: string) => {
+    setDrawerSelectedTables(prev => {
+      const next = new Set(prev);
+      if (next.has(tableId)) next.delete(tableId); else next.add(tableId);
+      return next;
+    });
+  };
+
+  /**
+   * Try to detect a zone preference hint from the waitlist entry notes.
+   * Returns a normalized zone string ("inside", "outside", ...) or null.
+   */
+  const detectZonePref = (entry: WaitlistWithGuest): string | null => {
+    const notes = (entry.notes || "").toLowerCase();
+    if (!notes) return null;
+    // Match both EN + ES + IT terms against known zones
+    if (/\b(inside|interior|interno|indoor|dentro)\b/.test(notes)) return "inside";
+    if (/\b(outside|exterior|esterno|outdoor|fuera|terraza|terrazza)\b/.test(notes)) return "outside";
+    // Fallback: match any known zone name in tables (e.g. "Principal", "Bar")
+    for (const z of Array.from(new Set(tables.map(tb => tb.zone || "Principal")))) {
+      if (notes.includes(z.toLowerCase())) return z;
+    }
+    return null;
   };
 
   const handleCreate = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -245,25 +292,28 @@ export default function WaitlistPage() {
    *  5. Mark waitlist entry as converted
    *  6. Fire WhatsApp confirm to the guest
    */
-  const assignAndBook = async () => {
-    if (!tenant || !user || !pickerEntry || bookingInFlight) return;
+  const assignAndBookCore = async (
+    entry: WaitlistWithGuest,
+    tableIds: Set<string>
+  ): Promise<boolean> => {
+    if (!tenant || !user) return false;
 
-    const partySize = pickerEntry.party_size;
-    const selectedTableObjs = Array.from(selectedTables)
+    const partySize = entry.party_size;
+    const selectedTableObjs = Array.from(tableIds)
       .map(tid => tables.find(t => t.id === tid))
       .filter((t): t is TableOption => !!t);
     const totalSeats = selectedTableObjs.reduce((sum, tb) => sum + (tb.seats || 0), 0);
 
-    if (selectedTables.size === 0) {
+    if (tableIds.size === 0) {
       const ok = window.confirm(
         t("waitlist_no_tables_selected").replace("{size}", String(partySize))
       );
-      if (!ok) return;
+      if (!ok) return false;
     } else if (totalSeats < partySize) {
       const ok = window.confirm(
         t("pending_seats_warning").replace("{seats}", String(totalSeats)).replace("{size}", String(partySize))
       );
-      if (!ok) return;
+      if (!ok) return false;
     } else if (selectedTableObjs.length > 1) {
       const smallest = selectedTableObjs.reduce(
         (min, tb) => (tb.seats < min.seats ? tb : min),
@@ -275,76 +325,99 @@ export default function WaitlistPage() {
             .replace("{seats}", String(totalSeats))
             .replace("{size}", String(partySize))
         );
-        if (!ok) return;
+        if (!ok) return false;
       }
     }
 
+    const guestName = entry.guests?.name || `Guest ${entry.guest_id.substring(0, 6)}`;
+    const guestPhone = entry.guests?.phone || "0000000";
+
+    // 1. Create reservation (the server action will also auto-assign via atomic_book_tables RPC)
+    const res = await createReservationAction({
+      tenantId: tenant.id,
+      guestName,
+      guestPhone,
+      date: entry.date,
+      time: entry.target_time,
+      partySize,
+      source: "staff",
+      notes: "Converted from waitlist",
+    });
+    if (!res.success || !res.reservationId) throw new Error((res as any).error || "Could not create reservation");
+
+    const reservationId = res.reservationId;
+
+    // 2 + 3. Override auto-assigned tables with the manually picked ones
+    if (tableIds.size > 0) {
+      await supabase.from("reservation_tables").delete().eq("reservation_id", reservationId);
+      const inserts = Array.from(tableIds).map(tableId => ({
+        reservation_id: reservationId,
+        table_id: tableId,
+      }));
+      await supabase.from("reservation_tables").insert(inserts);
+    }
+
+    // 4. Force status to confirmed (atomic RPC may have escalated it if auto-assign failed)
+    await supabase.from("reservations").update({ status: "confirmed" }).eq("id", reservationId);
+
+    // 5. Mark waitlist converted
+    await updateWaitlistStatusAction({
+      tenantId: tenant.id,
+      waitlistId: entry.id,
+      newStatus: "converted_to_booking",
+    });
+
+    // 6. Best-effort WhatsApp confirmation
+    if (guestPhone && guestPhone !== "0000000") {
+      const assignedTableNames = selectedTableObjs.map(tb => tb.name).join(", ");
+      const zoneFromTables = selectedTableObjs[0]?.zone;
+      const zoneLine = zoneFromTables
+        ? `\n📍 Zona: ${zoneFromTables === 'inside' ? 'Interior' : zoneFromTables === 'outside' ? 'Exterior' : zoneFromTables}`
+        : "";
+      const confirmText = `✅ *Reserva confirmada*\n📅 Fecha: ${entry.date}\n⏰ Hora: ${entry.target_time}\n👥 Personas: ${partySize}${zoneLine}\n📝 Nombre: ${guestName}${assignedTableNames ? '\n🪑 Mesas: ' + assignedTableNames : ''}\n\nSi necesitas cancelar, escríbenos con CANCELAR.`;
+      try {
+        await fetch("/api/send-whatsapp", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ to: guestPhone, message: confirmText }),
+        });
+      } catch (e) { console.error("WhatsApp confirm error:", e); }
+    }
+
+    return true;
+  };
+
+  const assignAndBook = async () => {
+    if (!pickerEntry || bookingInFlight) return;
     setBookingInFlight(true);
     try {
-      const guestName = pickerEntry.guests?.name || `Guest ${pickerEntry.guest_id.substring(0, 6)}`;
-      const guestPhone = pickerEntry.guests?.phone || "0000000";
-
-      // 1. Create reservation (the server action will also auto-assign via atomic_book_tables RPC)
-      const res = await createReservationAction({
-        tenantId: tenant.id,
-        guestName,
-        guestPhone,
-        date: pickerEntry.date,
-        time: pickerEntry.target_time,
-        partySize,
-        source: "staff",
-        notes: "Converted from waitlist",
-      });
-      if (!res.success || !res.reservationId) throw new Error((res as any).error || "Could not create reservation");
-
-      const reservationId = res.reservationId;
-
-      // 2 + 3. Override auto-assigned tables with the manually picked ones
-      if (selectedTables.size > 0) {
-        await supabase.from("reservation_tables").delete().eq("reservation_id", reservationId);
-        const inserts = Array.from(selectedTables).map(tableId => ({
-          reservation_id: reservationId,
-          table_id: tableId,
-        }));
-        await supabase.from("reservation_tables").insert(inserts);
+      const ok = await assignAndBookCore(pickerEntry, selectedTables);
+      if (ok) {
+        setPickerEntryId(null);
+        setSelectedTables(new Set());
+        setOccupiedTableIds(new Set());
       }
-
-      // 4. Force status to confirmed (atomic RPC may have escalated it if auto-assign failed)
-      await supabase.from("reservations").update({ status: "confirmed" }).eq("id", reservationId);
-
-      // 5. Mark waitlist converted
-      await updateWaitlistStatusAction({
-        tenantId: tenant.id,
-        waitlistId: pickerEntry.id,
-        newStatus: "converted_to_booking",
-      });
-
-      // 6. Best-effort WhatsApp confirmation
-      if (guestPhone && guestPhone !== "0000000") {
-        const assignedTableNames = selectedTableObjs.map(tb => tb.name).join(", ");
-        const zoneFromTables = selectedTableObjs[0]?.zone;
-        const zoneLine = zoneFromTables
-          ? `\n📍 Zona: ${zoneFromTables === 'inside' ? 'Interior' : zoneFromTables === 'outside' ? 'Exterior' : zoneFromTables}`
-          : "";
-        const confirmText = `✅ *Reserva confirmada*\n📅 Fecha: ${pickerEntry.date}\n⏰ Hora: ${pickerEntry.target_time}\n👥 Personas: ${partySize}${zoneLine}\n📝 Nombre: ${guestName}${assignedTableNames ? '\n🪑 Mesas: ' + assignedTableNames : ''}\n\nSi necesitas cancelar, escríbenos con CANCELAR.`;
-        try {
-          await fetch("/api/send-whatsapp", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ to: guestPhone, message: confirmText }),
-          });
-        } catch (e) { console.error("WhatsApp confirm error:", e); }
-      }
-
-      // Reset picker state
-      setPickerEntryId(null);
-      setSelectedTables(new Set());
-      setOccupiedTableIds(new Set());
     } catch (err: any) {
       console.error(err);
       alert("Failed to assign + book: " + (err?.message || "unknown"));
     } finally {
       setBookingInFlight(false);
+    }
+  };
+
+  const assignAndBookFromDrawer = async () => {
+    if (!selectedEntry || drawerBookingInFlight) return;
+    setDrawerBookingInFlight(true);
+    try {
+      const ok = await assignAndBookCore(selectedEntry, drawerSelectedTables);
+      if (ok) {
+        closeDetail();
+      }
+    } catch (err: any) {
+      console.error(err);
+      alert("Failed to assign + book: " + (err?.message || "unknown"));
+    } finally {
+      setDrawerBookingInFlight(false);
     }
   };
 
@@ -742,11 +815,11 @@ export default function WaitlistPage() {
       {/* DETAIL DRAWER */}
       {selectedEntry && (
         <div className="fixed inset-0 z-50 flex">
-          <div className="flex-1 bg-black/30" onClick={() => setSelectedEntry(null)} />
+          <div className="flex-1 bg-black/30" onClick={closeDetail} />
           <div className="w-full sm:w-[480px] h-full border-l shadow-2xl flex flex-col" style={{ background: 'rgba(252,246,237,0.98)', borderColor: '#c4956a' }}>
             <div className="px-6 py-4 flex items-center justify-between border-b" style={{ borderColor: '#c4956a' }}>
               <h2 className="text-lg font-bold text-black tracking-tight">{t("waitlist_detail_title")}</h2>
-              <button onClick={() => setSelectedEntry(null)} className="p-2 text-black hover:bg-[#c4956a]/10 rounded-full transition-colors">
+              <button onClick={closeDetail} className="p-2 text-black hover:bg-[#c4956a]/10 rounded-full transition-colors">
                 <X className="h-5 w-5" />
               </button>
             </div>
@@ -790,17 +863,164 @@ export default function WaitlistPage() {
                 <div className="text-sm text-black bg-white border border-zinc-200 rounded-lg p-3 min-h-[60px] whitespace-pre-wrap">{selectedEntry.notes?.trim() || t("waitlist_detail_no_notes")}</div>
               </div>
 
-              {/* Quick action: jump to floor-plan picker */}
-              <div className="pt-2">
-                <button
-                  onClick={() => { setSelectedEntry(null); setViewMode("floor"); pickEntryForFloor(selectedEntry); }}
-                  className="w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-bold text-white transition-all hover:shadow-md"
-                  style={{ background: 'linear-gradient(135deg, #c4956a 0%, #b8845c 100%)' }}
-                >
-                  <LayoutPanelTop className="w-4 h-4" />
-                  {t("waitlist_assign_and_book")}
-                </button>
-              </div>
+              {/* ASIGNAR TAVOLI SECTION (list-view equivalent of the floor-plan picker) */}
+              {(() => {
+                const partySize = selectedEntry.party_size;
+                const zonePref = detectZonePref(selectedEntry);
+                const allZonesDrawer = Array.from(
+                  new Set(tables.map(tb => tb.zone || "Principal"))
+                ).sort();
+                const effectiveZone =
+                  drawerZoneFilter !== null
+                    ? (drawerZoneFilter || null)
+                    : (zonePref ?? null);
+                const visibleTables = effectiveZone
+                  ? tables.filter(tb => (tb.zone || "Principal") === effectiveZone)
+                  : tables;
+                const selectedTableObjs = Array.from(drawerSelectedTables)
+                  .map(tid => tables.find(t => t.id === tid))
+                  .filter((t): t is TableOption => !!t);
+                const totalSeats = selectedTableObjs.reduce((sum, tb) => sum + (tb.seats || 0), 0);
+                const notEnoughSeats = totalSeats < partySize;
+
+                return (
+                  <div className="pt-2 border-t" style={{ borderColor: 'rgba(196,149,106,0.3)' }}>
+                    <div className="flex items-center justify-between mb-2 mt-3">
+                      <div className="text-[10px] font-bold text-black uppercase tracking-widest">
+                        {t("waitlist_assign_section")}
+                      </div>
+                      <div
+                        className="text-[11px] font-bold px-2 py-0.5 rounded-md border"
+                        style={{
+                          background: notEnoughSeats ? 'rgba(254,226,226,0.7)' : 'rgba(220,252,231,0.7)',
+                          borderColor: notEnoughSeats ? '#fca5a5' : '#86efac',
+                          color: notEnoughSeats ? '#b91c1c' : '#166534',
+                        }}
+                      >
+                        {t("waitlist_capacity_indicator")
+                          .replace("{x}", String(totalSeats))
+                          .replace("{y}", String(partySize))}
+                      </div>
+                    </div>
+
+                    {/* Zone chips (incl. "All") — default honours notes-based preference */}
+                    {allZonesDrawer.length > 1 && (
+                      <div className="flex items-center gap-1 mb-3 flex-wrap">
+                        <button
+                          onClick={() => setDrawerZoneFilter("")}
+                          className="px-2.5 py-1 text-[11px] font-semibold rounded-md border-2 transition-colors"
+                          style={{
+                            borderColor: "#c4956a",
+                            background: effectiveZone === null ? "#c4956a" : "rgba(252,246,237,0.6)",
+                            color: effectiveZone === null ? "#fff" : "#000",
+                          }}
+                        >
+                          {t("waitlist_filter_all_zones")}
+                        </button>
+                        {allZonesDrawer.map(z => {
+                          const isActive = effectiveZone === z;
+                          const isPref = zonePref === z;
+                          return (
+                            <button
+                              key={z}
+                              onClick={() => setDrawerZoneFilter(z)}
+                              className="px-2.5 py-1 text-[11px] font-semibold rounded-md border-2 transition-colors inline-flex items-center gap-1"
+                              style={{
+                                borderColor: "#c4956a",
+                                background: isActive ? "#c4956a" : "rgba(252,246,237,0.6)",
+                                color: isActive ? "#fff" : "#000",
+                              }}
+                            >
+                              {zoneLabel(z, t)}
+                              {isPref && (
+                                <span
+                                  className="text-[9px] font-bold px-1 rounded"
+                                  style={{
+                                    background: isActive ? 'rgba(255,255,255,0.25)' : '#c4956a',
+                                    color: isActive ? '#fff' : '#fff',
+                                  }}
+                                  title={t("waitlist_filter_zone_pref")}
+                                >
+                                  ★
+                                </span>
+                              )}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
+
+                    {/* Table cards grid */}
+                    {visibleTables.length === 0 ? (
+                      <div className="text-xs text-black/60 py-4 text-center">
+                        {t("waitlist_no_tables_in_zone")}
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-3 gap-2 mb-3">
+                        {visibleTables.map(tb => {
+                          const isOccupied = drawerOccupiedTableIds.has(tb.id);
+                          const isSelected = drawerSelectedTables.has(tb.id);
+                          const borderColor = isOccupied ? "#ef4444" : isSelected ? "#22c55e" : "#c4956a";
+                          const bg = isOccupied
+                            ? "rgba(254,226,226,0.95)"
+                            : isSelected
+                              ? "rgba(220,252,231,0.95)"
+                              : "rgba(252,246,237,0.95)";
+                          return (
+                            <button
+                              key={tb.id}
+                              type="button"
+                              disabled={isOccupied}
+                              onClick={() => !isOccupied && toggleDrawerTable(tb.id)}
+                              className={`relative flex flex-col items-start p-2 rounded-lg border-2 transition-all ${
+                                isOccupied
+                                  ? "cursor-not-allowed opacity-60"
+                                  : "cursor-pointer hover:shadow-md"
+                              }`}
+                              style={{ borderColor, background: bg }}
+                            >
+                              <span className="text-[12px] font-bold text-black leading-tight">
+                                {tb.name}
+                              </span>
+                              <span className="text-[10px] text-black/80 leading-tight">
+                                {tb.seats}p · {zoneLabel(tb.zone || "Principal", t)}
+                              </span>
+                              {isSelected && (
+                                <span
+                                  className="absolute -top-1.5 -right-1.5 w-4 h-4 flex items-center justify-center text-white rounded-full"
+                                  style={{ background: "#22c55e" }}
+                                >
+                                  <Check className="w-2.5 h-2.5" />
+                                </span>
+                              )}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
+
+                    <button
+                      onClick={assignAndBookFromDrawer}
+                      disabled={drawerBookingInFlight || notEnoughSeats}
+                      className="w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-bold text-white transition-all hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
+                      style={{ background: 'linear-gradient(135deg, #22c55e 0%, #16a34a 100%)' }}
+                    >
+                      <Check className="w-4 h-4" />
+                      {drawerBookingInFlight
+                        ? t("waitlist_booking_in_progress")
+                        : t("waitlist_assign_and_book")}
+                    </button>
+
+                    <button
+                      onClick={() => { closeDetail(); setViewMode("floor"); pickEntryForFloor(selectedEntry); }}
+                      className="w-full inline-flex items-center justify-center gap-2 px-4 py-2 mt-2 rounded-lg text-xs font-medium text-black hover:bg-[#c4956a]/10 transition-colors"
+                    >
+                      <LayoutPanelTop className="w-3.5 h-3.5" />
+                      {t("waitlist_open_floor_plan")}
+                    </button>
+                  </div>
+                );
+              })()}
             </div>
           </div>
         </div>

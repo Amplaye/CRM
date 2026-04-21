@@ -500,6 +500,12 @@ export const en = {
   waitlist_book_confirm: "Convert {name} ({size} pax) at {time} into a confirmed booking?",
   waitlist_queue_short: "Queue",
   waitlist_no_tables_selected: "No tables selected for {size} people. Book anyway?",
+  waitlist_assign_section: "Assign tables",
+  waitlist_capacity_indicator: "{x}/{y} seats",
+  waitlist_filter_zone_pref: "Preferred zone from notes",
+  waitlist_filter_all_zones: "All",
+  waitlist_no_tables_in_zone: "No tables in this zone.",
+  waitlist_open_floor_plan: "Open floor plan",
 
   // Pending
   pending_title: "Pending Requests",

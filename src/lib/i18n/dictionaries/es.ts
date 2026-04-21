@@ -503,6 +503,12 @@ export const es: Dictionary = {
   waitlist_book_confirm: "¿Convertir a {name} ({size} pax) a las {time} en una reserva confirmada?",
   waitlist_queue_short: "En cola",
   waitlist_no_tables_selected: "No has seleccionado ninguna mesa para {size} personas. ¿Reservar de todos modos?",
+  waitlist_assign_section: "Asignar mesas",
+  waitlist_capacity_indicator: "{x}/{y} plazas",
+  waitlist_filter_zone_pref: "Zona preferida (según notas)",
+  waitlist_filter_all_zones: "Todas",
+  waitlist_no_tables_in_zone: "No hay mesas en esta zona.",
+  waitlist_open_floor_plan: "Abrir plano",
 
   // Pending
   pending_title: "Solicitudes Pendientes",
