@@ -611,7 +611,7 @@ export default function DashboardPage() {
           </h3>
           <div className="h-1 w-10 rounded-full my-3" style={{ background: BRAND_BROWN }} />
           <div className="h-48 sm:h-64">
-            <ResponsiveContainer width="100%" height="100%">
+            <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0} debounce={50}>
               <BarChart data={kpis.dailyData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(196,149,106,0.22)" />
                 <XAxis dataKey="date" axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: "#6b6258" }}
@@ -654,7 +654,7 @@ export default function DashboardPage() {
                 <p className="text-sm font-semibold text-black/80">{t("dash_no_data")}</p>
               </div>
             ) : (
-              <ResponsiveContainer width="100%" height="100%">
+              <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0} debounce={50}>
                 <PieChart>
                   <Pie
                     data={kpis.sourceData.map(d => ({ ...d, label: channelLabel(d.name) }))}
@@ -707,7 +707,7 @@ export default function DashboardPage() {
         </div>
         <div className="h-1 w-10 rounded-full mb-4" style={{ background: BRAND_BROWN }} />
         <div className="h-56 sm:h-72">
-          <ResponsiveContainer width="100%" height="100%">
+          <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0} debounce={50}>
             <AreaChart data={kpis.dailyData} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
               <defs>
                 <linearGradient id="revGradient" x1="0" y1="0" x2="0" y2="1">
