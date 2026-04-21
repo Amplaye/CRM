@@ -26,6 +26,26 @@ export default function WaitlistPage() {
 
   const [isCreating, setIsCreating] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [selectedEntry, setSelectedEntry] = useState<WaitlistWithGuest | null>(null);
+  const [selectedConversations, setSelectedConversations] = useState<Array<{ id: string; channel: string; summary: string; transcript: Array<{ role: string; content: string; timestamp: number }>; created_at: number }>>([]);
+  const [loadingDetail, setLoadingDetail] = useState(false);
+
+  const openDetail = async (entry: WaitlistWithGuest) => {
+    setSelectedEntry(entry);
+    setSelectedConversations([]);
+    setLoadingDetail(true);
+    try {
+      const { data } = await supabase
+        .from("conversations")
+        .select("id, channel, summary, transcript, created_at")
+        .eq("tenant_id", tenant!.id)
+        .eq("guest_id", entry.guest_id)
+        .order("created_at", { ascending: false })
+        .limit(5);
+      setSelectedConversations((data || []) as any);
+    } catch { /* noop */ }
+    finally { setLoadingDetail(false); }
+  };
 
   const today = new Date().toISOString().split('T')[0];
 
@@ -211,49 +231,49 @@ export default function WaitlistPage() {
              <table className="min-w-full divide-y divide-zinc-200">
                <thead className="bg-white">
                  <tr>
-                   <th scope="col" className="px-3 sm:px-6 py-3 text-left text-[10px] font-bold text-black uppercase tracking-widest">{t("waitlist_col_pos")}</th>
-                   <th scope="col" className="px-3 sm:px-6 py-3 text-left text-[10px] font-bold text-black uppercase tracking-widest">{t("waitlist_col_guest")}</th>
-                   <th scope="col" className="px-3 sm:px-6 py-3 text-left text-[10px] font-bold text-black uppercase tracking-widest">{t("waitlist_target_flex")}</th>
-                   <th scope="col" className="px-3 sm:px-6 py-3 text-left text-[10px] font-bold text-black uppercase tracking-widest">{t("waitlist_status_score")}</th>
-                   <th scope="col" className="relative px-3 sm:px-6 py-3"><span className="sr-only">Actions</span></th>
+                   <th scope="col" className="px-3 sm:px-6 py-3 text-center text-[10px] font-bold text-black uppercase tracking-widest">{t("waitlist_col_pos")}</th>
+                   <th scope="col" className="px-3 sm:px-6 py-3 text-center text-[10px] font-bold text-black uppercase tracking-widest">{t("waitlist_col_guest")}</th>
+                   <th scope="col" className="px-3 sm:px-6 py-3 text-center text-[10px] font-bold text-black uppercase tracking-widest">{t("waitlist_target_flex")}</th>
+                   <th scope="col" className="px-3 sm:px-6 py-3 text-center text-[10px] font-bold text-black uppercase tracking-widest">{t("waitlist_status_score")}</th>
+                   <th scope="col" className="relative px-3 sm:px-6 py-3 text-center"><span className="sr-only">Actions</span></th>
                  </tr>
                </thead>
                <tbody className="bg-white divide-y divide-zinc-100">
-                 {entries.map((entry, idx) => (
-                   <tr key={entry.id} className={entry.status === 'match_found' ? 'bg-terracotta-50/20' : entry.status === 'contacted' ? 'bg-blue-50/20' : 'hover:bg-zinc-50/50 transition-colors'}>
-                     <td className="px-3 sm:px-6 py-4 whitespace-nowrap">
-                       <div className="flex items-center">
-                         <span className={`text-2xl font-black w-8 tracking-tighter ${entry.status === 'match_found' ? 'text-terracotta-600' : 'text-black'}`}>{idx + 1}</span>
-                         <div className="ml-2">
-                           <div className={`text-sm font-bold flex items-center ${entry.status === 'match_found' ? 'text-black' : 'text-black'}`}>
-                              <Clock className={`w-3.5 h-3.5 mr-1 ${entry.status === 'match_found' ? 'text-terracotta-500' : 'text-black'}`} />
-                              {Math.max(0, Math.floor((Date.now() - (typeof entry.created_at === 'number' ? entry.created_at : new Date(entry.created_at as any).getTime())) / 60000))}{t("waitlist_wait_time")}
-                           </div>
+                 {entries.map((entry, idx) => {
+                   const waitMinutes = Math.max(0, Math.floor((Date.now() - (typeof entry.created_at === 'number' ? entry.created_at : new Date(entry.created_at as any).getTime())) / 60000));
+                   return (
+                   <tr key={entry.id} onClick={() => openDetail(entry)} className={`cursor-pointer ${entry.status === 'match_found' ? 'bg-terracotta-50/20 hover:bg-terracotta-50/40' : entry.status === 'contacted' ? 'bg-blue-50/20 hover:bg-blue-50/40' : 'hover:bg-zinc-50/50'} transition-colors`}>
+                     <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-center">
+                       <div className="flex flex-col items-center">
+                         <span className={`text-2xl font-black tracking-tighter ${entry.status === 'match_found' ? 'text-terracotta-600' : 'text-black'}`}>{idx + 1}</span>
+                         <div className={`text-sm font-bold flex items-center justify-center mt-1 ${entry.status === 'match_found' ? 'text-black' : 'text-black'}`}>
+                            <Clock className={`w-3.5 h-3.5 mr-1 ${entry.status === 'match_found' ? 'text-terracotta-500' : 'text-black'}`} />
+                            {t("waitlist_wait_time").replace("{min}", String(waitMinutes))}
                          </div>
                        </div>
                      </td>
-                     <td className="px-3 sm:px-6 py-4 whitespace-nowrap">
-                       <div className="text-sm font-bold text-black tracking-tight flex items-center">
+                     <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-center">
+                       <div className="text-sm font-bold text-black tracking-tight flex items-center justify-center">
                          {entry.guests?.name || `Guest ${entry.guest_id.substring(0,6)}`} ({entry.party_size} pax)
-                         <Link href={`/conversations?guest=${entry.guest_id}`} className="ml-2 text-[#c4956a] hover:text-[#b8845c] transition-colors" title="Open conversation">
+                         <Link href={`/conversations?guest=${entry.guest_id}`} onClick={(e) => e.stopPropagation()} className="ml-2 text-[#c4956a] hover:text-[#b8845c] transition-colors" title="Open conversation">
                            <MessageSquare className="w-4 h-4" />
                          </Link>
                        </div>
                        {entry.guests?.phone && (
                          <div className="text-xs font-medium text-black mt-0.5">{entry.guests.phone}</div>
                        )}
-                       <div className="text-xs font-medium text-black flex items-center mt-0.5">
+                       <div className="text-xs font-medium text-black flex items-center justify-center mt-0.5">
                           {entry.date} &middot; {t("waitlist_prefers")} {entry.contact_preference}
                        </div>
                      </td>
-                     <td className="px-3 sm:px-6 py-4 whitespace-nowrap">
+                     <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-center">
                         <div className="text-sm font-bold text-black">{entry.target_time}</div>
                         <div className="text-[11px] font-medium text-black bg-zinc-100 px-2 py-0.5 rounded-md inline-flex mt-1 border border-zinc-200">
                            {entry.acceptable_time_range.start} – {entry.acceptable_time_range.end}
                         </div>
                      </td>
-                     <td className="px-3 sm:px-6 py-4 whitespace-nowrap">
-                        <div className="flex flex-col items-start gap-1">
+                     <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-center">
+                        <div className="flex flex-col items-center gap-1">
                            <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider border ${
                               entry.status === 'contacted' ? 'bg-blue-50 text-blue-700 border-blue-200' :
                               entry.status === 'match_found' ? 'bg-terracotta-50 text-terracotta-700 border-terracotta-200' :
@@ -261,22 +281,22 @@ export default function WaitlistPage() {
                            }`}>
                               {entry.status.replace('_', ' ')}
                            </span>
-                           <span className="text-[10px] font-bold text-amber-600">Score: {entry.priority_score}</span>
                         </div>
                      </td>
-                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm">
+                     <td className="px-6 py-4 whitespace-nowrap text-center text-sm">
                        {entry.status === 'contacted' ? (
-                          <button onClick={() => convertToBooking(entry)} className="px-3 py-1.5 font-bold border border-green-200 bg-green-50 text-green-700 hover:bg-green-100 shadow-sm rounded-lg transition-colors flex items-center ml-auto">
+                          <button onClick={(e) => { e.stopPropagation(); convertToBooking(entry); }} className="px-3 py-1.5 font-bold border border-green-200 bg-green-50 text-green-700 hover:bg-green-100 shadow-sm rounded-lg transition-colors flex items-center mx-auto">
                             <CheckCircle className="w-3.5 h-3.5 mr-1.5" /> Book
                           </button>
                        ) : entry.status === 'waiting' && (
-                          <button onClick={() => markContacted(entry)} className="px-3 py-1.5 font-bold border border-zinc-200 text-black hover:text-black hover:bg-zinc-50 shadow-sm rounded-lg transition-colors ml-auto">
+                          <button onClick={(e) => { e.stopPropagation(); markContacted(entry); }} className="px-3 py-1.5 font-bold border border-zinc-200 text-black hover:text-black hover:bg-zinc-50 shadow-sm rounded-lg transition-colors mx-auto">
                             Manual Contact
                           </button>
                        )}
                      </td>
                    </tr>
-                 ))}
+                 );
+                 })}
                </tbody>
              </table>
              </div>
@@ -372,6 +392,91 @@ export default function WaitlistPage() {
                 </button>
              </div>
           </form>
+        </div>
+      )}
+
+      {/* DETAIL DRAWER */}
+      {selectedEntry && (
+        <div className="fixed inset-0 z-50 flex">
+          <div className="flex-1 bg-black/30" onClick={() => setSelectedEntry(null)} />
+          <div className="w-full sm:w-[480px] h-full border-l shadow-2xl flex flex-col" style={{ background: 'rgba(252,246,237,0.98)', borderColor: '#c4956a' }}>
+            <div className="px-6 py-4 flex items-center justify-between border-b" style={{ borderColor: '#c4956a' }}>
+              <h2 className="text-lg font-bold text-black tracking-tight">{t("waitlist_detail_title")}</h2>
+              <button onClick={() => setSelectedEntry(null)} className="p-2 text-black hover:bg-[#c4956a]/10 rounded-full transition-colors">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto p-6 space-y-5">
+              <div>
+                <div className="text-[10px] font-bold text-black uppercase tracking-widest mb-1">{t("waitlist_col_guest")}</div>
+                <div className="text-base font-bold text-black">{selectedEntry.guests?.name || `Guest ${selectedEntry.guest_id.substring(0,6)}`}</div>
+                {selectedEntry.guests?.phone && <div className="text-sm text-black">{selectedEntry.guests.phone}</div>}
+                {selectedEntry.guests?.email && <div className="text-sm text-black">{selectedEntry.guests.email}</div>}
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <div className="text-[10px] font-bold text-black uppercase tracking-widest mb-1">{t("waitlist_detail_party")}</div>
+                  <div className="text-sm font-bold text-black">{selectedEntry.party_size} pax</div>
+                </div>
+                <div>
+                  <div className="text-[10px] font-bold text-black uppercase tracking-widest mb-1">{t("waitlist_detail_date")}</div>
+                  <div className="text-sm font-bold text-black">{selectedEntry.date}</div>
+                </div>
+                <div>
+                  <div className="text-[10px] font-bold text-black uppercase tracking-widest mb-1">{t("waitlist_detail_target_time")}</div>
+                  <div className="text-sm font-bold text-black">{selectedEntry.target_time}</div>
+                </div>
+                <div>
+                  <div className="text-[10px] font-bold text-black uppercase tracking-widest mb-1">{t("waitlist_detail_flex_range")}</div>
+                  <div className="text-sm font-bold text-black">{selectedEntry.acceptable_time_range.start} – {selectedEntry.acceptable_time_range.end}</div>
+                </div>
+                <div>
+                  <div className="text-[10px] font-bold text-black uppercase tracking-widest mb-1">{t("waitlist_detail_contact_pref")}</div>
+                  <div className="text-sm font-bold text-black capitalize">{selectedEntry.contact_preference}</div>
+                </div>
+                <div>
+                  <div className="text-[10px] font-bold text-black uppercase tracking-widest mb-1">{t("waitlist_detail_status")}</div>
+                  <div className="text-sm font-bold text-black">{selectedEntry.status.replace('_', ' ')}</div>
+                </div>
+              </div>
+
+              <div>
+                <div className="text-[10px] font-bold text-black uppercase tracking-widest mb-1">{t("waitlist_detail_notes")}</div>
+                <div className="text-sm text-black bg-white border border-zinc-200 rounded-lg p-3 min-h-[60px] whitespace-pre-wrap">{selectedEntry.notes?.trim() || t("waitlist_detail_no_notes")}</div>
+              </div>
+
+              <div>
+                <div className="text-[10px] font-bold text-black uppercase tracking-widest mb-2">{t("waitlist_detail_conversations")}</div>
+                {loadingDetail ? (
+                  <div className="text-sm text-black animate-pulse">Loading...</div>
+                ) : selectedConversations.length === 0 ? (
+                  <div className="text-sm text-black italic">{t("waitlist_detail_no_conversations")}</div>
+                ) : (
+                  <div className="space-y-3">
+                    {selectedConversations.map((c) => (
+                      <div key={c.id} className="bg-white border border-zinc-200 rounded-lg p-3">
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-[10px] font-bold uppercase tracking-wider text-black bg-zinc-100 px-2 py-0.5 rounded-md border border-zinc-200">{c.channel}</span>
+                          <span className="text-[10px] text-black">{new Date(c.created_at).toLocaleString()}</span>
+                        </div>
+                        {c.summary && <div className="text-xs text-black mb-2 italic">{c.summary}</div>}
+                        {Array.isArray(c.transcript) && c.transcript.length > 0 && (
+                          <div className="max-h-48 overflow-y-auto space-y-1.5 pr-1">
+                            {c.transcript.map((m, i) => (
+                              <div key={i} className={`text-xs ${m.role === 'user' ? 'text-black' : 'text-[#8a6544]'}`}>
+                                <span className="font-bold capitalize">{m.role}:</span> {m.content}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
         </div>
       )}
     </div>
