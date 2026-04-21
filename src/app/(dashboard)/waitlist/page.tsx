@@ -434,7 +434,6 @@ export default function WaitlistPage() {
                           <div className="min-w-0">
                             <p className="text-xs text-black">{t("pending_time_label")}</p>
                             <p className="text-sm font-bold text-black">{entry.target_time}</p>
-                            <p className="text-[10px] text-black">{entry.acceptable_time_range.start} – {entry.acceptable_time_range.end}</p>
                           </div>
                         </div>
                         <div className="flex items-center gap-2">
