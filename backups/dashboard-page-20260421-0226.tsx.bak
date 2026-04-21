@@ -9,7 +9,7 @@ import {
 import { useLanguage } from "@/lib/contexts/LanguageContext";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
-  PieChart, Pie, Cell, Legend, Area, AreaChart,
+  PieChart, Pie, Cell, Legend, LineChart, Line,
 } from "recharts";
 import { createClient } from "@/lib/supabase/client";
 import { useTenant } from "@/lib/contexts/TenantContext";
@@ -36,26 +36,7 @@ function isOutOfHours(createdAt: string, openingHours: OpeningHours, timezone: s
   return true;
 }
 
-/* Warm earth-tone chart palette, aligned with CRM brand */
-const BRAND_BROWN = "#c4956a";
-const BRAND_SAGE = "#7a8560";
-const BRAND_TERRACOTTA = "#c2764c";
-const BRAND_OLIVE = "#5a8a6a";
-const PIE_COLORS = [BRAND_BROWN, BRAND_SAGE, BRAND_TERRACOTTA, BRAND_OLIVE, "#9c7c5c"];
-
-/* Shared tooltip styling — cream bg, brown border, geist */
-const tooltipContentStyle = {
-  borderRadius: "10px",
-  border: `1px solid ${BRAND_BROWN}`,
-  background: "rgba(252,246,237,0.98)",
-  fontSize: "12px",
-  fontFamily: "inherit",
-  color: "#000",
-  boxShadow: "0 4px 12px rgba(196,149,106,0.18)",
-  padding: "8px 10px",
-};
-const tooltipLabelStyle = { color: "#000", fontWeight: 600, marginBottom: 2 };
-const tooltipItemStyle = { color: "#000" };
+const PIE_COLORS = ["#fb7740", "#6366f1", "#3f3f46", "#94a3b8", "#22c55e"];
 
 /* ─── component ─── */
 
@@ -322,13 +303,8 @@ export default function DashboardPage() {
 
   const cardStyle = { background: "rgba(252,246,237,0.85)", borderColor: "#c4956a" };
 
-  const periodLabel =
-    viewMode === "day" ? `${selectedDay} ${monthNames[selectedMonth]} ${selectedYear}` :
-    viewMode === "month" ? `${monthNames[selectedMonth]} ${selectedYear}` :
-    String(selectedYear);
-
   return (
-    <div className="p-4 sm:p-6 lg:p-8 w-full space-y-5 sm:space-y-7">
+    <div className="p-4 sm:p-6 lg:p-8 w-full space-y-4 sm:space-y-6">
 
       {/* ── Header ── */}
       <div className="space-y-2">
@@ -403,81 +379,42 @@ export default function DashboardPage() {
       </div>
 
       {/* ══════════════════════════════════════════════
-          SECTION 1 — EDITORIAL HERO: AI Generated Value
+          SECTION 1 — HERO: AI Generated Value
           ══════════════════════════════════════════════ */}
-      <section
-        className="rounded-xl border-2 p-5 sm:p-8 lg:p-10 relative overflow-hidden"
-        style={cardStyle}
-      >
-        {/* Soft brand glow in the top-right corner */}
-        <div
-          aria-hidden
-          className="absolute -top-24 -right-24 w-72 h-72 rounded-full pointer-events-none opacity-40"
-          style={{ background: "radial-gradient(closest-side, rgba(196,149,106,0.35), rgba(196,149,106,0))" }}
-        />
+      <div className="rounded-xl border-2 p-4 sm:p-6 text-center" style={cardStyle}>
+        <div className="flex items-center justify-center gap-2 mb-1">
+          <Sparkles className="w-5 h-5 text-[#c4956a]" />
+          <h2 className="text-sm sm:text-base font-bold text-black">{t("dash_ai_generated_value")}</h2>
+        </div>
+        <p className="text-xs text-black mb-4">
+          {viewMode === "day" && `${selectedDay} ${monthNames[selectedMonth]} ${selectedYear}`}
+          {viewMode === "month" && `${monthNames[selectedMonth]} ${selectedYear}`}
+          {viewMode === "year" && selectedYear}
+        </p>
 
-        {/* Eyebrow */}
-        <div className="relative flex items-center gap-2 mb-4 sm:mb-5">
-          <span className="inline-flex items-center justify-center w-7 h-7 rounded-md" style={{ background: "#c4956a" }}>
-            <Sparkles className="w-4 h-4" style={{ color: "#FCF6ED" }} />
-          </span>
-          <span className="text-[11px] sm:text-xs font-bold uppercase tracking-[0.18em] text-black/70">
-            {t("dash_ai_generated_value")}
-          </span>
-          <span className="hidden sm:inline-block h-px flex-1 ml-2" style={{ background: "rgba(196,149,106,0.35)" }} />
-          <span className="hidden sm:inline text-[11px] font-semibold uppercase tracking-wider text-black/55">
-            {periodLabel}
-          </span>
+        {/* Big number */}
+        <div className="mb-6">
+          <p className="text-3xl sm:text-4xl font-bold text-[#22c55e]">€{kpis.totalValue.toLocaleString()}</p>
+          {kpis.periodCost > 0 && (
+            <p className="text-xs text-black mt-1">
+              €{kpis.grossValue.toLocaleString()} − €{kpis.periodCost.toLocaleString()} {t("dash_ai_cost")}
+            </p>
+          )}
+          {kpis.roi > 0 && (
+            <span className="inline-block mt-2 text-xs font-bold px-3 py-1 rounded-full border" style={{ color: "#22c55e", borderColor: "#22c55e" }}>
+              +{kpis.roi}% ROI
+            </span>
+          )}
+          {kpis.revenueChange !== 0 && (
+            <div className={`flex items-center justify-center gap-1 mt-2 text-xs font-semibold ${kpis.revenueChange > 0 ? "text-green-600" : "text-red-500"}`}>
+              {kpis.revenueChange > 0 ? <TrendingUp className="w-3.5 h-3.5" /> : <TrendingDown className="w-3.5 h-3.5" />}
+              {kpis.revenueChange > 0 ? "+" : ""}{kpis.revenueChange}% {t("dash_vs_prev_month")}
+            </div>
+          )}
         </div>
 
-        {/* Hero headline — left-aligned editorial */}
-        <div className="relative">
-          <div className="flex items-baseline flex-wrap gap-x-5 gap-y-2">
-            <h2 className="text-5xl sm:text-6xl lg:text-7xl font-bold text-black tabular-nums leading-none tracking-tight">
-              €{kpis.totalValue.toLocaleString("es-ES")}
-            </h2>
-
-            {kpis.roi > 0 && (
-              <span
-                className="text-base sm:text-lg font-bold tabular-nums"
-                style={{ color: BRAND_OLIVE }}
-              >
-                +{kpis.roi}% ROI
-              </span>
-            )}
-
-            {kpis.revenueChange !== 0 && (
-              <span className={`inline-flex items-center gap-1 text-sm sm:text-base font-semibold tabular-nums ${kpis.revenueChange > 0 ? "" : "text-red-600"}`}
-                style={kpis.revenueChange > 0 ? { color: BRAND_OLIVE } : undefined}
-              >
-                {kpis.revenueChange > 0 ? <TrendingUp className="w-4 h-4" /> : <TrendingDown className="w-4 h-4" />}
-                {kpis.revenueChange > 0 ? "+" : ""}{kpis.revenueChange}%
-                <span className="text-black/55 font-medium">{t("dash_vs_prev_month")}</span>
-              </span>
-            )}
-          </div>
-
-          {/* Signature brown dash */}
-          <div className="mt-4 h-[3px] w-14 rounded-full" style={{ background: BRAND_BROWN }} />
-
-          {/* Supportive subtitle — math breakdown */}
-          <p className="mt-3 text-sm sm:text-[15px] text-black/70 leading-snug max-w-2xl">
-            <span className="sm:hidden font-semibold text-black/80">{periodLabel} — </span>
-            {kpis.periodCost > 0 ? (
-              <>
-                €{kpis.grossValue.toLocaleString("es-ES")}{" "}
-                <span className="text-black/50">{t("dash_ai_cost") ? "gross" : ""}</span>
-                {" − "}
-                €{kpis.periodCost.toLocaleString("es-ES")} {t("dash_ai_cost")}
-              </>
-            ) : (
-              <>€{kpis.grossValue.toLocaleString("es-ES")} gross value</>
-            )}
-          </p>
-        </div>
-
-        {/* Breakdown — 4 cards (kept as user approved) */}
-        <div className="relative mt-6 sm:mt-8 grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+        {/* Breakdown — same family as other CRM cards, just a bit more prominent */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
           {[
             { icon: Moon, label: t("dash_out_of_hours"), value: kpis.outOfHoursRevenue, sub: `${kpis.outOfHoursCount} ${t("dash_bookings_while_closed")}` },
             { icon: Phone, label: t("dash_ai_voice_calls"), value: kpis.voiceRevenue, sub: `${kpis.voiceCount} ${t("dash_calls_converted")}` },
@@ -524,211 +461,108 @@ export default function DashboardPage() {
             );
           })}
         </div>
-      </section>
+      </div>
 
       {/* ══════════════════════════════════════════════
-          SECTION 2 — KEY METRICS (horizontal stats strip)
+          SECTION 2 — KEY METRICS
           ══════════════════════════════════════════════ */}
-      <section
-        className="rounded-xl border-2 overflow-hidden transition-all duration-200 hover:-translate-y-0.5"
-        style={{ ...cardStyle, boxShadow: "0 1px 2px rgba(196,149,106,0.08)" }}
-        onMouseEnter={(e) => { e.currentTarget.style.boxShadow = "0 6px 16px rgba(196,149,106,0.18)"; }}
-        onMouseLeave={(e) => { e.currentTarget.style.boxShadow = "0 1px 2px rgba(196,149,106,0.08)"; }}
-      >
-        <div
-          className="grid grid-cols-2 lg:grid-cols-4
-                     divide-x-0 lg:divide-x-2 divide-y-2 lg:divide-y-0"
-          style={{ borderColor: "#c4956a" }}
-        >
-          {[
-            { icon: Gauge, label: t("dash_ai_handled"), value: `${kpis.aiHandledPct}%`, sub: `${kpis.aiCount} AI / ${kpis.staffCount} Staff` },
-            { icon: Timer, label: t("dash_staff_hours_saved"), value: `${kpis.staffHoursSaved}h`, sub: t("dash_min_per_booking") },
-            { icon: UsersRound, label: t("dash_total_bookings"), value: String(kpis.total), sub: `${kpis.avgParty} ${t("dash_avg_covers")}` },
-            { icon: ShieldCheck, label: t("dash_noshows_prevented"), value: String(kpis.noShowsPrevented), sub: `${kpis.noShows} no-shows` },
-          ].map((m, i) => {
-            const Icon = m.icon;
-            return (
-              <div
-                key={i}
-                className="p-4 sm:p-5 flex items-center gap-3 sm:gap-4"
-                style={{ borderColor: "#c4956a" }}
-              >
-                <div
-                  className="flex-shrink-0 inline-flex items-center justify-center w-10 h-10 rounded-lg"
-                  style={{ background: "rgba(196,149,106,0.14)" }}
-                >
-                  <Icon className="w-5 h-5" style={{ color: BRAND_BROWN }} />
-                </div>
-                <div className="min-w-0 flex-1">
-                  <p className="text-[10px] sm:text-[11px] font-semibold uppercase tracking-wider text-black/65 leading-tight">
-                    {m.label}
-                  </p>
-                  <p className="text-xl sm:text-2xl font-bold text-black tabular-nums leading-tight mt-0.5">
-                    {m.value}
-                  </p>
-                  <p className="text-[11px] text-black/55 leading-tight mt-0.5 truncate">{m.sub}</p>
-                </div>
-              </div>
-            );
-          })}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-4">
+        <div className="rounded-xl p-3 sm:p-5 border-2 text-center" style={cardStyle}>
+          <Gauge className="w-5 h-5 text-[#c4956a] mx-auto mb-1" />
+          <p className="text-xs font-medium text-black">{t("dash_ai_handled")}</p>
+          <p className="text-xl sm:text-2xl font-bold text-black">{kpis.aiHandledPct}%</p>
+          <p className="text-xs text-black">{kpis.aiCount} AI / {kpis.staffCount} Staff</p>
         </div>
-      </section>
+        <div className="rounded-xl p-3 sm:p-5 border-2 text-center" style={cardStyle}>
+          <Timer className="w-5 h-5 text-[#c4956a] mx-auto mb-1" />
+          <p className="text-xs font-medium text-black">{t("dash_staff_hours_saved")}</p>
+          <p className="text-xl sm:text-2xl font-bold text-black">{kpis.staffHoursSaved}h</p>
+          <p className="text-xs text-black">{t("dash_min_per_booking")}</p>
+        </div>
+        <div className="rounded-xl p-3 sm:p-5 border-2 text-center" style={cardStyle}>
+          <UsersRound className="w-5 h-5 text-[#c4956a] mx-auto mb-1" />
+          <p className="text-xs font-medium text-black">{t("dash_total_bookings")}</p>
+          <p className="text-xl sm:text-2xl font-bold text-black">{kpis.total}</p>
+          <p className="text-xs text-black">{kpis.avgParty} {t("dash_avg_covers")}</p>
+        </div>
+        <div className="rounded-xl p-3 sm:p-5 border-2 text-center" style={cardStyle}>
+          <ShieldCheck className="w-5 h-5 mx-auto mb-1 text-[#c4956a]" />
+          <p className="text-xs font-medium text-black">{t("dash_noshows_prevented")}</p>
+          <p className="text-xl sm:text-2xl font-bold text-black">{kpis.noShowsPrevented}</p>
+          <p className="text-xs text-black">{kpis.noShows} no-shows</p>
+        </div>
+      </div>
 
       {/* ══════════════════════════════════════════════
-          SECTION 3 — PRIMARY CHART: Revenue over time (full-width, editorial)
+          SECTION 4 — CHARTS
           ══════════════════════════════════════════════ */}
-      <section
-        className="p-4 sm:p-6 rounded-xl border-2 transition-all duration-200 hover:-translate-y-0.5"
-        style={{ ...cardStyle, boxShadow: "0 1px 2px rgba(196,149,106,0.08)" }}
-        onMouseEnter={(e) => { e.currentTarget.style.boxShadow = "0 6px 16px rgba(196,149,106,0.18)"; }}
-        onMouseLeave={(e) => { e.currentTarget.style.boxShadow = "0 1px 2px rgba(196,149,106,0.08)"; }}
-      >
-        <div className="flex items-center justify-between mb-1">
-          <h3 className="text-[11px] sm:text-xs font-bold text-black uppercase tracking-[0.18em]">
-            {t("dash_ai_revenue_time")}
-          </h3>
-          <span className="text-[10px] sm:text-[11px] font-semibold uppercase tracking-wider text-black/55">
-            {periodLabel}
-          </span>
-        </div>
-        <div className="h-1 w-10 rounded-full mb-4" style={{ background: BRAND_BROWN }} />
-        <div className="h-56 sm:h-72">
-          <ResponsiveContainer width="100%" height="100%">
-            <AreaChart data={kpis.dailyData} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
-              <defs>
-                <linearGradient id="revGradient" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor={BRAND_BROWN} stopOpacity={0.35} />
-                  <stop offset="100%" stopColor={BRAND_BROWN} stopOpacity={0.02} />
-                </linearGradient>
-              </defs>
-              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(196,149,106,0.22)" />
-              <XAxis
-                dataKey="date"
-                axisLine={false}
-                tickLine={false}
-                tick={{ fontSize: 10, fill: "#6b6258" }}
-                interval={Math.max(0, Math.floor(kpis.dailyData.length / 10))}
-              />
-              <YAxis
-                axisLine={false}
-                tickLine={false}
-                tick={{ fontSize: 11, fill: "#6b6258" }}
-                tickFormatter={(v: number) => `€${v}`}
-              />
-              <Tooltip
-                contentStyle={tooltipContentStyle}
-                labelStyle={tooltipLabelStyle}
-                itemStyle={tooltipItemStyle}
-                cursor={{ stroke: BRAND_BROWN, strokeOpacity: 0.25, strokeWidth: 1 }}
-                formatter={(value: any) => [`€${Number(value).toLocaleString("es-ES")}`, t("dash_ai_revenue")]}
-              />
-              <Area
-                type="monotone"
-                dataKey="revenue"
-                stroke={BRAND_BROWN}
-                strokeWidth={2.5}
-                fill="url(#revGradient)"
-                dot={false}
-                activeDot={{ r: 5, fill: BRAND_BROWN, stroke: "#FCF6ED", strokeWidth: 2 }}
-              />
-            </AreaChart>
-          </ResponsiveContainer>
-        </div>
-      </section>
-
-      {/* ══════════════════════════════════════════════
-          SECTION 4 — SECONDARY CHARTS (bar + pie)
-          ══════════════════════════════════════════════ */}
-      <section className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
 
         {/* AI vs Staff bookings over time */}
-        <div
-          className="p-4 sm:p-6 rounded-xl border-2 transition-all duration-200 hover:-translate-y-0.5"
-          style={{ ...cardStyle, boxShadow: "0 1px 2px rgba(196,149,106,0.08)" }}
-          onMouseEnter={(e) => { e.currentTarget.style.boxShadow = "0 6px 16px rgba(196,149,106,0.18)"; }}
-          onMouseLeave={(e) => { e.currentTarget.style.boxShadow = "0 1px 2px rgba(196,149,106,0.08)"; }}
-        >
-          <h3 className="text-[11px] sm:text-xs font-bold text-black uppercase tracking-[0.18em]">
-            {t("dash_ai_vs_staff")}
-          </h3>
-          <div className="h-1 w-10 rounded-full my-3" style={{ background: BRAND_BROWN }} />
+        <div className="p-4 sm:p-6 rounded-xl border-2" style={cardStyle}>
+          <h3 className="text-xs sm:text-sm font-bold text-black uppercase tracking-wider mb-4">{t("dash_ai_vs_staff")}</h3>
           <div className="h-48 sm:h-64">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={kpis.dailyData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(196,149,106,0.22)" />
-                <XAxis dataKey="date" axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: "#6b6258" }}
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e4e4e7" />
+                <XAxis dataKey="date" axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: "#71717a" }}
                   interval={Math.max(0, Math.floor(kpis.dailyData.length / 10))} />
-                <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: "#6b6258" }} allowDecimals={false} />
-                <Tooltip
-                  contentStyle={tooltipContentStyle}
-                  labelStyle={tooltipLabelStyle}
-                  itemStyle={tooltipItemStyle}
-                  cursor={{ fill: "rgba(196,149,106,0.08)" }}
-                />
-                <Legend wrapperStyle={{ fontSize: "11px", paddingTop: 8 }} iconType="circle" />
-                <Bar dataKey="ai" stackId="a" fill={BRAND_SAGE} radius={[0, 0, 0, 0]} name={t("dash_legend_ai")} />
-                <Bar dataKey="staff" stackId="a" fill={BRAND_BROWN} radius={[4, 4, 0, 0]} name={t("dash_legend_staff")} />
+                <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: "#71717a" }} allowDecimals={false} />
+                <Tooltip contentStyle={{ borderRadius: "12px", border: "1px solid #c4956a", fontSize: "13px" }} />
+                <Legend wrapperStyle={{ fontSize: "12px" }} />
+                <Bar dataKey="ai" stackId="a" fill="#fb7740" radius={[0, 0, 0, 0]} name={t("dash_legend_ai")} />
+                <Bar dataKey="staff" stackId="a" fill="#c4956a" radius={[4, 4, 0, 0]} name={t("dash_legend_staff")} />
               </BarChart>
             </ResponsiveContainer>
           </div>
         </div>
 
         {/* Channel breakdown pie */}
-        <div
-          className="p-4 sm:p-6 rounded-xl border-2 transition-all duration-200 hover:-translate-y-0.5"
-          style={{ ...cardStyle, boxShadow: "0 1px 2px rgba(196,149,106,0.08)" }}
-          onMouseEnter={(e) => { e.currentTarget.style.boxShadow = "0 6px 16px rgba(196,149,106,0.18)"; }}
-          onMouseLeave={(e) => { e.currentTarget.style.boxShadow = "0 1px 2px rgba(196,149,106,0.08)"; }}
-        >
-          <h3 className="text-[11px] sm:text-xs font-bold text-black uppercase tracking-[0.18em]">
-            {t("dash_channel_breakdown")}
-          </h3>
-          <div className="h-1 w-10 rounded-full my-3" style={{ background: BRAND_BROWN }} />
+        <div className="p-4 sm:p-6 rounded-xl border-2" style={cardStyle}>
+          <h3 className="text-xs sm:text-sm font-bold text-black uppercase tracking-wider mb-4">{t("dash_channel_breakdown")}</h3>
           <div className="h-48 sm:h-64">
             {kpis.sourceData.length === 0 ? (
-              <div className="h-full flex flex-col items-center justify-center gap-2 text-center">
-                <div
-                  className="inline-flex items-center justify-center w-12 h-12 rounded-full"
-                  style={{ background: "rgba(196,149,106,0.12)" }}
-                >
-                  <Bot className="w-6 h-6" style={{ color: BRAND_BROWN }} />
-                </div>
-                <p className="text-sm font-semibold text-black/80">{t("dash_no_data")}</p>
-              </div>
+              <p className="text-sm text-black text-center pt-20">{t("dash_no_data")}</p>
             ) : (
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
-                  <Pie
-                    data={kpis.sourceData.map(d => ({ ...d, label: channelLabel(d.name) }))}
-                    cx="50%" cy="50%"
-                    innerRadius={48} outerRadius={78}
-                    paddingAngle={3}
-                    dataKey="value" nameKey="label"
-                    stroke="rgba(252,246,237,0.9)"
-                    strokeWidth={2}
-                  >
+                  <Pie data={kpis.sourceData.map(d => ({ ...d, label: channelLabel(d.name) }))} cx="50%" cy="50%" innerRadius={45} outerRadius={75} paddingAngle={3} dataKey="value" nameKey="label">
                     {kpis.sourceData.map((_entry: any, index: number) => (
                       <Cell key={`cell-${index}`} fill={PIE_COLORS[index % PIE_COLORS.length]} />
                     ))}
                   </Pie>
-                  <Tooltip
-                    contentStyle={tooltipContentStyle}
-                    labelStyle={tooltipLabelStyle}
-                    itemStyle={tooltipItemStyle}
-                  />
-                  <Legend wrapperStyle={{ fontSize: "11px", paddingTop: 8 }} iconType="circle" formatter={(value: string) => value} />
+                  <Tooltip contentStyle={{ borderRadius: "12px", border: "1px solid #c4956a", fontSize: "13px" }} />
+                  <Legend wrapperStyle={{ fontSize: "12px" }} formatter={(value: string) => value} />
                 </PieChart>
               </ResponsiveContainer>
             )}
           </div>
           {kpis.fromWebCount > 0 && (
-            <p className="text-xs text-center text-black/70 mt-2">
-              {t("dash_from_web")}: <span className="font-bold text-black">{kpis.fromWebPct}%</span>{" "}
-              <span className="text-black/55">({kpis.fromWebCount})</span>
+            <p className="text-xs text-center text-black mt-2">
+              {t("dash_from_web")}: <span className="font-bold">{kpis.fromWebPct}%</span> ({kpis.fromWebCount})
             </p>
           )}
         </div>
-      </section>
+      </div>
+
+      {/* Revenue over time (line chart) */}
+      <div className="p-4 sm:p-6 rounded-xl border-2" style={cardStyle}>
+        <h3 className="text-xs sm:text-sm font-bold text-black uppercase tracking-wider mb-4">{t("dash_ai_revenue_time")}</h3>
+        <div className="h-48 sm:h-56">
+          <ResponsiveContainer width="100%" height="100%">
+            <LineChart data={kpis.dailyData} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
+              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e4e4e7" />
+              <XAxis dataKey="date" axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: "#71717a" }}
+                interval={Math.max(0, Math.floor(kpis.dailyData.length / 10))} />
+              <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: "#71717a" }}
+                tickFormatter={(v: number) => `€${v}`} />
+              <Tooltip contentStyle={{ borderRadius: "12px", border: "1px solid #c4956a", fontSize: "13px" }}
+                formatter={(value) => [`€${value}`, t("dash_ai_revenue")]} />
+              <Line type="monotone" dataKey="revenue" stroke="#22c55e" strokeWidth={2} dot={false} />
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
+      </div>
     </div>
   );
 }
