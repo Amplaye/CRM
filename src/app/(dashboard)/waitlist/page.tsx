@@ -1,19 +1,43 @@
 "use client";
 
-import { UserPlus, Sparkles, Clock, Send, Activity, X, CheckCircle, MessageSquare } from "lucide-react";
+import { UserPlus, Sparkles, Clock, Send, Activity, X, CheckCircle, MessageSquare, List, LayoutPanelTop, Check, Users } from "lucide-react";
 import { useLanguage } from "@/lib/contexts/LanguageContext";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { useTenant } from "@/lib/contexts/TenantContext";
 import { WaitlistEntry } from "@/lib/types";
 import { useAuth } from "@/lib/contexts/AuthContext";
 import { createWaitlistEntryAction, updateWaitlistStatusAction } from "@/app/actions/waitlist";
 import { createReservationAction } from "@/app/actions/reservations";
+import { zoneLabel } from "@/lib/restaurant-rules";
 import Link from "next/link";
 
 interface WaitlistWithGuest extends WaitlistEntry {
   guests?: { name: string; phone: string; email?: string };
 }
+
+interface TableOption {
+  id: string;
+  name: string;
+  seats: number;
+  zone: string;
+  shape: "round" | "square" | "rectangle";
+  position_x: number | null;
+  position_y: number | null;
+}
+
+type TableShape = "round" | "square" | "rectangle";
+
+function tableDims(shape: TableShape, seats: number): { w: number; h: number } {
+  if (shape === "round") return seats <= 2 ? { w: 60, h: 60 } : { w: 80, h: 80 };
+  if (shape === "square") return seats <= 2 ? { w: 60, h: 60 } : { w: 80, h: 80 };
+  return seats <= 6 ? { w: 130, h: 70 } : { w: 160, h: 70 };
+}
+
+const getShift = (time: string) => {
+  const h = parseInt(time.split(':')[0]);
+  return h < 16 ? 'lunch' : 'dinner';
+};
 
 export default function WaitlistPage() {
   const { t } = useLanguage();
@@ -27,6 +51,15 @@ export default function WaitlistPage() {
   const [isCreating, setIsCreating] = useState(false);
   const [saving, setSaving] = useState(false);
   const [selectedEntry, setSelectedEntry] = useState<WaitlistWithGuest | null>(null);
+
+  // Floor-plan / table-picker state
+  const [viewMode, setViewMode] = useState<"list" | "floor">("list");
+  const [tables, setTables] = useState<TableOption[]>([]);
+  const [pickerEntryId, setPickerEntryId] = useState<string | null>(null);
+  const [selectedTables, setSelectedTables] = useState<Set<string>>(new Set());
+  const [occupiedTableIds, setOccupiedTableIds] = useState<Set<string>>(new Set());
+  const [zoneFilter, setZoneFilter] = useState<string | null>(null);
+  const [bookingInFlight, setBookingInFlight] = useState(false);
 
   const openDetail = (entry: WaitlistWithGuest) => {
     setSelectedEntry(entry);
@@ -59,7 +92,22 @@ export default function WaitlistPage() {
       setLoading(false);
     };
 
+    const fetchTables = async () => {
+      const { data } = await supabase
+        .from("restaurant_tables")
+        .select("id, name, seats, zone, shape, position_x, position_y")
+        .eq("tenant_id", tenant.id)
+        .eq("status", "active");
+      const sorted = ((data || []) as TableOption[]).sort((a, b) => {
+        const numA = parseInt(a.name.replace(/\D/g, '')) || 0;
+        const numB = parseInt(b.name.replace(/\D/g, '')) || 0;
+        return numA - numB;
+      });
+      setTables(sorted);
+    };
+
     fetchEntries();
+    fetchTables();
 
     const channel = supabase
       .channel("waitlist_entries_realtime")
@@ -72,6 +120,52 @@ export default function WaitlistPage() {
   }, [tenant, today]);
 
   const matchFoundEntry = entries.find(e => e.status === "match_found");
+  const pickerEntry = pickerEntryId ? entries.find(e => e.id === pickerEntryId) || null : null;
+
+  /**
+   * Load occupied tables for the shift/date of the selected entry so the
+   * floor plan only enables truly free tables.
+   */
+  const loadOccupiedForEntry = async (entry: WaitlistWithGuest) => {
+    if (!tenant) return;
+    const reqShift = getShift(entry.target_time);
+    const { data: resData } = await supabase
+      .from("reservations")
+      .select("id, time, shift")
+      .eq("tenant_id", tenant.id)
+      .eq("date", entry.date)
+      .in("status", ["confirmed", "seated", "pending_confirmation"]);
+
+    const sameShiftIds = (resData || []).filter((r: any) => {
+      const rShift = r.shift || getShift(r.time);
+      return rShift === reqShift;
+    }).map((r: any) => r.id);
+
+    if (sameShiftIds.length > 0) {
+      const { data: links } = await supabase
+        .from("reservation_tables")
+        .select("table_id")
+        .in("reservation_id", sameShiftIds);
+      setOccupiedTableIds(new Set((links || []).map((l: any) => l.table_id)));
+    } else {
+      setOccupiedTableIds(new Set());
+    }
+  };
+
+  const pickEntryForFloor = async (entry: WaitlistWithGuest) => {
+    setPickerEntryId(entry.id);
+    setSelectedTables(new Set());
+    setZoneFilter(null);
+    await loadOccupiedForEntry(entry);
+  };
+
+  const toggleTable = (tableId: string) => {
+    setSelectedTables(prev => {
+      const next = new Set(prev);
+      if (next.has(tableId)) next.delete(tableId); else next.add(tableId);
+      return next;
+    });
+  };
 
   const handleCreate = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -115,10 +209,13 @@ export default function WaitlistPage() {
     if (!user || !tenant) return;
     const guestName = entry.guests?.name || `Guest ${entry.guest_id.substring(0,6)}`;
     const guestPhone = entry.guests?.phone || "0000000";
-    if (!confirm(`Convert ${guestName} (${entry.party_size} pax) at ${entry.target_time} to a confirmed booking?`)) return;
+    const confirmMsg = t("waitlist_book_confirm")
+      .replace("{name}", guestName)
+      .replace("{size}", String(entry.party_size))
+      .replace("{time}", entry.target_time);
+    if (!confirm(confirmMsg)) return;
 
     try {
-      // 1. Create Reservation natively
       const res = await createReservationAction({
          tenantId: tenant.id,
          guestName,
@@ -129,7 +226,7 @@ export default function WaitlistPage() {
          source: "staff",
          notes: "Converted from waitlist"
       });
-      // 2. Mark Waitlist Status
+      if (!res.success) throw new Error((res as any).error || "Could not create reservation");
       await updateWaitlistStatusAction({
          tenantId: tenant.id,
          waitlistId: entry.id,
@@ -138,15 +235,150 @@ export default function WaitlistPage() {
     } catch (err) { console.error(err); }
   };
 
+  /**
+   * Assign manually selected tables + convert entry to booking.
+   * Flow:
+   *  1. createReservationAction (creates guest+reservation, auto-assigns tables via atomic RPC)
+   *  2. Wipe the auto-assigned reservation_tables rows
+   *  3. Insert the tables the manager picked on the floor plan
+   *  4. Flip reservation status to confirmed (atomic RPC may have escalated it)
+   *  5. Mark waitlist entry as converted
+   *  6. Fire WhatsApp confirm to the guest
+   */
+  const assignAndBook = async () => {
+    if (!tenant || !user || !pickerEntry || bookingInFlight) return;
+
+    const partySize = pickerEntry.party_size;
+    const selectedTableObjs = Array.from(selectedTables)
+      .map(tid => tables.find(t => t.id === tid))
+      .filter((t): t is TableOption => !!t);
+    const totalSeats = selectedTableObjs.reduce((sum, tb) => sum + (tb.seats || 0), 0);
+
+    if (selectedTables.size === 0) {
+      const ok = window.confirm(
+        t("waitlist_no_tables_selected").replace("{size}", String(partySize))
+      );
+      if (!ok) return;
+    } else if (totalSeats < partySize) {
+      const ok = window.confirm(
+        t("pending_seats_warning").replace("{seats}", String(totalSeats)).replace("{size}", String(partySize))
+      );
+      if (!ok) return;
+    } else if (selectedTableObjs.length > 1) {
+      const smallest = selectedTableObjs.reduce(
+        (min, tb) => (tb.seats < min.seats ? tb : min),
+        selectedTableObjs[0]
+      );
+      if (totalSeats - smallest.seats >= partySize) {
+        const ok = window.confirm(
+          t("pending_too_many_warning")
+            .replace("{seats}", String(totalSeats))
+            .replace("{size}", String(partySize))
+        );
+        if (!ok) return;
+      }
+    }
+
+    setBookingInFlight(true);
+    try {
+      const guestName = pickerEntry.guests?.name || `Guest ${pickerEntry.guest_id.substring(0, 6)}`;
+      const guestPhone = pickerEntry.guests?.phone || "0000000";
+
+      // 1. Create reservation (the server action will also auto-assign via atomic_book_tables RPC)
+      const res = await createReservationAction({
+        tenantId: tenant.id,
+        guestName,
+        guestPhone,
+        date: pickerEntry.date,
+        time: pickerEntry.target_time,
+        partySize,
+        source: "staff",
+        notes: "Converted from waitlist",
+      });
+      if (!res.success || !res.reservationId) throw new Error((res as any).error || "Could not create reservation");
+
+      const reservationId = res.reservationId;
+
+      // 2 + 3. Override auto-assigned tables with the manually picked ones
+      if (selectedTables.size > 0) {
+        await supabase.from("reservation_tables").delete().eq("reservation_id", reservationId);
+        const inserts = Array.from(selectedTables).map(tableId => ({
+          reservation_id: reservationId,
+          table_id: tableId,
+        }));
+        await supabase.from("reservation_tables").insert(inserts);
+      }
+
+      // 4. Force status to confirmed (atomic RPC may have escalated it if auto-assign failed)
+      await supabase.from("reservations").update({ status: "confirmed" }).eq("id", reservationId);
+
+      // 5. Mark waitlist converted
+      await updateWaitlistStatusAction({
+        tenantId: tenant.id,
+        waitlistId: pickerEntry.id,
+        newStatus: "converted_to_booking",
+      });
+
+      // 6. Best-effort WhatsApp confirmation
+      if (guestPhone && guestPhone !== "0000000") {
+        const assignedTableNames = selectedTableObjs.map(tb => tb.name).join(", ");
+        const zoneFromTables = selectedTableObjs[0]?.zone;
+        const zoneLine = zoneFromTables
+          ? `\n📍 Zona: ${zoneFromTables === 'inside' ? 'Interior' : zoneFromTables === 'outside' ? 'Exterior' : zoneFromTables}`
+          : "";
+        const confirmText = `✅ *Reserva confirmada*\n📅 Fecha: ${pickerEntry.date}\n⏰ Hora: ${pickerEntry.target_time}\n👥 Personas: ${partySize}${zoneLine}\n📝 Nombre: ${guestName}${assignedTableNames ? '\n🪑 Mesas: ' + assignedTableNames : ''}\n\nSi necesitas cancelar, escríbenos con CANCELAR.`;
+        try {
+          await fetch("/api/send-whatsapp", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ to: guestPhone, message: confirmText }),
+          });
+        } catch (e) { console.error("WhatsApp confirm error:", e); }
+      }
+
+      // Reset picker state
+      setPickerEntryId(null);
+      setSelectedTables(new Set());
+      setOccupiedTableIds(new Set());
+    } catch (err: any) {
+      console.error(err);
+      alert("Failed to assign + book: " + (err?.message || "unknown"));
+    } finally {
+      setBookingInFlight(false);
+    }
+  };
+
+  // Derived zone options + display tables for floor-plan mode
+  const allZones = Array.from(new Set(tables.map(tb => tb.zone || "Principal"))).sort();
+  const planZone = !zoneFilter ? allZones[0] : zoneFilter;
+  const displayTables = planZone ? tables.filter(tb => (tb.zone || "Principal") === planZone) : tables;
+
   return (
     <div className="p-4 sm:p-6 lg:p-8 w-full space-y-4 sm:space-y-6 lg:space-y-8 flex">
       <div className={`flex-1 transition-all duration-300 ${isCreating ? 'pr-[400px]' : ''}`}>
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-8">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-8 gap-4">
           <div>
             <h1 className="text-2xl font-bold text-black tracking-tight">{t("waitlist_title")}</h1>
             <p className="mt-1 text-sm text-black">{t("waitlist_subtitle")} ({today})</p>
           </div>
-          <div className="mt-4 sm:mt-0 flex space-x-3">
+          <div className="mt-4 sm:mt-0 flex items-center gap-3">
+            {/* View-mode toggle */}
+            <div className="inline-flex rounded-lg border-2 overflow-hidden" style={{ borderColor: "#c4956a" }}>
+              <button
+                onClick={() => setViewMode("list")}
+                className="inline-flex items-center gap-1 px-3 py-2 text-xs font-semibold transition-colors"
+                style={{ background: viewMode === "list" ? "#c4956a" : "rgba(252,246,237,0.6)", color: viewMode === "list" ? "#fff" : "#000" }}
+              >
+                <List className="w-3.5 h-3.5" /> {t("waitlist_view_list")}
+              </button>
+              <button
+                onClick={() => setViewMode("floor")}
+                className="inline-flex items-center gap-1 px-3 py-2 text-xs font-semibold transition-colors"
+                style={{ background: viewMode === "floor" ? "#c4956a" : "rgba(252,246,237,0.6)", color: viewMode === "floor" ? "#fff" : "#000" }}
+              >
+                <LayoutPanelTop className="w-3.5 h-3.5" /> {t("waitlist_view_floor")}
+              </button>
+            </div>
             <button
                onClick={() => setIsCreating(true)}
                className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-lg shadow-sm text-white bg-zinc-900 hover:bg-zinc-800 transition-colors"
@@ -197,6 +429,7 @@ export default function WaitlistPage() {
           </div>
         )}
 
+        {viewMode === "list" ? (
         <div className="border-2 rounded-xl overflow-hidden" style={{ background: 'rgba(252,246,237,0.85)', borderColor: '#c4956a', boxShadow: '0 20px 60px rgba(196,149,106,0.25), 0 8px 24px rgba(196,149,106,0.15)' }}>
            <div className="px-6 py-4 border-b flex justify-between items-center" style={{ borderColor: '#c4956a' }}>
               <h2 className="font-bold text-black tracking-tight">{t("waitlist_queue")}</h2>
@@ -270,9 +503,18 @@ export default function WaitlistPage() {
                      </td>
                      <td className="px-6 py-4 whitespace-nowrap text-center text-sm">
                        {entry.status === 'contacted' ? (
-                          <button onClick={(e) => { e.stopPropagation(); convertToBooking(entry); }} className="px-3 py-1.5 font-bold border border-green-200 bg-green-50 text-green-700 hover:bg-green-100 shadow-sm rounded-lg transition-colors flex items-center mx-auto">
-                            <CheckCircle className="w-3.5 h-3.5 mr-1.5" /> Book
-                          </button>
+                          <div className="flex items-center justify-center gap-2">
+                            <button
+                              onClick={(e) => { e.stopPropagation(); setViewMode("floor"); pickEntryForFloor(entry); }}
+                              className="px-3 py-1.5 font-bold border border-[#c4956a] bg-[#c4956a]/10 text-[#8b6540] hover:bg-[#c4956a]/20 shadow-sm rounded-lg transition-colors flex items-center"
+                              title={t("waitlist_assign_and_book")}
+                            >
+                              <LayoutPanelTop className="w-3.5 h-3.5 mr-1.5" /> {t("waitlist_assign_and_book")}
+                            </button>
+                            <button onClick={(e) => { e.stopPropagation(); convertToBooking(entry); }} className="px-3 py-1.5 font-bold border border-green-200 bg-green-50 text-green-700 hover:bg-green-100 shadow-sm rounded-lg transition-colors flex items-center">
+                              <CheckCircle className="w-3.5 h-3.5 mr-1.5" /> Book
+                            </button>
+                          </div>
                        ) : entry.status === 'waiting' && (
                           <button onClick={(e) => { e.stopPropagation(); markContacted(entry); }} className="px-3 py-1.5 font-bold border border-zinc-200 text-black hover:text-black hover:bg-zinc-50 shadow-sm rounded-lg transition-colors mx-auto">
                             Manual Contact
@@ -287,6 +529,123 @@ export default function WaitlistPage() {
              </div>
            )}
         </div>
+        ) : (
+        /* ────────────── FLOOR-PLAN VIEW ────────────── */
+        <div className="grid grid-cols-1 lg:grid-cols-[320px_1fr] gap-4">
+          {/* Entry list (left rail) */}
+          <div className="border-2 rounded-xl overflow-hidden" style={{ background: 'rgba(252,246,237,0.85)', borderColor: '#c4956a' }}>
+            <div className="px-4 py-3 border-b flex items-center justify-between" style={{ borderColor: '#c4956a' }}>
+              <h2 className="font-bold text-black text-sm tracking-tight">{t("waitlist_queue_short")}</h2>
+              <span className="bg-zinc-200 text-black text-[10px] uppercase tracking-wider font-bold px-2 py-0.5 rounded-md">{entries.length}</span>
+            </div>
+            <div className="max-h-[600px] overflow-y-auto">
+              {entries.length === 0 ? (
+                <div className="py-10 text-center text-black px-4">
+                  <p className="text-xs font-medium text-black">{t("waitlist_no_entries")}</p>
+                </div>
+              ) : entries.map((entry, idx) => {
+                const isActive = pickerEntryId === entry.id;
+                return (
+                  <button
+                    key={entry.id}
+                    onClick={() => pickEntryForFloor(entry)}
+                    className="w-full text-left px-4 py-3 border-b transition-colors"
+                    style={{
+                      borderColor: 'rgba(196,149,106,0.3)',
+                      background: isActive ? 'rgba(196,149,106,0.18)' : 'transparent',
+                    }}
+                  >
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-base font-black tracking-tighter text-black">#{idx + 1}</span>
+                      <span className="text-[10px] font-bold uppercase text-black">
+                        {getShift(entry.target_time) === 'lunch' ? t("pending_lunch") : t("pending_dinner")}
+                      </span>
+                    </div>
+                    <div className="text-sm font-bold text-black truncate">
+                      {entry.guests?.name || `Guest ${entry.guest_id.substring(0,6)}`}
+                    </div>
+                    <div className="flex items-center gap-2 mt-1 text-xs text-black">
+                      <span className="inline-flex items-center"><Users className="w-3 h-3 mr-1" />{entry.party_size}p</span>
+                      <span className="inline-flex items-center"><Clock className="w-3 h-3 mr-1" />{entry.target_time}</span>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Floor-plan pane (right) */}
+          <div className="border-2 rounded-xl overflow-hidden" style={{ background: 'rgba(252,246,237,0.85)', borderColor: '#c4956a' }}>
+            {!pickerEntry ? (
+              <div className="py-20 text-center px-6">
+                <LayoutPanelTop className="w-12 h-12 text-black/30 mx-auto mb-4" />
+                <p className="text-sm font-bold text-black">{t("waitlist_select_entry")}</p>
+                <p className="text-xs text-black mt-1">{t("waitlist_no_entry_selected")}</p>
+              </div>
+            ) : (
+              <div className="p-4 sm:p-5">
+                <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
+                  <h3 className="text-xs sm:text-sm font-bold text-black">
+                    {t("waitlist_assign_tables_for")} {pickerEntry.guests?.name || `Guest ${pickerEntry.guest_id.substring(0,6)}`} — {pickerEntry.target_time} ({pickerEntry.party_size} {t("pending_people")})
+                  </h3>
+                </div>
+
+                {/* Zone filter (plan mode needs one zone at a time) */}
+                {allZones.length > 1 && (
+                  <div className="flex items-center gap-1 mb-3 flex-wrap">
+                    {allZones.map(z => {
+                      const isActive = (zoneFilter || allZones[0]) === z;
+                      return (
+                      <button
+                        key={z}
+                        onClick={() => setZoneFilter(z)}
+                        className="px-3 py-1 text-xs font-semibold rounded-lg border-2 transition-colors"
+                        style={{
+                          borderColor: "#c4956a",
+                          background: isActive ? "#c4956a" : "rgba(252,246,237,0.6)",
+                          color: isActive ? "#fff" : "#000",
+                        }}
+                      >
+                        {zoneLabel(z, t)}
+                      </button>
+                      );
+                    })}
+                  </div>
+                )}
+
+                <TablePickerCanvas
+                  tables={displayTables}
+                  occupiedTableIds={occupiedTableIds}
+                  selectedTables={selectedTables}
+                  onToggleTable={toggleTable}
+                />
+
+                <div className="flex items-center gap-3 flex-wrap">
+                  <button
+                    onClick={assignAndBook}
+                    disabled={bookingInFlight}
+                    className="flex items-center gap-1.5 px-5 py-2.5 rounded-lg text-sm font-bold text-white transition-all hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
+                    style={{ background: 'linear-gradient(135deg, #22c55e 0%, #16a34a 100%)' }}
+                  >
+                    <Check className="w-4 h-4" />
+                    {bookingInFlight
+                      ? t("waitlist_booking_in_progress")
+                      : selectedTables.size === 0
+                        ? t("waitlist_book_no_tables")
+                        : t("waitlist_book_with_tables").replace("{count}", String(selectedTables.size))}
+                  </button>
+                  <button
+                    onClick={() => { setPickerEntryId(null); setSelectedTables(new Set()); setOccupiedTableIds(new Set()); }}
+                    className="px-4 py-2.5 rounded-lg text-sm font-medium text-black hover:text-black transition-colors"
+                  >
+                    {t("pending_cancel")}
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+        )}
       </div>
 
       {/* CREATE WAITLIST ENTRY DRAWER */}
@@ -430,10 +789,100 @@ export default function WaitlistPage() {
                 <div className="text-[10px] font-bold text-black uppercase tracking-widest mb-1">{t("waitlist_detail_notes")}</div>
                 <div className="text-sm text-black bg-white border border-zinc-200 rounded-lg p-3 min-h-[60px] whitespace-pre-wrap">{selectedEntry.notes?.trim() || t("waitlist_detail_no_notes")}</div>
               </div>
+
+              {/* Quick action: jump to floor-plan picker */}
+              <div className="pt-2">
+                <button
+                  onClick={() => { setSelectedEntry(null); setViewMode("floor"); pickEntryForFloor(selectedEntry); }}
+                  className="w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-bold text-white transition-all hover:shadow-md"
+                  style={{ background: 'linear-gradient(135deg, #c4956a 0%, #b8845c 100%)' }}
+                >
+                  <LayoutPanelTop className="w-4 h-4" />
+                  {t("waitlist_assign_and_book")}
+                </button>
+              </div>
             </div>
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+/* ────────────────────────────────────────────────────────
+   TablePickerCanvas — visual floor plan for table selection
+   (same pattern as /pending; kept local to avoid modifying
+    /pending while sharing the component)
+   ──────────────────────────────────────────────────────── */
+
+interface TablePickerCanvasProps {
+  tables: TableOption[];
+  occupiedTableIds: Set<string>;
+  selectedTables: Set<string>;
+  onToggleTable: (id: string) => void;
+}
+
+function TablePickerCanvas({ tables, occupiedTableIds, selectedTables, onToggleTable }: TablePickerCanvasProps) {
+  const canvasRef = useRef<HTMLDivElement>(null);
+
+  return (
+    <div
+      ref={canvasRef}
+      className="relative rounded-xl border-2 mb-4"
+      style={{
+        overflow: "auto",
+        background: "rgba(252,246,237,0.6)",
+        borderColor: "#c4956a",
+        height: "400px",
+        backgroundImage: "radial-gradient(rgba(196,149,106,0.25) 1px, transparent 1px)",
+        backgroundSize: "20px 20px",
+      }}
+    >
+      <div className="relative" style={{ minWidth: "500px", minHeight: "400px" }}>
+        {tables.map((table) => {
+          const shape = table.shape || "square";
+          const dims = tableDims(shape, table.seats);
+          const x = table.position_x ?? 60;
+          const y = table.position_y ?? 60;
+          const isOccupied = occupiedTableIds.has(table.id);
+          const isSelected = selectedTables.has(table.id);
+
+          const borderColor = isOccupied ? "#ef4444" : isSelected ? "#22c55e" : "#c4956a";
+          const bg = isOccupied
+            ? "rgba(254,226,226,0.95)"
+            : isSelected
+              ? "rgba(220,252,231,0.95)"
+              : "rgba(252,246,237,0.95)";
+
+          return (
+            <div
+              key={table.id}
+              onClick={() => !isOccupied && onToggleTable(table.id)}
+              className={`absolute flex flex-col items-center justify-center text-center select-none transition-all ${
+                isOccupied ? "cursor-not-allowed opacity-50" : "cursor-pointer hover:shadow-lg hover:scale-105"
+              }`}
+              style={{
+                left: x,
+                top: y,
+                width: dims.w,
+                height: dims.h,
+                borderRadius: shape === "round" ? "50%" : shape === "square" ? "10px" : "14px",
+                border: `3px solid ${borderColor}`,
+                background: bg,
+                zIndex: 10,
+              }}
+            >
+              <span className="text-[11px] font-bold text-black leading-none">{table.name}</span>
+              <span className="text-[9px] text-black leading-tight">{table.seats}p</span>
+              {isSelected && (
+                <span className="absolute -top-2 -right-2 w-5 h-5 flex items-center justify-center text-white rounded-full" style={{ background: "#22c55e" }}>
+                  <Check className="w-3 h-3" />
+                </span>
+              )}
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }

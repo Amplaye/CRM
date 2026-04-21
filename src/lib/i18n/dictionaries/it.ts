@@ -491,6 +491,18 @@ export const it: Dictionary = {
   waitlist_internal_notes: "Note Interne",
   waitlist_notes_placeholder: "Urgente, anniversario...",
   waitlist_add_live: "Aggiungi alla Lista d'attesa Live",
+  waitlist_view_list: "Lista",
+  waitlist_view_floor: "Plano",
+  waitlist_select_entry: "Seleziona una voce",
+  waitlist_no_entry_selected: "Scegli una voce dalla lista per vedere i tavoli disponibili.",
+  waitlist_assign_and_book: "Assegna e prenota",
+  waitlist_assign_tables_for: "Assegna tavoli per",
+  waitlist_book_with_tables: "Prenota con {count} tavolo/i",
+  waitlist_book_no_tables: "Prenota senza tavoli",
+  waitlist_booking_in_progress: "Prenotazione...",
+  waitlist_book_confirm: "Convertire {name} ({size} pax) alle {time} in una prenotazione confermata?",
+  waitlist_queue_short: "In coda",
+  waitlist_no_tables_selected: "Nessun tavolo selezionato per {size} persone. Prenotare comunque?",
 
   // Pending
   pending_title: "Richieste in Attesa",

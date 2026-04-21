@@ -488,6 +488,18 @@ export const en = {
   waitlist_internal_notes: "Internal Notes",
   waitlist_notes_placeholder: "Urgent, anniversary...",
   waitlist_add_live: "Add to Live Waitlist",
+  waitlist_view_list: "List",
+  waitlist_view_floor: "Floor plan",
+  waitlist_select_entry: "Select an entry",
+  waitlist_no_entry_selected: "Pick an entry from the list to see available tables.",
+  waitlist_assign_and_book: "Assign and book",
+  waitlist_assign_tables_for: "Assign tables for",
+  waitlist_book_with_tables: "Book with {count} table(s)",
+  waitlist_book_no_tables: "Book without tables",
+  waitlist_booking_in_progress: "Booking...",
+  waitlist_book_confirm: "Convert {name} ({size} pax) at {time} into a confirmed booking?",
+  waitlist_queue_short: "Queue",
+  waitlist_no_tables_selected: "No tables selected for {size} people. Book anyway?",
 
   // Pending
   pending_title: "Pending Requests",
