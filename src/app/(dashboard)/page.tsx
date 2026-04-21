@@ -16,50 +16,6 @@ import { useTenant } from "@/lib/contexts/TenantContext";
 
 /* ─── helpers ─── */
 
-/** Mono-line hand-drawn ornaments used in the newsprint KPI cards. Each variant
- * maps to a metric. Kept as inline SVGs so strokes match perfectly. */
-function Ornament({ variant, className = "" }: { variant: string; className?: string }) {
-  const common = { width: 28, height: 28, viewBox: "0 0 28 28", fill: "none", stroke: "currentColor", strokeWidth: 1, strokeLinecap: "round" as const, strokeLinejoin: "round" as const };
-  switch (variant) {
-    case "moon":
-      // crescent + one star — "after hours"
-      return (
-        <svg {...common} className={className}>
-          <path d="M19 8.5 A7 7 0 1 0 19.5 19.5 A 5.5 5.5 0 0 1 19 8.5 Z" />
-          <path d="M9 7.5 L9 9.5 M8 8.5 L10 8.5" />
-        </svg>
-      );
-    case "voice":
-      // sound waves fanning from a central dot — "voice call"
-      return (
-        <svg {...common} className={className}>
-          <circle cx="14" cy="14" r="1.2" fill="currentColor" stroke="none" />
-          <path d="M10 10.5 Q 8 14 10 17.5" />
-          <path d="M18 10.5 Q 20 14 18 17.5" />
-          <path d="M7 8 Q 4 14 7 20" />
-          <path d="M21 8 Q 24 14 21 20" />
-        </svg>
-      );
-    case "recover":
-      // spiral / return arrow — "recovered"
-      return (
-        <svg {...common} className={className}>
-          <path d="M21 14 A 7 7 0 1 1 14 7 L 18 7 M 18 4 L 18 7 L 14.5 9" />
-        </svg>
-      );
-    case "chat":
-      // two nested speech rectangles — "chat"
-      return (
-        <svg {...common} className={className}>
-          <path d="M5 7 L 19 7 L 19 16 L 10 16 L 7 19 L 7 16 L 5 16 Z" />
-          <path d="M9 11 L 15 11 M 9 13.5 L 13 13.5" />
-        </svg>
-      );
-    default:
-      return null;
-  }
-}
-
 interface TimeSlot { open: string; close: string }
 type OpeningHours = Record<string, TimeSlot[]>;
 
@@ -457,71 +413,50 @@ export default function DashboardPage() {
           )}
         </div>
 
-        {/* Breakdown — newsprint editorial, Fraunces serif numerals */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-0 sm:gap-0 border-t border-b" style={{ borderColor: "rgba(84,58,32,0.22)" }}>
+        {/* Breakdown — same family as other CRM cards, just a bit more prominent */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
           {[
-            { ord: "I", label: t("dash_out_of_hours"), value: kpis.outOfHoursRevenue, sub: `${kpis.outOfHoursCount} ${t("dash_bookings_while_closed")}`, ornament: "moon" },
-            { ord: "II", label: t("dash_ai_voice_calls"), value: kpis.voiceRevenue, sub: `${kpis.voiceCount} ${t("dash_calls_converted")}`, ornament: "voice" },
-            { ord: "III", label: t("dash_waitlist_recovered"), value: kpis.waitlistRevenue, sub: `${kpis.waitlistConverted} ${t("dash_recoveries")}`, ornament: "recover" },
-            { ord: "IV", label: t("dash_ai_chat"), value: kpis.chatRevenue, sub: `${kpis.chatCount} ${t("dash_whatsapp_bookings")}`, ornament: "chat" },
+            { icon: Moon, label: t("dash_out_of_hours"), value: kpis.outOfHoursRevenue, sub: `${kpis.outOfHoursCount} ${t("dash_bookings_while_closed")}` },
+            { icon: Phone, label: t("dash_ai_voice_calls"), value: kpis.voiceRevenue, sub: `${kpis.voiceCount} ${t("dash_calls_converted")}` },
+            { icon: RefreshCw, label: t("dash_waitlist_recovered"), value: kpis.waitlistRevenue, sub: `${kpis.waitlistConverted} ${t("dash_recoveries")}` },
+            { icon: Bot, label: t("dash_ai_chat"), value: kpis.chatRevenue, sub: `${kpis.chatCount} ${t("dash_whatsapp_bookings")}` },
           ].map((b, i) => {
-            const isLastCol = i === 3;
-            const isLeftCol = i % 2 === 0;
+            const Icon = b.icon;
             return (
               <div
                 key={i}
-                className={`group relative px-5 sm:px-6 py-6 sm:py-7 transition-colors duration-200
-                  ${isLastCol ? "" : "lg:border-r"}
-                  ${isLeftCol ? "border-r lg:border-r" : ""}
-                  ${i < 2 ? "border-b lg:border-b-0" : ""}`}
+                className="group relative rounded-xl p-4 sm:p-5 border-2 transition-all duration-200 hover:-translate-y-0.5"
                 style={{
-                  borderColor: "rgba(84,58,32,0.18)",
-                  backgroundImage:
-                    "radial-gradient(circle at 20% 30%, rgba(196,149,106,0.035) 0%, transparent 60%), radial-gradient(circle at 80% 70%, rgba(84,58,32,0.025) 0%, transparent 55%)",
+                  background: "rgba(252,246,237,0.92)",
+                  borderColor: "#c4956a",
+                  boxShadow: "0 1px 2px rgba(196,149,106,0.1)",
                 }}
+                onMouseEnter={(e) => { e.currentTarget.style.boxShadow = "0 6px 16px rgba(196,149,106,0.22)"; }}
+                onMouseLeave={(e) => { e.currentTarget.style.boxShadow = "0 1px 2px rgba(196,149,106,0.1)"; }}
               >
-                {/* Roman numeral — top-left, hand-inked feel */}
-                <span
-                  className="absolute top-4 left-5 font-[family-name:var(--font-fraunces)] italic text-[11px] tracking-[0.15em] opacity-50"
-                  style={{ color: "#8b6942", fontFeatureSettings: "'ss01'" }}
+                {/* Icon chip — brand brown filled, cream glyph */}
+                <div
+                  className="mb-3 inline-flex items-center justify-center w-9 h-9 rounded-lg"
+                  style={{ background: "#c4956a" }}
                 >
-                  N°{b.ord}
-                </span>
-
-                {/* Ornament — top-right, mono-line SVG */}
-                <Ornament variant={b.ornament} className="absolute top-3 right-4 text-[#8b6942]/40 group-hover:text-[#8b6942]/70 transition-colors" />
-
-                {/* Label — smallcaps typographic header with rule */}
-                <div className="mt-6 mb-4 flex items-baseline gap-2">
-                  <span className="font-[family-name:var(--font-geist-sans)] text-[10px] sm:text-[11px] font-semibold uppercase tracking-[0.22em] text-[#543a20]">
-                    {b.label}
-                  </span>
-                  <span className="flex-1 border-b border-dotted self-center" style={{ borderColor: "rgba(139,105,66,0.35)", transform: "translateY(2px)" }} />
+                  <Icon className="w-5 h-5" style={{ color: "#FCF6ED" }} />
                 </div>
 
-                {/* Hero number — Fraunces variable serif, SOFT axis */}
-                <div className="flex items-baseline gap-1 leading-none">
-                  <span
-                    className="font-[family-name:var(--font-fraunces)] text-[20px] sm:text-[22px] text-[#543a20]/70"
-                    style={{ fontVariationSettings: "'opsz' 48, 'SOFT' 100, 'wght' 400" }}
-                  >
-                    €
-                  </span>
-                  <span
-                    className="font-[family-name:var(--font-fraunces)] text-[44px] sm:text-[56px] tracking-tight text-[#2a1a0d] tabular-nums"
-                    style={{ fontVariationSettings: "'opsz' 144, 'SOFT' 100, 'wght' 500" }}
-                  >
-                    {b.value.toLocaleString("es-ES")}
-                  </span>
-                </div>
-
-                {/* Caption — italic serif, subdued */}
-                <p
-                  className="mt-4 font-[family-name:var(--font-fraunces)] italic text-[12px] sm:text-[13px] text-[#543a20]/65 leading-snug"
-                  style={{ fontVariationSettings: "'opsz' 48, 'SOFT' 100, 'wght' 400" }}
-                >
-                  {b.sub}
+                {/* Label */}
+                <p className="text-[11px] sm:text-xs font-semibold uppercase tracking-wider text-black/70 mb-1.5">
+                  {b.label}
                 </p>
+
+                {/* Hero number — Geist, larger than other cards */}
+                <p className="text-2xl sm:text-3xl font-bold text-black tabular-nums leading-none">
+                  €{b.value.toLocaleString("es-ES")}
+                </p>
+
+                {/* Signature accent — short brand-brown dash */}
+                <div className="mt-2 mb-2 h-[2px] w-8 rounded-full" style={{ background: "#c4956a" }} />
+
+                {/* Caption */}
+                <p className="text-xs text-black/65 leading-tight">{b.sub}</p>
               </div>
             );
           })}
