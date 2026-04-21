@@ -413,32 +413,41 @@ export default function DashboardPage() {
           )}
         </div>
 
-        {/* Breakdown */}
+        {/* Breakdown — editorial cards */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-          <div className="p-3 rounded-xl border-2" style={{ background: "rgba(252,246,237,0.85)", borderColor: "#6366f1" }}>
-            <Moon className="w-6 h-6 text-indigo-500 mx-auto mb-1.5" />
-            <p className="text-xs text-black font-medium">{t("dash_out_of_hours")}</p>
-            <p className="text-lg sm:text-xl font-bold text-indigo-500">€{kpis.outOfHoursRevenue.toLocaleString()}</p>
-            <p className="text-xs text-black">{kpis.outOfHoursCount} {t("dash_bookings_while_closed")}</p>
-          </div>
-          <div className="p-3 rounded-xl border-2" style={{ background: "rgba(252,246,237,0.85)", borderColor: "#fb7740" }}>
-            <Phone className="w-6 h-6 text-[#fb7740] mx-auto mb-1.5" />
-            <p className="text-xs text-black font-medium">{t("dash_ai_voice_calls")}</p>
-            <p className="text-lg sm:text-xl font-bold text-[#fb7740]">€{kpis.voiceRevenue.toLocaleString()}</p>
-            <p className="text-xs text-black">{kpis.voiceCount} {t("dash_calls_converted")}</p>
-          </div>
-          <div className="p-3 rounded-xl border-2" style={{ background: "rgba(252,246,237,0.85)", borderColor: "#22c55e" }}>
-            <RefreshCw className="w-6 h-6 text-emerald-500 mx-auto mb-1.5" />
-            <p className="text-xs text-black font-medium">{t("dash_waitlist_recovered")}</p>
-            <p className="text-lg sm:text-xl font-bold text-emerald-500">€{kpis.waitlistRevenue.toLocaleString()}</p>
-            <p className="text-xs text-black">{kpis.waitlistConverted} {t("dash_recoveries")}</p>
-          </div>
-          <div className="p-3 rounded-xl border-2" style={{ background: "rgba(252,246,237,0.85)", borderColor: "#0d9488" }}>
-            <Bot className="w-6 h-6 text-teal-600 mx-auto mb-1.5" />
-            <p className="text-xs text-black font-medium">{t("dash_ai_chat")}</p>
-            <p className="text-lg sm:text-xl font-bold text-teal-600">€{kpis.chatRevenue.toLocaleString()}</p>
-            <p className="text-xs text-black">{kpis.chatCount} {t("dash_whatsapp_bookings")}</p>
-          </div>
+          {[
+            { accent: "#5c7a96", icon: Moon, label: t("dash_out_of_hours"), value: kpis.outOfHoursRevenue, sub: `${kpis.outOfHoursCount} ${t("dash_bookings_while_closed")}` },
+            { accent: "#c4956a", icon: Phone, label: t("dash_ai_voice_calls"), value: kpis.voiceRevenue, sub: `${kpis.voiceCount} ${t("dash_calls_converted")}` },
+            { accent: "#5a8a6a", icon: RefreshCw, label: t("dash_waitlist_recovered"), value: kpis.waitlistRevenue, sub: `${kpis.waitlistConverted} ${t("dash_recoveries")}` },
+            { accent: "#c2764c", icon: Bot, label: t("dash_ai_chat"), value: kpis.chatRevenue, sub: `${kpis.chatCount} ${t("dash_whatsapp_bookings")}` },
+          ].map((b, i) => {
+            const Icon = b.icon;
+            return (
+              <div
+                key={i}
+                className="group relative overflow-hidden rounded-2xl pl-5 pr-4 py-4 transition-all duration-200 hover:-translate-y-0.5"
+                style={{
+                  background: `linear-gradient(180deg, rgba(252,246,237,0.95) 0%, ${b.accent}14 100%)`,
+                  boxShadow: `inset 4px 0 0 0 ${b.accent}, 0 1px 2px rgba(196,149,106,0.08)`,
+                }}
+              >
+                <Icon
+                  className="absolute top-3 right-3 w-5 h-5 transition-opacity group-hover:opacity-60"
+                  style={{ color: b.accent, opacity: 0.35 }}
+                />
+                <p
+                  className="text-[10px] sm:text-[11px] font-semibold uppercase tracking-[0.08em] mb-2"
+                  style={{ color: b.accent }}
+                >
+                  {b.label}
+                </p>
+                <p className="text-2xl sm:text-3xl font-bold leading-none mb-2 text-black tabular-nums">
+                  €{b.value.toLocaleString()}
+                </p>
+                <p className="text-[11px] text-black/60 leading-tight">{b.sub}</p>
+              </div>
+            );
+          })}
         </div>
       </div>
 
