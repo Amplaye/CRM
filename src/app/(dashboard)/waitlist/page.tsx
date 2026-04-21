@@ -1,6 +1,6 @@
 "use client";
 
-import { UserPlus, Sparkles, Clock, Send, Activity, X, CheckCircle, MessageSquare, List, LayoutPanelTop, Check, Users } from "lucide-react";
+import { UserPlus, Sparkles, Clock, Send, Activity, X, MessageSquare, List, LayoutPanelTop, Check, Users } from "lucide-react";
 import { useLanguage } from "@/lib/contexts/LanguageContext";
 import { useEffect, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
@@ -252,36 +252,6 @@ export default function WaitlistPage() {
     } catch (err) { console.error(err); }
   };
 
-  const convertToBooking = async (entry: WaitlistWithGuest) => {
-    if (!user || !tenant) return;
-    const guestName = entry.guests?.name || `Guest ${entry.guest_id.substring(0,6)}`;
-    const guestPhone = entry.guests?.phone || "0000000";
-    const confirmMsg = t("waitlist_book_confirm")
-      .replace("{name}", guestName)
-      .replace("{size}", String(entry.party_size))
-      .replace("{time}", entry.target_time);
-    if (!confirm(confirmMsg)) return;
-
-    try {
-      const res = await createReservationAction({
-         tenantId: tenant.id,
-         guestName,
-         guestPhone,
-         date: entry.date,
-         time: entry.target_time,
-         partySize: entry.party_size,
-         source: "staff",
-         notes: "Converted from waitlist"
-      });
-      if (!res.success) throw new Error((res as any).error || "Could not create reservation");
-      await updateWaitlistStatusAction({
-         tenantId: tenant.id,
-         waitlistId: entry.id,
-         newStatus: "converted_to_booking"
-      });
-    } catch (err) { console.error(err); }
-  };
-
   /**
    * Assign manually selected tables + convert entry to booking.
    * Flow:
@@ -524,7 +494,7 @@ export default function WaitlistPage() {
                  <tr>
                    <th scope="col" className="px-3 sm:px-6 py-3 text-center text-[10px] font-bold text-black uppercase tracking-widest">{t("waitlist_col_pos")}</th>
                    <th scope="col" className="px-3 sm:px-6 py-3 text-center text-[10px] font-bold text-black uppercase tracking-widest">{t("waitlist_col_guest")}</th>
-                   <th scope="col" className="px-3 sm:px-6 py-3 text-center text-[10px] font-bold text-black uppercase tracking-widest">{t("waitlist_target_flex")}</th>
+                   <th scope="col" className="px-3 sm:px-6 py-3 text-center text-[10px] font-bold text-black uppercase tracking-widest">{t("waitlist_col_time")}</th>
                    <th scope="col" className="px-3 sm:px-6 py-3 text-center text-[10px] font-bold text-black uppercase tracking-widest">{t("waitlist_status_score")}</th>
                    <th scope="col" className="relative px-3 sm:px-6 py-3 text-center"><span className="sr-only">Actions</span></th>
                  </tr>
@@ -553,15 +523,9 @@ export default function WaitlistPage() {
                        {entry.guests?.phone && (
                          <div className="text-xs font-medium text-black mt-0.5">{entry.guests.phone}</div>
                        )}
-                       <div className="text-xs font-medium text-black flex items-center justify-center mt-0.5">
-                          {entry.date} &middot; {t("waitlist_prefers")} {entry.contact_preference}
-                       </div>
                      </td>
                      <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-center">
                         <div className="text-sm font-bold text-black">{entry.target_time}</div>
-                        <div className="text-[11px] font-medium text-black bg-zinc-100 px-2 py-0.5 rounded-md inline-flex mt-1 border border-zinc-200">
-                           {entry.acceptable_time_range.start} – {entry.acceptable_time_range.end}
-                        </div>
                      </td>
                      <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-center">
                         <div className="flex flex-col items-center gap-1">
@@ -576,18 +540,13 @@ export default function WaitlistPage() {
                      </td>
                      <td className="px-6 py-4 whitespace-nowrap text-center text-sm">
                        {entry.status === 'contacted' ? (
-                          <div className="flex items-center justify-center gap-2">
-                            <button
-                              onClick={(e) => { e.stopPropagation(); setViewMode("floor"); pickEntryForFloor(entry); }}
-                              className="px-3 py-1.5 font-bold border border-[#c4956a] bg-[#c4956a]/10 text-[#8b6540] hover:bg-[#c4956a]/20 shadow-sm rounded-lg transition-colors flex items-center"
-                              title={t("waitlist_assign_and_book")}
-                            >
-                              <LayoutPanelTop className="w-3.5 h-3.5 mr-1.5" /> {t("waitlist_assign_and_book")}
-                            </button>
-                            <button onClick={(e) => { e.stopPropagation(); convertToBooking(entry); }} className="px-3 py-1.5 font-bold border border-green-200 bg-green-50 text-green-700 hover:bg-green-100 shadow-sm rounded-lg transition-colors flex items-center">
-                              <CheckCircle className="w-3.5 h-3.5 mr-1.5" /> Book
-                            </button>
-                          </div>
+                          <button
+                            onClick={(e) => { e.stopPropagation(); setViewMode("floor"); pickEntryForFloor(entry); }}
+                            className="px-3 py-1.5 font-bold border border-[#c4956a] bg-[#c4956a]/10 text-[#8b6540] hover:bg-[#c4956a]/20 shadow-sm rounded-lg transition-colors flex items-center mx-auto"
+                            title={t("waitlist_assign_and_book")}
+                          >
+                            <LayoutPanelTop className="w-3.5 h-3.5 mr-1.5" /> {t("waitlist_assign_and_book")}
+                          </button>
                        ) : entry.status === 'waiting' && (
                           <button onClick={(e) => { e.stopPropagation(); markContacted(entry); }} className="px-3 py-1.5 font-bold border border-zinc-200 text-black hover:text-black hover:bg-zinc-50 shadow-sm rounded-lg transition-colors mx-auto">
                             Manual Contact
