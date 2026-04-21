@@ -93,6 +93,7 @@ export async function GET(request: Request) {
     // --- Case A: restaurant is closed all day ---
     if (hoursToday.length === 0) {
       const nextOpen = findNextOpenDay(openingHours, date);
+      const nextLabel = nextOpen ? `el ${nextOpen.weekday}` : '';
       return NextResponse.json({
         success: true,
         date,
@@ -102,6 +103,7 @@ export async function GET(request: Request) {
         hours_today: [],
         status: 'closed_day',
         next_open: nextOpen,
+        message: `Ese día estamos cerrados. Abrimos ${nextLabel}. ¿Quieres reservar para otro día?`,
         availability: [],
       });
     }
@@ -189,6 +191,7 @@ export async function GET(request: Request) {
     });
 
     if (!dayIsOpenForShift || !shiftWindow) {
+      const hoursList = hoursToday.map((h) => `${h.open}-${h.close}`).join(' y ');
       return NextResponse.json({
         success: true,
         date,
@@ -200,6 +203,7 @@ export async function GET(request: Request) {
         requested_time: timeParam,
         status: 'outside_hours',
         reason_detail: `El turno de ${reqShift === 'lunch' ? 'almuerzo' : 'cena'} no está abierto ese día.`,
+        message: `El turno de ${reqShift === 'lunch' ? 'almuerzo' : 'cena'} no está abierto ese día. Ese día abrimos ${hoursList}. ¿Quieres cambiar la hora?`,
         availability,
       });
     }
@@ -218,6 +222,7 @@ export async function GET(request: Request) {
         requested_time: timeParam,
         status: 'after_last_reservation',
         reason_detail: `La última reserva de ${reqShift === 'lunch' ? 'almuerzo' : 'cena'} es a las ${lastForShift}.`,
+        message: `La última reserva de ${reqShift === 'lunch' ? 'almuerzo' : 'cena'} es a las ${lastForShift}. ¿Te viene bien a esa hora o antes?`,
         availability,
       });
     }
@@ -235,6 +240,7 @@ export async function GET(request: Request) {
         requested_time: timeParam,
         status: 'outside_hours',
         reason_detail: `Abrimos a las ${shiftWindow.open} para ${reqShift === 'lunch' ? 'almuerzo' : 'cena'}.`,
+        message: `Abrimos a las ${shiftWindow.open} para ${reqShift === 'lunch' ? 'el almuerzo' : 'la cena'}. ¿Quieres reservar para esa hora o un poco más tarde?`,
         availability,
       });
     }
@@ -253,6 +259,7 @@ export async function GET(request: Request) {
         requested_time: timeParam,
         status: 'available',
         free_tables: matchingSlot.free_tables,
+        message: `Sí, tenemos mesa para ${pax} personas a las ${timeParam}.`,
         availability,
       });
     }
@@ -265,6 +272,9 @@ export async function GET(request: Request) {
       .slice(0, 3)
       .map((a) => a.time);
 
+    const altsPhrase = alternatives.length > 0
+      ? `Tengo disponibilidad a las ${alternatives.join(', ')}. ¿Te va bien alguna?`
+      : 'No tengo otras horas cercanas con disponibilidad ese día.';
     return NextResponse.json({
       success: true,
       date,
@@ -276,6 +286,7 @@ export async function GET(request: Request) {
       requested_time: timeParam,
       status: 'no_tables',
       alternatives,
+      message: `Para las ${timeParam} no tengo mesa para ${pax} personas. ${altsPhrase}`,
       availability,
     });
   } catch (error: any) {

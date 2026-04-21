@@ -18,6 +18,10 @@ interface ModifyPayload {
   time?: string;
   party_size?: number;
   notes?: string;
+  // Optional incremental helpers — let the backend compute the absolute value
+  // from the existing reservation (keeps the voice prompt simple).
+  personas_delta?: number; // positive=add people, negative=remove
+  retraso_minutos?: number; // delay to add to the original time
 }
 
 export async function PUT(request: Request) {
@@ -92,10 +96,22 @@ export async function PUT(request: Request) {
       await supabase.from('guests').update(guestUpdates).eq('id', existing.guest_id);
     }
 
-    // Build updates
+    // Build updates. If the bot passed `personas_delta` or `retraso_minutos`,
+    // compute the absolute value from the existing reservation here so the
+    // bot never has to do math. Absolute params (`party_size`, `time`) still
+    // take precedence for backward compat.
     const newDate = payload.date || existing.date;
-    const newTime = payload.time || existing.time;
-    const newPartySize = payload.party_size || existing.party_size;
+    let newTime = payload.time || existing.time;
+    if (!payload.time && typeof payload.retraso_minutos === 'number' && payload.retraso_minutos !== 0) {
+      const [hh, mm] = existing.time.split(':').map(Number);
+      const total = hh * 60 + mm + payload.retraso_minutos;
+      const clamped = Math.max(0, Math.min(total, 23 * 60 + 59));
+      newTime = `${String(Math.floor(clamped / 60)).padStart(2, '0')}:${String(clamped % 60).padStart(2, '0')}`;
+    }
+    let newPartySize = payload.party_size || existing.party_size;
+    if (!payload.party_size && typeof payload.personas_delta === 'number' && payload.personas_delta !== 0) {
+      newPartySize = Math.max(1, (existing.party_size || 0) + payload.personas_delta);
+    }
     const newShift = getShift(newTime);
     const dayOfWeek = new Date(newDate + 'T12:00:00').getDay();
     const rotation = getRotationMinutes(newPartySize, newShift, dayOfWeek);
