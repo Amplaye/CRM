@@ -579,13 +579,13 @@ export default function DashboardPage() {
                   <Icon className="w-4 h-4 sm:w-5 sm:h-5" style={{ color: BRAND_BROWN }} />
                 </div>
                 <div className="min-w-0 text-center">
-                  <p className="text-[10px] sm:text-[11px] font-semibold uppercase tracking-wider text-black/65 leading-tight truncate">
+                  <p className="text-[10px] sm:text-[11px] font-semibold uppercase tracking-wider text-black/65 leading-tight">
                     {m.label}
                   </p>
                   <p className="text-lg sm:text-2xl font-bold text-black tabular-nums leading-tight mt-0.5">
                     {m.value}
                   </p>
-                  <p className="text-[10px] sm:text-[11px] text-black/55 leading-tight mt-0.5 truncate">{m.sub}</p>
+                  <p className="text-[10px] sm:text-[11px] text-black/55 leading-tight mt-0.5">{m.sub}</p>
                 </div>
                 <div aria-hidden className="w-9 h-9 sm:w-10 sm:h-10" />
               </div>
