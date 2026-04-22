@@ -553,6 +553,10 @@ export const en = {
   pending_no_tables_warning: "You haven't selected any tables for {size} people. Confirm without assigning tables?",
   pending_reject_confirm: "Are you sure you want to reject this request?",
   pending_view_conversation: "View conversation",
+  pending_confirm_error: "Error confirming the booking. Please try again.",
+  pending_reject_error: "Error rejecting the request. Please try again.",
+  pending_confirm_success: "Booking confirmed successfully.",
+  pending_reject_success: "Request rejected and client notified.",
 
   // Conversations - extra
   conv_deselect_all: "Deselect all",

@@ -556,6 +556,10 @@ export const it: Dictionary = {
   pending_no_tables_warning: "Non hai selezionato alcun tavolo per {size} persone. Confermare senza assegnare tavoli?",
   pending_reject_confirm: "Sei sicuro di voler rifiutare questa richiesta?",
   pending_view_conversation: "Vedi conversazione",
+  pending_confirm_error: "Errore nella conferma della prenotazione. Riprova.",
+  pending_reject_error: "Errore nel rifiuto della richiesta. Riprova.",
+  pending_confirm_success: "Prenotazione confermata correttamente.",
+  pending_reject_success: "Richiesta rifiutata e cliente notificato.",
 
   // Conversations - extra
   conv_deselect_all: "Deseleziona tutto",

@@ -556,6 +556,10 @@ export const es: Dictionary = {
   pending_no_tables_warning: "No has seleccionado ninguna mesa para {size} personas. ¿Confirmar sin asignar mesas?",
   pending_reject_confirm: "¿Estás seguro de rechazar esta solicitud?",
   pending_view_conversation: "Ver conversación",
+  pending_confirm_error: "Error al confirmar la reserva. Inténtalo de nuevo.",
+  pending_reject_error: "Error al rechazar la solicitud. Inténtalo de nuevo.",
+  pending_confirm_success: "Reserva confirmada correctamente.",
+  pending_reject_success: "Solicitud rechazada y cliente notificado.",
 
   // Conversations - extra
   conv_deselect_all: "Deseleccionar todo",

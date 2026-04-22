@@ -194,44 +194,68 @@ export default function PendingPage() {
 
     setConfirmInFlight(true);
     try {
-      // Assign selected tables
+      // 1) Assign selected tables — fail loud if insert errors (RLS, FK, unique).
       if (selectedTables.size > 0) {
         const inserts = Array.from(selectedTables).map(tableId => ({
           reservation_id: confirmingId,
           table_id: tableId,
         }));
-        await supabase.from("reservation_tables").insert(inserts);
+        const { error: rtErr } = await supabase.from("reservation_tables").insert(inserts);
+        if (rtErr) throw rtErr;
       }
 
-      // Update status to confirmed
-      await supabase.from("reservations").update({ status: "confirmed" }).eq("id", confirmingId);
+      // 2) Update status — same: fail loud.
+      const { error: upErr } = await supabase
+        .from("reservations")
+        .update({ status: "confirmed" })
+        .eq("id", confirmingId);
+      if (upErr) throw upErr;
 
-      // Send WhatsApp confirmation to client
+      // 3) Best-effort side effects (WhatsApp, audit, owner notify) — never block on these.
       if (req) {
         const guestPhone = req.guests?.phone || '';
+        const assignedTableObjs = Array.from(selectedTables).map(tid => tables.find(x => x.id === tid)).filter(Boolean) as typeof tables;
+        const assignedTableNames = assignedTableObjs.map(t => t.name).join(', ');
+        const zoneFromTables = assignedTableObjs[0]?.zone;
+        const notesRaw = ((req as any).notes || '').toLowerCase();
+        const zoneFromNotes = notesRaw.includes('interior') ? 'inside' : notesRaw.includes('exterior') ? 'outside' : null;
+        const zone = zoneFromTables || zoneFromNotes || null;
+        const zoneLine = zone ? `\n📍 Zona: ${zone === 'inside' ? 'Interior' : 'Exterior'}` : '';
+
         if (guestPhone) {
-          const assignedTableObjs = Array.from(selectedTables).map(tid => tables.find(x => x.id === tid)).filter(Boolean) as typeof tables;
-          const assignedTableNames = assignedTableObjs.map(t => t.name).join(', ');
-          // Zone comes from the assigned tables if any; fall back to
-          // "Prefiere interior/exterior" hint inside the reservation notes.
-          const zoneFromTables = assignedTableObjs[0]?.zone;
-          const notesRaw = ((req as any).notes || '').toLowerCase();
-          const zoneFromNotes = notesRaw.includes('interior') ? 'inside' : notesRaw.includes('exterior') ? 'outside' : null;
-          const zone = zoneFromTables || zoneFromNotes || null;
-          const zoneLine = zone ? `\n📍 Zona: ${zone === 'inside' ? 'Interior' : 'Exterior'}` : '';
           const confirmMsg = `✅ *Reserva confirmada*\n📅 Fecha: ${req.date}\n⏰ Hora: ${req.time}\n👥 Personas: ${req.party_size}${zoneLine}\n📝 Nombre: ${req.guests?.name || ''}${assignedTableNames ? '\n🪑 Mesas: ' + assignedTableNames : ''}\n\nSi necesitas cancelar, escríbenos con CANCELAR.`;
-          try {
-            await fetch("/api/send-whatsapp", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ to: guestPhone, message: confirmMsg }),
-            });
-          } catch (e) { console.error("WhatsApp confirm error:", e); }
+          fetch("/api/send-whatsapp", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ to: guestPhone, message: confirmMsg }),
+          }).catch((e) => console.error("WhatsApp confirm error:", e));
         }
+
+        // Notify owner of manual confirmation
+        const ownerMsg = `📅 NUEVA RESERVA (confirmada manualmente)\n\n${req.guests?.name || ''}\n${req.date} ${req.time}\n${req.party_size} personas${assignedTableNames ? '\n🪑 ' + assignedTableNames : ''}${zoneLine}\nTel: ${guestPhone || '—'}`;
+        fetch("/api/send-whatsapp", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ to: '+34641790137', message: ownerMsg }),
+        }).catch(() => {});
+
+        // Audit trail (best-effort)
+        supabase.from('reservation_events').insert({
+          tenant_id: tenant?.id,
+          reservation_id: confirmingId,
+          action: 'status_changed',
+          new_status: 'confirmed',
+          details: `Manually confirmed from /pending. Tables: ${assignedTableNames || 'none'}`,
+        }).then(({ error }: { error: { message: string } | null }) => { if (error) console.warn('audit insert failed:', error.message); });
       }
 
       setConfirmingId(null);
       setSelectedTables(new Set());
+    } catch (err: any) {
+      console.error("Confirm error:", err);
+      window.alert(t("pending_confirm_error") + (err?.message ? `\n\n${err.message}` : ''));
+      // Re-fetch to resync state with the database
+      fetchPending();
     } finally {
       setConfirmInFlight(false);
     }
@@ -240,18 +264,53 @@ export default function PendingPage() {
   const handleReject = async (id: string) => {
     if (!confirm(t("pending_reject_confirm"))) return;
     const rejectedReq = pending.find(p => p.id === id);
-    await supabase.from("reservations").update({ status: "cancelled" }).eq("id", id);
 
-    // Trigger waitlist auto-assign (freed capacity)
-    if (rejectedReq) {
-      try {
+    try {
+      const { error: upErr } = await supabase
+        .from("reservations")
+        .update({ status: "cancelled", cancellation_source: "staff_pending_reject" })
+        .eq("id", id);
+      if (upErr) throw upErr;
+
+      // Notify the client + owner + audit (all best-effort)
+      if (rejectedReq) {
+        const guestPhone = rejectedReq.guests?.phone || '';
+        if (guestPhone) {
+          const rejectMsg = `Hola${rejectedReq.guests?.name ? ' ' + rejectedReq.guests.name : ''}, lamentablemente no podemos aceptar tu solicitud de reserva para el ${rejectedReq.date} a las ${rejectedReq.time} (${rejectedReq.party_size} personas). Si quieres, puedes llamarnos al +34 828 712 623 para buscar otra fecha. ¡Gracias!`;
+          fetch("/api/send-whatsapp", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ to: guestPhone, message: rejectMsg }),
+          }).catch((e) => console.error("WhatsApp reject error:", e));
+        }
+
+        const ownerMsg = `❌ SOLICITUD RECHAZADA\n\n${rejectedReq.guests?.name || ''}\n${rejectedReq.date} ${rejectedReq.time}\n${rejectedReq.party_size} personas\nTel: ${guestPhone || '—'}`;
+        fetch("/api/send-whatsapp", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ to: '+34641790137', message: ownerMsg }),
+        }).catch(() => {});
+
+        supabase.from('reservation_events').insert({
+          tenant_id: tenant?.id,
+          reservation_id: id,
+          action: 'cancelled',
+          new_status: 'cancelled',
+          details: 'Rejected by staff from /pending',
+        }).then(({ error }: { error: { message: string } | null }) => { if (error) console.warn('audit insert failed:', error.message); });
+
+        // Trigger waitlist auto-assign (freed capacity) — fire-and-forget
         const shift = parseInt(rejectedReq.time.split(':')[0]) < 16 ? 'lunch' : 'dinner';
-        await fetch("/api/ai/waitlist-process", {
+        fetch("/api/ai/waitlist-process", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ tenant_id: tenant?.id, date: rejectedReq.date, shift }),
-        });
-      } catch (e) { console.error("Waitlist process error:", e); }
+        }).catch((e) => console.error("Waitlist process error:", e));
+      }
+    } catch (err: any) {
+      console.error("Reject error:", err);
+      window.alert(t("pending_reject_error") + (err?.message ? `\n\n${err.message}` : ''));
+      fetchPending();
     }
   };
 
