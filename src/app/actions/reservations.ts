@@ -212,13 +212,23 @@ export async function updateReservationDetailsAction(params: {
     if (fetchErr || !current) throw new Error("Reservation not found");
     if (current.tenant_id !== params.tenantId) throw new Error("Tenant boundary violation");
 
-    // Execute update
+    // Execute update — when staff/operator cancels, tag the source so the
+    // dashboard's "No-Shows Prevented" KPI is not distorted by NULLs.
+    const updatePayload: any = {
+      ...params.data,
+      updated_at: new Date().toISOString()
+    };
+    if (
+      params.data.status === "cancelled" &&
+      params.data.status !== current.status &&
+      !(params.data as any).cancellation_source
+    ) {
+      updatePayload.cancellation_source = operatorId === "ai_agent" ? "ai_voice" : "staff";
+    }
+
     const { error: updateErr } = await supabase
       .from("reservations")
-      .update({
-        ...params.data,
-        updated_at: new Date().toISOString()
-      })
+      .update(updatePayload)
       .eq("id", params.reservationId);
 
     if (updateErr) throw updateErr;

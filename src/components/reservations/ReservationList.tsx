@@ -97,7 +97,10 @@ export function ReservationList({ date, onRowClick }: ReservationListProps) {
     e.stopPropagation();
     if (!confirm("¿Cancelar esta reserva?")) return;
     const supabase = createClient();
-    await supabase.from("reservations").update({ status: "cancelled" }).eq("id", resId);
+    await supabase
+      .from("reservations")
+      .update({ status: "cancelled", cancellation_source: "staff" })
+      .eq("id", resId);
   };
 
   const handleSeat = async (e: React.MouseEvent, resId: string) => {
