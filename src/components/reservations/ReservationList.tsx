@@ -231,7 +231,7 @@ export function ReservationList({ date, onRowClick }: ReservationListProps) {
               </td>
               <td className="px-4 py-4 whitespace-nowrap text-center">
                 {!['cancelled', 'no_show'].includes(res.status) && (
-                  <button onClick={(e) => handleCancel(e, res.id)} className="text-red-400 hover:text-red-600 transition-colors" title="Cancelar reserva">
+                  <button onClick={(e) => handleCancel(e, res.id)} className="text-red-400 hover:text-red-600 transition-colors cursor-pointer" title="Cancelar reserva">
                     <XCircle className="w-5 h-5" />
                   </button>
                 )}

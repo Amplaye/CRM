@@ -221,7 +221,7 @@ export function Topbar({ onMenuToggle }: TopbarProps) {
               setShowDropdown(!showDropdown);
               if (!showDropdown) markAllRead();
             }}
-            className="relative flex items-center justify-center h-8 w-8 sm:h-9 sm:w-9 text-black hover:text-black rounded-lg border-2"
+            className="relative flex items-center justify-center h-8 w-8 sm:h-9 sm:w-9 text-black hover:text-black rounded-lg border-2 cursor-pointer"
             style={{ borderColor: '#c4956a', background: 'rgba(252,246,237,0.6)' }}
           >
             {unreadCount > 0 && (
