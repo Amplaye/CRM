@@ -46,6 +46,7 @@ export const es: Dictionary = {
   res_col_time: "Hora",
   res_col_status: "Estado",
   res_col_source: "Origen",
+  res_seat_action: "Sentar",
   res_subtitle: "Gestiona todas las reservas de IA y del personal del restaurante.",
   res_export: "Exportar",
   res_filters: "Filtros",

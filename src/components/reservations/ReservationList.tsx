@@ -164,8 +164,15 @@ export function ReservationList({ date, onRowClick }: ReservationListProps) {
             </div>
             <div className="flex items-center gap-1.5 flex-shrink-0">
               {res.status === 'confirmed' && (
-                <button onClick={(e) => handleSeat(e, res.id)} className="px-2 py-1 text-xs font-bold rounded-lg bg-blue-500 text-white hover:bg-blue-600 transition-colors" title="Sentar">
-                  <Armchair className="w-3.5 h-3.5" />
+                <button
+                  onClick={(e) => handleSeat(e, res.id)}
+                  className="flex items-center gap-1.5 px-3 py-2 text-xs font-bold rounded-lg text-white shadow-md hover:shadow-lg active:scale-95 transition-all"
+                  style={{ background: 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)' }}
+                  title={t("res_seat_action")}
+                  aria-label={t("res_seat_action")}
+                >
+                  <Armchair className="w-5 h-5" />
+                  <span>{t("res_seat_action")}</span>
                 </button>
               )}
               <StatusPill status={res.status} />

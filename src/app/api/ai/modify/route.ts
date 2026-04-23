@@ -23,6 +23,12 @@ interface ModifyPayload {
   // from the existing reservation (keeps the voice prompt simple).
   personas_delta?: number; // positive=add people, negative=remove
   retraso_minutos?: number; // delay to add to the original time
+  // Disambiguators — when a guest has multiple active bookings on the same phone
+  // (regular customer who books often), pass any of these so the API picks the
+  // RIGHT reservation instead of "most recent" by chance.
+  current_date?: string; // YYYY-MM-DD of the booking the client wants to modify
+  current_time?: string; // HH:MM
+  current_party_size?: number;
   idempotency_key?: string;
 }
 
@@ -64,6 +70,12 @@ export async function PUT(request: Request) {
     if (payload.time && !TIME_RE.test(payload.time)) {
       return NextResponse.json({ success: false, error: 'time must be HH:MM' }, { status: 400 });
     }
+    if (payload.current_date && !DATE_RE.test(payload.current_date)) {
+      return NextResponse.json({ success: false, error: 'current_date must be YYYY-MM-DD' }, { status: 400 });
+    }
+    if (payload.current_time && !TIME_RE.test(payload.current_time)) {
+      return NextResponse.json({ success: false, error: 'current_time must be HH:MM' }, { status: 400 });
+    }
 
     const supabase = createServiceRoleClient();
 
@@ -90,8 +102,13 @@ export async function PUT(request: Request) {
       }
     }
 
-    // Find reservation by ID or by guest phone (most recent active)
+    // Find reservation by ID, or by guest phone with optional disambiguators
+    // (current_date/current_time/current_party_size). When the guest is a
+    // regular and has multiple active bookings on the same phone, the
+    // disambiguators let us pick the EXACT reservation the client means
+    // instead of guessing "most recent".
     let reservationId = payload.reservation_id;
+    let ambiguousMatches: Array<{ id: string; date: string; time: string; party_size: number }> = [];
 
     if (!reservationId && payload.guest_phone) {
       const phoneDigits = payload.guest_phone.replace(/\D/g, '');
@@ -106,23 +123,68 @@ export async function PUT(request: Request) {
         return gDigits.includes(phoneDigits) || phoneDigits.includes(gDigits);
       });
 
-      // Try each matching guest — find the most recent ACTIVE reservation (not completed/cancelled/no_show)
+      // Collect ALL active reservations across the matching guests.
+      const allActive: Array<{ id: string; date: string; time: string; party_size: number; created_at: string }> = [];
       for (const guest of matchingGuests) {
         const { data: resList } = await supabase
           .from('reservations')
-          .select('id, date')
+          .select('id, date, time, party_size, created_at')
           .eq('tenant_id', payload.tenant_id)
           .eq('guest_id', guest.id)
-          .in('status', ['confirmed', 'pending_confirmation', 'escalated', 'seated'])
-          .order('date', { ascending: false })
-          .order('created_at', { ascending: false })
-          .limit(1);
+          .in('status', ['confirmed', 'pending_confirmation', 'escalated', 'seated']);
+        for (const r of resList || []) allActive.push(r as any);
+      }
 
-        if (resList && resList.length > 0) {
-          reservationId = resList[0].id;
-          break;
+      // Score each reservation against the disambiguators. Exact matches on
+      // date+time+party_size win; partial matches break ties; only when no
+      // disambiguator is supplied (or all match the same one) do we fall back
+      // to the most recent.
+      const scored = allActive.map((r) => {
+        let score = 0;
+        if (payload.current_date && r.date === payload.current_date) score += 100;
+        if (payload.current_time && (r.time || '').slice(0, 5) === payload.current_time) score += 50;
+        if (payload.current_party_size && Number(r.party_size) === Number(payload.current_party_size)) score += 25;
+        return { r, score };
+      });
+      scored.sort((a, b) => {
+        if (b.score !== a.score) return b.score - a.score;
+        // Tiebreak: future dates first, then most recent created_at
+        const aDate = a.r.date || '';
+        const bDate = b.r.date || '';
+        if (aDate !== bDate) return aDate > bDate ? -1 : 1;
+        return (b.r.created_at || '') > (a.r.created_at || '') ? 1 : -1;
+      });
+
+      // Detect ambiguity: 2+ candidates tied at the top score AND the caller
+      // gave no/insufficient disambiguators → return ambiguous response so the
+      // bot can ask the client which one.
+      if (scored.length > 1) {
+        const topScore = scored[0].score;
+        const tied = scored.filter((s) => s.score === topScore);
+        const noDisambiguator = !payload.current_date && !payload.current_time && !payload.current_party_size;
+        if (tied.length > 1 && (noDisambiguator || topScore < 100)) {
+          ambiguousMatches = tied.map((s) => ({
+            id: s.r.id,
+            date: s.r.date,
+            time: (s.r.time || '').slice(0, 5),
+            party_size: s.r.party_size,
+          }));
         }
       }
+
+      if (ambiguousMatches.length === 0 && scored.length > 0) {
+        reservationId = scored[0].r.id;
+      }
+    }
+
+    if (ambiguousMatches.length > 1) {
+      return NextResponse.json({
+        success: false,
+        reason: 'ambiguous_reservation',
+        message: 'El cliente tiene varias reservas activas. Pregúntale para cuál es: ' +
+          ambiguousMatches.map((m) => `${m.date} ${m.time} (${m.party_size}p)`).join(' · '),
+        candidates: ambiguousMatches,
+      }, { status: 409 });
     }
 
     if (!reservationId) {
