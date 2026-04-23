@@ -4,6 +4,7 @@ import { createContext, useContext, useEffect, useState, ReactNode, useMemo } fr
 import { useAuth } from "./AuthContext";
 import { createClient } from "@/lib/supabase/client";
 import { Tenant, GlobalRole } from "@/lib/types";
+import { safeLocal, safeSession } from "@/lib/safe-storage";
 
 interface TenantContextType {
   activeTenant: Tenant | null;
@@ -49,7 +50,7 @@ export const TenantProvider = ({ children }: { children: ReactNode }) => {
 
     // Check sessionStorage cache to avoid re-fetching on every navigation
     const cacheKey = `tenant_ctx_${user.id}`;
-    const cached = sessionStorage.getItem(cacheKey);
+    const cached = safeSession.get(cacheKey);
     if (cached) {
       try {
         const c = JSON.parse(cached);
@@ -84,17 +85,17 @@ export const TenantProvider = ({ children }: { children: ReactNode }) => {
         let activeR: string | null = null;
 
         if (tenants.length > 0) {
-          const savedId = localStorage.getItem("active_tenant_id");
+          const savedId = safeLocal.get("active_tenant_id");
           active = tenants.find((t: Tenant) => t.id === savedId) || tenants[0];
           activeR = memberships!.find((m: any) => m.tenant_id === active!.id)?.role || null;
-          localStorage.setItem("active_tenant_id", active!.id);
+          safeLocal.set("active_tenant_id", active!.id);
         }
 
         setActiveTenant(active);
         setActiveRole(activeR);
 
         // Cache in sessionStorage
-        sessionStorage.setItem(cacheKey, JSON.stringify({
+        safeSession.set(cacheKey, JSON.stringify({
           globalRole: role, tenants, activeTenant: active, activeRole: activeR,
         }));
       } catch (err) {
@@ -111,9 +112,9 @@ export const TenantProvider = ({ children }: { children: ReactNode }) => {
     const target = availableTenants.find(t => t.id === tenantId);
     if (target) {
       setActiveTenant(target);
-      localStorage.setItem("active_tenant_id", target.id);
+      safeLocal.set("active_tenant_id", target.id);
       // Clear cache so it reloads with new tenant
-      if (user) sessionStorage.removeItem(`tenant_ctx_${user.id}`);
+      if (user) safeSession.remove(`tenant_ctx_${user.id}`);
       window.location.reload();
     }
   };
@@ -134,7 +135,7 @@ export const TenantProvider = ({ children }: { children: ReactNode }) => {
       setActiveTenant(fresh);
       const updatedList = availableTenants.map((t) => (t.id === fresh.id ? fresh : t));
       setAvailableTenants(updatedList);
-      sessionStorage.setItem(`tenant_ctx_${user.id}`, JSON.stringify({
+      safeSession.set(`tenant_ctx_${user.id}`, JSON.stringify({
         globalRole, tenants: updatedList, activeTenant: fresh, activeRole,
       }));
     } catch (err) {

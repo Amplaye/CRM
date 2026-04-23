@@ -4,6 +4,7 @@ import React, { createContext, useContext, useState, useEffect, ReactNode } from
 import { en, Dictionary } from "../i18n/dictionaries/en";
 import { es } from "../i18n/dictionaries/es";
 import { it } from "../i18n/dictionaries/it";
+import { safeLocal } from "../safe-storage";
 
 type LanguageCode = "en" | "es" | "it";
 
@@ -30,7 +31,7 @@ export const LanguageProvider = ({ children }: { children: ReactNode }) => {
 
   // Load saved preference from localStorage on mount
   useEffect(() => {
-    const saved = localStorage.getItem("app_lang") as LanguageCode;
+    const saved = safeLocal.get("app_lang") as LanguageCode | null;
     if (saved === "en" || saved === "es" || saved === "it") {
       setLanguageState(saved);
     } else if (typeof navigator !== "undefined" && navigator.language.startsWith("it")) {
@@ -40,7 +41,7 @@ export const LanguageProvider = ({ children }: { children: ReactNode }) => {
 
   const setLanguage = (lang: LanguageCode) => {
     setLanguageState(lang);
-    localStorage.setItem("app_lang", lang);
+    safeLocal.set("app_lang", lang);
   };
 
   const t = (key: keyof Dictionary): string => {

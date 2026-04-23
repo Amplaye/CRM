@@ -6,20 +6,12 @@ import { useRouter } from "next/navigation";
 import { Loader2, Lock, Mail, Globe, Eye, EyeOff } from "lucide-react";
 import Link from "next/link";
 import { useLanguage } from "@/lib/contexts/LanguageContext";
+import { safeLocal } from "@/lib/safe-storage";
 
 export default function LoginPage() {
-  const [email, setEmail] = useState(() => {
-    if (typeof window !== "undefined") return localStorage.getItem("login_email") || "";
-    return "";
-  });
-  const [password, setPassword] = useState(() => {
-    if (typeof window !== "undefined") return localStorage.getItem("login_password") || "";
-    return "";
-  });
-  const [rememberMe, setRememberMe] = useState(() => {
-    if (typeof window !== "undefined") return localStorage.getItem("login_remember") === "true";
-    return false;
-  });
+  const [email, setEmail] = useState(() => safeLocal.get("login_email") || "");
+  const [password, setPassword] = useState(() => safeLocal.get("login_password") || "");
+  const [rememberMe, setRememberMe] = useState(() => safeLocal.get("login_remember") === "true");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
@@ -34,13 +26,13 @@ export default function LoginPage() {
 
     // Save or clear remembered credentials
     if (rememberMe) {
-      localStorage.setItem("login_email", email);
-      localStorage.setItem("login_password", password);
-      localStorage.setItem("login_remember", "true");
+      safeLocal.set("login_email", email);
+      safeLocal.set("login_password", password);
+      safeLocal.set("login_remember", "true");
     } else {
-      localStorage.removeItem("login_email");
-      localStorage.removeItem("login_password");
-      localStorage.removeItem("login_remember");
+      safeLocal.remove("login_email");
+      safeLocal.remove("login_password");
+      safeLocal.remove("login_remember");
     }
 
     try {
