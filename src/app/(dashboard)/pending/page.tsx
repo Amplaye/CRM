@@ -268,7 +268,7 @@ export default function PendingPage() {
     try {
       const { error: upErr } = await supabase
         .from("reservations")
-        .update({ status: "cancelled", cancellation_source: "staff_pending_reject" })
+        .update({ status: "cancelled", cancellation_source: "staff" })
         .eq("id", id);
       if (upErr) throw upErr;
 
