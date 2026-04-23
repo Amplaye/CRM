@@ -71,6 +71,7 @@ export default function ReservationsPage() {
     setDate(d.toISOString().split('T')[0]);
   };
   const [viewMode, setViewMode] = useState<"list" | "timeline">("list");
+  const [shiftFilter, setShiftFilter] = useState<"all" | "lunch" | "dinner">("all");
 
   const { t, language } = useLanguage();
   const { activeTenant } = useTenant();
@@ -378,6 +379,20 @@ export default function ReservationsPage() {
           </div>
         </div>
 
+        {/* Shift filter — mobile (full width row below) */}
+        <div className="md:hidden flex p-0.5 rounded-lg border-2 mb-3" style={{ borderColor: '#c4956a', background: 'rgba(252,246,237,0.6)' }}>
+          {(["all", "lunch", "dinner"] as const).map((s) => (
+            <button
+              key={s}
+              onClick={() => setShiftFilter(s)}
+              className={`flex-1 px-3 py-1.5 text-xs font-semibold rounded-md transition-colors ${shiftFilter === s ? 'text-white' : 'text-black'}`}
+              style={{ background: shiftFilter === s ? '#c4956a' : 'transparent' }}
+            >
+              {s === 'all' ? t('res_all_shifts') : s === 'lunch' ? t('floor_lunch') : t('floor_dinner')}
+            </button>
+          ))}
+        </div>
+
         {/* Desktop controls */}
         <div className="p-4 flex flex-col sm:flex-row items-center justify-between border-b rounded-t-xl hidden md:flex border-x border-t border-2" style={{ background: 'rgba(252,246,237,0.85)', borderColor: '#c4956a' }}>
            <div className="flex space-x-4 items-center">
@@ -410,17 +425,32 @@ export default function ReservationsPage() {
                   <Clock className="w-4 h-4 mr-1.5" /> {t("res_timeline")}
                 </button>
               </div>
+              {/* Shift filter — desktop */}
+              <div className="flex p-1 rounded-lg border-2 ml-2" style={{ borderColor: '#c4956a', background: 'rgba(252,246,237,0.6)' }}>
+                {(["all", "lunch", "dinner"] as const).map((s) => (
+                  <button
+                    key={s}
+                    onClick={() => setShiftFilter(s)}
+                    className={`px-3 py-1 text-sm font-semibold rounded-md transition-colors ${shiftFilter === s ? 'text-white' : 'text-black'}`}
+                    style={{ background: shiftFilter === s ? '#c4956a' : 'transparent' }}
+                  >
+                    {s === 'all' ? t('res_all_shifts') : s === 'lunch' ? t('floor_lunch') : t('floor_dinner')}
+                  </button>
+                ))}
+              </div>
            </div>
         </div>
 
         {viewMode === "list" ? (
           <ReservationList
             date={date}
+            shiftFilter={shiftFilter}
             onRowClick={(res) => { setIsCreating(false); setSelectedRes(res as ReservationWithGuest); }}
           />
         ) : (
           <ReservationTimeline
             date={date}
+            shiftFilter={shiftFilter}
             onRowClick={(res) => { setIsCreating(false); setSelectedRes(res as ReservationWithGuest); }}
           />
         )}

@@ -45,6 +45,7 @@ export const en = {
   res_col_status: "Status",
   res_col_source: "Source",
   res_seat_action: "Seat",
+  res_all_shifts: "All",
   res_subtitle: "Manage all AI and Staff bookings for your restaurant.",
   res_export: "Export",
   res_filters: "Filters",

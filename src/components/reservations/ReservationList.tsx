@@ -10,10 +10,11 @@ import Link from "next/link";
 
 interface ReservationListProps {
   date: string;
+  shiftFilter?: "all" | "lunch" | "dinner";
   onRowClick?: (res: Reservation) => void;
 }
 
-export function ReservationList({ date, onRowClick }: ReservationListProps) {
+export function ReservationList({ date, shiftFilter = "all", onRowClick }: ReservationListProps) {
   const { activeTenant: tenant } = useTenant();
   const { t } = useLanguage();
   const [reservations, setReservations] = useState<(Reservation & { guest_name?: string; guest_phone?: string; table_names?: string[] })[]>([]);
@@ -59,7 +60,13 @@ export function ReservationList({ date, onRowClick }: ReservationListProps) {
       })) as (Reservation & { guest_name?: string; guest_phone?: string; table_names?: string[] })[];
 
       const sorted = withNames.sort((a, b) => a.time.localeCompare(b.time));
-      setReservations(sorted);
+      const filtered = shiftFilter === "all"
+        ? sorted
+        : sorted.filter((r: any) => {
+            const rs = r.shift || (parseInt((r.time || '00').split(':')[0]) < 16 ? 'lunch' : 'dinner');
+            return rs === shiftFilter;
+          });
+      setReservations(filtered);
       setLoading(false);
     };
 
@@ -72,7 +79,7 @@ export function ReservationList({ date, onRowClick }: ReservationListProps) {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [tenant, date]);
+  }, [tenant, date, shiftFilter]);
 
   const StatusPill = ({ status }: { status: Reservation['status'] }) => {
     switch (status) {

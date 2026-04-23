@@ -12,7 +12,7 @@ interface ResWithGuest extends Reservation {
   table_names?: string[];
 }
 
-export function ReservationTimeline({ date, onRowClick }: { date: string, onRowClick: (r: Reservation) => void }) {
+export function ReservationTimeline({ date, shiftFilter = "all", onRowClick }: { date: string, shiftFilter?: "all" | "lunch" | "dinner", onRowClick: (r: Reservation) => void }) {
   const { activeTenant } = useTenant();
   const [reservations, setReservations] = useState<ResWithGuest[]>([]);
   const [loading, setLoading] = useState(true);
@@ -62,7 +62,13 @@ export function ReservationTimeline({ date, onRowClick }: { date: string, onRowC
       }));
 
       const sorted = withNames.sort((a, b) => a.time.localeCompare(b.time));
-      setReservations(sorted);
+      const filtered = shiftFilter === "all"
+        ? sorted
+        : sorted.filter((r: any) => {
+            const rs = r.shift || (parseInt((r.time || '00').split(':')[0]) < 16 ? 'lunch' : 'dinner');
+            return rs === shiftFilter;
+          });
+      setReservations(filtered);
       setLoading(false);
     };
 
@@ -75,7 +81,7 @@ export function ReservationTimeline({ date, onRowClick }: { date: string, onRowC
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [activeTenant, date]);
+  }, [activeTenant, date, shiftFilter]);
 
   if (loading) {
     return (
