@@ -6,6 +6,7 @@ import { useTenant } from "@/lib/contexts/TenantContext";
 import { useEffect, useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { safeLocal } from "@/lib/safe-storage";
 
 interface Notification {
   id: string;
@@ -32,19 +33,123 @@ export function Topbar({ onMenuToggle }: TopbarProps) {
   // Load notifications from localStorage on mount
   useEffect(() => {
     setIsClient(true);
-    try {
-      const saved = localStorage.getItem("crm_notifications");
-      if (saved) setNotifications(JSON.parse(saved));
-    } catch(e) {}
+    const saved = safeLocal.get("crm_notifications");
+    if (saved) {
+      try { setNotifications(JSON.parse(saved)); } catch(e) {}
+    }
   }, []);
 
   // Save notifications to localStorage on change
   useEffect(() => {
     if (!isClient) return;
-    try {
-      localStorage.setItem("crm_notifications", JSON.stringify(notifications));
-    } catch(e) {}
+    safeLocal.set("crm_notifications", JSON.stringify(notifications));
   }, [notifications, isClient]);
+
+  // Safari suspends background tabs and kills WebSockets, so realtime alone
+  // isn't enough — fetch recent activity on mount and on tab re-focus to
+  // catch up on anything that happened while the tab was idle/closed.
+  useEffect(() => {
+    if (!activeTenant?.id) return;
+    const supabase = createClient();
+    let cancelled = false;
+
+    const catchUp = async () => {
+      // Look back 24h (or since last successful catch-up)
+      const lastKey = `crm_notif_last_${activeTenant.id}`;
+      const lastStr = safeLocal.get(lastKey);
+      const since = lastStr
+        ? new Date(lastStr)
+        : new Date(Date.now() - 24 * 60 * 60 * 1000);
+      const sinceIso = since.toISOString();
+
+      try {
+        const [resRes, wlRes, auRes] = await Promise.all([
+          supabase.from('reservations')
+            .select('id, date, time, party_size, status, source, created_by_type, created_at')
+            .eq('tenant_id', activeTenant.id)
+            .gte('created_at', sinceIso)
+            .order('created_at', { ascending: false })
+            .limit(30),
+          supabase.from('waitlist_entries')
+            .select('id, party_size, requested_date, created_at')
+            .eq('tenant_id', activeTenant.id)
+            .gte('created_at', sinceIso)
+            .order('created_at', { ascending: false })
+            .limit(20),
+          supabase.from('audit_events')
+            .select('id, action, details, created_at')
+            .eq('tenant_id', activeTenant.id)
+            .eq('action', 'modify_reservation')
+            .gte('created_at', sinceIso)
+            .order('created_at', { ascending: false })
+            .limit(20),
+        ]);
+        if (cancelled) return;
+
+        const newNotifs: Notification[] = [];
+        (resRes.data || []).forEach((res: any) => {
+          if (res.source === 'walk_in' || res.status === 'seated' || res.created_by_type === 'staff') return;
+          const isEscalated = res.status === 'escalated';
+          newNotifs.push({
+            id: res.id,
+            type: isEscalated ? 'incident' : 'reservation',
+            message: `${t('topbar_new_reservation')}: ${res.party_size} ${t('topbar_people')} - ${res.date} ${res.time}`,
+            time: new Date(res.created_at).toLocaleTimeString(),
+            read: false,
+            href: isEscalated ? '/pending' : `/reservations?date=${res.date}`,
+          });
+        });
+        (wlRes.data || []).forEach((entry: any) => {
+          newNotifs.push({
+            id: entry.id,
+            type: 'waitlist',
+            message: `${t('topbar_waitlist')}: ${entry.party_size} ${t('topbar_people')} - ${entry.requested_date || ''}`,
+            time: new Date(entry.created_at).toLocaleTimeString(),
+            read: false,
+            href: '/waitlist',
+          });
+        });
+        (auRes.data || []).forEach((ev: any) => {
+          const before = ev.details?.previous || {};
+          const upd = ev.details?.updates || {};
+          const parts: string[] = [];
+          if (upd.date && before.date && upd.date !== before.date) parts.push(`${before.date} → ${upd.date}`);
+          if (upd.time && before.time && upd.time !== before.time) parts.push(`${before.time} → ${upd.time}`);
+          if (upd.party_size && before.party_size && upd.party_size !== before.party_size) parts.push(`${before.party_size} → ${upd.party_size} ${t('topbar_people')}`);
+          const diff = parts.length ? ` (${parts.join(', ')})` : '';
+          const goDate = upd.date || before.date || '';
+          newNotifs.push({
+            id: ev.id,
+            type: 'reservation',
+            message: `${t('topbar_reservation_modified')}${diff}`,
+            time: new Date(ev.created_at).toLocaleTimeString(),
+            read: false,
+            href: goDate ? `/reservations?date=${goDate}` : '/reservations',
+          });
+        });
+
+        if (newNotifs.length > 0) {
+          setNotifications(prev => {
+            const existing = new Set(prev.map(n => n.id));
+            const toAdd = newNotifs.filter(n => !existing.has(n.id));
+            if (toAdd.length === 0) return prev;
+            return [...toAdd, ...prev].slice(0, 20);
+          });
+        }
+        safeLocal.set(lastKey, new Date().toISOString());
+      } catch(e) { /* ignore network errors */ }
+    };
+
+    catchUp();
+    const onVis = () => { if (!document.hidden) catchUp(); };
+    document.addEventListener('visibilitychange', onVis);
+    window.addEventListener('focus', onVis);
+    return () => {
+      cancelled = true;
+      document.removeEventListener('visibilitychange', onVis);
+      window.removeEventListener('focus', onVis);
+    };
+  }, [activeTenant?.id, t]);
 
   // Close dropdown on outside click
   useEffect(() => {
