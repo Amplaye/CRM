@@ -58,8 +58,7 @@ export async function POST(request: Request) {
         : 'whatsapp:+' + phone;
 
       const body =
-        `⏳ Sigues en lista de espera para el ${e.date} a las ${(e.target_time || '').slice(0, 5)} (${e.party_size} personas). ` +
-        `De momento todas las mesas del turno siguen ocupadas — te escribo apenas se libere una. ` +
+        `⏳ De momento todas las mesas del turno siguen ocupadas — te escribo apenas se libere una. ` +
         `Recuerda: estar en lista de espera no garantiza un sitio. Gracias por la paciencia.`;
 
       const form = new URLSearchParams();
