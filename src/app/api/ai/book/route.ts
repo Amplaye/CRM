@@ -62,6 +62,19 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: false, error: 'time must be HH:MM' }, { status: 400 });
     }
 
+    // Past-date guard — defense in depth. Wrappers (voice/chat) filter this
+    // client-side, but the API must also refuse so a malformed tool call can't
+    // create yesterday's reservation (pollutes analytics and no-show workflows).
+    const _canaryNow = new Date(new Date().toLocaleString('en-US', { timeZone: 'Atlantic/Canary' }));
+    const _canaryToday = _canaryNow.getFullYear() + '-' + String(_canaryNow.getMonth() + 1).padStart(2, '0') + '-' + String(_canaryNow.getDate()).padStart(2, '0');
+    if (payload.date < _canaryToday) {
+      return NextResponse.json({
+        success: false,
+        reason: 'past_date',
+        message: `No se puede reservar para una fecha pasada (${payload.date}). ¿Para qué día quieres reservar?`,
+      }, { status: 409 });
+    }
+
     // E.164 phone validation — optional leading "+", 7-15 digits, first non-zero
     if (payload.guest_phone !== undefined && payload.guest_phone !== null) {
       const phoneStr = String(payload.guest_phone).trim();
