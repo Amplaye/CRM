@@ -13,6 +13,27 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: false, error: "Missing required fields" }, { status: 400 });
     }
 
+    // Past date/time guard — Atlantic/Canary. Rejects waitlists for slots that
+    // have already happened; wrappers filter client-side but the API is the
+    // ultimate line of defense.
+    {
+      const _canaryNow = new Date(new Date().toLocaleString('en-US', { timeZone: 'Atlantic/Canary' }));
+      const _today = _canaryNow.getFullYear() + '-' + String(_canaryNow.getMonth() + 1).padStart(2, '0') + '-' + String(_canaryNow.getDate()).padStart(2, '0');
+      if (payload.requested_date < _today) {
+        return NextResponse.json({ success: false, reason: 'past_date', message: 'No se puede poner en lista de espera para una fecha pasada.' }, { status: 409 });
+      }
+      if (payload.requested_date === _today && payload.requested_time) {
+        const [hh, mm] = String(payload.requested_time).split(':').map(Number);
+        if (Number.isFinite(hh) && Number.isFinite(mm)) {
+          const reqMin = hh * 60 + mm;
+          const nowMin = _canaryNow.getHours() * 60 + _canaryNow.getMinutes();
+          if (reqMin <= nowMin) {
+            return NextResponse.json({ success: false, reason: 'past_time', message: `A las ${payload.requested_time} ya ha pasado. ¿Para qué otro horario quieres esperar sitio?` }, { status: 409 });
+          }
+        }
+      }
+    }
+
     const supabase = createServiceRoleClient();
 
     // Find or create guest

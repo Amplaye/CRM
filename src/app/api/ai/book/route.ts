@@ -62,9 +62,10 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: false, error: 'time must be HH:MM' }, { status: 400 });
     }
 
-    // Past-date guard — defense in depth. Wrappers (voice/chat) filter this
-    // client-side, but the API must also refuse so a malformed tool call can't
-    // create yesterday's reservation (pollutes analytics and no-show workflows).
+    // Past-date/time guard — defense in depth. Wrappers (voice/chat) filter
+    // this client-side, but the API must also refuse so a malformed tool call
+    // can't create yesterday's reservation (or today's 20:00 booking at 22:00)
+    // and silently pollute analytics + no-show workflows.
     const _canaryNow = new Date(new Date().toLocaleString('en-US', { timeZone: 'Atlantic/Canary' }));
     const _canaryToday = _canaryNow.getFullYear() + '-' + String(_canaryNow.getMonth() + 1).padStart(2, '0') + '-' + String(_canaryNow.getDate()).padStart(2, '0');
     if (payload.date < _canaryToday) {
@@ -73,6 +74,20 @@ export async function POST(request: Request) {
         reason: 'past_date',
         message: `No se puede reservar para una fecha pasada (${payload.date}). ¿Para qué día quieres reservar?`,
       }, { status: 409 });
+    }
+    if (payload.date === _canaryToday) {
+      const [_ph, _pm] = payload.time.split(':').map(Number);
+      if (Number.isFinite(_ph) && Number.isFinite(_pm)) {
+        const _reqMin = _ph * 60 + _pm;
+        const _nowMin = _canaryNow.getHours() * 60 + _canaryNow.getMinutes();
+        if (_reqMin <= _nowMin) {
+          return NextResponse.json({
+            success: false,
+            reason: 'past_time',
+            message: `A las ${payload.time} de hoy ya ha pasado. ¿Para qué hora (futura) quieres reservar?`,
+          }, { status: 409 });
+        }
+      }
     }
 
     // E.164 phone validation — optional leading "+", 7-15 digits, first non-zero
