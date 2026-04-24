@@ -119,36 +119,54 @@ export default function WaitlistPage() {
     return () => { supabase.removeChannel(channel); };
   }, [tenant, today]);
 
+  // Pulled out of startConfirm so we can re-run it on realtime changes.
+  const loadOccupiedFor = async (entryId: string) => {
+    const entry = entries.find(e => e.id === entryId);
+    if (!entry || !tenant) return;
+    const reqShift = getShift(entry.target_time);
+    const { data: resData } = await supabase
+      .from("reservations")
+      .select("id, time, shift")
+      .eq("tenant_id", tenant.id)
+      .eq("date", entry.date)
+      .in("status", ["confirmed", "seated", "pending_confirmation"]);
+
+    const sameShiftIds = (resData || []).filter((r: any) => {
+      const rShift = r.shift || getShift(r.time);
+      return rShift === reqShift;
+    }).map((r: any) => r.id);
+
+    if (sameShiftIds.length > 0) {
+      const { data: links } = await supabase
+        .from("reservation_tables")
+        .select("table_id")
+        .in("reservation_id", sameShiftIds);
+      setOccupiedTableIds(new Set((links || []).map((l: any) => l.table_id)));
+    } else {
+      setOccupiedTableIds(new Set());
+    }
+  };
+
+  // Keep occupied table set in sync while a picker is open: subscribe to
+  // reservation_tables and reservations changes for the current tenant/date
+  // and re-pull on any event. This means assigning tables to waitlist entry A
+  // updates entry B's picker instantly without a manual reload.
+  useEffect(() => {
+    if (!confirmingId || !tenant) return;
+    const channel = supabase
+      .channel(`waitlist_occupied_${confirmingId}`)
+      .on("postgres_changes", { event: "*", schema: "public", table: "reservation_tables" }, () => loadOccupiedFor(confirmingId))
+      .on("postgres_changes", { event: "*", schema: "public", table: "reservations", filter: `tenant_id=eq.${tenant.id}` }, () => loadOccupiedFor(confirmingId))
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [confirmingId, tenant?.id]);
+
   const startConfirm = async (id: string) => {
     setConfirmingId(id);
     setSelectedTables(new Set());
     setZoneFilter(null);
-
-    const entry = entries.find(e => e.id === id);
-    if (entry && tenant) {
-      const reqShift = getShift(entry.target_time);
-      const { data: resData } = await supabase
-        .from("reservations")
-        .select("id, time, shift")
-        .eq("tenant_id", tenant.id)
-        .eq("date", entry.date)
-        .in("status", ["confirmed", "seated", "pending_confirmation"]);
-
-      const sameShiftIds = (resData || []).filter((r: any) => {
-        const rShift = r.shift || getShift(r.time);
-        return rShift === reqShift;
-      }).map((r: any) => r.id);
-
-      if (sameShiftIds.length > 0) {
-        const { data: links } = await supabase
-          .from("reservation_tables")
-          .select("table_id")
-          .in("reservation_id", sameShiftIds);
-        setOccupiedTableIds(new Set((links || []).map((l: any) => l.table_id)));
-      } else {
-        setOccupiedTableIds(new Set());
-      }
-    }
+    await loadOccupiedFor(id);
   };
 
   const toggleTable = (tableId: string) => {
