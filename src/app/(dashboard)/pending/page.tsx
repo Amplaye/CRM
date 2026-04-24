@@ -194,7 +194,14 @@ export default function PendingPage() {
 
     setConfirmInFlight(true);
     try {
-      // 1) Assign selected tables — fail loud if insert errors (RLS, FK, unique).
+      // 1) Reset + assign selected tables. DELETE-then-INSERT keeps the handler idempotent:
+      // a previous failed attempt (insert OK, status update failed) would leave stale links
+      // and the next click would 23505 on the unique key (reservation_id, table_id).
+      const { error: delErr } = await supabase
+        .from("reservation_tables")
+        .delete()
+        .eq("reservation_id", confirmingId);
+      if (delErr) throw delErr;
       if (selectedTables.size > 0) {
         const inserts = Array.from(selectedTables).map(tableId => ({
           reservation_id: confirmingId,
