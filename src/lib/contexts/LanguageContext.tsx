@@ -1,6 +1,6 @@
 "use client";
 
-import React, { createContext, useContext, useState, useEffect, ReactNode } from "react";
+import React, { createContext, useContext, useState, useEffect, useCallback, useMemo, ReactNode } from "react";
 import { en, Dictionary } from "../i18n/dictionaries/en";
 import { es } from "../i18n/dictionaries/es";
 import { it } from "../i18n/dictionaries/it";
@@ -39,17 +39,27 @@ export const LanguageProvider = ({ children }: { children: ReactNode }) => {
     }
   }, []);
 
-  const setLanguage = (lang: LanguageCode) => {
+  // Stable identity across renders — critical: consumers put `t` in useEffect
+  // dependency arrays and a new reference each render would retrigger those
+  // effects on every provider render, hammering the DB from Topbar/etc.
+  const setLanguage = useCallback((lang: LanguageCode) => {
     setLanguageState(lang);
     safeLocal.set("app_lang", lang);
-  };
+  }, []);
 
-  const t = (key: keyof Dictionary): string => {
-    return dictionaries[language][key] || dictionaries["en"][key] || key;
-  };
+  const t = useCallback(
+    (key: keyof Dictionary): string =>
+      dictionaries[language][key] || dictionaries["en"][key] || key,
+    [language]
+  );
+
+  const value = useMemo(
+    () => ({ language, setLanguage, t }),
+    [language, setLanguage, t]
+  );
 
   return (
-    <LanguageContext.Provider value={{ language, setLanguage, t }}>
+    <LanguageContext.Provider value={value}>
       {children}
     </LanguageContext.Provider>
   );
