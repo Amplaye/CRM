@@ -1,10 +1,22 @@
 import { NextRequest, NextResponse } from "next/server";
 import { logSystemEvent } from "@/lib/system-log";
 import { assertAiSecret } from "@/lib/ai-auth";
+import { createServerSupabaseClient } from "@/lib/supabase/server";
 
 export async function POST(req: NextRequest) {
+  // Accept either: (a) valid x-ai-secret (n8n/Retell) or (b) a signed-in dashboard session.
+  // This lets /pending and other dashboard pages call this endpoint from the browser
+  // (same-origin cookies) without embedding the shared secret in the JS bundle.
   const unauth = assertAiSecret(req);
-  if (unauth) return unauth;
+  if (unauth) {
+    try {
+      const supabase = await createServerSupabaseClient();
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return unauth;
+    } catch {
+      return unauth;
+    }
+  }
   try {
     const { to, message } = await req.json();
 
