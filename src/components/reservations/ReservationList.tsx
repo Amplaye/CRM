@@ -7,6 +7,7 @@ import { Reservation } from "@/lib/types";
 import { useLanguage } from "@/lib/contexts/LanguageContext";
 import { Clock, User, Phone, MessageSquare, Globe, UserCheck, AlertTriangle, UserMinus, CalendarCheck, Plus, Users, XCircle, Armchair } from "lucide-react";
 import Link from "next/link";
+import { useSeenSnapshotAndMark } from "@/lib/hooks/useLastSeen";
 
 interface ReservationListProps {
   date: string;
@@ -17,6 +18,7 @@ interface ReservationListProps {
 export function ReservationList({ date, shiftFilter = "all", onRowClick }: ReservationListProps) {
   const { activeTenant: tenant } = useTenant();
   const { t } = useLanguage();
+  const seenAt = useSeenSnapshotAndMark(tenant?.id, "reservations");
   const [reservations, setReservations] = useState<(Reservation & { guest_name?: string; guest_phone?: string; table_names?: string[] })[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -150,11 +152,14 @@ export function ReservationList({ date, shiftFilter = "all", onRowClick }: Reser
     <>
     {/* Mobile: card list */}
     <div className="md:hidden space-y-2">
-      {reservations.map((res) => (
+      {reservations.map((res) => {
+        const resCreated = (res as any).created_at;
+        const isNew = resCreated && resCreated > seenAt;
+        return (
         <div
           key={res.id}
           onClick={() => onRowClick?.(res)}
-          className={`rounded-xl border-2 p-3 transition-all ${onRowClick ? 'cursor-pointer active:scale-[0.98]' : ''}`}
+          className={`rounded-xl border-2 p-3 transition-all ${onRowClick ? 'cursor-pointer active:scale-[0.98]' : ''} ${isNew ? 'is-new-row' : ''}`}
           style={{ background: 'rgba(252,246,237,0.85)', borderColor: 'rgba(196,149,106,0.4)' }}
         >
           <div className="flex items-center gap-3">
@@ -192,7 +197,8 @@ export function ReservationList({ date, shiftFilter = "all", onRowClick }: Reser
             </div>
           )}
         </div>
-      ))}
+        );
+      })}
     </div>
 
     {/* Desktop: full table */}
@@ -211,11 +217,14 @@ export function ReservationList({ date, shiftFilter = "all", onRowClick }: Reser
           </tr>
         </thead>
         <tbody className="divide-y" style={{ borderColor: 'rgba(196,149,106,0.3)' }}>
-          {reservations.map((res) => (
+          {reservations.map((res) => {
+            const resCreated = (res as any).created_at;
+            const isNew = resCreated && resCreated > seenAt;
+            return (
             <tr
                key={res.id}
                onClick={() => onRowClick?.(res)}
-               className={`hover:bg-[#c4956a]/10 transition-colors ${onRowClick ? 'cursor-pointer' : ''}`}
+               className={`hover:bg-[#c4956a]/10 transition-colors ${onRowClick ? 'cursor-pointer' : ''} ${isNew ? 'is-new-row' : ''}`}
             >
               <td className="px-4 py-4 whitespace-nowrap text-center">
                 <div className="flex items-center justify-center text-sm font-bold text-black">
@@ -254,7 +263,8 @@ export function ReservationList({ date, shiftFilter = "all", onRowClick }: Reser
                 )}
               </td>
             </tr>
-          ))}
+            );
+          })}
         </tbody>
       </table>
     </div>
