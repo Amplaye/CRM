@@ -114,6 +114,9 @@ export default function AdminPage() {
       <div className="rounded-xl border-2 overflow-hidden" style={cardStyle}>
         <div className="px-4 sm:px-6 py-3 border-b flex items-center justify-between" style={{ borderColor: "#c4956a" }}>
           <h2 className="text-sm font-bold text-black uppercase tracking-wider">All Tenants</h2>
+          <Link href="/admin/onboard" className="px-3 py-1.5 rounded-lg bg-emerald-600 text-white text-xs font-bold hover:bg-emerald-700 transition-colors">
+            + Nuovo CRM
+          </Link>
         </div>
         {loading ? (
           <div className="p-12 text-center text-black animate-pulse">Loading...</div>

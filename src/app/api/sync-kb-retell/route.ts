@@ -13,10 +13,9 @@ function isPromptArticle(title: string): boolean {
   return title.toUpperCase().replace(/[^A-Z]/g, "") === "VOICEPROMPT";
 }
 
-// Per-tenant config: Retell LLM ID, agent ID (for publish), timezone +
-// locale for the dynamic FECHA Y HORA header, plus the optional brand
-// title that opens the body (kept for narrow backwards-compat).
-const TENANT_CONFIG: Record<
+// Picnic-only fallback. Every other tenant must have settings.retell.{ llmId,
+// agentId, timezone, locale } populated by the onboarding wizard.
+const TENANT_CONFIG_FALLBACK: Record<
   string,
   { llmId: string; agentId: string; timezone: string; locale: string }
 > = {
@@ -170,15 +169,6 @@ export async function POST(req: NextRequest) {
     const { tenant_id } = await req.json();
     if (!tenant_id) return NextResponse.json({ error: "Missing tenant_id" }, { status: 400 });
 
-    const cfg = TENANT_CONFIG[tenant_id];
-    if (!cfg) {
-      return NextResponse.json(
-        { error: `No Retell config for tenant ${tenant_id}. Add it to TENANT_CONFIG.` },
-        { status: 400 }
-      );
-    }
-    const { llmId, agentId, timezone, locale } = cfg;
-
     const RETELL_KEY = process.env.RETELL_API_KEY;
     if (!RETELL_KEY) {
       return NextResponse.json({ error: "RETELL_API_KEY not configured" }, { status: 500 });
@@ -192,6 +182,25 @@ export async function POST(req: NextRequest) {
       .eq("id", tenant_id)
       .single();
     if (tenantErr || !tenant) return NextResponse.json({ error: "Tenant not found" }, { status: 404 });
+
+    // Resolve Retell config: prefer the tenant.settings.retell block populated
+    // by the onboarding wizard; fall back to the hardcoded Picnic entry.
+    const tenantRetell = (tenant.settings as any)?.retell;
+    const cfg = (tenantRetell && tenantRetell.llmId && tenantRetell.agentId)
+      ? {
+          llmId: tenantRetell.llmId,
+          agentId: tenantRetell.agentId,
+          timezone: tenantRetell.timezone || "Atlantic/Canary",
+          locale: tenantRetell.locale || "es-ES",
+        }
+      : TENANT_CONFIG_FALLBACK[tenant_id];
+    if (!cfg) {
+      return NextResponse.json(
+        { error: `No Retell config for tenant ${tenant_id}. Run onboarding first.` },
+        { status: 400 }
+      );
+    }
+    const { llmId, agentId, timezone, locale } = cfg;
 
     const { data: allArticles, error: artErr } = await supabase
       .from("knowledge_articles")
