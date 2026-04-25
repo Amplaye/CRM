@@ -38,6 +38,17 @@ export default function SettingsPage() {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
 
+  // Always re-fetch the active tenant from the DB on mount. The TenantContext
+  // caches tenant.settings in sessionStorage, so without this call the page
+  // would render stale data after any external write (admin script, API call
+  // from a bot, another tab) — and the bot, which always reads from DB, would
+  // disagree with what the user sees in this form. Forcing a refresh keeps
+  // the Settings page in lockstep with the source of truth.
+  useEffect(() => {
+    refreshActiveTenant();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   useEffect(() => {
     if (!tenant) return;
     setName(tenant.name);
