@@ -362,3 +362,28 @@ create trigger update_conversations_updated_at before update on public.conversat
 create trigger update_incidents_updated_at before update on public.incidents for each row execute function public.update_updated_at();
 create trigger update_knowledge_updated_at before update on public.knowledge_articles for each row execute function public.update_updated_at();
 create trigger update_automations_updated_at before update on public.automation_rules for each row execute function public.update_updated_at();
+
+-- ============================================
+-- COMPOSITE INDEXES (added 2026-04-25)
+-- Match the actual query patterns in src/ + n8n bots:
+--   - feed lookups (tenant + created_at DESC)
+--   - filtered list queries (tenant + status + date)
+--   - bot guest lookup (tenant + phone)
+--   - KB published filter (tenant + status)
+-- ============================================
+CREATE INDEX IF NOT EXISTS idx_reservations_tenant_status_date
+  ON public.reservations (tenant_id, status, date);
+CREATE INDEX IF NOT EXISTS idx_reservations_tenant_created
+  ON public.reservations (tenant_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_waitlist_entries_tenant_status_date
+  ON public.waitlist_entries (tenant_id, status, date);
+CREATE INDEX IF NOT EXISTS idx_waitlist_entries_tenant_created
+  ON public.waitlist_entries (tenant_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_audit_events_tenant_action_created
+  ON public.audit_events (tenant_id, action, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_guests_tenant_phone
+  ON public.guests (tenant_id, phone);
+CREATE INDEX IF NOT EXISTS idx_knowledge_articles_tenant_status
+  ON public.knowledge_articles (tenant_id, status);
+CREATE INDEX IF NOT EXISTS idx_system_logs_tenant_status_created
+  ON public.system_logs (tenant_id, status, created_at DESC);
