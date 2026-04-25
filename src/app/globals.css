@@ -80,29 +80,78 @@ body {
   }
 }
 
-/* Pop-in highlight for newly-arrived rows since user's last visit
- * to a section. Plays once on mount, then fades. Used by the
- * notification badges system in the dashboard. */
-@keyframes new-row-pop {
-  0%   { background-color: rgba(196, 149, 106, 0.30); transform: scale(1); }
-  20%  { background-color: rgba(196, 149, 106, 0.45); transform: scale(1.015); }
-  60%  { background-color: rgba(196, 149, 106, 0.20); transform: scale(1); }
-  100% { background-color: transparent; transform: scale(1); }
+/* "New since last visit" effect for rows in dashboard sections.
+ * 3 layered animations playing once on mount:
+ *   1) bounce-in (vertical settle from -10px with subtle spring overshoot)
+ *   2) breathing terracotta + red glow halo (2 cycles ~3.2s)
+ *   3) shimmer light sweep crossing the row left→right
+ *   4) red→terracotta vertical bar on the left with red glow, fading out
+ * Used by useSeenSnapshotAndMark on /reservations, /pending,
+ * /waitlist, /conversations. Honors prefers-reduced-motion. */
+@keyframes new-row-bounce {
+  0%   { transform: translateY(-10px) scale(0.99); opacity: 0; }
+  50%  { transform: translateY(2px)   scale(1.012); opacity: 1; }
+  75%  { transform: translateY(-1px)  scale(1.005); }
+  100% { transform: translateY(0)     scale(1);     opacity: 1; }
+}
+@keyframes new-row-glow {
+  0%   { box-shadow: 0 0 0 0 rgba(196, 149, 106, 0.55), 0 0 0 0 rgba(239, 68, 68, 0.35); background-color: rgba(196, 149, 106, 0.20); }
+  35%  { box-shadow: 0 0 0 6px rgba(196, 149, 106, 0.25), 0 0 16px 4px rgba(239, 68, 68, 0.20); background-color: rgba(196, 149, 106, 0.18); }
+  70%  { box-shadow: 0 0 0 3px rgba(196, 149, 106, 0.18), 0 0 12px 2px rgba(239, 68, 68, 0.10); background-color: rgba(196, 149, 106, 0.10); }
+  100% { box-shadow: 0 0 0 0 rgba(196, 149, 106, 0.00), 0 0 0 0 rgba(239, 68, 68, 0.00); background-color: transparent; }
+}
+@keyframes new-row-shimmer {
+  0%   { left: -40%; opacity: 0; }
+  10%  { opacity: 0.7; }
+  60%  { opacity: 0.7; }
+  100% { left: 110%; opacity: 0; }
+}
+@keyframes new-row-bar-fade {
+  0%, 60% { opacity: 1; }
+  100%    { opacity: 0; }
 }
 .is-new-row {
-  animation: new-row-pop 2.4s ease-out 1;
+  animation:
+    new-row-bounce 0.55s cubic-bezier(0.34, 1.56, 0.64, 1) 1 both,
+    new-row-glow 3.2s ease-out 1 both;
   position: relative;
+  overflow: hidden;
+  z-index: 1;
 }
 .is-new-row::before {
   content: '';
   position: absolute;
-  left: -2px; top: 0; bottom: 0;
-  width: 3px;
-  background: #ef4444;
-  border-radius: 2px;
-  animation: new-row-pop-bar 4s ease-out 1 forwards;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(
+    100deg,
+    transparent 0%,
+    transparent 35%,
+    rgba(255, 255, 255, 0.85) 50%,
+    transparent 65%,
+    transparent 100%
+  );
+  width: 35%;
+  left: -40%;
+  animation: new-row-shimmer 1.4s ease-out 0.25s 1 both;
+  z-index: 2;
 }
-@keyframes new-row-pop-bar {
-  0%, 70% { opacity: 1; }
-  100%    { opacity: 0; }
+.is-new-row::after {
+  content: '';
+  position: absolute;
+  left: 0; top: 0; bottom: 0;
+  width: 4px;
+  background: linear-gradient(180deg, #ef4444 0%, #c4956a 100%);
+  border-radius: 2px;
+  box-shadow: 0 0 10px rgba(239, 68, 68, 0.6);
+  animation: new-row-bar-fade 4s ease-out 1 forwards;
+  z-index: 3;
+}
+@media (prefers-reduced-motion: reduce) {
+  .is-new-row,
+  .is-new-row::before,
+  .is-new-row::after {
+    animation: none;
+    background-color: rgba(196, 149, 106, 0.12);
+  }
 }
