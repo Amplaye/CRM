@@ -593,6 +593,8 @@ export const it: Dictionary = {
   zone_inside: "Interno",
   zone_outside: "Esterno",
   pending_no_tables_warning: "Non hai selezionato alcun tavolo per {size} persone. Confermare senza assegnare tavoli?",
+  pending_warning_title: "Confermare comunque?",
+  pending_confirm_anyway: "Sì, procedi",
   pending_reject_confirm: "Sei sicuro di voler rifiutare questa richiesta?",
   pending_view_conversation: "Vedi conversazione",
   pending_confirm_error: "Errore nella conferma della prenotazione. Riprova.",

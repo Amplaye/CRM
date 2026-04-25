@@ -58,6 +58,13 @@ export default function PendingPage() {
   const [zoneFilter, setZoneFilter] = useState<string | null>(null);
   // Prevents double-click from confirming the same reservation twice
   const [confirmInFlight, setConfirmInFlight] = useState(false);
+  // Inline validation dialog (replaces window.confirm so it works on mobile)
+  type ConfirmWarning =
+    | { kind: "too_few"; totalSeats: number; partySize: number }
+    | { kind: "too_many"; totalSeats: number; partySize: number }
+    | { kind: "no_tables"; partySize: number }
+    | null;
+  const [warning, setWarning] = useState<ConfirmWarning>(null);
   // Table picker view mode: grid (buttons) or plan (visual canvas)
   const [tablePickerView, setTablePickerView] = useState<"grid" | "plan">("grid");
 
@@ -152,49 +159,39 @@ export default function PendingPage() {
     });
   };
 
-  const handleConfirm = async () => {
+  const handleConfirm = async (skipWarnings = false) => {
     if (!confirmingId || confirmInFlight) return;
     const req = pending.find(p => p.id === confirmingId);
 
-    // Validate: warn if selected tables have fewer seats than party size
-    if (req && selectedTables.size > 0) {
-      const selectedTableObjs = Array.from(selectedTables)
-        .map(tid => tables.find(t => t.id === tid))
-        .filter((t): t is typeof tables[number] => !!t);
-      const totalSeats = selectedTableObjs.reduce((sum, t) => sum + (t.seats || 0), 0);
+    // Inline validation — replaces window.confirm() so it actually works on mobile.
+    if (!skipWarnings && req) {
+      if (selectedTables.size > 0) {
+        const selectedTableObjs = Array.from(selectedTables)
+          .map(tid => tables.find(t => t.id === tid))
+          .filter((t): t is typeof tables[number] => !!t);
+        const totalSeats = selectedTableObjs.reduce((sum, t) => sum + (t.seats || 0), 0);
 
-      if (totalSeats < req.party_size) {
-        const ok = window.confirm(
-          t("pending_seats_warning").replace("{seats}", String(totalSeats)).replace("{size}", String(req.party_size))
-        );
-        if (!ok) return;
-      } else if (selectedTableObjs.length > 1) {
-        // Warn if there's at least one redundant table — i.e. removing the
-        // smallest selected table still covers the party. That means the
-        // assignment is wasteful and the staff probably picked one too many.
-        const smallest = selectedTableObjs.reduce(
-          (min, t) => (t.seats < min.seats ? t : min),
-          selectedTableObjs[0]
-        );
-        if (totalSeats - smallest.seats >= req.party_size) {
-          const ok = window.confirm(
-            t("pending_too_many_warning")
-              .replace("{seats}", String(totalSeats))
-              .replace("{size}", String(req.party_size))
-          );
-          if (!ok) return;
+        if (totalSeats < req.party_size) {
+          setWarning({ kind: "too_few", totalSeats, partySize: req.party_size });
+          return;
         }
+        if (selectedTableObjs.length > 1) {
+          const smallest = selectedTableObjs.reduce(
+            (min, t) => (t.seats < min.seats ? t : min),
+            selectedTableObjs[0]
+          );
+          if (totalSeats - smallest.seats >= req.party_size) {
+            setWarning({ kind: "too_many", totalSeats, partySize: req.party_size });
+            return;
+          }
+        }
+      } else {
+        setWarning({ kind: "no_tables", partySize: req.party_size });
+        return;
       }
     }
 
-    // Warn if no tables selected for a large group
-    if (req && selectedTables.size === 0) {
-      const ok = window.confirm(
-        t("pending_no_tables_warning").replace("{size}", String(req.party_size))
-      );
-      if (!ok) return;
-    }
-
+    setWarning(null);
     setConfirmInFlight(true);
     try {
       // 1) Reset + assign selected tables. DELETE-then-INSERT keeps the handler idempotent:
@@ -570,7 +567,7 @@ export default function PendingPage() {
 
                     <div className="flex items-center gap-3">
                       <button
-                        onClick={handleConfirm}
+                        onClick={() => handleConfirm()}
                         disabled={confirmInFlight}
                         className="flex items-center gap-1.5 px-5 py-2.5 rounded-lg text-sm font-bold text-white transition-all hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
                         style={{ background: 'linear-gradient(135deg, #22c55e 0%, #16a34a 100%)' }}
@@ -591,6 +588,51 @@ export default function PendingPage() {
               </div>
             );
           })}
+        </div>
+      )}
+
+      {/* Inline confirmation dialog (replaces window.confirm so it works on mobile) */}
+      {warning && (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 bg-black/40" onClick={() => setWarning(null)}>
+          <div onClick={(e) => e.stopPropagation()}
+            className="w-full sm:max-w-md rounded-2xl border-2 p-5 sm:p-6 shadow-xl"
+            style={{ background: 'rgba(252,246,237,0.98)', borderColor: '#c4956a' }}>
+            <div className="flex items-start gap-3 mb-4">
+              <div className="flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center bg-amber-100">
+                <AlertTriangle className="w-5 h-5 text-amber-700" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <h3 className="text-base font-bold text-black">{t("pending_warning_title")}</h3>
+                <p className="text-sm text-black mt-1.5 leading-relaxed">
+                  {warning.kind === "too_few" &&
+                    t("pending_seats_warning")
+                      .replace("{seats}", String(warning.totalSeats))
+                      .replace("{size}", String(warning.partySize))}
+                  {warning.kind === "too_many" &&
+                    t("pending_too_many_warning")
+                      .replace("{seats}", String(warning.totalSeats))
+                      .replace("{size}", String(warning.partySize))}
+                  {warning.kind === "no_tables" &&
+                    t("pending_no_tables_warning").replace("{size}", String(warning.partySize))}
+                </p>
+              </div>
+            </div>
+            <div className="flex gap-2 mt-4">
+              <button
+                onClick={() => setWarning(null)}
+                className="flex-1 px-4 py-2.5 rounded-lg text-sm font-medium border-2 border-[#c4956a] text-black bg-[rgba(252,246,237,0.6)]"
+              >
+                {t("pending_cancel")}
+              </button>
+              <button
+                onClick={() => { setWarning(null); handleConfirm(true); }}
+                className="flex-1 px-4 py-2.5 rounded-lg text-sm font-bold text-white"
+                style={{ background: 'linear-gradient(135deg, #22c55e 0%, #16a34a 100%)' }}
+              >
+                {t("pending_confirm_anyway")}
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

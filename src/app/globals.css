@@ -1,5 +1,8 @@
 @import "tailwindcss";
 
+/* Mobile: prevent any rogue child from causing horizontal page scroll. */
+html, body { overflow-x: hidden; }
+
 @theme {
   --color-terracotta-50: #fff3ec;
   --color-terracotta-100: #ffe4d2;

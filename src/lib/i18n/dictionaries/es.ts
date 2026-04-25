@@ -593,6 +593,8 @@ export const es: Dictionary = {
   zone_inside: "Interior",
   zone_outside: "Exterior",
   pending_no_tables_warning: "No has seleccionado ninguna mesa para {size} personas. ¿Confirmar sin asignar mesas?",
+  pending_warning_title: "¿Confirmar de todos modos?",
+  pending_confirm_anyway: "Sí, continuar",
   pending_reject_confirm: "¿Estás seguro de rechazar esta solicitud?",
   pending_view_conversation: "Ver conversación",
   pending_confirm_error: "Error al confirmar la reserva. Inténtalo de nuevo.",

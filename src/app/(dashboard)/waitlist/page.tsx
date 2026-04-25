@@ -653,21 +653,21 @@ export default function WaitlistPage() {
 
       {/* CREATE WAITLIST ENTRY DRAWER — waitlist-specific */}
       {isCreating && (
-        <div className="fixed inset-y-0 right-0 w-full sm:w-[400px] border-l shadow-2xl z-40 transform transition-transform duration-300 flex flex-col" style={{ background: 'rgba(252,246,237,0.95)', borderColor: '#c4956a' }}>
-          <div className="px-6 py-4 flex items-center justify-between border-b" style={{ borderColor: '#c4956a' }}>
+        <div className="fixed inset-0 sm:inset-y-0 sm:right-0 sm:left-auto w-full sm:w-[400px] border-l shadow-2xl z-[60] transform transition-transform duration-300 flex flex-col" style={{ background: 'rgba(252,246,237,0.98)', borderColor: '#c4956a' }}>
+          <div className="px-4 sm:px-6 py-4 flex items-center justify-between border-b" style={{ borderColor: '#c4956a' }}>
             <h2 className="text-lg font-bold text-black tracking-tight">{t("waitlist_registration")}</h2>
-            <button onClick={() => setIsCreating(false)} className="p-2 text-black hover:bg-[#c4956a]/10 hover:text-black rounded-full transition-colors">
-              <X className="h-5 w-5" />
+            <button onClick={() => setIsCreating(false)} className="p-1.5 border-2 border-red-400 text-red-500 hover:bg-red-50 rounded-lg transition-colors">
+              <X className="h-4 w-4" />
             </button>
           </div>
           <form onSubmit={handleCreate} className="flex-1 flex flex-col overflow-hidden">
-            <div className="flex-1 overflow-y-auto p-6 space-y-6">
+            <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4 sm:space-y-6">
               <div className="bg-zinc-900 text-white text-xs p-3 rounded-lg border border-black shadow-sm font-medium mb-4 flex items-start">
                 <Activity className="w-4 h-4 mr-2 shrink-0 opacity-70" />
                 {t("waitlist_priority_note")}
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                 <div>
                   <label className="block text-xs font-bold text-black mb-1">{t("waitlist_guest_name")}</label>
                   <input required name="guestName" type="text" placeholder="John Doe" className="w-full border border-zinc-200 bg-white rounded-md px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-zinc-900" />
@@ -678,7 +678,7 @@ export default function WaitlistPage() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                 <div>
                   <label className="block text-xs font-bold text-black mb-1">{t("waitlist_date")}</label>
                   <input required name="date" type="date" defaultValue={today} className="w-full border border-zinc-200 bg-white rounded-md px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-zinc-900" />
@@ -689,21 +689,21 @@ export default function WaitlistPage() {
                 </div>
               </div>
 
-              <div className="border border-zinc-200 rounded-lg p-4 bg-white shadow-sm">
+              <div className="border border-zinc-200 rounded-lg p-3 sm:p-4 bg-white shadow-sm">
                 <h3 className="text-[10px] font-bold text-black uppercase tracking-widest mb-3">{t("waitlist_time_flex")}</h3>
-                <div className="space-y-4">
+                <div className="space-y-3 sm:space-y-4">
                   <div>
                     <label className="block text-xs font-bold text-black mb-1">{t("waitlist_target_time")}</label>
                     <input required name="targetTime" type="time" defaultValue="19:00" className="w-full border border-zinc-200 bg-zinc-50 rounded-md px-3 py-2 text-sm font-bold" />
                   </div>
-                  <div className="grid grid-cols-2 gap-3 pt-2 border-t border-zinc-100">
-                    <div>
-                      <label className="block text-[10px] font-bold text-black uppercase">{t("waitlist_earliest_arrival")}</label>
-                      <input required name="timeRangeStart" type="time" defaultValue="18:30" className="w-full border border-zinc-200 rounded-md px-2 py-1 mt-1 text-sm font-medium focus:outline-none focus:ring-1 focus:ring-zinc-900" />
+                  <div className="grid grid-cols-2 gap-2 sm:gap-3 pt-2 border-t border-zinc-100">
+                    <div className="min-w-0">
+                      <label className="block text-[10px] font-bold text-black uppercase truncate">{t("waitlist_earliest_arrival")}</label>
+                      <input required name="timeRangeStart" type="time" defaultValue="18:30" className="w-full border border-zinc-200 rounded-md px-2 py-1.5 mt-1 text-sm font-medium focus:outline-none focus:ring-1 focus:ring-zinc-900" />
                     </div>
-                    <div>
-                      <label className="block text-[10px] font-bold text-black uppercase">{t("waitlist_latest_seating")}</label>
-                      <input required name="timeRangeEnd" type="time" defaultValue="20:00" className="w-full border border-zinc-200 rounded-md px-2 py-1 mt-1 text-sm font-medium focus:outline-none focus:ring-1 focus:ring-zinc-900" />
+                    <div className="min-w-0">
+                      <label className="block text-[10px] font-bold text-black uppercase truncate">{t("waitlist_latest_seating")}</label>
+                      <input required name="timeRangeEnd" type="time" defaultValue="20:00" className="w-full border border-zinc-200 rounded-md px-2 py-1.5 mt-1 text-sm font-medium focus:outline-none focus:ring-1 focus:ring-zinc-900" />
                     </div>
                   </div>
                 </div>
