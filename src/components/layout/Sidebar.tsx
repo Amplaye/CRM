@@ -28,17 +28,18 @@ import { useLanguage } from "@/lib/contexts/LanguageContext";
 import { Dictionary } from "@/lib/i18n/dictionaries/en";
 import { useAuth } from "@/lib/contexts/AuthContext";
 import { createClient } from "@/lib/supabase/client";
+import { useNotificationCounts, NotificationCounts } from "@/lib/hooks/useNotificationCounts";
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
-const navItems = [
+const navItems: Array<{ name: string; href: string; icon: any; badgeKey?: keyof NotificationCounts; badgeStyle?: "alert" | "info" }> = [
   { name: "Tables", href: "/floor", icon: LayoutGrid },
-  { name: "Reservations", href: "/reservations", icon: Calendar },
-  { name: "Waitlist", href: "/waitlist", icon: Clock },
-  { name: "Pending", href: "/pending", icon: ClipboardList },
-  { name: "Conversations", href: "/conversations", icon: MessageSquare },
+  { name: "Reservations", href: "/reservations", icon: Calendar, badgeKey: "reservations", badgeStyle: "info" },
+  { name: "Waitlist", href: "/waitlist", icon: Clock, badgeKey: "waitlist", badgeStyle: "alert" },
+  { name: "Pending", href: "/pending", icon: ClipboardList, badgeKey: "pending", badgeStyle: "alert" },
+  { name: "Conversations", href: "/conversations", icon: MessageSquare, badgeKey: "conversations", badgeStyle: "alert" },
   { name: "Guests", href: "/guests", icon: Users },
   { name: "Analytics", href: "/", icon: BarChart3 },
   { name: "Knowledge Base", href: "/knowledge", icon: BookOpen },
@@ -55,6 +56,7 @@ export function Sidebar({ mobileOpen = false, onClose }: SidebarProps) {
   const { globalRole, activeTenant, activeRole } = useTenant();
   const { t } = useLanguage();
   const { user } = useAuth();
+  const counts = useNotificationCounts(activeTenant?.id);
 
   const handleSignOut = async () => {
     const supabase = createClient();
@@ -95,6 +97,8 @@ export function Sidebar({ mobileOpen = false, onClose }: SidebarProps) {
           {/* Restaurant nav — only show if user has a tenant */}
           {!isPlatformOnly && navItems.map((item) => {
             const isActive = pathname === item.href || (item.href !== "/" && pathname?.startsWith(item.href));
+            const badgeCount = item.badgeKey ? counts[item.badgeKey] : 0;
+            const badgeBg = item.badgeStyle === "alert" ? "bg-red-500" : "bg-[#c4956a]";
             return (
               <Link
                 key={item.name}
@@ -111,7 +115,20 @@ export function Sidebar({ mobileOpen = false, onClose }: SidebarProps) {
                   className="mr-3 flex-shrink-0 h-5 w-5 text-black"
                   aria-hidden="true"
                 />
-                {t(`nav_${item.name.toLowerCase().replace(" ", "_")}` as keyof Dictionary) || item.name}
+                <span className="flex-1">
+                  {t(`nav_${item.name.toLowerCase().replace(" ", "_")}` as keyof Dictionary) || item.name}
+                </span>
+                {badgeCount > 0 && (
+                  <span
+                    className={cn(
+                      "ml-2 inline-flex items-center justify-center min-w-[1.25rem] h-5 px-1.5 rounded-full text-xs font-bold text-white",
+                      badgeBg
+                    )}
+                    aria-label={`${badgeCount} new`}
+                  >
+                    {badgeCount > 99 ? "99+" : badgeCount}
+                  </span>
+                )}
               </Link>
             )
           })}
