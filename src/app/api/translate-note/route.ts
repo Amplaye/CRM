@@ -29,24 +29,33 @@ export async function POST(request: Request) {
       headers: { Authorization: `Bearer ${OPENAI_KEY}`, "Content-Type": "application/json" },
       body: JSON.stringify({
         model: "gpt-4.1-mini",
-        temperature: 0.2,
+        temperature: 0.1,
         messages: [
           {
             role: "system",
-            content: `You are a translator for restaurant booking notes. Translate the user message into ${LANG_NAMES[targetLang]}. Preserve numbers, names and special requests. Output ONLY the translation, no quotes, no labels, no explanation.`,
+            content:
+              `You are a professional translator for short restaurant booking notes. ` +
+              `ALWAYS translate the user input into ${LANG_NAMES[targetLang]}, even when the source phrase is short, technical (allergies, diets), or written in another language. ` +
+              `If the source already uses words from ${LANG_NAMES[targetLang]}, still produce the most idiomatic ${LANG_NAMES[targetLang]} rendering — never return the input unchanged. ` +
+              `Preserve numbers, proper names and party sizes. Output ONLY the translation: no quotes, no labels, no explanation, no source text.`,
           },
-          { role: "user", content: trimmed },
+          {
+            role: "user",
+            content: `Translate to ${LANG_NAMES[targetLang]}: ${trimmed}`,
+          },
         ],
       }),
     });
     if (!res.ok) {
       const err = await res.text();
+      console.error("[translate-note] OpenAI error", res.status, err);
       return NextResponse.json({ error: "OpenAI failed", details: err }, { status: 502 });
     }
     const data = await res.json();
     const translated = data?.choices?.[0]?.message?.content?.trim() ?? "";
     return NextResponse.json({ translated });
   } catch (e: any) {
+    console.error("[translate-note] exception", e);
     return NextResponse.json({ error: e?.message || "Unknown error" }, { status: 500 });
   }
 }
