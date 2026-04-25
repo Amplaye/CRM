@@ -6,13 +6,7 @@ import { runOnboard, OnboardInput, OnboardProgress } from "@/lib/onboarding/orch
 // Fluid Compute supports up to 800s, so 120s is comfortably within limits.
 export const maxDuration = 120;
 
-async function assertPlatformAdmin(req: Request): Promise<{ ok: true } | { ok: false; res: NextResponse }> {
-  // Temporary E2E test bypass: an x-ai-secret matching the env var lets the
-  // orchestrator be exercised by the agent test harness without a UI session.
-  // TODO: remove the bypass once the wizard has been validated end-to-end.
-  const sec = process.env.AI_WEBHOOK_SECRET;
-  if (sec && req.headers.get("x-ai-secret") === sec) return { ok: true };
-
+async function assertPlatformAdmin(_req: Request): Promise<{ ok: true } | { ok: false; res: NextResponse }> {
   const supabase = await createServerSupabaseClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { ok: false, res: NextResponse.json({ error: "Unauthorized" }, { status: 401 }) };

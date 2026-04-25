@@ -276,8 +276,10 @@ export async function runOnboard(
         const payload = toCreatePayload(rewritten, newName);
         const created = await n8n("POST", "/workflows", payload);
         createdWorkflowIds.push(created.id);
+        // Activate immediately so cron triggers + webhooks fire without manual action.
+        try { await n8n("POST", `/workflows/${created.id}/activate`); } catch { /* tolerate */ }
       }
-      push({ step: "n8n", message: `${createdWorkflowIds.length} workflows cloned`, ok: true, data: { workflow_ids: createdWorkflowIds } });
+      push({ step: "n8n", message: `${createdWorkflowIds.length} workflows cloned & activated`, ok: true, data: { workflow_ids: createdWorkflowIds } });
     }
 
     // 7. Owner user account + tenant_member link
