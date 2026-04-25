@@ -141,15 +141,15 @@ export async function POST(req: NextRequest) {
     const bookingChange = prevTotal > 0 ? Math.round(((total - prevTotal) / prevTotal) * 100) : (total > 0 ? 100 : 0);
 
     // Build message
-    let msg = `💰 Esta semana, tu AI generó €${totalValue.toLocaleString("es-ES")}\n`;
-    msg += `_Calculado con €${avgSpend} por persona (ajustable en Configuración → Spesa media per cliente)._\n`;
+    let msg = `💰 Esta semana, tu IA generó €${totalValue.toLocaleString("es-ES")}\n`;
+    msg += `_Calculado con €${avgSpend} por persona (ajustable en Configuración → Gasto medio por cubierto)._\n`;
     msg += `\nAquí el desglose:\n`;
 
     if (outOfHoursRevenue > 0) {
       msg += `\n🌙 €${outOfHoursRevenue.toLocaleString("es-ES")} de reservas fuera de horario`;
     }
     if (voiceRevenue > 0) {
-      msg += `\n📞 €${voiceRevenue.toLocaleString("es-ES")} de llamadas gestionadas por AI`;
+      msg += `\n📞 €${voiceRevenue.toLocaleString("es-ES")} de llamadas gestionadas por IA`;
     }
     if (waitlistRevenue > 0) {
       msg += `\n🔁 €${waitlistRevenue.toLocaleString("es-ES")} de lista de espera recuperada`;
@@ -165,7 +165,7 @@ export async function POST(req: NextRequest) {
       msg += `\n⚠️ ${noShows} no-show${noShows > 1 ? "s" : ""} no evitado${noShows > 1 ? "s" : ""} esta semana`;
     }
 
-    msg += `\n\n⚙️ AI gestionó el ${aiHandledPct}% de tus reservas`;
+    msg += `\n\n⚙️ La IA gestionó el ${aiHandledPct}% de tus reservas`;
     if (staffHoursSaved > 0) {
       msg += `\n👩‍🍳 ~${staffHoursSaved}h de tiempo de staff ahorrado`;
     }
