@@ -448,7 +448,8 @@ export async function POST(request: Request) {
     }
 
     // 6. Normal booking (1-6 people) - create reservation then atomically assign tables
-    const reservation = {
+    const bookingLang = (payload as any).language;
+    const reservation: Record<string, any> = {
        tenant_id: payload.tenant_id,
        guest_id: guestId,
        date: payload.date,
@@ -466,6 +467,12 @@ export async function POST(request: Request) {
        end_time: endTime,
        shift,
     };
+    // Pin the customer's language to THIS reservation. The reminder cron
+    // reads reservations.language so different bookings from the same phone
+    // can have different languages (e.g. user tests IT and ES from same line).
+    if (bookingLang && ['es', 'it', 'en'].includes(bookingLang)) {
+      reservation.language = bookingLang;
+    }
 
     const { data: newRes, error: newResErr } = await supabase
       .from('reservations')
