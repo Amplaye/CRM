@@ -6,6 +6,7 @@ import { useEffect, useState, useRef, useMemo } from "react";
 import { useTenant } from "@/lib/contexts/TenantContext";
 import { Guest, Reservation } from "@/lib/types";
 import { createClient } from "@/lib/supabase/client";
+import { useSeenSnapshotAndMark } from "@/lib/hooks/useLastSeen";
 
 const downloadCSV = (data: string[][], filename: string) => {
   const csv = data.map(row => row.map(cell => `"${(cell || '').replace(/"/g, '""')}"`).join(',')).join('\n');
@@ -38,6 +39,7 @@ export default function GuestsPage() {
   const { t } = useLanguage();
   const { activeTenant } = useTenant();
   const supabase = createClient();
+  const seenAt = useSeenSnapshotAndMark(activeTenant?.id, "clients");
 
   const [guests, setGuests] = useState<Guest[]>([]);
   const [loading, setLoading] = useState(true);
@@ -194,9 +196,11 @@ export default function GuestsPage() {
           </div>
         ) : viewMode === "grid" ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-            {filtered.map(guest => (
+            {filtered.map(guest => {
+              const isNew = (guest as any).created_at && (guest as any).created_at > seenAt;
+              return (
               <div key={guest.id} onClick={() => setSelectedGuest(guest)}
-                className="rounded-xl border-2 p-4 hover:shadow-md cursor-pointer transition-all"
+                className={`rounded-xl border-2 p-4 hover:shadow-md cursor-pointer transition-all ${isNew ? 'is-new-row' : ''}`}
                 style={{ background: 'rgba(252,246,237,0.85)', borderColor: '#c4956a' }}>
                 <div className="flex items-center justify-between mb-3">
                   <div className="flex items-center gap-3 min-w-0">
@@ -224,17 +228,20 @@ export default function GuestsPage() {
                   </div>
                 </div>
               </div>
-            ))}
+              );
+            })}
           </div>
         ) : (
           <>
           {/* Mobile: card list with all data visible */}
           <div className="sm:hidden space-y-2">
-            {filtered.map(guest => (
+            {filtered.map(guest => {
+              const isNew = (guest as any).created_at && (guest as any).created_at > seenAt;
+              return (
               <div
                 key={guest.id}
                 onClick={() => toggleSelect(guest.id)}
-                className={`rounded-xl border-2 p-3 transition-all cursor-pointer ${selectedIds.has(guest.id) ? 'ring-2 ring-[#c4956a]' : ''}`}
+                className={`rounded-xl border-2 p-3 transition-all cursor-pointer ${selectedIds.has(guest.id) ? 'ring-2 ring-[#c4956a]' : ''} ${isNew ? 'is-new-row' : ''}`}
                 style={{ background: 'rgba(252,246,237,0.85)', borderColor: selectedIds.has(guest.id) ? '#c4956a' : 'rgba(196,149,106,0.4)' }}
               >
                 <div className="flex items-center gap-3">
@@ -256,7 +263,8 @@ export default function GuestsPage() {
                   </div>
                 </div>
               </div>
-            ))}
+              );
+            })}
           </div>
 
           {/* Desktop: full table */}
@@ -273,8 +281,10 @@ export default function GuestsPage() {
                 </tr>
               </thead>
               <tbody className="divide-y" style={{ borderColor: 'rgba(196,149,106,0.3)' }}>
-                {filtered.map(guest => (
-                  <tr key={guest.id} onClick={() => setSelectedGuest(guest)} className="hover:bg-[#c4956a]/10 transition-colors cursor-pointer">
+                {filtered.map(guest => {
+                  const isNew = (guest as any).created_at && (guest as any).created_at > seenAt;
+                  return (
+                  <tr key={guest.id} onClick={() => setSelectedGuest(guest)} className={`hover:bg-[#c4956a]/10 transition-colors cursor-pointer ${isNew ? 'is-new-row' : ''}`}>
                     <td className="px-3 py-3">
                       <input type="checkbox" checked={selectedIds.has(guest.id)} onChange={(e) => { e.stopPropagation(); toggleSelect(guest.id); }} className="w-4 h-4 rounded accent-[#c4956a] cursor-pointer" />
                     </td>
@@ -293,7 +303,8 @@ export default function GuestsPage() {
                       <button onClick={(e) => { e.stopPropagation(); deleteSingle(guest.id); }} className="p-1 text-black hover:text-red-500"><Trash2 className="w-3.5 h-3.5" /></button>
                     </td>
                   </tr>
-                ))}
+                  );
+                })}
               </tbody>
             </table>
           </div>

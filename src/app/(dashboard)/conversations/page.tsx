@@ -6,7 +6,7 @@ import { useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { Conversation, Guest, Reservation } from "@/lib/types";
 import { useLanguage } from "@/lib/contexts/LanguageContext";
-import { MessageSquare, Phone, Search, X, AlertTriangle, Send, Bot, User, Trash2 } from "lucide-react";
+import { MessageSquare, Phone, Search, X, AlertTriangle, Send, Bot, User, Trash2, Pause, Play } from "lucide-react";
 import { useSeenSnapshotAndMark } from "@/lib/hooks/useLastSeen";
 
 interface ConvoWithGuest extends Conversation {
@@ -90,7 +90,20 @@ export default function ConversationsPage() {
       const updates: any = { transcript: updatedTranscript, updated_at: new Date().toISOString() };
       if (selectedConvo.status === "abandoned") updates.status = "active";
       await supabase.from("conversations").update(updates).eq("id", selectedConvo.id);
+      // Pause the bot for this guest so it stops auto-replying while staff is engaged.
+      if (selectedGuest.id) {
+        await fetch("/api/conversations/takeover", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ guest_id: selectedGuest.id }) });
+      }
       setReplyText("");
+    } catch (err) { console.error(err); }
+    setSending(false);
+  };
+
+  const handleResumeBot = async () => {
+    if (!selectedGuest?.id) return;
+    setSending(true);
+    try {
+      await fetch("/api/conversations/resume-bot", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ guest_id: selectedGuest.id }) });
     } catch (err) { console.error(err); }
     setSending(false);
   };
@@ -210,6 +223,19 @@ export default function ConversationsPage() {
             </button>
           </div>
 
+          {(selectedGuest as any)?.bot_paused_at && (
+            <div className="px-4 md:px-6 py-2 flex items-center justify-between gap-3" style={{ background: 'rgba(255,196,0,0.15)', borderBottom: '1px solid rgba(196,149,106,0.4)' }}>
+              <div className="flex items-center gap-2 text-[12px] text-black">
+                <Pause className="w-3.5 h-3.5" />
+                <span><b>{t("conv_bot_paused")}</b> — {t("conv_bot_paused_hint")}</span>
+              </div>
+              <button onClick={handleResumeBot} disabled={sending}
+                className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-bold text-white disabled:opacity-50"
+                style={{ background: 'linear-gradient(135deg, #d4a574, #c4956a)' }}>
+                <Play className="w-3.5 h-3.5" /> {t("conv_resume_bot")}
+              </button>
+            </div>
+          )}
           <div ref={scrollRef} className="flex-1 overflow-y-auto p-4 md:p-6 space-y-2">
             <div className="flex justify-center mb-3">
               <span className="text-[10px] font-bold uppercase tracking-widest text-black/50 bg-white/60 px-3 py-1 rounded-full">

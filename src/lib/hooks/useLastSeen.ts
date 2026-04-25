@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 
 const KEY_PREFIX = "lastSeen";
 
-export type Section = "pending" | "waitlist" | "conversations" | "reservations";
+export type Section = "pending" | "waitlist" | "conversations" | "reservations" | "clients";
 
 const storageKey = (tenantId: string, section: Section) =>
   `${KEY_PREFIX}_${tenantId}_${section}`;
