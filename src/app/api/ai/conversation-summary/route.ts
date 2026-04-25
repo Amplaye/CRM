@@ -80,16 +80,21 @@ export async function POST(request: Request) {
       return NextResponse.json({ ok: false, error: 'empty transcript' }, { status: 400 });
     }
 
-    // Resolve language: explicit param > stored conv.language > auto-detect from transcript
+    // Resolve language: explicit param > stored conv.language > auto-detect from
+    // USER messages only (bot replies don't count — they always pick a language
+    // following the prompt). Default to 'es' (restaurant is Spanish-speaking).
     let lang = (requestedLang || conv.language || '').toLowerCase();
     if (!['es', 'it', 'en'].includes(lang)) {
-      const sample = transcript
+      const userText = transcript
         .filter((m: any) => m.role === 'user')
         .map((m: any) => String(m.content || ''))
         .join(' ')
-        .slice(0, 400);
-      if (/\b(ciao|grazie|prenotazione|tavolo|persone|domani|stasera|oggi|allergie)\b/i.test(sample)) lang = 'it';
-      else if (/\b(hello|thanks|thank you|please|booking|tonight|tomorrow|guests?)\b/i.test(sample)) lang = 'en';
+        .toLowerCase();
+      const itHits = (userText.match(/\b(ciao|grazie|prenotazione|tavolo|persone|domani|stasera|oggi|sono|vorrei|cambiare|annullare|allergi[ae])\b/g) || []).length;
+      const enHits = (userText.match(/\b(hello|hi|thanks|thank you|please|booking|tonight|tomorrow|guests?|table|cancel|change|allergy)\b/g) || []).length;
+      const esHits = (userText.match(/\b(hola|gracias|reserva|mesa|personas|mañana|hoy|cambiar|cancelar|noche|tarde|alergia)\b/g) || []).length;
+      if (itHits > enHits && itHits > esHits) lang = 'it';
+      else if (enHits > esHits && enHits > itHits) lang = 'en';
       else lang = 'es';
     }
 
