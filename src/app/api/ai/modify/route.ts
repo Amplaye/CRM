@@ -259,15 +259,39 @@ export async function PUT(request: Request) {
     }
 
     if (payload.notes !== undefined) {
-      // Overwrite with incoming notes, preserving the "Prefiere interior/exterior"
-      // zone marker automatically added at booking time if the new notes omit it.
-      let nextNotes = (payload.notes || '').trim();
+      // Two modes:
+      //   - 'append' (voice default): keep existing notes and add the new ones,
+      //     skipping if the new chunk is already inside the existing notes.
+      //     Voice agents don't know prior notes so the wrapper passes only what
+      //     the caller said in this turn — losing existing context would be wrong.
+      //   - 'replace' (chat default): the chat state machine already shows the
+      //     full notes back to the LLM, so what comes in is the full intended set.
+      //   Both modes always preserve the "Prefiere interior/exterior" marker.
+      const mode = ((payload as any).notes_mode === 'append') ? 'append' : 'replace';
+      const incoming = (payload.notes || '').trim();
+      const existingNotes = existing.notes ? String(existing.notes).trim() : '';
       const zoneRe = /Prefiere\s+(interior|exterior)/i;
-      const existingZoneMatch = existing.notes ? String(existing.notes).match(zoneRe) : null;
+      const existingZoneMatch = existingNotes ? existingNotes.match(zoneRe) : null;
+
+      let nextNotes: string;
+      if (mode === 'append' && existingNotes) {
+        const stripped = existingNotes
+          .replace(zoneRe, '')
+          .replace(/\s—\s—\s/g, ' — ')
+          .replace(/^\s*—\s*|\s*—\s*$/g, '')
+          .trim();
+        if (incoming && !stripped.toLowerCase().includes(incoming.toLowerCase())) {
+          nextNotes = stripped ? `${stripped} — ${incoming}` : incoming;
+        } else {
+          nextNotes = stripped || incoming;
+        }
+      } else {
+        nextNotes = incoming;
+      }
+
+      // Re-attach zone marker if it was there.
       if (existingZoneMatch && !zoneRe.test(nextNotes)) {
-        nextNotes = nextNotes
-          ? `${nextNotes} — ${existingZoneMatch[0]}`
-          : existingZoneMatch[0];
+        nextNotes = nextNotes ? `${nextNotes} — ${existingZoneMatch[0]}` : existingZoneMatch[0];
       }
       updates.notes = nextNotes;
     }
