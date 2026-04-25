@@ -4,10 +4,19 @@ import { assertAiSecret } from "@/lib/ai-auth";
 
 const RETELL_BASE = "https://api.retellai.com";
 
-// Mappa tenant_id → llm_id Retell. Quando aggiungeremo nuovi tenant,
-// aggiungere l'entry qui (oppure spostare la mappa in tenants.settings.retell_llm_id).
-const TENANT_LLM_MAP: Record<string, string> = {
-  "626547ff-bc44-4f35-8f42-0e97f1dcf0d5": "llm_d19f792cd11a22132956f81dc7fe", // Picnic
+// Special article title: when published with this exact title, the article
+// content is treated as the voice agent's general_prompt body (NOT as a KB
+// source). The dynamic header (FECHA Y HORA + CALENDARIO) is preserved from
+// the current LLM prompt so the hourly cron stays compatible.
+const SPECIAL_PROMPT_TITLE = "_VOICE_PROMPT_";
+
+// Per-tenant config: Retell LLM ID + the marker that separates the dynamic
+// FECHA Y HORA header from the static body in general_prompt.
+const TENANT_CONFIG: Record<string, { llmId: string; bodyMarker: string }> = {
+  "626547ff-bc44-4f35-8f42-0e97f1dcf0d5": {
+    llmId: "llm_d19f792cd11a22132956f81dc7fe",
+    bodyMarker: "# PICNIC - Voice Agent",
+  },
 };
 
 interface SourceRecord {
@@ -19,6 +28,8 @@ interface SourceRecord {
 interface RetellKbState {
   id?: string;
   sources?: Record<string, SourceRecord>;
+  prompt_article_id?: string;
+  prompt_synced_at?: string;
 }
 
 interface Article {
@@ -36,10 +47,7 @@ function formatArticleText(a: Article): string {
 async function retellFetch(path: string, init: RequestInit, key: string) {
   const res = await fetch(`${RETELL_BASE}${path}`, {
     ...init,
-    headers: {
-      Authorization: `Bearer ${key}`,
-      ...(init.headers || {}),
-    },
+    headers: { Authorization: `Bearer ${key}`, ...(init.headers || {}) },
   });
   const text = await res.text();
   let data: any = {};
@@ -105,6 +113,22 @@ function stripLegacyKbBlock(prompt: string): string {
   return [before, after].filter(Boolean).join("\n\n");
 }
 
+// Extract the dynamic header (FECHA Y HORA + CALENDARIO) from the current
+// general_prompt, identified as everything BEFORE bodyMarker. The hourly
+// cron updates only this header — preserving it lets us swap the body
+// independently from the special article without breaking the cron.
+function extractDynamicHeader(currentPrompt: string, bodyMarker: string): string {
+  const idx = currentPrompt.indexOf(bodyMarker);
+  if (idx === -1) return "";
+  return currentPrompt.substring(0, idx).trimEnd();
+}
+
+function composePrompt(header: string, articleContent: string): string {
+  const body = articleContent.trim();
+  if (!header) return body;
+  return `${header}\n\n${body}`;
+}
+
 export async function POST(req: NextRequest) {
   const unauth = assertAiSecret(req);
   if (unauth) return unauth;
@@ -113,13 +137,14 @@ export async function POST(req: NextRequest) {
     const { tenant_id } = await req.json();
     if (!tenant_id) return NextResponse.json({ error: "Missing tenant_id" }, { status: 400 });
 
-    const llmId = TENANT_LLM_MAP[tenant_id];
-    if (!llmId) {
+    const cfg = TENANT_CONFIG[tenant_id];
+    if (!cfg) {
       return NextResponse.json(
-        { error: `No Retell LLM mapped for tenant ${tenant_id}. Add it to TENANT_LLM_MAP.` },
+        { error: `No Retell config for tenant ${tenant_id}. Add it to TENANT_CONFIG.` },
         { status: 400 }
       );
     }
+    const { llmId, bodyMarker } = cfg;
 
     const RETELL_KEY = process.env.RETELL_API_KEY;
     if (!RETELL_KEY) {
@@ -135,112 +160,131 @@ export async function POST(req: NextRequest) {
       .single();
     if (tenantErr || !tenant) return NextResponse.json({ error: "Tenant not found" }, { status: 404 });
 
-    const { data: articles, error: artErr } = await supabase
+    const { data: allArticles, error: artErr } = await supabase
       .from("knowledge_articles")
       .select("id, title, content, category, updated_at")
       .eq("tenant_id", tenant_id)
       .eq("status", "published");
     if (artErr) throw artErr;
 
+    const allArr = (allArticles || []) as Article[];
+    const promptArticle = allArr.find((a) => a.title === SPECIAL_PROMPT_TITLE) || null;
+    const kbArticles = allArr.filter((a) => a.title !== SPECIAL_PROMPT_TITLE);
+
     const settings = (tenant.settings || {}) as Record<string, any>;
     const kbState: RetellKbState = settings.retell_kb || {};
     let kbId = kbState.id;
     const sourceMap: Record<string, SourceRecord> = { ...(kbState.sources || {}) };
 
-    const stats = { created_kb: false, added: 0, updated: 0, deleted: 0, kept: 0 };
+    const stats = {
+      created_kb: false,
+      added: 0,
+      updated: 0,
+      deleted: 0,
+      kept: 0,
+      prompt_synced: false,
+    };
 
-    if (!articles || articles.length === 0) {
-      // Niente articoli published: detach KB dall'LLM e termina
-      await retellFetch(
-        `/update-retell-llm/${llmId}`,
-        {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ knowledge_base_ids: [] }),
-        },
-        RETELL_KEY
-      );
-      return NextResponse.json({ success: true, message: "No published articles. KB detached.", stats });
-    }
-
-    if (!kbId) {
-      const created = await createKb(`${tenant.name} KB`, articles as Article[], RETELL_KEY);
-      kbId = created.knowledge_base_id;
-      const createdSources = (created.knowledge_base_sources || []) as any[];
-      for (const a of articles as Article[]) {
-        const match = createdSources.find((s) => s.title === a.title);
-        if (match?.source_id) {
-          sourceMap[a.id] = { source_id: match.source_id, updated_at: a.updated_at, title: a.title };
-        }
-      }
-      stats.created_kb = true;
-      stats.added = articles.length;
-    } else {
-      const wantedIds = new Set((articles as Article[]).map((a) => a.id));
-
-      // Rimuovi orfani (articoli non più published o cancellati)
+    // --- 1. Sync KB sources (excludes the special prompt article) ---
+    if (kbArticles.length === 0 && kbId) {
+      // No more KB articles: drop the mapped sources + detach KB from LLM
       for (const articleId of Object.keys(sourceMap)) {
-        if (!wantedIds.has(articleId)) {
-          try {
-            await deleteSource(kbId!, sourceMap[articleId].source_id, RETELL_KEY);
-          } catch (e) {
-            console.warn(`[sync-kb-retell] delete orphan failed for ${articleId}:`, (e as Error).message);
-          }
-          delete sourceMap[articleId];
-          stats.deleted++;
+        try {
+          await deleteSource(kbId, sourceMap[articleId].source_id, RETELL_KEY);
+        } catch (e) {
+          console.warn(`[sync-kb-retell] delete on empty failed for ${articleId}:`, (e as Error).message);
         }
+        delete sourceMap[articleId];
+        stats.deleted++;
       }
-
-      // Add new + update (delete + add se updated_at è cambiato)
-      for (const a of articles as Article[]) {
-        const existing = sourceMap[a.id];
-        if (!existing) {
-          const sourceId = await addSource(kbId!, a, RETELL_KEY);
-          sourceMap[a.id] = { source_id: sourceId, updated_at: a.updated_at, title: a.title };
-          stats.added++;
-        } else if (existing.updated_at !== a.updated_at || existing.title !== a.title) {
-          try {
-            await deleteSource(kbId!, existing.source_id, RETELL_KEY);
-          } catch (e) {
-            console.warn(`[sync-kb-retell] delete-before-update failed for ${a.id}:`, (e as Error).message);
+    } else if (kbArticles.length > 0) {
+      if (!kbId) {
+        const created = await createKb(`${tenant.name} KB`, kbArticles, RETELL_KEY);
+        kbId = created.knowledge_base_id;
+        const createdSources = (created.knowledge_base_sources || []) as any[];
+        for (const a of kbArticles) {
+          const match = createdSources.find((s) => s.title === a.title);
+          if (match?.source_id) {
+            sourceMap[a.id] = { source_id: match.source_id, updated_at: a.updated_at, title: a.title };
           }
-          const sourceId = await addSource(kbId!, a, RETELL_KEY);
-          sourceMap[a.id] = { source_id: sourceId, updated_at: a.updated_at, title: a.title };
-          stats.updated++;
-        } else {
-          stats.kept++;
+        }
+        stats.created_kb = true;
+        stats.added = kbArticles.length;
+      } else {
+        const wantedIds = new Set(kbArticles.map((a) => a.id));
+
+        // Remove orphans
+        for (const articleId of Object.keys(sourceMap)) {
+          if (!wantedIds.has(articleId)) {
+            try {
+              await deleteSource(kbId, sourceMap[articleId].source_id, RETELL_KEY);
+            } catch (e) {
+              console.warn(`[sync-kb-retell] delete orphan failed for ${articleId}:`, (e as Error).message);
+            }
+            delete sourceMap[articleId];
+            stats.deleted++;
+          }
+        }
+
+        // Add new + update changed
+        for (const a of kbArticles) {
+          const existing = sourceMap[a.id];
+          if (!existing) {
+            const sourceId = await addSource(kbId, a, RETELL_KEY);
+            sourceMap[a.id] = { source_id: sourceId, updated_at: a.updated_at, title: a.title };
+            stats.added++;
+          } else if (existing.updated_at !== a.updated_at || existing.title !== a.title) {
+            try {
+              await deleteSource(kbId, existing.source_id, RETELL_KEY);
+            } catch (e) {
+              console.warn(`[sync-kb-retell] delete-before-update failed for ${a.id}:`, (e as Error).message);
+            }
+            const sourceId = await addSource(kbId, a, RETELL_KEY);
+            sourceMap[a.id] = { source_id: sourceId, updated_at: a.updated_at, title: a.title };
+            stats.updated++;
+          } else {
+            stats.kept++;
+          }
         }
       }
     }
 
-    // Salva mapping aggiornato
-    await supabase
-      .from("tenants")
-      .update({ settings: { ...settings, retell_kb: { id: kbId, sources: sourceMap } } })
-      .eq("id", tenant_id);
-
-    // Get LLM corrente, ripulisci prompt dal blocco KB legacy, attacca KB
+    // --- 2. Get current LLM (single fetch, used for both prompt + attach) ---
     const llmRes = await retellFetch(`/get-retell-llm/${llmId}`, {}, RETELL_KEY);
     if (!llmRes.ok) throw new Error(`get-retell-llm failed: ${JSON.stringify(llmRes.data)}`);
-    const currentPrompt = llmRes.data.general_prompt || "";
-    const cleanedPrompt = stripLegacyKbBlock(currentPrompt);
+    const currentPrompt: string = llmRes.data.general_prompt || "";
     const currentKbIds: string[] = Array.isArray(llmRes.data.knowledge_base_ids)
       ? llmRes.data.knowledge_base_ids
       : [];
 
-    const needsLlmUpdate =
-      cleanedPrompt !== currentPrompt || !currentKbIds.includes(kbId!);
+    // --- 3. Compute target prompt + KB ids ---
+    let targetPrompt: string;
+    if (promptArticle) {
+      const header = extractDynamicHeader(currentPrompt, bodyMarker);
+      targetPrompt = composePrompt(header, promptArticle.content);
+      stats.prompt_synced = true;
+    } else {
+      targetPrompt = stripLegacyKbBlock(currentPrompt);
+    }
 
-    if (needsLlmUpdate) {
-      const newKbIds = currentKbIds.includes(kbId!) ? currentKbIds : [...currentKbIds, kbId!];
+    const targetKbIds = (() => {
+      if (!kbId) return currentKbIds.filter((id) => id !== kbState.id);
+      if (currentKbIds.includes(kbId)) return currentKbIds;
+      return [...currentKbIds, kbId];
+    })();
+
+    const promptChanged = targetPrompt !== currentPrompt;
+    const kbIdsChanged = JSON.stringify(targetKbIds) !== JSON.stringify(currentKbIds);
+
+    if (promptChanged || kbIdsChanged) {
       const upd = await retellFetch(
         `/update-retell-llm/${llmId}`,
         {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            general_prompt: cleanedPrompt,
-            knowledge_base_ids: newKbIds,
+            general_prompt: targetPrompt,
+            knowledge_base_ids: targetKbIds,
           }),
         },
         RETELL_KEY
@@ -248,12 +292,26 @@ export async function POST(req: NextRequest) {
       if (!upd.ok) throw new Error(`update-retell-llm failed: ${JSON.stringify(upd.data)}`);
     }
 
+    // --- 4. Persist updated mapping ---
+    const newKbState: RetellKbState = {
+      id: kbId,
+      sources: sourceMap,
+      ...(promptArticle && {
+        prompt_article_id: promptArticle.id,
+        prompt_synced_at: new Date().toISOString(),
+      }),
+    };
+    await supabase
+      .from("tenants")
+      .update({ settings: { ...settings, retell_kb: newKbState } })
+      .eq("id", tenant_id);
+
     return NextResponse.json({
       success: true,
-      message: `Synced ${articles.length} articles to Retell KB ${kbId}`,
+      message: `Synced ${kbArticles.length} KB articles${promptArticle ? " + voice prompt" : ""} for tenant ${tenant_id}`,
       kb_id: kbId,
       stats,
-      prompt_cleaned: cleanedPrompt !== currentPrompt,
+      prompt_chars: targetPrompt.length,
     });
   } catch (err: any) {
     console.error("[sync-kb-retell] error:", err);
