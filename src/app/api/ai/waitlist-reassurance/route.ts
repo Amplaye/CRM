@@ -32,6 +32,24 @@ export async function POST(request: Request) {
       .is('reassurance_sent_at', null)
       .limit(50);
 
+    // Resolve a guest's preferred language from the most recent conversation
+    // in the last 30 days. Falls back to 'es' if no conversation found.
+    const resolveLang = async (tenantId: string, guestId: string): Promise<'es' | 'it' | 'en'> => {
+      const sinceISO = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+      const { data } = await supabase
+        .from('conversations')
+        .select('language')
+        .eq('tenant_id', tenantId)
+        .eq('guest_id', guestId)
+        .in('language', ['es', 'it', 'en'])
+        .gte('created_at', sinceISO)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      const lang = (data?.language as 'es' | 'it' | 'en') || 'es';
+      return lang;
+    };
+
     if (error) {
       return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
     }
@@ -57,9 +75,19 @@ export async function POST(request: Request) {
         ? 'whatsapp:' + phone
         : 'whatsapp:+' + phone;
 
-      const body =
-        `⏳ De momento todas las mesas del turno siguen ocupadas — te escribo apenas se libere una. ` +
-        `Recuerda: estar en lista de espera no garantiza un sitio. Gracias por la paciencia.`;
+      const lang = await resolveLang(e.tenant_id, e.guest_id);
+      const M = {
+        es:
+          `⏳ De momento todas las mesas del turno siguen ocupadas — te escribo apenas se libere una. ` +
+          `Recuerda: estar en lista de espera no garantiza un sitio. Gracias por la paciencia.`,
+        it:
+          `⏳ Al momento tutti i tavoli del turno sono ancora occupati — ti scriverò appena se ne libera uno. ` +
+          `Ricorda: essere in lista d'attesa non garantisce un posto. Grazie per la pazienza.`,
+        en:
+          `⏳ All tables for this shift are still taken — I'll message you as soon as one frees up. ` +
+          `Remember: being on the waitlist doesn't guarantee a table. Thanks for your patience.`,
+      };
+      const body = M[lang];
 
       const form = new URLSearchParams();
       form.set('From', TWILIO_FROM);
