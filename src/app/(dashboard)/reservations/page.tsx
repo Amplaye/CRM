@@ -5,6 +5,7 @@ import { ReservationTimeline } from "@/components/reservations/ReservationTimeli
 import { Plus, Download, Upload, X, Save, Clock, Menu, Phone, ChevronLeft, ChevronRight } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
 import { Reservation, ReservationStatus } from "@/lib/types";
+import { TranslateNoteButton } from "@/components/ui/TranslateNoteButton";
 
 interface ReservationWithGuest extends Reservation {
   guest_name?: string;
@@ -518,6 +519,9 @@ export default function ReservationsPage() {
                      placeholder={t("res_edit_placeholder")}
                    />
                    <style>{`@media (min-width: 640px) { textarea[name="notes"] { min-height: 120px; } }`}</style>
+                   <div className="mt-2">
+                     <TranslateNoteButton text={selectedRes.notes || ""} />
+                   </div>
                 </div>
              </div>
              <div className="mx-5 sm:mx-6 py-2 sm:py-4 pb-4 sm:pb-4 border-t" style={{ borderColor: '#c4956a' }}>

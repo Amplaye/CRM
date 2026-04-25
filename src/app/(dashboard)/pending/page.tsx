@@ -7,6 +7,7 @@ import { useLanguage } from "@/lib/contexts/LanguageContext";
 import { AlertTriangle, Check, X, MessageSquare, Phone, Calendar, Users, Clock, List, LayoutPanelTop } from "lucide-react";
 import Link from "next/link";
 import { zoneLabel } from "@/lib/restaurant-rules";
+import { TranslateNoteButton } from "@/components/ui/TranslateNoteButton";
 
 interface PendingReservation {
   id: string;
@@ -409,7 +410,12 @@ export default function PendingPage() {
                         </Link>
                       </div>
 
-                      {req.notes && <p className="text-xs text-black">{req.notes}</p>}
+                      {req.notes && (
+                        <div className="space-y-1.5">
+                          <p className="text-xs text-black">{req.notes}</p>
+                          <TranslateNoteButton text={req.notes} />
+                        </div>
+                      )}
                       <p className="text-[10px] text-black mt-2">{new Date(req.created_at).toLocaleString()}</p>
                     </div>
 
