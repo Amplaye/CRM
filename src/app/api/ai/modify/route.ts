@@ -275,13 +275,16 @@ export async function PUT(request: Request) {
 
       let nextNotes: string;
       if (mode === 'append' && existingNotes) {
+        // Strip the zone marker (we re-attach it later) and any leftover join
+        // separators from older versions, so the merged output reads naturally.
         const stripped = existingNotes
           .replace(zoneRe, '')
-          .replace(/\s—\s—\s/g, ' — ')
-          .replace(/^\s*—\s*|\s*—\s*$/g, '')
+          .replace(/\s+—\s+/g, '. ')
+          .replace(/^[\s.—]+|[\s.—]+$/g, '')
           .trim();
+        const joinSep = (s: string) => /[.!?]\s*$/.test(s) ? ' ' : '. ';
         if (incoming && !stripped.toLowerCase().includes(incoming.toLowerCase())) {
-          nextNotes = stripped ? `${stripped} — ${incoming}` : incoming;
+          nextNotes = stripped ? `${stripped}${joinSep(stripped)}${incoming}` : incoming;
         } else {
           nextNotes = stripped || incoming;
         }
@@ -289,9 +292,10 @@ export async function PUT(request: Request) {
         nextNotes = incoming;
       }
 
-      // Re-attach zone marker if it was there.
+      // Re-attach zone marker if it was there. Use a comma instead of " — "
+      // to keep notes natural-looking (no AI-style em-dashes).
       if (existingZoneMatch && !zoneRe.test(nextNotes)) {
-        nextNotes = nextNotes ? `${nextNotes} — ${existingZoneMatch[0]}` : existingZoneMatch[0];
+        nextNotes = nextNotes ? `${nextNotes}. ${existingZoneMatch[0]}` : existingZoneMatch[0];
       }
       updates.notes = nextNotes;
     }
