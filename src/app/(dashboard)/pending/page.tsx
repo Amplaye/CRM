@@ -8,6 +8,7 @@ import { AlertTriangle, Check, X, MessageSquare, Phone, Calendar, Users, Clock, 
 import Link from "next/link";
 import { zoneLabel } from "@/lib/restaurant-rules";
 import { TranslateNoteButton } from "@/components/ui/TranslateNoteButton";
+import { useSeenSnapshotAndMark } from "@/lib/hooks/useLastSeen";
 
 interface PendingReservation {
   id: string;
@@ -45,6 +46,7 @@ export default function PendingPage() {
   const { activeTenant: tenant } = useTenant();
   const { t } = useLanguage();
   const supabase = createClient();
+  const seenAt = useSeenSnapshotAndMark(tenant?.id, "pending");
 
   const [pending, setPending] = useState<PendingReservation[]>([]);
   const [loading, setLoading] = useState(true);
@@ -354,11 +356,12 @@ export default function PendingPage() {
             const guestName = req.guests?.name || "Unknown";
             const guestPhone = req.guests?.phone || "";
             const isConfirming = confirmingId === req.id;
+            const isNew = (req as any).created_at && (req as any).created_at > seenAt;
 
             return (
               <div
                 key={req.id}
-                className="border-2 rounded-xl overflow-hidden transition-all"
+                className={`border-2 rounded-xl overflow-hidden transition-all ${isNew ? 'is-new-row' : ''}`}
                 style={{ background: 'rgba(252,246,237,0.85)', borderColor: isConfirming ? '#22c55e' : '#c4956a' }}
               >
                 <div className="p-4 sm:p-5">

@@ -4,6 +4,7 @@ import { useEffect, useState, useRef } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { useTenant } from "@/lib/contexts/TenantContext";
 import { useLanguage } from "@/lib/contexts/LanguageContext";
+import { useSeenSnapshotAndMark } from "@/lib/hooks/useLastSeen";
 import { useAuth } from "@/lib/contexts/AuthContext";
 import {
   UserPlus, Sparkles, Send, Activity, X, MessageSquare,
@@ -48,6 +49,7 @@ export default function WaitlistPage() {
   const { t } = useLanguage();
   const { user } = useAuth();
   const supabase = createClient();
+  const seenAt = useSeenSnapshotAndMark(tenant?.id, "waitlist");
 
   const [entries, setEntries] = useState<WaitlistWithGuest[]>([]);
   const [loading, setLoading] = useState(true);
@@ -410,10 +412,13 @@ export default function WaitlistPage() {
             const isConfirming = confirmingId === entry.id;
             const waitMinutes = Math.max(0, Math.floor((Date.now() - (typeof entry.created_at === 'number' ? entry.created_at : new Date(entry.created_at as any).getTime())) / 60000));
 
+            const entryCreatedAt = typeof entry.created_at === 'string' ? entry.created_at : new Date(entry.created_at as any).toISOString();
+            const isNew = entryCreatedAt > seenAt;
+
             return (
               <div
                 key={entry.id}
-                className="border-2 rounded-xl overflow-hidden transition-all"
+                className={`border-2 rounded-xl overflow-hidden transition-all ${isNew ? 'is-new-row' : ''}`}
                 style={{ background: 'rgba(252,246,237,0.85)', borderColor: isConfirming ? '#22c55e' : '#c4956a' }}
               >
                 <div className="p-4 sm:p-5">

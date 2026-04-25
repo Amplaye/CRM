@@ -7,6 +7,7 @@ import { createClient } from "@/lib/supabase/client";
 import { Conversation, Guest, Reservation } from "@/lib/types";
 import { useLanguage } from "@/lib/contexts/LanguageContext";
 import { MessageSquare, Phone, Search, X, AlertTriangle, Send, Bot, User, Trash2 } from "lucide-react";
+import { useSeenSnapshotAndMark } from "@/lib/hooks/useLastSeen";
 
 interface ConvoWithGuest extends Conversation {
   guests?: Guest;
@@ -18,6 +19,7 @@ export default function ConversationsPage() {
   const supabase = createClient();
   const searchParams = useSearchParams();
   const guestParam = searchParams.get("guest");
+  const seenAt = useSeenSnapshotAndMark(tenant?.id, "conversations");
 
   const [conversations, setConversations] = useState<ConvoWithGuest[]>([]);
   const [loading, setLoading] = useState(true);
@@ -153,9 +155,12 @@ export default function ConversationsPage() {
             </div>
           ) : (
             <div className="divide-y" style={{ borderColor: 'rgba(196,149,106,0.2)' }}>
-              {filtered.map(conv => (
+              {filtered.map(conv => {
+                const convUpdated = (conv as any).updated_at || (conv as any).created_at;
+                const isNew = convUpdated && convUpdated > seenAt && selectedConvo?.id !== conv.id;
+                return (
                 <div key={conv.id} onClick={() => setSelectedConvoId(conv.id)}
-                  className={`px-4 py-3 cursor-pointer transition-colors active:bg-[#c4956a]/10 ${selectedConvo?.id === conv.id ? 'bg-[#c4956a]/10' : ''}`}>
+                  className={`px-4 py-3 cursor-pointer transition-colors active:bg-[#c4956a]/10 ${selectedConvo?.id === conv.id ? 'bg-[#c4956a]/10' : ''} ${isNew ? 'is-new-row' : ''}`}>
                   <div className="flex items-center gap-3">
                     <input type="checkbox" checked={selectedIds.has(conv.id)}
                       onChange={(e) => { e.stopPropagation(); toggleSelect(conv.id); }}
@@ -180,7 +185,8 @@ export default function ConversationsPage() {
                     </div>
                   </div>
                 </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>

@@ -79,3 +79,30 @@ body {
     position: sticky;
   }
 }
+
+/* Pop-in highlight for newly-arrived rows since user's last visit
+ * to a section. Plays once on mount, then fades. Used by the
+ * notification badges system in the dashboard. */
+@keyframes new-row-pop {
+  0%   { background-color: rgba(196, 149, 106, 0.30); transform: scale(1); }
+  20%  { background-color: rgba(196, 149, 106, 0.45); transform: scale(1.015); }
+  60%  { background-color: rgba(196, 149, 106, 0.20); transform: scale(1); }
+  100% { background-color: transparent; transform: scale(1); }
+}
+.is-new-row {
+  animation: new-row-pop 2.4s ease-out 1;
+  position: relative;
+}
+.is-new-row::before {
+  content: '';
+  position: absolute;
+  left: -2px; top: 0; bottom: 0;
+  width: 3px;
+  background: #ef4444;
+  border-radius: 2px;
+  animation: new-row-pop-bar 4s ease-out 1 forwards;
+}
+@keyframes new-row-pop-bar {
+  0%, 70% { opacity: 1; }
+  100%    { opacity: 0; }
+}
