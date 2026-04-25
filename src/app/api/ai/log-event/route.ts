@@ -33,8 +33,30 @@ export async function POST(request: Request) {
     const category: SystemLogCategory =
       resolvedLevel === 'error' ? 'ai_error' : 'system';
 
-    const severity: SystemLogSeverity =
-      resolvedLevel === 'error' ? 'high' : resolvedLevel === 'warning' ? 'medium' : 'low';
+    // User-flow rejections (e.g. "modify but no reservation", "already cancelled",
+    // "date in the past") aren't system failures — they're the bot working
+    // correctly. Log them for observability but at low severity so the
+    // System Logs Alert workflow doesn't page the agency owner about them.
+    const errMsg = String(error || '').toLowerCase();
+    const isUserCase = [
+      'no active reservation found',
+      'no se ha encontrado',
+      'no encontrada',
+      'already cancelled',
+      'ya cancelad',
+      'ya cancelada',
+      'in the past',
+      'fecha pasada',
+      'past_date',
+      'past_time',
+      'no_tables',
+      'outside_hours',
+      'closed_day',
+    ].some((m) => errMsg.includes(m));
+
+    const severity: SystemLogSeverity = isUserCase
+      ? 'low'
+      : resolvedLevel === 'error' ? 'high' : resolvedLevel === 'warning' ? 'medium' : 'low';
 
     await logSystemEvent({
       tenant_id: tenant_id || undefined,
