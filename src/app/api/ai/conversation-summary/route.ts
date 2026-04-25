@@ -80,10 +80,9 @@ export async function POST(request: Request) {
       return NextResponse.json({ ok: false, error: 'empty transcript' }, { status: 400 });
     }
 
-    // Resolve language: explicit param > stored conv.language > auto-detect from
-    // USER messages only (bot replies don't count — they always pick a language
-    // following the prompt). Default to 'es' (restaurant is Spanish-speaking).
-    let lang = (requestedLang || conv.language || '').toLowerCase();
+    // Resolve language: explicit param > stored conv.language (unless force) >
+    // auto-detect from USER messages only. Default to 'es'.
+    let lang = (requestedLang || (force ? '' : conv.language) || '').toLowerCase();
     if (!['es', 'it', 'en'].includes(lang)) {
       const userText = transcript
         .filter((m: any) => m.role === 'user')
