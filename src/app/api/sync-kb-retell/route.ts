@@ -4,11 +4,15 @@ import { assertAiSecret } from "@/lib/ai-auth";
 
 const RETELL_BASE = "https://api.retellai.com";
 
-// Special article title: when published with this exact title, the article
-// content is treated as the voice agent's general_prompt body (NOT as a KB
-// source). The dynamic header (FECHA Y HORA + CALENDARIO) is preserved from
-// the current LLM prompt so the hourly cron stays compatible.
-const SPECIAL_PROMPT_TITLE = "_VOICE_PROMPT_";
+// Special article title: when published with a title that normalizes to
+// "VOICEPROMPT" (case-insensitive, ignoring spaces/underscores/dashes), the
+// article content is treated as the voice agent's general_prompt body (NOT
+// as a KB source). The dynamic header (FECHA Y HORA + CALENDARIO) is
+// preserved from the current LLM prompt so the hourly cron stays compatible.
+// Accepted: "_VOICE_PROMPT_", "VOICE PROMPT", "voice-prompt", "voicePrompt"…
+function isPromptArticle(title: string): boolean {
+  return title.toUpperCase().replace(/[^A-Z]/g, "") === "VOICEPROMPT";
+}
 
 // Per-tenant config: Retell LLM ID + the marker that separates the dynamic
 // FECHA Y HORA header from the static body in general_prompt.
@@ -168,8 +172,8 @@ export async function POST(req: NextRequest) {
     if (artErr) throw artErr;
 
     const allArr = (allArticles || []) as Article[];
-    const promptArticle = allArr.find((a) => a.title === SPECIAL_PROMPT_TITLE) || null;
-    const kbArticles = allArr.filter((a) => a.title !== SPECIAL_PROMPT_TITLE);
+    const promptArticle = allArr.find((a) => isPromptArticle(a.title)) || null;
+    const kbArticles = allArr.filter((a) => !isPromptArticle(a.title));
 
     const settings = (tenant.settings || {}) as Record<string, any>;
     const kbState: RetellKbState = settings.retell_kb || {};
