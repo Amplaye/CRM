@@ -28,17 +28,12 @@ const TENANT_CONFIG: Record<
   },
 };
 
-// Builds a compact FECHA Y HORA + CALENDARIO 14-day block in the tenant's
-// timezone/locale. Replaces the old verbose 1249c version with ~600c while
-// keeping all the info the model actually needs (date, weekday mapping for
-// 14 days, regla anti-cálculo).
+// Builds a minimal FECHA header with just HOY + MAÑANA (~150c).
+// For any other day-of-week reference ("este viernes", "lunes", "el 5 de
+// mayo"), the model is instructed to call get_current_date first. That tool
+// returns a 7-day calendar in its response, so we don't need to pre-load
+// it in the prompt.
 function buildFechaHeader(timezone: string, locale: string): string {
-  const fmtDate = (d: Date) =>
-    d.toLocaleDateString(locale, { timeZone: timezone, year: "numeric", month: "2-digit", day: "2-digit" })
-      .split("/")
-      .reverse()
-      .join("-")
-      .replace(/^(\d{4})-(\d{2})-(\d{2})$/, "$1-$2-$3");
   const ymd = (d: Date) => {
     const parts = new Intl.DateTimeFormat("en-CA", { timeZone: timezone, year: "numeric", month: "2-digit", day: "2-digit" })
       .formatToParts(d);
@@ -52,23 +47,13 @@ function buildFechaHeader(timezone: string, locale: string): string {
 
   const now = new Date();
   const today = new Date(`${ymd(now)}T12:00:00Z`);
-  const lines: string[] = [];
-  lines.push(`HOY ${weekday(today)} ${ymd(today)} · HORA ${hhmm(now)} ${timezone}`);
-  lines.push("");
-  lines.push("CALENDARIO 14d (consulta aquí, NUNCA calcules el día de la semana):");
-  for (let i = 0; i < 14; i++) {
-    const d = new Date(today);
-    d.setUTCDate(d.getUTCDate() + i);
-    const tag = i === 0 ? "HOY" : i === 1 ? "MAÑ" : `D+${i}`;
-    lines.push(`  ${tag.padEnd(4)} ${weekday(d).slice(0, 3)} ${ymd(d)}`);
-  }
-  lines.push("");
-  lines.push(
-    "REGLA: usa SIEMPRE el CALENDARIO para mapear día→fecha. Si la fecha pedida está fuera de 14d, llama check_availability igualmente. get_current_date solo si necesitas resolver expresiones relativas no listadas."
-  );
-  // Suppress unused-var warning while keeping fmtDate available for future formats.
-  void fmtDate;
-  return lines.join("\n");
+  const tomorrow = new Date(today);
+  tomorrow.setUTCDate(tomorrow.getUTCDate() + 1);
+
+  return [
+    `HOY ${weekday(today)} ${ymd(today)} · MAÑANA ${weekday(tomorrow)} ${ymd(tomorrow)} · HORA ${hhmm(now)} ${timezone}`,
+    "Para cualquier otro día/fecha relativa (ej. \"este viernes\", \"lunes\", \"el 5 de mayo\"), llama get_current_date PRIMERO.",
+  ].join("\n");
 }
 
 interface SourceRecord {
