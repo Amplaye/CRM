@@ -196,7 +196,7 @@ export default function ConversationsPage() {
               </div>
               <div>
                 <h3 className="font-bold text-sm text-black">{selectedGuest?.name || "Unknown Guest"}</h3>
-                <p className="text-xs text-black">{selectedGuest?.phone || ""} · {selectedConvo.channel === 'whatsapp' ? 'WhatsApp' : 'Llamada'}</p>
+                <p className="text-xs text-black">{selectedGuest?.phone || ""} · {selectedConvo.channel === 'whatsapp' ? t("conv_whatsapp") : t("conv_call_channel")}</p>
               </div>
             </div>
             <button onClick={() => setSelectedConvoId(null)} className="p-1.5 border-2 border-red-400 text-red-500 hover:bg-red-50 rounded-lg transition-colors">
@@ -223,7 +223,7 @@ export default function ConversationsPage() {
                     {!isUser && (
                       <div className="flex items-center gap-1 mb-0.5 opacity-60">
                         {isStaff ? <User className="w-3 h-3" /> : <Bot className="w-3 h-3" />}
-                        <span className="text-[9px] font-bold uppercase">{isStaff ? 'Staff' : 'AI'}</span>
+                        <span className="text-[9px] font-bold uppercase">{isStaff ? t("conv_staff") : t("conv_ai")}</span>
                       </div>
                     )}
                     <p className="text-[13px] leading-relaxed whitespace-pre-wrap">{msg.content}</p>
@@ -240,7 +240,7 @@ export default function ConversationsPage() {
             <input type="text" value={replyText} onChange={e => setReplyText(e.target.value)}
               onKeyDown={e => e.key === 'Enter' && handleSend()}
               disabled={sending || selectedConvo.status === "resolved"}
-              placeholder={selectedConvo.status === "resolved" ? t("conv_conversation_resolved") : "Escribe un mensaje..."}
+              placeholder={selectedConvo.status === "resolved" ? t("conv_conversation_resolved") : t("conv_reply_placeholder")}
               className="flex-1 border-2 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-[#c4956a] disabled:opacity-50"
               style={{ borderColor: '#c4956a', background: 'rgba(252,246,237,0.6)' }} />
             <button onClick={handleSend} disabled={sending || !replyText.trim() || selectedConvo.status === "resolved"}

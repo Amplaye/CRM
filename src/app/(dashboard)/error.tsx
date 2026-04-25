@@ -2,6 +2,7 @@
 
 import { AlertTriangle, RefreshCw } from "lucide-react";
 import { useEffect } from "react";
+import { useLanguage } from "@/lib/contexts/LanguageContext";
 
 export default function Error({
   error,
@@ -10,6 +11,8 @@ export default function Error({
   error: Error & { digest?: string };
   reset: () => void;
 }) {
+  const { t } = useLanguage();
+
   useEffect(() => {
     console.error(error);
   }, [error]);
@@ -21,15 +24,15 @@ export default function Error({
           <AlertTriangle className="h-6 w-6 text-red-600" />
         </div>
         <div>
-           <h2 className="text-xl font-bold text-black tracking-tight">Something went wrong!</h2>
-           <p className="mt-2 text-sm text-black">An unexpected error occurred while loading this view.</p>
+           <h2 className="text-xl font-bold text-black tracking-tight">{t("err_title")}</h2>
+           <p className="mt-2 text-sm text-black">{t("err_subtitle")}</p>
         </div>
         <button
           onClick={() => reset()}
           className="inline-flex w-full items-center justify-center rounded-lg bg-zinc-900 px-4 py-2.5 text-sm font-medium text-white hover:bg-zinc-800 transition-colors"
         >
           <RefreshCw className="mr-2 h-4 w-4" />
-          Try again
+          {t("err_try_again")}
         </button>
       </div>
     </div>

@@ -4,8 +4,10 @@ import { useState, useEffect } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
 import { Loader2, Lock, CheckCircle } from "lucide-react";
+import { useLanguage } from "@/lib/contexts/LanguageContext";
 
 export default function ResetPasswordPage() {
+  const { t } = useLanguage();
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [error, setError] = useState("");
@@ -19,12 +21,12 @@ export default function ResetPasswordPage() {
     setError("");
 
     if (password !== confirmPassword) {
-      setError("Passwords do not match.");
+      setError(t("pwd_no_match"));
       return;
     }
 
     if (password.length < 6) {
-      setError("Password must be at least 6 characters.");
+      setError(t("pwd_too_short"));
       return;
     }
 
@@ -36,7 +38,7 @@ export default function ResetPasswordPage() {
       setSuccess(true);
       setTimeout(() => router.push("/login"), 3000);
     } catch (err: any) {
-      setError(err.message || "Failed to reset password.");
+      setError(err.message || t("pwd_reset_failed"));
     } finally {
       setLoading(false);
     }
@@ -58,9 +60,9 @@ export default function ResetPasswordPage() {
           {success ? (
             <div className="text-center space-y-4">
               <CheckCircle className="mx-auto h-12 w-12 text-emerald-500" />
-              <h3 className="text-lg font-semibold text-zinc-900">Password updated!</h3>
+              <h3 className="text-lg font-semibold text-zinc-900">{t("pwd_updated_title")}</h3>
               <p className="text-sm text-black">
-                Redirecting you to sign in...
+                {t("pwd_redirecting")}
               </p>
             </div>
           ) : (
@@ -72,7 +74,7 @@ export default function ResetPasswordPage() {
               )}
 
               <div>
-                <label className="block text-sm font-medium text-black">New password</label>
+                <label className="block text-sm font-medium text-black">{t("pwd_new_label")}</label>
                 <div className="mt-1 relative rounded-md shadow-sm">
                   <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                     <Lock className="h-4 w-4 text-black" />
@@ -85,13 +87,13 @@ export default function ResetPasswordPage() {
                     onChange={(e) => setPassword(e.target.value)}
                     className="block w-full pl-10 sm:text-sm border-2 p-2.5 rounded-md focus:ring-[#c4956a] focus:border-[#c4956a]"
                     style={{ borderColor: '#c4956a', background: 'rgba(252,246,237,0.6)' }}
-                    placeholder="Min. 6 characters"
+                    placeholder={t("pwd_min_chars")}
                   />
                 </div>
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-black">Confirm new password</label>
+                <label className="block text-sm font-medium text-black">{t("pwd_confirm_label")}</label>
                 <div className="mt-1 relative rounded-md shadow-sm">
                   <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                     <Lock className="h-4 w-4 text-black" />
@@ -104,7 +106,7 @@ export default function ResetPasswordPage() {
                     onChange={(e) => setConfirmPassword(e.target.value)}
                     className="block w-full pl-10 sm:text-sm border-2 p-2.5 rounded-md focus:ring-[#c4956a] focus:border-[#c4956a]"
                     style={{ borderColor: '#c4956a', background: 'rgba(252,246,237,0.6)' }}
-                    placeholder="Repeat password"
+                    placeholder={t("pwd_repeat_placeholder")}
                   />
                 </div>
               </div>
@@ -115,7 +117,7 @@ export default function ResetPasswordPage() {
                 className="w-full flex justify-center py-2.5 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#c4956a] disabled:opacity-50 transition-colors"
                 style={{ background: 'linear-gradient(135deg, #c4956a 0%, #b8845c 100%)' }}
               >
-                {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : "Update password"}
+                {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : t("pwd_update_button")}
               </button>
             </form>
           )}

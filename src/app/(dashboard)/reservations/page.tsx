@@ -255,7 +255,7 @@ export default function ReservationsPage() {
       if (!res.success) throw new Error(res.error);
       setSelectedRes(null);
     } catch (err: any) {
-      alert("Failed to update: " + err.message);
+      alert(t("res_failed_update") + err.message);
     } finally {
       setSaving(false);
     }
@@ -314,7 +314,7 @@ export default function ReservationsPage() {
       setSelectedTableIds([]);
       setIsCreating(false);
     } catch (err: any) {
-      alert("Failed to create booking: " + err.message);
+      alert(t("res_failed_create") + err.message);
     } finally {
       setSaving(false);
     }

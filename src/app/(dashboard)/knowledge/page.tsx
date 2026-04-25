@@ -313,7 +313,7 @@ export default function KnowledgePage() {
                            value={editTitle}
                            onChange={e => setEditTitle(e.target.value)}
                            className="w-full text-2xl font-bold text-black bg-transparent border-none focus:ring-0 p-1 placeholder:text-black"
-                           placeholder="How to handle nut allergies..."
+                           placeholder={t("know_title_placeholder")}
                         />
                      </div>
                      <div className="grid grid-cols-2 gap-4">

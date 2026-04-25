@@ -227,11 +227,11 @@ export default function IncidentsPage() {
                                       </button>
                                    )}
                                    {inc.owner_id ? (
-                                      <div className="h-6 w-6 rounded-full bg-zinc-200 border border-white flex items-center justify-center text-[10px] font-bold text-black shadow-sm" title="Assigned">
+                                      <div className="h-6 w-6 rounded-full bg-zinc-200 border border-white flex items-center justify-center text-[10px] font-bold text-black shadow-sm" title={t("inc_assigned")}>
                                          <User className="w-3 h-3" />
                                       </div>
                                    ) : (
-                                      <div className="h-6 w-6 rounded-full bg-red-50 border border-red-100 border-dashed flex items-center justify-center text-red-400" title="Unassigned">
+                                      <div className="h-6 w-6 rounded-full bg-red-50 border border-red-100 border-dashed flex items-center justify-center text-red-400" title={t("inc_unassigned")}>
                                          !
                                       </div>
                                    )}

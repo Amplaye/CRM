@@ -110,8 +110,8 @@ export default function AutomationsPage() {
     <div className="p-4 sm:p-6 lg:p-8 w-full space-y-4 sm:space-y-6 lg:space-y-8">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-8">
         <div>
-          <h1 className="text-2xl font-bold text-black tracking-tight">AI Integrations & Rules</h1>
-          <p className="mt-1 text-sm text-black">Configure boundaries and external webhook triggers for your AI agents.</p>
+          <h1 className="text-2xl font-bold text-black tracking-tight">{t("auto_h1_title")}</h1>
+          <p className="mt-1 text-sm text-black">{t("auto_h1_subtitle")}</p>
         </div>
       </div>
 
@@ -154,9 +154,9 @@ export default function AutomationsPage() {
                  <div className="flex items-center justify-between border-t border-zinc-100 pt-5 mt-auto">
                     <div className="flex items-center space-x-2 text-xs font-bold uppercase tracking-wider">
                        {rule.is_active ? (
-                          <span className="text-emerald-600 bg-emerald-50 px-2.5 py-1 rounded-md border border-emerald-100">Live Config</span>
+                          <span className="text-emerald-600 bg-emerald-50 px-2.5 py-1 rounded-md border border-emerald-100">{t("auto_status_live")}</span>
                        ) : (
-                          <span className="text-black bg-white px-2.5 py-1 rounded-md border border-zinc-200">Sleeping</span>
+                          <span className="text-black bg-white px-2.5 py-1 rounded-md border border-zinc-200">{t("auto_status_sleeping")}</span>
                        )}
                        <span className="text-black">•</span>
                        <span className="text-black font-mono text-[10px]">{rule.trigger}</span>
@@ -167,7 +167,7 @@ export default function AutomationsPage() {
                        className={`inline-flex items-center px-4 py-2 text-xs font-bold rounded-lg transition-colors shadow-sm ${rule.is_active ? 'text-black bg-white border border-zinc-200 hover:bg-zinc-50' : 'text-white bg-zinc-900 hover:bg-zinc-800'}`}
                     >
                       <Power className={`h-3 w-3 mr-1.5 ${rule.is_active ? 'text-black' : 'text-black'}`} />
-                      {rule.is_active ? 'Disable' : 'Activate'}
+                      {rule.is_active ? t("auto_btn_disable") : t("auto_btn_activate")}
                     </button>
                  </div>
               </div>

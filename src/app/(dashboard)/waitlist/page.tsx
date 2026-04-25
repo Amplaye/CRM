@@ -680,16 +680,16 @@ export default function WaitlistPage() {
                 <h3 className="text-[10px] font-bold text-black uppercase tracking-widest mb-3">{t("waitlist_time_flex")}</h3>
                 <div className="space-y-4">
                   <div>
-                    <label className="block text-xs font-bold text-black mb-1">Target Ideal Time</label>
+                    <label className="block text-xs font-bold text-black mb-1">{t("waitlist_target_time")}</label>
                     <input required name="targetTime" type="time" defaultValue="19:00" className="w-full border border-zinc-200 bg-zinc-50 rounded-md px-3 py-2 text-sm font-bold" />
                   </div>
                   <div className="grid grid-cols-2 gap-3 pt-2 border-t border-zinc-100">
                     <div>
-                      <label className="block text-[10px] font-bold text-black uppercase">Earliest Arrival</label>
+                      <label className="block text-[10px] font-bold text-black uppercase">{t("waitlist_earliest_arrival")}</label>
                       <input required name="timeRangeStart" type="time" defaultValue="18:30" className="w-full border border-zinc-200 rounded-md px-2 py-1 mt-1 text-sm font-medium focus:outline-none focus:ring-1 focus:ring-zinc-900" />
                     </div>
                     <div>
-                      <label className="block text-[10px] font-bold text-black uppercase">Latest Seating</label>
+                      <label className="block text-[10px] font-bold text-black uppercase">{t("waitlist_latest_seating")}</label>
                       <input required name="timeRangeEnd" type="time" defaultValue="20:00" className="w-full border border-zinc-200 rounded-md px-2 py-1 mt-1 text-sm font-medium focus:outline-none focus:ring-1 focus:ring-zinc-900" />
                     </div>
                   </div>
@@ -699,9 +699,9 @@ export default function WaitlistPage() {
               <div>
                 <label className="block text-xs font-bold text-black mb-1">{t("waitlist_contact_pref")}</label>
                 <select required name="contactPreference" className="w-full border border-zinc-200 bg-white rounded-md px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-zinc-900">
-                  <option value="whatsapp">WhatsApp (Automated Matcher)</option>
-                  <option value="sms">SMS Text Message</option>
-                  <option value="call">Voice Call</option>
+                  <option value="whatsapp">{t("waitlist_contact_whatsapp_label")}</option>
+                  <option value="sms">{t("waitlist_contact_sms_label")}</option>
+                  <option value="call">{t("waitlist_contact_call_label")}</option>
                 </select>
               </div>
 
@@ -722,7 +722,7 @@ export default function WaitlistPage() {
                 disabled={saving}
                 className="w-full flex items-center justify-center bg-zinc-900 hover:bg-zinc-800 text-white font-medium py-2.5 px-4 rounded-lg transition-colors shadow-sm disabled:opacity-50 text-sm"
               >
-                {saving ? "Registering..." : t("waitlist_add_live")}
+                {saving ? t("waitlist_registering") : t("waitlist_add_live")}
               </button>
             </div>
           </form>
