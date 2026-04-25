@@ -87,6 +87,11 @@ export async function POST(request: Request) {
       if (payload.intent && payload.intent !== 'unknown') updates.intent = payload.intent;
       // Update sentiment if provided
       if (payload.sentiment) updates.sentiment = payload.sentiment;
+      // Update language if provided (es/it/en) — used by reminder cron to
+      // pick the right WhatsApp template per guest.
+      if (payload.language && ['es', 'it', 'en'].includes(payload.language)) {
+        updates.language = payload.language;
+      }
       // Update status if outcome says resolved
       if (payload.outcome === 'resolved') updates.status = 'resolved';
       if (payload.outcome === 'escalated') {
@@ -112,19 +117,24 @@ export async function POST(request: Request) {
       };
       const status = statusMap[payload.outcome] || "active";
 
+      const insertPayload: Record<string, any> = {
+        tenant_id: payload.tenant_id,
+        guest_id: guestId,
+        channel: payload.channel || "whatsapp",
+        intent: payload.intent || "unknown",
+        status,
+        escalation_flag: payload.outcome === "escalated",
+        sentiment: payload.sentiment || "neutral",
+        summary: summaryText || "New conversation",
+        transcript: newMessages,
+      };
+      if (payload.language && ['es', 'it', 'en'].includes(payload.language)) {
+        insertPayload.language = payload.language;
+      }
+
       const { data: newConvo, error: insertErr } = await supabase
         .from('conversations')
-        .insert({
-          tenant_id: payload.tenant_id,
-          guest_id: guestId,
-          channel: payload.channel || "whatsapp",
-          intent: payload.intent || "unknown",
-          status,
-          escalation_flag: payload.outcome === "escalated",
-          sentiment: payload.sentiment || "neutral",
-          summary: summaryText || "New conversation",
-          transcript: newMessages,
-        })
+        .insert(insertPayload)
         .select('id')
         .single();
 
