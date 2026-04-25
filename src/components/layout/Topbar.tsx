@@ -71,7 +71,7 @@ export function Topbar({ onMenuToggle }: TopbarProps) {
             .order('created_at', { ascending: false })
             .limit(30),
           supabase.from('waitlist_entries')
-            .select('id, party_size, requested_date, created_at')
+            .select('id, party_size, date, created_at')
             .eq('tenant_id', activeTenant.id)
             .gte('created_at', sinceIso)
             .order('created_at', { ascending: false })
@@ -103,7 +103,7 @@ export function Topbar({ onMenuToggle }: TopbarProps) {
           newNotifs.push({
             id: entry.id,
             type: 'waitlist',
-            message: `${t('topbar_waitlist')}: ${entry.party_size} ${t('topbar_people')} - ${entry.requested_date || ''}`,
+            message: `${t('topbar_waitlist')}: ${entry.party_size} ${t('topbar_people')} - ${entry.date || ''}`,
             time: new Date(entry.created_at).toLocaleTimeString(),
             read: false,
             href: '/waitlist',
@@ -236,7 +236,7 @@ export function Topbar({ onMenuToggle }: TopbarProps) {
           const notif: Notification = {
             id: entry.id,
             type: "waitlist",
-            message: `${t("topbar_waitlist")}: ${entry.party_size} ${t("topbar_people")} - ${entry.requested_date || ''}`,
+            message: `${t("topbar_waitlist")}: ${entry.party_size} ${t("topbar_people")} - ${entry.date || ''}`,
             time: new Date().toLocaleTimeString(),
             read: false,
             href: "/waitlist",
