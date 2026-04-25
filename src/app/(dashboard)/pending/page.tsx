@@ -231,7 +231,16 @@ export default function PendingPage() {
         const zoneLine = zone ? `\n📍 Zona: ${zone === 'inside' ? 'Interior' : 'Exterior'}` : '';
 
         if (guestPhone) {
-          const confirmMsg = `✅ *Reserva confirmada*\n📅 Fecha: ${req.date}\n⏰ Hora: ${req.time}\n👥 Personas: ${req.party_size}${zoneLine}\n📝 Nombre: ${req.guests?.name || ''}${assignedTableNames ? '\n🪑 Mesas: ' + assignedTableNames : ''}\n\nSi necesitas cancelar, escríbenos con CANCELAR.`;
+          const lang = (['es', 'it', 'en'] as const).includes(((req as any).language || '') as any)
+            ? ((req as any).language as 'es' | 'it' | 'en')
+            : 'es';
+          const T = {
+            es: { title: '✅ *Reserva confirmada*', date: 'Fecha', time: 'Hora', people: 'Personas', zone: 'Zona', name: 'Nombre', tablesLbl: 'Mesas', interior: 'Interior', exterior: 'Exterior', footer: 'Para modificar escribe *MODIFICAR*.\nPara cancelar escribe *CANCELAR*.' },
+            it: { title: '✅ *Prenotazione confermata*', date: 'Data', time: 'Ora', people: 'Persone', zone: 'Zona', name: 'Nome', tablesLbl: 'Tavoli', interior: 'Interno', exterior: 'Esterno', footer: 'Per modificare scrivi *MODIFICARE*.\nPer annullare scrivi *ANNULLA*.' },
+            en: { title: '✅ *Booking confirmed*', date: 'Date', time: 'Time', people: 'People', zone: 'Area', name: 'Name', tablesLbl: 'Tables', interior: 'Indoor', exterior: 'Outdoor', footer: 'To modify write *MODIFY*.\nTo cancel write *CANCEL*.' },
+          }[lang];
+          const zoneLineL = zone ? `\n📍 ${T.zone}: ${zone === 'inside' ? T.interior : T.exterior}` : '';
+          const confirmMsg = `${T.title}\n📅 ${T.date}: ${req.date}\n⏰ ${T.time}: ${req.time}\n👥 ${T.people}: ${req.party_size}${zoneLineL}\n📝 ${T.name}: ${req.guests?.name || ''}${assignedTableNames ? '\n🪑 ' + T.tablesLbl + ': ' + assignedTableNames : ''}\n\n${T.footer}`;
           fetch("/api/send-whatsapp", {
             method: "POST",
             headers: { "Content-Type": "application/json" },

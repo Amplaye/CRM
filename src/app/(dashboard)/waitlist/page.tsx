@@ -270,8 +270,16 @@ export default function WaitlistPage() {
         const notesRaw = (entry.notes || '').toLowerCase();
         const zoneFromNotes = notesRaw.includes('interior') ? 'inside' : notesRaw.includes('exterior') ? 'outside' : null;
         const zone = zoneFromTables || zoneFromNotes || null;
-        const zoneLine = zone ? `\n📍 Zona: ${zone === 'inside' ? 'Interior' : zone === 'outside' ? 'Exterior' : zone}` : '';
-        const confirmMsg = `✅ *Reserva confirmada*\n📅 Fecha: ${entry.date}\n⏰ Hora: ${entry.target_time}\n👥 Personas: ${entry.party_size}${zoneLine}\n📝 Nombre: ${guestName}${assignedTableNames ? '\n🪑 Mesas: ' + assignedTableNames : ''}\n\nSi necesitas cancelar, escríbenos con CANCELAR.`;
+        const lang = (['es', 'it', 'en'] as const).includes(((entry as any).language || '') as any)
+          ? ((entry as any).language as 'es' | 'it' | 'en')
+          : 'es';
+        const T = {
+          es: { title: '✅ *Reserva confirmada*', date: 'Fecha', time: 'Hora', people: 'Personas', zone: 'Zona', name: 'Nombre', tablesLbl: 'Mesas', interior: 'Interior', exterior: 'Exterior', footer: 'Para modificar escribe *MODIFICAR*.\nPara cancelar escribe *CANCELAR*.' },
+          it: { title: '✅ *Prenotazione confermata*', date: 'Data', time: 'Ora', people: 'Persone', zone: 'Zona', name: 'Nome', tablesLbl: 'Tavoli', interior: 'Interno', exterior: 'Esterno', footer: 'Per modificare scrivi *MODIFICARE*.\nPer annullare scrivi *ANNULLA*.' },
+          en: { title: '✅ *Booking confirmed*', date: 'Date', time: 'Time', people: 'People', zone: 'Area', name: 'Name', tablesLbl: 'Tables', interior: 'Indoor', exterior: 'Outdoor', footer: 'To modify write *MODIFY*.\nTo cancel write *CANCEL*.' },
+        }[lang];
+        const zoneLineL = zone ? `\n📍 ${T.zone}: ${zone === 'inside' ? T.interior : zone === 'outside' ? T.exterior : zone}` : '';
+        const confirmMsg = `${T.title}\n📅 ${T.date}: ${entry.date}\n⏰ ${T.time}: ${entry.target_time}\n👥 ${T.people}: ${entry.party_size}${zoneLineL}\n📝 ${T.name}: ${guestName}${assignedTableNames ? '\n🪑 ' + T.tablesLbl + ': ' + assignedTableNames : ''}\n\n${T.footer}`;
         try {
           await fetch("/api/send-whatsapp", {
             method: "POST",
