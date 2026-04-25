@@ -4,24 +4,72 @@ import { assertAiSecret } from "@/lib/ai-auth";
 
 const RETELL_BASE = "https://api.retellai.com";
 
-// Special article title: when published with a title that normalizes to
-// "VOICEPROMPT" (case-insensitive, ignoring spaces/underscores/dashes), the
-// article content is treated as the voice agent's general_prompt body (NOT
-// as a KB source). The dynamic header (FECHA Y HORA + CALENDARIO) is
-// preserved from the current LLM prompt so the hourly cron stays compatible.
-// Accepted: "_VOICE_PROMPT_", "VOICE PROMPT", "voice-prompt", "voicePrompt"…
+// Special article title: any case-insensitive variant of "VOICEPROMPT"
+// (e.g. "_VOICE_PROMPT_", "VOICE PROMPT", "voice-prompt", "voicePrompt")
+// makes the article behave as the voice agent's general_prompt body
+// instead of being indexed as a KB source. The dynamic FECHA header is
+// auto-generated at sync time, so the article never needs to contain it.
 function isPromptArticle(title: string): boolean {
   return title.toUpperCase().replace(/[^A-Z]/g, "") === "VOICEPROMPT";
 }
 
-// Per-tenant config: Retell LLM ID + the marker that separates the dynamic
-// FECHA Y HORA header from the static body in general_prompt.
-const TENANT_CONFIG: Record<string, { llmId: string; bodyMarker: string }> = {
+// Per-tenant config: Retell LLM ID, agent ID (for publish), timezone +
+// locale for the dynamic FECHA Y HORA header, plus the optional brand
+// title that opens the body (kept for narrow backwards-compat).
+const TENANT_CONFIG: Record<
+  string,
+  { llmId: string; agentId: string; timezone: string; locale: string }
+> = {
   "626547ff-bc44-4f35-8f42-0e97f1dcf0d5": {
     llmId: "llm_d19f792cd11a22132956f81dc7fe",
-    bodyMarker: "# PICNIC - Voice Agent",
+    agentId: "agent_985ab572aeb67df9d2612fbb4e",
+    timezone: "Atlantic/Canary",
+    locale: "es-ES",
   },
 };
+
+// Builds a compact FECHA Y HORA + CALENDARIO 14-day block in the tenant's
+// timezone/locale. Replaces the old verbose 1249c version with ~600c while
+// keeping all the info the model actually needs (date, weekday mapping for
+// 14 days, regla anti-cálculo).
+function buildFechaHeader(timezone: string, locale: string): string {
+  const fmtDate = (d: Date) =>
+    d.toLocaleDateString(locale, { timeZone: timezone, year: "numeric", month: "2-digit", day: "2-digit" })
+      .split("/")
+      .reverse()
+      .join("-")
+      .replace(/^(\d{4})-(\d{2})-(\d{2})$/, "$1-$2-$3");
+  const ymd = (d: Date) => {
+    const parts = new Intl.DateTimeFormat("en-CA", { timeZone: timezone, year: "numeric", month: "2-digit", day: "2-digit" })
+      .formatToParts(d);
+    const get = (t: string) => parts.find((p) => p.type === t)!.value;
+    return `${get("year")}-${get("month")}-${get("day")}`;
+  };
+  const weekday = (d: Date) =>
+    d.toLocaleDateString(locale, { timeZone: timezone, weekday: "long" }).toLowerCase();
+  const hhmm = (d: Date) =>
+    d.toLocaleTimeString(locale, { timeZone: timezone, hour: "2-digit", minute: "2-digit", hour12: false });
+
+  const now = new Date();
+  const today = new Date(`${ymd(now)}T12:00:00Z`);
+  const lines: string[] = [];
+  lines.push(`HOY ${weekday(today)} ${ymd(today)} · HORA ${hhmm(now)} ${timezone}`);
+  lines.push("");
+  lines.push("CALENDARIO 14d (consulta aquí, NUNCA calcules el día de la semana):");
+  for (let i = 0; i < 14; i++) {
+    const d = new Date(today);
+    d.setUTCDate(d.getUTCDate() + i);
+    const tag = i === 0 ? "HOY" : i === 1 ? "MAÑ" : `D+${i}`;
+    lines.push(`  ${tag.padEnd(4)} ${weekday(d).slice(0, 3)} ${ymd(d)}`);
+  }
+  lines.push("");
+  lines.push(
+    "REGLA: usa SIEMPRE el CALENDARIO para mapear día→fecha. Si la fecha pedida está fuera de 14d, llama check_availability igualmente. get_current_date solo si necesitas resolver expresiones relativas no listadas."
+  );
+  // Suppress unused-var warning while keeping fmtDate available for future formats.
+  void fmtDate;
+  return lines.join("\n");
+}
 
 interface SourceRecord {
   source_id: string;
@@ -117,20 +165,16 @@ function stripLegacyKbBlock(prompt: string): string {
   return [before, after].filter(Boolean).join("\n\n");
 }
 
-// Extract the dynamic header (FECHA Y HORA + CALENDARIO) from the current
-// general_prompt, identified as everything BEFORE bodyMarker. The hourly
-// cron updates only this header — preserving it lets us swap the body
-// independently from the special article without breaking the cron.
-function extractDynamicHeader(currentPrompt: string, bodyMarker: string): string {
-  const idx = currentPrompt.indexOf(bodyMarker);
-  if (idx === -1) return "";
-  return currentPrompt.substring(0, idx).trimEnd();
-}
-
 function composePrompt(header: string, articleContent: string): string {
   const body = articleContent.trim();
   if (!header) return body;
   return `${header}\n\n${body}`;
+}
+
+async function publishAgent(agentId: string, key: string) {
+  const r = await retellFetch(`/publish-agent/${agentId}`, { method: "POST" }, key);
+  if (!r.ok) throw new Error(`publish-agent failed ${r.status}: ${JSON.stringify(r.data)}`);
+  return r.data;
 }
 
 export async function POST(req: NextRequest) {
@@ -148,7 +192,7 @@ export async function POST(req: NextRequest) {
         { status: 400 }
       );
     }
-    const { llmId, bodyMarker } = cfg;
+    const { llmId, agentId, timezone, locale } = cfg;
 
     const RETELL_KEY = process.env.RETELL_API_KEY;
     if (!RETELL_KEY) {
@@ -264,7 +308,9 @@ export async function POST(req: NextRequest) {
     // --- 3. Compute target prompt + KB ids ---
     let targetPrompt: string;
     if (promptArticle) {
-      const header = extractDynamicHeader(currentPrompt, bodyMarker);
+      // Always regenerate the FECHA header from scratch — no longer depends on
+      // a separate cron updating it inside Retell.
+      const header = buildFechaHeader(timezone, locale);
       targetPrompt = composePrompt(header, promptArticle.content);
       stats.prompt_synced = true;
     } else {
@@ -280,6 +326,7 @@ export async function POST(req: NextRequest) {
     const promptChanged = targetPrompt !== currentPrompt;
     const kbIdsChanged = JSON.stringify(targetKbIds) !== JSON.stringify(currentKbIds);
 
+    let agentPublished = false;
     if (promptChanged || kbIdsChanged) {
       const upd = await retellFetch(
         `/update-retell-llm/${llmId}`,
@@ -294,6 +341,16 @@ export async function POST(req: NextRequest) {
         RETELL_KEY
       );
       if (!upd.ok) throw new Error(`update-retell-llm failed: ${JSON.stringify(upd.data)}`);
+
+      // Auto-publish so the new draft version goes live immediately.
+      // Without this the agent keeps serving the previously-published
+      // version and the customer's edits don't reach end users.
+      try {
+        await publishAgent(agentId, RETELL_KEY);
+        agentPublished = true;
+      } catch (e) {
+        console.warn(`[sync-kb-retell] publish-agent failed:`, (e as Error).message);
+      }
     }
 
     // --- 4. Persist updated mapping ---
@@ -316,6 +373,7 @@ export async function POST(req: NextRequest) {
       kb_id: kbId,
       stats,
       prompt_chars: targetPrompt.length,
+      agent_published: agentPublished,
     });
   } catch (err: any) {
     console.error("[sync-kb-retell] error:", err);
