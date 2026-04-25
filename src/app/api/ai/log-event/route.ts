@@ -37,7 +37,10 @@ export async function POST(request: Request) {
     // "date in the past") aren't system failures — they're the bot working
     // correctly. Log them for observability but at low severity so the
     // System Logs Alert workflow doesn't page the agency owner about them.
-    const errMsg = String(error || '').toLowerCase();
+    // The error string can come either at the top of the body OR nested under
+    // context.error (the n8n workflows wrap most failures in context).
+    const ctxErr = (context && typeof context === 'object') ? (context as any).error : '';
+    const errMsg = String(error || ctxErr || '').toLowerCase();
     const isUserCase = [
       'no active reservation found',
       'no se ha encontrado',
