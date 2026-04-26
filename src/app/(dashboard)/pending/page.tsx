@@ -9,6 +9,7 @@ import Link from "next/link";
 import { zoneLabel } from "@/lib/restaurant-rules";
 import { TranslateNoteButton } from "@/components/ui/TranslateNoteButton";
 import { useSeenSnapshotAndMark } from "@/lib/hooks/useLastSeen";
+import { formatDateLong } from "@/lib/format-date";
 
 interface PendingReservation {
   id: string;
@@ -239,7 +240,7 @@ export default function PendingPage() {
             en: { title: '✅ *Booking confirmed*', date: 'Date', time: 'Time', people: 'People', zone: 'Area', name: 'Name', tablesLbl: 'Tables', interior: 'Indoor', exterior: 'Outdoor', footer: 'To modify write *MODIFY*.\nTo cancel write *CANCEL*.' },
           }[lang];
           const zoneLineL = zone ? `\n📍 ${T.zone}: ${zone === 'inside' ? T.interior : T.exterior}` : '';
-          const confirmMsg = `${T.title}\n📅 ${T.date}: ${req.date}\n⏰ ${T.time}: ${req.time}\n👥 ${T.people}: ${req.party_size}${zoneLineL}\n📝 ${T.name}: ${req.guests?.name || ''}${assignedTableNames ? '\n🪑 ' + T.tablesLbl + ': ' + assignedTableNames : ''}\n\n${T.footer}`;
+          const confirmMsg = `${T.title}\n📅 ${T.date}: ${formatDateLong(req.date, lang)}\n⏰ ${T.time}: ${req.time}\n👥 ${T.people}: ${req.party_size}${zoneLineL}\n📝 ${T.name}: ${req.guests?.name || ''}${assignedTableNames ? '\n🪑 ' + T.tablesLbl + ': ' + assignedTableNames : ''}\n\n${T.footer}`;
           fetch("/api/send-whatsapp", {
             method: "POST",
             headers: { "Content-Type": "application/json" },

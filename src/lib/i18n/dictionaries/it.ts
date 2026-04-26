@@ -46,6 +46,8 @@ export const it: Dictionary = {
   res_col_time: "Ora",
   res_col_status: "Stato",
   res_col_source: "Canale",
+  res_col_phone: "Telefono",
+  res_col_table: "Tavolo",
   res_seat_action: "Far sedere",
   res_all_shifts: "Tutti",
   res_subtitle: "Gestisci tutte le prenotazioni IA e staff del tuo ristorante.",

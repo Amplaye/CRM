@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { zoneLabel } from "@/lib/restaurant-rules";
+import { formatDateLong } from "@/lib/format-date";
 import { WaitlistEntry } from "@/lib/types";
 import { createWaitlistEntryAction, updateWaitlistStatusAction } from "@/app/actions/waitlist";
 import { createReservationAction } from "@/app/actions/reservations";
@@ -281,7 +282,7 @@ export default function WaitlistPage() {
           en: { title: '✅ *Booking confirmed*', date: 'Date', time: 'Time', people: 'People', zone: 'Area', name: 'Name', tablesLbl: 'Tables', interior: 'Indoor', exterior: 'Outdoor', footer: 'To modify write *MODIFY*.\nTo cancel write *CANCEL*.' },
         }[lang];
         const zoneLineL = zone ? `\n📍 ${T.zone}: ${zone === 'inside' ? T.interior : zone === 'outside' ? T.exterior : zone}` : '';
-        const confirmMsg = `${T.title}\n📅 ${T.date}: ${entry.date}\n⏰ ${T.time}: ${entry.target_time}\n👥 ${T.people}: ${entry.party_size}${zoneLineL}\n📝 ${T.name}: ${guestName}${assignedTableNames ? '\n🪑 ' + T.tablesLbl + ': ' + assignedTableNames : ''}\n\n${T.footer}`;
+        const confirmMsg = `${T.title}\n📅 ${T.date}: ${formatDateLong(entry.date, lang)}\n⏰ ${T.time}: ${entry.target_time}\n👥 ${T.people}: ${entry.party_size}${zoneLineL}\n📝 ${T.name}: ${guestName}${assignedTableNames ? '\n🪑 ' + T.tablesLbl + ': ' + assignedTableNames : ''}\n\n${T.footer}`;
         try {
           await fetch("/api/send-whatsapp", {
             method: "POST",

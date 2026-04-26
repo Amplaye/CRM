@@ -208,9 +208,9 @@ export function ReservationList({ date, shiftFilter = "all", onRowClick }: Reser
           <tr>
             <th scope="col" className="px-4 py-3 text-center text-xs font-semibold text-black uppercase tracking-wider">{t("res_col_time")}</th>
             <th scope="col" className="px-4 py-3 text-center text-xs font-semibold text-black uppercase tracking-wider">{t("res_col_guest")}</th>
-            <th scope="col" className="px-4 py-3 text-center text-xs font-semibold text-black uppercase tracking-wider">Phone</th>
+            <th scope="col" className="px-4 py-3 text-center text-xs font-semibold text-black uppercase tracking-wider">{t("res_col_phone")}</th>
             <th scope="col" className="px-4 py-3 text-center text-xs font-semibold text-black uppercase tracking-wider">{t("res_col_party")}</th>
-            <th scope="col" className="px-4 py-3 text-center text-xs font-semibold text-black uppercase tracking-wider">Table</th>
+            <th scope="col" className="px-4 py-3 text-center text-xs font-semibold text-black uppercase tracking-wider">{t("res_col_table")}</th>
             <th scope="col" className="px-4 py-3 text-center text-xs font-semibold text-black uppercase tracking-wider">{t("res_col_status")}</th>
             <th scope="col" className="px-4 py-3 text-center text-xs font-semibold text-black uppercase tracking-wider">{t("res_col_source")}</th>
             <th scope="col" className="px-4 py-3 text-center text-xs font-semibold text-black uppercase tracking-wider w-16"></th>
@@ -242,8 +242,8 @@ export function ReservationList({ date, shiftFilter = "all", onRowClick }: Reser
               <td className="px-4 py-4 whitespace-nowrap text-center">
                 <div className="text-sm font-medium text-black">{res.party_size}</div>
               </td>
-              <td className="px-4 py-4 whitespace-nowrap text-center">
-                <div className="text-xs font-medium text-black">
+              <td className="px-4 py-4 text-center min-w-[110px]">
+                <div className="text-xs font-medium text-black break-words">
                   {res.table_names && res.table_names.length > 0 ? res.table_names.join(", ") : "—"}
                 </div>
               </td>
