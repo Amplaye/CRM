@@ -191,7 +191,7 @@ export async function POST(req: NextRequest) {
       }
     } catch { /* insights are optional */ }
 
-    msg += `\n\n👉 Ver detalles en tu dashboard`;
+    msg += `\n\n👉 Ver detalles en Analítica`;
 
     return NextResponse.json({
       success: true,
