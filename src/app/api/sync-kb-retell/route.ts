@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createServiceRoleClient } from "@/lib/supabase/server";
+import { createServiceRoleClient, createServerSupabaseClient } from "@/lib/supabase/server";
 import { assertAiSecret } from "@/lib/ai-auth";
 
 const RETELL_BASE = "https://api.retellai.com";
@@ -162,8 +162,18 @@ async function publishAgent(agentId: string, key: string) {
 }
 
 export async function POST(req: NextRequest) {
+  // Accept either: (a) valid x-ai-secret (n8n/onboarding) or (b) a signed-in dashboard session.
+  // The /knowledge page calls this from the browser without the shared secret.
   const unauth = assertAiSecret(req);
-  if (unauth) return unauth;
+  if (unauth) {
+    try {
+      const supabase = await createServerSupabaseClient();
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return unauth;
+    } catch {
+      return unauth;
+    }
+  }
 
   try {
     const { tenant_id } = await req.json();
