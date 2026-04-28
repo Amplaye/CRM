@@ -84,77 +84,80 @@ body {
 }
 
 /* "New since last visit" effect for rows in dashboard sections.
- * 3 layered animations playing once on mount:
- *   1) bounce-in (vertical settle from -10px with subtle spring overshoot)
- *   2) breathing terracotta + red glow halo (2 cycles ~3.2s)
- *   3) shimmer light sweep crossing the row left→right
- *   4) red→terracotta vertical bar on the left with red glow, fading out
- * Used by useSeenSnapshotAndMark on /reservations, /pending,
- * /waitlist, /conversations. Honors prefers-reduced-motion. */
-@keyframes new-row-bounce {
-  0%   { transform: translateY(-10px) scale(0.99); opacity: 0; }
-  50%  { transform: translateY(2px)   scale(1.012); opacity: 1; }
-  75%  { transform: translateY(-1px)  scale(1.005); }
-  100% { transform: translateY(0)     scale(1);     opacity: 1; }
+ * "Ink drop" motion: two warm radial gradients emerge from the row center
+ * and spread outward like ink in water. A terracotta border-flash pulses
+ * twice for emphasis. Subtle scale-rise entry, no vertical bounce.
+ * Used by useSeenSnapshotAndMark on /reservations, /pending, /waitlist,
+ * /conversations, /guests. Honors prefers-reduced-motion. */
+@keyframes new-row-rise {
+  from { transform: scale(0.97); opacity: 0; }
+  to   { transform: scale(1);    opacity: 1; }
 }
-@keyframes new-row-glow {
-  0%   { box-shadow: 0 0 0 0 rgba(196, 149, 106, 0.55), 0 0 0 0 rgba(239, 68, 68, 0.35); background-color: rgba(196, 149, 106, 0.20); }
-  35%  { box-shadow: 0 0 0 6px rgba(196, 149, 106, 0.25), 0 0 16px 4px rgba(239, 68, 68, 0.20); background-color: rgba(196, 149, 106, 0.18); }
-  70%  { box-shadow: 0 0 0 3px rgba(196, 149, 106, 0.18), 0 0 12px 2px rgba(239, 68, 68, 0.10); background-color: rgba(196, 149, 106, 0.10); }
-  100% { box-shadow: 0 0 0 0 rgba(196, 149, 106, 0.00), 0 0 0 0 rgba(239, 68, 68, 0.00); background-color: transparent; }
+@keyframes new-row-ink {
+  0%   { opacity: 0;    transform: translate(-50%, -50%) scale(0.1); }
+  20%  { opacity: 0.55; }
+  100% { opacity: 0;    transform: translate(-50%, -50%) scale(2.4); }
 }
-@keyframes new-row-shimmer {
-  0%   { left: -40%; opacity: 0; }
-  10%  { opacity: 0.7; }
-  60%  { opacity: 0.7; }
-  100% { left: 110%; opacity: 0; }
-}
-@keyframes new-row-bar-fade {
-  0%, 60% { opacity: 1; }
-  100%    { opacity: 0; }
+@keyframes new-row-border-flash {
+  0%   { box-shadow: 0 0 0 0 rgba(244, 85, 23, 0.0); }
+  18%  { box-shadow: 0 0 0 3px rgba(244, 85, 23, 0.35), 0 0 14px 3px rgba(244, 85, 23, 0.18); }
+  45%  { box-shadow: 0 0 0 1px rgba(196, 149, 106, 0.25), 0 0 6px 1px rgba(196, 149, 106, 0.10); }
+  100% { box-shadow: 0 0 0 0 rgba(196, 149, 106, 0.0); }
 }
 .is-new-row {
-  animation:
-    new-row-bounce 0.55s cubic-bezier(0.34, 1.56, 0.64, 1) 1 both,
-    new-row-glow 3.2s ease-out 1 both;
   position: relative;
   overflow: hidden;
   z-index: 1;
+  animation:
+    new-row-rise 0.5s cubic-bezier(0.22, 1, 0.36, 1) 1 both,
+    new-row-border-flash 2.4s ease-out 1 both;
 }
+/* First ink drop — warm terracotta core */
 .is-new-row::before {
   content: '';
   position: absolute;
-  inset: 0;
+  left: 50%;
+  top: 50%;
+  width: 130%;
+  aspect-ratio: 1;
   pointer-events: none;
-  background: linear-gradient(
-    100deg,
-    transparent 0%,
-    transparent 35%,
-    rgba(255, 255, 255, 0.85) 50%,
-    transparent 65%,
-    transparent 100%
+  z-index: 0;
+  border-radius: 50%;
+  background: radial-gradient(
+    circle,
+    rgba(244, 85, 23, 0.42) 0%,
+    rgba(255, 165, 121, 0.24) 28%,
+    rgba(196, 149, 106, 0.10) 50%,
+    transparent 68%
   );
-  width: 35%;
-  left: -40%;
-  animation: new-row-shimmer 1.4s ease-out 0.25s 1 both;
-  z-index: 2;
+  transform: translate(-50%, -50%) scale(0.1);
+  animation: new-row-ink 1.7s cubic-bezier(0.22, 1, 0.36, 1) 1 both;
 }
+/* Second ink drop — softer amber echo, delayed */
 .is-new-row::after {
   content: '';
   position: absolute;
-  left: 0; top: 0; bottom: 0;
-  width: 4px;
-  background: linear-gradient(180deg, #ef4444 0%, #c4956a 100%);
-  border-radius: 2px;
-  box-shadow: 0 0 10px rgba(239, 68, 68, 0.6);
-  animation: new-row-bar-fade 4s ease-out 1 forwards;
-  z-index: 3;
+  left: 50%;
+  top: 50%;
+  width: 130%;
+  aspect-ratio: 1;
+  pointer-events: none;
+  z-index: 0;
+  border-radius: 50%;
+  background: radial-gradient(
+    circle,
+    rgba(255, 196, 138, 0.32) 0%,
+    rgba(196, 149, 106, 0.18) 32%,
+    transparent 62%
+  );
+  transform: translate(-50%, -50%) scale(0.1);
+  animation: new-row-ink 1.7s cubic-bezier(0.22, 1, 0.36, 1) 0.28s 1 both;
 }
 @media (prefers-reduced-motion: reduce) {
   .is-new-row,
   .is-new-row::before,
   .is-new-row::after {
     animation: none;
-    background-color: rgba(196, 149, 106, 0.12);
+    background-color: rgba(196, 149, 106, 0.10);
   }
 }
