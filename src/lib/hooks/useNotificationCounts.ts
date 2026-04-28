@@ -13,10 +13,11 @@ export interface NotificationCounts {
 
 const ZERO: NotificationCounts = { pending: 0, waitlist: 0, conversations: 0, reservations: 0 };
 
-// Polls Supabase every 30s for counts of items that need staff attention.
-// Each count is filtered by created_at > lastSeen[tenantId, section] so
-// badges only show NEW items since the user's last visit to that section.
-// Cheap query: HEAD requests with count='exact' on indexed columns.
+// Hybrid Realtime + polling-fallback. Subscribes to Supabase Realtime channels
+// for reservations / waitlist_entries / conversations and refetches counts
+// immediately on any change. A 5-minute setInterval acts as a safety net in
+// case the websocket drops (covers wake-from-sleep and adblocker drops without
+// breaking badge accuracy).
 export function useNotificationCounts(tenantId?: string | null): NotificationCounts {
   const [counts, setCounts] = useState<NotificationCounts>(ZERO);
   const [seenTick, setSeenTick] = useState(0);
@@ -37,6 +38,7 @@ export function useNotificationCounts(tenantId?: string | null): NotificationCou
 
     const supabase = supabaseRef.current;
     let cancelled = false;
+    let debounceTimer: ReturnType<typeof setTimeout> | null = null;
 
     const fetchCounts = async () => {
       const today = new Date().toISOString().split("T")[0];
@@ -79,11 +81,42 @@ export function useNotificationCounts(tenantId?: string | null): NotificationCou
       });
     };
 
+    // Debounce realtime triggers so a burst of changes coalesces into one fetch.
+    const triggerFetch = () => {
+      if (debounceTimer) clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(fetchCounts, 400);
+    };
+
     fetchCounts();
-    const id = setInterval(fetchCounts, 30_000);
+
+    const tenantFilter = `tenant_id=eq.${tenantId}`;
+    const channel = supabase
+      .channel(`notif-counts-${tenantId}`)
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "reservations", filter: tenantFilter },
+        triggerFetch
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "waitlist_entries", filter: tenantFilter },
+        triggerFetch
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "conversations", filter: tenantFilter },
+        triggerFetch
+      )
+      .subscribe();
+
+    // Safety-net polling every 5 min in case the websocket drops silently.
+    const id = setInterval(fetchCounts, 5 * 60 * 1000);
+
     return () => {
       cancelled = true;
+      if (debounceTimer) clearTimeout(debounceTimer);
       clearInterval(id);
+      supabase.removeChannel(channel);
     };
   }, [tenantId, seenTick]);
 
