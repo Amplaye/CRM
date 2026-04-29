@@ -182,6 +182,11 @@ export default function AnalyticsPage() {
   const [incidents, setIncidents] = useState<IncidentRow[]>([]);
   const [loading, setLoading] = useState(true);
 
+  // Mounted flag — prevents hydration mismatch from Date()-derived values
+  // and ensures Recharts containers measure non-zero dimensions before mount.
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => { setMounted(true); }, []);
+
   /* Fetch all data for the active tenant + range. The only filter column
      used is reservations.date (YYYY-MM-DD) and created_at for waitlist,
      conversations, incidents — consistent across every KPI/chart. */
@@ -545,7 +550,7 @@ export default function AnalyticsPage() {
             </span>
           </div>
           <div className="h-80">
-            {loading ? (
+            {!mounted || loading ? (
               <div className="h-full flex items-center justify-center text-sm text-black/60">…</div>
             ) : kpis.chartData.length === 0 ? (
               <div className="h-full flex items-center justify-center text-sm text-black/60">
@@ -605,7 +610,7 @@ export default function AnalyticsPage() {
             </span>
           </div>
           <div className="h-80">
-            {loading ? (
+            {!mounted || loading ? (
               <div className="h-full flex items-center justify-center text-sm text-black/60">…</div>
             ) : kpis.chartData.length === 0 ? (
               <div className="h-full flex items-center justify-center text-sm text-black/60">

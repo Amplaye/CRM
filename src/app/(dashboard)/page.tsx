@@ -67,13 +67,23 @@ export default function DashboardPage() {
   const [waitlistConverted, setWaitlistConverted] = useState(0);
   const [prevMonthRes, setPrevMonthRes] = useState<any[]>([]);
 
+  // Mounted flag — prevents hydration mismatch from Date()-derived values
+  // and ensures Recharts containers measure non-zero dimensions before mount.
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => { setMounted(true); }, []);
+
   // Period navigation
   type ViewMode = "day" | "month" | "year";
   const [viewMode, setViewMode] = useState<ViewMode>("month");
-  const today = new Date();
-  const [selectedDay, setSelectedDay] = useState(today.getDate());
-  const [selectedMonth, setSelectedMonth] = useState(today.getMonth());
-  const [selectedYear, setSelectedYear] = useState(today.getFullYear());
+  const [selectedDay, setSelectedDay] = useState(1);
+  const [selectedMonth, setSelectedMonth] = useState(0);
+  const [selectedYear, setSelectedYear] = useState(2000);
+  useEffect(() => {
+    const d = new Date();
+    setSelectedDay(d.getDate());
+    setSelectedMonth(d.getMonth());
+    setSelectedYear(d.getFullYear());
+  }, []);
   const monthNames = [t("dash_month_jan"), t("dash_month_feb"), t("dash_month_mar"), t("dash_month_apr"), t("dash_month_may"), t("dash_month_jun"), t("dash_month_jul"), t("dash_month_aug"), t("dash_month_sep"), t("dash_month_oct"), t("dash_month_nov"), t("dash_month_dec")];
 
   const navigatePeriod = (dir: number) => {
@@ -321,6 +331,10 @@ export default function DashboardPage() {
   };
 
   const cardStyle = { background: "rgba(252,246,237,0.85)", borderColor: "#c4956a" };
+  const yearOptions = useMemo(
+    () => mounted ? Array.from({ length: 5 }, (_, i) => selectedYear - 2 + i) : [],
+    [mounted, selectedYear]
+  );
 
   const periodLabel =
     viewMode === "day" ? `${selectedDay} ${monthNames[selectedMonth]} ${selectedYear}` :
@@ -386,7 +400,7 @@ export default function DashboardPage() {
               <select value={selectedYear} onChange={(e) => setSelectedYear(Number(e.target.value))}
                 className="border-2 rounded-lg px-1.5 py-1 text-xs font-semibold text-black focus:outline-none focus:ring-1 focus:ring-[#c4956a]"
                 style={{ borderColor: "#c4956a", background: "rgba(252,246,237,0.6)" }}>
-                {Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - 2 + i).map(y => (
+                {yearOptions.map(y => (
                   <option key={y} value={y}>{y}</option>
                 ))}
               </select>
@@ -395,7 +409,7 @@ export default function DashboardPage() {
             <select value={selectedYear} onChange={(e) => setSelectedYear(Number(e.target.value))}
               className="border-2 rounded-lg px-1.5 py-1 text-xs font-semibold text-black focus:outline-none focus:ring-1 focus:ring-[#c4956a]"
               style={{ borderColor: "#c4956a", background: "rgba(252,246,237,0.6)" }}>
-              {Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - 2 + i).map(y => (
+              {yearOptions.map(y => (
                 <option key={y} value={y}>{y}</option>
               ))}
             </select>
@@ -611,6 +625,7 @@ export default function DashboardPage() {
           </h3>
           <div className="h-1 w-10 rounded-full my-3" style={{ background: BRAND_BROWN }} />
           <div className="h-48 sm:h-64">
+            {mounted && (
             <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0} debounce={50}>
               <BarChart data={kpis.dailyData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(196,149,106,0.22)" />
@@ -628,6 +643,7 @@ export default function DashboardPage() {
                 <Bar dataKey="staff" stackId="a" fill={BRAND_BROWN} radius={[4, 4, 0, 0]} name={t("dash_legend_staff")} />
               </BarChart>
             </ResponsiveContainer>
+            )}
           </div>
         </div>
 
@@ -654,6 +670,7 @@ export default function DashboardPage() {
                 <p className="text-sm font-semibold text-black/80">{t("dash_no_data")}</p>
               </div>
             ) : (
+              mounted && (
               <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0} debounce={50}>
                 <PieChart>
                   <Pie
@@ -677,6 +694,7 @@ export default function DashboardPage() {
                   <Legend wrapperStyle={{ fontSize: "11px", paddingTop: 8 }} iconType="circle" formatter={(value: string) => value} />
                 </PieChart>
               </ResponsiveContainer>
+              )
             )}
           </div>
           {kpis.fromWebCount > 0 && (
@@ -707,6 +725,7 @@ export default function DashboardPage() {
         </div>
         <div className="h-1 w-10 rounded-full mb-4" style={{ background: BRAND_BROWN }} />
         <div className="h-56 sm:h-72">
+          {mounted && (
           <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0} debounce={50}>
             <AreaChart data={kpis.dailyData} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
               <defs>
@@ -747,6 +766,7 @@ export default function DashboardPage() {
               />
             </AreaChart>
           </ResponsiveContainer>
+          )}
         </div>
       </section>
 
