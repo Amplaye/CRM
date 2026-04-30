@@ -101,7 +101,7 @@ export const en = {
   conv_call_channel: "Voice Call",
   conv_reply_placeholder: "Type a message...",
   conv_bot_paused: "Bot paused",
-  conv_bot_paused_hint: "The bot won't reply automatically until you press Resume.",
+  conv_bot_paused_hint: "Auto-resumes in",
   conv_resume_bot: "Resume bot",
   conv_processing: "Processing summary...",
   conv_resolved: "Auto-Resolved",

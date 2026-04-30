@@ -99,6 +99,21 @@ export default function ConversationsPage() {
   const selectedConvo = conversations.find(c => c.id === selectedConvoId) || null;
   const selectedGuest = selectedConvo?.guests || null;
 
+  // Live "now" tick (1s) so the bot-pause cooldown countdown stays accurate.
+  // Only runs while a guest with an active pause flag is selected, to avoid
+  // a useless interval on every render of the conversations page.
+  const pausedAtRaw = (selectedGuest as any)?.bot_paused_at as string | null | undefined;
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    if (!pausedAtRaw) return;
+    const id = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, [pausedAtRaw]);
+  const COOLDOWN_MS = 60_000;
+  const pauseElapsed = pausedAtRaw ? now - new Date(pausedAtRaw).getTime() : Infinity;
+  const pauseRemainingSec = Math.max(0, Math.ceil((COOLDOWN_MS - pauseElapsed) / 1000));
+  const showPauseBanner = !!pausedAtRaw && pauseRemainingSec > 0;
+
   useEffect(() => {
     if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
   }, [selectedConvo?.transcript]);
@@ -314,14 +329,19 @@ export default function ConversationsPage() {
             </button>
           </div>
 
-          {(selectedGuest as any)?.bot_paused_at && (
+          {showPauseBanner && (
             <div className="px-4 md:px-6 py-2 flex items-center justify-between gap-3" style={{ background: 'rgba(255,196,0,0.15)', borderBottom: '1px solid rgba(196,149,106,0.4)' }}>
               <div className="flex items-center gap-2 text-[12px] text-black">
                 <Pause className="w-3.5 h-3.5" />
-                <span><b>{t("conv_bot_paused")}</b> — {t("conv_bot_paused_hint")}</span>
+                <span>
+                  <b>{t("conv_bot_paused")}</b> — {t("conv_bot_paused_hint")}{" "}
+                  <span className="font-mono font-bold tabular-nums" style={{ color: '#be2e0b' }}>
+                    {pauseRemainingSec}s
+                  </span>
+                </span>
               </div>
-              <button onClick={handleResumeBot} disabled={sending}
-                className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-bold text-white disabled:opacity-50"
+              <button onClick={handleResumeBot}
+                className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-bold text-white"
                 style={{ background: 'linear-gradient(135deg, #d4a574, #c4956a)' }}>
                 <Play className="w-3.5 h-3.5" /> {t("conv_resume_bot")}
               </button>

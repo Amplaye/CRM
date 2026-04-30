@@ -102,7 +102,7 @@ export const it: Dictionary = {
   conv_call_channel: "Chiamata",
   conv_reply_placeholder: "Scrivi un messaggio...",
   conv_bot_paused: "Bot in pausa",
-  conv_bot_paused_hint: "Il bot non risponderà automaticamente finché non clicchi Riprendi.",
+  conv_bot_paused_hint: "Riparte automaticamente tra",
   conv_resume_bot: "Riprendi bot",
   conv_voice: "Chiamate Vocali",
   conv_processing: "Elaborazione riepilogo...",
