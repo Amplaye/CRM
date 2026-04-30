@@ -4,9 +4,10 @@ import React, { createContext, useContext, useState, useEffect, useCallback, use
 import { en, Dictionary } from "../i18n/dictionaries/en";
 import { es } from "../i18n/dictionaries/es";
 import { it } from "../i18n/dictionaries/it";
+import { de } from "../i18n/dictionaries/de";
 import { safeLocal } from "../safe-storage";
 
-type LanguageCode = "en" | "es" | "it";
+type LanguageCode = "en" | "es" | "it" | "de";
 
 interface LanguageContextType {
   language: LanguageCode;
@@ -18,6 +19,7 @@ const dictionaries: Record<LanguageCode, Dictionary> = {
   en,
   es,
   it,
+  de,
 };
 
 const LanguageContext = createContext<LanguageContextType>({
@@ -32,10 +34,11 @@ export const LanguageProvider = ({ children }: { children: ReactNode }) => {
   // Load saved preference from localStorage on mount
   useEffect(() => {
     const saved = safeLocal.get("app_lang") as LanguageCode | null;
-    if (saved === "en" || saved === "es" || saved === "it") {
+    if (saved === "en" || saved === "es" || saved === "it" || saved === "de") {
       setLanguageState(saved);
-    } else if (typeof navigator !== "undefined" && navigator.language.startsWith("it")) {
-      setLanguageState("it");
+    } else if (typeof navigator !== "undefined") {
+      if (navigator.language.startsWith("de")) setLanguageState("de");
+      else if (navigator.language.startsWith("it")) setLanguageState("it");
     }
   }, []);
 
