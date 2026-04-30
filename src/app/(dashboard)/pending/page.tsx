@@ -104,12 +104,21 @@ export default function PendingPage() {
     fetchPending();
     fetchTables();
 
+    let debounceTimer: ReturnType<typeof setTimeout> | null = null;
+    const debouncedFetch = () => {
+      if (debounceTimer) clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(() => fetchPending(), 500);
+    };
+
     const channel = supabase
       .channel("pending-realtime")
-      .on("postgres_changes", { event: "*", schema: "public", table: "reservations", filter: `tenant_id=eq.${tenant.id}` }, () => fetchPending())
+      .on("postgres_changes", { event: "*", schema: "public", table: "reservations", filter: `tenant_id=eq.${tenant.id}` }, () => debouncedFetch())
       .subscribe();
 
-    return () => { supabase.removeChannel(channel); };
+    return () => {
+      if (debounceTimer) clearTimeout(debounceTimer);
+      supabase.removeChannel(channel);
+    };
   }, [tenant]);
 
   const getShift = (time: string) => {
@@ -128,27 +137,21 @@ export default function PendingPage() {
       const reqShift = getShift(req.time);
       const { data: resData } = await supabase
         .from("reservations")
-        .select("id, time, shift")
+        .select("id, time, shift, reservation_tables(table_id)")
         .eq("tenant_id", tenant.id)
         .eq("date", req.date)
         .in("status", ["confirmed", "seated", "pending_confirmation"])
         .neq("id", id);
 
-      // Only count tables from same shift as occupied
-      const sameShiftIds = (resData || []).filter((r: any) => {
+      const occupied = new Set<string>();
+      for (const r of ((resData || []) as any[])) {
         const rShift = r.shift || getShift(r.time);
-        return rShift === reqShift;
-      }).map((r: any) => r.id);
-
-      if (sameShiftIds.length > 0) {
-        const { data: links } = await supabase
-          .from("reservation_tables")
-          .select("table_id")
-          .in("reservation_id", sameShiftIds);
-        setOccupiedTableIds(new Set((links || []).map((l: any) => l.table_id)));
-      } else {
-        setOccupiedTableIds(new Set());
+        if (rShift !== reqShift) continue;
+        for (const link of (r.reservation_tables || [])) {
+          if (link.table_id) occupied.add(link.table_id);
+        }
       }
+      setOccupiedTableIds(occupied);
     }
   };
 
@@ -231,13 +234,14 @@ export default function PendingPage() {
         const zoneLine = zone ? `\n📍 Zona: ${zone === 'inside' ? 'Interior' : 'Exterior'}` : '';
 
         if (guestPhone) {
-          const lang = (['es', 'it', 'en'] as const).includes(((req as any).language || '') as any)
-            ? ((req as any).language as 'es' | 'it' | 'en')
+          const lang = (['es', 'it', 'en', 'de'] as const).includes(((req as any).language || '') as any)
+            ? ((req as any).language as 'es' | 'it' | 'en' | 'de')
             : 'es';
           const T = {
             es: { title: '✅ *Reserva confirmada*', date: 'Fecha', time: 'Hora', people: 'Personas', zone: 'Zona', name: 'Nombre', tablesLbl: 'Mesas', interior: 'Interior', exterior: 'Exterior', footer: 'Para modificar escribe *MODIFICAR*.\nPara cancelar escribe *CANCELAR*.' },
             it: { title: '✅ *Prenotazione confermata*', date: 'Data', time: 'Ora', people: 'Persone', zone: 'Zona', name: 'Nome', tablesLbl: 'Tavoli', interior: 'Interno', exterior: 'Esterno', footer: 'Per modificare scrivi *MODIFICARE*.\nPer annullare scrivi *ANNULLA*.' },
             en: { title: '✅ *Booking confirmed*', date: 'Date', time: 'Time', people: 'People', zone: 'Area', name: 'Name', tablesLbl: 'Tables', interior: 'Indoor', exterior: 'Outdoor', footer: 'To modify write *MODIFY*.\nTo cancel write *CANCEL*.' },
+            de: { title: '✅ *Reservierung bestätigt*', date: 'Datum', time: 'Uhrzeit', people: 'Personen', zone: 'Bereich', name: 'Name', tablesLbl: 'Tische', interior: 'Innenbereich', exterior: 'Außenbereich', footer: 'Zum Ändern schreibe *ÄNDERN*.\nZum Stornieren schreibe *STORNIEREN*.' },
           }[lang];
           const zoneLineL = zone ? `\n📍 ${T.zone}: ${zone === 'inside' ? T.interior : T.exterior}` : '';
           const confirmMsg = `${T.title}\n📅 ${T.date}: ${formatDateLong(req.date, lang)}\n⏰ ${T.time}: ${req.time}\n👥 ${T.people}: ${req.party_size}${zoneLineL}\n📝 ${T.name}: ${req.guests?.name || ''}${assignedTableNames ? '\n🪑 ' + T.tablesLbl + ': ' + assignedTableNames : ''}\n\n${T.footer}`;

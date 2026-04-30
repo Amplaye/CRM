@@ -95,17 +95,24 @@ export default function IncidentsPage() {
       setLoading(false);
     };
 
+    let debounceTimer: ReturnType<typeof setTimeout> | null = null;
+    const debouncedFetch = () => {
+      if (debounceTimer) clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(() => fetchIncidents(), 500);
+    };
+
     seedIncidents().then(() => {
        fetchIncidents();
 
        const channel = supabase
          .channel("incidents_realtime")
-         .on("postgres_changes", { event: "*", schema: "public", table: "incidents", filter: `tenant_id=eq.${tenant.id}` }, () => {
-           fetchIncidents();
-         })
+         .on("postgres_changes", { event: "*", schema: "public", table: "incidents", filter: `tenant_id=eq.${tenant.id}` }, () => debouncedFetch())
          .subscribe();
 
-       return () => { supabase.removeChannel(channel); };
+       return () => {
+         if (debounceTimer) clearTimeout(debounceTimer);
+         supabase.removeChannel(channel);
+       };
     });
   }, [tenant, user?.id]);
 

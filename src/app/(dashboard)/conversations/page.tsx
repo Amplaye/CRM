@@ -52,10 +52,18 @@ export default function ConversationsPage() {
       }
     };
     fetchConversations();
+    let debounceTimer: ReturnType<typeof setTimeout> | null = null;
+    const debouncedFetch = () => {
+      if (debounceTimer) clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(() => fetchConversations(), 500);
+    };
     const channel = supabase.channel("conversations_realtime")
-      .on("postgres_changes", { event: "*", schema: "public", table: "conversations", filter: `tenant_id=eq.${tenant.id}` }, () => fetchConversations())
+      .on("postgres_changes", { event: "*", schema: "public", table: "conversations", filter: `tenant_id=eq.${tenant.id}` }, () => debouncedFetch())
       .subscribe();
-    return () => { supabase.removeChannel(channel); };
+    return () => {
+      if (debounceTimer) clearTimeout(debounceTimer);
+      supabase.removeChannel(channel);
+    };
   }, [tenant]);
 
   useEffect(() => {

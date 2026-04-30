@@ -89,10 +89,18 @@ export default function GuestsPage() {
       setLoading(false);
     };
     fetchGuests();
+    let debounceTimer: ReturnType<typeof setTimeout> | null = null;
+    const debouncedFetch = () => {
+      if (debounceTimer) clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(() => fetchGuests(), 500);
+    };
     const channel = supabase.channel("guests_realtime")
-      .on("postgres_changes", { event: "*", schema: "public", table: "guests", filter: `tenant_id=eq.${activeTenant.id}` }, () => fetchGuests())
+      .on("postgres_changes", { event: "*", schema: "public", table: "guests", filter: `tenant_id=eq.${activeTenant.id}` }, () => debouncedFetch())
       .subscribe();
-    return () => { supabase.removeChannel(channel); };
+    return () => {
+      if (debounceTimer) clearTimeout(debounceTimer);
+      supabase.removeChannel(channel);
+    };
   }, [activeTenant]);
 
   useEffect(() => {

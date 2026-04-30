@@ -63,14 +63,21 @@ export default function KnowledgePage() {
 
     fetchArticles();
 
+    let debounceTimer: ReturnType<typeof setTimeout> | null = null;
+    const debouncedFetch = () => {
+      if (debounceTimer) clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(() => fetchArticles(), 500);
+    };
+
     const channel = supabase
       .channel("knowledge_articles_realtime")
-      .on("postgres_changes", { event: "*", schema: "public", table: "knowledge_articles", filter: `tenant_id=eq.${tenant.id}` }, () => {
-        fetchArticles();
-      })
+      .on("postgres_changes", { event: "*", schema: "public", table: "knowledge_articles", filter: `tenant_id=eq.${tenant.id}` }, () => debouncedFetch())
       .subscribe();
 
-    return () => { supabase.removeChannel(channel); };
+    return () => {
+      if (debounceTimer) clearTimeout(debounceTimer);
+      supabase.removeChannel(channel);
+    };
   }, [tenant]);
 
   const selectedArticle = articles.find(a => a.id === selectedArticleId) || null;

@@ -82,17 +82,24 @@ export default function AutomationsPage() {
       setLoading(false);
     };
 
+    let debounceTimer: ReturnType<typeof setTimeout> | null = null;
+    const debouncedFetch = () => {
+      if (debounceTimer) clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(() => fetchRules(), 500);
+    };
+
     seedRules().then(() => {
        fetchRules();
 
        const channel = supabase
          .channel("automation_rules_realtime")
-         .on("postgres_changes", { event: "*", schema: "public", table: "automation_rules", filter: `tenant_id=eq.${tenant.id}` }, () => {
-           fetchRules();
-         })
+         .on("postgres_changes", { event: "*", schema: "public", table: "automation_rules", filter: `tenant_id=eq.${tenant.id}` }, () => debouncedFetch())
          .subscribe();
 
-       return () => { supabase.removeChannel(channel); };
+       return () => {
+         if (debounceTimer) clearTimeout(debounceTimer);
+         supabase.removeChannel(channel);
+       };
     });
 
   }, [tenant]);

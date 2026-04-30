@@ -159,12 +159,21 @@ export default function DashboardPage() {
 
     fetchAll();
 
+    let debounceTimer: ReturnType<typeof setTimeout> | null = null;
+    const debouncedFetch = () => {
+      if (debounceTimer) clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(() => fetchAll(), 1000);
+    };
+
     const channel = supabase
       .channel("dashboard-reservations")
-      .on("postgres_changes", { event: "*", schema: "public", table: "reservations", filter: `tenant_id=eq.${tenant.id}` }, () => fetchAll())
+      .on("postgres_changes", { event: "*", schema: "public", table: "reservations", filter: `tenant_id=eq.${tenant.id}` }, () => debouncedFetch())
       .subscribe();
 
-    return () => { supabase.removeChannel(channel); };
+    return () => {
+      if (debounceTimer) clearTimeout(debounceTimer);
+      supabase.removeChannel(channel);
+    };
   }, [tenant, viewMode, selectedDay, selectedMonth, selectedYear]);
 
   /* ─── KPI computation ─── */
