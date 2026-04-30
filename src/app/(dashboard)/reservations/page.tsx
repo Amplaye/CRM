@@ -188,45 +188,42 @@ export default function ReservationsPage() {
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
-  // Fetch tables + occupied tables for selected date
+  // Fetch tables + occupied tables ONLY when the new-reservation drawer is open
   useEffect(() => {
-    if (!activeTenant) return;
+    if (!activeTenant || !isCreating) return;
     const fetchTables = async () => {
-      const { data } = await supabase
-        .from("restaurant_tables")
-        .select("id, name, seats, status")
-        .eq("tenant_id", activeTenant.id)
-        .eq("status", "active")
-        .order("name");
-      const sorted = ((data || []) as RestaurantTable[]).sort((a, b) => {
+      const [tablesRes, resRes] = await Promise.all([
+        supabase
+          .from("restaurant_tables")
+          .select("id, name, seats, status")
+          .eq("tenant_id", activeTenant.id)
+          .eq("status", "active")
+          .order("name"),
+        supabase
+          .from("reservations")
+          .select("id, reservation_tables(table_id)")
+          .eq("tenant_id", activeTenant.id)
+          .eq("date", createDate)
+          .in("status", ["confirmed", "seated", "pending_confirmation"]),
+      ]);
+
+      const sorted = ((tablesRes.data || []) as RestaurantTable[]).sort((a, b) => {
         const numA = parseInt(a.name.replace(/\D/g, '')) || 0;
         const numB = parseInt(b.name.replace(/\D/g, '')) || 0;
         return numA - numB;
       });
       setAvailableTables(sorted);
 
-      // Fetch occupied tables for the date being created
-      const checkDate = isCreating ? createDate : date;
-      const { data: resData } = await supabase
-        .from("reservations")
-        .select("id")
-        .eq("tenant_id", activeTenant.id)
-        .eq("date", checkDate)
-        .in("status", ["confirmed", "seated", "pending_confirmation"]);
-
-      const resIds = (resData || []).map((r: any) => r.id);
-      if (resIds.length > 0) {
-        const { data: links } = await supabase
-          .from("reservation_tables")
-          .select("table_id")
-          .in("reservation_id", resIds);
-        setOccupiedTableIds(new Set((links || []).map((l: any) => l.table_id)));
-      } else {
-        setOccupiedTableIds(new Set());
+      const occupied = new Set<string>();
+      for (const r of (resRes.data || []) as any[]) {
+        for (const rt of (r.reservation_tables || [])) {
+          if (rt.table_id) occupied.add(rt.table_id);
+        }
       }
+      setOccupiedTableIds(occupied);
     };
     fetchTables();
-  }, [activeTenant, date, createDate, isCreating]);
+  }, [activeTenant, createDate, isCreating]);
 
   const toggleTable = (tableId: string) => {
     setSelectedTableIds(prev =>

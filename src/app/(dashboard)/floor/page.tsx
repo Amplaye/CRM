@@ -108,7 +108,7 @@ export default function FloorPage() {
         .order("name"),
       supabase
         .from("reservations")
-        .select("id, date, time, end_time, shift, party_size, status, guests(name)")
+        .select("id, date, time, end_time, shift, party_size, status, guests(name), reservation_tables(table_id, restaurant_tables(name))")
         .eq("tenant_id", activeTenant.id)
         .eq("date", today)
         .in("status", [
@@ -122,21 +122,17 @@ export default function FloorPage() {
 
     const fetchedTables = (tablesRes.data || []) as TableData[];
     fetchedTables.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
-    const fetchedRes = (reservationsRes.data || []) as unknown as ReservationWithGuest[];
+    const rawRes = (reservationsRes.data || []) as any[];
+    const fetchedRes = rawRes.map(({ reservation_tables: _rt, ...r }) => r) as unknown as ReservationWithGuest[];
+    const links: ResTableLink[] = [];
+    for (const r of rawRes) {
+      for (const rt of (r.reservation_tables || [])) {
+        links.push({ reservation_id: r.id, table_id: rt.table_id, restaurant_tables: rt.restaurant_tables });
+      }
+    }
     setTables(fetchedTables);
     setReservations(fetchedRes);
-
-    // Fetch table assignments for today's reservations
-    const resIds = fetchedRes.map((r) => r.id);
-    if (resIds.length > 0) {
-      const { data: links } = await supabase
-        .from("reservation_tables")
-        .select("reservation_id, table_id, restaurant_tables(name)")
-        .in("reservation_id", resIds);
-      setResTableLinks((links || []) as unknown as ResTableLink[]);
-    } else {
-      setResTableLinks([]);
-    }
+    setResTableLinks(links);
 
     setLoading(false);
   }, [activeTenant, today]);
@@ -150,29 +146,40 @@ export default function FloorPage() {
     if (!activeTenant) return;
     const supabase = createClient();
 
+    let debounceTimer: ReturnType<typeof setTimeout> | null = null;
+    const debouncedFetch = () => {
+      if (debounceTimer) clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(() => fetchData(), 300);
+    };
+
     const channel = supabase
       .channel("floor-realtime")
       .on(
         "postgres_changes" as any,
         { event: "*", schema: "public", table: "reservations", filter: `tenant_id=eq.${activeTenant.id}` },
-        () => fetchData()
+        (payload: any) => {
+          const row = payload.new || payload.old;
+          if (row && row.date && row.date !== today) return;
+          debouncedFetch();
+        }
       )
       .on(
         "postgres_changes" as any,
         { event: "*", schema: "public", table: "reservation_tables" },
-        () => fetchData()
+        () => debouncedFetch()
       )
       .on(
         "postgres_changes" as any,
         { event: "*", schema: "public", table: "restaurant_tables", filter: `tenant_id=eq.${activeTenant.id}` },
-        () => fetchData()
+        () => debouncedFetch()
       )
       .subscribe();
 
     return () => {
+      if (debounceTimer) clearTimeout(debounceTimer);
       supabase.removeChannel(channel);
     };
-  }, [activeTenant, fetchData]);
+  }, [activeTenant, fetchData, today]);
 
   // Filter reservations by selected shift
   const shiftReservations = reservations.filter((r) => {
@@ -1354,17 +1361,20 @@ function PlanCanvas({ tables, resTableLinks, shiftReservations, activeStatuses, 
         }
         if (paths.length === 0) return null;
         return (
-          <svg className="absolute inset-0 pointer-events-none" width="100%" height="100%" style={{ zIndex: 5 }}>
+          <svg
+            className="absolute pointer-events-none"
+            style={{ top: 0, left: 0, width: "600px", height: "560px", overflow: "visible", zIndex: 5 }}
+          >
             {paths.map((p) => (
               <path
                 key={p.key}
                 d={p.d}
                 fill="none"
-                stroke="#475569"
-                strokeWidth={1.75}
+                stroke="#334155"
+                strokeWidth={2.25}
                 strokeLinecap="round"
-                strokeDasharray="4 5"
-                strokeOpacity={0.55}
+                strokeDasharray="5 4"
+                strokeOpacity={0.7}
               />
             ))}
           </svg>

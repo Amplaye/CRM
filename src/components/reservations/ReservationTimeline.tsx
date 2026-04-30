@@ -25,7 +25,7 @@ export function ReservationTimeline({ date, shiftFilter = "all", onRowClick }: {
     const fetchReservations = async () => {
       const { data: results, error } = await supabase
         .from("reservations")
-        .select("*, guests(name)")
+        .select("*, guests(name), reservation_tables(restaurant_tables(name))")
         .eq("tenant_id", activeTenant.id)
         .eq("date", date);
 
@@ -37,28 +37,12 @@ export function ReservationTimeline({ date, shiftFilter = "all", onRowClick }: {
 
       const resData = (results || []) as any[];
 
-      // Fetch table assignments
-      const resIds = resData.map(r => r.id);
-      let tableMap: Record<string, string[]> = {};
-
-      if (resIds.length > 0) {
-        const { data: links } = await supabase
-          .from("reservation_tables")
-          .select("reservation_id, restaurant_tables(name)")
-          .in("reservation_id", resIds);
-
-        for (const link of (links || []) as any[]) {
-          if (!tableMap[link.reservation_id]) tableMap[link.reservation_id] = [];
-          if (link.restaurant_tables?.name) {
-            tableMap[link.reservation_id].push(link.restaurant_tables.name);
-          }
-        }
-      }
-
       const withNames: ResWithGuest[] = resData.map(r => ({
         ...r,
         guest_name: r.guests?.name || undefined,
-        table_names: tableMap[r.id] || [],
+        table_names: (r.reservation_tables || [])
+          .map((rt: any) => rt.restaurant_tables?.name)
+          .filter(Boolean),
       }));
 
       const sorted = withNames.sort((a, b) => a.time.localeCompare(b.time));
@@ -74,11 +58,22 @@ export function ReservationTimeline({ date, shiftFilter = "all", onRowClick }: {
 
     fetchReservations();
 
+    let debounceTimer: ReturnType<typeof setTimeout> | null = null;
+    const debouncedFetch = () => {
+      if (debounceTimer) clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(() => fetchReservations(), 300);
+    };
+
     const channel = supabase.channel(`reservations-timeline-${date}`)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'reservations', filter: `tenant_id=eq.${activeTenant.id}` }, () => fetchReservations())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'reservations', filter: `tenant_id=eq.${activeTenant.id}` }, (payload: any) => {
+        const row = payload.new || payload.old;
+        if (row && row.date && row.date !== date) return;
+        debouncedFetch();
+      })
       .subscribe();
 
     return () => {
+      if (debounceTimer) clearTimeout(debounceTimer);
       supabase.removeChannel(channel);
     };
   }, [activeTenant, date, shiftFilter]);

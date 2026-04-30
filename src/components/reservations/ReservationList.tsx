@@ -31,7 +31,7 @@ export function ReservationList({ date, shiftFilter = "all", onRowClick }: Reser
     const fetchReservations = async () => {
       const { data: resData, error } = await supabase
         .from("reservations")
-        .select("*, guests(name, phone)")
+        .select("*, guests(name, phone), reservation_tables(restaurant_tables(name))")
         .eq("tenant_id", tenant.id)
         .eq("date", date);
 
@@ -41,24 +41,13 @@ export function ReservationList({ date, shiftFilter = "all", onRowClick }: Reser
         return;
       }
 
-      const resIds = (resData || []).map((r: any) => r.id);
-      let tableMap: Record<string, string[]> = {};
-      if (resIds.length > 0) {
-        const { data: links } = await supabase
-          .from("reservation_tables")
-          .select("reservation_id, restaurant_tables(name)")
-          .in("reservation_id", resIds);
-        for (const link of (links || []) as any[]) {
-          if (!tableMap[link.reservation_id]) tableMap[link.reservation_id] = [];
-          if (link.restaurant_tables?.name) tableMap[link.reservation_id].push(link.restaurant_tables.name);
-        }
-      }
-
       const withNames = (resData || []).map((r: any) => ({
         ...r,
         guest_name: r.guests?.name || undefined,
         guest_phone: r.guests?.phone || undefined,
-        table_names: tableMap[r.id] || [],
+        table_names: (r.reservation_tables || [])
+          .map((rt: any) => rt.restaurant_tables?.name)
+          .filter(Boolean),
       })) as (Reservation & { guest_name?: string; guest_phone?: string; table_names?: string[] })[];
 
       const sorted = withNames.sort((a, b) => a.time.localeCompare(b.time));
@@ -74,11 +63,22 @@ export function ReservationList({ date, shiftFilter = "all", onRowClick }: Reser
 
     fetchReservations();
 
+    let debounceTimer: ReturnType<typeof setTimeout> | null = null;
+    const debouncedFetch = () => {
+      if (debounceTimer) clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(() => fetchReservations(), 300);
+    };
+
     const channel = supabase.channel(`reservations-list-${date}`)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'reservations', filter: `tenant_id=eq.${tenant.id}` }, () => fetchReservations())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'reservations', filter: `tenant_id=eq.${tenant.id}` }, (payload: any) => {
+        const row = payload.new || payload.old;
+        if (row && row.date && row.date !== date) return;
+        debouncedFetch();
+      })
       .subscribe();
 
     return () => {
+      if (debounceTimer) clearTimeout(debounceTimer);
       supabase.removeChannel(channel);
     };
   }, [tenant, date, shiftFilter]);
