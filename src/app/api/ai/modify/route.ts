@@ -18,6 +18,7 @@ interface ModifyPayload {
   date?: string;
   time?: string;
   party_size?: number;
+  new_zone?: 'inside' | 'outside' | 'interior' | 'exterior';
   notes?: string;
   // Optional incremental helpers — let the backend compute the absolute value
   // from the existing reservation (keeps the voice prompt simple).
@@ -323,9 +324,33 @@ export async function PUT(request: Request) {
     const sizeChanged = newPartySize !== existing.party_size;
     const shiftChanged = newShift !== (existing.shift || getShift(existing.time));
 
+    // Normalize requested zone (accept Spanish or English) and detect zone change.
+    let requestedZone: 'inside' | 'outside' | null = null;
+    if (payload.new_zone) {
+      const z = String(payload.new_zone).toLowerCase();
+      if (z === 'inside' || z === 'interior') requestedZone = 'inside';
+      else if (z === 'outside' || z === 'exterior') requestedZone = 'outside';
+    }
+
     let tablesAssigned: string[] = [];
 
-    if (dateChanged || shiftChanged || sizeChanged) {
+    // Detect current zone now so we can decide if a zone change forces reassignment.
+    let currentZone: 'inside' | 'outside' | null = null;
+    {
+      const { data: curLinks } = await supabase
+        .from('reservation_tables')
+        .select('table_id, restaurant_tables(zone)')
+        .eq('reservation_id', reservationId);
+      const zonesSeen = new Set<string>();
+      for (const l of (curLinks || []) as any[]) {
+        const z = l.restaurant_tables?.zone;
+        if (z === 'inside' || z === 'outside') zonesSeen.add(z);
+      }
+      if (zonesSeen.size === 1) currentZone = Array.from(zonesSeen)[0] as 'inside' | 'outside';
+    }
+    const zoneChanged = !!(requestedZone && currentZone && requestedZone !== currentZone);
+
+    if (dateChanged || shiftChanged || sizeChanged || zoneChanged) {
       // Seat-aware pre-check: before wiping the current assignment, verify
       // there are enough seats in the target shift to fit the new party.
       // Otherwise a 20→23 "+3" modification would silently reassign to
@@ -393,6 +418,10 @@ export async function PUT(request: Request) {
         }
       }
 
+      // The client explicitly requested a zone switch — honor it. The notes
+      // marker is rewritten below so future modifies/reads see the new zone.
+      const targetZone: 'inside' | 'outside' | null = requestedZone || originalZone;
+
       if (totalFreeSeats < newPartySize) {
         // Rollback the partial update (revert party_size/date/time) so the
         // UI stays in a consistent state, then escalate.
@@ -418,10 +447,10 @@ export async function PUT(request: Request) {
       // and the modification doesn't fit THAT zone (even if the other zone
       // has space), escalate for manual review instead of silently moving
       // the guest to the other zone.
-      if (originalZone && freeSeatsByZone[originalZone] < newPartySize) {
-        const zoneEs = originalZone === 'inside' ? 'interior' : 'exterior';
-        const zoneOtherEs = originalZone === 'inside' ? 'exterior' : 'interior';
-        const noteMismatch = `Ampliación a ${newPartySize} pax no cabe en ${zoneEs} (plazas libres: ${freeSeatsByZone[originalZone]}). En ${zoneOtherEs} hay ${freeSeatsByZone[originalZone === 'inside' ? 'outside' : 'inside']} plazas. Llamar al cliente para acordar.`;
+      if (targetZone && freeSeatsByZone[targetZone] < newPartySize) {
+        const zoneEs = targetZone === 'inside' ? 'interior' : 'exterior';
+        const zoneOtherEs = targetZone === 'inside' ? 'exterior' : 'interior';
+        const noteMismatch = `Ampliación a ${newPartySize} pax no cabe en ${zoneEs} (plazas libres: ${freeSeatsByZone[targetZone]}). En ${zoneOtherEs} hay ${freeSeatsByZone[targetZone === 'inside' ? 'outside' : 'inside']} plazas. Llamar al cliente para acordar.`;
         await supabase.from('reservations').update({
           status: 'escalated',
           notes: `${updates.notes || existing.notes || ''} — ${noteMismatch}`.trim(),
@@ -432,10 +461,10 @@ export async function PUT(request: Request) {
           reservation_id: reservationId,
           status: 'escalated',
           new_party_size: newPartySize,
-          zone_requested: originalZone,
+          zone_requested: targetZone,
           zone_requested_available: false,
-          zone_alternative: originalZone === 'inside' ? 'outside' : 'inside',
-          zone_alternative_available: freeSeatsByZone[originalZone === 'inside' ? 'outside' : 'inside'] >= newPartySize,
+          zone_alternative: targetZone === 'inside' ? 'outside' : 'inside',
+          zone_alternative_available: freeSeatsByZone[targetZone === 'inside' ? 'outside' : 'inside'] >= newPartySize,
           free_seats_inside: freeSeatsByZone.inside,
           free_seats_outside: freeSeatsByZone.outside,
           error: `No hay plazas en ${zoneEs} para ampliar a ${newPartySize} personas.`,
@@ -443,10 +472,23 @@ export async function PUT(request: Request) {
         }, { status: 409 });
       }
 
+      // If the client requested a zone switch, rewrite the "Prefiere ..." marker
+      // in notes so future reads (CRM UI, downstream modifies) see the new zone.
+      // The outer reservations.update() already ran with the original notes, so
+      // we need a second targeted update to persist the marker change.
+      if (zoneChanged && requestedZone) {
+        const newMarker = requestedZone === 'inside' ? 'Prefiere interior' : 'Prefiere exterior';
+        const baseNotes = (updates.notes !== undefined ? updates.notes : (existing.notes || '')) as string;
+        const stripped = String(baseNotes).replace(/Prefiere\s+(interior|exterior)/gi, '').replace(/\s+,\s+,/g, ',').replace(/^[\s,.\-—]+|[\s,.\-—]+$/g, '').trim();
+        const nextNotes = stripped ? `${stripped}. ${newMarker}` : newMarker;
+        updates.notes = nextNotes;
+        await supabase.from('reservations').update({ notes: nextNotes }).eq('id', reservationId);
+      }
+
       // Remove old table assignments and let atomic_book_tables decide
-      // the new optimal assignment within the original zone (preserves
-      // the client's zone choice). Falls back to any zone only when
-      // the original zone is unknown.
+      // the new optimal assignment within the target zone (preserves the
+      // client's choice or honors a freshly-requested zone switch).
+      // Falls back to any zone only when no zone is known.
       await supabase.from('reservation_tables').delete().eq('reservation_id', reservationId);
 
       const { data: atomicResult, error: atomicErr } = await supabase.rpc('atomic_book_tables', {
@@ -455,7 +497,7 @@ export async function PUT(request: Request) {
         p_shift: newShift,
         p_tables_needed: tablesNeeded(newPartySize),
         p_reservation_id: reservationId,
-        p_zone_preference: originalZone,
+        p_zone_preference: targetZone,
       });
 
       if (atomicErr) throw atomicErr;
@@ -510,6 +552,21 @@ export async function PUT(request: Request) {
       }
     });
 
+    // Resolve final zone for the response (after any reassignment).
+    let finalZone: 'inside' | 'outside' | null = null;
+    {
+      const { data: postLinks } = await supabase
+        .from('reservation_tables')
+        .select('restaurant_tables(zone)')
+        .eq('reservation_id', reservationId);
+      const zonesSeen = new Set<string>();
+      for (const l of (postLinks || []) as any[]) {
+        const z = l.restaurant_tables?.zone;
+        if (z === 'inside' || z === 'outside') zonesSeen.add(z);
+      }
+      if (zonesSeen.size === 1) finalZone = Array.from(zonesSeen)[0] as 'inside' | 'outside';
+    }
+
     return NextResponse.json({
       success: true,
       reservation_id: reservationId,
@@ -522,6 +579,7 @@ export async function PUT(request: Request) {
       new_party_size: newPartySize,
       final_date: newDate,
       final_time: newTime,
+      final_zone: finalZone,
       message: becameLargeGroup
         ? `Reserva modificada a ${newPartySize} personas — pendiente de revisión por ser grupo grande.`
         : "Reserva modificada correctamente."
