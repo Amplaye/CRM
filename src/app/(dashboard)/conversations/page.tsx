@@ -111,23 +111,61 @@ export default function ConversationsPage() {
 
   const handleSend = async () => {
     if (!replyText.trim() || !selectedConvo || !selectedGuest) return;
-    setSending(true);
-    try {
-      if (selectedConvo.channel === "whatsapp" && selectedGuest.phone) {
-        await fetch("/api/send-whatsapp", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ to: selectedGuest.phone, message: replyText }) });
+    const text = replyText;
+    const convoId = selectedConvo.id;
+    const guestId = selectedGuest.id;
+    const phone = selectedGuest.phone;
+    const channel = selectedConvo.channel;
+    const wasAbandoned = selectedConvo.status === "abandoned";
+    const newMessage = { role: "staff" as const, content: text, timestamp: Date.now() };
+    const updatedTranscript = [...(selectedConvo.transcript || []), newMessage];
+
+    // Optimistic UI: show the message + clear the input immediately. The
+    // network round-trips (Twilio + Supabase update + takeover) run in
+    // parallel in the background so the user can keep typing.
+    setReplyText("");
+    setConversations(prev => prev.map(c =>
+      c.id === convoId
+        ? {
+            ...c,
+            transcript: updatedTranscript,
+            status: wasAbandoned ? "active" as const : c.status,
+            updated_at: Date.now() as any,
+            guests: c.guests ? { ...c.guests, bot_paused_at: new Date().toISOString() as any } as Guest : c.guests,
+          }
+        : c
+    ));
+
+    const updates: any = { transcript: updatedTranscript, updated_at: new Date().toISOString() };
+    if (wasAbandoned) updates.status = "active";
+
+    const tasks: Promise<unknown>[] = [
+      supabase.from("conversations").update(updates).eq("id", convoId),
+    ];
+    if (channel === "whatsapp" && phone) {
+      tasks.push(fetch("/api/send-whatsapp", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ to: phone, message: text })
+      }));
+    }
+    if (guestId) {
+      tasks.push(fetch("/api/conversations/takeover", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ guest_id: guestId })
+      }));
+    }
+
+    Promise.allSettled(tasks).then(results => {
+      const failed = results.find(r => r.status === "rejected"
+        || (r.status === "fulfilled" && r.value instanceof Response && !r.value.ok));
+      if (failed) {
+        console.error("send failure", failed);
+        // Revert by refetching authoritative state.
+        fetchConversationsRef.current?.();
       }
-      const newMessage = { role: "staff", content: replyText, timestamp: Date.now() };
-      const updatedTranscript = [...(selectedConvo.transcript || []), newMessage];
-      const updates: any = { transcript: updatedTranscript, updated_at: new Date().toISOString() };
-      if (selectedConvo.status === "abandoned") updates.status = "active";
-      await supabase.from("conversations").update(updates).eq("id", selectedConvo.id);
-      // Pause the bot for this guest so it stops auto-replying while staff is engaged.
-      if (selectedGuest.id) {
-        await fetch("/api/conversations/takeover", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ guest_id: selectedGuest.id }) });
-      }
-      setReplyText("");
-    } catch (err) { console.error(err); }
-    setSending(false);
+    });
   };
 
   const handleResumeBot = async () => {
@@ -324,11 +362,11 @@ export default function ConversationsPage() {
           <div className="p-3 border-t flex items-center gap-2" style={{ background: 'rgba(252,246,237,0.95)', borderColor: '#c4956a' }}>
             <input type="text" value={replyText} onChange={e => setReplyText(e.target.value)}
               onKeyDown={e => e.key === 'Enter' && handleSend()}
-              disabled={sending || selectedConvo.status === "resolved"}
+              disabled={selectedConvo.status === "resolved"}
               placeholder={selectedConvo.status === "resolved" ? t("conv_conversation_resolved") : t("conv_reply_placeholder")}
               className="flex-1 border-2 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-[#c4956a] disabled:opacity-50"
               style={{ borderColor: '#c4956a', background: 'rgba(252,246,237,0.6)' }} />
-            <button onClick={handleSend} disabled={sending || !replyText.trim() || selectedConvo.status === "resolved"}
+            <button onClick={handleSend} disabled={!replyText.trim() || selectedConvo.status === "resolved"}
               className="p-2.5 text-white rounded-xl disabled:opacity-50"
               style={{ background: 'linear-gradient(135deg, #d4a574, #c4956a)' }}>
               <Send className="w-5 h-5" />
