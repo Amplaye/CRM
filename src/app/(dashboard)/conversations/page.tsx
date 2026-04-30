@@ -37,20 +37,36 @@ export default function ConversationsPage() {
   useEffect(() => {
     if (!tenant) return;
     setLoading(true);
+    let inFlight = false;
+    let lastSig = "";
     const fetchConversations = async () => {
-      const { data, error } = await supabase
-        .from("conversations")
-        .select("*, guests(*)")
-        .eq("tenant_id", tenant.id)
-        .order("updated_at", { ascending: false })
-        .limit(50);
-      if (error) { console.error(error); setLoading(false); return; }
-      const convos = (data || []) as ConvoWithGuest[];
-      setConversations(convos);
-      setLoading(false);
-      if (guestParam && !autoSelected) {
-        const match = convos.find(c => c.guest_id === guestParam);
-        if (match) { setSelectedConvoId(match.id); setAutoSelected(true); }
+      if (inFlight) return; // dedupe overlapping fetches
+      inFlight = true;
+      try {
+        const { data, error } = await supabase
+          .from("conversations")
+          .select("*, guests(*)")
+          .eq("tenant_id", tenant.id)
+          .order("updated_at", { ascending: false })
+          .limit(50);
+        if (error) { console.error(error); return; }
+        const convos = (data || []) as ConvoWithGuest[];
+        // Skip the setState (and the resulting re-render of every row) when
+        // nothing meaningful changed. Conversations is the heaviest component
+        // on this page; polling it every few seconds with a fresh array
+        // reference was making the whole panel feel sluggish.
+        const sig = convos.map(c => `${c.id}:${c.updated_at}:${(c.guests as any)?.bot_paused_at || ""}`).join("|");
+        if (sig !== lastSig) {
+          lastSig = sig;
+          setConversations(convos);
+        }
+        if (guestParam && !autoSelected) {
+          const match = convos.find(c => c.guest_id === guestParam);
+          if (match) { setSelectedConvoId(match.id); setAutoSelected(true); }
+        }
+      } finally {
+        inFlight = false;
+        setLoading(false);
       }
     };
     fetchConversationsRef.current = fetchConversations;
@@ -70,13 +86,12 @@ export default function ConversationsPage() {
       // waiting for the next conversation update.
       .on("postgres_changes", { event: "UPDATE", schema: "public", table: "guests", filter: `tenant_id=eq.${tenant.id}` }, () => debouncedFetch())
       .subscribe();
-    // Safari suspends WebSockets in background tabs, and Supabase realtime
-    // can silently drop. Poll every 6s as a safety net so live messages
-    // and the bot-pause banner stay accurate even if the channel is dead.
+    // Safety-net poll for dropped realtime channels. 15s is plenty since
+    // realtime + visibilitychange already cover the fast paths.
     const pollId = setInterval(() => {
       if (typeof document !== "undefined" && document.visibilityState !== "visible") return;
       fetchConversations();
-    }, 6000);
+    }, 15000);
     const onVisible = () => {
       if (document.visibilityState === "visible") fetchConversations();
     };
