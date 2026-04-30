@@ -86,19 +86,16 @@ export default function ConversationsPage() {
       // waiting for the next conversation update.
       .on("postgres_changes", { event: "UPDATE", schema: "public", table: "guests", filter: `tenant_id=eq.${tenant.id}` }, () => debouncedFetch())
       .subscribe();
-    // Safety-net poll for dropped realtime channels. 15s is plenty since
-    // realtime + visibilitychange already cover the fast paths.
-    const pollId = setInterval(() => {
-      if (typeof document !== "undefined" && document.visibilityState !== "visible") return;
-      fetchConversations();
-    }, 15000);
+    // No polling — Supabase realtime is the single source of truth for
+    // updates. The visibilitychange listener only re-aligns once when
+    // the tab becomes visible again (e.g. the OS suspended the
+    // WebSocket while the tab was hidden); it isn't a poll.
     const onVisible = () => {
       if (document.visibilityState === "visible") fetchConversations();
     };
     if (typeof document !== "undefined") document.addEventListener("visibilitychange", onVisible);
     return () => {
       if (debounceTimer) clearTimeout(debounceTimer);
-      clearInterval(pollId);
       if (typeof document !== "undefined") document.removeEventListener("visibilitychange", onVisible);
       supabase.removeChannel(channel);
     };
