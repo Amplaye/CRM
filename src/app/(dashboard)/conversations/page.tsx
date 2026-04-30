@@ -32,6 +32,8 @@ export default function ConversationsPage() {
   const [sending, setSending] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
+  const fetchConversationsRef = useRef<(() => Promise<void>) | null>(null);
+
   useEffect(() => {
     if (!tenant) return;
     setLoading(true);
@@ -51,17 +53,38 @@ export default function ConversationsPage() {
         if (match) { setSelectedConvoId(match.id); setAutoSelected(true); }
       }
     };
+    fetchConversationsRef.current = fetchConversations;
     fetchConversations();
+    // Short debounce so an inbound message lands in the open chat almost
+    // immediately. Was 500ms which felt sluggish when the user was watching
+    // a live conversation.
     let debounceTimer: ReturnType<typeof setTimeout> | null = null;
     const debouncedFetch = () => {
       if (debounceTimer) clearTimeout(debounceTimer);
-      debounceTimer = setTimeout(() => fetchConversations(), 500);
+      debounceTimer = setTimeout(() => fetchConversations(), 120);
     };
     const channel = supabase.channel("conversations_realtime")
       .on("postgres_changes", { event: "*", schema: "public", table: "conversations", filter: `tenant_id=eq.${tenant.id}` }, () => debouncedFetch())
+      // Also watch the guests table so that pausing/resuming the bot from
+      // another tab — or our own /resume-bot call — flips the banner without
+      // waiting for the next conversation update.
+      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "guests", filter: `tenant_id=eq.${tenant.id}` }, () => debouncedFetch())
       .subscribe();
+    // Safari suspends WebSockets in background tabs, and Supabase realtime
+    // can silently drop. Poll every 6s as a safety net so live messages
+    // and the bot-pause banner stay accurate even if the channel is dead.
+    const pollId = setInterval(() => {
+      if (typeof document !== "undefined" && document.visibilityState !== "visible") return;
+      fetchConversations();
+    }, 6000);
+    const onVisible = () => {
+      if (document.visibilityState === "visible") fetchConversations();
+    };
+    if (typeof document !== "undefined") document.addEventListener("visibilitychange", onVisible);
     return () => {
       if (debounceTimer) clearTimeout(debounceTimer);
+      clearInterval(pollId);
+      if (typeof document !== "undefined") document.removeEventListener("visibilitychange", onVisible);
       supabase.removeChannel(channel);
     };
   }, [tenant]);
@@ -110,9 +133,31 @@ export default function ConversationsPage() {
   const handleResumeBot = async () => {
     if (!selectedGuest?.id) return;
     setSending(true);
+    const guestId = selectedGuest.id;
+    // Optimistic clear so the banner disappears immediately even before the
+    // server round-trip + refetch lands. The realtime/poll loop will reconcile
+    // if the API actually failed.
+    setConversations(prev => prev.map(c =>
+      c.guest_id === guestId && c.guests
+        ? { ...c, guests: { ...c.guests, bot_paused_at: null } as Guest }
+        : c
+    ));
     try {
-      await fetch("/api/conversations/resume-bot", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ guest_id: selectedGuest.id }) });
-    } catch (err) { console.error(err); }
+      const res = await fetch("/api/conversations/resume-bot", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ guest_id: guestId })
+      });
+      if (!res.ok) throw new Error(`resume-bot failed: ${res.status}`);
+      // Re-fetch so the joined guest row in `conversations` reflects the
+      // cleared bot_paused_at, in case the realtime UPDATE on guests is
+      // delayed or dropped (Safari background tab, etc.).
+      await fetchConversationsRef.current?.();
+    } catch (err) {
+      console.error(err);
+      // Roll back the optimistic update on failure.
+      await fetchConversationsRef.current?.();
+    }
     setSending(false);
   };
 
