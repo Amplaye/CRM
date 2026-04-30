@@ -28,14 +28,42 @@ export function Topbar({ onMenuToggle }: TopbarProps) {
   const [isClient, setIsClient] = useState(false);
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [showDropdown, setShowDropdown] = useState(false);
+  const [freshIds, setFreshIds] = useState<Set<string>>(new Set());
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const seenIdsRef = useRef<Set<string>>(new Set());
+
+  const pushNotification = (notif: Notification) => {
+    setNotifications(prev => {
+      if (prev.some(p => p.id === notif.id)) return prev;
+      return [notif, ...prev].slice(0, 20);
+    });
+    if (seenIdsRef.current.has(notif.id)) return;
+    seenIdsRef.current.add(notif.id);
+    setFreshIds(prev => {
+      const next = new Set(prev);
+      next.add(notif.id);
+      return next;
+    });
+    setTimeout(() => {
+      setFreshIds(prev => {
+        if (!prev.has(notif.id)) return prev;
+        const next = new Set(prev);
+        next.delete(notif.id);
+        return next;
+      });
+    }, 2400);
+  };
 
   // Load notifications from localStorage on mount
   useEffect(() => {
     setIsClient(true);
     const saved = safeLocal.get("crm_notifications");
     if (saved) {
-      try { setNotifications(JSON.parse(saved)); } catch(e) {}
+      try {
+        const parsed: Notification[] = JSON.parse(saved);
+        parsed.forEach(n => seenIdsRef.current.add(n.id));
+        setNotifications(parsed);
+      } catch(e) {}
     }
   }, []);
 
@@ -129,11 +157,8 @@ export function Topbar({ onMenuToggle }: TopbarProps) {
         });
 
         if (newNotifs.length > 0) {
-          setNotifications(prev => {
-            const existing = new Set(prev.map(n => n.id));
-            const toAdd = newNotifs.filter(n => !existing.has(n.id));
-            if (toAdd.length === 0) return prev;
-            return [...toAdd, ...prev].slice(0, 20);
+          newNotifs.forEach((n, i) => {
+            setTimeout(() => pushNotification(n), i * 180);
           });
         }
         safeLocal.set(lastKey, new Date().toISOString());
@@ -201,7 +226,7 @@ export function Topbar({ onMenuToggle }: TopbarProps) {
             read: false,
             href: isEscalated ? `/pending` : `/reservations?date=${res.date}`,
           };
-          setNotifications(prev => [notif, ...prev].slice(0, 20));
+          pushNotification(notif);
         }
       )
       .on(
@@ -216,10 +241,10 @@ export function Topbar({ onMenuToggle }: TopbarProps) {
           const res = payload.new;
           if (res.status === 'cancelled') {
             const n: Notification = { id: res.id + '-cancel', type: "reservation", message: `${t("topbar_reservation_cancelled")}: ${res.date} ${res.time}`, time: new Date().toLocaleTimeString(), read: false, href: `/reservations?date=${res.date}` };
-            setNotifications(prev => [n, ...prev].slice(0, 20));
+            pushNotification(n);
           } else if (res.status === 'no_show') {
             const n: Notification = { id: res.id + '-noshow', type: "incident", message: `${t("topbar_noshow")}: ${res.date} ${res.time}`, time: new Date().toLocaleTimeString(), read: false, href: `/reservations?date=${res.date}` };
-            setNotifications(prev => [n, ...prev].slice(0, 20));
+            pushNotification(n);
           }
         }
       )
@@ -241,7 +266,7 @@ export function Topbar({ onMenuToggle }: TopbarProps) {
             read: false,
             href: "/waitlist",
           };
-          setNotifications(prev => [notif, ...prev].slice(0, 20));
+          pushNotification(notif);
         }
       )
       .on(
@@ -271,7 +296,7 @@ export function Topbar({ onMenuToggle }: TopbarProps) {
             read: false,
             href: goDate ? `/reservations?date=${goDate}` : `/reservations`,
           };
-          setNotifications(prev => [notif, ...prev].slice(0, 20));
+          pushNotification(notif);
         }
       )
       .subscribe();
@@ -310,12 +335,13 @@ export function Topbar({ onMenuToggle }: TopbarProps) {
             <Globe className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-black mr-1.5 sm:mr-2" />
             <select
               value={language}
-              onChange={(e) => setLanguage(e.target.value as "en" | "es" | "it")}
+              onChange={(e) => setLanguage(e.target.value as "en" | "es" | "it" | "de")}
               className="bg-transparent text-xs sm:text-sm font-medium text-black outline-none cursor-pointer"
             >
               <option value="en">EN</option>
               <option value="es">ES</option>
               <option value="it">IT</option>
+              <option value="de">DE</option>
             </select>
           </div>
         )}
@@ -354,9 +380,10 @@ export function Topbar({ onMenuToggle }: TopbarProps) {
                   <div className="px-4 py-8 text-center text-sm text-black">{t("topbar_no_notifications")}</div>
                 ) : notifications.map((n) => {
                   const icon = n.type === "incident" ? "⚠️" : n.type === "waitlist" ? "📋" : n.type === "reservation" ? "📅" : "💬";
+                  const isFresh = freshIds.has(n.id);
                   return (
                     <div key={n.id} onClick={() => { router.push(n.href); setShowDropdown(false); }}
-                      className="px-4 py-3 border-b active:bg-[#c4956a]/20 transition-colors cursor-pointer"
+                      className={`px-4 py-3 border-b active:bg-[#c4956a]/20 transition-colors cursor-pointer ${isFresh ? 'is-new-notif' : ''}`}
                       style={{ borderColor: 'rgba(196,149,106,0.2)' }}>
                       <div className="flex items-start gap-2.5">
                         <span className="text-base flex-shrink-0 mt-0.5">{icon}</span>
@@ -387,9 +414,10 @@ export function Topbar({ onMenuToggle }: TopbarProps) {
                   <div className="px-4 py-8 text-center text-sm text-black">{t("topbar_no_notifications")}</div>
                 ) : notifications.map((n) => {
                   const icon = n.type === "incident" ? "⚠️" : n.type === "waitlist" ? "📋" : n.type === "reservation" ? "📅" : "💬";
+                  const isFresh = freshIds.has(n.id);
                   return (
                     <div key={n.id} onClick={() => { router.push(n.href); setShowDropdown(false); }}
-                      className="px-4 py-3 border-b hover:bg-[#c4956a]/10 transition-colors cursor-pointer"
+                      className={`px-4 py-3 border-b hover:bg-[#c4956a]/10 transition-colors cursor-pointer ${isFresh ? 'is-new-notif' : ''}`}
                       style={{ borderColor: 'rgba(196,149,106,0.2)' }}>
                       <div className="flex items-start gap-2.5">
                         <span className="text-base flex-shrink-0 mt-0.5">{icon}</span>
