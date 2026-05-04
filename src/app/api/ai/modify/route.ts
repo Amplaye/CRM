@@ -125,6 +125,11 @@ export async function PUT(request: Request) {
       });
 
       // Collect ALL active reservations across the matching guests.
+      // Only future-or-today bookings — past reservations (even if left in a
+      // non-terminal status like 'escalated' or 'seated') must not be offered
+      // for modification.
+      const todayLocal = new Date(new Date().toLocaleString('en-US', { timeZone: 'Atlantic/Canary' }));
+      const todayStr = todayLocal.getFullYear() + '-' + String(todayLocal.getMonth()+1).padStart(2,'0') + '-' + String(todayLocal.getDate()).padStart(2,'0');
       const allActive: Array<{ id: string; date: string; time: string; party_size: number; created_at: string }> = [];
       for (const guest of matchingGuests) {
         const { data: resList } = await supabase
@@ -132,6 +137,7 @@ export async function PUT(request: Request) {
           .select('id, date, time, party_size, created_at')
           .eq('tenant_id', payload.tenant_id)
           .eq('guest_id', guest.id)
+          .gte('date', todayStr)
           .in('status', ['confirmed', 'pending_confirmation', 'escalated', 'seated']);
         for (const r of resList || []) allActive.push(r as any);
       }
