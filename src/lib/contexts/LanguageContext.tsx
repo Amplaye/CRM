@@ -29,13 +29,14 @@ const LanguageContext = createContext<LanguageContextType>({
 });
 
 export const LanguageProvider = ({ children }: { children: ReactNode }) => {
+  // Server and first client render both start at "en" so the hydrated DOM
+  // matches the SSR markup (avoids React error #418). After mount, we read
+  // the saved preference from localStorage and switch if the user previously
+  // picked another language. No browser-language auto-detect.
   const [language, setLanguageState] = useState<LanguageCode>("en");
 
-  // Load saved preference from localStorage on mount.
-  // No browser-language auto-detect: language only changes when the user
-  // explicitly picks one from the selector. Default stays English.
   useEffect(() => {
-    const saved = safeLocal.get("app_lang") as LanguageCode | null;
+    const saved = safeLocal.get("app_lang_v2") as LanguageCode | null;
     if (saved === "en" || saved === "es" || saved === "it" || saved === "de") {
       setLanguageState(saved);
     }
@@ -46,7 +47,7 @@ export const LanguageProvider = ({ children }: { children: ReactNode }) => {
   // effects on every provider render, hammering the DB from Topbar/etc.
   const setLanguage = useCallback((lang: LanguageCode) => {
     setLanguageState(lang);
-    safeLocal.set("app_lang", lang);
+    safeLocal.set("app_lang_v2", lang);
   }, []);
 
   const t = useCallback(
