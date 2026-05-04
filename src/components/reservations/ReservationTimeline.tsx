@@ -88,7 +88,7 @@ export function ReservationTimeline({ date, shiftFilter = "all", onRowClick }: {
 
   if (reservations.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center p-12 text-black border-2 rounded-xl" style={{ background: 'rgba(252,246,237,0.85)', borderColor: '#c4956a' }}>
+      <div className="flex flex-col items-center justify-center p-12 text-black border-2 border-t-0 rounded-b-xl" style={{ background: 'rgba(252,246,237,0.85)', borderColor: '#c4956a' }}>
         <p>No reservations for this date.</p>
       </div>
     );
@@ -97,7 +97,7 @@ export function ReservationTimeline({ date, shiftFilter = "all", onRowClick }: {
   const hours = Array.from({ length: 13 }, (_, i) => i + 11);
 
   return (
-    <div className="border-2 text-sm rounded-xl overflow-hidden relative" style={{ background: 'rgba(252,246,237,0.85)', borderColor: '#c4956a', boxShadow: '0 20px 60px rgba(196,149,106,0.25), 0 8px 24px rgba(196,149,106,0.15)' }}>
+    <div className="border-2 border-t-0 text-sm rounded-b-xl overflow-hidden relative" style={{ background: 'rgba(252,246,237,0.85)', borderColor: '#c4956a', boxShadow: '0 20px 60px rgba(196,149,106,0.25), 0 8px 24px rgba(196,149,106,0.15)' }}>
       <div className="flex border-b" style={{ borderColor: '#c4956a' }}>
         <div className="w-24 border-r py-3 px-4 font-semibold text-black" style={{ borderColor: '#c4956a' }}>Time</div>
         <div className="flex-1 py-3 px-4 font-semibold text-black">Service Floor</div>

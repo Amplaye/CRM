@@ -120,7 +120,7 @@ export function ReservationList({ date, shiftFilter = "all", onRowClick }: Reser
 
   if (loading) {
     return (
-      <div className="border-2 rounded-b-xl md:rounded-xl animate-pulse" style={{ background: 'rgba(252,246,237,0.85)', borderColor: '#c4956a' }}>
+      <div className="border-2 rounded-b-xl md:border-t-0 animate-pulse" style={{ background: 'rgba(252,246,237,0.85)', borderColor: '#c4956a' }}>
         <div className="h-12 border-b hidden md:block" style={{ borderColor: '#c4956a' }}></div>
         {[1,2,3,4,5].map(i => (
           <div key={i} className="h-16 border-b border-zinc-100 flex items-center px-4 md:px-6">
@@ -134,7 +134,7 @@ export function ReservationList({ date, shiftFilter = "all", onRowClick }: Reser
 
   if (!reservations || reservations.length === 0) {
       return (
-         <div className="border-2 rounded-b-xl md:rounded-xl py-16 text-center" style={{ background: 'rgba(252,246,237,0.85)', borderColor: '#c4956a', boxShadow: '0 20px 60px rgba(196,149,106,0.25), 0 8px 24px rgba(196,149,106,0.15)' }}>
+         <div className="border-2 rounded-b-xl md:border-t-0 py-16 text-center" style={{ background: 'rgba(252,246,237,0.85)', borderColor: '#c4956a', boxShadow: '0 20px 60px rgba(196,149,106,0.25), 0 8px 24px rgba(196,149,106,0.15)' }}>
             <CalendarCheck className="mx-auto h-12 w-12 text-black mb-4" />
             <h3 className="text-sm font-medium text-black">{t("res_empty_title")}</h3>
             <p className="mt-1 text-sm text-black">{t("res_empty_subtitle")}</p>
@@ -201,8 +201,10 @@ export function ReservationList({ date, shiftFilter = "all", onRowClick }: Reser
       })}
     </div>
 
-    {/* Desktop: full table */}
-    <div className="hidden md:block border-2 rounded-xl overflow-hidden" style={{ background: 'rgba(252,246,237,0.85)', borderColor: '#c4956a', boxShadow: '0 20px 60px rgba(196,149,106,0.25), 0 8px 24px rgba(196,149,106,0.15)' }}>
+    {/* Desktop: full table — joins seamlessly with the toolbar above
+         (toolbar has rounded-t-xl + border-t/x; we drop the top border
+         and round only the bottom so they read as one boxed unit). */}
+    <div className="hidden md:block border-2 border-t-0 rounded-b-xl overflow-hidden" style={{ background: 'rgba(252,246,237,0.85)', borderColor: '#c4956a', boxShadow: '0 20px 60px rgba(196,149,106,0.25), 0 8px 24px rgba(196,149,106,0.15)' }}>
       <table className="min-w-full table-fixed divide-y" style={{ borderColor: '#c4956a' }}>
         <thead>
           <tr>
