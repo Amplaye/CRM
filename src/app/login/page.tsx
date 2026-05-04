@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
 import { Loader2, Lock, Mail, Globe, Eye, EyeOff } from "lucide-react";
@@ -9,9 +9,22 @@ import { useLanguage } from "@/lib/contexts/LanguageContext";
 import { safeLocal } from "@/lib/safe-storage";
 
 export default function LoginPage() {
-  const [email, setEmail] = useState(() => safeLocal.get("login_email") || "");
-  const [password, setPassword] = useState(() => safeLocal.get("login_password") || "");
-  const [rememberMe, setRememberMe] = useState(() => safeLocal.get("login_remember") === "true");
+  // Initial state must match between server render and first client render —
+  // reading localStorage in a lazy initializer causes React error #418
+  // (hydration mismatch) because the server has no localStorage. Hydrate the
+  // saved values in an effect instead.
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [rememberMe, setRememberMe] = useState(false);
+
+  useEffect(() => {
+    const savedEmail = safeLocal.get("login_email");
+    const savedPassword = safeLocal.get("login_password");
+    const savedRemember = safeLocal.get("login_remember") === "true";
+    if (savedEmail) setEmail(savedEmail);
+    if (savedPassword) setPassword(savedPassword);
+    setRememberMe(savedRemember);
+  }, []);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
@@ -55,12 +68,13 @@ export default function LoginPage() {
           <Globe className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-black mr-1.5 sm:mr-2" />
           <select
             value={language}
-            onChange={(e) => setLanguage(e.target.value as "en" | "es" | "it")}
+            onChange={(e) => setLanguage(e.target.value as "en" | "es" | "it" | "de")}
             className="bg-transparent text-xs sm:text-sm font-medium text-black outline-none cursor-pointer"
           >
             <option value="en">EN</option>
             <option value="es">ES</option>
             <option value="it">IT</option>
+            <option value="de">DE</option>
           </select>
         </div>
       </div>
