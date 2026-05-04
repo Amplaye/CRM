@@ -31,14 +31,13 @@ const LanguageContext = createContext<LanguageContextType>({
 export const LanguageProvider = ({ children }: { children: ReactNode }) => {
   const [language, setLanguageState] = useState<LanguageCode>("en");
 
-  // Load saved preference from localStorage on mount
+  // Load saved preference from localStorage on mount.
+  // No browser-language auto-detect: language only changes when the user
+  // explicitly picks one from the selector. Default stays English.
   useEffect(() => {
     const saved = safeLocal.get("app_lang") as LanguageCode | null;
     if (saved === "en" || saved === "es" || saved === "it" || saved === "de") {
       setLanguageState(saved);
-    } else if (typeof navigator !== "undefined") {
-      if (navigator.language.startsWith("de")) setLanguageState("de");
-      else if (navigator.language.startsWith("it")) setLanguageState("it");
     }
   }, []);
 
