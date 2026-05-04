@@ -5,6 +5,7 @@ const LANG_NAMES: Record<string, string> = {
   es: "Spanish (es-ES)",
   en: "English (en-US)",
   it: "Italian (it-IT)",
+  de: "German (de-DE)",
 };
 
 export async function POST(request: Request) {

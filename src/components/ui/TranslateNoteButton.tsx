@@ -3,10 +3,10 @@
 import { useState, useEffect } from "react";
 import { Languages, X, Loader2 } from "lucide-react";
 
-type Lang = "es" | "en" | "it";
+type Lang = "es" | "en" | "it" | "de";
 
-const FLAGS: Record<Lang, string> = { es: "🇪🇸", en: "🇬🇧", it: "🇮🇹" };
-const LABELS: Record<Lang, string> = { es: "ES", en: "EN", it: "IT" };
+const FLAGS: Record<Lang, string> = { es: "🇪🇸", en: "🇬🇧", it: "🇮🇹", de: "🇩🇪" };
+const LABELS: Record<Lang, string> = { es: "ES", en: "EN", it: "IT", de: "DE" };
 
 interface Props {
   text: string;
