@@ -13,9 +13,10 @@ interface ReservationListProps {
   date: string;
   shiftFilter?: "all" | "lunch" | "dinner";
   onRowClick?: (res: Reservation) => void;
+  onCreate?: () => void;
 }
 
-export function ReservationList({ date, shiftFilter = "all", onRowClick }: ReservationListProps) {
+export function ReservationList({ date, shiftFilter = "all", onRowClick, onCreate }: ReservationListProps) {
   const { activeTenant: tenant } = useTenant();
   const { t } = useLanguage();
   const seenAt = useSeenSnapshotAndMark(tenant?.id, "reservations");
@@ -139,7 +140,7 @@ export function ReservationList({ date, shiftFilter = "all", onRowClick }: Reser
             <h3 className="text-sm font-medium text-black">{t("res_empty_title")}</h3>
             <p className="mt-1 text-sm text-black">{t("res_empty_subtitle")}</p>
             <div className="mt-6">
-               <button className="inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium text-white bg-zinc-900 hover:bg-zinc-800 rounded-lg">
+               <button onClick={onCreate} className="inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium text-white bg-zinc-900 hover:bg-zinc-800 rounded-lg cursor-pointer">
                   <Plus className="-ml-1 mr-2 h-4 w-4" aria-hidden="true" />
                   {t("res_new")}
                </button>

@@ -470,7 +470,7 @@ export async function POST(request: Request) {
     // Pin the customer's language to THIS reservation. The reminder cron
     // reads reservations.language so different bookings from the same phone
     // can have different languages (e.g. user tests IT and ES from same line).
-    if (bookingLang && ['es', 'it', 'en'].includes(bookingLang)) {
+    if (bookingLang && ['es', 'it', 'en', 'de'].includes(bookingLang)) {
       reservation.language = bookingLang;
     }
 

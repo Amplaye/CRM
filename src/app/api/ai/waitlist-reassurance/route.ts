@@ -34,19 +34,19 @@ export async function POST(request: Request) {
 
     // Resolve a guest's preferred language from the most recent conversation
     // in the last 30 days. Falls back to 'es' if no conversation found.
-    const resolveLang = async (tenantId: string, guestId: string): Promise<'es' | 'it' | 'en'> => {
+    const resolveLang = async (tenantId: string, guestId: string): Promise<'es' | 'it' | 'en' | 'de'> => {
       const sinceISO = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
       const { data } = await supabase
         .from('conversations')
         .select('language')
         .eq('tenant_id', tenantId)
         .eq('guest_id', guestId)
-        .in('language', ['es', 'it', 'en'])
+        .in('language', ['es', 'it', 'en', 'de'])
         .gte('created_at', sinceISO)
         .order('created_at', { ascending: false })
         .limit(1)
         .maybeSingle();
-      const lang = (data?.language as 'es' | 'it' | 'en') || 'es';
+      const lang = (data?.language as 'es' | 'it' | 'en' | 'de') || 'es';
       return lang;
     };
 
@@ -86,6 +86,9 @@ export async function POST(request: Request) {
         en:
           `⏳ All tables for this shift are still taken — I'll message you as soon as one frees up. ` +
           `Remember: being on the waitlist doesn't guarantee a table. Thanks for your patience.`,
+        de:
+          `⏳ Im Moment sind alle Tische dieser Schicht noch belegt — ich schreibe dir, sobald einer frei wird. ` +
+          `Beachte: Auf der Warteliste zu stehen garantiert keinen Tisch. Danke für deine Geduld.`,
       };
       const body = M[lang];
 

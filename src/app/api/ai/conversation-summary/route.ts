@@ -83,7 +83,7 @@ export async function POST(request: Request) {
     // Resolve language: explicit param > stored conv.language (unless force) >
     // auto-detect from USER messages only. Default to 'es'.
     let lang = (requestedLang || (force ? '' : conv.language) || '').toLowerCase();
-    if (!['es', 'it', 'en'].includes(lang)) {
+    if (!['es', 'it', 'en', 'de'].includes(lang)) {
       const userText = transcript
         .filter((m: any) => m.role === 'user')
         .map((m: any) => String(m.content || ''))
@@ -92,8 +92,12 @@ export async function POST(request: Request) {
       const itHits = (userText.match(/\b(ciao|grazie|prenotazione|tavolo|persone|domani|stasera|oggi|sono|vorrei|cambiare|annullare|allergi[ae])\b/g) || []).length;
       const enHits = (userText.match(/\b(hello|hi|thanks|thank you|please|booking|tonight|tomorrow|guests?|table|cancel|change|allergy)\b/g) || []).length;
       const esHits = (userText.match(/\b(hola|gracias|reserva|mesa|personas|mañana|hoy|cambiar|cancelar|noche|tarde|alergia)\b/g) || []).length;
-      if (itHits > enHits && itHits > esHits) lang = 'it';
-      else if (enHits > esHits && enHits > itHits) lang = 'en';
+      const deHits = (userText.match(/\b(hallo|danke|bitte|reservierung|tisch|personen|morgen|heute|abend|mittag|ändern|stornieren|absagen|allergie|möchte|wir sind|guten tag|guten abend)\b/g) || []).length;
+      const max = Math.max(itHits, enHits, esHits, deHits);
+      if (max === 0) lang = 'es';
+      else if (deHits === max) lang = 'de';
+      else if (itHits === max) lang = 'it';
+      else if (enHits === max) lang = 'en';
       else lang = 'es';
     }
 
@@ -102,6 +106,8 @@ export async function POST(request: Request) {
         ? 'Rispondi SOLO in italiano.'
         : lang === 'en'
         ? 'Reply ONLY in English.'
+        : lang === 'de'
+        ? 'Antworte AUSSCHLIESSLICH auf Deutsch.'
         : 'Responde SOLO en español.';
 
     // Build a compact transcript representation for the model.

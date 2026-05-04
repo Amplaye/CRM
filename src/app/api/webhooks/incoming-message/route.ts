@@ -89,7 +89,7 @@ export async function POST(request: Request) {
       if (payload.sentiment) updates.sentiment = payload.sentiment;
       // Update language if provided (es/it/en) — used by reminder cron to
       // pick the right WhatsApp template per guest.
-      if (payload.language && ['es', 'it', 'en'].includes(payload.language)) {
+      if (payload.language && ['es', 'it', 'en', 'de'].includes(payload.language)) {
         updates.language = payload.language;
       }
       // Update status if outcome says resolved
@@ -128,7 +128,7 @@ export async function POST(request: Request) {
         summary: summaryText || "New conversation",
         transcript: newMessages,
       };
-      if (payload.language && ['es', 'it', 'en'].includes(payload.language)) {
+      if (payload.language && ['es', 'it', 'en', 'de'].includes(payload.language)) {
         insertPayload.language = payload.language;
       }
 

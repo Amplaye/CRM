@@ -21,7 +21,7 @@ export interface OnboardInput {
   owner_phone: string; // WhatsApp e164 of the staff/owner who receives notifications, e.g. "+34123456789"
   timezone: string;
   locale: string; // "es-ES" | "it-IT" | "en-GB" — used by the Retell FECHA header
-  language: "es" | "it" | "en"; // primary language for the bot
+  language: "es" | "it" | "en" | "de"; // primary language for the bot
   review_url: string; // Google Maps review link for the post-meal followup
   // Operations
   opening_hours: OpeningHours;

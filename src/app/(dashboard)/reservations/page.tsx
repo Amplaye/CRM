@@ -375,16 +375,16 @@ export default function ReservationsPage() {
             <p className="mt-0.5 sm:mt-1 text-xs sm:text-sm text-black">{t("res_subtitle")}</p>
           </div>
           <div className="mt-3 sm:mt-0 flex flex-wrap gap-2 sm:space-x-3">
-             <button onClick={handleExport} className="hidden sm:inline-flex items-center px-4 py-2 border-2 text-sm font-medium rounded-lg shadow-sm text-black transition-colors" style={{ borderColor: '#c4956a', background: 'rgba(252,246,237,0.6)' }}>
+             <button onClick={handleExport} className="hidden sm:inline-flex items-center px-4 py-2 border-2 text-sm font-medium rounded-lg shadow-sm text-black transition-colors cursor-pointer" style={{ borderColor: '#c4956a', background: 'rgba(252,246,237,0.6)' }}>
                 <Download className="-ml-1 mr-2 h-4 w-4" /> {t("res_export")}
              </button>
-             <button onClick={() => fileInputRef.current?.click()} className="hidden sm:inline-flex items-center px-4 py-2 border-2 text-sm font-medium rounded-lg shadow-sm text-black transition-colors" style={{ borderColor: '#c4956a', background: 'rgba(252,246,237,0.6)' }}>
+             <button onClick={() => fileInputRef.current?.click()} className="hidden sm:inline-flex items-center px-4 py-2 border-2 text-sm font-medium rounded-lg shadow-sm text-black transition-colors cursor-pointer" style={{ borderColor: '#c4956a', background: 'rgba(252,246,237,0.6)' }}>
                 <Upload className="-ml-1 mr-2 h-4 w-4" /> {t("res_import")}
              </button>
              <input ref={fileInputRef} type="file" accept=".csv" className="hidden" onChange={handleImport} />
              <button
                onClick={() => { setSelectedRes(null); setIsCreating(true); setCreateDate(date); setSelectedTableIds([]); }}
-               className="inline-flex items-center px-3 sm:px-4 py-2 border border-transparent text-sm font-medium rounded-lg shadow-sm text-white bg-zinc-900 hover:bg-zinc-800 transition-colors"
+               className="inline-flex items-center px-3 sm:px-4 py-2 border border-transparent text-sm font-medium rounded-lg shadow-sm text-white bg-zinc-900 hover:bg-zinc-800 transition-colors cursor-pointer"
              >
                 <Plus className="-ml-1 mr-1.5 sm:mr-2 h-4 w-4 sm:h-5 sm:w-5" aria-hidden="true" />
                 {t("res_new")}
@@ -492,6 +492,7 @@ export default function ReservationsPage() {
             date={date}
             shiftFilter={shiftFilter}
             onRowClick={(res) => { setIsCreating(false); setSelectedRes(res as ReservationWithGuest); }}
+            onCreate={() => { setSelectedRes(null); setIsCreating(true); setCreateDate(date); setSelectedTableIds([]); }}
           />
         ) : (
           <ReservationTimeline
