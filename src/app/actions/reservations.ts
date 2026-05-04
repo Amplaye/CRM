@@ -137,6 +137,7 @@ export async function createReservationAction(params: {
       p_shift: computedShift,
       p_tables_needed: needed,
       p_reservation_id: newRes.id,
+      p_zone_preference: null,
     });
 
     if (atomicErr) throw atomicErr;
