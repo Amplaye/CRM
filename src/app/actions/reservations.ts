@@ -164,6 +164,31 @@ export async function createReservationAction(params: {
 
     if (eventErr) throw eventErr;
 
+    // 5. Mirror to audit_events so downstream consumers (n8n reminders,
+    // follow-up cron) see manual bookings the same way they see AI-agent
+    // bookings. The /api/ai/book route writes this row for AI sources;
+    // without it, staff-created reservations were invisible to the
+    // reminder/follow-up pipeline.
+    const auditSource: 'ai_agent' | 'staff' | 'system' =
+      params.source === 'ai_agent' ? 'ai_agent'
+      : (params.source === 'staff' || params.source === 'phone' || params.source === 'walk-in' || params.source === 'online') ? 'staff'
+      : 'system';
+    await supabase.from('audit_events').insert({
+      tenant_id: params.tenantId,
+      action: 'create_reservation',
+      entity_id: newRes.id,
+      source: auditSource,
+      details: {
+        date: params.date,
+        time: params.time,
+        party_size: params.partySize,
+        shift: computedShift,
+        end_time: endTime,
+        booking_source: params.source,
+      },
+      created_at: new Date().toISOString(),
+    });
+
     return { success: true, reservationId: newRes.id };
   } catch (err: any) {
     return { success: false, error: err.message };

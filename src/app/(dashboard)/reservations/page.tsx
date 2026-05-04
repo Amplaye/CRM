@@ -14,6 +14,7 @@ interface ReservationWithGuest extends Reservation {
 import { useLanguage } from "@/lib/contexts/LanguageContext";
 import { useTenant } from "@/lib/contexts/TenantContext";
 import { createReservationAction, updateReservationDetailsAction } from "@/app/actions/reservations";
+import { buildBookingConfirmationMessage, buildOwnerNewBookingMessage } from "@/lib/booking-confirmation-message";
 import { createClient } from "@/lib/supabase/client";
 import { useSearchParams } from "next/navigation";
 
@@ -298,6 +299,7 @@ export default function ReservationsPage() {
       if (!res.success) throw new Error(res.error);
 
       // Assign selected tables to the new reservation
+      let pickedTableObjs: typeof availableTables = [];
       if (selectedTableIds.length > 0 && res.reservationId) {
         const tableInserts = selectedTableIds.map(tableId => ({
           reservation_id: res.reservationId,
@@ -307,7 +309,53 @@ export default function ReservationsPage() {
           .from("reservation_tables")
           .insert(tableInserts);
         if (tableErr) console.error("Failed to assign tables:", tableErr);
+        pickedTableObjs = selectedTableIds
+          .map(tid => availableTables.find(x => x.id === tid))
+          .filter(Boolean) as typeof availableTables;
       }
+
+      // Best-effort: send the same WhatsApp confirmation the AI agent would
+      // send, plus an owner notification — so manual bookings get the same
+      // reminder/follow-up flow downstream and the guest has a confirm card
+      // they can reply MODIFY/CANCEL to.
+      const guestName = formData.get("guestName") as string;
+      const guestPhone = formData.get("guestPhone") as string;
+      const dateValue = formData.get("date") as string;
+      const timeValue = formData.get("time") as string;
+      const tableNames = pickedTableObjs.map(x => x.name).join(', ');
+      const zoneFromTables = (pickedTableObjs[0] as any)?.zone as 'inside' | 'outside' | undefined;
+      if (guestPhone) {
+        const confirmMsg = buildBookingConfirmationMessage({
+          date: dateValue,
+          time: timeValue,
+          partySize,
+          guestName,
+          zone: zoneFromTables ?? null,
+          tableNames,
+          language,
+        });
+        fetch("/api/send-whatsapp", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ to: guestPhone, message: confirmMsg }),
+        }).catch((e) => console.error("WhatsApp confirm error:", e));
+      }
+      const ownerPhone =
+        ((activeTenant as any)?.settings?.owner_phone as string | undefined) || '+34641790137';
+      const ownerMsg = buildOwnerNewBookingMessage({
+        date: dateValue,
+        time: timeValue,
+        partySize,
+        guestName,
+        guestPhone,
+        zone: zoneFromTables ?? null,
+        tableNames,
+      });
+      fetch("/api/send-whatsapp", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ to: ownerPhone, message: ownerMsg }),
+      }).catch(() => {});
 
       setSelectedTableIds([]);
       setIsCreating(false);
