@@ -295,7 +295,7 @@ export default function KnowledgePage() {
             <div className="flex-1 flex flex-col p-4 sm:p-6 lg:p-8 max-w-4xl mx-auto w-full space-y-4 sm:space-y-6 lg:space-y-8 animate-in fade-in slide-in-from-bottom-2">
                <div className="flex items-center justify-between border-b pb-4 md:pb-6" style={{ borderColor: '#c4956a' }}>
                   <div className="flex items-center space-x-1">
-                     <button onClick={() => { setIsEditing(false); setSelectedArticleId(null); }} className="p-1.5 border-2 border-red-400 text-red-500 hover:bg-red-50 rounded-lg transition-colors mr-2">
+                     <button onClick={() => { setIsEditing(false); setSelectedArticleId(null); }} className="p-1.5 border-2 border-red-400 text-red-500 hover:bg-red-50 rounded-lg transition-colors cursor-pointer mr-2">
                         <X className="w-4 h-4" />
                      </button>
                      <h2 className="text-xl font-bold text-black">{selectedArticleId ? t("know_edit_article") : t("know_new_article")}</h2>

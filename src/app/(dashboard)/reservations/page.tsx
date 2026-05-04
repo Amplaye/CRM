@@ -476,7 +476,7 @@ export default function ReservationsPage() {
                  </div>
                )}
              </div>
-             <button onClick={() => setSelectedRes(null)} className="p-1.5 border-2 border-red-400 text-red-500 hover:bg-red-50 rounded-lg transition-colors flex-shrink-0">
+             <button onClick={() => setSelectedRes(null)} className="p-1.5 border-2 border-red-400 text-red-500 hover:bg-red-50 rounded-lg transition-colors cursor-pointer flex-shrink-0">
                 <X className="h-4 w-4" />
              </button>
           </div>
@@ -540,7 +540,7 @@ export default function ReservationsPage() {
         <div className="fixed top-14 left-0 right-0 bottom-0 sm:top-0 sm:left-auto sm:right-0 sm:w-[400px] border-l shadow-2xl z-40 flex flex-col overflow-hidden" style={{ background: 'rgb(252,246,237)', borderColor: '#c4956a' }}>
           <div className="mx-5 sm:mx-6 pt-2 pb-2 sm:py-4 flex items-center justify-between border-b" style={{ borderColor: '#c4956a' }}>
              <h2 className="text-base sm:text-lg font-bold text-black tracking-tight">{t("res_new")}</h2>
-             <button onClick={() => setIsCreating(false)} className="p-1.5 border-2 border-red-400 text-red-500 hover:bg-red-50 rounded-lg transition-colors">
+             <button onClick={() => setIsCreating(false)} className="p-1.5 border-2 border-red-400 text-red-500 hover:bg-red-50 rounded-lg transition-colors cursor-pointer">
                 <X className="h-4 w-4" />
              </button>
           </div>

@@ -1006,7 +1006,7 @@ export default function FloorPage() {
           >
             <button
               onClick={() => setFreeTableModal(null)}
-              className="absolute top-3 right-3 p-1.5 border-2 border-red-400 text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+              className="absolute top-3 right-3 p-1.5 border-2 border-red-400 text-red-500 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
             >
               <X className="h-4 w-4" />
             </button>

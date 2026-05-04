@@ -336,7 +336,7 @@ export default function ConversationsPage() {
                 <p className="text-xs text-black">{selectedGuest?.phone || ""} · {selectedConvo.channel === 'whatsapp' ? t("conv_whatsapp") : t("conv_call_channel")}</p>
               </div>
             </div>
-            <button onClick={() => setSelectedConvoId(null)} className="p-1.5 border-2 border-red-400 text-red-500 hover:bg-red-50 rounded-lg transition-colors">
+            <button onClick={() => setSelectedConvoId(null)} className="p-1.5 border-2 border-red-400 text-red-500 hover:bg-red-50 rounded-lg transition-colors cursor-pointer">
               <X className="w-4 h-4" />
             </button>
           </div>

@@ -72,7 +72,7 @@ export default function OnboardPage() {
   const [restaurantPhone, setRestaurantPhone] = useState("+34 ");
   const [restaurantAddr, setRestaurantAddr] = useState("");
   const [ownerPhone, setOwnerPhone] = useState("+34");
-  const [language, setLanguage] = useState<"es" | "it" | "en">("es");
+  const [language, setLanguage] = useState<"es" | "it" | "en" | "de">("es");
   const [timezone, setTimezone] = useState("Atlantic/Canary");
   const [reviewUrl, setReviewUrl] = useState("https://www.google.com/maps?cid=");
 
@@ -144,7 +144,7 @@ export default function OnboardPage() {
           restaurant_phone: restaurantPhone.trim(),
           owner_phone: ownerPhone.trim(),
           timezone,
-          locale: language === "it" ? "it-IT" : language === "en" ? "en-GB" : "es-ES",
+          locale: language === "it" ? "it-IT" : language === "en" ? "en-GB" : language === "de" ? "de-DE" : "es-ES",
           language,
           review_url: reviewUrl.trim(),
           opening_hours: hours,
@@ -289,7 +289,7 @@ export default function OnboardPage() {
             <Field label="Indirizzo" value={restaurantAddr} onChange={setRestaurantAddr} placeholder="Calle Mayor 12, Las Palmas" />
             <Field label="Telefono owner (notifiche staff WhatsApp)" value={ownerPhone} onChange={setOwnerPhone} placeholder="+39333..." />
             <Field label="Google Review URL" value={reviewUrl} onChange={setReviewUrl} placeholder="https://www.google.com/maps?cid=..." />
-            <SelectField label="Lingua principale" value={language} onChange={(v) => setLanguage(v as any)} options={[["es", "Spagnolo"], ["it", "Italiano"], ["en", "Inglese"]]} />
+            <SelectField label="Lingua principale" value={language} onChange={(v) => setLanguage(v as any)} options={[["es", "Spagnolo"], ["it", "Italiano"], ["en", "Inglese"], ["de", "Tedesco"]]} />
             <SelectField label="Timezone" value={timezone} onChange={setTimezone} options={[["Atlantic/Canary", "Atlantic/Canary (Las Palmas)"], ["Europe/Madrid", "Europe/Madrid"], ["Europe/Rome", "Europe/Rome"]]} />
           </div>
         </div>

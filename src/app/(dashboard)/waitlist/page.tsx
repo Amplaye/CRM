@@ -670,7 +670,7 @@ export default function WaitlistPage() {
         <div className="fixed inset-0 sm:inset-y-0 sm:right-0 sm:left-auto w-full sm:w-[400px] border-l shadow-2xl z-[60] transform transition-transform duration-300 flex flex-col" style={{ background: 'rgba(252,246,237,0.98)', borderColor: '#c4956a' }}>
           <div className="px-4 sm:px-6 py-4 flex items-center justify-between border-b" style={{ borderColor: '#c4956a' }}>
             <h2 className="text-lg font-bold text-black tracking-tight">{t("waitlist_registration")}</h2>
-            <button onClick={() => setIsCreating(false)} className="p-1.5 border-2 border-red-400 text-red-500 hover:bg-red-50 rounded-lg transition-colors">
+            <button onClick={() => setIsCreating(false)} className="p-1.5 border-2 border-red-400 text-red-500 hover:bg-red-50 rounded-lg transition-colors cursor-pointer">
               <X className="h-4 w-4" />
             </button>
           </div>
