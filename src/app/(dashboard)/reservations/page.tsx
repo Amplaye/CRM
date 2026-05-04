@@ -322,6 +322,7 @@ export default function ReservationsPage() {
       const guestPhone = formData.get("guestPhone") as string;
       const dateValue = formData.get("date") as string;
       const timeValue = formData.get("time") as string;
+      const notesValue = (formData.get("notes") as string) || "";
       const tableNames = pickedTableObjs.map(x => x.name).join(', ');
       const zoneFromTables = (pickedTableObjs[0] as any)?.zone as 'inside' | 'outside' | undefined;
       if (guestPhone) {
@@ -332,6 +333,7 @@ export default function ReservationsPage() {
           guestName,
           zone: zoneFromTables ?? null,
           tableNames,
+          notes: notesValue,
           language,
         });
         fetch("/api/send-whatsapp", {
@@ -350,6 +352,7 @@ export default function ReservationsPage() {
         guestPhone,
         zone: zoneFromTables ?? null,
         tableNames,
+        notes: notesValue,
       });
       fetch("/api/send-whatsapp", {
         method: "POST",
