@@ -143,8 +143,14 @@ export const TenantProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
+  const ctxValue = useMemo(
+    () => ({ activeTenant, activeRole, globalRole, availableTenants, switchTenant, refreshActiveTenant, loading }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [activeTenant, activeRole, globalRole, availableTenants, loading]
+  );
+
   return (
-    <TenantContext.Provider value={{ activeTenant, activeRole, globalRole, availableTenants, switchTenant, refreshActiveTenant, loading }}>
+    <TenantContext.Provider value={ctxValue}>
       {children}
     </TenantContext.Provider>
   );

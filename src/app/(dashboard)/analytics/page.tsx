@@ -180,34 +180,37 @@ export default function AnalyticsPage() {
   const [waitlist, setWaitlist] = useState<WaitlistRow[]>([]);
   const [conversations, setConversations] = useState<ConversationRow[]>([]);
   const [incidents, setIncidents] = useState<IncidentRow[]>([]);
-  const [loading, setLoading] = useState(true);
+  // initialLoading = first paint only; subsequent fetches keep showing old
+  // numbers so the page never "flashes" to placeholders while we refresh.
+  const [initialLoading, setInitialLoading] = useState(true);
 
   // Mounted flag — prevents hydration mismatch from Date()-derived values
   // and ensures Recharts containers measure non-zero dimensions before mount.
   const [mounted, setMounted] = useState(false);
   useEffect(() => { setMounted(true); }, []);
 
+  const tenantId = tenant?.id ?? null;
+
   /* Fetch all data for the active tenant + range. The only filter column
      used is reservations.date (YYYY-MM-DD) and created_at for waitlist,
      conversations, incidents — consistent across every KPI/chart. */
   useEffect(() => {
-    if (!tenant) return;
+    if (!tenantId) return;
+    let cancelled = false;
     const supabase = createClient();
     const { startDate, endDate } = rangeBounds(range);
 
     const fetchAll = async () => {
-      setLoading(true);
-
       let resQ = supabase
         .from("reservations")
         .select("id, date, time, party_size, status, source, cancellation_source, noshow_warning_responded, created_at")
-        .eq("tenant_id", tenant.id);
+        .eq("tenant_id", tenantId);
       if (startDate && endDate) resQ = resQ.gte("date", startDate).lte("date", endDate);
 
       let wlQ = supabase
         .from("waitlist_entries")
         .select("id, status, party_size, created_at")
-        .eq("tenant_id", tenant.id);
+        .eq("tenant_id", tenantId);
       if (startDate && endDate) {
         wlQ = wlQ.gte("created_at", `${startDate}T00:00:00`).lte("created_at", `${endDate}T23:59:59`);
       }
@@ -215,7 +218,7 @@ export default function AnalyticsPage() {
       let convQ = supabase
         .from("conversations")
         .select("id, channel, status, sentiment, escalation_flag, created_at")
-        .eq("tenant_id", tenant.id);
+        .eq("tenant_id", tenantId);
       if (startDate && endDate) {
         convQ = convQ.gte("created_at", `${startDate}T00:00:00`).lte("created_at", `${endDate}T23:59:59`);
       }
@@ -223,22 +226,24 @@ export default function AnalyticsPage() {
       let incQ = supabase
         .from("incidents")
         .select("id, type, status, severity, created_at")
-        .eq("tenant_id", tenant.id);
+        .eq("tenant_id", tenantId);
       if (startDate && endDate) {
         incQ = incQ.gte("created_at", `${startDate}T00:00:00`).lte("created_at", `${endDate}T23:59:59`);
       }
 
       const [resData, wlData, convData, incData] = await Promise.all([resQ, wlQ, convQ, incQ]);
+      if (cancelled) return;
 
       setReservations((resData.data as ReservationRow[] | null) || []);
       setWaitlist((wlData.data as WaitlistRow[] | null) || []);
       setConversations((convData.data as ConversationRow[] | null) || []);
       setIncidents((incData.data as IncidentRow[] | null) || []);
-      setLoading(false);
+      setInitialLoading(false);
     };
 
     fetchAll();
-  }, [tenant, range]);
+    return () => { cancelled = true; };
+  }, [tenantId, range]);
 
   /* ──────────────────────────────────────────────────────────
      KPI computation (all reactive to `range`)
@@ -360,7 +365,7 @@ export default function AnalyticsPage() {
       chartData,
       avgSpend,
     };
-  }, [reservations, waitlist, conversations, incidents, tenant, range]);
+  }, [reservations, waitlist, conversations, incidents, tenant?.settings, range]);
 
   /* ──────────── render ──────────── */
 
@@ -550,7 +555,7 @@ export default function AnalyticsPage() {
             </span>
           </div>
           <div className="h-80">
-            {!mounted || loading ? (
+            {!mounted || initialLoading ? (
               <div className="h-full flex items-center justify-center text-sm text-black/60">…</div>
             ) : kpis.chartData.length === 0 ? (
               <div className="h-full flex items-center justify-center text-sm text-black/60">
@@ -610,7 +615,7 @@ export default function AnalyticsPage() {
             </span>
           </div>
           <div className="h-80">
-            {!mounted || loading ? (
+            {!mounted || initialLoading ? (
               <div className="h-full flex items-center justify-center text-sm text-black/60">…</div>
             ) : kpis.chartData.length === 0 ? (
               <div className="h-full flex items-center justify-center text-sm text-black/60">
