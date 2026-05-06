@@ -316,6 +316,24 @@ export async function PUT(request: Request) {
       updates.notes = updates.notes ? `${updates.notes} — ${reviewNote}` : reviewNote;
     }
 
+    // Inverse: if a large-group reservation that was escalated/pending becomes
+    // small enough (<7), auto-promote it to confirmed and strip the
+    // "GRUPO ... — REVISAR" review note that was added on the way up.
+    const droppedBelowLargeGroup =
+      newPartySize < 7 &&
+      existing.party_size >= 7 &&
+      (existing.status === 'escalated' || existing.status === 'pending_confirmation');
+    if (droppedBelowLargeGroup && !becameLargeGroup) {
+      updates.status = 'confirmed';
+      const cleaned = (updates.notes ?? existing.notes ?? '')
+        .replace(/\s*—?\s*GRUPO\s+MODIFICADO\s+A\s+\d+\s+PERSONAS\s+—\s+REVISAR/gi, '')
+        .replace(/\s*—?\s*GRUPO\s+GRANDE\s+—?\s*REVISAR/gi, '')
+        .replace(/\s+—\s+/g, ' — ')
+        .replace(/^[\s.—]+|[\s.—]+$/g, '')
+        .trim();
+      updates.notes = cleaned;
+    }
+
     // Update the reservation
     const { error: updateErr } = await supabase
       .from('reservations')
