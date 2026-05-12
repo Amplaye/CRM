@@ -21,12 +21,15 @@ const SB_PROJECT_REF = process.env.SB_PROJECT_REF || 'azhlnybiqlkbhbboyvud';
 const SB_MGMT_TOKEN = process.env.SUPABASE_MGMT_TOKEN || '';
 const AI_SECRET = process.env.AI_WEBHOOK_SECRET || '';
 const TENANT_PICNIC = process.env.PICNIC_TENANT_ID || '626547ff-bc44-4f35-8f42-0e97f1dcf0d5';
+// Real tenant_api_keys row, used to verify /api/webhooks Bearer auth post-1.4.
+const SMOKE_API_KEY = process.env.SMOKE_API_KEY || '';
 
 // Pre-flight: tutti i secret runtime devono essere passati via env.
 for (const [k, v] of Object.entries({
   N8N_API_KEY,
   SUPABASE_MGMT_TOKEN: SB_MGMT_TOKEN,
   AI_WEBHOOK_SECRET: AI_SECRET,
+  SMOKE_API_KEY,
 })) {
   if (!v) {
     console.error(`[smoke] missing env ${k}. Set it (e.g. via vercel env pull) and retry.`);
@@ -211,11 +214,11 @@ async function test04() {
 // -------- 0.5: tenant API key lookup --------
 async function test05() {
   try {
-    // (a) legacy bearer-UUID → atteso !401
+    // (a) real api-key (tenant_api_keys row) → atteso !401
     const r1 = await fetch(`${CRM_URL}/api/webhooks`, {
       method: 'POST',
       headers: {
-        Authorization: `Bearer ${TENANT_PICNIC}`,
+        Authorization: `Bearer ${SMOKE_API_KEY}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
@@ -240,9 +243,9 @@ async function test05() {
 
     const ok = r1.status !== 401 && r2.status === 401;
     if (!ok) {
-      record('0.5', 'api-key lookup', false, `legacy=${r1.status} invalid=${r2.status}`);
+      record('0.5', 'api-key lookup', false, `real=${r1.status} invalid=${r2.status}`);
     } else {
-      record('0.5', 'api-key lookup', true, `legacy=${r1.status} invalid=401`);
+      record('0.5', 'api-key lookup', true, `real=${r1.status} invalid=401`);
     }
 
     // Cleanup webhook_events smoke
