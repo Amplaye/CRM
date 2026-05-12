@@ -40,7 +40,14 @@ export async function POST(request: Request) {
     // The error string can come either at the top of the body OR nested under
     // context.error (the n8n workflows wrap most failures in context).
     const ctxErr = (context && typeof context === 'object') ? (context as any).error : '';
-    const errMsg = String(error || ctxErr || '').toLowerCase();
+    // Some n8n wrappers pass the rejection reason as `context.reason` instead of
+    // `context.error` (e.g. closing-time / before-opening / outside-hours rejections).
+    // Match against both so business-rule rejections don't page the owner.
+    const ctxReason = (context && typeof context === 'object') ? (context as any).reason : '';
+    const errMsg = String(error || ctxErr || ctxReason || '').toLowerCase();
+    // Step-level marker also indicates a deterministic rejection path (e.g.
+    // `book.rejected_closing_time`, `modify.rejected_closing_time`).
+    const stepLower = String(step || '').toLowerCase();
     const isUserCase = [
       'no active reservation found',
       'no se ha encontrado',
@@ -55,7 +62,9 @@ export async function POST(request: Request) {
       'no_tables',
       'outside_hours',
       'closed_day',
-    ].some((m) => errMsg.includes(m));
+      'closing_time',
+      'before_opening',
+    ].some((m) => errMsg.includes(m) || stepLower.includes(m));
 
     const severity: SystemLogSeverity = isUserCase
       ? 'low'
