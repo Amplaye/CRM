@@ -12,35 +12,15 @@ import {
   getBookingAction,
   type OpeningHours,
 } from '@/lib/restaurant-rules';
-
-const WEEKDAYS_ES = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
-
-function findNextOpenDay(openingHours: OpeningHours, fromDate: string, maxLookahead = 7) {
-  const base = new Date(fromDate + 'T12:00:00');
-  for (let i = 1; i <= maxLookahead; i++) {
-    const d = new Date(base);
-    d.setDate(d.getDate() + i);
-    const dow = d.getDay();
-    const slots = openingHours[String(dow)] || [];
-    if (slots.length > 0) {
-      return { date: d.toISOString().slice(0, 10), weekday: WEEKDAYS_ES[dow] };
-    }
-  }
-  return null;
-}
-
-function timeToMinutes(time: string): number {
-  const [h, m] = time.split(':').map(Number);
-  return h * 60 + m;
-}
-
-function rangesOverlap(startA: string, endA: string, startB: string, endB: string): boolean {
-  const a0 = timeToMinutes(startA);
-  const a1 = timeToMinutes(endA);
-  const b0 = timeToMinutes(startB);
-  const b1 = timeToMinutes(endB);
-  return a0 < b1 && b0 < a1;
-}
+import {
+  isDate,
+  isTime,
+  isE164,
+  normalizeZone,
+  nowInCanary,
+  checkPast,
+  checkOpeningHours,
+} from '@/lib/booking-validation';
 
 export async function POST(request: Request) {
   const unauth = assertAiSecret(request);
@@ -53,12 +33,10 @@ export async function POST(request: Request) {
     }
 
     // Date/time format validation — avoid garbage reaching downstream SQL.
-    const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
-    const TIME_RE = /^\d{2}:\d{2}$/;
-    if (!DATE_RE.test(payload.date)) {
+    if (!isDate(payload.date)) {
       return NextResponse.json({ success: false, error: 'date must be YYYY-MM-DD' }, { status: 400 });
     }
-    if (!TIME_RE.test(payload.time)) {
+    if (!isTime(payload.time)) {
       return NextResponse.json({ success: false, error: 'time must be HH:MM' }, { status: 400 });
     }
 
@@ -66,34 +44,27 @@ export async function POST(request: Request) {
     // this client-side, but the API must also refuse so a malformed tool call
     // can't create yesterday's reservation (or today's 20:00 booking at 22:00)
     // and silently pollute analytics + no-show workflows.
-    const _canaryNow = new Date(new Date().toLocaleString('en-US', { timeZone: 'Atlantic/Canary' }));
-    const _canaryToday = _canaryNow.getFullYear() + '-' + String(_canaryNow.getMonth() + 1).padStart(2, '0') + '-' + String(_canaryNow.getDate()).padStart(2, '0');
-    if (payload.date < _canaryToday) {
+    const _canary = nowInCanary();
+    const _pastKind = checkPast(payload.date, payload.time, _canary.todayYmd, _canary.hours, _canary.minutes);
+    if (_pastKind === 'past_date') {
       return NextResponse.json({
         success: false,
         reason: 'past_date',
         message: `No se puede reservar para una fecha pasada (${payload.date}). ¿Para qué día quieres reservar?`,
       }, { status: 409 });
     }
-    if (payload.date === _canaryToday) {
-      const [_ph, _pm] = payload.time.split(':').map(Number);
-      if (Number.isFinite(_ph) && Number.isFinite(_pm)) {
-        const _reqMin = _ph * 60 + _pm;
-        const _nowMin = _canaryNow.getHours() * 60 + _canaryNow.getMinutes();
-        if (_reqMin <= _nowMin) {
-          return NextResponse.json({
-            success: false,
-            reason: 'past_time',
-            message: `A las ${payload.time} de hoy ya ha pasado. ¿Para qué hora (futura) quieres reservar?`,
-          }, { status: 409 });
-        }
-      }
+    if (_pastKind === 'past_time') {
+      return NextResponse.json({
+        success: false,
+        reason: 'past_time',
+        message: `A las ${payload.time} de hoy ya ha pasado. ¿Para qué hora (futura) quieres reservar?`,
+      }, { status: 409 });
     }
 
     // E.164 phone validation — optional leading "+", 7-15 digits, first non-zero
     if (payload.guest_phone !== undefined && payload.guest_phone !== null) {
       const phoneStr = String(payload.guest_phone).trim();
-      if (phoneStr.length > 0 && !/^\+?[1-9]\d{6,14}$/.test(phoneStr)) {
+      if (phoneStr.length > 0 && !isE164(phoneStr)) {
         return NextResponse.json(
           { success: false, error: "Invalid guest_phone format — expected E.164 (e.g. +34612345678)" },
           { status: 400 }
@@ -118,30 +89,20 @@ export async function POST(request: Request) {
         .eq('id', payload.tenant_id)
         .maybeSingle();
       const openingHours: OpeningHours = ((tenantRow?.settings as unknown) as { opening_hours?: OpeningHours })?.opening_hours || {};
-      const dow = new Date(payload.date + 'T12:00:00').getDay();
-      const hoursToday = openingHours[String(dow)] || [];
-      if (hoursToday.length === 0) {
-        const nextOpen = findNextOpenDay(openingHours, payload.date);
-        const nextLabel = nextOpen ? ` Abrimos el ${nextOpen.weekday}.` : '';
+      const ohResult = checkOpeningHours(payload.date, payload.time, openingHours);
+      if (!ohResult.ok && ohResult.reason === 'closed_day') {
+        const nextLabel = ohResult.nextOpen ? ` Abrimos el ${ohResult.nextOpen.weekday}.` : '';
         return NextResponse.json({
           success: false,
           reason: 'closed_day',
           message: `El restaurante está cerrado el ${payload.date}.${nextLabel} ¿Quieres reservar para otro día?`,
         }, { status: 409 });
       }
-      const [rh, rm] = payload.time.split(':').map(Number);
-      const reqMin = rh * 60 + rm;
-      const inAnySlot = hoursToday.some((s) => {
-        const [oh, om] = s.open.split(':').map(Number);
-        const [ch, cm] = s.close.split(':').map(Number);
-        return reqMin >= oh * 60 + om && reqMin <= ch * 60 + cm;
-      });
-      if (!inAnySlot) {
-        const list = hoursToday.map((s) => `${s.open}-${s.close}`).join(', ');
+      if (!ohResult.ok && ohResult.reason === 'outside_hours') {
         return NextResponse.json({
           success: false,
           reason: 'outside_hours',
-          message: `A las ${payload.time} el restaurante está cerrado. Ese día abrimos: ${list}. ¿Quieres cambiar la hora?`,
+          message: `A las ${payload.time} el restaurante está cerrado. Ese día abrimos: ${ohResult.hoursToday}. ¿Quieres cambiar la hora?`,
         }, { status: 409 });
       }
     }
@@ -261,14 +222,7 @@ export async function POST(request: Request) {
 
     if (tablesErr) throw tablesErr;
 
-    // Normalize zone preference: accept inside/outside, fuera/dentro, etc.
-    function normalizeZone(z: any): 'inside' | 'outside' | null {
-      if (!z || typeof z !== 'string') return null;
-      const v = z.toLowerCase().trim();
-      if (v.includes('inside') || v.includes('interior') || v.includes('dentro') || v.includes('interno')) return 'inside';
-      if (v.includes('outside') || v.includes('exterior') || v.includes('fuera') || v.includes('terraza') || v.includes('terrazza') || v.includes('outdoor') || v === 'out') return 'outside';
-      return null;
-    }
+    // Normalize zone preference (accepts inside/outside, fuera/dentro, etc.)
     const zonePref = normalizeZone((payload as any).zone || (payload as any).zone_preference);
     const zoneNote = zonePref ? `Prefiere ${zonePref === 'inside' ? 'interior' : 'exterior'}` : '';
 
