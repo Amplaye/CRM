@@ -562,3 +562,40 @@ create table if not exists public.bali_messages (
 alter table public.bali_messages enable row level security;
 create index if not exists idx_bali_messages_conv_created
   on public.bali_messages (conversation_id, created_at);
+
+-- ============================================
+-- API KEY ROTATION (added 2026-05-12)
+-- Replaces the cleartext "Bearer {tenant_uuid}" pattern. Routes hash the
+-- bearer with sha256 and look it up in tenant_api_keys. Legacy callers
+-- still work because we seed one row per tenant with key = tenant_id.
+-- ============================================
+create extension if not exists pgcrypto;
+
+create table if not exists public.tenant_api_keys (
+  id uuid default uuid_generate_v4() primary key,
+  tenant_id uuid not null references public.tenants(id) on delete cascade,
+  key_hash text not null unique,
+  label text not null default '',
+  scope text not null default 'webhooks' check (scope in ('webhooks','admin','ai_secret','readonly')),
+  created_at timestamptz not null default now(),
+  last_used_at timestamptz,
+  revoked_at timestamptz
+);
+alter table public.tenant_api_keys enable row level security;
+create index if not exists idx_tenant_api_keys_tenant on public.tenant_api_keys(tenant_id);
+create index if not exists idx_tenant_api_keys_active on public.tenant_api_keys(key_hash) where revoked_at is null;
+
+-- Legacy compat seed — sha256(tenant_id) so existing "Bearer {tenant_id}" callers keep working.
+insert into public.tenant_api_keys (tenant_id, key_hash, label, scope)
+select id, encode(digest(id::text, 'sha256'), 'hex'), 'legacy-bearer-tenant-id', 'webhooks'
+from public.tenants
+on conflict (key_hash) do nothing;
+
+-- Helper for routes: lookup tenant_id by hashed api key.
+create or replace function public.resolve_tenant_api_key(p_key_hash text)
+returns uuid as $$
+  select tenant_id from public.tenant_api_keys
+  where key_hash = p_key_hash and revoked_at is null
+  limit 1;
+$$ language sql security definer stable;
+revoke execute on function public.resolve_tenant_api_key(text) from public, anon, authenticated;

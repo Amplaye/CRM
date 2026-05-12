@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createServiceRoleClient } from "@/lib/supabase/server";
 type WebhookStatus = "processing" | "success" | "failed";
 import { createReservationAction, updateReservationDetailsAction } from "@/app/actions/reservations";
+import { resolveTenantFromApiKey } from "@/lib/tenant-auth";
 
 /**
  * Main ingestion gateway for AI Agents (Bland AI, WhatsApp NLP, etc).
@@ -14,10 +15,13 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Missing or invalid Authorization header" }, { status: 401 });
     }
 
-    // For demo/prototype purposes, the Bearer token ACTS as the Tenant ID.
-    // In production, you would lookup the API Key in a `tenant_api_keys` table to get the actual tenant_id.
+    // Resolve API key → tenant via tenant_api_keys (sha256). Falls back to
+    // accepting a bare tenant UUID for legacy callers; both seeded at migration.
     const apiKey = authHeader.split("Bearer ")[1];
-    const tenantId = apiKey;
+    const tenantId = await resolveTenantFromApiKey(apiKey);
+    if (!tenantId) {
+      return NextResponse.json({ error: "Invalid API key" }, { status: 401 });
+    }
 
     const body = await req.json();
     const { idempotency_key, type, payload, handoff_to_human } = body;
