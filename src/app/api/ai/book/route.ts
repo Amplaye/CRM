@@ -80,14 +80,35 @@ export async function POST(request: Request) {
 
     const supabase = createServiceRoleClient();
 
-    // 0. Opening-hours guard — reject bookings on closed days or outside opening slots.
-    // Same source of truth as /api/ai/availability: tenants.settings.opening_hours.
-    {
-      const { data: tenantRow } = await supabase
+    // 0–2. Three independent reads up front — tenant settings (for opening
+    // hours), idempotency check, and existing-guest lookup. Run in parallel
+    // (~10ms wall-clock vs ~30ms sequential). Each result still falls back
+    // to its sequential validation branch below.
+    const [tenantRes, idempotencyRes, existingGuestsRes] = await Promise.all([
+      supabase
         .from('tenants')
         .select('settings')
         .eq('id', payload.tenant_id)
-        .maybeSingle();
+        .maybeSingle(),
+      supabase
+        .from('audit_events')
+        .select('entity_id')
+        .eq('tenant_id', payload.tenant_id)
+        .eq('idempotency_key', payload.idempotency_key)
+        .eq('action', 'create_reservation')
+        .limit(1),
+      supabase
+        .from('guests')
+        .select('id, name')
+        .eq('tenant_id', payload.tenant_id)
+        .eq('phone', payload.guest_phone)
+        .limit(1),
+    ]);
+
+    // 0. Opening-hours guard — reject bookings on closed days or outside opening slots.
+    // Same source of truth as /api/ai/availability: tenants.settings.opening_hours.
+    {
+      const tenantRow = tenantRes.data;
       const openingHours: OpeningHours = ((tenantRow?.settings as unknown) as { opening_hours?: OpeningHours })?.opening_hours || {};
       const ohResult = checkOpeningHours(payload.date, payload.time, openingHours);
       if (!ohResult.ok && ohResult.reason === 'closed_day') {
@@ -108,13 +129,7 @@ export async function POST(request: Request) {
     }
 
     // 1. Idempotency Check
-    const { data: existingChecks } = await supabase
-       .from('audit_events')
-       .select('entity_id')
-       .eq('tenant_id', payload.tenant_id)
-       .eq('idempotency_key', payload.idempotency_key)
-       .eq('action', 'create_reservation')
-       .limit(1);
+    const existingChecks = idempotencyRes.data;
 
     if (existingChecks && existingChecks.length > 0) {
        return NextResponse.json({
@@ -126,12 +141,7 @@ export async function POST(request: Request) {
 
     // 2. Guest Verification / Creation
     let guestId: string;
-    const { data: existingGuests } = await supabase
-      .from('guests')
-      .select('id, name')
-      .eq('tenant_id', payload.tenant_id)
-      .eq('phone', payload.guest_phone)
-      .limit(1);
+    const existingGuests = existingGuestsRes.data;
 
     if (existingGuests && existingGuests.length > 0) {
        guestId = existingGuests[0].id;
