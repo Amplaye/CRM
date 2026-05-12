@@ -172,7 +172,7 @@ export async function POST(request: Request) {
     // reservation within ±3 days of the requested date. If so, return 409
     // with enough detail for the bot to ask "new booking or modification?".
     // The bot can re-send with `force_new: true` if the customer confirms.
-    if (!(payload as any).force_new) {
+    if (!payload.force_new) {
       const reqDate = new Date(payload.date + 'T12:00:00');
       const winStart = new Date(reqDate); winStart.setDate(winStart.getDate() - 3);
       const winEnd = new Date(reqDate); winEnd.setDate(winEnd.getDate() + 3);
@@ -223,7 +223,7 @@ export async function POST(request: Request) {
     if (tablesErr) throw tablesErr;
 
     // Normalize zone preference (accepts inside/outside, fuera/dentro, etc.)
-    const zonePref = normalizeZone((payload as any).zone || (payload as any).zone_preference);
+    const zonePref = normalizeZone(payload.zone || payload.zone_preference);
     const zoneNote = zonePref ? `Prefiere ${zonePref === 'inside' ? 'interior' : 'exterior'}` : '';
 
     // Get existing reservations that overlap
@@ -351,7 +351,7 @@ export async function POST(request: Request) {
         party_size: payload.party_size,
         status: 'escalated',
         source: payload.source || 'ai_voice',
-        from_web: (payload as any).from_web === true,
+        from_web: payload.from_web === true,
         created_by_type: 'ai',
         notes: zoneNote
           ? `${payload.notes || ''}${payload.notes ? ' — ' : ''}${zoneNote}`.trim()
@@ -402,16 +402,16 @@ export async function POST(request: Request) {
     }
 
     // 6. Normal booking (1-6 people) - create reservation then atomically assign tables
-    const bookingLang = (payload as any).language;
+    const bookingLang = payload.language;
     const reservation: Record<string, any> = {
        tenant_id: payload.tenant_id,
        guest_id: guestId,
        date: payload.date,
        time: payload.time,
        party_size: payload.party_size,
-       status: (payload as any).status || 'confirmed',
+       status: payload.status || 'confirmed',
        source: payload.source || 'ai_voice',
-       from_web: (payload as any).from_web === true,
+       from_web: payload.from_web === true,
        created_by_type: 'ai',
        // Don't auto-add "Prefiere X" here — the assigned tables already
        // encode the zone. The marker is only useful for waitlist/escalated

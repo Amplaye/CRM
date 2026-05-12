@@ -32,6 +32,7 @@ interface ModifyPayload {
   current_time?: string; // HH:MM
   current_party_size?: number;
   idempotency_key?: string;
+  notes_mode?: 'append' | 'replace';
 }
 
 export async function PUT(request: Request) {
@@ -273,7 +274,7 @@ export async function PUT(request: Request) {
       //   - 'replace' (chat default): the chat state machine already shows the
       //     full notes back to the LLM, so what comes in is the full intended set.
       //   Both modes always preserve the "Prefiere interior/exterior" marker.
-      const mode = ((payload as any).notes_mode === 'append') ? 'append' : 'replace';
+      const mode = (payload.notes_mode === 'append') ? 'append' : 'replace';
       const incoming = (payload.notes || '').trim();
       const existingNotes = existing.notes ? String(existing.notes).trim() : '';
       const zoneRe = /Prefiere\s+(interior|exterior)/i;

@@ -45,7 +45,7 @@ export async function POST(request: Request) {
       .select('settings')
       .eq('id', tenant_id)
       .maybeSingle();
-    const ownerPhoneRaw = ((tenantRow?.settings as any)?.owner_phone) || '+34641790137';
+    const ownerPhoneRaw = (((tenantRow?.settings as unknown) as { owner_phone?: string })?.owner_phone) || '+34641790137';
     const ownerPhone = ownerPhoneRaw.startsWith('whatsapp:') ? ownerPhoneRaw : `whatsapp:${ownerPhoneRaw}`;
 
     // Expire stale offers first (no reply within TTL) so their tables can be

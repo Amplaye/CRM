@@ -245,9 +245,17 @@ export interface CreateBookingRequest {
   time: string; // HH:mm
   party_size: number;
   source: "ai_voice" | "ai_chat";
-  idempotency_key: string; 
+  idempotency_key: string;
   notes?: string;
   linked_conversation_id?: string;
+  // Bot-supplied extras (previously read via `(payload as any).…`).
+  // All optional because some callers omit them.
+  force_new?: boolean;                    // re-book after the ±3-day duplicate guard
+  zone?: 'inside' | 'outside' | string;   // free-text accepted; normalised server-side
+  zone_preference?: 'inside' | 'outside' | string;
+  from_web?: boolean;                     // distinguishes Retell web-call from PSTN
+  language?: 'es' | 'it' | 'en' | 'de';   // pinned per-reservation for reminder copy
+  status?: ReservationStatus;             // override (e.g. when staff pre-confirms)
 }
 
 export interface ModifyBookingRequest {
@@ -258,6 +266,8 @@ export interface ModifyBookingRequest {
   party_size?: number;
   status?: ReservationStatus;
   notes?: string;
+  // Append-vs-replace control for the notes field. Defaults to replace.
+  notes_mode?: 'append' | 'replace';
 }
 
 export interface WebhookIngestionRequest {

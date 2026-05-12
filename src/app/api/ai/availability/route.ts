@@ -82,7 +82,7 @@ export async function GET(request: Request) {
       .maybeSingle();
     if (tenantErr) throw tenantErr;
 
-    const openingHours: OpeningHours = (tenantRow?.settings as any)?.opening_hours || {};
+    const openingHours: OpeningHours = ((tenantRow?.settings as unknown) as { opening_hours?: OpeningHours })?.opening_hours || {};
     const hoursToday = openingHours[String(dayOfWeek)] || [];
     const slots = getTimeSlots(dayOfWeek, openingHours);
 
