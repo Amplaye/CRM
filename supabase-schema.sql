@@ -79,7 +79,16 @@ create table public.reservations (
   notes text not null default '',
   allergies text[],
   tags text[],
-  linked_conversation_id uuid,
+  linked_conversation_id uuid references public.conversations(id) on delete set null,
+  -- Generated channel for target-architecture compatibility: maps the
+  -- existing 'source' enum onto the channel taxonomy (whatsapp/voice/web).
+  channel text generated always as (
+    case
+      when source = 'ai_chat' then 'whatsapp'
+      when source = 'ai_voice' then 'voice'
+      else 'web'
+    end
+  ) stored,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
@@ -222,6 +231,14 @@ create index idx_knowledge_tenant on public.knowledge_articles(tenant_id);
 create index idx_automations_tenant on public.automation_rules(tenant_id);
 create index idx_audit_events_tenant on public.audit_events(tenant_id);
 create index idx_audit_events_idempotency on public.audit_events(idempotency_key);
+
+-- Hot-path indexes for the AI ingestion + admin views (Tier 4.10).
+create index if not exists idx_conversations_tenant_guest_channel_status
+  on public.conversations(tenant_id, guest_id, channel, status);
+create index if not exists idx_audit_events_tenant_action_created
+  on public.audit_events(tenant_id, action, created_at desc);
+create index if not exists idx_system_logs_tenant_severity_created
+  on public.system_logs(tenant_id, severity, created_at desc);
 
 -- ============================================
 -- ROW LEVEL SECURITY (RLS)
