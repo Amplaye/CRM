@@ -162,6 +162,33 @@ body {
   }
 }
 
+/* Table-row variant: position/overflow/transform and the 130%-wide radial
+ * pseudo-elements break table-fixed column geometry on <tr>. Replace with a
+ * cell-safe background pulse that paints behind the row without disturbing
+ * cell widths. */
+tr.is-new-row {
+  position: static;
+  overflow: visible;
+  z-index: auto;
+  animation: new-row-tr-flash 2.4s ease-out 1 both;
+}
+tr.is-new-row::before,
+tr.is-new-row::after {
+  display: none;
+}
+@keyframes new-row-tr-flash {
+  0%   { background-color: rgba(244, 85, 23, 0.22); }
+  18%  { background-color: rgba(244, 85, 23, 0.28); }
+  45%  { background-color: rgba(196, 149, 106, 0.12); }
+  100% { background-color: transparent; }
+}
+@media (prefers-reduced-motion: reduce) {
+  tr.is-new-row {
+    animation: none;
+    background-color: rgba(196, 149, 106, 0.10);
+  }
+}
+
 /* Per-item entrance for newly arrived notifications in the topbar dropdown.
  * Each notification animates independently (slide-in + terracotta wash + border
  * flash), so a burst of N notifications gives N distinct pulses, not one
