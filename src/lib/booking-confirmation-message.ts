@@ -49,5 +49,5 @@ export function buildOwnerNewBookingMessage(params: {
   const zoneLine = params.zone ? `\n📍 ${params.zone === 'inside' ? 'Interior' : 'Exterior'}` : '';
   const tablesLine = params.tableNames ? `\n🪑 ${params.tableNames}` : '';
   const notesLine = params.notes && params.notes.trim() ? `\n🗒️ ${params.notes.trim()}` : '';
-  return `📅 NUEVA RESERVA (manual)\n\n${params.guestName || ''}\n${params.date} ${params.time}\n${params.partySize} personas${tablesLine}${zoneLine}${notesLine}\nTel: ${params.guestPhone || '—'}`;
+  return `📅 NUEVA RESERVA (manual)\n\n${params.guestName || ''}\n${formatDateLong(params.date, 'es')} ${params.time}\n${params.partySize} personas${tablesLine}${zoneLine}${notesLine}\nTel: ${params.guestPhone || '—'}`;
 }
