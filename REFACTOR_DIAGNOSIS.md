@@ -1,11 +1,31 @@
 # REFACTOR_DIAGNOSIS — Restaurante Picnic
 
-> **🟢 Update 2026-05-12 15:25** — Step 1 del rollout completato in questo branch:
-> - **Schema sync**: aggiunte al file [`supabase-schema.sql`](supabase-schema.sql) le 10 tabelle che esistevano nella DB live ma non nel DDL (`bot_sessions`, `conversation_audits`, `system_logs`, `pending_recaps`, `restaurant_tables`, `reservation_tables`, `webhook_events`, `client_notes`, `bali_conversations`, `bali_messages`) + 16 indici + RLS enable. Restore da zero ora funziona.
-> - **Webhook dedup**: [`/api/webhooks/incoming-message`](src/app/api/webhooks/incoming-message/route.ts) accetta `message_sid` o `idempotency_key` opzionale e droppa duplicati via `audit_events`. Backward-compat: payload senza key passano come prima. Per attivare il dedup serve che n8n includa `message_sid` (il Twilio MessageSid) nel POST.
-> - **Twilio signature verify helper**: nuovo [`src/lib/twilio-signature.ts`](src/lib/twilio-signature.ts), off di default. Attivabile con `TWILIO_VERIFY_SIGNATURE=1` + `TWILIO_AUTH_TOKEN`. Non ancora cablato a route — pronto per quando aggiungiamo un endpoint Twilio-diretto.
-> - **`/api/audit-conversation` chiarito**: NON è una route Next.js. La memoria 6126 (2026-05-12) si riferiva all'endpoint POST esposto dal workflow n8n `Nightly Conversation Audit` (ID `w2J411dX5JcOZZsJ`). Il CRM legge `conversation_audits` solo (dashboard `/conversations`).
-> - **Split di `book/route.ts` (688 LOC) e `modify/route.ts` (616 LOC)**: **rimandato**. Refactor a rischio senza test suite; un errore = prenotazioni rotte in produzione. Prerequisito: scrivere prima una manciata di integration test (happy-path book, modify, cancel, waitlist fallback, manual review 7+). Tracker: vedi §5.2 originale.
+> **🟢 Update 2026-05-12 15:55** — 6 commit di hardening landati su `main`:
+>
+> | # | Commit | Cosa | Rischio | Stato |
+> |---|---|---|---|---|
+> | 1 | `89b3ccd` | Diagnosi + sync schema (10 tabelle) + webhook dedup helper | basso | ✅ in main |
+> | 2 | `5ac0c41` | Vitest + 20 unit test su `restaurant-rules` | nullo | ✅ in main |
+> | 3 | `dccbf12` | Estratti pure helpers da `book/route.ts` + 27 test | basso | ✅ in main |
+> | 4 | `31fadff` | Mirror del refactor in `modify/route.ts` | basso | ✅ in main |
+> | 5 | `4211b9c` | `tenant_api_keys` table + sha256 lookup (legacy fallback) | basso | ✅ in main + DB |
+> | 6 | `e8db63e` | Rimossi tutti i `(payload as any)`, tipi allargati | nullo | ✅ in main |
+> | n8n | live | `Picnic_Chatbot_WhatsApp` ora include `MessageSid` nei 2 POST a `/api/webhooks/incoming-message` → dedup attivo | medio (workflow in prod) | ✅ live, status 200, active=true |
+>
+> **Sintesi quantitativa:**
+> - **0 → 50 unit test** (vitest run, 234ms).
+> - **2 file di pure helper** estratti (`booking-validation.ts`, `tenant-auth.ts`).
+> - **10 tabelle** aggiunte al DDL; 1 nuova tabella creata in DB (`tenant_api_keys`) + 2 righe seed.
+> - **Workflow n8n produzione** modificato (1 set node + 2 code nodes, +103 byte di JS), backup salvato in `picnic_backups/chatbot-pre-message-sid-*`.
+> - `book/route.ts` da 688 a 642 LOC.
+>
+> **Rimasti aperti** (vedi §6 e §7):
+> - Risk #2 (Twilio creds hardcoded in n8n workflow node 7) — modificabile, basso rischio
+> - Risk #4 (state in n8n staticData) — la tabella `bot_sessions` esiste già in DB, manca solo cablare il workflow
+> - Risk #6 (singolo 2000-LOC Code node) — grosso refactor n8n, va con calma
+> - Risk #8 (tenant_id hardcoded in tutti i workflow n8n) — più tenant = più lavoro, su Picnic resta cosmetico
+> - Risk #11 (Twilio Sandbox → WA Cloud API) — operational, serve Meta approval per HSM templates
+> - Split aggressivo di `book/route.ts` e `modify/route.ts` oltre i pure helper — ora i pure helper sono testati, lo split del resto è meno rischioso ma richiede comunque cura
 
 > **TL;DR (IT)** — Il sistema attuale non è un monolite né rispetta i 10 stage del target: l'intelligenza vive in **un singolo workflow n8n** (`Picnic_Chatbot_WhatsApp.json`) costruito intorno a un mega-Code-node che ospita _Parser LLM → JS Controller → Formatter LLM_ in sequenza, mentre il **CRM Next.js** è un'API REST passiva (book/modify/cancel/availability/waitlist) e **Retell** fa STT/LLM/TTS della voce. Mancano: file markdown delle conversazioni, evento `conversation_end`, payload `BookingIntent` con 11 campi, Switch node sull'intent, idempotency sul webhook chat, tabella `bot_config`, tabella `system_logs` (l'indice esiste ma la tabella no!), `restaurant_tables`/`reservation_tables` (referenziate dai workflow ma non nel DDL). Quello che invece c'è ed è buono: separation CRM/n8n, idempotency su book/modify/cancel, RLS multi-tenant, audit_events, sticky language, pending-recovery, bot-pause 60s. La parte più preziosa da estrarre nel refactor è il **prompt del Parser LLM** e il **JS Controller** (circa 2.000 righe di guardie battle-tested).
 
@@ -629,18 +649,18 @@ Sorted by blast-radius.
 
 | # | Risk | Where | Mitigation in refactor |
 |---|---|---|---|
-| 1 | **API key = tenant_id (cleartext, no rotation)** | [`src/app/api/webhooks/route.ts#L19-L20`](src/app/api/webhooks/route.ts) | `tenant_api_keys` table + hashed lookup |
+| 1 | ~~**API key = tenant_id (cleartext, no rotation)**~~ ✅ FIXED 2026-05-12 | [`src/app/api/webhooks/route.ts`](src/app/api/webhooks/route.ts) | `tenant_api_keys` table + sha256 lookup; legacy bearer-UUID still accepted via fallback |
 | 2 | **Twilio creds hardcoded in n8n** | `Picnic_Chatbot_WhatsApp.json` node 7 | Use n8n credentials |
 | 3 | ~~**`system_logs` missing from DDL but indexed**~~ ✅ FIXED 2026-05-12 | [`supabase-schema.sql`](supabase-schema.sql) | DDL added for 10 missing tables |
 | 4 | **State in n8n staticData volatile** | All workflows | Move to `bot_sessions` table |
-| 5 | **Debounce removed → Twilio duplicate webhook = double-processing** | `Picnic_Chatbot_WhatsApp.json` node 3 | ✅ CRM-side dedup added 2026-05-12 via `audit_events.idempotency_key`. n8n must include `message_sid` in POST to activate |
+| 5 | ~~**Debounce removed → Twilio duplicate webhook = double-processing**~~ ✅ FULLY FIXED 2026-05-12 | `Picnic_Chatbot_WhatsApp.json` nodes 3 + 7 | CRM-side dedup via `audit_events.idempotency_key`; n8n workflow updated live to pass `MessageSid` (verified active=true) |
 | 6 | **Single 2000-LOC Code node = single point of bug** | `Picnic_Chatbot_WhatsApp.json` node 4 | Split into Parser/Controller/Formatter nodes |
 | 7 | ~~**No idempotency on `/api/webhooks/incoming-message`**~~ ✅ FIXED 2026-05-12 | [`src/app/api/webhooks/incoming-message/route.ts`](src/app/api/webhooks/incoming-message/route.ts) | Accepts `message_sid`/`idempotency_key`; dedup via `audit_events` |
 | 8 | **Hardcoded tenant_id in every workflow** | All 13 n8n workflows | Move to env / per-workflow var |
-| 9 | **`book/route.ts` 688 LOC** | [`src/app/api/ai/book/route.ts`](src/app/api/ai/book/route.ts) | Split (validator/dedupe/allocator/persister) |
+| 9 | **`book/route.ts` 688 LOC** ⚠️ partial 2026-05-12 (now 642) | [`src/app/api/ai/book/route.ts`](src/app/api/ai/book/route.ts) | Pure validation/opening-hours extracted to [`src/lib/booking-validation.ts`](src/lib/booking-validation.ts) with 27 tests. DB-coupled blocks (guest find-or-create, atomic_book_tables, manual_review path) still inline |
 | 10 | **No Twilio signature verification** | [`src/app/api/webhooks/incoming-message/route.ts`](src/app/api/webhooks/incoming-message/route.ts) | ⚠️ Helper added 2026-05-12 ([`src/lib/twilio-signature.ts`](src/lib/twilio-signature.ts)) but not yet wired — webhook receives JSON from n8n, not Twilio directly. Activate when adding a Twilio-direct endpoint. |
 | 11 | **WhatsApp Sandbox only — no HSM templates** | All outbound | Apply for HSM templates pre-launch |
-| 12 | **Schema file vs live DB drift** | [`supabase-schema.sql`](supabase-schema.sql) | Re-baseline from live DB |
+| 12 | ~~**Schema file vs live DB drift**~~ ✅ FIXED 2026-05-12 | [`supabase-schema.sql`](supabase-schema.sql) | 10 missing tables + `tenant_api_keys` synced |
 
 ---
 
