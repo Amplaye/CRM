@@ -139,7 +139,7 @@ export async function PUT(request: Request) {
           .eq('guest_id', guest.id)
           .gte('date', todayStr)
           .in('status', ['confirmed', 'pending_confirmation', 'escalated', 'seated']);
-        for (const r of resList || []) allActive.push(r as any);
+        for (const r of resList || []) allActive.push(r);
       }
 
       // Score each reservation against the disambiguators. Exact matches on
@@ -366,8 +366,9 @@ export async function PUT(request: Request) {
         .select('table_id, restaurant_tables(zone)')
         .eq('reservation_id', reservationId);
       const zonesSeen = new Set<string>();
-      for (const l of (curLinks || []) as any[]) {
-        const z = l.restaurant_tables?.zone;
+      for (const l of curLinks || []) {
+        const rt = (l as { restaurant_tables?: { zone?: string } | { zone?: string }[] }).restaurant_tables;
+        const z = Array.isArray(rt) ? rt[0]?.zone : rt?.zone;
         if (z === 'inside' || z === 'outside') zonesSeen.add(z);
       }
       if (zonesSeen.size === 1) currentZone = Array.from(zonesSeen)[0] as 'inside' | 'outside';
