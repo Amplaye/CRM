@@ -1,70 +1,105 @@
-# TableFlow AI - Restaurant Operations Hub
+# BaliFlow CRM (`tableflow-ai`)
 
-TableFlow AI is a production-oriented, multi-tenant SaaS CRM and operational dashboard for restaurants using WhatsApp and voice AI agents.
+Multi-tenant restaurant operations dashboard. WhatsApp + voice AI bots ingest
+into the CRM via `/api/ai/*` routes; staff use the Next.js dashboard to
+manage reservations, guests, conversations, and incidents.
 
-## Features Built
-- **Next.js App Router (v15)** + React 19 + TypeScript.
-- **Tailwind CSS v4** with a highly polished custom theme (Terracotta, Olive, and Zinc).
-- **Multi-Tenant Architecture**: Strict Firebase Security Rules enforced at the tenant level.
-- **Role-Based Access Control (RBAC)**: Admins, Owners, Managers, and Hosts.
-- **Robust UI/UX**: Lighter borders, beautiful data visualizations for ROI, interactive slide-over drawers, loading states, and error boundaries.
-- **Waitlist Auto-Matching**: Premium UI for displaying AI-driven guest matching.
-- **Core Operations**: Reservations, Unified Inbox, Guest directories, and Settings.
-- **AI Webhook Support**: Ready to ingest from external AI platforms (Bland AI, Vapi, Retell).
+Live tenant: **Restaurante Picnic** (Las Palmas). Production at
+`https://crm.baliflowagency.com`.
 
-## 1. Prerequisites
-- Node.js (v18+)
-- Firebase CLI (`npm install -g firebase-tools`)
-- Java (Required for Firebase Emulators)
+## Stack
+- Next.js 16 (App Router) + React 19 + TypeScript
+- Tailwind CSS v4
+- Supabase Postgres + RLS (multi-tenant)
+- Vercel deploy (Fluid Compute, Cron, Web Analytics, Speed Insights)
+- n8n workflows on Hostinger drive the bots; CRM is the system of record
+- Retell for voice; Twilio Sandbox WhatsApp for chat
 
-## 2. Running Locally (Emulators)
+## Local dev
 
-This app is configured to run fully offline using the Firebase Emulator Suite for a safe, multi-tenant sandbox.
+Requires Node 20+.
 
-**Step 1. Install Dependencies**
 ```bash
 npm install
+cp .env.local.example .env.local   # populate from credentials.md
+npm run dev                        # http://localhost:3000
+npm test                           # vitest, 56 tests at last commit
+npm run build                      # static analysis + route map
 ```
 
-**Step 2. Start Firebase Emulators in the background**
+Required env vars (all of these are in [the user's `credentials.md`](../.claude/projects/-Users-amplaye/memory/credentials.md)):
+
+```
+NEXT_PUBLIC_SUPABASE_URL
+NEXT_PUBLIC_SUPABASE_ANON_KEY
+SUPABASE_SERVICE_ROLE_KEY
+AI_WEBHOOK_SECRET          # n8n / Retell shared secret
+TWILIO_ACCOUNT_SID
+TWILIO_AUTH_TOKEN
+TWILIO_VERIFY_SIGNATURE    # opt-in: "1" to enforce HMAC on twilio webhooks
+OPENAI_API_KEY             # used by translate-note + conversation-summary
+AI_GATEWAY_API_KEY         # optional: route OpenAI calls via Vercel AI Gateway
+RATE_LIMIT_ENABLED         # opt-in: "1" to enable Supabase-backed rate limit
+N8N_BASE_URL
+N8N_API_KEY
+RETELL_API_KEY
+```
+
+## Smoke test
+
+`scripts/smoke-test.mjs` runs 7 checks (build, tests, n8n workflows alive,
+system_logs clean, webhook dedup, api-key auth, E2E chatbot, availability
+route). Required env: `N8N_API_KEY`, `SUPABASE_MGMT_TOKEN`,
+`AI_WEBHOOK_SECRET`, `SMOKE_API_KEY`.
+
 ```bash
-firebase emulators:start
+node scripts/smoke-test.mjs
 ```
-*Note: The emulators run Auth on 9099 and Firestore on 8080.*
 
-**Step 3. Seed Database**
-In a new terminal window, compile and run the seed script to create demo tenants (PICNIC), users, and data.
-```bash
-npx ts-node scripts/seed.ts
-```
-*(If `ts-node` is missing: `npm i -D ts-node`)*
+The script is idempotent — every fake guest/conversation it creates is
+deleted in cleanup. Should be **the first** thing run before any Picnic
+change.
 
-**Step 4. Start Next.js Development Server**
-```bash
-npm run dev
-```
-Open [http://localhost:3000](http://localhost:3000)
+## Layout
 
-## 3. Deployment (Firebase App Hosting)
+- [`src/app/(dashboard)`](src/app/(dashboard)) — authenticated dashboard
+- [`src/app/api`](src/app/api) — route handlers
+  - `/api/ai/*` — bot ingestion (book, modify, cancel, waitlist, availability)
+  - `/api/webhooks` — generic bearer-auth gateway for AI agents
+  - `/api/webhooks/incoming-message` — Twilio-shaped inbound from n8n
+  - `/api/twilio/delivery-callback` — outbound message delivery status
+  - `/api/admin/*` — platform-admin only (tenant onboarding, api-key rotation,
+    GDPR export+erase)
+  - `/api/conversations/[id]/markdown` — conversation as MD
+- [`src/lib`](src/lib) — shared helpers (booking validation, restaurant rules,
+  ai-auth, admin-auth, cors, rate-limit, conversation-md, openai-base-url, etc.)
+- [`schemas`](schemas) — JSON schemas (BookingIntent for Stage 5 target arch)
+- [`docs`](docs) — ADRs, bot-config reference, audit reports
+- [`scripts`](scripts) — smoke test, n8n cleanup helpers, audit
 
-Next.js apps are perfectly suited for the new Firebase App Hosting or Vercel.
+## Operational docs
 
-1. Init your real Firebase project:
-   ```bash
-   firebase login
-   firebase use --add
-   ```
-2. Deploy Firestore Rules:
-   ```bash
-   firebase deploy --only firestore:rules
-   ```
-3. Deploy Application (Vercel or Firebase App Hosting):
-   - For App Hosting, just connect your GitHub repository to Firebase App Hosting in the Firebase Console.
-   - Set environment variables (`NEXT_PUBLIC_FIREBASE_API_KEY`, etc.) in the console. Do not use the mock `client.ts` placeholders.
+- [`REFACTOR_DIAGNOSIS.md`](REFACTOR_DIAGNOSIS.md) — full risk register +
+  refactor plan, kept in sync with `main`
+- [`docs/INCIDENT_RUNBOOK.md`](docs/INCIDENT_RUNBOOK.md) — when the bot
+  silently breaks at 1 AM
+- [`docs/ONBOARDING_NEW_TENANT.md`](docs/ONBOARDING_NEW_TENANT.md) — clone
+  Picnic for a new restaurant
+- [`docs/bot-config.md`](docs/bot-config.md) — every `tenants.settings.bot_config`
+  key documented
+- [`docs/adr`](docs/adr) — decision records (why n8n, why Retell, etc.)
 
-## 4. Known Next Steps for Production Hardening
-- **Auth UI:** Implement the actual `/login` and `/signup` screens.
-- **Environment Variables:** Replace hardcoded `firebaseConfig` in `client.ts` with `process.env.NEXT_PUBLIC_...` variables.
-- **Webhook Security:** Add HMAC signature verification to `app/api/webhooks/incoming-message/route.ts` to block unauthorized requests.
-- **Pagination:** Implement standard Firestore pagination limits in the `ReservationList.tsx` and `Conversations` views to handle thousands of records.
-- **Global Search Indexing:** Connect Algolia or Typesense to sync Firestore data for real-time, cross-field searching.
+## n8n workflows
+
+Owned + tracked in [`/Users/amplaye/N8N/picnic`](../N8N/picnic), 12 active
+`[Picnic]` workflows. Each workflow's `picnicLoadCfg` bootstrap reads
+`tenants.settings.bot_config` so credentials and policy values live in DB,
+not in workflow JSON.
+
+Backups go in `/Users/amplaye/picnic_backups/` (gitignored). Always
+re-fetch the live workflow before an incremental PUT, otherwise stale
+local exports overwrite live fixes.
+
+## License
+
+Proprietary — internal BaliFlow Agency tooling.
