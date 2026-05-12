@@ -12,6 +12,31 @@ export async function POST(request: Request) {
 
     const supabase = createServiceRoleClient();
 
+    // Idempotency / dedup: when the caller (n8n) provides `message_sid`
+    // (Twilio) or `idempotency_key`, drop duplicate deliveries — Twilio
+    // retries the same MessageSid up to 4 times on 5xx, and removing the
+    // 7-second debounce on 2026-04-29 meant duplicates could append the
+    // same turn twice. Backward-compatible: payloads without a key bypass
+    // the check (same behaviour as before).
+    const dedupKey: string | undefined = payload.message_sid || payload.idempotency_key;
+    if (dedupKey) {
+      const { data: prior } = await supabase
+        .from('audit_events')
+        .select('entity_id')
+        .eq('tenant_id', payload.tenant_id)
+        .eq('idempotency_key', dedupKey)
+        .eq('action', 'ingest_message')
+        .limit(1);
+      if (prior && prior.length > 0) {
+        return NextResponse.json({
+          success: true,
+          message: 'Duplicate delivery — already processed',
+          conversation_id: prior[0].entity_id,
+          action: 'deduped',
+        });
+      }
+    }
+
     // 1. Find or create guest (fuzzy phone match to handle +34xxx vs xxx)
     let guestId: string;
     let guestName = payload.guest_name || "";
@@ -101,6 +126,17 @@ export async function POST(request: Request) {
 
       await supabase.from('conversations').update(updates).eq('id', existing.id);
 
+      if (dedupKey) {
+        await logAuditEvent({
+          tenant_id: payload.tenant_id,
+          action: 'ingest_message',
+          entity_id: existing.id,
+          idempotency_key: dedupKey,
+          source: 'ai_agent',
+          details: { channel: payload.channel || 'whatsapp' },
+        });
+      }
+
       return NextResponse.json({
         success: true,
         message: "Conversation updated",
@@ -151,6 +187,17 @@ export async function POST(request: Request) {
           status,
         }
       });
+
+      if (dedupKey) {
+        await logAuditEvent({
+          tenant_id: payload.tenant_id,
+          action: 'ingest_message',
+          entity_id: newConvo.id,
+          idempotency_key: dedupKey,
+          source: 'ai_agent',
+          details: { channel: payload.channel || 'whatsapp' },
+        });
+      }
 
       return NextResponse.json({
         success: true,

@@ -396,3 +396,169 @@ CREATE INDEX IF NOT EXISTS idx_knowledge_articles_tenant_status
   ON public.knowledge_articles (tenant_id, status);
 CREATE INDEX IF NOT EXISTS idx_system_logs_tenant_status_created
   ON public.system_logs (tenant_id, status, created_at DESC);
+
+-- ============================================
+-- TABLES ADDED LIVE 2026-04 → 2026-05 (synced 2026-05-12)
+-- These tables exist in the live DB but were missing from this DDL.
+-- All RLS-enabled; policies live in DB (see Supabase Security Advisor).
+-- ============================================
+
+-- 13. BOT SESSIONS — chatbot dialog state machine (Picnic state machine v2)
+create table if not exists public.bot_sessions (
+  phone text primary key,
+  session_data jsonb default '{}'::jsonb,
+  updated_at timestamptz not null default now(),
+  lock_until timestamptz
+);
+alter table public.bot_sessions enable row level security;
+create index if not exists bot_sessions_updated_at_idx
+  on public.bot_sessions (updated_at);
+
+-- 14. CONVERSATION AUDITS — nightly LLM-graded audit (outcome/quality/divergence)
+create table if not exists public.conversation_audits (
+  id uuid default gen_random_uuid() primary key,
+  conversation_id uuid not null unique references public.conversations(id) on delete cascade,
+  tenant_id uuid not null references public.tenants(id) on delete cascade,
+  outcome text not null check (outcome in ('booked','cancelled','modified','info_only','abandoned','escalated','error','unclear')),
+  quality text not null check (quality in ('good','minor_issue','major_issue')),
+  issues jsonb default '[]'::jsonb,
+  intended_booking jsonb,
+  actual_booking jsonb,
+  divergence boolean default false,
+  language text,
+  summary text,
+  model text,
+  cost_usd numeric,
+  created_at timestamptz default now()
+);
+alter table public.conversation_audits enable row level security;
+create index if not exists idx_conversation_audits_tenant_created
+  on public.conversation_audits (tenant_id, created_at desc);
+create index if not exists idx_conversation_audits_quality
+  on public.conversation_audits (tenant_id, quality) where quality <> 'good';
+
+-- 15. SYSTEM LOGS — operational observability (errors, low-severity rejections)
+create table if not exists public.system_logs (
+  id uuid default gen_random_uuid() primary key,
+  tenant_id uuid references public.tenants(id) on delete cascade,
+  category text not null check (category in ('booking_error','webhook_failure','message_failure','api_error','ai_error','system','n8n_error','health_check','silent_warning')),
+  severity text not null default 'medium' check (severity in ('low','medium','high','critical')),
+  title text not null,
+  description text,
+  metadata jsonb default '{}'::jsonb,
+  status text not null default 'open' check (status in ('open','resolved','ignored')),
+  created_at timestamptz default now(),
+  resolved_at timestamptz,
+  alerted_at timestamptz
+);
+alter table public.system_logs enable row level security;
+create index if not exists idx_system_logs_created
+  on public.system_logs (created_at desc);
+create index if not exists idx_system_logs_status
+  on public.system_logs (status);
+create index if not exists idx_system_logs_tenant
+  on public.system_logs (tenant_id);
+create index if not exists idx_system_logs_alert_pending
+  on public.system_logs (created_at desc)
+  where alerted_at is null and status = 'open' and severity = 'high';
+
+-- 16. PENDING RECAPS — recap card awaiting client CONFIRMO
+create table if not exists public.pending_recaps (
+  phone text primary key,
+  recap text not null,
+  created_at timestamptz default now(),
+  booking_date text,
+  booking_time text,
+  booking_agent text,
+  client_name text,
+  appointment_id text
+);
+alter table public.pending_recaps enable row level security;
+
+-- 17. RESTAURANT TABLES — physical tables (used by table allocator + floor plan UI)
+create table if not exists public.restaurant_tables (
+  id uuid default uuid_generate_v4() primary key,
+  tenant_id uuid not null references public.tenants(id) on delete cascade,
+  name text not null,
+  seats integer not null default 4,
+  status text not null default 'active' check (status in ('active','inactive')),
+  position_x integer not null default 0,
+  position_y integer not null default 0,
+  shape text not null default 'square' check (shape in ('round','square','rectangle')),
+  zone text not null default 'Principal',
+  created_at timestamptz not null default now()
+);
+alter table public.restaurant_tables enable row level security;
+create index if not exists idx_restaurant_tables_tenant
+  on public.restaurant_tables (tenant_id);
+
+-- 18. RESERVATION TABLES — junction reservation ↔ restaurant_table
+create table if not exists public.reservation_tables (
+  id uuid default uuid_generate_v4() primary key,
+  reservation_id uuid not null references public.reservations(id) on delete cascade,
+  table_id uuid not null references public.restaurant_tables(id) on delete cascade,
+  created_at timestamptz not null default now(),
+  unique(reservation_id, table_id)
+);
+alter table public.reservation_tables enable row level security;
+create index if not exists idx_reservation_tables_res
+  on public.reservation_tables (reservation_id);
+create index if not exists idx_reservation_tables_table
+  on public.reservation_tables (table_id);
+
+-- 19. WEBHOOK EVENTS — idempotency table for /api/webhooks gateway
+-- Note: tenant_id is text (legacy: stores the apiKey/secret as identifier)
+create table if not exists public.webhook_events (
+  id uuid default uuid_generate_v4() primary key,
+  tenant_id text not null,
+  idempotency_key text not null,
+  type text not null,
+  payload jsonb not null default '{}'::jsonb,
+  status text not null default 'processing' check (status in ('processing','success','failed')),
+  error_log text,
+  handoff_to_human boolean not null default false,
+  created_at timestamptz not null default now()
+);
+alter table public.webhook_events enable row level security;
+
+-- 20. CLIENT NOTES — staff/admin freeform tenant notes
+create table if not exists public.client_notes (
+  id uuid default gen_random_uuid() primary key,
+  tenant_id uuid not null references public.tenants(id) on delete cascade,
+  content text not null,
+  author text not null default 'admin',
+  created_at timestamptz default now()
+);
+alter table public.client_notes enable row level security;
+create index if not exists idx_client_notes_tenant
+  on public.client_notes (tenant_id, created_at desc);
+
+-- 21. BALI CONVERSATIONS — legacy BaliFlow agency chat ledger (pre-multitenant)
+create table if not exists public.bali_conversations (
+  id uuid default gen_random_uuid() primary key,
+  guest_phone text not null unique,
+  guest_name text,
+  human_takeover boolean not null default false,
+  last_message_at timestamptz not null default now(),
+  last_message_preview text,
+  last_message_direction text,
+  unread_count integer not null default 0,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+alter table public.bali_conversations enable row level security;
+create index if not exists idx_bali_conversations_last_at
+  on public.bali_conversations (last_message_at desc);
+
+-- 22. BALI MESSAGES — legacy BaliFlow message turns
+create table if not exists public.bali_messages (
+  id uuid default gen_random_uuid() primary key,
+  conversation_id uuid not null references public.bali_conversations(id) on delete cascade,
+  direction text not null check (direction in ('inbound','outbound')),
+  sender text not null check (sender in ('client','bot','human')),
+  body text not null,
+  created_at timestamptz not null default now()
+);
+alter table public.bali_messages enable row level security;
+create index if not exists idx_bali_messages_conv_created
+  on public.bali_messages (conversation_id, created_at);
