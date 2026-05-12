@@ -4,14 +4,29 @@ import { useTenant } from "@/lib/contexts/TenantContext";
 import { useEffect, useState, useRef } from "react";
 import { useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
-import { Conversation, Guest, Reservation } from "@/lib/types";
+import { Conversation, Guest, Reservation, ConversationAudit, AuditQuality, AuditOutcome } from "@/lib/types";
 import { useLanguage } from "@/lib/contexts/LanguageContext";
-import { MessageSquare, Phone, Search, X, AlertTriangle, Send, Bot, User, Trash2, Pause, Play } from "lucide-react";
+import { MessageSquare, Phone, Search, X, AlertTriangle, Send, Bot, User, Trash2, Pause, Play, CheckCircle2, ShieldAlert } from "lucide-react";
 import { useSeenSnapshotAndMark } from "@/lib/hooks/useLastSeen";
 
 interface ConvoWithGuest extends Conversation {
   guests?: Guest;
+  conversation_audits?: ConversationAudit[];
 }
+
+// `conversation_audits` is embedded as an array (one-to-many side of the FK).
+// We always have at most one row per conversation (UNIQUE constraint), so this
+// helper is just to flatten it for the UI.
+function getAudit(c: ConvoWithGuest): ConversationAudit | null {
+  const arr = c.conversation_audits;
+  return Array.isArray(arr) && arr.length > 0 ? arr[0] : null;
+}
+
+const QUALITY_STYLES: Record<AuditQuality, { dot: string; bg: string; text: string; ring: string }> = {
+  good:        { dot: "bg-emerald-500", bg: "bg-emerald-50",  text: "text-emerald-700", ring: "ring-emerald-200" },
+  minor_issue: { dot: "bg-amber-500",   bg: "bg-amber-50",    text: "text-amber-700",   ring: "ring-amber-200" },
+  major_issue: { dot: "bg-red-500",     bg: "bg-red-50",      text: "text-red-700",     ring: "ring-red-200" },
+};
 
 export default function ConversationsPage() {
   const { activeTenant: tenant } = useTenant();
@@ -45,7 +60,7 @@ export default function ConversationsPage() {
       try {
         const { data, error } = await supabase
           .from("conversations")
-          .select("*, guests(*)")
+          .select("*, guests(*), conversation_audits(*)")
           .eq("tenant_id", tenant.id)
           .order("updated_at", { ascending: false })
           .limit(50);
@@ -55,7 +70,7 @@ export default function ConversationsPage() {
         // nothing meaningful changed. Conversations is the heaviest component
         // on this page; polling it every few seconds with a fresh array
         // reference was making the whole panel feel sluggish.
-        const sig = convos.map(c => `${c.id}:${c.updated_at}:${(c.guests as any)?.bot_paused_at || ""}`).join("|");
+        const sig = convos.map(c => `${c.id}:${c.updated_at}:${(c.guests as any)?.bot_paused_at || ""}:${getAudit(c)?.id || ""}`).join("|");
         if (sig !== lastSig) {
           lastSig = sig;
           setConversations(convos);
@@ -133,7 +148,11 @@ export default function ConversationsPage() {
   const filtered = conversations.filter(conv => {
     if (!searchQuery) return true;
     const q = searchQuery.toLowerCase();
-    return (conv.guests?.name?.toLowerCase() || "").includes(q) || (conv.guests?.phone?.toLowerCase() || "").includes(q) || (conv.summary?.toLowerCase() || "").includes(q);
+    const auditSummary = getAudit(conv)?.summary?.toLowerCase() || "";
+    return (conv.guests?.name?.toLowerCase() || "").includes(q)
+      || (conv.guests?.phone?.toLowerCase() || "").includes(q)
+      || (conv.summary?.toLowerCase() || "").includes(q)
+      || auditSummary.includes(q);
   });
 
   const handleSend = async () => {
@@ -312,6 +331,17 @@ export default function ConversationsPage() {
                     </div>
                     <div className="flex flex-col items-end gap-1 flex-shrink-0">
                       {conv.escalation_flag && <AlertTriangle className="w-3.5 h-3.5 text-red-500" />}
+                      {(() => {
+                        const a = getAudit(conv);
+                        if (!a) return null;
+                        const s = QUALITY_STYLES[a.quality];
+                        return (
+                          <span
+                            title={a.summary || t(`conv_audit_q_${a.quality === "good" ? "good" : a.quality === "minor_issue" ? "minor" : "major"}`)}
+                            className={`w-2 h-2 rounded-full ${s.dot}`}
+                          />
+                        );
+                      })()}
                       {getMsgCount(conv) > 0 && (
                         <span className="text-[9px] font-bold text-black bg-[#c4956a]/20 px-1.5 py-0.5 rounded-full">{getMsgCount(conv)}</span>
                       )}
@@ -367,6 +397,50 @@ export default function ConversationsPage() {
                 {new Date(selectedConvo.created_at).toLocaleDateString()}
               </span>
             </div>
+            {(() => {
+              const audit = getAudit(selectedConvo);
+              if (!audit) return null;
+              const s = QUALITY_STYLES[audit.quality];
+              const qKey = audit.quality === "good" ? "good" : audit.quality === "minor_issue" ? "minor" : "major";
+              const Icon = audit.quality === "good" ? CheckCircle2 : audit.quality === "major_issue" ? ShieldAlert : AlertTriangle;
+              return (
+                <div className={`mb-4 rounded-2xl ring-1 ${s.ring} ${s.bg} p-3 md:p-4`}>
+                  <div className="flex items-start gap-3">
+                    <Icon className={`w-5 h-5 mt-0.5 ${s.text} flex-shrink-0`} />
+                    <div className="flex-1 min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className={`text-[11px] font-bold uppercase tracking-wider ${s.text}`}>
+                          {t("conv_audit_title")}
+                        </span>
+                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${s.bg} ${s.text} ring-1 ${s.ring}`}>
+                          {t(`conv_audit_q_${qKey}`)}
+                        </span>
+                        <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-white/70 text-black/70">
+                          {t(`conv_audit_o_${audit.outcome}`)}
+                        </span>
+                        {audit.divergence && (
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-purple-100 text-purple-800">
+                            ⇄ {t("conv_audit_divergence")}
+                          </span>
+                        )}
+                      </div>
+                      {audit.summary && (
+                        <p className="mt-1.5 text-[13px] text-black/85 leading-snug">{audit.summary}</p>
+                      )}
+                      {Array.isArray(audit.issues) && audit.issues.length > 0 && (
+                        <div className="mt-2 flex flex-wrap gap-1">
+                          {audit.issues.map((iss, i) => (
+                            <span key={i} className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-white/70 text-black/70 border border-black/5">
+                              {iss}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
             {Array.isArray(selectedConvo.transcript) && selectedConvo.transcript.map((msg, i) => {
               const isUser = msg.role === 'user';
               const isStaff = msg.role === 'staff';

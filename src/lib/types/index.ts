@@ -199,6 +199,26 @@ export interface Conversation {
   updated_at: number;
 }
 
+export type AuditOutcome = "booked" | "cancelled" | "modified" | "info_only" | "abandoned" | "escalated" | "error" | "unclear";
+export type AuditQuality = "good" | "minor_issue" | "major_issue";
+
+export interface ConversationAudit {
+  id: string;
+  conversation_id: string;
+  tenant_id: string;
+  outcome: AuditOutcome;
+  quality: AuditQuality;
+  issues: string[];
+  intended_booking: Record<string, any> | null;
+  actual_booking: Record<string, any> | null;
+  divergence: boolean;
+  language: string | null;
+  summary: string | null;
+  model: string | null;
+  cost_usd: number | null;
+  created_at: string;
+}
+
 
 
 // --- PHASE 3: EXTERNAL AI INTEGRATION TYPES ---
