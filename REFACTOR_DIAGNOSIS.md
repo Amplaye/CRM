@@ -1,5 +1,25 @@
 # REFACTOR_DIAGNOSIS — Restaurante Picnic
 
+> **🟢 Update 2026-05-12 18:50** — Tier 0 smoke test + 5 Tier 1 items landati. Smoke test 7/7 PASS sull'ultimo HEAD `a77daa5`:
+>
+> | # | Commit | Tier | Cosa | Stato |
+> |---|---|---|---|---|
+> | 8 | `c1ff510` | 0 | `scripts/smoke-test.mjs` — 7 check automatici (build+test, n8n, system_logs, dedup, api-key, E2E chatbot, availability) | ✅ in main |
+> | 9 | `da29cb7` | 1.3 | `POST/GET /api/admin/tenant/[id]/api-keys` + `DELETE` per revoca + helper `assertPlatformAdmin` condiviso | ✅ in main |
+> | 10 | `95b6ce7` | 1.5+1.4 | Nuova api-key `picnic-n8n-2026-05` inserita in `tenant_api_keys`; **dropped** `UUID_RE` fallback in `resolveTenantFromApiKey` — la seed row 'legacy-bearer-tenant-id' resta come backward-compat fino a revoca esplicita | ✅ in main + DB |
+> | 11 | `83fcc2f` | 1.2 | `POST /api/twilio/delivery-callback?tenant_id=…` — riceve i webhook di status (queued→sent→delivered/failed), verifica firma quando `TWILIO_VERIFY_SIGNATURE=1`, logga in `audit_events` con dedup per `(MessageSid, status)` | ✅ in main |
+> | 12 | `a77daa5` | 1.9 | Allow-list CORS esplicita per `/api/ai`, `/api/webhooks`, `/api/twilio` — server-to-server pass through, browser cross-origin non-whitelisted = 403 | ✅ in main |
+>
+> **Smoke test runtime**: `npm run build && npm test` + 6 check live, ~50s totali. Comando: `N8N_API_KEY=… SUPABASE_MGMT_TOKEN=… AI_WEBHOOK_SECRET=… SMOKE_API_KEY=… node scripts/smoke-test.mjs`.
+>
+> **Tier 1 deferred** (perché basso valore-oggi o serve infra esterna):
+> - 1.1 (tenant_id env var nei workflow n8n) — cosmetico finché c'è solo Picnic
+> - 1.6 (audit secrets restanti nei workflow non-chatbot: Supabase JWT, OpenAI key, Twilio in Follow-up/Pre-Turno) — incrementale, fattibile workflow-per-workflow
+> - 1.8 (rate limiting) — richiede Upstash o RPC Supabase dedicata
+> - 1.10 (rimuovere `credentials.md` plain-text) — operazionale, non codice
+>
+> ---
+
 > **🟢 Update 2026-05-12 16:40** — 6 commit di hardening landati su `main` + 1 patch n8n live:
 >
 > | # | Commit | Cosa | Rischio | Stato |
