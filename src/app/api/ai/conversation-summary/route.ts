@@ -3,6 +3,7 @@ import { after } from 'next/server';
 import { createServiceRoleClient } from '@/lib/supabase/server';
 import { assertAiSecret } from '@/lib/ai-auth';
 import { logSystemEvent } from '@/lib/system-log';
+import { chatCompletion, chatCompletionsConfig } from '@/lib/openai-base-url';
 
 // Body:
 //   { conversation_id: string, language?: 'es'|'it'|'en', force?: boolean }
@@ -24,9 +25,9 @@ export async function POST(request: Request) {
   const unauth = assertAiSecret(request);
   if (unauth) return unauth;
 
-  const OPENAI_KEY = process.env.OPENAI_API_KEY;
-  if (!OPENAI_KEY) {
-    return NextResponse.json({ ok: false, error: 'OPENAI_API_KEY not configured' }, { status: 500 });
+  const aiCfg = chatCompletionsConfig();
+  if (!aiCfg.bearer) {
+    return NextResponse.json({ ok: false, error: 'OpenAI/AI Gateway key not configured' }, { status: 500 });
   }
 
   try {
@@ -90,7 +91,7 @@ export async function POST(request: Request) {
     // 202 in ~50ms instead of waiting ~3s for OpenAI.
     const convSnapshot = conv;
     after(async () => {
-      await runSummaryJob(convSnapshot, transcript, requestedLang, force, OPENAI_KEY);
+      await runSummaryJob(convSnapshot, transcript, requestedLang, force);
     });
 
     return NextResponse.json(
@@ -107,8 +108,7 @@ async function runSummaryJob(
   conv: { id: string; transcript: any; summary: string | null; language: string | null; channel: string; intent: string | null },
   transcript: any[],
   requestedLang: string | undefined,
-  force: boolean | undefined,
-  OPENAI_KEY: string
+  force: boolean | undefined
 ) {
   try {
     const supabase = createServiceRoleClient();
@@ -161,18 +161,14 @@ async function runSummaryJob(
 
     const userPrompt = `Trascrizione:\n${flat}\n\nRiassunto:`;
 
-    const aiResp = await fetch('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${OPENAI_KEY}` },
-      body: JSON.stringify({
-        model: 'gpt-5.1',
-        messages: [
-          { role: 'system', content: sysPrompt },
-          { role: 'user', content: userPrompt },
-        ],
-        temperature: 0.2,
-        max_completion_tokens: 120,
-      }),
+    const aiResp = await chatCompletion({
+      model: 'gpt-5.1',
+      messages: [
+        { role: 'system', content: sysPrompt },
+        { role: 'user', content: userPrompt },
+      ],
+      temperature: 0.2,
+      max_completion_tokens: 120,
     });
     if (!aiResp.ok) {
       const errText = await aiResp.text();
