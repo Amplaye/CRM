@@ -1,6 +1,6 @@
 # REFACTOR_DIAGNOSIS — Restaurante Picnic
 
-> **🟢 Update 2026-05-12 15:55** — 6 commit di hardening landati su `main`:
+> **🟢 Update 2026-05-12 16:40** — 6 commit di hardening landati su `main` + 1 patch n8n live:
 >
 > | # | Commit | Cosa | Rischio | Stato |
 > |---|---|---|---|---|
@@ -11,6 +11,7 @@
 > | 5 | `4211b9c` | `tenant_api_keys` table + sha256 lookup (legacy fallback) | basso | ✅ in main + DB |
 > | 6 | `e8db63e` | Rimossi tutti i `(payload as any)`, tipi allargati | nullo | ✅ in main |
 > | n8n | live | `Picnic_Chatbot_WhatsApp` ora include `MessageSid` nei 2 POST a `/api/webhooks/incoming-message` → dedup attivo | medio (workflow in prod) | ✅ live, status 200, active=true |
+> | n8n | live | **Risk #2 chiuso**: rimossi i fallback hardcoded di `TWILIO_SID`/`TWILIO_TOKEN` dai 4 Code node del chatbot (`Fetch History`, `OpenAI`, `Send WhatsApp Reply`, `Book + Notify Owner`). Le creds ora vengono solo da `tenants.settings.bot_config` (tenant-scoped). 0 literali SID/TOKEN nel workflow JSON. | medio | ✅ live, status 200, active=true |
 >
 > **Sintesi quantitativa:**
 > - **0 → 50 unit test** (vitest run, 234ms).
@@ -20,7 +21,6 @@
 > - `book/route.ts` da 688 a 642 LOC.
 >
 > **Rimasti aperti** (vedi §6 e §7):
-> - Risk #2 (Twilio creds hardcoded in n8n workflow node 7) — modificabile, basso rischio
 > - Risk #4 (state in n8n staticData) — la tabella `bot_sessions` esiste già in DB, manca solo cablare il workflow
 > - Risk #6 (singolo 2000-LOC Code node) — grosso refactor n8n, va con calma
 > - Risk #8 (tenant_id hardcoded in tutti i workflow n8n) — più tenant = più lavoro, su Picnic resta cosmetico
@@ -180,7 +180,7 @@ For each of the 10 target stages: **does it exist? where? what's missing?**
 - All logic in one 2000-line Code node — unversioned, untested, untyped
 - State in `n8n staticData` (volatile, single-instance) — see §4
 - No separation between extraction (parser) and routing (controller) and rendering (formatter)
-- Twilio creds hardcoded in node 7
+- ~~Twilio creds hardcoded in node 7~~ — risolto 2026-05-12 16:40 (fallback rimossi, creds solo da `tenants.settings.bot_config`)
 
 ### Stage 3 — Conversation Store `/conversations/{conv_id}.md`
 
@@ -605,7 +605,7 @@ Component-by-component verdict, ordered by impact.
 | **No conversation_end event** | Emit an event when (a) booking succeeds + recap card sent, (b) cancel succeeds, (c) 2h-TTL inactivity, (d) staff takeover. Trigger nightly LLM extraction against final markdown render. |
 | **No `BookingIntent.json` schema** | Add `schemas/booking_intent.schema.json` with the 11 target fields **+ Picnic-specific extensions** (`zona`, `delta_personas`, `shift`). Use as the structured-output schema in a dedicated end-of-conversation extraction LLM. |
 | **Hardcoded tenant_id everywhere** | Tenant-id should come from the `x-ai-secret` → tenant lookup (currently the secret IS the tenant_id, per [`src/app/api/webhooks/route.ts`](src/app/api/webhooks/route.ts#L19-L20)). Add a `tenant_api_keys` table for proper rotation. |
-| **Hardcoded Twilio creds in n8n node 7** | Move to n8n credentials or env. Drop the fallback that lets the prod creds live in version-controlled JSON. |
+| ~~**Hardcoded Twilio creds in n8n node 7**~~ | ✅ Done 2026-05-12 16:40 — i 4 Code node che usavano SID/TOKEN come fallback (`Fetch History`, `OpenAI`, `Send WhatsApp Reply`, `Book + Notify Owner`) ora leggono solo da `tenants.settings.bot_config`. Zero literali nel workflow JSON. |
 | **`book/route.ts` (688 LOC)** | Split into `validate.ts` (date/time/opening-hours), `duplicate-check.ts` (±3 day), `allocator.ts` (table assignment), `persist.ts`. |
 | **Twilio Sandbox WhatsApp** | Migrate to WhatsApp Business Cloud API + approved HSM templates before production scale. Templates needed: `booking_confirm`, `reminder_24h`, `reminder_4h`, `noshow_cancelled`, `waitlist_offer`. |
 
@@ -650,7 +650,7 @@ Sorted by blast-radius.
 | # | Risk | Where | Mitigation in refactor |
 |---|---|---|---|
 | 1 | ~~**API key = tenant_id (cleartext, no rotation)**~~ ✅ FIXED 2026-05-12 | [`src/app/api/webhooks/route.ts`](src/app/api/webhooks/route.ts) | `tenant_api_keys` table + sha256 lookup; legacy bearer-UUID still accepted via fallback |
-| 2 | **Twilio creds hardcoded in n8n** | `Picnic_Chatbot_WhatsApp.json` node 7 | Use n8n credentials |
+| 2 | ~~**Twilio creds hardcoded in n8n**~~ ✅ FIXED 2026-05-12 16:40 | `Picnic_Chatbot_WhatsApp.json` nodes 4/5/7/8 | Fallback literals rimossi; creds solo da `tenants.settings.bot_config` |
 | 3 | ~~**`system_logs` missing from DDL but indexed**~~ ✅ FIXED 2026-05-12 | [`supabase-schema.sql`](supabase-schema.sql) | DDL added for 10 missing tables |
 | 4 | **State in n8n staticData volatile** | All workflows | Move to `bot_sessions` table |
 | 5 | ~~**Debounce removed → Twilio duplicate webhook = double-processing**~~ ✅ FULLY FIXED 2026-05-12 | `Picnic_Chatbot_WhatsApp.json` nodes 3 + 7 | CRM-side dedup via `audit_events.idempotency_key`; n8n workflow updated live to pass `MessageSid` (verified active=true) |
