@@ -21,10 +21,13 @@ import {
   checkPast,
   checkOpeningHours,
 } from '@/lib/booking-validation';
+import { assertRateLimit } from '@/lib/rate-limit';
 
 export async function POST(request: Request) {
   const unauth = assertAiSecret(request);
   if (unauth) return unauth;
+  const rl = await assertRateLimit(request, 'ai:book', { max: 30, windowSecs: 60 });
+  if (rl) return rl;
   try {
     const payload: CreateBookingRequest = await request.json();
 

@@ -241,6 +241,46 @@ create index if not exists idx_system_logs_tenant_severity_created
   on public.system_logs(tenant_id, severity, created_at desc);
 
 -- ============================================
+-- Rate limiting (Tier 1.8): opt-in via RATE_LIMIT_ENABLED=1.
+-- Each `consume_rate_limit(key, window_secs, max)` call atomically
+-- increments the per-key/per-window counter and returns whether the
+-- caller is still allowed.
+-- ============================================
+create table if not exists public.rate_limit_buckets (
+  bucket_key text not null,
+  window_start timestamptz not null,
+  count int not null default 0,
+  primary key (bucket_key, window_start)
+);
+create index if not exists idx_rate_limit_buckets_window on public.rate_limit_buckets(window_start);
+alter table public.rate_limit_buckets enable row level security;
+
+create or replace function public.consume_rate_limit(
+  p_key text,
+  p_window_secs int,
+  p_max int
+)
+returns table(allowed bool, current_count int, reset_at timestamptz)
+language plpgsql security definer
+as $$
+declare
+  v_window_start timestamptz;
+  v_count int;
+begin
+  v_window_start := to_timestamp((extract(epoch from now())::bigint / p_window_secs) * p_window_secs);
+
+  insert into public.rate_limit_buckets (bucket_key, window_start, count)
+  values (p_key, v_window_start, 1)
+  on conflict (bucket_key, window_start)
+  do update set count = rate_limit_buckets.count + 1
+  returning count into v_count;
+
+  return query select (v_count <= p_max), v_count, (v_window_start + (p_window_secs || ' seconds')::interval);
+end;
+$$;
+revoke execute on function public.consume_rate_limit(text, int, int) from public, anon, authenticated;
+
+-- ============================================
 -- ROW LEVEL SECURITY (RLS)
 -- ============================================
 

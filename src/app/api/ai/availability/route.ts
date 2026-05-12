@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createServiceRoleClient } from '@/lib/supabase/server';
 import { assertAiSecret } from '@/lib/ai-auth';
+import { assertRateLimit } from '@/lib/rate-limit';
 import {
   getShift,
   getTimeSlots,
@@ -52,6 +53,8 @@ function lastBookingTime(shiftHours: { open: string; close: string }[], shift: '
 export async function GET(request: Request) {
   const unauth = assertAiSecret(request);
   if (unauth) return unauth;
+  const rl = await assertRateLimit(request, 'ai:availability', { max: 240, windowSecs: 60 });
+  if (rl) return rl;
   try {
     const { searchParams } = new URL(request.url);
     const tenant_id = searchParams.get('tenant_id');

@@ -3,12 +3,15 @@ import { createServiceRoleClient } from "@/lib/supabase/server";
 type WebhookStatus = "processing" | "success" | "failed";
 import { createReservationAction, updateReservationDetailsAction } from "@/app/actions/reservations";
 import { resolveTenantFromApiKey } from "@/lib/tenant-auth";
+import { assertRateLimit } from "@/lib/rate-limit";
 
 /**
  * Main ingestion gateway for AI Agents (Bland AI, WhatsApp NLP, etc).
  * Protects against duplicates via idempotency keys.
  */
 export async function POST(req: NextRequest) {
+  const rl = await assertRateLimit(req, 'webhooks:ingest', { max: 120, windowSecs: 60 });
+  if (rl) return rl;
   try {
     const authHeader = req.headers.get("authorization");
     if (!authHeader || !authHeader.startsWith("Bearer ")) {
