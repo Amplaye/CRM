@@ -12,11 +12,11 @@ import {
   YAxis,
   CartesianGrid,
   Tooltip,
-  ResponsiveContainer,
   BarChart,
   Bar,
   Legend,
 } from "recharts";
+import { ChartFrame } from "@/components/ChartFrame";
 import { useLanguage } from "@/lib/contexts/LanguageContext";
 import { useTenant } from "@/lib/contexts/TenantContext";
 import { createClient } from "@/lib/supabase/client";
@@ -562,7 +562,7 @@ export default function AnalyticsPage() {
                 {t("analytics_no_data")}
               </div>
             ) : (
-              <ResponsiveContainer width="100%" height="100%" debounce={50}>
+              <ChartFrame>
                 <LineChart data={kpis.chartData} margin={{ top: 5, right: 30, left: -20, bottom: 5 }}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(196,149,106,0.22)" />
                   <XAxis
@@ -594,7 +594,7 @@ export default function AnalyticsPage() {
                     activeDot={{ r: 6 }}
                   />
                 </LineChart>
-              </ResponsiveContainer>
+              </ChartFrame>
             )}
           </div>
         </div>
@@ -622,7 +622,7 @@ export default function AnalyticsPage() {
                 {t("analytics_no_data")}
               </div>
             ) : (
-              <ResponsiveContainer width="100%" height="100%" debounce={50}>
+              <ChartFrame>
                 <BarChart data={kpis.chartData} margin={{ top: 5, right: 30, left: -20, bottom: 5 }}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(196,149,106,0.22)" />
                   <XAxis
@@ -648,7 +648,7 @@ export default function AnalyticsPage() {
                     maxBarSize={60}
                   />
                 </BarChart>
-              </ResponsiveContainer>
+              </ChartFrame>
             )}
           </div>
         </div>

@@ -8,9 +8,10 @@ import {
 } from "lucide-react";
 import { useLanguage } from "@/lib/contexts/LanguageContext";
 import {
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
   PieChart, Pie, Cell, Legend, Area, AreaChart,
 } from "recharts";
+import { ChartFrame } from "@/components/ChartFrame";
 import { createClient } from "@/lib/supabase/client";
 import { useTenant } from "@/lib/contexts/TenantContext";
 
@@ -635,7 +636,7 @@ export default function DashboardPage() {
           <div className="h-1 w-10 rounded-full my-3" style={{ background: BRAND_BROWN }} />
           <div className="h-48 sm:h-64">
             {mounted && (
-            <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0} debounce={50}>
+            <ChartFrame>
               <BarChart data={kpis.dailyData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(196,149,106,0.22)" />
                 <XAxis dataKey="date" axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: "#6b6258" }}
@@ -651,7 +652,7 @@ export default function DashboardPage() {
                 <Bar dataKey="ai" stackId="a" fill={BRAND_SAGE} radius={[0, 0, 0, 0]} name={t("dash_legend_ai")} />
                 <Bar dataKey="staff" stackId="a" fill={BRAND_BROWN} radius={[4, 4, 0, 0]} name={t("dash_legend_staff")} />
               </BarChart>
-            </ResponsiveContainer>
+            </ChartFrame>
             )}
           </div>
         </div>
@@ -680,7 +681,7 @@ export default function DashboardPage() {
               </div>
             ) : (
               mounted && (
-              <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0} debounce={50}>
+              <ChartFrame>
                 <PieChart>
                   <Pie
                     data={kpis.sourceData.map(d => ({ ...d, label: channelLabel(d.name) }))}
@@ -702,7 +703,7 @@ export default function DashboardPage() {
                   />
                   <Legend wrapperStyle={{ fontSize: "11px", paddingTop: 8 }} iconType="circle" formatter={(value: string) => value} />
                 </PieChart>
-              </ResponsiveContainer>
+              </ChartFrame>
               )
             )}
           </div>
@@ -735,7 +736,7 @@ export default function DashboardPage() {
         <div className="h-1 w-10 rounded-full mb-4" style={{ background: BRAND_BROWN }} />
         <div className="h-56 sm:h-72">
           {mounted && (
-          <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0} debounce={50}>
+          <ChartFrame>
             <AreaChart data={kpis.dailyData} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
               <defs>
                 <linearGradient id="revGradient" x1="0" y1="0" x2="0" y2="1">
@@ -774,7 +775,7 @@ export default function DashboardPage() {
                 activeDot={{ r: 5, fill: BRAND_BROWN, stroke: "#FCF6ED", strokeWidth: 2 }}
               />
             </AreaChart>
-          </ResponsiveContainer>
+          </ChartFrame>
           )}
         </div>
       </section>

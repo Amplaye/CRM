@@ -241,92 +241,98 @@ alter table public.knowledge_articles enable row level security;
 alter table public.automation_rules enable row level security;
 alter table public.audit_events enable row level security;
 
+-- RLS helper functions live in `private` schema so they are not exposed via
+-- /rest/v1/rpc (Supabase Security Advisor). EXECUTE remains granted to
+-- authenticated/anon so RLS policies can still evaluate them.
+create schema if not exists private;
+grant usage on schema private to authenticated, service_role;
+
 -- Helper: check if user is member of a tenant
-create or replace function public.is_tenant_member(p_tenant_id uuid)
+create or replace function private.is_tenant_member(p_tenant_id uuid)
 returns boolean as $$
   select exists (
     select 1 from public.tenant_members
     where tenant_id = p_tenant_id and user_id = auth.uid()
   );
-$$ language sql security definer stable;
+$$ language sql security definer stable set search_path = public, pg_temp;
 
 -- Helper: check if user is platform admin
-create or replace function public.is_platform_admin()
+create or replace function private.is_platform_admin()
 returns boolean as $$
   select exists (
     select 1 from public.users
     where id = auth.uid() and global_role = 'platform_admin'
   );
-$$ language sql security definer stable;
+$$ language sql security definer stable set search_path = public, pg_temp;
 
 -- Helper: get user's role in a tenant
-create or replace function public.get_tenant_role(p_tenant_id uuid)
+create or replace function private.get_tenant_role(p_tenant_id uuid)
 returns text as $$
   select role from public.tenant_members
   where tenant_id = p_tenant_id and user_id = auth.uid()
   limit 1;
-$$ language sql security definer stable;
+$$ language sql security definer stable set search_path = public, pg_temp;
 
 -- USERS policies
-create policy "Users can read own profile" on public.users for select using (id = auth.uid() or public.is_platform_admin());
+create policy "Users can read own profile" on public.users for select using (id = auth.uid() or private.is_platform_admin());
 create policy "Users can update own profile" on public.users for update using (id = auth.uid());
 create policy "Users can insert own profile" on public.users for insert with check (id = auth.uid());
 
 -- TENANTS policies
-create policy "Tenant members can read tenants" on public.tenants for select using (public.is_tenant_member(id) or public.is_platform_admin());
-create policy "Owners/managers can update tenant" on public.tenants for update using (public.get_tenant_role(id) in ('owner', 'manager') or public.is_platform_admin());
-create policy "Platform admins can create tenants" on public.tenants for insert with check (public.is_platform_admin());
-create policy "Platform admins can delete tenants" on public.tenants for delete using (public.is_platform_admin());
+create policy "Tenant members can read tenants" on public.tenants for select using (private.is_tenant_member(id) or private.is_platform_admin());
+create policy "Owners/managers can update tenant" on public.tenants for update using (private.get_tenant_role(id) in ('owner', 'manager') or private.is_platform_admin());
+create policy "Platform admins can create tenants" on public.tenants for insert with check (private.is_platform_admin());
+create policy "Platform admins can delete tenants" on public.tenants for delete using (private.is_platform_admin());
 
 -- TENANT MEMBERS policies
-create policy "Members can read own memberships" on public.tenant_members for select using (user_id = auth.uid() or public.is_tenant_member(tenant_id) or public.is_platform_admin());
-create policy "Owners/managers can manage members" on public.tenant_members for insert with check (public.get_tenant_role(tenant_id) in ('owner', 'manager') or public.is_platform_admin());
-create policy "Owners/managers can update members" on public.tenant_members for update using (public.get_tenant_role(tenant_id) in ('owner', 'manager') or public.is_platform_admin());
-create policy "Owners/managers can remove members" on public.tenant_members for delete using (public.get_tenant_role(tenant_id) in ('owner', 'manager') or public.is_platform_admin());
+create policy "Members can read own memberships" on public.tenant_members for select using (user_id = auth.uid() or private.is_tenant_member(tenant_id) or private.is_platform_admin());
+create policy "Owners/managers can manage members" on public.tenant_members for insert with check (private.get_tenant_role(tenant_id) in ('owner', 'manager') or private.is_platform_admin());
+create policy "Owners/managers can update members" on public.tenant_members for update using (private.get_tenant_role(tenant_id) in ('owner', 'manager') or private.is_platform_admin());
+create policy "Owners/managers can remove members" on public.tenant_members for delete using (private.get_tenant_role(tenant_id) in ('owner', 'manager') or private.is_platform_admin());
 
 -- GUESTS policies
-create policy "Tenant members can read guests" on public.guests for select using (public.is_tenant_member(tenant_id) or public.is_platform_admin());
-create policy "Staff can manage guests" on public.guests for insert with check (public.get_tenant_role(tenant_id) in ('owner', 'manager', 'host') or public.is_platform_admin());
-create policy "Staff can update guests" on public.guests for update using (public.get_tenant_role(tenant_id) in ('owner', 'manager', 'host') or public.is_platform_admin());
-create policy "Managers can delete guests" on public.guests for delete using (public.get_tenant_role(tenant_id) in ('owner', 'manager') or public.is_platform_admin());
+create policy "Tenant members can read guests" on public.guests for select using (private.is_tenant_member(tenant_id) or private.is_platform_admin());
+create policy "Staff can manage guests" on public.guests for insert with check (private.get_tenant_role(tenant_id) in ('owner', 'manager', 'host') or private.is_platform_admin());
+create policy "Staff can update guests" on public.guests for update using (private.get_tenant_role(tenant_id) in ('owner', 'manager', 'host') or private.is_platform_admin());
+create policy "Managers can delete guests" on public.guests for delete using (private.get_tenant_role(tenant_id) in ('owner', 'manager') or private.is_platform_admin());
 
 -- RESERVATIONS policies
-create policy "Tenant members can read reservations" on public.reservations for select using (public.is_tenant_member(tenant_id) or public.is_platform_admin());
-create policy "Staff can create reservations" on public.reservations for insert with check (public.get_tenant_role(tenant_id) in ('owner', 'manager', 'host') or public.is_platform_admin());
-create policy "Staff can update reservations" on public.reservations for update using (public.get_tenant_role(tenant_id) in ('owner', 'manager', 'host') or public.is_platform_admin());
-create policy "Managers can delete reservations" on public.reservations for delete using (public.get_tenant_role(tenant_id) in ('owner', 'manager') or public.is_platform_admin());
+create policy "Tenant members can read reservations" on public.reservations for select using (private.is_tenant_member(tenant_id) or private.is_platform_admin());
+create policy "Staff can create reservations" on public.reservations for insert with check (private.get_tenant_role(tenant_id) in ('owner', 'manager', 'host') or private.is_platform_admin());
+create policy "Staff can update reservations" on public.reservations for update using (private.get_tenant_role(tenant_id) in ('owner', 'manager', 'host') or private.is_platform_admin());
+create policy "Managers can delete reservations" on public.reservations for delete using (private.get_tenant_role(tenant_id) in ('owner', 'manager') or private.is_platform_admin());
 
 -- RESERVATION EVENTS policies (read-only for clients, server writes via service_role)
-create policy "Tenant members can read events" on public.reservation_events for select using (public.is_tenant_member(tenant_id) or public.is_platform_admin());
+create policy "Tenant members can read events" on public.reservation_events for select using (private.is_tenant_member(tenant_id) or private.is_platform_admin());
 
 -- WAITLIST policies
-create policy "Tenant members can read waitlist" on public.waitlist_entries for select using (public.is_tenant_member(tenant_id) or public.is_platform_admin());
-create policy "Staff can manage waitlist" on public.waitlist_entries for insert with check (public.get_tenant_role(tenant_id) in ('owner', 'manager', 'host') or public.is_platform_admin());
-create policy "Staff can update waitlist" on public.waitlist_entries for update using (public.get_tenant_role(tenant_id) in ('owner', 'manager', 'host') or public.is_platform_admin());
-create policy "Staff can delete waitlist" on public.waitlist_entries for delete using (public.get_tenant_role(tenant_id) in ('owner', 'manager', 'host') or public.is_platform_admin());
+create policy "Tenant members can read waitlist" on public.waitlist_entries for select using (private.is_tenant_member(tenant_id) or private.is_platform_admin());
+create policy "Staff can manage waitlist" on public.waitlist_entries for insert with check (private.get_tenant_role(tenant_id) in ('owner', 'manager', 'host') or private.is_platform_admin());
+create policy "Staff can update waitlist" on public.waitlist_entries for update using (private.get_tenant_role(tenant_id) in ('owner', 'manager', 'host') or private.is_platform_admin());
+create policy "Staff can delete waitlist" on public.waitlist_entries for delete using (private.get_tenant_role(tenant_id) in ('owner', 'manager', 'host') or private.is_platform_admin());
 
 -- CONVERSATIONS policies
-create policy "Tenant members can read conversations" on public.conversations for select using (public.is_tenant_member(tenant_id) or public.is_platform_admin());
-create policy "Staff can manage conversations" on public.conversations for insert with check (public.get_tenant_role(tenant_id) in ('owner', 'manager', 'host') or public.is_platform_admin());
-create policy "Staff can update conversations" on public.conversations for update using (public.get_tenant_role(tenant_id) in ('owner', 'manager', 'host') or public.is_platform_admin());
+create policy "Tenant members can read conversations" on public.conversations for select using (private.is_tenant_member(tenant_id) or private.is_platform_admin());
+create policy "Staff can manage conversations" on public.conversations for insert with check (private.get_tenant_role(tenant_id) in ('owner', 'manager', 'host') or private.is_platform_admin());
+create policy "Staff can update conversations" on public.conversations for update using (private.get_tenant_role(tenant_id) in ('owner', 'manager', 'host') or private.is_platform_admin());
 
 -- INCIDENTS policies
-create policy "Tenant members can read incidents" on public.incidents for select using (public.is_tenant_member(tenant_id) or public.is_platform_admin());
-create policy "Managers can manage incidents" on public.incidents for insert with check (public.get_tenant_role(tenant_id) in ('owner', 'manager') or public.is_platform_admin());
-create policy "Managers can update incidents" on public.incidents for update using (public.get_tenant_role(tenant_id) in ('owner', 'manager') or public.is_platform_admin());
+create policy "Tenant members can read incidents" on public.incidents for select using (private.is_tenant_member(tenant_id) or private.is_platform_admin());
+create policy "Managers can manage incidents" on public.incidents for insert with check (private.get_tenant_role(tenant_id) in ('owner', 'manager') or private.is_platform_admin());
+create policy "Managers can update incidents" on public.incidents for update using (private.get_tenant_role(tenant_id) in ('owner', 'manager') or private.is_platform_admin());
 
 -- KNOWLEDGE ARTICLES policies
-create policy "Tenant members can read articles" on public.knowledge_articles for select using (public.is_tenant_member(tenant_id) or public.is_platform_admin());
-create policy "Managers can manage articles" on public.knowledge_articles for insert with check (public.get_tenant_role(tenant_id) in ('owner', 'manager') or public.is_platform_admin());
-create policy "Managers can update articles" on public.knowledge_articles for update using (public.get_tenant_role(tenant_id) in ('owner', 'manager') or public.is_platform_admin());
+create policy "Tenant members can read articles" on public.knowledge_articles for select using (private.is_tenant_member(tenant_id) or private.is_platform_admin());
+create policy "Managers can manage articles" on public.knowledge_articles for insert with check (private.get_tenant_role(tenant_id) in ('owner', 'manager') or private.is_platform_admin());
+create policy "Managers can update articles" on public.knowledge_articles for update using (private.get_tenant_role(tenant_id) in ('owner', 'manager') or private.is_platform_admin());
 
 -- AUTOMATION RULES policies
-create policy "Tenant members can read automations" on public.automation_rules for select using (public.is_tenant_member(tenant_id) or public.is_platform_admin());
-create policy "Managers can manage automations" on public.automation_rules for insert with check (public.get_tenant_role(tenant_id) in ('owner', 'manager') or public.is_platform_admin());
-create policy "Managers can update automations" on public.automation_rules for update using (public.get_tenant_role(tenant_id) in ('owner', 'manager') or public.is_platform_admin());
+create policy "Tenant members can read automations" on public.automation_rules for select using (private.is_tenant_member(tenant_id) or private.is_platform_admin());
+create policy "Managers can manage automations" on public.automation_rules for insert with check (private.get_tenant_role(tenant_id) in ('owner', 'manager') or private.is_platform_admin());
+create policy "Managers can update automations" on public.automation_rules for update using (private.get_tenant_role(tenant_id) in ('owner', 'manager') or private.is_platform_admin());
 
 -- AUDIT EVENTS policies (read-only for clients)
-create policy "Tenant members can read audit events" on public.audit_events for select using (public.is_tenant_member(tenant_id) or public.is_platform_admin());
+create policy "Tenant members can read audit events" on public.audit_events for select using (private.is_tenant_member(tenant_id) or private.is_platform_admin());
 
 -- ============================================
 -- FUNCTION: Auto-create user profile on signup
@@ -343,6 +349,9 @@ $$ language plpgsql security definer;
 create trigger on_auth_user_created
   after insert on auth.users
   for each row execute function public.handle_new_user();
+
+-- Trigger function: not callable via /rest/v1/rpc. Hide from anon/authenticated.
+revoke execute on function public.handle_new_user() from public, anon, authenticated;
 
 -- ============================================
 -- FUNCTION: Auto-update updated_at timestamp
