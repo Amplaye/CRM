@@ -8,6 +8,7 @@ import {
   calculateEndTime,
   tablesNeeded,
 } from '@/lib/restaurant-rules';
+import { isDate, isTime } from '@/lib/booking-validation';
 
 interface ModifyPayload {
   tenant_id: string;
@@ -63,18 +64,16 @@ export async function PUT(request: Request) {
     }
 
     // Date/time format validation — avoid garbage like "mañana" or "20:00:00" reaching downstream SQL.
-    const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
-    const TIME_RE = /^\d{2}:\d{2}$/;
-    if (payload.date && !DATE_RE.test(payload.date)) {
+    if (payload.date && !isDate(payload.date)) {
       return NextResponse.json({ success: false, error: 'date must be YYYY-MM-DD' }, { status: 400 });
     }
-    if (payload.time && !TIME_RE.test(payload.time)) {
+    if (payload.time && !isTime(payload.time)) {
       return NextResponse.json({ success: false, error: 'time must be HH:MM' }, { status: 400 });
     }
-    if (payload.current_date && !DATE_RE.test(payload.current_date)) {
+    if (payload.current_date && !isDate(payload.current_date)) {
       return NextResponse.json({ success: false, error: 'current_date must be YYYY-MM-DD' }, { status: 400 });
     }
-    if (payload.current_time && !TIME_RE.test(payload.current_time)) {
+    if (payload.current_time && !isTime(payload.current_time)) {
       return NextResponse.json({ success: false, error: 'current_time must be HH:MM' }, { status: 400 });
     }
 
