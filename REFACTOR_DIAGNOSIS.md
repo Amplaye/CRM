@@ -1,5 +1,41 @@
 # REFACTOR_DIAGNOSIS — Restaurante Picnic
 
+> **🟢 Update 2026-05-12 19:30** — sessione "facciamo tutto" completata. 17 commit landati nella stessa giornata (`c1ff510..d21f1e5`), smoke test 7/7 PASS sull'ultimo HEAD. Tier 0–10 hanno almeno un item chiuso. Quello che resta è documentato in Risk register e Tier 1.1/6.4 deferred.
+>
+> | Tier | Item | Commit | Cosa è cambiato |
+> |---|---|---|---|
+> | 0 | smoke test | `c1ff510` | `scripts/smoke-test.mjs` — 7 check, ~50s |
+> | 1.3 | API key endpoints | `da29cb7` | POST/GET/DELETE `/api/admin/tenant/[id]/api-keys` + `assertPlatformAdmin` helper |
+> | 1.4+1.5 | drop UUID fallback | `95b6ce7` | nuova api-key Picnic + `resolveTenantFromApiKey` solo via DB |
+> | 1.2 | Twilio delivery callback | `83fcc2f` | `/api/twilio/delivery-callback` con HMAC verify + audit log |
+> | 1.9 | CORS allow-list | `a77daa5` | `src/lib/cors.ts` + wired in middleware |
+> | 1.6a | audit script | `6354309` | `scripts/audit-n8n-secrets.mjs` (sicuro in git) + report |
+> | 3.1 | as any residue | `dfc7fa8` | modify/route.ts pulito |
+> | 5.2 | Vercel Analytics | `77a8104` | `@vercel/analytics` + speed-insights montati |
+> | 8.1 | book parallel queries | `089f9c2` | Promise.all su tenants/idempotency/guests |
+> | 8.2 | conversation-summary `after()` | `75c5d0e` | OpenAI call non blocca più il response |
+> | 4.2+4.4+4.10 | DB FK + channel + 3 indexes | `4c06e98` | live + schema sync |
+> | 2.2 | markdown conversations | `516432f` | `src/lib/conversation-md.ts` + `/api/conversations/[id]/markdown` + 6 test |
+> | 3.9 | Vercel AI Gateway opt-in | `aa67d69` | `src/lib/openai-base-url.ts` wired in summary + translate |
+> | 7.1+7.2 | GDPR export+erase | `b790b84` | `/api/admin/guests/[id]/export` + DELETE anonimizza |
+> | 1.8 | rate limiting opt-in | `ce1b39f` | RPC `consume_rate_limit` + middleware su 3 route |
+> | 1.6b | n8n Twilio redact | `ff1cd76` | 0 SID/TOKEN literali in 12 workflow live |
+> | 10.1-10.4 | docs | `d21f1e5` | README + INCIDENT_RUNBOOK + ONBOARDING + 4 ADR + bot-config.md |
+>
+> **Test count**: 50 → 56 (`npm test`). Build verde su tutti i commit.
+>
+> **Deferred (basso valore o serve infra esterna)**:
+> - 1.1 (`tenant_id` env in n8n) — cosmetico per single-tenant; rifare quando arriva 2° ristorante
+> - 1.10 (vault per `credentials.md`) — operativo (1Password / Bitwarden)
+> - 2.1 (split mega Code node), 2.3 (extract-booking-intent), 2.4-2.5 (intake + Switch) — 1 settimana di lavoro, prerequisito Tier 3.2
+> - 3.2 (DB integration tests) — 1 giorno, sblocca 2.1
+> - 4.3 (`booking_at timestamptz`), 4.5 (`allergies text[]` populato) — toccano query ovunque
+> - 4.11 (retention cron), 5.4 (staging env), 5.5 (n8n backup cron), 5.6 (alerting), 5.10 (token rotation playbook)
+> - 6.1-6.6 (UX bot/voice), 7.4-7.5 (privacy consent)
+> - 8.3-8.4 (cache settings/availability), 9.1-9.4 (frontend polish)
+>
+> ---
+
 > **🟢 Update 2026-05-12 18:50** — Tier 0 smoke test + 5 Tier 1 items landati. Smoke test 7/7 PASS sull'ultimo HEAD `a77daa5`:
 >
 > | # | Commit | Tier | Cosa | Stato |
