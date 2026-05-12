@@ -13,6 +13,7 @@
 > | n8n | live | `Picnic_Chatbot_WhatsApp` ora include `MessageSid` nei 2 POST a `/api/webhooks/incoming-message` → dedup attivo | medio (workflow in prod) | ✅ live, status 200, active=true |
 > | n8n | live | **Risk #2 chiuso**: rimossi i fallback hardcoded di `TWILIO_SID`/`TWILIO_TOKEN` dai 4 Code node del chatbot (`Fetch History`, `OpenAI`, `Send WhatsApp Reply`, `Book + Notify Owner`). Le creds ora vengono solo da `tenants.settings.bot_config` (tenant-scoped). 0 literali SID/TOKEN nel workflow JSON. | medio | ✅ live, status 200, active=true |
 > | n8n | live | **Risk #4 quasi chiuso** (FIX B39): le 3 scritture di session primer in staticData (`Fetch History` pre_confirmo + modify.trigger, `Book + Notify Owner` post-modify reset) ora vengono mirrorate su `bot_sessions` via RPC `commit_bot_session`. OpenAI legge già dal DB via `try_acquire_bot_lock` (FIX B33). Restano in staticData solo `pendingBookings`/`pendingWaitlist`/`customerLang` per design (read minutes-apart). | medio | ✅ live, status 200, active=true |
+> | 7 | (in main) | Stage 5 prep: `schemas/booking_intent.schema.json` — 11 campi core + estensioni Picnic (`zona`, `delta_personas`, `shift`, `force_new`, `edge_hour`, `proposed_alternatives`) sotto `x_picnic`. Solo doc, nessun runtime change. Base per `/api/ai/extract-booking-intent`. | nullo | ✅ in main |
 >
 > **Sintesi quantitativa:**
 > - **0 → 50 unit test** (vitest run, 234ms).
@@ -219,7 +220,7 @@ For each of the 10 target stages: **does it exist? where? what's missing?**
 | | Status | Location |
 |---|---|---|
 | Triggered on `conversation_end` | ❌ | No such event |
-| Structured output against `BookingIntent.json` | ❌ | No schema file in repo |
+| Structured output against `BookingIntent.json` | ⚠️ schema only | [`schemas/booking_intent.schema.json`](schemas/booking_intent.schema.json) (2026-05-12) — runtime extractor route still pending |
 | Equivalent: inline Parser LLM mid-dialog | ✅ | `Picnic_Chatbot_WhatsApp.json` node 4 |
 
 **Reality**: extraction is **interleaved per-turn**. The Parser LLM is invoked on every user message; its output (`{intent, personas, fecha, hora, zona, nombre, notas, ...}`) feeds the JS controller in the same execution. Once all required fields are gathered, the controller _itself_ builds the `bookingData` payload and dispatches it — not as a final extraction, but mid-flow.
@@ -604,7 +605,7 @@ Component-by-component verdict, ordered by impact.
 | **State in n8n staticData** | Move to a new `bot_sessions` table: `(tenant_id, guest_id, channel, state jsonb, updated_at, expires_at)`. Add a `private.bot_session_lock(...)` RPC for the concurrency guard (mirroring [`feature_picnic_bot_session_persistence.md`](memory) pattern). |
 | **`conversations.transcript jsonb` → `conversation_messages` table** | Optional but recommended: `(id, conversation_id, role, content, lang, timestamp)` for queryable transcripts. Keeps `conversations.transcript` derivable via view for backward compat. |
 | **No conversation_end event** | Emit an event when (a) booking succeeds + recap card sent, (b) cancel succeeds, (c) 2h-TTL inactivity, (d) staff takeover. Trigger nightly LLM extraction against final markdown render. |
-| **No `BookingIntent.json` schema** | Add `schemas/booking_intent.schema.json` with the 11 target fields **+ Picnic-specific extensions** (`zona`, `delta_personas`, `shift`). Use as the structured-output schema in a dedicated end-of-conversation extraction LLM. |
+| ~~**No `BookingIntent.json` schema**~~ | ✅ Done 2026-05-12 — [`schemas/booking_intent.schema.json`](schemas/booking_intent.schema.json) added (11 core fields + `x_picnic` extensions: `zona`, `delta_personas`, `shift`, `force_new`, `edge_hour`, `proposed_alternatives`). Ready to be used as structured-output schema for the future `/api/ai/extract-booking-intent` route. |
 | **Hardcoded tenant_id everywhere** | Tenant-id should come from the `x-ai-secret` → tenant lookup (currently the secret IS the tenant_id, per [`src/app/api/webhooks/route.ts`](src/app/api/webhooks/route.ts#L19-L20)). Add a `tenant_api_keys` table for proper rotation. |
 | ~~**Hardcoded Twilio creds in n8n node 7**~~ | ✅ Done 2026-05-12 16:40 — i 4 Code node che usavano SID/TOKEN come fallback (`Fetch History`, `OpenAI`, `Send WhatsApp Reply`, `Book + Notify Owner`) ora leggono solo da `tenants.settings.bot_config`. Zero literali nel workflow JSON. |
 | **`book/route.ts` (688 LOC)** | Split into `validate.ts` (date/time/opening-hours), `duplicate-check.ts` (±3 day), `allocator.ts` (table assignment), `persist.ts`. |
