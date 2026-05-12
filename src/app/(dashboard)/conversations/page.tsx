@@ -286,12 +286,14 @@ export default function ConversationsPage() {
             </div>
           ) : (
             <div className="divide-y" style={{ borderColor: 'rgba(196,149,106,0.2)' }}>
-              {filtered.map(conv => {
+              {(() => { let newRowIdx = 0; return filtered.map(conv => {
                 const convUpdated = (conv as any).updated_at || (conv as any).created_at;
                 const isNew = convUpdated && convUpdated > seenAt && selectedConvo?.id !== conv.id;
+                const rowIdx = isNew ? newRowIdx++ : 0;
                 return (
                 <div key={conv.id} onClick={() => setSelectedConvoId(conv.id)}
-                  className={`px-4 py-3 cursor-pointer transition-colors active:bg-[#c4956a]/10 ${selectedConvo?.id === conv.id ? 'bg-[#c4956a]/10' : ''} ${isNew ? 'is-new-row' : ''}`}>
+                  className={`px-4 py-3 cursor-pointer transition-colors active:bg-[#c4956a]/10 ${selectedConvo?.id === conv.id ? 'bg-[#c4956a]/10' : ''} ${isNew ? 'is-new-row' : ''}`}
+                  style={isNew ? { ['--row-new-index' as any]: rowIdx } : undefined}>
                   <div className="flex items-center gap-3">
                     <input type="checkbox" checked={selectedIds.has(conv.id)}
                       onChange={(e) => { e.stopPropagation(); toggleSelect(conv.id); }}
@@ -317,7 +319,7 @@ export default function ConversationsPage() {
                   </div>
                 </div>
                 );
-              })}
+              }); })()}
             </div>
           )}
         </div>

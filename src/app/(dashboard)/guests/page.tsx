@@ -204,12 +204,13 @@ export default function GuestsPage() {
           </div>
         ) : viewMode === "grid" ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-            {filtered.map(guest => {
+            {(() => { let newRowIdx = 0; return filtered.map(guest => {
               const isNew = (guest as any).created_at && (guest as any).created_at > seenAt;
+              const rowIdx = isNew ? newRowIdx++ : 0;
               return (
               <div key={guest.id} onClick={() => setSelectedGuest(guest)}
                 className={`rounded-xl border-2 p-4 hover:shadow-md cursor-pointer transition-all ${isNew ? 'is-new-row' : ''}`}
-                style={{ background: 'rgba(252,246,237,0.85)', borderColor: '#c4956a' }}>
+                style={{ background: 'rgba(252,246,237,0.85)', borderColor: '#c4956a', ...(isNew ? { ['--row-new-index' as any]: rowIdx } : {}) }}>
                 <div className="flex items-center justify-between mb-3">
                   <div className="flex items-center gap-3 min-w-0">
                     <div className="h-9 w-9 rounded-full flex items-center justify-center text-black font-bold text-sm flex-shrink-0" style={{ background: 'rgba(196,149,106,0.2)' }}>
@@ -237,20 +238,21 @@ export default function GuestsPage() {
                 </div>
               </div>
               );
-            })}
+            }); })()}
           </div>
         ) : (
           <>
           {/* Mobile: card list with all data visible */}
           <div className="sm:hidden space-y-2">
-            {filtered.map(guest => {
+            {(() => { let newRowIdx = 0; return filtered.map(guest => {
               const isNew = (guest as any).created_at && (guest as any).created_at > seenAt;
+              const rowIdx = isNew ? newRowIdx++ : 0;
               return (
               <div
                 key={guest.id}
                 onClick={() => toggleSelect(guest.id)}
                 className={`rounded-xl border-2 p-3 transition-all cursor-pointer ${selectedIds.has(guest.id) ? 'ring-2 ring-[#c4956a]' : ''} ${isNew ? 'is-new-row' : ''}`}
-                style={{ background: 'rgba(252,246,237,0.85)', borderColor: selectedIds.has(guest.id) ? '#c4956a' : 'rgba(196,149,106,0.4)' }}
+                style={{ background: 'rgba(252,246,237,0.85)', borderColor: selectedIds.has(guest.id) ? '#c4956a' : 'rgba(196,149,106,0.4)', ...(isNew ? { ['--row-new-index' as any]: rowIdx } : {}) }}
               >
                 <div className="flex items-center gap-3">
                   <input type="checkbox" checked={selectedIds.has(guest.id)} onChange={() => toggleSelect(guest.id)} className="w-4 h-4 rounded accent-[#c4956a] cursor-pointer flex-shrink-0" />
@@ -272,7 +274,7 @@ export default function GuestsPage() {
                 </div>
               </div>
               );
-            })}
+            }); })()}
           </div>
 
           {/* Desktop: full table */}
@@ -289,10 +291,16 @@ export default function GuestsPage() {
                 </tr>
               </thead>
               <tbody className="divide-y" style={{ borderColor: 'rgba(196,149,106,0.3)' }}>
-                {filtered.map(guest => {
+                {(() => { let newRowIdx = 0; return filtered.map(guest => {
                   const isNew = (guest as any).created_at && (guest as any).created_at > seenAt;
+                  const rowIdx = isNew ? newRowIdx++ : 0;
                   return (
-                  <tr key={guest.id} onClick={() => setSelectedGuest(guest)} className={`hover:bg-[#c4956a]/10 transition-colors cursor-pointer ${isNew ? 'is-new-row' : ''}`}>
+                  <tr
+                    key={guest.id}
+                    onClick={() => setSelectedGuest(guest)}
+                    className={`hover:bg-[#c4956a]/10 transition-colors cursor-pointer ${isNew ? 'is-new-row' : ''}`}
+                    style={isNew ? { ['--row-new-index' as any]: rowIdx } : undefined}
+                  >
                     <td className="px-3 py-3">
                       <input type="checkbox" checked={selectedIds.has(guest.id)} onChange={(e) => { e.stopPropagation(); toggleSelect(guest.id); }} className="w-4 h-4 rounded accent-[#c4956a] cursor-pointer" />
                     </td>
@@ -312,7 +320,7 @@ export default function GuestsPage() {
                     </td>
                   </tr>
                   );
-                })}
+                }); })()}
               </tbody>
             </table>
           </div>

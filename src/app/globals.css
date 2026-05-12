@@ -84,108 +84,89 @@ body {
 }
 
 /* "New since last visit" effect for rows in dashboard sections.
- * "Ink drop" motion: two warm radial gradients emerge from the row center
- * and spread outward like ink in water. A terracotta border-flash pulses
- * twice for emphasis. Subtle scale-rise entry, no vertical bounce.
+ * Diagonal shimmer sweep: a soft light band crosses the row once from left
+ * to right, like a skeleton-loader in reverse. Each row is staggered by
+ * its --row-new-index (set inline) so a burst of N new rows pulses one at
+ * a time, not in unison. Stagger step: 400ms.
  * Used by useSeenSnapshotAndMark on /reservations, /pending, /waitlist,
  * /conversations, /guests. Honors prefers-reduced-motion. */
-@keyframes new-row-rise {
-  from { transform: scale(0.97); opacity: 0; }
-  to   { transform: scale(1);    opacity: 1; }
-}
-@keyframes new-row-ink {
-  0%   { opacity: 0;    transform: translate(-50%, -50%) scale(0.1); }
-  20%  { opacity: 0.55; }
-  100% { opacity: 0;    transform: translate(-50%, -50%) scale(2.4); }
-}
-@keyframes new-row-border-flash {
-  0%   { box-shadow: 0 0 0 0 rgba(244, 85, 23, 0.0); }
-  18%  { box-shadow: 0 0 0 3px rgba(244, 85, 23, 0.35), 0 0 14px 3px rgba(244, 85, 23, 0.18); }
-  45%  { box-shadow: 0 0 0 1px rgba(196, 149, 106, 0.25), 0 0 6px 1px rgba(196, 149, 106, 0.10); }
-  100% { box-shadow: 0 0 0 0 rgba(196, 149, 106, 0.0); }
+@keyframes new-row-shimmer {
+  0%   { transform: translateX(-110%) skewX(-18deg); opacity: 0; }
+  20%  { opacity: 1; }
+  80%  { opacity: 1; }
+  100% { transform: translateX(220%)  skewX(-18deg); opacity: 0; }
 }
 .is-new-row {
   position: relative;
   overflow: hidden;
   z-index: 1;
-  animation:
-    new-row-rise 0.5s cubic-bezier(0.22, 1, 0.36, 1) 1 both,
-    new-row-border-flash 2.4s ease-out 1 both;
 }
-/* First ink drop — warm terracotta core */
 .is-new-row::before {
   content: '';
   position: absolute;
-  left: 50%;
-  top: 50%;
-  width: 130%;
-  aspect-ratio: 1;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  width: 45%;
   pointer-events: none;
   z-index: 0;
-  border-radius: 50%;
-  background: radial-gradient(
-    circle,
-    rgba(244, 85, 23, 0.42) 0%,
-    rgba(255, 165, 121, 0.24) 28%,
-    rgba(196, 149, 106, 0.10) 50%,
-    transparent 68%
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.0) 15%,
+    rgba(255, 255, 255, 0.55) 50%,
+    rgba(255, 255, 255, 0.0) 85%,
+    transparent 100%
   );
-  transform: translate(-50%, -50%) scale(0.1);
-  animation: new-row-ink 1.7s cubic-bezier(0.22, 1, 0.36, 1) 1 both;
+  transform: translateX(-110%) skewX(-18deg);
+  animation: new-row-shimmer 1.4s cubic-bezier(0.22, 1, 0.36, 1) calc(var(--row-new-index, 0) * 400ms) 1 both;
 }
-/* Second ink drop — softer amber echo, delayed */
-.is-new-row::after {
-  content: '';
-  position: absolute;
-  left: 50%;
-  top: 50%;
-  width: 130%;
-  aspect-ratio: 1;
-  pointer-events: none;
-  z-index: 0;
-  border-radius: 50%;
-  background: radial-gradient(
-    circle,
-    rgba(255, 196, 138, 0.32) 0%,
-    rgba(196, 149, 106, 0.18) 32%,
-    transparent 62%
-  );
-  transform: translate(-50%, -50%) scale(0.1);
-  animation: new-row-ink 1.7s cubic-bezier(0.22, 1, 0.36, 1) 0.28s 1 both;
+.is-new-row > * {
+  position: relative;
+  z-index: 1;
 }
 @media (prefers-reduced-motion: reduce) {
   .is-new-row,
-  .is-new-row::before,
-  .is-new-row::after {
+  .is-new-row::before {
     animation: none;
-    background-color: rgba(196, 149, 106, 0.10);
+    background: none;
   }
 }
 
-/* Table-row variant: position/overflow/transform and the 130%-wide radial
- * pseudo-elements break table-fixed column geometry on <tr>. Replace with a
- * cell-safe background pulse that paints behind the row without disturbing
- * cell widths. */
+/* Table-row variant: <tr> can't host an absolutely-positioned pseudo-element
+ * cleanly without breaking table-fixed column geometry. Use background-position
+ * animation on the row itself instead — same diagonal shimmer feel, cell-safe. */
+@keyframes new-row-tr-shimmer {
+  0%   { background-position: -150% 0; }
+  100% { background-position:  250% 0; }
+}
 tr.is-new-row {
   position: static;
   overflow: visible;
   z-index: auto;
-  animation: new-row-tr-flash 2.4s ease-out 1 both;
+  background-image: linear-gradient(
+    100deg,
+    transparent 0%,
+    transparent 35%,
+    rgba(255, 255, 255, 0.0) 42%,
+    rgba(180, 200, 220, 0.35) 50%,
+    rgba(255, 255, 255, 0.0) 58%,
+    transparent 65%,
+    transparent 100%
+  );
+  background-size: 250% 100%;
+  background-position: -150% 0;
+  background-repeat: no-repeat;
+  animation: new-row-tr-shimmer 1.4s cubic-bezier(0.22, 1, 0.36, 1) calc(var(--row-new-index, 0) * 400ms) 1 both;
 }
 tr.is-new-row::before,
 tr.is-new-row::after {
   display: none;
 }
-@keyframes new-row-tr-flash {
-  0%   { background-color: rgba(244, 85, 23, 0.22); }
-  18%  { background-color: rgba(244, 85, 23, 0.28); }
-  45%  { background-color: rgba(196, 149, 106, 0.12); }
-  100% { background-color: transparent; }
-}
 @media (prefers-reduced-motion: reduce) {
   tr.is-new-row {
     animation: none;
-    background-color: rgba(196, 149, 106, 0.10);
+    background-image: none;
   }
 }
 

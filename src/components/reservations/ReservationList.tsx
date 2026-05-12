@@ -153,15 +153,16 @@ export function ReservationList({ date, shiftFilter = "all", onRowClick, onCreat
     <>
     {/* Mobile: card list */}
     <div className="md:hidden space-y-2">
-      {reservations.map((res) => {
+      {(() => { let newRowIdx = 0; return reservations.map((res) => {
         const resCreated = (res as any).created_at;
         const isNew = resCreated && resCreated > seenAt;
+        const rowIdx = isNew ? newRowIdx++ : 0;
         return (
         <div
           key={res.id}
           onClick={() => onRowClick?.(res)}
           className={`rounded-xl border-2 p-3 transition-all ${onRowClick ? 'cursor-pointer active:scale-[0.98]' : ''} ${isNew ? 'is-new-row' : ''}`}
-          style={{ background: 'rgba(252,246,237,0.85)', borderColor: 'rgba(196,149,106,0.4)' }}
+          style={{ background: 'rgba(252,246,237,0.85)', borderColor: 'rgba(196,149,106,0.4)', ...(isNew ? { ['--row-new-index' as any]: rowIdx } : {}) }}
         >
           <div className="flex items-center gap-3">
             <div className="flex flex-col items-center justify-center w-12 flex-shrink-0">
@@ -199,7 +200,7 @@ export function ReservationList({ date, shiftFilter = "all", onRowClick, onCreat
           )}
         </div>
         );
-      })}
+      }); })()}
     </div>
 
     {/* Desktop: full table — joins seamlessly with the toolbar above
@@ -220,14 +221,16 @@ export function ReservationList({ date, shiftFilter = "all", onRowClick, onCreat
           </tr>
         </thead>
         <tbody className="divide-y" style={{ borderColor: 'rgba(196,149,106,0.3)' }}>
-          {reservations.map((res) => {
+          {(() => { let newRowIdx = 0; return reservations.map((res) => {
             const resCreated = (res as any).created_at;
             const isNew = resCreated && resCreated > seenAt;
+            const rowIdx = isNew ? newRowIdx++ : 0;
             return (
             <tr
                key={res.id}
                onClick={() => onRowClick?.(res)}
                className={`hover:bg-[#c4956a]/10 transition-colors ${onRowClick ? 'cursor-pointer' : ''} ${isNew ? 'is-new-row' : ''}`}
+               style={isNew ? { ['--row-new-index' as any]: rowIdx } : undefined}
             >
               <td className="px-4 py-4 whitespace-nowrap text-center">
                 <div className="flex items-center justify-center text-sm font-bold text-black">
@@ -267,7 +270,7 @@ export function ReservationList({ date, shiftFilter = "all", onRowClick, onCreat
               </td>
             </tr>
             );
-          })}
+          }); })()}
         </tbody>
       </table>
     </div>

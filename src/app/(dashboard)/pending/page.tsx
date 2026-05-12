@@ -354,17 +354,18 @@ export default function PendingPage() {
         </div>
       ) : (
         <div className="space-y-4">
-          {pending.map((req) => {
+          {(() => { let newRowIdx = 0; return pending.map((req) => {
             const guestName = req.guests?.name || "Unknown";
             const guestPhone = req.guests?.phone || "";
             const isConfirming = confirmingId === req.id;
             const isNew = (req as any).created_at && (req as any).created_at > seenAt;
+            const rowIdx = isNew ? newRowIdx++ : 0;
 
             return (
               <div
                 key={req.id}
                 className={`border-2 rounded-xl overflow-hidden transition-all ${isNew ? 'is-new-row' : ''}`}
-                style={{ background: 'rgba(252,246,237,0.85)', borderColor: isConfirming ? '#22c55e' : '#c4956a' }}
+                style={{ background: 'rgba(252,246,237,0.85)', borderColor: isConfirming ? '#22c55e' : '#c4956a', ...(isNew ? { ['--row-new-index' as any]: rowIdx } : {}) }}
               >
                 <div className="p-4 sm:p-5">
                   <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
@@ -592,7 +593,7 @@ export default function PendingPage() {
                 })()}
               </div>
             );
-          })}
+          }); })()}
         </div>
       )}
 
