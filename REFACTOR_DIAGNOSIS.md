@@ -12,6 +12,7 @@
 > | 6 | `e8db63e` | Rimossi tutti i `(payload as any)`, tipi allargati | nullo | ✅ in main |
 > | n8n | live | `Picnic_Chatbot_WhatsApp` ora include `MessageSid` nei 2 POST a `/api/webhooks/incoming-message` → dedup attivo | medio (workflow in prod) | ✅ live, status 200, active=true |
 > | n8n | live | **Risk #2 chiuso**: rimossi i fallback hardcoded di `TWILIO_SID`/`TWILIO_TOKEN` dai 4 Code node del chatbot (`Fetch History`, `OpenAI`, `Send WhatsApp Reply`, `Book + Notify Owner`). Le creds ora vengono solo da `tenants.settings.bot_config` (tenant-scoped). 0 literali SID/TOKEN nel workflow JSON. | medio | ✅ live, status 200, active=true |
+> | n8n | live | **Risk #4 quasi chiuso** (FIX B39): le 3 scritture di session primer in staticData (`Fetch History` pre_confirmo + modify.trigger, `Book + Notify Owner` post-modify reset) ora vengono mirrorate su `bot_sessions` via RPC `commit_bot_session`. OpenAI legge già dal DB via `try_acquire_bot_lock` (FIX B33). Restano in staticData solo `pendingBookings`/`pendingWaitlist`/`customerLang` per design (read minutes-apart). | medio | ✅ live, status 200, active=true |
 >
 > **Sintesi quantitativa:**
 > - **0 → 50 unit test** (vitest run, 234ms).
@@ -21,7 +22,7 @@
 > - `book/route.ts` da 688 a 642 LOC.
 >
 > **Rimasti aperti** (vedi §6 e §7):
-> - Risk #4 (state in n8n staticData) — la tabella `bot_sessions` esiste già in DB, manca solo cablare il workflow
+> - Risk #4 (state in n8n staticData) — ⚠️ partial 2026-05-12 16:46. Session primer ora landa in `bot_sessions` (FIX B39). Pending caches (pendingBookings/pendingWaitlist/customerLang) restano in staticData by design.
 > - Risk #6 (singolo 2000-LOC Code node) — grosso refactor n8n, va con calma
 > - Risk #8 (tenant_id hardcoded in tutti i workflow n8n) — più tenant = più lavoro, su Picnic resta cosmetico
 > - Risk #11 (Twilio Sandbox → WA Cloud API) — operational, serve Meta approval per HSM templates
@@ -652,7 +653,7 @@ Sorted by blast-radius.
 | 1 | ~~**API key = tenant_id (cleartext, no rotation)**~~ ✅ FIXED 2026-05-12 | [`src/app/api/webhooks/route.ts`](src/app/api/webhooks/route.ts) | `tenant_api_keys` table + sha256 lookup; legacy bearer-UUID still accepted via fallback |
 | 2 | ~~**Twilio creds hardcoded in n8n**~~ ✅ FIXED 2026-05-12 16:40 | `Picnic_Chatbot_WhatsApp.json` nodes 4/5/7/8 | Fallback literals rimossi; creds solo da `tenants.settings.bot_config` |
 | 3 | ~~**`system_logs` missing from DDL but indexed**~~ ✅ FIXED 2026-05-12 | [`supabase-schema.sql`](supabase-schema.sql) | DDL added for 10 missing tables |
-| 4 | **State in n8n staticData volatile** | All workflows | Move to `bot_sessions` table |
+| 4 | **State in n8n staticData volatile** ⚠️ partial 2026-05-12 | All workflows | Sessions: mirror in `bot_sessions` (FIX B33 = OpenAI read, FIX B39 = Fetch History + Book+Notify writes). Pending caches still in staticData by design (read minutes apart, n8n flush latency tolerable). |
 | 5 | ~~**Debounce removed → Twilio duplicate webhook = double-processing**~~ ✅ FULLY FIXED 2026-05-12 | `Picnic_Chatbot_WhatsApp.json` nodes 3 + 7 | CRM-side dedup via `audit_events.idempotency_key`; n8n workflow updated live to pass `MessageSid` (verified active=true) |
 | 6 | **Single 2000-LOC Code node = single point of bug** | `Picnic_Chatbot_WhatsApp.json` node 4 | Split into Parser/Controller/Formatter nodes |
 | 7 | ~~**No idempotency on `/api/webhooks/incoming-message`**~~ ✅ FIXED 2026-05-12 | [`src/app/api/webhooks/incoming-message/route.ts`](src/app/api/webhooks/incoming-message/route.ts) | Accepts `message_sid`/`idempotency_key`; dedup via `audit_events` |
