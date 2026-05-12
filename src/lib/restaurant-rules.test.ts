@@ -7,6 +7,7 @@ import {
   isOpen,
   getBookingAction,
   getTimeSlots,
+  classifyHora,
   type OpeningHours,
 } from './restaurant-rules';
 
@@ -134,3 +135,38 @@ describe('getTimeSlots', () => {
     expect(thu).not.toContain('19:00');
   });
 });
+
+// Live Picnic schedule used by the chatbot: Tuesday has dinner-only 19:30-22:30,
+// with last reservation at 21:45 (close - 45min). 19:00 is BETWEEN shifts, not
+// past last-reservation — must classify as before_next_opening, not after_last.
+const PICNIC_LIVE: OpeningHours = {
+  '0': [{ open: '12:30', close: '15:30' }, { open: '19:30', close: '22:30' }],
+  '1': [],
+  '2': [{ open: '12:30', close: '15:00' }, { open: '19:30', close: '22:30' }],
+  '3': [{ open: '12:30', close: '15:30' }, { open: '19:30', close: '22:30' }],
+  '4': [{ open: '12:30', close: '15:30' }, { open: '20:00', close: '22:30' }],
+  '5': [{ open: '12:30', close: '15:30' }, { open: '19:30', close: '22:30' }],
+  '6': [{ open: '12:30', close: '15:30' }, { open: '19:30', close: '22:30' }],
+};
+
+describe('classifyHora', () => {
+  it('19:00 on Tuesday is between shifts → before_next_opening 19:30', () => {
+    expect(classifyHora('19:00', 2, PICNIC_LIVE)).toEqual({ kind: 'before_next_opening', nextOpen: '19:30' });
+  });
+  it('22:00 on Tuesday is past last reservation 21:45 → after_last_reservation', () => {
+    expect(classifyHora('22:00', 2, PICNIC_LIVE)).toEqual({ kind: 'after_last_reservation', lastReservation: '21:45' });
+  });
+  it('20:00 on Tuesday is inside dinner range', () => {
+    expect(classifyHora('20:00', 2, PICNIC_LIVE)).toEqual({ kind: 'in_range' });
+  });
+  it('12:00 on Tuesday is before lunch opens → before_next_opening 12:30', () => {
+    expect(classifyHora('12:00', 2, PICNIC_LIVE)).toEqual({ kind: 'before_next_opening', nextOpen: '12:30' });
+  });
+  it('16:00 on Thursday (between lunch and dinner) → before_next_opening 20:00', () => {
+    expect(classifyHora('16:00', 4, PICNIC_LIVE)).toEqual({ kind: 'before_next_opening', nextOpen: '20:00' });
+  });
+  it('Monday closed → closed_day', () => {
+    expect(classifyHora('20:00', 1, PICNIC_LIVE)).toEqual({ kind: 'closed_day' });
+  });
+});
+

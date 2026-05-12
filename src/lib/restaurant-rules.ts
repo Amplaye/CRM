@@ -56,6 +56,41 @@ export function getBookingAction(partySize: number): 'auto_confirm' | 'manual_re
   return 'reject';
 }
 
+// Classify an asked time against the day's shifts.
+// "before_next_opening" = the time falls in the gap between shifts (or before the
+// first shift) and the next shift hasn't started yet — propose its opening time.
+// "after_last_reservation" = the time is past close-minus-cutoff of the last
+// shift that could still seat it — propose the closest last-reservation slot.
+// "in_range" = the time fits within [open, close - cutoffMinutes] of some shift.
+export type HoraClassification =
+  | { kind: 'in_range' }
+  | { kind: 'before_next_opening'; nextOpen: string }
+  | { kind: 'after_last_reservation'; lastReservation: string }
+  | { kind: 'closed_day' };
+
+export function classifyHora(
+  askedTime: string,
+  dayOfWeek: number,
+  openingHours: OpeningHours,
+  cutoffMinutes = 45,
+): HoraClassification {
+  const slots = openingHours[String(dayOfWeek)] || [];
+  if (slots.length === 0) return { kind: 'closed_day' };
+  const askedMin = timeToMinutes(askedTime);
+  const ranges = slots.map(s => ({ open: timeToMinutes(s.open), close: timeToMinutes(s.close), openStr: s.open, closeStr: s.close }));
+  const inRange = ranges.some(r => askedMin >= r.open && askedMin <= r.close - cutoffMinutes);
+  if (inRange) return { kind: 'in_range' };
+  const nextOpening = ranges
+    .filter(r => r.open > askedMin)
+    .sort((a, b) => a.open - b.open)[0];
+  if (nextOpening) return { kind: 'before_next_opening', nextOpen: nextOpening.openStr };
+  const lasts = ranges.map(r => r.close - cutoffMinutes).filter(v => Number.isFinite(v));
+  const bestLast = lasts.length ? Math.max(...lasts) : null;
+  const hh = bestLast != null ? String(Math.floor(bestLast / 60)).padStart(2, '0') : null;
+  const mm = bestLast != null ? String(bestLast % 60).padStart(2, '0') : null;
+  return { kind: 'after_last_reservation', lastReservation: hh && mm ? `${hh}:${mm}` : '' };
+}
+
 export function getTimeSlots(dayOfWeek: number, openingHours: OpeningHours): string[] {
   const daySlots = openingHours[String(dayOfWeek)] || [];
   const slots: string[] = [];
