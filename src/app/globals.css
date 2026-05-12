@@ -163,36 +163,32 @@ body {
 }
 
 /* Table-row variant: <tr> can't host absolutely-positioned pseudo-elements
- * cleanly without breaking table-fixed column geometry. Compose both the
- * wash and the diagonal sweep as background-image layers on the row itself. */
+ * cleanly without breaking table-fixed column geometry. Animate the diagonal
+ * sweep via background-position and the slate wash via background-color, so
+ * the row's own opacity stays at 1 throughout — otherwise `animation-fill-mode:
+ * both` would leave the row invisible after the keyframe ends. */
 @keyframes new-row-tr-shimmer {
-  0%   { background-position: -150% 0, 0 0; opacity: 0; }
-  15%  { opacity: 1; }
-  70%  { opacity: 1; }
-  100% { background-position:  250% 0, 0 0; opacity: 0; }
+  0%   { background-position: -150% 0; background-color: rgba(30, 41, 59, 0); }
+  15%  { background-color: rgba(30, 41, 59, 0.12); }
+  70%  { background-color: rgba(30, 41, 59, 0.12); }
+  100% { background-position:  250% 0; background-color: rgba(30, 41, 59, 0); }
 }
 tr.is-new-row {
   position: static;
   overflow: visible;
   z-index: auto;
-  background-image:
-    linear-gradient(
-      100deg,
-      transparent 0%,
-      transparent 35%,
-      rgba(255, 255, 255, 0.0) 42%,
-      rgba(255, 255, 255, 0.45) 50%,
-      rgba(255, 255, 255, 0.0) 58%,
-      transparent 65%,
-      transparent 100%
-    ),
-    linear-gradient(
-      180deg,
-      rgba(30, 41, 59, 0.14) 0%,
-      rgba(30, 41, 59, 0.10) 100%
-    );
-  background-size: 250% 100%, 100% 100%;
-  background-position: -150% 0, 0 0;
+  background-image: linear-gradient(
+    100deg,
+    transparent 0%,
+    transparent 35%,
+    rgba(255, 255, 255, 0.0) 42%,
+    rgba(255, 255, 255, 0.45) 50%,
+    rgba(255, 255, 255, 0.0) 58%,
+    transparent 65%,
+    transparent 100%
+  );
+  background-size: 250% 100%;
+  background-position: -150% 0;
   background-repeat: no-repeat;
   animation: new-row-tr-shimmer 2.6s cubic-bezier(0.22, 1, 0.36, 1) calc(var(--row-new-index, 0) * 400ms) 1 both;
 }
