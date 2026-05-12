@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { after } from 'next/server';
 import { createServiceRoleClient } from '@/lib/supabase/server';
 import { assertAiSecret } from '@/lib/ai-auth';
 import { logSystemEvent } from '@/lib/system-log';
@@ -14,6 +15,11 @@ import { logSystemEvent } from '@/lib/system-log';
 //   - n8n chatbot after CONFIRMO / CANCELAR
 //   - n8n voice Post-Call Logic after end-of-call
 //   - admin UI "Regenerate summary" button (future)
+//
+// Since the OpenAI call takes ~3s and the (current) callers don't use the
+// returned summary text, the LLM call + DB write are scheduled via
+// next/server `after()` and the route returns immediately with 202. Admin
+// UI use case can switch to a synchronous variant when wired up.
 export async function POST(request: Request) {
   const unauth = assertAiSecret(request);
   if (unauth) return unauth;
@@ -79,6 +85,33 @@ export async function POST(request: Request) {
     if (transcript.length === 0) {
       return NextResponse.json({ ok: false, error: 'empty transcript' }, { status: 400 });
     }
+
+    // Schedule the heavy work after the response is sent. The caller gets
+    // 202 in ~50ms instead of waiting ~3s for OpenAI.
+    const convSnapshot = conv;
+    after(async () => {
+      await runSummaryJob(convSnapshot, transcript, requestedLang, force, OPENAI_KEY);
+    });
+
+    return NextResponse.json(
+      { ok: true, conversation_id: conv.id, queued: true },
+      { status: 202 }
+    );
+  } catch (e: any) {
+    console.error('conversation-summary error:', e?.message);
+    return NextResponse.json({ ok: false, error: e?.message || 'unknown' }, { status: 500 });
+  }
+}
+
+async function runSummaryJob(
+  conv: { id: string; transcript: any; summary: string | null; language: string | null; channel: string; intent: string | null },
+  transcript: any[],
+  requestedLang: string | undefined,
+  force: boolean | undefined,
+  OPENAI_KEY: string
+) {
+  try {
+    const supabase = createServiceRoleClient();
 
     // Resolve language: explicit param > stored conv.language (unless force) >
     // auto-detect from USER messages only. Default to 'es'.
@@ -148,30 +181,25 @@ export async function POST(request: Request) {
         severity: 'medium',
         title: 'conversation-summary OpenAI error',
         description: errText.slice(0, 500),
-        metadata: { conversation_id, lang },
+        metadata: { conversation_id: conv.id, lang },
       });
-      return NextResponse.json({ ok: false, error: 'openai_failed', detail: errText.slice(0, 200) }, { status: 502 });
+      return;
     }
     const aiData = await aiResp.json();
     const summary = String(aiData?.choices?.[0]?.message?.content || '').trim();
-    if (!summary) {
-      return NextResponse.json({ ok: false, error: 'empty_summary' }, { status: 502 });
-    }
+    if (!summary) return;
 
     // Skip overwrite if existing summary is identical (idempotent re-trigger).
-    if (!force && conv.summary === summary && conv.language === lang) {
-      return NextResponse.json({ ok: true, conversation_id, summary, language: lang, unchanged: true });
-    }
+    if (!force && conv.summary === summary && conv.language === lang) return;
 
     const { error: updErr } = await supabase
       .from('conversations')
       .update({ summary, language: lang, updated_at: new Date().toISOString() })
-      .eq('id', conversation_id);
-    if (updErr) throw updErr;
-
-    return NextResponse.json({ ok: true, conversation_id, summary, language: lang });
+      .eq('id', conv.id);
+    if (updErr) {
+      console.error('conversation-summary update error:', updErr.message);
+    }
   } catch (e: any) {
-    console.error('conversation-summary error:', e?.message);
-    return NextResponse.json({ ok: false, error: e?.message || 'unknown' }, { status: 500 });
+    console.error('conversation-summary background error:', e?.message);
   }
 }
