@@ -84,10 +84,13 @@ body {
 }
 
 /* "New since last visit" effect for rows in dashboard sections.
- * Diagonal shimmer sweep: a soft light band crosses the row once from left
- * to right, like a skeleton-loader in reverse. Each row is staggered by
- * its --row-new-index (set inline) so a burst of N new rows pulses one at
- * a time, not in unison. Stagger step: 400ms.
+ * Two layers:
+ *   1) ::after  → cool neutral wash that darkens the row background, giving
+ *                 each new row clear weight on the page. Stays during shimmer,
+ *                 fades out after.
+ *   2) ::before → diagonal light sweep on top of the wash, L→R once.
+ * Both layers are staggered by --row-new-index (set inline) at 400ms steps,
+ * so a burst of N new rows pulses in sequence, not in unison.
  * Used by useSeenSnapshotAndMark on /reservations, /pending, /waitlist,
  * /conversations, /guests. Honors prefers-reduced-motion. */
 @keyframes new-row-shimmer {
@@ -96,11 +99,33 @@ body {
   80%  { opacity: 1; }
   100% { transform: translateX(220%)  skewX(-18deg); opacity: 0; }
 }
+@keyframes new-row-wash {
+  0%   { opacity: 0; }
+  15%  { opacity: 1; }
+  70%  { opacity: 1; }
+  100% { opacity: 0; }
+}
 .is-new-row {
   position: relative;
   overflow: hidden;
   z-index: 1;
 }
+/* Background darkening wash — cool slate, no bronze tones */
+.is-new-row::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  background: linear-gradient(
+    180deg,
+    rgba(30, 41, 59, 0.14) 0%,
+    rgba(30, 41, 59, 0.10) 100%
+  );
+  opacity: 0;
+  animation: new-row-wash 2.6s ease-out calc(var(--row-new-index, 0) * 400ms) 1 both;
+}
+/* Diagonal light sweep on top of the wash */
 .is-new-row::before {
   content: '';
   position: absolute;
@@ -109,55 +134,67 @@ body {
   bottom: 0;
   width: 45%;
   pointer-events: none;
-  z-index: 0;
+  z-index: 1;
   background: linear-gradient(
     90deg,
     transparent 0%,
     rgba(255, 255, 255, 0.0) 15%,
-    rgba(255, 255, 255, 0.55) 50%,
+    rgba(255, 255, 255, 0.65) 50%,
     rgba(255, 255, 255, 0.0) 85%,
     transparent 100%
   );
   transform: translateX(-110%) skewX(-18deg);
-  animation: new-row-shimmer 1.4s cubic-bezier(0.22, 1, 0.36, 1) calc(var(--row-new-index, 0) * 400ms) 1 both;
+  animation: new-row-shimmer 1.4s cubic-bezier(0.22, 1, 0.36, 1) calc(var(--row-new-index, 0) * 400ms + 200ms) 1 both;
 }
 .is-new-row > * {
   position: relative;
-  z-index: 1;
+  z-index: 2;
 }
 @media (prefers-reduced-motion: reduce) {
   .is-new-row,
-  .is-new-row::before {
+  .is-new-row::before,
+  .is-new-row::after {
     animation: none;
     background: none;
   }
+  .is-new-row {
+    background-color: rgba(30, 41, 59, 0.06);
+  }
 }
 
-/* Table-row variant: <tr> can't host an absolutely-positioned pseudo-element
- * cleanly without breaking table-fixed column geometry. Use background-position
- * animation on the row itself instead — same diagonal shimmer feel, cell-safe. */
+/* Table-row variant: <tr> can't host absolutely-positioned pseudo-elements
+ * cleanly without breaking table-fixed column geometry. Compose both the
+ * wash and the diagonal sweep as background-image layers on the row itself. */
 @keyframes new-row-tr-shimmer {
-  0%   { background-position: -150% 0; }
-  100% { background-position:  250% 0; }
+  0%   { background-position: -150% 0, 0 0; opacity: 0; }
+  15%  { opacity: 1; }
+  70%  { opacity: 1; }
+  100% { background-position:  250% 0, 0 0; opacity: 0; }
 }
 tr.is-new-row {
   position: static;
   overflow: visible;
   z-index: auto;
-  background-image: linear-gradient(
-    100deg,
-    transparent 0%,
-    transparent 35%,
-    rgba(255, 255, 255, 0.0) 42%,
-    rgba(180, 200, 220, 0.35) 50%,
-    rgba(255, 255, 255, 0.0) 58%,
-    transparent 65%,
-    transparent 100%
-  );
-  background-size: 250% 100%;
-  background-position: -150% 0;
+  background-image:
+    linear-gradient(
+      100deg,
+      transparent 0%,
+      transparent 35%,
+      rgba(255, 255, 255, 0.0) 42%,
+      rgba(255, 255, 255, 0.45) 50%,
+      rgba(255, 255, 255, 0.0) 58%,
+      transparent 65%,
+      transparent 100%
+    ),
+    linear-gradient(
+      180deg,
+      rgba(30, 41, 59, 0.14) 0%,
+      rgba(30, 41, 59, 0.10) 100%
+    );
+  background-size: 250% 100%, 100% 100%;
+  background-position: -150% 0, 0 0;
   background-repeat: no-repeat;
-  animation: new-row-tr-shimmer 1.4s cubic-bezier(0.22, 1, 0.36, 1) calc(var(--row-new-index, 0) * 400ms) 1 both;
+  animation: new-row-tr-shimmer 2.6s cubic-bezier(0.22, 1, 0.36, 1) calc(var(--row-new-index, 0) * 400ms) 1 both;
 }
 tr.is-new-row::before,
 tr.is-new-row::after {
@@ -167,6 +204,7 @@ tr.is-new-row::after {
   tr.is-new-row {
     animation: none;
     background-image: none;
+    background-color: rgba(30, 41, 59, 0.06);
   }
 }
 
