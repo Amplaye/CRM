@@ -29,6 +29,7 @@ import { Dictionary } from "@/lib/i18n/dictionaries/en";
 import { useAuth } from "@/lib/contexts/AuthContext";
 import { createClient } from "@/lib/supabase/client";
 import { useNotificationCounts, NotificationCounts } from "@/lib/hooks/useNotificationCounts";
+import { TenantSwitcher } from "./TenantSwitcher";
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -80,13 +81,21 @@ export function Sidebar({ mobileOpen = false, onClose }: SidebarProps) {
     { href: "/admin/incidents", icon: AlertOctagon, label: "All Incidents" },
   ];
 
+  const isAdmin = globalRole === "platform_admin";
+
   const sidebarContent = (
     <>
-      <div className="h-14 md:h-16 flex items-center px-4 border-b" style={{ borderColor: '#c4956a' }}>
+      <div className="flex items-center px-3 py-2 border-b gap-2" style={{ borderColor: '#c4956a' }}>
         <img src="/logo.png" alt="BaliFlow" className="w-7 h-7 md:w-8 md:h-8 rounded-md flex-shrink-0 shadow-sm object-cover" />
-        <span className="font-semibold text-black text-base md:text-lg flex-1 text-center">
-          {isPlatformOnly ? "Platform Admin" : activeTenant?.name || "BaliFlow"}
-        </span>
+        {isAdmin ? (
+          <div className="flex-1 min-w-0">
+            <TenantSwitcher />
+          </div>
+        ) : (
+          <span className="font-semibold text-black text-base md:text-lg flex-1 text-center truncate">
+            {activeTenant?.name || "BaliFlow"}
+          </span>
+        )}
         <button onClick={onClose} className="md:hidden p-1 -mr-1 hover:bg-[#c4956a]/10 rounded-lg">
           <X className="w-5 h-5 text-black" />
         </button>

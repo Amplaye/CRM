@@ -11,7 +11,8 @@ interface TenantContextType {
   activeRole: string | null;
   globalRole: GlobalRole | null;
   availableTenants: Tenant[];
-  switchTenant: (tenantId: string) => void;
+  isImpersonating: boolean;
+  switchTenant: (tenantId: string | null) => void;
   refreshActiveTenant: () => Promise<void>;
   loading: boolean;
 }
@@ -21,6 +22,7 @@ const TenantContext = createContext<TenantContextType>({
   activeRole: null,
   globalRole: null,
   availableTenants: [],
+  isImpersonating: false,
   switchTenant: () => {},
   refreshActiveTenant: async () => {},
   loading: true,
@@ -34,6 +36,7 @@ export const TenantProvider = ({ children }: { children: ReactNode }) => {
   const [activeRole, setActiveRole] = useState<string | null>(null);
   const [globalRole, setGlobalRole] = useState<GlobalRole | null>(null);
   const [availableTenants, setAvailableTenants] = useState<Tenant[]>([]);
+  const [isImpersonating, setIsImpersonating] = useState(false);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -58,6 +61,7 @@ export const TenantProvider = ({ children }: { children: ReactNode }) => {
         setAvailableTenants(c.tenants);
         setActiveTenant(c.activeTenant);
         setActiveRole(c.activeRole);
+        setIsImpersonating(!!c.isImpersonating);
         setLoading(false);
         return;
       } catch { /* fall through to fetch */ }
@@ -76,27 +80,64 @@ export const TenantProvider = ({ children }: { children: ReactNode }) => {
         setGlobalRole(role);
 
         const memberships = membershipsRes.data;
-        const tenants = memberships && memberships.length > 0
+        const membershipTenants = memberships && memberships.length > 0
           ? memberships.map((m: any) => m.tenants as Tenant)
           : [];
+
+        // Platform admin: also fetch every tenant so they can impersonate any client.
+        let tenants: Tenant[] = membershipTenants;
+        if (role === "platform_admin") {
+          try {
+            const res = await fetch("/api/admin/all-tenants");
+            if (res.ok) {
+              const json = await res.json();
+              const all = (json.tenants ?? []) as Tenant[];
+              // Merge: membership tenants first (preserve order), then admin-only ones.
+              const seen = new Set(membershipTenants.map((t: Tenant) => t.id));
+              tenants = [
+                ...membershipTenants,
+                ...all.filter((t: Tenant) => !seen.has(t.id)),
+              ];
+            }
+          } catch {
+            // Fall back to membership tenants only.
+          }
+        }
         setAvailableTenants(tenants);
 
         let active: Tenant | null = null;
         let activeR: string | null = null;
+        let impersonating = false;
 
         if (tenants.length > 0) {
           const savedId = safeLocal.get("active_tenant_id");
-          active = tenants.find((t: Tenant) => t.id === savedId) || tenants[0];
-          activeR = memberships!.find((m: any) => m.tenant_id === active!.id)?.role || null;
-          safeLocal.set("active_tenant_id", active!.id);
+          // Platform admin default: stay in Platform Admin view (no tenant) unless they explicitly picked one.
+          if (role === "platform_admin") {
+            if (savedId) {
+              active = tenants.find((t: Tenant) => t.id === savedId) || null;
+            }
+          } else {
+            active = tenants.find((t: Tenant) => t.id === savedId) || tenants[0];
+          }
+          if (active) {
+            const membership = memberships?.find((m: any) => m.tenant_id === active!.id);
+            if (membership) {
+              activeR = membership.role;
+            } else if (role === "platform_admin") {
+              activeR = "platform_admin";
+              impersonating = true;
+            }
+            safeLocal.set("active_tenant_id", active.id);
+          }
         }
 
         setActiveTenant(active);
         setActiveRole(activeR);
+        setIsImpersonating(impersonating);
 
         // Cache in sessionStorage
         safeSession.set(cacheKey, JSON.stringify({
-          globalRole: role, tenants, activeTenant: active, activeRole: activeR,
+          globalRole: role, tenants, activeTenant: active, activeRole: activeR, isImpersonating: impersonating,
         }));
       } catch (err) {
         console.error("Failed to load tenant context", err);
@@ -108,14 +149,25 @@ export const TenantProvider = ({ children }: { children: ReactNode }) => {
     loadTenantData();
   }, [user, authLoading, supabase]);
 
-  const switchTenant = (tenantId: string) => {
+  const switchTenant = (tenantId: string | null) => {
+    if (user) safeSession.remove(`tenant_ctx_${user.id}`);
+    if (tenantId === null) {
+      safeLocal.remove("active_tenant_id");
+      window.location.href = "/admin";
+      return;
+    }
     const target = availableTenants.find(t => t.id === tenantId);
     if (target) {
-      setActiveTenant(target);
       safeLocal.set("active_tenant_id", target.id);
-      // Clear cache so it reloads with new tenant
-      if (user) safeSession.remove(`tenant_ctx_${user.id}`);
-      window.location.reload();
+      // Fire-and-forget audit log; don't block UI on it.
+      if (globalRole === "platform_admin") {
+        void fetch("/api/admin/impersonate", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ tenant_id: target.id }),
+        }).catch(() => {});
+      }
+      window.location.href = "/";
     }
   };
 
@@ -144,9 +196,9 @@ export const TenantProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const ctxValue = useMemo(
-    () => ({ activeTenant, activeRole, globalRole, availableTenants, switchTenant, refreshActiveTenant, loading }),
+    () => ({ activeTenant, activeRole, globalRole, availableTenants, isImpersonating, switchTenant, refreshActiveTenant, loading }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [activeTenant, activeRole, globalRole, availableTenants, loading]
+    [activeTenant, activeRole, globalRole, availableTenants, isImpersonating, loading]
   );
 
   return (

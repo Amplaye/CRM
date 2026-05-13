@@ -1,6 +1,6 @@
 "use client";
 
-import { Bell, Globe, Menu, Phone, MessageSquare } from "lucide-react";
+import { Bell, Globe, Menu, Phone, MessageSquare, ShieldAlert, LogOut } from "lucide-react";
 import { useLanguage } from "@/lib/contexts/LanguageContext";
 import { useTenant } from "@/lib/contexts/TenantContext";
 import { useEffect, useState, useRef } from "react";
@@ -24,7 +24,7 @@ interface TopbarProps {
 
 export function Topbar({ onMenuToggle }: TopbarProps) {
   const { language, setLanguage, t } = useLanguage();
-  const { activeTenant } = useTenant();
+  const { activeTenant, isImpersonating, switchTenant } = useTenant();
   const router = useRouter();
   const [isClient, setIsClient] = useState(false);
   const [notifications, setNotifications] = useState<Notification[]>([]);
@@ -319,14 +319,28 @@ export function Topbar({ onMenuToggle }: TopbarProps) {
 
   return (
     <header className="h-14 md:h-16 border-b flex items-center justify-between px-3 sm:px-4 md:px-6 lg:px-8" style={{ background: 'rgba(252,246,237,0.85)', borderColor: '#c4956a' }}>
-      {/* Left side - hamburger on mobile */}
-      <div className="flex items-center">
+      {/* Left side - hamburger on mobile + support-mode badge */}
+      <div className="flex items-center gap-2 min-w-0">
         <button
           onClick={onMenuToggle}
           className="md:hidden p-2 -ml-1 hover:bg-[#c4956a]/10 rounded-lg transition-colors"
         >
           <Menu className="h-5 w-5 text-black" />
         </button>
+        {isImpersonating && activeTenant && (
+          <div className="flex items-center gap-1.5 px-2 sm:px-2.5 py-1 rounded-md bg-amber-100 border border-amber-300 text-amber-900 text-[11px] sm:text-xs font-semibold min-w-0">
+            <ShieldAlert className="h-3.5 w-3.5 flex-shrink-0" />
+            <span className="hidden sm:inline">Supporto su</span>
+            <span className="truncate max-w-[10rem]">{activeTenant.name}</span>
+            <button
+              onClick={() => switchTenant(null)}
+              className="ml-1 p-0.5 hover:bg-amber-200 rounded transition-colors"
+              title="Esci dalla modalit&agrave; supporto"
+            >
+              <LogOut className="h-3 w-3" />
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Right side - controls */}
