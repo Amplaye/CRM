@@ -25,7 +25,7 @@ export async function POST(req: NextRequest) {
     ]);
     const isPlatformAdmin = callerProfile?.global_role === "platform_admin";
     const callerRole = (callerMembership as any)?.role;
-    if (!isPlatformAdmin && callerRole !== "owner" && callerRole !== "manager") {
+    if (!isPlatformAdmin && callerRole !== "owner") {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 

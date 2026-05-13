@@ -1,6 +1,6 @@
 "use client";
 
-import { UserPlus, Shield, Trash2, X, Mail, QrCode } from "lucide-react";
+import { UserPlus, Shield, Trash2, X, QrCode } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import { useLanguage } from "@/lib/contexts/LanguageContext";
 import type { Dictionary } from "@/lib/i18n/dictionaries/en";
@@ -19,13 +19,14 @@ type Member = {
   created_at?: string;
 };
 
-// UI label ↔ DB role mapping. We expose 3 simple labels to non-technical users;
-// the DB still uses owner/manager/host so existing RLS policies keep working.
-const ROLE_OPTIONS: { value: DbRole; key: keyof Dictionary; fallback: string }[] = [
-  { value: "owner", key: "team_role_owner", fallback: "Owner" },
-  { value: "manager", key: "team_role_admin", fallback: "Admin" },
-  { value: "host", key: "team_role_staff", fallback: "Staff" },
-];
+// UI exposes only two roles: Admin (DB owner — the account creator, unique)
+// and Staff (DB host). Legacy `manager` rows are displayed as Staff but cannot
+// be re-assigned from the UI; only the owner can manage the team.
+type TFn = (k: keyof Dictionary) => string;
+const roleToUiLabel = (r: DbRole, t: TFn): string => {
+  if (r === "owner") return t("team_role_admin") || "Admin";
+  return t("team_role_staff") || "Staff";
+};
 
 export function StaffTab() {
   const { t } = useLanguage();
@@ -39,14 +40,12 @@ export function StaffTab() {
 
   const [showInvite, setShowInvite] = useState(false);
   const [inviteName, setInviteName] = useState("");
-  const [inviteEmail, setInviteEmail] = useState("");
-  const [inviteRole, setInviteRole] = useState<DbRole>("host");
   const [inviting, setInviting] = useState(false);
   const [inviteError, setInviteError] = useState<string | null>(null);
 
   // qrFor describes whose QR is open: either an existing Member (re-login)
-  // or a pending invite (name + role, no user yet).
-  type PendingTarget = { kind: "pending"; name: string; role: DbRole };
+  // or a pending staff invite (name only — Admin role is creator-only).
+  type PendingTarget = { kind: "pending"; name: string };
   type ExistingTarget = { kind: "existing"; member: Member };
   type QrTarget = PendingTarget | ExistingTarget;
 
@@ -106,33 +105,12 @@ export function StaffTab() {
     setMyRole(me ? me.role : null);
   }, [myUserId, members]);
 
-  const canManage = myRole === "owner" || myRole === "manager";
-
-  const updateRole = async (member: Member, next: DbRole) => {
-    if (!canManage) return;
-    if (member.user_id === myUserId && member.role === "owner" && next !== "owner") {
-      const owners = members.filter(m => m.role === "owner");
-      if (owners.length <= 1) {
-        alert(t("team_last_owner_warning") || "Non puoi rimuovere l'ultimo Owner.");
-        return;
-      }
-    }
-    const { error } = await supabase
-      .from("tenant_members")
-      .update({ role: next })
-      .eq("id", member.id);
-    if (error) alert(error.message);
-  };
+  // Only the account creator (DB role 'owner' → UI 'Admin') can manage the team.
+  const canManage = myRole === "owner";
 
   const removeMember = async (member: Member) => {
     if (!canManage) return;
-    if (member.role === "owner") {
-      const owners = members.filter(m => m.role === "owner");
-      if (owners.length <= 1) {
-        alert(t("team_last_owner_warning") || "Non puoi rimuovere l'ultimo Owner.");
-        return;
-      }
-    }
+    if (member.role === "owner") return; // Admin (owner) is not removable
     if (!confirm((t("team_remove_confirm") || "Rimuovere {email}?").replace("{email}", member.email || member.name))) return;
     const { error } = await supabase
       .from("tenant_members")
@@ -146,44 +124,25 @@ export function StaffTab() {
     setInviting(true);
     setInviteError(null);
     try {
-      // Staff (host): no email, no account yet — just generate a QR that
-      // creates the account the moment it's scanned. Owner/Admin keep the
-      // classic email invite flow because they're real people with real
-      // mailboxes (manager, accountant, partner).
-      if (inviteRole === "host") {
-        const name = inviteName.trim();
-        const res = await fetch("/api/team/add-staff", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ name, role: inviteRole, tenantId: activeTenant.id }),
-        });
-        const body = await res.json();
-        if (!res.ok) {
-          setInviteError(body?.error || "Add staff failed");
-          return;
-        }
-        setShowInvite(false);
-        setInviteName("");
-        setInviteRole("host");
-        setQrFor({ kind: "pending", name, role: "host" });
-        setQrUrl(body.url);
-        setQrError(null);
-        setQrLoading(false);
-      } else {
-        const res = await fetch("/api/team/invite", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ email: inviteEmail.trim().toLowerCase(), role: inviteRole, tenantId: activeTenant.id }),
-        });
-        const body = await res.json();
-        if (!res.ok) {
-          setInviteError(body?.error || "Invite failed");
-        } else {
-          setShowInvite(false);
-          setInviteEmail("");
-          setInviteRole("host");
-        }
+      // Only Staff (host) can be invited from the UI. The Admin (owner) role is
+      // reserved for the account creator and cannot be assigned to anyone else.
+      const name = inviteName.trim();
+      const res = await fetch("/api/team/add-staff", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name, role: "host", tenantId: activeTenant.id }),
+      });
+      const body = await res.json();
+      if (!res.ok) {
+        setInviteError(body?.error || "Add staff failed");
+        return;
       }
+      setShowInvite(false);
+      setInviteName("");
+      setQrFor({ kind: "pending", name });
+      setQrUrl(body.url);
+      setQrError(null);
+      setQrLoading(false);
     } catch (e: any) {
       setInviteError(e?.message || "Network error");
     } finally {
@@ -218,10 +177,7 @@ export function StaffTab() {
     }
   };
 
-  const roleLabel = (r: DbRole) => {
-    const opt = ROLE_OPTIONS.find(o => o.value === r);
-    return opt ? (t(opt.key) || opt.fallback) : r;
-  };
+  const roleLabel = (r: DbRole) => roleToUiLabel(r, t);
 
   return (
     <div className="space-y-4 sm:space-y-6">
@@ -275,23 +231,10 @@ export function StaffTab() {
                       </div>
                     </td>
                     <td className="px-3 sm:px-6 py-4 whitespace-nowrap">
-                      {canManage ? (
-                        <select
-                          value={m.role}
-                          onChange={(e) => updateRole(m, e.target.value as DbRole)}
-                          className="text-sm border-2 rounded-md px-2 py-1 bg-white focus:outline-none focus:ring-2 focus:ring-[#c4956a]"
-                          style={{ borderColor: '#c4956a' }}
-                        >
-                          {ROLE_OPTIONS.map(opt => (
-                            <option key={opt.value} value={opt.value}>{t(opt.key) || opt.fallback}</option>
-                          ))}
-                        </select>
-                      ) : (
-                        <div className="text-sm text-black flex items-center">
-                          {m.role === "owner" && <Shield className="w-4 h-4 mr-1 text-terracotta-600" />}
-                          {roleLabel(m.role)}
-                        </div>
-                      )}
+                      <div className="text-sm text-black flex items-center">
+                        {m.role === "owner" && <Shield className="w-4 h-4 mr-1 text-terracotta-600" />}
+                        {roleLabel(m.role)}
+                      </div>
                     </td>
                     <td className="px-3 sm:px-6 py-4 whitespace-nowrap">
                       <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-emerald-100 text-emerald-800">{t("team_status_active") || "Active"}</span>
@@ -299,14 +242,16 @@ export function StaffTab() {
                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                       {canManage && (
                         <div className="inline-flex items-center gap-3">
-                          <button
-                            onClick={() => openQrFor(m)}
-                            className="text-zinc-700 hover:text-black cursor-pointer inline-flex items-center"
-                            title={t("staff_qr_login") || "QR di login"}
-                          >
-                            <QrCode className="w-4 h-4" />
-                          </button>
-                          {!isMe && (
+                          {m.role === "host" && (
+                            <button
+                              onClick={() => openQrFor(m)}
+                              className="text-zinc-700 hover:text-black cursor-pointer inline-flex items-center"
+                              title={t("staff_qr_login") || "QR di login"}
+                            >
+                              <QrCode className="w-4 h-4" />
+                            </button>
+                          )}
+                          {!isMe && m.role !== "owner" && (
                             <button
                               onClick={() => removeMember(m)}
                               className="text-red-500 hover:text-red-700 cursor-pointer inline-flex items-center"
@@ -331,64 +276,27 @@ export function StaffTab() {
           <div className="fixed inset-0 bg-black/40 z-40" onClick={() => !inviting && setShowInvite(false)} />
           <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-50 w-[92vw] max-w-md border-2 rounded-xl shadow-2xl overflow-hidden" style={{ background: 'rgb(252,246,237)', borderColor: '#c4956a' }}>
             <div className="px-5 py-3 flex items-center justify-between border-b" style={{ borderColor: '#c4956a' }}>
-              <h2 className="text-base font-bold text-black">{t("team_invite_title") || "Invita un membro"}</h2>
+              <h2 className="text-base font-bold text-black">{t("team_invite_title") || "Aggiungi staff"}</h2>
               <button onClick={() => !inviting && setShowInvite(false)} className="p-1.5 border-2 border-red-400 text-red-500 hover:bg-red-50 rounded-lg cursor-pointer">
                 <X className="h-4 w-4" />
               </button>
             </div>
             <div className="p-5 space-y-3">
               <div>
-                <label className="block text-sm font-medium text-black mb-1">{t("team_invite_role") || "Ruolo"}</label>
-                <select
-                  value={inviteRole}
-                  onChange={(e) => setInviteRole(e.target.value as DbRole)}
+                <label className="block text-sm font-medium text-black mb-1">{t("team_invite_name") || "Nome"}</label>
+                <input
+                  type="text"
+                  value={inviteName}
+                  onChange={(e) => setInviteName(e.target.value)}
+                  placeholder={t("team_invite_name_placeholder") || "es. Mario"}
                   className="block w-full border-2 rounded-lg px-3 py-2.5 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-[#c4956a]"
                   style={{ borderColor: '#c4956a', background: 'rgba(252,246,237,0.6)' }}
-                >
-                  {ROLE_OPTIONS.map(opt => (
-                    <option key={opt.value} value={opt.value}>{t(opt.key) || opt.fallback}</option>
-                  ))}
-                </select>
+                  autoFocus
+                />
                 <p className="text-xs text-zinc-600 mt-1">
-                  {inviteRole === "owner" && (t("team_role_hint_owner") || "Accesso totale: billing, eliminare account, gestione team.")}
-                  {inviteRole === "manager" && (t("team_role_hint_admin") || "Tutto tranne billing/eliminazione account. Può gestire team e config AI.")}
-                  {inviteRole === "host" && (t("team_role_hint_staff") || "Solo prenotazioni, walk-in e ospiti. Non vede impostazioni, knowledge base o billing.")}
+                  {t("team_invite_name_hint") || "Niente email: dopo il salvataggio si genera un QR di accesso da scansionare col telefono."}
                 </p>
               </div>
-
-              {inviteRole === "host" ? (
-                <div>
-                  <label className="block text-sm font-medium text-black mb-1">{t("team_invite_name") || "Nome"}</label>
-                  <input
-                    type="text"
-                    value={inviteName}
-                    onChange={(e) => setInviteName(e.target.value)}
-                    placeholder={t("team_invite_name_placeholder") || "es. Mario"}
-                    className="block w-full border-2 rounded-lg px-3 py-2.5 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-[#c4956a]"
-                    style={{ borderColor: '#c4956a', background: 'rgba(252,246,237,0.6)' }}
-                    autoFocus
-                  />
-                  <p className="text-xs text-zinc-600 mt-1">
-                    {t("team_invite_name_hint") || "Niente email: dopo il salvataggio si genera un QR di accesso da scansionare col telefono."}
-                  </p>
-                </div>
-              ) : (
-                <div>
-                  <label className="block text-sm font-medium text-black mb-1">{t("team_invite_email") || "Email"}</label>
-                  <div className="relative">
-                    <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
-                    <input
-                      type="email"
-                      value={inviteEmail}
-                      onChange={(e) => setInviteEmail(e.target.value)}
-                      placeholder="nome@email.com"
-                      className="block w-full border-2 rounded-lg pl-9 pr-3 py-2.5 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-[#c4956a]"
-                      style={{ borderColor: '#c4956a', background: 'rgba(252,246,237,0.6)' }}
-                      autoFocus
-                    />
-                  </div>
-                </div>
-              )}
 
               {inviteError && (
                 <p className="text-sm text-red-600">{inviteError}</p>
@@ -405,14 +313,12 @@ export function StaffTab() {
               </button>
               <button
                 onClick={submitInvite}
-                disabled={inviting || (inviteRole === "host" ? !inviteName.trim() : !inviteEmail.trim())}
+                disabled={inviting || !inviteName.trim()}
                 className="px-4 py-2 text-sm font-medium rounded-lg text-white bg-zinc-900 hover:bg-zinc-800 cursor-pointer disabled:opacity-50"
               >
                 {inviting
                   ? (t("team_inviting") || "Invio…")
-                  : inviteRole === "host"
-                    ? (t("team_create_and_qr") || "Crea e mostra QR")
-                    : (t("team_send_invite") || "Invia invito")}
+                  : (t("team_create_and_qr") || "Crea e mostra QR")}
               </button>
             </div>
           </div>

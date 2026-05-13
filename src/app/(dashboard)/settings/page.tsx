@@ -25,7 +25,8 @@ function SettingsContent() {
     if (t === "staff" || t === "general") setTab(t);
   }, [searchParams]);
 
-  const canSeeStaffTab = activeRole === "owner" || activeRole === "manager";
+  // Only the Admin (DB owner — the account creator) can manage staff.
+  const canSeeStaffTab = activeRole === "owner";
 
   const setActiveTab = (next: Tab) => {
     setTab(next);

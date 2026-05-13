@@ -10,14 +10,16 @@ export async function POST(req: NextRequest) {
   try {
     const body = (await req.json()) as { name?: string; role?: string; tenantId?: string };
     const name = (body.name || "").trim();
-    const role = (body.role || "host").trim();
+    // Only Staff (host) can be created from the UI. The Admin (owner) role is
+    // reserved for the account creator and is never assignable to anyone else.
+    const role = "host";
     const tenantId = (body.tenantId || "").trim();
 
     if (!name || !tenantId) {
       return NextResponse.json({ error: "Missing name or tenantId" }, { status: 400 });
     }
-    if (role !== "host" && role !== "manager" && role !== "owner") {
-      return NextResponse.json({ error: "Invalid role" }, { status: 400 });
+    if (body.role && body.role !== "host") {
+      return NextResponse.json({ error: "Only staff role is allowed" }, { status: 400 });
     }
 
     const userClient = await createServerSupabaseClient();
@@ -30,7 +32,7 @@ export async function POST(req: NextRequest) {
     ]);
     const isPlatformAdmin = callerProfile?.global_role === "platform_admin";
     const callerRole = (callerMembership as any)?.role;
-    if (!isPlatformAdmin && callerRole !== "owner" && callerRole !== "manager") {
+    if (!isPlatformAdmin && callerRole !== "owner") {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
