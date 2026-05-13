@@ -195,8 +195,22 @@ create table public.automation_rules (
   condition jsonb,
   action jsonb not null default '{"type": "notify_staff", "payload": {}}'::jsonb,
   is_active boolean not null default true,
+  last_run_at timestamptz,
+  run_count integer not null default 0,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
+);
+
+-- 11b. AUTOMATION RUNS (execution log)
+create table public.automation_runs (
+  id uuid default uuid_generate_v4() primary key,
+  tenant_id uuid not null references public.tenants(id) on delete cascade,
+  rule_id uuid not null references public.automation_rules(id) on delete cascade,
+  trigger text not null,
+  context jsonb not null default '{}'::jsonb,
+  status text not null check (status in ('success', 'failed', 'skipped')),
+  error text,
+  created_at timestamptz not null default now()
 );
 
 -- ============================================
@@ -229,6 +243,9 @@ create index idx_conversations_tenant on public.conversations(tenant_id);
 create index idx_incidents_tenant on public.incidents(tenant_id);
 create index idx_knowledge_tenant on public.knowledge_articles(tenant_id);
 create index idx_automations_tenant on public.automation_rules(tenant_id);
+create index idx_automations_trigger_active on public.automation_rules(tenant_id, trigger) where is_active = true;
+create index idx_automation_runs_rule on public.automation_runs(rule_id, created_at desc);
+create index idx_automation_runs_tenant on public.automation_runs(tenant_id, created_at desc);
 create index idx_audit_events_tenant on public.audit_events(tenant_id);
 create index idx_audit_events_idempotency on public.audit_events(idempotency_key);
 
@@ -296,6 +313,7 @@ alter table public.conversations enable row level security;
 alter table public.incidents enable row level security;
 alter table public.knowledge_articles enable row level security;
 alter table public.automation_rules enable row level security;
+alter table public.automation_runs enable row level security;
 alter table public.audit_events enable row level security;
 
 -- RLS helper functions live in `private` schema so they are not exposed via
@@ -387,6 +405,10 @@ create policy "Managers can update articles" on public.knowledge_articles for up
 create policy "Tenant members can read automations" on public.automation_rules for select using (private.is_tenant_member(tenant_id) or private.is_platform_admin());
 create policy "Managers can manage automations" on public.automation_rules for insert with check (private.get_tenant_role(tenant_id) in ('owner', 'manager') or private.is_platform_admin());
 create policy "Managers can update automations" on public.automation_rules for update using (private.get_tenant_role(tenant_id) in ('owner', 'manager') or private.is_platform_admin());
+create policy "Managers can delete automations" on public.automation_rules for delete using (private.get_tenant_role(tenant_id) in ('owner', 'manager') or private.is_platform_admin());
+
+-- AUTOMATION RUNS policies (read-only for tenant; service_role writes)
+create policy "Tenant members can read automation runs" on public.automation_runs for select using (private.is_tenant_member(tenant_id) or private.is_platform_admin());
 
 -- AUDIT EVENTS policies (read-only for clients)
 create policy "Tenant members can read audit events" on public.audit_events for select using (private.is_tenant_member(tenant_id) or private.is_platform_admin());
@@ -498,7 +520,7 @@ create index if not exists idx_conversation_audits_quality
 create table if not exists public.system_logs (
   id uuid default gen_random_uuid() primary key,
   tenant_id uuid references public.tenants(id) on delete cascade,
-  category text not null check (category in ('booking_error','webhook_failure','message_failure','api_error','ai_error','system','n8n_error','health_check','silent_warning')),
+  category text not null check (category in ('booking_error','webhook_failure','message_failure','api_error','ai_error','automation','system','n8n_error','health_check','silent_warning')),
   severity text not null default 'medium' check (severity in ('low','medium','high','critical')),
   title text not null,
   description text,

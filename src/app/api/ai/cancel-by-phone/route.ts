@@ -1,7 +1,9 @@
 import { NextResponse } from 'next/server';
+import { after } from 'next/server';
 import { createServiceRoleClient } from '@/lib/supabase/server';
 import { logAuditEvent } from '@/lib/audit';
 import { assertAiSecret } from '@/lib/ai-auth';
+import { dispatchAutomations } from '@/lib/automations/engine';
 
 /**
  * Cancel a reservation by guest phone number.
@@ -111,6 +113,30 @@ export async function POST(request: Request) {
           entity_id: res.id,
           source: "ai_agent",
           details: { reason: "Cancelled via phone lookup", cancellation_source: source || "unknown" }
+        });
+
+        // Fire automations (fire-and-forget)
+        const guestIdForRun = gid;
+        const resForRun = res;
+        after(async () => {
+          const { data: guestRow } = await supabase
+            .from('guests')
+            .select('name, phone')
+            .eq('id', guestIdForRun)
+            .maybeSingle();
+          await dispatchAutomations({
+            trigger: "on_reservation_cancelled",
+            tenantId: tenant_id,
+            reservationId: resForRun.id,
+            guestId: guestIdForRun,
+            guestName: guestRow?.name,
+            guestPhone: guestRow?.phone,
+            date: resForRun.date,
+            time: resForRun.time,
+            partySize: resForRun.party_size,
+            status: "cancelled",
+            source: "ai_agent",
+          });
         });
 
         return NextResponse.json({
