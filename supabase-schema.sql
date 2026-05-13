@@ -641,11 +641,15 @@ create table if not exists public.qr_login_tokens (
   id uuid default uuid_generate_v4() primary key,
   token text unique not null,
   tenant_id uuid not null references public.tenants(id) on delete cascade,
-  user_id uuid not null references public.users(id) on delete cascade,
+  -- user_id is null while the QR represents a pending staff invite. On first
+  -- scan we create the Supabase user lazily and populate this column.
+  user_id uuid references public.users(id) on delete cascade,
   created_by uuid references public.users(id) on delete set null,
   created_at timestamptz not null default now(),
   expires_at timestamptz not null,
-  consumed_at timestamptz
+  consumed_at timestamptz,
+  pending_name text,
+  pending_role text
 );
 
 create index if not exists idx_qr_login_tokens_token on public.qr_login_tokens(token);

@@ -1,6 +1,6 @@
 "use client";
 
-import { UserPlus, Shield, Trash2, X, Mail, QrCode, Copy, Check } from "lucide-react";
+import { UserPlus, Shield, Trash2, X, Mail, QrCode } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import { useLanguage } from "@/lib/contexts/LanguageContext";
 import type { Dictionary } from "@/lib/i18n/dictionaries/en";
@@ -44,12 +44,16 @@ export function StaffTab() {
   const [inviting, setInviting] = useState(false);
   const [inviteError, setInviteError] = useState<string | null>(null);
 
-  const [qrFor, setQrFor] = useState<Member | null>(null);
+  // qrFor describes whose QR is open: either an existing Member (re-login)
+  // or a pending invite (name + role, no user yet).
+  type PendingTarget = { kind: "pending"; name: string; role: DbRole };
+  type ExistingTarget = { kind: "existing"; member: Member };
+  type QrTarget = PendingTarget | ExistingTarget;
+
+  const [qrFor, setQrFor] = useState<QrTarget | null>(null);
   const [qrUrl, setQrUrl] = useState<string>("");
-  const [qrExpiresAt, setQrExpiresAt] = useState<string>("");
   const [qrLoading, setQrLoading] = useState(false);
   const [qrError, setQrError] = useState<string | null>(null);
-  const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -142,15 +146,16 @@ export function StaffTab() {
     setInviting(true);
     setInviteError(null);
     try {
-      // Staff (host) skips email entirely: we provision an internal account
-      // identified by name and log them in via QR. Owner/Admin still go
-      // through the email invite because they're real people with real
+      // Staff (host): no email, no account yet — just generate a QR that
+      // creates the account the moment it's scanned. Owner/Admin keep the
+      // classic email invite flow because they're real people with real
       // mailboxes (manager, accountant, partner).
       if (inviteRole === "host") {
+        const name = inviteName.trim();
         const res = await fetch("/api/team/add-staff", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ name: inviteName.trim(), role: inviteRole, tenantId: activeTenant.id }),
+          body: JSON.stringify({ name, role: inviteRole, tenantId: activeTenant.id }),
         });
         const body = await res.json();
         if (!res.ok) {
@@ -158,19 +163,12 @@ export function StaffTab() {
           return;
         }
         setShowInvite(false);
-        const justAdded: Member = {
-          id: "", // we don't have the tenant_members row id; fine for QR call which uses user_id
-          user_id: body.userId,
-          role: "host",
-          email: "",
-          name: body.name,
-        };
         setInviteName("");
         setInviteRole("host");
-        // Realtime subscription will refresh the list shortly; in the meantime
-        // open the QR modal so the owner can hand the new staff their badge
-        // right away.
-        await openQrFor(justAdded);
+        setQrFor({ kind: "pending", name, role: "host" });
+        setQrUrl(body.url);
+        setQrError(null);
+        setQrLoading(false);
       } else {
         const res = await fetch("/api/team/invite", {
           method: "POST",
@@ -193,14 +191,14 @@ export function StaffTab() {
     }
   };
 
+  // Existing-member re-issue: owner clicks the QR icon next to a member who
+  // already exists (e.g. lost phone, new device) and gets a fresh 10-min QR.
   const openQrFor = async (member: Member) => {
     if (!activeTenant) return;
-    setQrFor(member);
+    setQrFor({ kind: "existing", member });
     setQrUrl("");
-    setQrExpiresAt("");
     setQrError(null);
     setQrLoading(true);
-    setCopied(false);
     try {
       const res = await fetch("/api/team/qr-token", {
         method: "POST",
@@ -212,23 +210,11 @@ export function StaffTab() {
         setQrError(body?.error || "Failed to generate QR");
       } else {
         setQrUrl(body.url);
-        setQrExpiresAt(body.expiresAt);
       }
     } catch (e: any) {
       setQrError(e?.message || "Network error");
     } finally {
       setQrLoading(false);
-    }
-  };
-
-  const copyQrLink = async () => {
-    if (!qrUrl) return;
-    try {
-      await navigator.clipboard.writeText(qrUrl);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1500);
-    } catch {
-      // ignore
     }
   };
 
@@ -434,7 +420,9 @@ export function StaffTab() {
         </>
       )}
 
-      {qrFor && (
+      {qrFor && (() => {
+        const targetName = qrFor.kind === "existing" ? (qrFor.member.name || qrFor.member.email) : qrFor.name;
+        return (
         <>
           <div className="fixed inset-0 bg-black/40 z-40" onClick={() => setQrFor(null)} />
           <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-50 w-[92vw] max-w-md border-2 rounded-xl shadow-2xl overflow-hidden" style={{ background: 'rgb(252,246,237)', borderColor: '#c4956a' }}>
@@ -445,38 +433,21 @@ export function StaffTab() {
               </button>
             </div>
             <div className="p-5 space-y-4">
-              <p className="text-sm text-black">
-                {(t("staff_qr_subtitle") || "Mostra questo QR a {name} e fa scansionare col telefono per accedere.").replace("{name}", qrFor.name || qrFor.email)}
+              <p className="text-sm text-black text-center">
+                {(t("staff_qr_subtitle") || "Mostra questo QR a {name} e fa scansionare col telefono per accedere.").replace("{name}", targetName)}
               </p>
               {qrLoading && (
                 <div className="flex justify-center py-12 text-sm text-black">…</div>
               )}
               {qrError && (
-                <p className="text-sm text-red-600">{qrError}</p>
+                <p className="text-sm text-red-600 text-center">{qrError}</p>
               )}
               {qrUrl && (
                 <>
                   <div className="flex justify-center p-4 rounded-lg" style={{ background: 'white', border: '2px solid #c4956a' }}>
-                    <QRCodeSVG value={qrUrl} size={220} level="M" />
+                    <QRCodeSVG value={qrUrl} size={260} level="M" />
                   </div>
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="text"
-                      value={qrUrl}
-                      readOnly
-                      className="flex-1 block w-full border-2 rounded-lg px-3 py-2 text-xs font-mono focus:outline-none"
-                      style={{ borderColor: '#c4956a', background: 'rgba(252,246,237,0.6)' }}
-                    />
-                    <button
-                      onClick={copyQrLink}
-                      className="p-2 border-2 rounded-lg cursor-pointer"
-                      style={{ borderColor: '#c4956a' }}
-                      title={t("staff_qr_copy") || "Copia link"}
-                    >
-                      {copied ? <Check className="w-4 h-4 text-emerald-600" /> : <Copy className="w-4 h-4 text-black" />}
-                    </button>
-                  </div>
-                  <p className="text-xs text-black/70">
+                  <p className="text-xs text-black/70 text-center">
                     {(t("staff_qr_expires") || "Valido per 10 minuti. Si può usare una sola volta.")}
                   </p>
                 </>
@@ -484,7 +455,8 @@ export function StaffTab() {
             </div>
           </div>
         </>
-      )}
+        );
+      })()}
     </div>
   );
 }
