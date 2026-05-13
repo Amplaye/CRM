@@ -203,6 +203,9 @@ create table public.audit_events (
 -- ============================================
 create index idx_tenant_members_user on public.tenant_members(user_id);
 create index idx_tenant_members_tenant on public.tenant_members(tenant_id);
+-- Composite index that supports the self-join inside the users RLS policy
+-- and StaffTab's per-tenant query.
+create index if not exists idx_tenant_members_tenant_user on public.tenant_members(tenant_id, user_id);
 create index idx_guests_tenant on public.guests(tenant_id);
 create index idx_reservations_tenant on public.reservations(tenant_id);
 create index idx_reservations_date on public.reservations(tenant_id, date);
@@ -312,14 +315,29 @@ returns text as $$
   limit 1;
 $$ language sql security definer stable set search_path = public, pg_temp;
 
--- USERS policies
-create policy "Users can read own profile" on public.users for select using (id = auth.uid() or private.is_platform_admin());
+-- Helper used by the "read each other profiles" policy. SECURITY DEFINER +
+-- STABLE means Postgres can cache the plan and call it once per row without
+-- re-planning the EXISTS subquery — important for /settings?tab=staff which
+-- joins users via tenant_members.
+create or replace function private.shares_tenant_with(target_user_id uuid)
+returns boolean as $$
+  select exists (
+    select 1
+    from public.tenant_members me
+    join public.tenant_members other
+      on other.tenant_id = me.tenant_id
+    where me.user_id = (select auth.uid())
+      and other.user_id = target_user_id
+  );
+$$ language sql security definer stable set search_path = public, pg_temp;
+
+grant execute on function private.shares_tenant_with(uuid) to authenticated;
+
+-- USERS policies. auth.uid() is wrapped in (select ...) so it's evaluated
+-- once per query, not once per row.
+create policy "Users can read own profile" on public.users for select using (id = (select auth.uid()) or private.is_platform_admin());
 create policy "Tenant members can read each other profiles" on public.users for select using (
-  exists (
-    select 1 from public.tenant_members me
-    join public.tenant_members other on other.tenant_id = me.tenant_id
-    where me.user_id = auth.uid() and other.user_id = public.users.id
-  )
+  private.shares_tenant_with(id)
 );
 create policy "Users can update own profile" on public.users for update using (id = auth.uid());
 create policy "Users can insert own profile" on public.users for insert with check (id = auth.uid());

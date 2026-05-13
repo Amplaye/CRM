@@ -63,38 +63,67 @@ export function StaffTab() {
 
   useEffect(() => {
     if (!activeTenant) return;
+    let cancelled = false;
+    // Only flip the full-table skeleton on the *first* load for a given tenant.
+    // Realtime refetches must not blank out the table.
     setLoading(true);
 
-    const fetchMembers = async () => {
-      const { data, error } = await supabase
+    const fetchMembers = async (opts: { showSpinner?: boolean } = {}) => {
+      // Split the membership lookup from the profile lookup. The combined
+      // join previously triggered the per-row "Tenant members can read each
+      // other profiles" RLS policy on public.users; doing two narrow queries
+      // lets each one hit its own index and the policy evaluates once.
+      const { data: tmRows, error: tmErr } = await supabase
         .from("tenant_members")
-        .select("id, user_id, role, created_at, users(email, name)")
+        .select("id, user_id, role, created_at")
         .eq("tenant_id", activeTenant.id);
-      if (error) {
-        console.error(error);
-        setLoading(false);
+      if (tmErr) {
+        console.error(tmErr);
+        if (!cancelled && opts.showSpinner) setLoading(false);
         return;
       }
-      const rows: Member[] = (data || []).map((r: any) => ({
-        id: r.id,
-        user_id: r.user_id,
-        role: r.role as DbRole,
-        email: r.users?.email || "",
-        name: r.users?.name || "",
-        created_at: r.created_at,
-      }));
+      const userIds = (tmRows || []).map((r: any) => r.user_id as string);
+      let usersById = new Map<string, { email: string; name: string }>();
+      if (userIds.length > 0) {
+        const { data: userRows, error: uErr } = await supabase
+          .from("users")
+          .select("id, email, name")
+          .in("id", userIds);
+        if (uErr) {
+          console.error(uErr);
+        } else {
+          usersById = new Map((userRows || []).map((u: any) => [u.id, { email: u.email || "", name: u.name || "" }]));
+        }
+      }
+      if (cancelled) return;
+      const rows: Member[] = (tmRows || []).map((r: any) => {
+        const u = usersById.get(r.user_id);
+        return {
+          id: r.id,
+          user_id: r.user_id,
+          role: r.role as DbRole,
+          email: u?.email || "",
+          name: u?.name || "",
+          created_at: r.created_at,
+        };
+      });
       setMembers(rows);
-      setLoading(false);
+      if (opts.showSpinner) setLoading(false);
     };
 
-    fetchMembers();
+    fetchMembers({ showSpinner: true });
 
     const ch = supabase
       .channel(`tenant_members-${activeTenant.id}`)
-      .on("postgres_changes", { event: "*", schema: "public", table: "tenant_members", filter: `tenant_id=eq.${activeTenant.id}` }, fetchMembers)
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "tenant_members", filter: `tenant_id=eq.${activeTenant.id}` },
+        () => { void fetchMembers({ showSpinner: false }); }
+      )
       .subscribe();
 
     return () => {
+      cancelled = true;
       supabase.removeChannel(ch);
     };
   }, [activeTenant, supabase]);
@@ -218,9 +247,19 @@ export function StaffTab() {
               </tr>
             </thead>
             <tbody className="divide-y" style={{ borderColor: 'rgba(196,149,106,0.3)' }}>
-              {loading && (
-                <tr><td colSpan={4} className="px-6 py-8 text-center text-sm text-black">…</td></tr>
-              )}
+              {loading && Array.from({ length: 3 }).map((_, i) => (
+                <tr key={`skel-${i}`}>
+                  <td className="px-3 sm:px-6 py-4">
+                    <div className="flex items-center">
+                      <div className="h-10 w-10 rounded-full animate-pulse" style={{ background: 'rgba(196,149,106,0.2)' }} />
+                      <div className="ml-4 h-4 w-32 rounded animate-pulse" style={{ background: 'rgba(196,149,106,0.2)' }} />
+                    </div>
+                  </td>
+                  <td className="px-3 sm:px-6 py-4"><div className="h-4 w-20 rounded animate-pulse" style={{ background: 'rgba(196,149,106,0.2)' }} /></td>
+                  <td className="px-3 sm:px-6 py-4"><div className="h-4 w-16 rounded-full animate-pulse" style={{ background: 'rgba(196,149,106,0.2)' }} /></td>
+                  <td className="px-6 py-4"><div className="h-4 w-12 rounded animate-pulse ml-auto" style={{ background: 'rgba(196,149,106,0.2)' }} /></td>
+                </tr>
+              ))}
               {!loading && members.length === 0 && (
                 <tr><td colSpan={4} className="px-6 py-8 text-center text-sm text-black">{t("team_empty") || "Nessun membro ancora."}</td></tr>
               )}
