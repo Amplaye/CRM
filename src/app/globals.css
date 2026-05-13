@@ -110,7 +110,7 @@ body {
   overflow: hidden;
   z-index: 1;
 }
-/* Background darkening wash — cool slate, no bronze tones */
+/* Background darkening wash — warm bronze tone */
 .is-new-row::after {
   content: '';
   position: absolute;
@@ -119,8 +119,8 @@ body {
   z-index: 0;
   background: linear-gradient(
     180deg,
-    rgba(30, 41, 59, 0.14) 0%,
-    rgba(30, 41, 59, 0.10) 100%
+    rgba(196, 149, 106, 0.14) 0%,
+    rgba(196, 149, 106, 0.10) 100%
   );
   opacity: 0;
   animation: new-row-wash 2.6s ease-out calc(var(--row-new-index, 0) * 400ms) 1 both;
@@ -158,7 +158,7 @@ body {
     background: none;
   }
   .is-new-row {
-    background-color: rgba(30, 41, 59, 0.06);
+    background-color: rgba(196, 149, 106, 0.06);
   }
 }
 
@@ -168,10 +168,10 @@ body {
  * the row's own opacity stays at 1 throughout — otherwise `animation-fill-mode:
  * both` would leave the row invisible after the keyframe ends. */
 @keyframes new-row-tr-shimmer {
-  0%   { background-position: -150% 0; background-color: rgba(30, 41, 59, 0); }
-  15%  { background-color: rgba(30, 41, 59, 0.12); }
-  70%  { background-color: rgba(30, 41, 59, 0.12); }
-  100% { background-position:  250% 0; background-color: rgba(30, 41, 59, 0); }
+  0%   { background-position: -150% 0; background-color: rgba(196, 149, 106, 0); }
+  15%  { background-color: rgba(196, 149, 106, 0.12); }
+  70%  { background-color: rgba(196, 149, 106, 0.12); }
+  100% { background-position:  250% 0; background-color: rgba(196, 149, 106, 0); }
 }
 tr.is-new-row {
   position: static;
@@ -200,7 +200,7 @@ tr.is-new-row::after {
   tr.is-new-row {
     animation: none;
     background-image: none;
-    background-color: rgba(30, 41, 59, 0.06);
+    background-color: rgba(196, 149, 106, 0.06);
   }
 }
 
@@ -222,8 +222,8 @@ tr.is-new-row::after {
   z-index: 0;
   background: linear-gradient(
     180deg,
-    rgba(30, 41, 59, 0.14) 0%,
-    rgba(30, 41, 59, 0.10) 100%
+    rgba(196, 149, 106, 0.14) 0%,
+    rgba(196, 149, 106, 0.10) 100%
   );
   opacity: 0;
   animation: new-row-wash 2.6s ease-out 1 both;
@@ -260,6 +260,6 @@ tr.is-new-row::after {
     background: none;
   }
   .is-new-notif {
-    background-color: rgba(30, 41, 59, 0.06);
+    background-color: rgba(196, 149, 106, 0.06);
   }
 }
