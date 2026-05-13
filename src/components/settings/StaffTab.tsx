@@ -112,11 +112,18 @@ export function StaffTab() {
     if (!canManage) return;
     if (member.role === "owner") return; // Admin (owner) is not removable
     if (!confirm((t("team_remove_confirm") || "Rimuovere {email}?").replace("{email}", member.email || member.name))) return;
+    // Optimistic remove so the UI updates instantly even if the realtime
+    // broadcast lags or is filtered out.
+    const prev = members;
+    setMembers(curr => curr.filter(m => m.id !== member.id));
     const { error } = await supabase
       .from("tenant_members")
       .delete()
       .eq("id", member.id);
-    if (error) alert(error.message);
+    if (error) {
+      setMembers(prev);
+      alert(error.message);
+    }
   };
 
   const submitInvite = async () => {
