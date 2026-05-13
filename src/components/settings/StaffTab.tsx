@@ -244,87 +244,72 @@ export function StaffTab() {
       </div>
 
       <div className="border-2 rounded-xl overflow-hidden" style={{ background: 'rgba(252,246,237,0.85)', borderColor: '#c4956a', boxShadow: '0 20px 60px rgba(196,149,106,0.25), 0 8px 24px rgba(196,149,106,0.15)' }}>
-        <div className="overflow-x-auto">
-          <table className="min-w-full divide-y" style={{ borderColor: '#c4956a' }}>
-            <thead>
-              <tr>
-                <th className="px-3 sm:px-6 py-3 text-left text-xs font-semibold text-black uppercase tracking-wider">{t("staff_col_name")}</th>
-                <th className="px-3 sm:px-6 py-3 text-left text-xs font-semibold text-black uppercase tracking-wider">{t("staff_col_role")}</th>
-                <th className="px-3 sm:px-6 py-3 text-left text-xs font-semibold text-black uppercase tracking-wider">{t("staff_col_status")}</th>
-                <th className="relative px-3 sm:px-6 py-3"><span className="sr-only">Actions</span></th>
-              </tr>
-            </thead>
-            <tbody className="divide-y" style={{ borderColor: 'rgba(196,149,106,0.3)' }}>
-              {loading && Array.from({ length: 3 }).map((_, i) => (
-                <tr key={`skel-${i}`}>
-                  <td className="px-3 sm:px-6 py-4">
-                    <div className="flex items-center">
-                      <div className="h-10 w-10 rounded-full animate-pulse" style={{ background: 'rgba(196,149,106,0.2)' }} />
-                      <div className="ml-4 h-4 w-32 rounded animate-pulse" style={{ background: 'rgba(196,149,106,0.2)' }} />
-                    </div>
-                  </td>
-                  <td className="px-3 sm:px-6 py-4"><div className="h-4 w-20 rounded animate-pulse" style={{ background: 'rgba(196,149,106,0.2)' }} /></td>
-                  <td className="px-3 sm:px-6 py-4"><div className="h-4 w-16 rounded-full animate-pulse" style={{ background: 'rgba(196,149,106,0.2)' }} /></td>
-                  <td className="px-6 py-4"><div className="h-4 w-12 rounded animate-pulse ml-auto" style={{ background: 'rgba(196,149,106,0.2)' }} /></td>
-                </tr>
-              ))}
-              {!loading && members.length === 0 && (
-                <tr><td colSpan={4} className="px-6 py-8 text-center text-sm text-black">{t("team_empty") || "Nessun membro ancora."}</td></tr>
+        {/* skeleton */}
+        {loading && Array.from({ length: 3 }).map((_, i) => (
+          <div key={`skel-${i}`} className="flex items-center gap-3 px-4 py-3 border-b last:border-b-0" style={{ borderColor: 'rgba(196,149,106,0.3)' }}>
+            <div className="h-10 w-10 rounded-full flex-shrink-0 animate-pulse" style={{ background: 'rgba(196,149,106,0.2)' }} />
+            <div className="flex-1 space-y-2">
+              <div className="h-3.5 w-32 rounded animate-pulse" style={{ background: 'rgba(196,149,106,0.2)' }} />
+              <div className="h-3 w-20 rounded animate-pulse" style={{ background: 'rgba(196,149,106,0.15)' }} />
+            </div>
+            <div className="h-3 w-12 rounded animate-pulse" style={{ background: 'rgba(196,149,106,0.15)' }} />
+          </div>
+        ))}
+
+        {/* empty */}
+        {!loading && members.length === 0 && (
+          <div className="px-6 py-8 text-center text-sm text-black">{t("team_empty") || "Nessun membro ancora."}</div>
+        )}
+
+        {/* member rows */}
+        {!loading && members.map(m => {
+          const initials = (m.name || m.email || "?").slice(0, 2).toUpperCase();
+          const isMe = m.user_id === myUserId;
+          return (
+            <div key={m.id} className="flex items-center gap-3 px-4 py-3 border-b last:border-b-0" style={{ borderColor: 'rgba(196,149,106,0.3)' }}>
+              {/* avatar */}
+              <div className="flex-shrink-0 h-10 w-10 rounded-full flex items-center justify-center text-black font-bold text-sm" style={{ background: 'rgba(196,149,106,0.2)' }}>{initials}</div>
+
+              {/* name + role */}
+              <div className="flex-1 min-w-0">
+                <div className="text-sm font-medium text-black truncate">
+                  {m.name || m.email}{isMe && ` (${t("team_you") || "You"})`}
+                </div>
+                <div className="flex items-center gap-1 mt-0.5">
+                  {m.role === "owner"
+                    ? <Shield className="w-3 h-3 flex-shrink-0" style={{ color: '#c4956a' }} />
+                    : <User className="w-3 h-3 flex-shrink-0 text-blue-600" />}
+                  <span className="text-xs text-zinc-500">{roleLabel(m.role)}</span>
+                  <span className="ml-2 px-1.5 py-0.5 text-xs font-semibold rounded-full bg-emerald-100 text-emerald-800">{t("team_status_active") || "Active"}</span>
+                </div>
+              </div>
+
+              {/* actions */}
+              {canManage && (
+                <div className="flex items-center gap-3 flex-shrink-0">
+                  {m.role === "host" && (
+                    <button
+                      onClick={() => openQrFor(m)}
+                      className="text-zinc-700 hover:text-black cursor-pointer"
+                      title={t("staff_qr_login") || "QR di login"}
+                    >
+                      <QrCode className="w-4 h-4" />
+                    </button>
+                  )}
+                  {!isMe && m.role !== "owner" && (
+                    <button
+                      onClick={() => removeMember(m)}
+                      className="text-red-500 hover:text-red-700 cursor-pointer"
+                      title={t("team_remove") || "Rimuovi"}
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  )}
+                </div>
               )}
-              {!loading && members.map(m => {
-                const initials = (m.name || m.email || "?").slice(0, 2).toUpperCase();
-                const isMe = m.user_id === myUserId;
-                return (
-                  <tr key={m.id}>
-                    <td className="px-3 sm:px-6 py-4 whitespace-nowrap">
-                      <div className="flex items-center">
-                        <div className="flex-shrink-0 h-10 w-10 rounded-full flex justify-center items-center text-black font-bold" style={{ background: 'rgba(196,149,106,0.2)' }}>{initials}</div>
-                        <div className="ml-4">
-                          <div className="text-sm font-medium text-black">{m.name || m.email}{isMe && ` (${t("team_you") || "You"})`}</div>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="px-3 sm:px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm text-black flex items-center">
-                        {m.role === "owner"
-                          ? <Shield className="w-4 h-4 mr-1 text-terracotta-600" />
-                          : <User className="w-4 h-4 mr-1 text-blue-600" />}
-                        {roleLabel(m.role)}
-                      </div>
-                    </td>
-                    <td className="px-3 sm:px-6 py-4 whitespace-nowrap">
-                      <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-emerald-100 text-emerald-800">{t("team_status_active") || "Active"}</span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                      {canManage && (
-                        <div className="inline-flex items-center gap-3">
-                          {m.role === "host" && (
-                            <button
-                              onClick={() => openQrFor(m)}
-                              className="text-zinc-700 hover:text-black cursor-pointer inline-flex items-center"
-                              title={t("staff_qr_login") || "QR di login"}
-                            >
-                              <QrCode className="w-4 h-4" />
-                            </button>
-                          )}
-                          {!isMe && m.role !== "owner" && (
-                            <button
-                              onClick={() => removeMember(m)}
-                              className="text-red-500 hover:text-red-700 cursor-pointer inline-flex items-center"
-                              title={t("team_remove") || "Rimuovi"}
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
-                          )}
-                        </div>
-                      )}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+            </div>
+          );
+        })}
       </div>
 
       {showInvite && (
