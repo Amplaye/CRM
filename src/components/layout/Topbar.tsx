@@ -1,6 +1,6 @@
 "use client";
 
-import { Bell, Globe, Menu } from "lucide-react";
+import { Bell, Globe, Menu, Phone, MessageSquare } from "lucide-react";
 import { useLanguage } from "@/lib/contexts/LanguageContext";
 import { useTenant } from "@/lib/contexts/TenantContext";
 import { useEffect, useState, useRef } from "react";
@@ -15,6 +15,7 @@ interface Notification {
   time: string;
   read: boolean;
   href: string;
+  source?: "ai_voice" | "ai_chat" | "web" | "staff" | null;
 }
 
 interface TopbarProps {
@@ -82,12 +83,12 @@ export function Topbar({ onMenuToggle }: TopbarProps) {
     let cancelled = false;
 
     const catchUp = async () => {
-      // Look back 24h (or since last successful catch-up)
+      // Always look back 24h. Using a moving "lastKey" cursor caused voice
+      // bookings to be skipped when the cursor was advanced between the
+      // realtime delivery window and the next visibility/focus event —
+      // dedupe in pushNotification already protects against re-adds.
       const lastKey = `crm_notif_last_${activeTenant.id}`;
-      const lastStr = safeLocal.get(lastKey);
-      const since = lastStr
-        ? new Date(lastStr)
-        : new Date(Date.now() - 24 * 60 * 60 * 1000);
+      const since = new Date(Date.now() - 24 * 60 * 60 * 1000);
       const sinceIso = since.toISOString();
 
       try {
@@ -125,6 +126,7 @@ export function Topbar({ onMenuToggle }: TopbarProps) {
             time: new Date(res.created_at).toLocaleTimeString(),
             read: false,
             href: isEscalated ? '/pending' : `/reservations?date=${res.date}`,
+            source: res.source ?? null,
           });
         });
         (wlRes.data || []).forEach((entry: any) => {
@@ -219,12 +221,11 @@ export function Topbar({ onMenuToggle }: TopbarProps) {
           const notif: Notification = {
             id: res.id,
             type: isEscalated ? "incident" : "reservation",
-            message: isEscalated
-              ? `${t("topbar_new_reservation")}: ${res.party_size} ${t("topbar_people")} - ${res.date} ${res.time}`
-              : `${t("topbar_new_reservation")}: ${res.party_size} ${t("topbar_people")} - ${res.date} ${res.time}`,
+            message: `${t("topbar_new_reservation")}: ${res.party_size} ${t("topbar_people")} - ${res.date} ${res.time}`,
             time: new Date().toLocaleTimeString(),
             read: false,
             href: isEscalated ? `/pending` : `/reservations?date=${res.date}`,
+            source: res.source ?? null,
           };
           pushNotification(notif);
         }
@@ -388,7 +389,19 @@ export function Topbar({ onMenuToggle }: TopbarProps) {
                       <div className="flex items-start gap-2.5">
                         <span className="text-base flex-shrink-0 mt-0.5">{icon}</span>
                         <div className="flex-1 min-w-0">
-                          <p className="text-sm text-black">{n.message}</p>
+                          <p className="text-sm text-black flex items-center gap-1.5">
+                            <span>{n.message}</span>
+                            {n.source === 'ai_voice' && (
+                              <span title="AI Voice" className="inline-flex items-center justify-center h-4 w-4 rounded bg-indigo-50 text-indigo-600 ring-1 ring-indigo-200">
+                                <Phone className="h-2.5 w-2.5" />
+                              </span>
+                            )}
+                            {n.source === 'ai_chat' && (
+                              <span title="AI WhatsApp" className="inline-flex items-center justify-center h-4 w-4 rounded bg-terracotta-50 text-terracotta-600 ring-1 ring-terracotta-200">
+                                <MessageSquare className="h-2.5 w-2.5" />
+                              </span>
+                            )}
+                          </p>
                           <p className="text-xs text-black mt-1">{n.time}</p>
                         </div>
                         <span className="text-xs text-[#c4956a] flex-shrink-0 mt-0.5">→</span>
@@ -422,7 +435,19 @@ export function Topbar({ onMenuToggle }: TopbarProps) {
                       <div className="flex items-start gap-2.5">
                         <span className="text-base flex-shrink-0 mt-0.5">{icon}</span>
                         <div className="flex-1 min-w-0">
-                          <p className="text-sm text-black">{n.message}</p>
+                          <p className="text-sm text-black flex items-center gap-1.5">
+                            <span>{n.message}</span>
+                            {n.source === 'ai_voice' && (
+                              <span title="AI Voice" className="inline-flex items-center justify-center h-4 w-4 rounded bg-indigo-50 text-indigo-600 ring-1 ring-indigo-200">
+                                <Phone className="h-2.5 w-2.5" />
+                              </span>
+                            )}
+                            {n.source === 'ai_chat' && (
+                              <span title="AI WhatsApp" className="inline-flex items-center justify-center h-4 w-4 rounded bg-terracotta-50 text-terracotta-600 ring-1 ring-terracotta-200">
+                                <MessageSquare className="h-2.5 w-2.5" />
+                              </span>
+                            )}
+                          </p>
                           <p className="text-xs text-black mt-1">{n.time}</p>
                         </div>
                         <span className="text-xs text-[#c4956a] flex-shrink-0 mt-0.5">→</span>
