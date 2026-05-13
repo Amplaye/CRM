@@ -52,7 +52,7 @@ export function Topbar({ onMenuToggle }: TopbarProps) {
         next.delete(notif.id);
         return next;
       });
-    }, 2400);
+    }, 2700);
   };
 
   // Load notifications from localStorage on mount

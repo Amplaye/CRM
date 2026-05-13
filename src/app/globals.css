@@ -204,35 +204,62 @@ tr.is-new-row::after {
   }
 }
 
-/* Per-item entrance for newly arrived notifications in the topbar dropdown.
- * Each notification animates independently (slide-in + terracotta wash + border
- * flash), so a burst of N notifications gives N distinct pulses, not one
- * unified block. Palette mirrors the CRM (terracotta #f45517 / tan #c4956a). */
-@keyframes notif-slide-in {
-  0%   { transform: translateX(14px); opacity: 0; }
-  60%  { transform: translateX(0);    opacity: 1; }
-  100% { transform: translateX(0);    opacity: 1; }
-}
-@keyframes notif-wash {
-  0%   { background-color: rgba(244, 85, 23, 0.22); }
-  35%  { background-color: rgba(244, 85, 23, 0.16); }
-  100% { background-color: rgba(244, 85, 23, 0.0); }
-}
-@keyframes notif-border-flash {
-  0%   { box-shadow: inset 3px 0 0 0 rgba(244, 85, 23, 0.0); }
-  15%  { box-shadow: inset 3px 0 0 0 rgba(244, 85, 23, 0.95); }
-  60%  { box-shadow: inset 3px 0 0 0 rgba(196, 149, 106, 0.55); }
-  100% { box-shadow: inset 3px 0 0 0 rgba(196, 149, 106, 0.0); }
-}
+/* Notification dropdown items reuse the same "new row" treatment as the rest
+ * of the CRM (slate wash + diagonal white shimmer) so the visual language is
+ * consistent across reservations / waitlist / conversations / pending / guests
+ * / notifications. Items already enter staggered via JS setTimeout, so no
+ * extra CSS delay is needed. */
 .is-new-notif {
-  animation:
-    notif-slide-in     0.45s cubic-bezier(0.22, 1, 0.36, 1) 1 both,
-    notif-wash         2.2s  ease-out                       1 both,
-    notif-border-flash 2.2s  ease-out                       1 both;
+  position: relative;
+  overflow: hidden;
+  z-index: 1;
+}
+.is-new-notif::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  background: linear-gradient(
+    180deg,
+    rgba(30, 41, 59, 0.14) 0%,
+    rgba(30, 41, 59, 0.10) 100%
+  );
+  opacity: 0;
+  animation: new-row-wash 2.6s ease-out 1 both;
+}
+.is-new-notif::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  width: 45%;
+  pointer-events: none;
+  z-index: 1;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.0) 15%,
+    rgba(255, 255, 255, 0.65) 50%,
+    rgba(255, 255, 255, 0.0) 85%,
+    transparent 100%
+  );
+  transform: translateX(-110%) skewX(-18deg);
+  animation: new-row-shimmer 1.4s cubic-bezier(0.22, 1, 0.36, 1) 200ms 1 both;
+}
+.is-new-notif > * {
+  position: relative;
+  z-index: 2;
 }
 @media (prefers-reduced-motion: reduce) {
-  .is-new-notif {
+  .is-new-notif,
+  .is-new-notif::before,
+  .is-new-notif::after {
     animation: none;
-    background-color: rgba(244, 85, 23, 0.10);
+    background: none;
+  }
+  .is-new-notif {
+    background-color: rgba(30, 41, 59, 0.06);
   }
 }
