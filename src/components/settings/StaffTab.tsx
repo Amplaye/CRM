@@ -38,6 +38,7 @@ export function StaffTab() {
   const [myRole, setMyRole] = useState<DbRole | null>(null);
 
   const [showInvite, setShowInvite] = useState(false);
+  const [inviteName, setInviteName] = useState("");
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteRole, setInviteRole] = useState<DbRole>("host");
   const [inviting, setInviting] = useState(false);
@@ -141,18 +142,49 @@ export function StaffTab() {
     setInviting(true);
     setInviteError(null);
     try {
-      const res = await fetch("/api/team/invite", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: inviteEmail.trim().toLowerCase(), role: inviteRole, tenantId: activeTenant.id }),
-      });
-      const body = await res.json();
-      if (!res.ok) {
-        setInviteError(body?.error || "Invite failed");
-      } else {
+      // Staff (host) skips email entirely: we provision an internal account
+      // identified by name and log them in via QR. Owner/Admin still go
+      // through the email invite because they're real people with real
+      // mailboxes (manager, accountant, partner).
+      if (inviteRole === "host") {
+        const res = await fetch("/api/team/add-staff", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ name: inviteName.trim(), role: inviteRole, tenantId: activeTenant.id }),
+        });
+        const body = await res.json();
+        if (!res.ok) {
+          setInviteError(body?.error || "Add staff failed");
+          return;
+        }
         setShowInvite(false);
-        setInviteEmail("");
+        const justAdded: Member = {
+          id: "", // we don't have the tenant_members row id; fine for QR call which uses user_id
+          user_id: body.userId,
+          role: "host",
+          email: "",
+          name: body.name,
+        };
+        setInviteName("");
         setInviteRole("host");
+        // Realtime subscription will refresh the list shortly; in the meantime
+        // open the QR modal so the owner can hand the new staff their badge
+        // right away.
+        await openQrFor(justAdded);
+      } else {
+        const res = await fetch("/api/team/invite", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email: inviteEmail.trim().toLowerCase(), role: inviteRole, tenantId: activeTenant.id }),
+        });
+        const body = await res.json();
+        if (!res.ok) {
+          setInviteError(body?.error || "Invite failed");
+        } else {
+          setShowInvite(false);
+          setInviteEmail("");
+          setInviteRole("host");
+        }
       }
     } catch (e: any) {
       setInviteError(e?.message || "Network error");
@@ -321,21 +353,6 @@ export function StaffTab() {
             </div>
             <div className="p-5 space-y-3">
               <div>
-                <label className="block text-sm font-medium text-black mb-1">{t("team_invite_email") || "Email"}</label>
-                <div className="relative">
-                  <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
-                  <input
-                    type="email"
-                    value={inviteEmail}
-                    onChange={(e) => setInviteEmail(e.target.value)}
-                    placeholder="nome@email.com"
-                    className="block w-full border-2 rounded-lg pl-9 pr-3 py-2.5 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-[#c4956a]"
-                    style={{ borderColor: '#c4956a', background: 'rgba(252,246,237,0.6)' }}
-                    autoFocus
-                  />
-                </div>
-              </div>
-              <div>
                 <label className="block text-sm font-medium text-black mb-1">{t("team_invite_role") || "Ruolo"}</label>
                 <select
                   value={inviteRole}
@@ -353,6 +370,41 @@ export function StaffTab() {
                   {inviteRole === "host" && (t("team_role_hint_staff") || "Solo prenotazioni, walk-in e ospiti. Non vede impostazioni, knowledge base o billing.")}
                 </p>
               </div>
+
+              {inviteRole === "host" ? (
+                <div>
+                  <label className="block text-sm font-medium text-black mb-1">{t("team_invite_name") || "Nome"}</label>
+                  <input
+                    type="text"
+                    value={inviteName}
+                    onChange={(e) => setInviteName(e.target.value)}
+                    placeholder={t("team_invite_name_placeholder") || "es. Mario"}
+                    className="block w-full border-2 rounded-lg px-3 py-2.5 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-[#c4956a]"
+                    style={{ borderColor: '#c4956a', background: 'rgba(252,246,237,0.6)' }}
+                    autoFocus
+                  />
+                  <p className="text-xs text-zinc-600 mt-1">
+                    {t("team_invite_name_hint") || "Niente email: dopo il salvataggio si genera un QR di accesso da scansionare col telefono."}
+                  </p>
+                </div>
+              ) : (
+                <div>
+                  <label className="block text-sm font-medium text-black mb-1">{t("team_invite_email") || "Email"}</label>
+                  <div className="relative">
+                    <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
+                    <input
+                      type="email"
+                      value={inviteEmail}
+                      onChange={(e) => setInviteEmail(e.target.value)}
+                      placeholder="nome@email.com"
+                      className="block w-full border-2 rounded-lg pl-9 pr-3 py-2.5 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-[#c4956a]"
+                      style={{ borderColor: '#c4956a', background: 'rgba(252,246,237,0.6)' }}
+                      autoFocus
+                    />
+                  </div>
+                </div>
+              )}
+
               {inviteError && (
                 <p className="text-sm text-red-600">{inviteError}</p>
               )}
@@ -368,10 +420,14 @@ export function StaffTab() {
               </button>
               <button
                 onClick={submitInvite}
-                disabled={inviting || !inviteEmail}
+                disabled={inviting || (inviteRole === "host" ? !inviteName.trim() : !inviteEmail.trim())}
                 className="px-4 py-2 text-sm font-medium rounded-lg text-white bg-zinc-900 hover:bg-zinc-800 cursor-pointer disabled:opacity-50"
               >
-                {inviting ? (t("team_inviting") || "Invio…") : (t("team_send_invite") || "Invia invito")}
+                {inviting
+                  ? (t("team_inviting") || "Invio…")
+                  : inviteRole === "host"
+                    ? (t("team_create_and_qr") || "Crea e mostra QR")
+                    : (t("team_send_invite") || "Invia invito")}
               </button>
             </div>
           </div>
