@@ -3,10 +3,8 @@
 import { createServerSupabaseClient, createServiceRoleClient } from "@/lib/supabase/server";
 import { Reservation, ReservationEvent, ReservationStatus, Guest } from "@/lib/types";
 import { revalidatePath } from "next/cache";
-import { after } from "next/server";
 import { matchWaitlistForSlotAction } from "./waitlist";
 import { getShift, getRotationMinutes, calculateEndTime, tablesNeeded } from "@/lib/restaurant-rules";
-import { dispatchAutomations } from "@/lib/automations/engine";
 
 /**
  * Creates a Reservation.
@@ -192,25 +190,6 @@ export async function createReservationAction(params: {
       created_at: new Date().toISOString(),
     });
 
-    // 6. Fire automations (fire-and-forget)
-    after(async () => {
-      await dispatchAutomations({
-        trigger: "on_reservation_created",
-        tenantId: params.tenantId,
-        reservationId: newRes.id,
-        guestId,
-        guestName: params.guestName,
-        guestPhone: params.guestPhone,
-        date: params.date,
-        time: params.time,
-        partySize: params.partySize,
-        status: "confirmed",
-        source: params.source,
-        shift: computedShift,
-        notes: params.notes,
-      });
-    });
-
     return { success: true, reservationId: newRes.id };
   } catch (err: any) {
     return { success: false, error: err.message };
@@ -333,32 +312,6 @@ export async function updateReservationDetailsAction(params: {
         current.time,
         current.party_size
       );
-    }
-
-    // Fire automations on cancellation (fire-and-forget)
-    if (params.data.status === "cancelled" && current.status !== "cancelled") {
-      const { data: guestRow } = await supabase
-        .from("guests")
-        .select("name, phone")
-        .eq("id", current.guest_id)
-        .maybeSingle();
-      after(async () => {
-        await dispatchAutomations({
-          trigger: "on_reservation_cancelled",
-          tenantId: params.tenantId,
-          reservationId: params.reservationId,
-          guestId: current.guest_id,
-          guestName: guestRow?.name,
-          guestPhone: guestRow?.phone,
-          date: current.date,
-          time: current.time,
-          partySize: current.party_size,
-          status: "cancelled",
-          source: operatorId === "ai_agent" ? "ai_agent" : "staff",
-          shift: current.shift,
-          notes: current.notes,
-        });
-      });
     }
 
     return { success: true };

@@ -1,11 +1,9 @@
 import { NextResponse } from 'next/server';
-import { after } from 'next/server';
 import { createServiceRoleClient } from '@/lib/supabase/server';
 import { CreateBookingRequest } from '@/lib/types';
 import { logAuditEvent } from '@/lib/audit';
 import { logSystemEvent } from '@/lib/system-log';
 import { assertAiSecret } from '@/lib/ai-auth';
-import { dispatchAutomations } from '@/lib/automations/engine';
 import {
   getShift,
   getRotationMinutes,
@@ -631,25 +629,6 @@ export async function POST(request: Request) {
           end_time: endTime,
           tables_assigned: atomicResult.tables_assigned,
        }
-    });
-
-    // Fire automations (fire-and-forget)
-    after(async () => {
-      await dispatchAutomations({
-        trigger: "on_reservation_created",
-        tenantId: payload.tenant_id,
-        reservationId: newRes.id,
-        guestId,
-        guestName: payload.guest_name,
-        guestPhone: payload.guest_phone,
-        date: payload.date,
-        time: payload.time,
-        partySize: payload.party_size,
-        status: "confirmed",
-        source: payload.source || "ai_voice",
-        shift,
-        notes: payload.notes,
-      });
     });
 
     return NextResponse.json({

@@ -28,48 +28,6 @@ export interface TenantMember {
   created_at: number;
 }
 
-export type AutomationTrigger =
-  | "on_reservation_created"
-  | "on_reservation_cancelled"
-  | "on_waitlist_match"
-  | "on_ai_escalation"
-  | "schedule";
-
-export type AutomationActionType =
-  | "send_sms"
-  | "send_email"
-  | "update_status"
-  | "notify_staff";
-
-export interface AutomationRule {
-  id: string;
-  tenant_id: string;
-  name: string;
-  description: string;
-  trigger: AutomationTrigger;
-  condition?: Record<string, any> | null;
-  action: {
-    type: AutomationActionType;
-    payload: Record<string, any>;
-  };
-  is_active: boolean;
-  last_run_at?: string | null;
-  run_count?: number;
-  created_at: number | string;
-  updated_at: number | string;
-}
-
-export interface AutomationRun {
-  id: string;
-  tenant_id: string;
-  rule_id: string;
-  trigger: AutomationTrigger;
-  context: Record<string, any>;
-  status: "success" | "failed" | "skipped";
-  error?: string | null;
-  created_at: string;
-}
-
 export interface Incident {
   id: string;
   tenant_id: string;

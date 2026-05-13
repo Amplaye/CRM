@@ -6,7 +6,6 @@ export type SystemLogCategory =
   | "message_failure"
   | "api_error"
   | "ai_error"
-  | "automation"
   | "system";
 
 export type SystemLogSeverity = "low" | "medium" | "high" | "critical";

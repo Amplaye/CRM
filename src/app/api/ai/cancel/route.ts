@@ -1,9 +1,7 @@
 import { NextResponse } from 'next/server';
-import { after } from 'next/server';
 import { createServiceRoleClient } from '@/lib/supabase/server';
 import { logAuditEvent } from '@/lib/audit';
 import { assertAiSecret } from '@/lib/ai-auth';
-import { dispatchAutomations } from '@/lib/automations/engine';
 
 export async function DELETE(request: Request) {
   const unauth = assertAiSecret(request);
@@ -71,29 +69,6 @@ export async function DELETE(request: Request) {
         entity_id: reservation_id,
         source: "ai_agent",
         details: { reason: "User requested cancellation via AI", cancellation_source: cancellation_source || "unknown" }
-     });
-
-     // Fire automations (fire-and-forget)
-     after(async () => {
-       const { data: guestRow } = await supabase
-         .from('guests')
-         .select('name, phone')
-         .eq('id', reservation.guest_id)
-         .maybeSingle();
-       await dispatchAutomations({
-         trigger: "on_reservation_cancelled",
-         tenantId: tenant_id,
-         reservationId: reservation_id,
-         guestId: reservation.guest_id,
-         guestName: guestRow?.name,
-         guestPhone: guestRow?.phone,
-         date: reservation.date,
-         time: reservation.time,
-         partySize: reservation.party_size,
-         status: "cancelled",
-         source: "ai_agent",
-         shift: reservation.shift,
-       });
      });
 
      return NextResponse.json({
