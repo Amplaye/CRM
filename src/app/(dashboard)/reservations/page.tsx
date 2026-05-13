@@ -2,7 +2,7 @@
 
 import { ReservationList } from "@/components/reservations/ReservationList";
 import { ReservationTimeline } from "@/components/reservations/ReservationTimeline";
-import { Plus, Download, Upload, X, Save, Clock, Menu, Phone, ChevronLeft, ChevronRight } from "lucide-react";
+import { Plus, Download, Upload, X, Save, Clock, Menu, Phone, ChevronLeft, ChevronRight, AlertOctagon, Accessibility, Users as UsersIcon } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
 import { Reservation, ReservationStatus } from "@/lib/types";
 import { TranslateNoteButton } from "@/components/ui/TranslateNoteButton";
@@ -10,6 +10,9 @@ import { TranslateNoteButton } from "@/components/ui/TranslateNoteButton";
 interface ReservationWithGuest extends Reservation {
   guest_name?: string;
   guest_phone?: string;
+  guest_dietary_notes?: string;
+  guest_accessibility_notes?: string;
+  guest_family_notes?: string;
 }
 import { useLanguage } from "@/lib/contexts/LanguageContext";
 import { useTenant } from "@/lib/contexts/TenantContext";
@@ -534,6 +537,32 @@ export default function ReservationsPage() {
           </div>
           <form onSubmit={handleUpdate} className="flex-1 flex flex-col min-h-0 overflow-hidden">
              <div className="flex-1 overflow-y-auto px-5 sm:px-6 py-3 sm:py-5 space-y-3 sm:space-y-4">
+                {(selectedRes.guest_dietary_notes || selectedRes.guest_accessibility_notes || selectedRes.guest_family_notes) && (
+                  <div className="rounded-lg border-2 border-red-300 bg-red-50 p-3 space-y-1.5">
+                    <div className="flex items-center gap-1.5 text-sm font-bold text-red-800">
+                      <AlertOctagon className="w-4 h-4 flex-shrink-0" />
+                      <span>{t("res_guest_alerts") || "Avvisi cliente"}</span>
+                    </div>
+                    {selectedRes.guest_dietary_notes && (
+                      <p className="flex items-start gap-1.5 text-sm text-red-900">
+                        <span className="font-semibold flex-shrink-0">🍽️ {t("res_guest_dietary") || "Dieta/Allergie"}:</span>
+                        <span className="break-words">{selectedRes.guest_dietary_notes}</span>
+                      </p>
+                    )}
+                    {selectedRes.guest_accessibility_notes && (
+                      <p className="flex items-start gap-1.5 text-sm text-red-900">
+                        <Accessibility className="w-4 h-4 flex-shrink-0 mt-0.5" />
+                        <span className="break-words">{selectedRes.guest_accessibility_notes}</span>
+                      </p>
+                    )}
+                    {selectedRes.guest_family_notes && (
+                      <p className="flex items-start gap-1.5 text-sm text-red-900">
+                        <UsersIcon className="w-4 h-4 flex-shrink-0 mt-0.5" />
+                        <span className="break-words">{selectedRes.guest_family_notes}</span>
+                      </p>
+                    )}
+                  </div>
+                )}
                 <div>
                    <label className="block text-sm font-medium text-black mb-1">{t("res_edit_status")}</label>
                    <select name="status" defaultValue={selectedRes.status} className={inputCls} style={inputStyle}>

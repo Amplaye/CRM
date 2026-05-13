@@ -1,6 +1,6 @@
 "use client";
 
-import { Download, Upload, Search, X, CalendarCheck, User, LayoutGrid, List, Trash2, Phone } from "lucide-react";
+import { Download, Upload, Search, X, CalendarCheck, User, LayoutGrid, List, Trash2, Phone, AlertOctagon, Accessibility, Users as UsersIcon } from "lucide-react";
 import { useLanguage } from "@/lib/contexts/LanguageContext";
 import { useEffect, useState, useRef, useMemo } from "react";
 import { useTenant } from "@/lib/contexts/TenantContext";
@@ -357,6 +357,16 @@ export default function GuestsPage() {
               </div>
             </div>
 
+            {/* Guest profile notes (allergies, accessibility, family) */}
+            <GuestNotesEditor
+              key={selectedGuest.id}
+              guest={selectedGuest}
+              onSaved={(updated) => {
+                setSelectedGuest({ ...selectedGuest, ...updated });
+                setGuests(prev => prev.map(g => g.id === selectedGuest.id ? { ...g, ...updated } : g));
+              }}
+            />
+
             {/* Reservation History */}
             <div>
               <h3 className="text-xs font-bold text-black uppercase tracking-wider mb-3">{t("guests_reservation_history")}</h3>
@@ -386,6 +396,91 @@ export default function GuestsPage() {
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+function GuestNotesEditor({ guest, onSaved }: { guest: Guest; onSaved: (updated: Partial<Guest>) => void }) {
+  const { t } = useLanguage();
+  const supabase = createClient();
+  const [dietary, setDietary] = useState(guest.dietary_notes || "");
+  const [accessibility, setAccessibility] = useState(guest.accessibility_notes || "");
+  const [family, setFamily] = useState(guest.family_notes || "");
+  const [savingField, setSavingField] = useState<string | null>(null);
+
+  const persist = async (field: "dietary_notes" | "accessibility_notes" | "family_notes", value: string) => {
+    const current = (guest as any)[field] || "";
+    if (value === current) return;
+    setSavingField(field);
+    const { error } = await supabase
+      .from("guests")
+      .update({ [field]: value || null })
+      .eq("id", guest.id);
+    setSavingField(null);
+    if (!error) onSaved({ [field]: value } as any);
+  };
+
+  const taCls = "block w-full border-2 rounded-lg px-3 py-2 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-[#c4956a]";
+  const taStyle: React.CSSProperties = { borderColor: '#c4956a', background: 'rgba(252,246,237,0.6)' };
+  const hasAny = !!(dietary || accessibility);
+
+  return (
+    <div className="space-y-3">
+      <h3 className="text-xs font-bold text-black uppercase tracking-wider flex items-center gap-1.5">
+        {hasAny && <AlertOctagon className="w-3.5 h-3.5 text-red-600" />}
+        {t("guests_profile_notes") || "Profilo & avvisi"}
+      </h3>
+
+      <div>
+        <label className="flex items-center gap-1.5 text-xs font-semibold text-black mb-1">
+          <span>🍽️</span>
+          <span>{t("guests_dietary_label") || "Allergie / dieta"}</span>
+          {savingField === "dietary_notes" && <span className="text-[10px] text-zinc-500">…</span>}
+        </label>
+        <textarea
+          value={dietary}
+          onChange={(e) => setDietary(e.target.value)}
+          onBlur={() => persist("dietary_notes", dietary)}
+          rows={2}
+          placeholder={t("guests_dietary_placeholder") || "Es. allergia ai crostacei, celiaco, vegano…"}
+          className={taCls}
+          style={taStyle}
+        />
+      </div>
+
+      <div>
+        <label className="flex items-center gap-1.5 text-xs font-semibold text-black mb-1">
+          <Accessibility className="w-3.5 h-3.5" />
+          <span>{t("guests_accessibility_label") || "Accessibilità"}</span>
+          {savingField === "accessibility_notes" && <span className="text-[10px] text-zinc-500">…</span>}
+        </label>
+        <textarea
+          value={accessibility}
+          onChange={(e) => setAccessibility(e.target.value)}
+          onBlur={() => persist("accessibility_notes", accessibility)}
+          rows={2}
+          placeholder={t("guests_accessibility_placeholder") || "Es. sedia a rotelle, ipovedente…"}
+          className={taCls}
+          style={taStyle}
+        />
+      </div>
+
+      <div>
+        <label className="flex items-center gap-1.5 text-xs font-semibold text-black mb-1">
+          <UsersIcon className="w-3.5 h-3.5" />
+          <span>{t("guests_family_label") || "Famiglia / note personali"}</span>
+          {savingField === "family_notes" && <span className="text-[10px] text-zinc-500">…</span>}
+        </label>
+        <textarea
+          value={family}
+          onChange={(e) => setFamily(e.target.value)}
+          onBlur={() => persist("family_notes", family)}
+          rows={2}
+          placeholder={t("guests_family_placeholder") || "Es. anniversario il 12 maggio, viene sempre con i 2 figli…"}
+          className={taCls}
+          style={taStyle}
+        />
+      </div>
     </div>
   );
 }

@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { Reservation } from "@/lib/types";
 import { useLanguage } from "@/lib/contexts/LanguageContext";
-import { Clock, User, Phone, MessageSquare, Globe, UserCheck, AlertTriangle, UserMinus, CalendarCheck, Plus, Users, XCircle, Armchair } from "lucide-react";
+import { Clock, User, Phone, MessageSquare, Globe, UserCheck, AlertTriangle, UserMinus, CalendarCheck, Plus, Users, XCircle, Armchair, AlertOctagon } from "lucide-react";
 import Link from "next/link";
 import { useSeenSnapshotAndMark } from "@/lib/hooks/useLastSeen";
 
@@ -20,7 +20,7 @@ export function ReservationList({ date, shiftFilter = "all", onRowClick, onCreat
   const { activeTenant: tenant } = useTenant();
   const { t } = useLanguage();
   const seenAt = useSeenSnapshotAndMark(tenant?.id, "reservations");
-  const [reservations, setReservations] = useState<(Reservation & { guest_name?: string; guest_phone?: string; table_names?: string[] })[]>([]);
+  const [reservations, setReservations] = useState<(Reservation & { guest_name?: string; guest_phone?: string; guest_dietary_notes?: string; guest_accessibility_notes?: string; guest_family_notes?: string; table_names?: string[] })[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -32,7 +32,7 @@ export function ReservationList({ date, shiftFilter = "all", onRowClick, onCreat
     const fetchReservations = async () => {
       const { data: resData, error } = await supabase
         .from("reservations")
-        .select("*, guests(name, phone), reservation_tables(restaurant_tables(name))")
+        .select("*, guests(name, phone, dietary_notes, accessibility_notes, family_notes), reservation_tables(restaurant_tables(name))")
         .eq("tenant_id", tenant.id)
         .eq("date", date);
 
@@ -46,10 +46,13 @@ export function ReservationList({ date, shiftFilter = "all", onRowClick, onCreat
         ...r,
         guest_name: r.guests?.name || undefined,
         guest_phone: r.guests?.phone || undefined,
+        guest_dietary_notes: r.guests?.dietary_notes || undefined,
+        guest_accessibility_notes: r.guests?.accessibility_notes || undefined,
+        guest_family_notes: r.guests?.family_notes || undefined,
         table_names: (r.reservation_tables || [])
           .map((rt: any) => rt.restaurant_tables?.name)
           .filter(Boolean),
-      })) as (Reservation & { guest_name?: string; guest_phone?: string; table_names?: string[] })[];
+      })) as (Reservation & { guest_name?: string; guest_phone?: string; guest_dietary_notes?: string; guest_accessibility_notes?: string; guest_family_notes?: string; table_names?: string[] })[];
 
       const sorted = withNames.sort((a, b) => a.time.localeCompare(b.time));
       const filtered = shiftFilter === "all"
@@ -172,6 +175,11 @@ export function ReservationList({ date, shiftFilter = "all", onRowClick, onCreat
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2">
                 <p className="text-sm font-bold text-black truncate">{res.guest_name || "Guest"}</p>
+                {(res.guest_dietary_notes || res.guest_accessibility_notes) && (
+                  <span title={[res.guest_dietary_notes, res.guest_accessibility_notes].filter(Boolean).join(" · ")} className="inline-flex flex-shrink-0 items-center justify-center h-5 w-5 rounded-full bg-red-100 text-red-700 ring-1 ring-red-300">
+                    <AlertOctagon className="h-3 w-3" />
+                  </span>
+                )}
                 <SourceIcon source={res.source} />
               </div>
               <p className="text-xs text-black truncate">{res.guest_phone || "—"}</p>
@@ -239,7 +247,14 @@ export function ReservationList({ date, shiftFilter = "all", onRowClick, onCreat
                 </div>
               </td>
               <td className="px-4 py-4 whitespace-nowrap text-center">
-                <div className="text-sm font-medium text-black">{res.guest_name || `Guest (${res.guest_id.substring(0,8)})`}</div>
+                <div className="inline-flex items-center justify-center gap-1.5 text-sm font-medium text-black">
+                  <span>{res.guest_name || `Guest (${res.guest_id.substring(0,8)})`}</span>
+                  {(res.guest_dietary_notes || res.guest_accessibility_notes) && (
+                    <span title={[res.guest_dietary_notes, res.guest_accessibility_notes].filter(Boolean).join(" · ")} className="inline-flex items-center justify-center h-5 w-5 rounded-full bg-red-100 text-red-700 ring-1 ring-red-300">
+                      <AlertOctagon className="h-3 w-3" />
+                    </span>
+                  )}
+                </div>
                 {res.notes && <div className="text-xs text-black truncate max-w-[200px] mx-auto text-center">{res.notes}</div>}
               </td>
               <td className="px-4 py-4 whitespace-nowrap text-center">
