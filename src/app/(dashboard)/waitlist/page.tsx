@@ -16,7 +16,7 @@ import { zoneLabel } from "@/lib/restaurant-rules";
 import { formatDateLong } from "@/lib/format-date";
 import { WaitlistEntry } from "@/lib/types";
 import { createWaitlistEntryAction, updateWaitlistStatusAction } from "@/app/actions/waitlist";
-import { createReservationAction } from "@/app/actions/reservations";
+import { createReservationAction, updateReservationDetailsAction } from "@/app/actions/reservations";
 
 interface WaitlistWithGuest extends WaitlistEntry {
   guests?: { name: string; phone: string; email?: string };
@@ -237,10 +237,45 @@ export default function WaitlistPage() {
       if (!ok) return;
     }
 
+    // Detect existing active reservation for same guest+date (e.g. inside booked,
+    // outside waitlisted, freed up). Cancel it on user confirmation so the
+    // duplicate-booking guard in createReservationAction does not block the move.
+    const { data: existingActive } = await supabase
+      .from("reservations")
+      .select("id, time, status")
+      .eq("tenant_id", tenant.id)
+      .eq("guest_id", entry.guest_id)
+      .eq("date", entry.date)
+      .in("status", ["confirmed", "seated", "pending_confirmation"]);
+
+    if (existingActive && existingActive.length > 0) {
+      const ok = window.confirm(
+        t("waitlist_replace_existing")
+          .replace("{date}", formatDateLong(entry.date, "es"))
+          .replace("{time}", existingActive[0].time)
+      );
+      if (!ok) return;
+    }
+
     setConfirmInFlight(true);
     try {
       const guestName = entry.guests?.name || `Guest ${entry.guest_id.substring(0, 6)}`;
       const guestPhone = entry.guests?.phone || "0000000";
+
+      // 0. Cancel any pre-existing active reservation for same guest+date so
+      // createReservationAction's duplicate guard lets the waitlist promotion through.
+      if (existingActive && existingActive.length > 0) {
+        for (const prev of existingActive) {
+          const cancelRes = await updateReservationDetailsAction({
+            tenantId: tenant.id,
+            reservationId: prev.id,
+            data: { status: "cancelled", notes: "Replaced by waitlist promotion" } as any,
+          });
+          if (!cancelRes.success) {
+            throw new Error(cancelRes.error || "Could not cancel previous reservation");
+          }
+        }
+      }
 
       // 1. Create reservation (auto-assigns via atomic RPC)
       const res = await createReservationAction({

@@ -595,6 +595,7 @@ export const de: Dictionary = {
   zone_inside: "Innenbereich",
   zone_outside: "Außenbereich",
   pending_no_tables_warning: "Sie haben keinen Tisch für {size} Personen ausgewählt. Ohne Tischzuweisung bestätigen?",
+  waitlist_replace_existing: "Dieser Gast hat bereits eine aktive Reservierung am {date} um {time}. Die vorherige stornieren und den Gast auf diese neue Zuweisung verschieben?",
   pending_warning_title: "Trotzdem bestätigen?",
   pending_confirm_anyway: "Ja, fortfahren",
   pending_reject_confirm: "Sind Sie sicher, dass Sie diese Anfrage ablehnen möchten?",

@@ -592,6 +592,7 @@ export const en = {
   zone_inside: "Inside",
   zone_outside: "Outside",
   pending_no_tables_warning: "You haven't selected any tables for {size} people. Confirm without assigning tables?",
+  waitlist_replace_existing: "This guest already has an active reservation on {date} at {time}. Cancel the previous one and move the guest to this new assignment?",
   pending_warning_title: "Confirm anyway?",
   pending_confirm_anyway: "Yes, continue",
   pending_reject_confirm: "Are you sure you want to reject this request?",
