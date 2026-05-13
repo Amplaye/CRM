@@ -64,6 +64,8 @@ export async function POST(request: Request) {
       'closed_day',
       'closing_time',
       'before_opening',
+      'ambiguous',
+      'ambiguous_reservation',
     ].some((m) => errMsg.includes(m) || stepLower.includes(m));
 
     const severity: SystemLogSeverity = isUserCase
