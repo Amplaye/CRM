@@ -140,18 +140,26 @@ export function StaffTab() {
   const removeMember = async (member: Member) => {
     if (!canManage) return;
     if (member.role === "owner") return; // Admin (owner) is not removable
-    if (!confirm((t("team_remove_confirm") || "Rimuovere {email}?").replace("{email}", member.email || member.name))) return;
+    if (!activeTenant) return;
+    if (!confirm((t("team_remove_confirm") || "Rimuovere {email}?").replace("{email}", member.name || member.email))) return;
     // Optimistic remove so the UI updates instantly even if the realtime
     // broadcast lags or is filtered out.
     const prev = members;
     setMembers(curr => curr.filter(m => m.id !== member.id));
-    const { error } = await supabase
-      .from("tenant_members")
-      .delete()
-      .eq("id", member.id);
-    if (error) {
+    try {
+      const res = await fetch("/api/team/remove-member", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ memberId: member.id, tenantId: activeTenant.id }),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        setMembers(prev);
+        alert(body?.error || "Remove failed");
+      }
+    } catch (e: any) {
       setMembers(prev);
-      alert(error.message);
+      alert(e?.message || "Network error");
     }
   };
 

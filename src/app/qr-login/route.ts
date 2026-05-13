@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { randomBytes } from "crypto";
 import { createServerClient } from "@supabase/ssr";
-import { cookies } from "next/headers";
 import { createServiceRoleClient } from "@/lib/supabase/server";
 
 // Consumes a QR-login token and lands the visitor directly inside the CRM,
@@ -20,22 +19,26 @@ import { createServiceRoleClient } from "@/lib/supabase/server";
 // is redirected to /floor.
 export async function GET(req: NextRequest) {
   const token = req.nextUrl.searchParams.get("t") || "";
-  const failUrl = new URL("/login?qr=invalid", req.url);
-  if (!token) return NextResponse.redirect(failUrl);
+  const fail = (reason: string) => {
+    const u = new URL("/login", req.url);
+    u.searchParams.set("qr", reason);
+    console.error("[qr-login] fail:", reason);
+    return NextResponse.redirect(u);
+  };
+  if (!token) return fail("missing");
 
   const admin = createServiceRoleClient();
 
-  const { data: row } = await admin
+  const { data: row, error: rowErr } = await admin
     .from("qr_login_tokens")
     .select("id, user_id, tenant_id, expires_at, consumed_at, pending_name, pending_role")
     .eq("token", token)
     .maybeSingle();
 
-  if (!row) return NextResponse.redirect(failUrl);
-  if (row.consumed_at) return NextResponse.redirect(new URL("/login?qr=used", req.url));
-  if (new Date(row.expires_at).getTime() < Date.now()) {
-    return NextResponse.redirect(new URL("/login?qr=expired", req.url));
-  }
+  if (rowErr) return fail("lookup_error");
+  if (!row) return fail("not_found");
+  if (row.consumed_at) return fail("used");
+  if (new Date(row.expires_at).getTime() < Date.now()) return fail("expired");
 
   let userId: string;
   let email: string;
@@ -46,7 +49,7 @@ export async function GET(req: NextRequest) {
       .select("email")
       .eq("id", row.user_id)
       .maybeSingle();
-    if (!u?.email) return NextResponse.redirect(failUrl);
+    if (!u?.email) return fail("user_email_missing");
     userId = row.user_id;
     email = u.email;
   } else if (row.pending_name && row.pending_role) {
@@ -60,7 +63,10 @@ export async function GET(req: NextRequest) {
       email_confirm: true,
       user_metadata: { name: row.pending_name, tenant_id: row.tenant_id, qr_staff: true },
     });
-    if (createErr || !created?.user?.id) return NextResponse.redirect(failUrl);
+    if (createErr || !created?.user?.id) {
+      console.error("[qr-login] createUser error:", createErr);
+      return fail("create_user_failed");
+    }
 
     userId = created.user.id;
     email = syntheticEmail;
@@ -73,11 +79,12 @@ export async function GET(req: NextRequest) {
       .from("tenant_members")
       .insert({ tenant_id: row.tenant_id, user_id: userId, role: row.pending_role });
     if (memberErr) {
+      console.error("[qr-login] tenant_members insert error:", memberErr);
       await admin.auth.admin.deleteUser(userId);
-      return NextResponse.redirect(failUrl);
+      return fail("member_insert_failed");
     }
   } else {
-    return NextResponse.redirect(failUrl);
+    return fail("bad_token_shape");
   }
 
   const { error: consumeErr } = await admin
@@ -85,28 +92,37 @@ export async function GET(req: NextRequest) {
     .update({ consumed_at: new Date().toISOString(), user_id: userId })
     .eq("id", (row as any).id)
     .is("consumed_at", null);
-  if (consumeErr) return NextResponse.redirect(failUrl);
+  if (consumeErr) {
+    console.error("[qr-login] consume error:", consumeErr);
+    return fail("consume_failed");
+  }
 
   // Mint a one-shot OTP for this email, then immediately exchange it for a
-  // session on the current request — that writes the sb-* cookies on the app
-  // domain. The OTP is consumed in the same request, so it can't be reused.
+  // session on the current request. We set the resulting sb-* cookies on the
+  // redirect response explicitly so the browser receives them on the very
+  // navigation to /floor (relying on `cookies().set()` to bleed onto the
+  // redirect response is fragile across Next.js versions).
   const { data: link, error: linkErr } = await admin.auth.admin.generateLink({
     type: "magiclink",
     email,
   });
-  if (linkErr || !link?.properties?.email_otp) return NextResponse.redirect(failUrl);
+  if (linkErr || !link?.properties?.email_otp) {
+    console.error("[qr-login] generateLink error:", linkErr);
+    return fail("link_failed");
+  }
 
-  const cookieStore = await cookies();
+  const res = NextResponse.redirect(new URL("/floor", req.url));
+
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
       cookies: {
-        getAll() { return cookieStore.getAll(); },
+        getAll() { return req.cookies.getAll(); },
         setAll(cookiesToSet) {
-          cookiesToSet.forEach(({ name, value, options }) =>
-            cookieStore.set(name, value, options)
-          );
+          cookiesToSet.forEach(({ name, value, options }) => {
+            res.cookies.set(name, value, options);
+          });
         },
       },
     }
@@ -117,7 +133,10 @@ export async function GET(req: NextRequest) {
     token: link.properties.email_otp,
     type: "email",
   });
-  if (otpErr) return NextResponse.redirect(failUrl);
+  if (otpErr) {
+    console.error("[qr-login] verifyOtp error:", otpErr);
+    return fail("otp_failed");
+  }
 
-  return NextResponse.redirect(new URL("/floor", req.url));
+  return res;
 }
