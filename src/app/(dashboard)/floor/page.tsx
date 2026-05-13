@@ -589,13 +589,15 @@ export default function FloorPage() {
             label: t("floor_pending"),
             value: pendingCount,
             icon: AlertTriangle,
-            href: "/incidents",
+            href: "/pending",
           },
-        ].map((stat) => (
+        ].map((stat) => {
+          const clickable = !!stat.href && canEditPlan;
+          return (
           <div
             key={stat.label}
-            onClick={() => stat.href && router.push(stat.href)}
-            className={`rounded-xl p-4 border-2 transition-all ${stat.href ? 'cursor-pointer hover:shadow-lg hover:scale-[1.02]' : ''}`}
+            onClick={() => clickable && router.push(stat.href!)}
+            className={`rounded-xl p-4 border-2 transition-all ${clickable ? 'cursor-pointer hover:shadow-lg hover:scale-[1.02]' : ''}`}
             style={{
               background: "rgba(252,246,237,0.85)",
               borderColor: "#c4956a",
@@ -611,7 +613,8 @@ export default function FloorPage() {
               <stat.icon className="h-8 w-8 text-[#c4956a]" />
             </div>
           </div>
-        ))}
+          );
+        })}
       </div>
 
       {/* Table Map — Lista | Plano toggle */}
