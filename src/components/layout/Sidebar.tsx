@@ -30,6 +30,7 @@ import { useAuth } from "@/lib/contexts/AuthContext";
 import { createClient } from "@/lib/supabase/client";
 import { useNotificationCounts, NotificationCounts } from "@/lib/hooks/useNotificationCounts";
 import { TenantSwitcher } from "./TenantSwitcher";
+import { useEffect, useMemo, useState } from "react";
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -70,6 +71,38 @@ export function Sidebar({ mobileOpen = false, onClose }: SidebarProps) {
   };
 
   const isPlatformOnly = globalRole === "platform_admin" && !activeTenant;
+
+  // Fetch the signed-in user's display name from public.users so the sidebar
+  // footer shows "Mario · Staff" rather than the raw email. Staff (host) rows
+  // have no email at all — without the name fallback the avatar shows "?".
+  const supabaseClient = useMemo(() => createClient(), []);
+  const [displayName, setDisplayName] = useState<string | null>(null);
+  useEffect(() => {
+    if (!user?.id) { setDisplayName(null); return; }
+    let cancelled = false;
+    (async () => {
+      const { data } = await supabaseClient
+        .from("users")
+        .select("name")
+        .eq("id", user.id)
+        .maybeSingle();
+      if (!cancelled) setDisplayName((data as any)?.name || null);
+    })();
+    return () => { cancelled = true; };
+  }, [user?.id, supabaseClient]);
+
+  const roleLabel =
+    isPlatformOnly ? "Platform Admin"
+    : activeRole === "owner" ? "Admin"
+    : activeRole === "host" ? "Staff"
+    : activeRole?.replace("_", " ") || "Guest";
+
+  // Staff (host) accounts are created via QR and have no email; if we couldn't
+  // load the name yet, show "Staff" placeholder instead of an empty line.
+  const primaryLabel = activeRole === "host"
+    ? (displayName || t("team_role_staff") || "Staff")
+    : (displayName || user?.email || "User");
+  const avatarChar = (displayName || user?.email || "U").charAt(0).toUpperCase();
 
   // Staff (camerieri) see only the two pages they need: floor for walk-ins
   // and reservations to mark arrivals/no-shows. Everything else is hidden.
@@ -174,11 +207,11 @@ export function Sidebar({ mobileOpen = false, onClose }: SidebarProps) {
       <div className="p-3 md:p-4 border-t" style={{ borderColor: '#c4956a', background: 'rgba(252,246,237,0.85)' }}>
          <div className="flex items-center">
             <div className="h-8 w-8 rounded-full bg-[#c4956a]/20 flex items-center justify-center text-[#8b6540] font-bold text-xs flex-shrink-0">
-              {user?.email?.charAt(0).toUpperCase() || 'U'}
+              {avatarChar}
             </div>
             <div className="ml-3 overflow-hidden">
-              <p className="text-sm font-medium text-black truncate">{user?.email || "User"}</p>
-              <p className="text-xs font-medium text-black uppercase tracking-wider mt-0.5">{isPlatformOnly ? "Platform Admin" : activeRole?.replace('_', ' ') || "Guest"}</p>
+              <p className="text-sm font-medium text-black truncate">{primaryLabel}</p>
+              <p className="text-xs font-medium text-black uppercase tracking-wider mt-0.5">{roleLabel}</p>
             </div>
          </div>
          <button
