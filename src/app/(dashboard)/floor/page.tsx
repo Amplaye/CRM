@@ -59,7 +59,10 @@ interface ResTableLink {
 export default function FloorPage() {
   const { t } = useLanguage();
   const { activeTenant, activeRole } = useTenant();
-  const canEditPlan = activeRole !== "host";
+  // Only Admin (owner) and platform_admin can rearrange the table plan.
+  // Default-closed: if the role hasn't loaded yet, hide the button — better
+  // than briefly flashing it for a Staff (host) viewer.
+  const canEditPlan = activeRole === "owner" || activeRole === "manager" || activeRole === "platform_admin";
   const router = useRouter();
   const [tables, setTables] = useState<TableData[]>([]);
   const [reservations, setReservations] = useState<ReservationWithGuest[]>([]);
