@@ -1,6 +1,6 @@
 "use client";
 
-import { UserPlus, Shield, Trash2, X, QrCode } from "lucide-react";
+import { UserPlus, Shield, Trash2, X, QrCode, User } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import { useLanguage } from "@/lib/contexts/LanguageContext";
 import type { Dictionary } from "@/lib/i18n/dictionaries/en";
@@ -239,7 +239,9 @@ export function StaffTab() {
                     </td>
                     <td className="px-3 sm:px-6 py-4 whitespace-nowrap">
                       <div className="text-sm text-black flex items-center">
-                        {m.role === "owner" && <Shield className="w-4 h-4 mr-1 text-terracotta-600" />}
+                        {m.role === "owner"
+                          ? <Shield className="w-4 h-4 mr-1 text-terracotta-600" />
+                          : <User className="w-4 h-4 mr-1 text-zinc-600" />}
                         {roleLabel(m.role)}
                       </div>
                     </td>

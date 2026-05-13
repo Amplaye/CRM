@@ -2,17 +2,42 @@
 
 import { Sidebar } from "./Sidebar";
 import { Topbar } from "./Topbar";
-import { ReactNode, useState, useEffect } from "react";
+import { ReactNode, useState, useEffect, useMemo } from "react";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import { useTenant } from "@/lib/contexts/TenantContext";
+import { useAuth } from "@/lib/contexts/AuthContext";
+import { createClient } from "@/lib/supabase/client";
 import { useRouter, usePathname } from "next/navigation";
 import { Loader2 } from "lucide-react";
 
 export function DashboardLayout({ children }: { children: ReactNode }) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const { globalRole, activeTenant, loading } = useTenant();
+  const { user } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
+  const supabase = useMemo(() => createClient(), []);
+
+  // Kick out signed-in users the moment the Admin removes them from the
+  // tenant — relies on REPLICA IDENTITY FULL on tenant_members so the DELETE
+  // payload carries user_id and our filter actually matches. Staff on phones
+  // would otherwise keep working with a stale session until next refresh.
+  useEffect(() => {
+    if (!user?.id || !activeTenant?.id) return;
+    const ch = supabase
+      .channel(`membership-guard-${user.id}-${activeTenant.id}`)
+      .on(
+        "postgres_changes",
+        { event: "DELETE", schema: "public", table: "tenant_members", filter: `user_id=eq.${user.id}` },
+        async (payload: any) => {
+          if (payload?.old?.tenant_id !== activeTenant.id) return;
+          await supabase.auth.signOut();
+          window.location.href = "/login";
+        }
+      )
+      .subscribe();
+    return () => { supabase.removeChannel(ch); };
+  }, [user?.id, activeTenant?.id, supabase]);
 
   const isPlatformOnly = !loading && globalRole === "platform_admin" && !activeTenant;
   const isOnAdminPage = pathname?.startsWith("/admin");
