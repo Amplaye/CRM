@@ -54,7 +54,7 @@ export function ReservationList({ date, shiftFilter = "all", onRowClick, onCreat
           .filter(Boolean),
       })) as (Reservation & { guest_name?: string; guest_phone?: string; guest_dietary_notes?: string; guest_accessibility_notes?: string; guest_family_notes?: string; table_names?: string[] })[];
 
-      const sorted = withNames.sort((a, b) => a.time.localeCompare(b.time));
+      const sorted = withNames.sort((a, b) => b.time.localeCompare(a.time));
       const filtered = shiftFilter === "all"
         ? sorted
         : sorted.filter((r: any) => {

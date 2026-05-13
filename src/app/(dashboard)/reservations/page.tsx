@@ -465,8 +465,7 @@ export default function ReservationsPage() {
         </div>
         )}
 
-        {/* Shift filter — mobile (full width row below). Hidden for host. */}
-        {!isHost && (
+        {/* Shift filter — mobile (full width row below). Visible for all roles. */}
         <div className="md:hidden flex p-0.5 rounded-lg border-2 mb-3" style={{ borderColor: '#c4956a', background: 'rgba(252,246,237,0.6)' }}>
           {(["all", "lunch", "dinner"] as const).map((s) => (
             <button
@@ -479,7 +478,6 @@ export default function ReservationsPage() {
             </button>
           ))}
         </div>
-        )}
 
         {/* Desktop controls — hidden for host */}
         {!isHost && (
