@@ -690,3 +690,7 @@ create policy "Owners/managers can read tenant qr tokens"
 
 -- REALTIME: enable broadcasts for tenant_members so the staff list updates live in /settings
 alter publication supabase_realtime add table public.tenant_members;
+-- DELETE payloads must carry user_id (not just the PK) so the dashboard's
+-- membership-guard filter `user_id=eq.<me>` actually matches and signs out
+-- staff in real time when an Admin removes them.
+alter table public.tenant_members replica identity full;

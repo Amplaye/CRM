@@ -280,7 +280,7 @@ export function StaffTab() {
                       <div className="text-sm text-black flex items-center">
                         {m.role === "owner"
                           ? <Shield className="w-4 h-4 mr-1 text-terracotta-600" />
-                          : <User className="w-4 h-4 mr-1 text-zinc-600" />}
+                          : <User className="w-4 h-4 mr-1 text-blue-600" />}
                         {roleLabel(m.role)}
                       </div>
                     </td>
