@@ -271,7 +271,6 @@ export function StaffTab() {
                         <div className="flex-shrink-0 h-10 w-10 rounded-full flex justify-center items-center text-black font-bold" style={{ background: 'rgba(196,149,106,0.2)' }}>{initials}</div>
                         <div className="ml-4">
                           <div className="text-sm font-medium text-black">{m.name || m.email}{isMe && ` (${t("team_you") || "You"})`}</div>
-                          <div className="text-sm text-black">{m.email}</div>
                         </div>
                       </div>
                     </td>

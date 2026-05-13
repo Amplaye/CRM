@@ -46,7 +46,7 @@ function SettingsContent() {
       <div className="flex gap-1">
         <button
           onClick={() => setActiveTab("general")}
-          className={`inline-flex items-center gap-2 px-4 py-2 text-sm font-medium border-b-2 transition-colors ${tab === "general" ? "text-black" : "text-black/60 hover:text-black border-transparent"}`}
+          className={`inline-flex items-center gap-2 pr-4 py-2 text-sm font-medium border-b-2 transition-colors ${tab === "general" ? "text-black" : "text-black/60 hover:text-black border-transparent"}`}
           style={tab === "general" ? { borderColor: "#c4956a" } : {}}
         >
           <SettingsIcon className="w-4 h-4" />
