@@ -314,6 +314,13 @@ $$ language sql security definer stable set search_path = public, pg_temp;
 
 -- USERS policies
 create policy "Users can read own profile" on public.users for select using (id = auth.uid() or private.is_platform_admin());
+create policy "Tenant members can read each other profiles" on public.users for select using (
+  exists (
+    select 1 from public.tenant_members me
+    join public.tenant_members other on other.tenant_id = me.tenant_id
+    where me.user_id = auth.uid() and other.user_id = public.users.id
+  )
+);
 create policy "Users can update own profile" on public.users for update using (id = auth.uid());
 create policy "Users can insert own profile" on public.users for insert with check (id = auth.uid());
 
@@ -662,3 +669,6 @@ drop policy if exists "Owners/managers can read tenant qr tokens" on public.qr_l
 create policy "Owners/managers can read tenant qr tokens"
   on public.qr_login_tokens for select
   using (private.get_tenant_role(tenant_id) in ('owner', 'manager') or private.is_platform_admin());
+
+-- REALTIME: enable broadcasts for tenant_members so the staff list updates live in /settings
+alter publication supabase_realtime add table public.tenant_members;

@@ -43,7 +43,7 @@ function SettingsContent() {
         <p className="mt-1 text-sm text-black">{t("settings_subtitle")}</p>
       </div>
 
-      <div className="flex gap-1 border-b -mb-px" style={{ borderColor: "#c4956a" }}>
+      <div className="flex gap-1">
         <button
           onClick={() => setActiveTab("general")}
           className={`inline-flex items-center gap-2 px-4 py-2 text-sm font-medium border-b-2 transition-colors ${tab === "general" ? "text-black" : "text-black/60 hover:text-black border-transparent"}`}
