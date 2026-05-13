@@ -19,24 +19,69 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
   const supabase = useMemo(() => createClient(), []);
 
   // Kick out signed-in users the moment the Admin removes them from the
-  // tenant — relies on REPLICA IDENTITY FULL on tenant_members so the DELETE
-  // payload carries user_id and our filter actually matches. Staff on phones
-  // would otherwise keep working with a stale session until next refresh.
+  // tenant. Three layers:
+  //  1. Realtime DELETE on tenant_members (instant, requires REPLICA IDENTITY
+  //     FULL + open websocket).
+  //  2. Periodic poll every 20s while the tab is visible (covers the case
+  //     where the websocket is asleep on a backgrounded phone).
+  //  3. Re-check on tab/visibility regain (covers the phone-in-pocket case).
   useEffect(() => {
     if (!user?.id || !activeTenant?.id) return;
+
+    let cancelled = false;
+    const tenantId = activeTenant.id;
+    const userId = user.id;
+
+    const kickOut = async () => {
+      if (cancelled) return;
+      cancelled = true;
+      await supabase.auth.signOut().catch(() => {});
+      window.location.href = "/login";
+    };
+
+    const checkMembership = async () => {
+      const { data, error } = await supabase
+        .from("tenant_members")
+        .select("id")
+        .eq("user_id", userId)
+        .eq("tenant_id", tenantId)
+        .maybeSingle();
+      if (cancelled) return;
+      // If the membership row is gone (data null, no error) OR the auth user
+      // has been deleted server-side (PostgREST/RLS errors out), bail.
+      if (!error && !data) {
+        await kickOut();
+        return;
+      }
+      // 401/403 → token invalid (e.g. auth user deleted). Bail too.
+      if ((error as any)?.code === "PGRST301" || (error as any)?.status === 401) {
+        await kickOut();
+      }
+    };
+
     const ch = supabase
-      .channel(`membership-guard-${user.id}-${activeTenant.id}`)
+      .channel(`membership-guard-${userId}-${tenantId}`)
       .on(
         "postgres_changes",
-        { event: "DELETE", schema: "public", table: "tenant_members", filter: `user_id=eq.${user.id}` },
+        { event: "DELETE", schema: "public", table: "tenant_members", filter: `user_id=eq.${userId}` },
         async (payload: any) => {
-          if (payload?.old?.tenant_id !== activeTenant.id) return;
-          await supabase.auth.signOut();
-          window.location.href = "/login";
+          if (payload?.old?.tenant_id && payload.old.tenant_id !== tenantId) return;
+          await kickOut();
         }
       )
       .subscribe();
-    return () => { supabase.removeChannel(ch); };
+
+    void checkMembership();
+    const interval = setInterval(checkMembership, 20000);
+    const onVisible = () => { if (document.visibilityState === "visible") void checkMembership(); };
+    document.addEventListener("visibilitychange", onVisible);
+
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+      document.removeEventListener("visibilitychange", onVisible);
+      supabase.removeChannel(ch);
+    };
   }, [user?.id, activeTenant?.id, supabase]);
 
   const isPlatformOnly = !loading && globalRole === "platform_admin" && !activeTenant;
