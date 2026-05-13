@@ -1,0 +1,434 @@
+"use client";
+
+import { UserPlus, Shield, Trash2, X, Mail, QrCode, Copy, Check } from "lucide-react";
+import { QRCodeSVG } from "qrcode.react";
+import { useLanguage } from "@/lib/contexts/LanguageContext";
+import type { Dictionary } from "@/lib/i18n/dictionaries/en";
+import { useTenant } from "@/lib/contexts/TenantContext";
+import { createClient } from "@/lib/supabase/client";
+import { useEffect, useMemo, useState } from "react";
+
+type DbRole = "owner" | "manager" | "host";
+
+type Member = {
+  id: string;
+  user_id: string;
+  role: DbRole;
+  email: string;
+  name: string;
+  created_at?: string;
+};
+
+// UI label ↔ DB role mapping. We expose 3 simple labels to non-technical users;
+// the DB still uses owner/manager/host so existing RLS policies keep working.
+const ROLE_OPTIONS: { value: DbRole; key: keyof Dictionary; fallback: string }[] = [
+  { value: "owner", key: "team_role_owner", fallback: "Owner" },
+  { value: "manager", key: "team_role_admin", fallback: "Admin" },
+  { value: "host", key: "team_role_staff", fallback: "Staff" },
+];
+
+export function StaffTab() {
+  const { t } = useLanguage();
+  const { activeTenant } = useTenant();
+  const supabase = useMemo(() => createClient(), []);
+
+  const [members, setMembers] = useState<Member[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [myUserId, setMyUserId] = useState<string | null>(null);
+  const [myRole, setMyRole] = useState<DbRole | null>(null);
+
+  const [showInvite, setShowInvite] = useState(false);
+  const [inviteEmail, setInviteEmail] = useState("");
+  const [inviteRole, setInviteRole] = useState<DbRole>("host");
+  const [inviting, setInviting] = useState(false);
+  const [inviteError, setInviteError] = useState<string | null>(null);
+
+  const [qrFor, setQrFor] = useState<Member | null>(null);
+  const [qrUrl, setQrUrl] = useState<string>("");
+  const [qrExpiresAt, setQrExpiresAt] = useState<string>("");
+  const [qrLoading, setQrLoading] = useState(false);
+  const [qrError, setQrError] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
+
+  useEffect(() => {
+    (async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      setMyUserId(user?.id || null);
+    })();
+  }, [supabase]);
+
+  useEffect(() => {
+    if (!activeTenant) return;
+    setLoading(true);
+
+    const fetchMembers = async () => {
+      const { data, error } = await supabase
+        .from("tenant_members")
+        .select("id, user_id, role, created_at, users(email, name)")
+        .eq("tenant_id", activeTenant.id);
+      if (error) {
+        console.error(error);
+        setLoading(false);
+        return;
+      }
+      const rows: Member[] = (data || []).map((r: any) => ({
+        id: r.id,
+        user_id: r.user_id,
+        role: r.role as DbRole,
+        email: r.users?.email || "",
+        name: r.users?.name || "",
+        created_at: r.created_at,
+      }));
+      setMembers(rows);
+      setLoading(false);
+    };
+
+    fetchMembers();
+
+    const ch = supabase
+      .channel(`tenant_members-${activeTenant.id}`)
+      .on("postgres_changes", { event: "*", schema: "public", table: "tenant_members", filter: `tenant_id=eq.${activeTenant.id}` }, fetchMembers)
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(ch);
+    };
+  }, [activeTenant, supabase]);
+
+  useEffect(() => {
+    if (!myUserId || members.length === 0) return;
+    const me = members.find(m => m.user_id === myUserId);
+    setMyRole(me ? me.role : null);
+  }, [myUserId, members]);
+
+  const canManage = myRole === "owner" || myRole === "manager";
+
+  const updateRole = async (member: Member, next: DbRole) => {
+    if (!canManage) return;
+    if (member.user_id === myUserId && member.role === "owner" && next !== "owner") {
+      const owners = members.filter(m => m.role === "owner");
+      if (owners.length <= 1) {
+        alert(t("team_last_owner_warning") || "Non puoi rimuovere l'ultimo Owner.");
+        return;
+      }
+    }
+    const { error } = await supabase
+      .from("tenant_members")
+      .update({ role: next })
+      .eq("id", member.id);
+    if (error) alert(error.message);
+  };
+
+  const removeMember = async (member: Member) => {
+    if (!canManage) return;
+    if (member.role === "owner") {
+      const owners = members.filter(m => m.role === "owner");
+      if (owners.length <= 1) {
+        alert(t("team_last_owner_warning") || "Non puoi rimuovere l'ultimo Owner.");
+        return;
+      }
+    }
+    if (!confirm((t("team_remove_confirm") || "Rimuovere {email}?").replace("{email}", member.email || member.name))) return;
+    const { error } = await supabase
+      .from("tenant_members")
+      .delete()
+      .eq("id", member.id);
+    if (error) alert(error.message);
+  };
+
+  const submitInvite = async () => {
+    if (!activeTenant) return;
+    setInviting(true);
+    setInviteError(null);
+    try {
+      const res = await fetch("/api/team/invite", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: inviteEmail.trim().toLowerCase(), role: inviteRole, tenantId: activeTenant.id }),
+      });
+      const body = await res.json();
+      if (!res.ok) {
+        setInviteError(body?.error || "Invite failed");
+      } else {
+        setShowInvite(false);
+        setInviteEmail("");
+        setInviteRole("host");
+      }
+    } catch (e: any) {
+      setInviteError(e?.message || "Network error");
+    } finally {
+      setInviting(false);
+    }
+  };
+
+  const openQrFor = async (member: Member) => {
+    if (!activeTenant) return;
+    setQrFor(member);
+    setQrUrl("");
+    setQrExpiresAt("");
+    setQrError(null);
+    setQrLoading(true);
+    setCopied(false);
+    try {
+      const res = await fetch("/api/team/qr-token", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId: member.user_id, tenantId: activeTenant.id }),
+      });
+      const body = await res.json();
+      if (!res.ok) {
+        setQrError(body?.error || "Failed to generate QR");
+      } else {
+        setQrUrl(body.url);
+        setQrExpiresAt(body.expiresAt);
+      }
+    } catch (e: any) {
+      setQrError(e?.message || "Network error");
+    } finally {
+      setQrLoading(false);
+    }
+  };
+
+  const copyQrLink = async () => {
+    if (!qrUrl) return;
+    try {
+      await navigator.clipboard.writeText(qrUrl);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch {
+      // ignore
+    }
+  };
+
+  const roleLabel = (r: DbRole) => {
+    const opt = ROLE_OPTIONS.find(o => o.value === r);
+    return opt ? (t(opt.key) || opt.fallback) : r;
+  };
+
+  return (
+    <div className="space-y-4 sm:space-y-6">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h2 className="text-lg font-bold text-black">{t("staff_title")}</h2>
+          <p className="mt-1 text-sm text-black">{t("staff_subtitle")}</p>
+        </div>
+        {canManage && (
+          <div className="mt-3 sm:mt-0 flex space-x-3">
+            <button
+              onClick={() => setShowInvite(true)}
+              className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-zinc-900 hover:bg-zinc-800 transition-colors cursor-pointer"
+            >
+              <UserPlus className="-ml-1 mr-2 h-5 w-5" aria-hidden="true" />
+              {t("staff_invite")}
+            </button>
+          </div>
+        )}
+      </div>
+
+      <div className="border-2 rounded-xl overflow-hidden" style={{ background: 'rgba(252,246,237,0.85)', borderColor: '#c4956a', boxShadow: '0 20px 60px rgba(196,149,106,0.25), 0 8px 24px rgba(196,149,106,0.15)' }}>
+        <div className="overflow-x-auto">
+          <table className="min-w-full divide-y" style={{ borderColor: '#c4956a' }}>
+            <thead>
+              <tr>
+                <th className="px-3 sm:px-6 py-3 text-left text-xs font-semibold text-black uppercase tracking-wider">{t("staff_col_name")}</th>
+                <th className="px-3 sm:px-6 py-3 text-left text-xs font-semibold text-black uppercase tracking-wider">{t("staff_col_role")}</th>
+                <th className="px-3 sm:px-6 py-3 text-left text-xs font-semibold text-black uppercase tracking-wider">{t("staff_col_status")}</th>
+                <th className="relative px-3 sm:px-6 py-3"><span className="sr-only">Actions</span></th>
+              </tr>
+            </thead>
+            <tbody className="divide-y" style={{ borderColor: 'rgba(196,149,106,0.3)' }}>
+              {loading && (
+                <tr><td colSpan={4} className="px-6 py-8 text-center text-sm text-black">…</td></tr>
+              )}
+              {!loading && members.length === 0 && (
+                <tr><td colSpan={4} className="px-6 py-8 text-center text-sm text-black">{t("team_empty") || "Nessun membro ancora."}</td></tr>
+              )}
+              {!loading && members.map(m => {
+                const initials = (m.name || m.email || "?").slice(0, 2).toUpperCase();
+                const isMe = m.user_id === myUserId;
+                return (
+                  <tr key={m.id}>
+                    <td className="px-3 sm:px-6 py-4 whitespace-nowrap">
+                      <div className="flex items-center">
+                        <div className="flex-shrink-0 h-10 w-10 rounded-full flex justify-center items-center text-black font-bold" style={{ background: 'rgba(196,149,106,0.2)' }}>{initials}</div>
+                        <div className="ml-4">
+                          <div className="text-sm font-medium text-black">{m.name || m.email}{isMe && ` (${t("team_you") || "You"})`}</div>
+                          <div className="text-sm text-black">{m.email}</div>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-3 sm:px-6 py-4 whitespace-nowrap">
+                      {canManage ? (
+                        <select
+                          value={m.role}
+                          onChange={(e) => updateRole(m, e.target.value as DbRole)}
+                          className="text-sm border-2 rounded-md px-2 py-1 bg-white focus:outline-none focus:ring-2 focus:ring-[#c4956a]"
+                          style={{ borderColor: '#c4956a' }}
+                        >
+                          {ROLE_OPTIONS.map(opt => (
+                            <option key={opt.value} value={opt.value}>{t(opt.key) || opt.fallback}</option>
+                          ))}
+                        </select>
+                      ) : (
+                        <div className="text-sm text-black flex items-center">
+                          {m.role === "owner" && <Shield className="w-4 h-4 mr-1 text-terracotta-600" />}
+                          {roleLabel(m.role)}
+                        </div>
+                      )}
+                    </td>
+                    <td className="px-3 sm:px-6 py-4 whitespace-nowrap">
+                      <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-emerald-100 text-emerald-800">{t("team_status_active") || "Active"}</span>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                      {canManage && (
+                        <div className="inline-flex items-center gap-3">
+                          <button
+                            onClick={() => openQrFor(m)}
+                            className="text-zinc-700 hover:text-black cursor-pointer inline-flex items-center"
+                            title={t("staff_qr_login") || "QR di login"}
+                          >
+                            <QrCode className="w-4 h-4" />
+                          </button>
+                          {!isMe && (
+                            <button
+                              onClick={() => removeMember(m)}
+                              className="text-red-500 hover:text-red-700 cursor-pointer inline-flex items-center"
+                              title={t("team_remove") || "Rimuovi"}
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          )}
+                        </div>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {showInvite && (
+        <>
+          <div className="fixed inset-0 bg-black/40 z-40" onClick={() => !inviting && setShowInvite(false)} />
+          <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-50 w-[92vw] max-w-md border-2 rounded-xl shadow-2xl overflow-hidden" style={{ background: 'rgb(252,246,237)', borderColor: '#c4956a' }}>
+            <div className="px-5 py-3 flex items-center justify-between border-b" style={{ borderColor: '#c4956a' }}>
+              <h2 className="text-base font-bold text-black">{t("team_invite_title") || "Invita un membro"}</h2>
+              <button onClick={() => !inviting && setShowInvite(false)} className="p-1.5 border-2 border-red-400 text-red-500 hover:bg-red-50 rounded-lg cursor-pointer">
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <div className="p-5 space-y-3">
+              <div>
+                <label className="block text-sm font-medium text-black mb-1">{t("team_invite_email") || "Email"}</label>
+                <div className="relative">
+                  <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
+                  <input
+                    type="email"
+                    value={inviteEmail}
+                    onChange={(e) => setInviteEmail(e.target.value)}
+                    placeholder="nome@email.com"
+                    className="block w-full border-2 rounded-lg pl-9 pr-3 py-2.5 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-[#c4956a]"
+                    style={{ borderColor: '#c4956a', background: 'rgba(252,246,237,0.6)' }}
+                    autoFocus
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-black mb-1">{t("team_invite_role") || "Ruolo"}</label>
+                <select
+                  value={inviteRole}
+                  onChange={(e) => setInviteRole(e.target.value as DbRole)}
+                  className="block w-full border-2 rounded-lg px-3 py-2.5 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-[#c4956a]"
+                  style={{ borderColor: '#c4956a', background: 'rgba(252,246,237,0.6)' }}
+                >
+                  {ROLE_OPTIONS.map(opt => (
+                    <option key={opt.value} value={opt.value}>{t(opt.key) || opt.fallback}</option>
+                  ))}
+                </select>
+                <p className="text-xs text-zinc-600 mt-1">
+                  {inviteRole === "owner" && (t("team_role_hint_owner") || "Accesso totale: billing, eliminare account, gestione team.")}
+                  {inviteRole === "manager" && (t("team_role_hint_admin") || "Tutto tranne billing/eliminazione account. Può gestire team e config AI.")}
+                  {inviteRole === "host" && (t("team_role_hint_staff") || "Solo prenotazioni, walk-in e ospiti. Non vede impostazioni, knowledge base o billing.")}
+                </p>
+              </div>
+              {inviteError && (
+                <p className="text-sm text-red-600">{inviteError}</p>
+              )}
+            </div>
+            <div className="px-5 py-3 border-t flex justify-end gap-2" style={{ borderColor: '#c4956a' }}>
+              <button
+                onClick={() => setShowInvite(false)}
+                disabled={inviting}
+                className="px-4 py-2 text-sm font-medium border-2 rounded-lg text-black cursor-pointer disabled:opacity-50"
+                style={{ borderColor: '#c4956a' }}
+              >
+                {t("team_cancel") || "Annulla"}
+              </button>
+              <button
+                onClick={submitInvite}
+                disabled={inviting || !inviteEmail}
+                className="px-4 py-2 text-sm font-medium rounded-lg text-white bg-zinc-900 hover:bg-zinc-800 cursor-pointer disabled:opacity-50"
+              >
+                {inviting ? (t("team_inviting") || "Invio…") : (t("team_send_invite") || "Invia invito")}
+              </button>
+            </div>
+          </div>
+        </>
+      )}
+
+      {qrFor && (
+        <>
+          <div className="fixed inset-0 bg-black/40 z-40" onClick={() => setQrFor(null)} />
+          <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-50 w-[92vw] max-w-md border-2 rounded-xl shadow-2xl overflow-hidden" style={{ background: 'rgb(252,246,237)', borderColor: '#c4956a' }}>
+            <div className="px-5 py-3 flex items-center justify-between border-b" style={{ borderColor: '#c4956a' }}>
+              <h2 className="text-base font-bold text-black">{t("staff_qr_title") || "Login con QR"}</h2>
+              <button onClick={() => setQrFor(null)} className="p-1.5 border-2 border-red-400 text-red-500 hover:bg-red-50 rounded-lg cursor-pointer">
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <div className="p-5 space-y-4">
+              <p className="text-sm text-black">
+                {(t("staff_qr_subtitle") || "Mostra questo QR a {name} e fa scansionare col telefono per accedere.").replace("{name}", qrFor.name || qrFor.email)}
+              </p>
+              {qrLoading && (
+                <div className="flex justify-center py-12 text-sm text-black">…</div>
+              )}
+              {qrError && (
+                <p className="text-sm text-red-600">{qrError}</p>
+              )}
+              {qrUrl && (
+                <>
+                  <div className="flex justify-center p-4 rounded-lg" style={{ background: 'white', border: '2px solid #c4956a' }}>
+                    <QRCodeSVG value={qrUrl} size={220} level="M" />
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="text"
+                      value={qrUrl}
+                      readOnly
+                      className="flex-1 block w-full border-2 rounded-lg px-3 py-2 text-xs font-mono focus:outline-none"
+                      style={{ borderColor: '#c4956a', background: 'rgba(252,246,237,0.6)' }}
+                    />
+                    <button
+                      onClick={copyQrLink}
+                      className="p-2 border-2 rounded-lg cursor-pointer"
+                      style={{ borderColor: '#c4956a' }}
+                      title={t("staff_qr_copy") || "Copia link"}
+                    >
+                      {copied ? <Check className="w-4 h-4 text-emerald-600" /> : <Copy className="w-4 h-4 text-black" />}
+                    </button>
+                  </div>
+                  <p className="text-xs text-black/70">
+                    {(t("staff_qr_expires") || "Valido per 10 minuti. Si può usare una sola volta.")}
+                  </p>
+                </>
+              )}
+            </div>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}

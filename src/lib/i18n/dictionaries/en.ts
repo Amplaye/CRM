@@ -299,6 +299,15 @@ export const en = {
   staff_col_name: "Name",
   staff_col_role: "Role",
   staff_col_status: "Status",
+  staff_qr_login: "Login QR",
+  staff_qr_title: "QR login",
+  staff_qr_subtitle: "Show this QR to {name} and have them scan it with their phone to log in.",
+  staff_qr_copy: "Copy link",
+  staff_qr_expires: "Valid for 10 minutes. Can be used only once.",
+  settings_tab_general: "General",
+  settings_tab_staff: "Staff",
+  res_mark_arrived: "Mark as arrived",
+  res_mark_noshow: "Mark as no-show",
 
   // Miscellaneous
   from_last_week: "from last week",

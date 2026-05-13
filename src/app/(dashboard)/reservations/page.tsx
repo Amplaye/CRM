@@ -70,6 +70,9 @@ export default function ReservationsPage() {
     if (urlDate && urlDate !== date) setDate(urlDate);
   }, [searchParams]);
 
+  // Hosts (camerieri) are locked to today — they only need to mark arrivals
+  // and no-shows on the current shift, never navigate to other days.
+
   const shiftDate = (days: number) => {
     const d = new Date(date + 'T12:00:00');
     d.setDate(d.getDate() + days);
@@ -79,7 +82,8 @@ export default function ReservationsPage() {
   const [shiftFilter, setShiftFilter] = useState<"all" | "lunch" | "dinner">("all");
 
   const { t, language } = useLanguage();
-  const { activeTenant } = useTenant();
+  const { activeTenant, activeRole } = useTenant();
+  const isHost = activeRole === "host";
 
   const [availableTables, setAvailableTables] = useState<RestaurantTable[]>([]);
   const [selectedTableIds, setSelectedTableIds] = useState<string[]>([]);
@@ -263,6 +267,32 @@ export default function ReservationsPage() {
     }
   };
 
+  // Host-only quick action: mark a reservation as arrived (seated) or no-show
+  // without opening the full edit form.
+  const markStatus = async (status: ReservationStatus) => {
+    if (!activeTenant || !selectedRes) return;
+    setSaving(true);
+    try {
+      const res = await updateReservationDetailsAction({
+        tenantId: activeTenant.id,
+        reservationId: selectedRes.id,
+        data: {
+          status,
+          date: selectedRes.date,
+          time: selectedRes.time,
+          party_size: selectedRes.party_size,
+          notes: selectedRes.notes || "",
+        },
+      });
+      if (!res.success) throw new Error(res.error);
+      setSelectedRes(null);
+    } catch (err: any) {
+      alert(t("res_failed_update") + err.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const handleCreate = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (!activeTenant) return;
@@ -380,6 +410,7 @@ export default function ReservationsPage() {
             <h1 className="text-xl sm:text-2xl font-bold text-black tracking-tight">{t("res_title")}</h1>
             <p className="mt-0.5 sm:mt-1 text-xs sm:text-sm text-black">{t("res_subtitle")}</p>
           </div>
+          {!isHost && (
           <div className="mt-3 sm:mt-0 flex flex-wrap gap-2 sm:space-x-3">
              <button onClick={handleExport} className="hidden sm:inline-flex items-center px-4 py-2 border-2 text-sm font-medium rounded-lg shadow-sm text-black transition-colors cursor-pointer" style={{ borderColor: '#c4956a', background: 'rgba(252,246,237,0.6)' }}>
                 <Download className="-ml-1 mr-2 h-4 w-4" /> {t("res_export")}
@@ -396,9 +427,11 @@ export default function ReservationsPage() {
                 {t("res_new")}
              </button>
           </div>
+          )}
         </div>
 
-        {/* Mobile controls */}
+        {/* Mobile controls — hidden for host (cameriere) */}
+        {!isHost && (
         <div className="md:hidden flex items-center gap-2 mb-3">
           <button onClick={() => shiftDate(-1)} className="p-2 rounded-lg border-2 hover:bg-[#c4956a]/10" style={{ borderColor: '#c4956a' }}>
             <ChevronLeft className="w-4 h-4 text-black" />
@@ -430,8 +463,10 @@ export default function ReservationsPage() {
             </button>
           </div>
         </div>
+        )}
 
-        {/* Shift filter — mobile (full width row below) */}
+        {/* Shift filter — mobile (full width row below). Hidden for host. */}
+        {!isHost && (
         <div className="md:hidden flex p-0.5 rounded-lg border-2 mb-3" style={{ borderColor: '#c4956a', background: 'rgba(252,246,237,0.6)' }}>
           {(["all", "lunch", "dinner"] as const).map((s) => (
             <button
@@ -444,8 +479,10 @@ export default function ReservationsPage() {
             </button>
           ))}
         </div>
+        )}
 
-        {/* Desktop controls */}
+        {/* Desktop controls — hidden for host */}
+        {!isHost && (
         <div className="p-4 flex flex-col sm:flex-row items-center justify-between border-b rounded-t-xl hidden md:flex border-x border-t border-2" style={{ background: 'rgba(252,246,237,0.85)', borderColor: '#c4956a' }}>
            <div className="flex flex-wrap gap-y-2 items-center min-w-0">
               <button onClick={() => shiftDate(-1)} className="p-1.5 rounded-lg hover:bg-[#c4956a]/10 transition-colors mr-1">
@@ -492,13 +529,14 @@ export default function ReservationsPage() {
               </div>
            </div>
         </div>
+        )}
 
         {viewMode === "list" ? (
           <ReservationList
             date={date}
             shiftFilter={shiftFilter}
             onRowClick={(res) => { setIsCreating(false); setSelectedRes(res as ReservationWithGuest); }}
-            onCreate={() => { setSelectedRes(null); setIsCreating(true); setCreateDate(date); setSelectedTableIds([]); }}
+            onCreate={() => { if (isHost) return; setSelectedRes(null); setIsCreating(true); setCreateDate(date); setSelectedTableIds([]); }}
           />
         ) : (
           <ReservationTimeline
@@ -535,6 +573,52 @@ export default function ReservationsPage() {
                 <X className="h-4 w-4" />
              </button>
           </div>
+          {isHost ? (
+            <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
+              <div className="flex-1 overflow-y-auto px-5 sm:px-6 py-3 sm:py-5 space-y-3 sm:space-y-4">
+                {(selectedRes.guest_dietary_notes || selectedRes.guest_accessibility_notes || selectedRes.guest_family_notes) && (
+                  <div className="rounded-lg border-2 border-red-300 bg-red-50 p-3 space-y-1.5">
+                    <div className="flex items-center gap-1.5 text-sm font-bold text-red-800">
+                      <AlertOctagon className="w-4 h-4 flex-shrink-0" />
+                      <span>{t("res_guest_alerts") || "Avvisi cliente"}</span>
+                    </div>
+                    {selectedRes.guest_dietary_notes && (
+                      <p className="text-sm text-red-900">🍽️ {selectedRes.guest_dietary_notes}</p>
+                    )}
+                    {selectedRes.guest_accessibility_notes && (
+                      <p className="text-sm text-red-900">{selectedRes.guest_accessibility_notes}</p>
+                    )}
+                    {selectedRes.guest_family_notes && (
+                      <p className="text-sm text-red-900">{selectedRes.guest_family_notes}</p>
+                    )}
+                  </div>
+                )}
+                <div className="text-sm text-black">
+                  <div><strong>{t("res_edit_time") || "Ora"}:</strong> {selectedRes.time}</div>
+                  <div><strong>{t("res_edit_party") || "Persone"}:</strong> {selectedRes.party_size}</div>
+                  {selectedRes.notes && <div className="mt-1"><strong>{t("res_edit_notes") || "Note"}:</strong> {selectedRes.notes}</div>}
+                </div>
+              </div>
+              <div className="mx-5 sm:mx-6 py-2 sm:py-4 pb-4 sm:pb-4 border-t flex flex-col gap-2" style={{ borderColor: '#c4956a' }}>
+                <button
+                  type="button"
+                  disabled={saving}
+                  onClick={() => markStatus("seated" as ReservationStatus)}
+                  className="w-full flex items-center justify-center bg-emerald-600 hover:bg-emerald-700 text-white font-medium py-3 px-4 rounded-lg transition-colors shadow-sm disabled:opacity-50"
+                >
+                  {t("res_mark_arrived") || "Segnalo arrivato"}
+                </button>
+                <button
+                  type="button"
+                  disabled={saving}
+                  onClick={() => markStatus("no_show" as ReservationStatus)}
+                  className="w-full flex items-center justify-center bg-red-600 hover:bg-red-700 text-white font-medium py-3 px-4 rounded-lg transition-colors shadow-sm disabled:opacity-50"
+                >
+                  {t("res_mark_noshow") || "Non si è presentato"}
+                </button>
+              </div>
+            </div>
+          ) : (
           <form onSubmit={handleUpdate} className="flex-1 flex flex-col min-h-0 overflow-hidden">
              <div className="flex-1 overflow-y-auto px-5 sm:px-6 py-3 sm:py-5 space-y-3 sm:space-y-4">
                 {(selectedRes.guest_dietary_notes || selectedRes.guest_accessibility_notes || selectedRes.guest_family_notes) && (
@@ -609,6 +693,7 @@ export default function ReservationsPage() {
                 </button>
              </div>
           </form>
+          )}
         </div>
         </>
         );

@@ -302,6 +302,15 @@ export const de: Dictionary = {
   staff_col_name: "Name",
   staff_col_role: "Rolle",
   staff_col_status: "Status",
+  staff_qr_login: "QR-Login",
+  staff_qr_title: "Login per QR",
+  staff_qr_subtitle: "Zeige diesen QR-Code {name} und lasse ihn mit dem Handy scannen, um sich anzumelden.",
+  staff_qr_copy: "Link kopieren",
+  staff_qr_expires: "10 Minuten gültig. Kann nur einmal verwendet werden.",
+  settings_tab_general: "Allgemein",
+  settings_tab_staff: "Personal",
+  res_mark_arrived: "Als angekommen markieren",
+  res_mark_noshow: "Nicht erschienen",
 
   // Miscellaneous
   from_last_week: "seit letzter Woche",

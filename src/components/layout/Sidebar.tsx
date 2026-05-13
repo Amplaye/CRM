@@ -71,6 +71,13 @@ export function Sidebar({ mobileOpen = false, onClose }: SidebarProps) {
 
   const isPlatformOnly = globalRole === "platform_admin" && !activeTenant;
 
+  // Staff (camerieri) see only the two pages they need: floor for walk-ins
+  // and reservations to mark arrivals/no-shows. Everything else is hidden.
+  const isHost = activeRole === "host";
+  const visibleNavItems = isHost
+    ? navItems.filter(i => i.href === "/floor" || i.href === "/reservations")
+    : navItems;
+
   const adminNavItems = [
     { href: "/admin", icon: Shield, label: "Tenants" },
     { href: "/admin/bali", icon: Inbox, label: "Bali Inbox" },
@@ -104,7 +111,7 @@ export function Sidebar({ mobileOpen = false, onClose }: SidebarProps) {
       <div className="flex-1 overflow-y-auto py-3 md:py-4">
         <nav className="space-y-0.5 md:space-y-1 px-2 md:px-3">
           {/* Restaurant nav — only show if user has a tenant */}
-          {!isPlatformOnly && navItems.map((item) => {
+          {!isPlatformOnly && visibleNavItems.map((item) => {
             const isActive = pathname === item.href || (item.href !== "/" && pathname?.startsWith(item.href));
             const badgeCount = item.badgeKey ? counts[item.badgeKey] : 0;
             const badgeBg = item.badgeStyle === "alert" ? "bg-red-500" : "bg-[#c4956a]";
