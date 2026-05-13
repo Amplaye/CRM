@@ -58,7 +58,8 @@ interface ResTableLink {
 
 export default function FloorPage() {
   const { t } = useLanguage();
-  const { activeTenant } = useTenant();
+  const { activeTenant, activeRole } = useTenant();
+  const canEditPlan = activeRole !== "host";
   const router = useRouter();
   const [tables, setTables] = useState<TableData[]>([]);
   const [reservations, setReservations] = useState<ReservationWithGuest[]>([]);
@@ -615,7 +616,7 @@ export default function FloorPage() {
         <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
           <h2 className="text-lg font-bold text-black">{t("floor_tables")}</h2>
           <div className="flex items-center gap-2">
-            {viewMode === "plan" && (
+            {viewMode === "plan" && canEditPlan && (
               <button
                 onClick={() => setEditingPlan((v) => !v)}
                 className="inline-flex items-center gap-1 px-3 py-1.5 text-xs sm:text-sm font-semibold rounded-lg border-2 text-black hover:bg-[#c4956a]/10 transition-colors"
