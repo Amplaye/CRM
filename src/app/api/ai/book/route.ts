@@ -382,6 +382,13 @@ export async function POST(request: Request) {
 
       if (newResErr) throw newResErr;
 
+      if (payload.linked_conversation_id) {
+        await supabase
+          .from('conversations')
+          .update({ linked_reservation_id: newRes.id })
+          .eq('id', payload.linked_conversation_id);
+      }
+
       await logAuditEvent({
         tenant_id: payload.tenant_id,
         action: "create_reservation",
@@ -613,6 +620,13 @@ export async function POST(request: Request) {
         party_size: payload.party_size,
         message: `No hay plazas suficientes en el turno. Te añadimos a la lista de espera y te avisamos si se libera sitio.`
       });
+    }
+
+    if (payload.linked_conversation_id) {
+      await supabase
+        .from('conversations')
+        .update({ linked_reservation_id: newRes.id })
+        .eq('id', payload.linked_conversation_id);
     }
 
     await logAuditEvent({
