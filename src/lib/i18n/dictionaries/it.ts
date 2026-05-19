@@ -473,6 +473,21 @@ export const it: Dictionary = {
   settings_day_wed: "Mercoledì", settings_day_thu: "Giovedì", settings_day_fri: "Venerdì",
   settings_day_sat: "Sabato",
 
+  settings_voicemail_title: "Segreteria (Vapi)",
+  settings_voicemail_desc: "Quando la segreteria è attiva, il bot legge il messaggio e chiude la chiamata. Quando è disattivata, le chiamate vengono inoltrate al telefono del titolare.",
+  settings_voicemail_enabled: "Segreteria attiva ora",
+  settings_voicemail_enabled_hint: "Interruttore manuale. La programmazione qui sotto la accende e spegne da sola.",
+  settings_voicemail_schedule: "Programmazione automatica",
+  settings_voicemail_schedule_desc: "Fasce orarie in cui la segreteria si attiva da sola ogni giorno. Fuori da queste fasce, le chiamate vengono inoltrate al titolare.",
+  settings_voicemail_forward: "Telefono del titolare (inoltro)",
+  settings_voicemail_forward_hint: "Formato internazionale, es. +34641790137",
+  settings_voicemail_message: "Testo della segreteria",
+  settings_voicemail_message_es: "Messaggio in spagnolo",
+  settings_voicemail_message_en: "Messaggio in inglese",
+  settings_voicemail_message_it: "Messaggio in italiano",
+  settings_voicemail_message_de: "Messaggio in tedesco",
+  settings_voicemail_message_hint: "Il bot riconosce la lingua del cliente e legge il testo corrispondente. Modifica liberamente: i cambiamenti vengono applicati in tempo reale all'assistente vocale.",
+
   // Login / Auth
   auth_email: "Indirizzo email",
   auth_password: "Password",

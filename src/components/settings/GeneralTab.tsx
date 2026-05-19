@@ -8,6 +8,21 @@ import { createClient } from "@/lib/supabase/client";
 
 interface TimeSlot { open: string; close: string }
 type OpeningHours = Record<string, TimeSlot[]>;
+type VoicemailSchedule = Record<string, TimeSlot[]>;
+
+interface VoicemailMessage {
+  es: string;
+  en: string;
+  it: string;
+  de: string;
+}
+
+interface VoicemailConfig {
+  enabled: boolean;
+  schedule: VoicemailSchedule;
+  forward_phone: string;
+  message: VoicemailMessage;
+}
 
 const DAY_LABELS_KEYS = ["settings_day_sun", "settings_day_mon", "settings_day_tue", "settings_day_wed", "settings_day_thu", "settings_day_fri", "settings_day_sat"] as const;
 
@@ -19,6 +34,18 @@ const DEFAULT_OPENING_HOURS: OpeningHours = {
   "4": [{ open: "12:30", close: "15:30" }, { open: "20:00", close: "22:30" }],
   "5": [{ open: "12:30", close: "15:30" }, { open: "19:30", close: "22:30" }],
   "6": [{ open: "12:30", close: "15:30" }, { open: "19:30", close: "22:30" }],
+};
+
+const DEFAULT_VOICEMAIL: VoicemailConfig = {
+  enabled: false,
+  schedule: { "0": [], "1": [], "2": [], "3": [], "4": [], "5": [], "6": [] },
+  forward_phone: "+34641790137",
+  message: {
+    es: "Hola, soy el contestador del restaurante Picnic. Ahora estamos cerrados. Si quiere reservar puede escribirnos por WhatsApp al mismo número o llamar durante el horario de apertura. Gracias.",
+    en: "Hi, this is the answering machine of restaurant Picnic. We are closed right now. To book a table please message us on WhatsApp at this same number or call us during opening hours. Thank you.",
+    it: "Ciao, sono la segreteria del ristorante Picnic. Adesso siamo chiusi. Per prenotare può scriverci su WhatsApp allo stesso numero o richiamare negli orari di apertura. Grazie.",
+    de: "Hallo, hier ist der Anrufbeantworter des Restaurants Picnic. Wir haben gerade geschlossen. Für eine Reservierung schreiben Sie uns bitte auf WhatsApp unter derselben Nummer oder rufen Sie während der Öffnungszeiten an. Danke.",
+  },
 };
 
 export function GeneralTab() {
@@ -35,6 +62,7 @@ export function GeneralTab() {
   const [aiBooking, setAiBooking] = useState(true);
   const [aiVoice, setAiVoice] = useState(true);
   const [openingHours, setOpeningHours] = useState<OpeningHours>(DEFAULT_OPENING_HOURS);
+  const [voicemail, setVoicemail] = useState<VoicemailConfig>(DEFAULT_VOICEMAIL);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
 
@@ -66,6 +94,14 @@ export function GeneralTab() {
         setAiBooking(s.ai_enabled_channels.includes("whatsapp"));
         setAiVoice(s.ai_enabled_channels.includes("voice"));
       }
+      if (s.vapi_voicemail) {
+        setVoicemail({
+          enabled: !!s.vapi_voicemail.enabled,
+          schedule: { ...DEFAULT_VOICEMAIL.schedule, ...(s.vapi_voicemail.schedule || {}) },
+          forward_phone: s.vapi_voicemail.forward_phone || DEFAULT_VOICEMAIL.forward_phone,
+          message: { ...DEFAULT_VOICEMAIL.message, ...(s.vapi_voicemail.message || {}) },
+        });
+      }
     }
   }, [tenant]);
 
@@ -87,6 +123,7 @@ export function GeneralTab() {
       ai_monthly_cost: aiMonthlyCost,
       no_show_baseline_pct: noShowBaseline,
       opening_hours: openingHours,
+      vapi_voicemail: voicemail,
     };
 
     const { error } = await supabase.from("tenants").update({
@@ -151,6 +188,16 @@ export function GeneralTab() {
       console.error("KB sync after settings save failed:", syncErr);
     }
 
+    try {
+      await fetch("/api/sync-vapi-voicemail", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tenant_id: tenant.id }),
+      });
+    } catch (syncErr) {
+      console.error("Vapi voicemail sync after settings save failed:", syncErr);
+    }
+
     await refreshActiveTenant();
 
     setSaving(false);
@@ -178,6 +225,35 @@ export function GeneralTab() {
     setOpeningHours(prev => ({
       ...prev,
       [day]: (prev[day] || []).filter((_, i) => i !== idx),
+    }));
+  };
+
+  const updateVmSlot = (day: string, idx: number, field: "open" | "close", value: string) => {
+    setVoicemail(prev => {
+      const updated = { ...prev.schedule };
+      updated[day] = [...(updated[day] || [])];
+      updated[day][idx] = { ...updated[day][idx], [field]: value };
+      return { ...prev, schedule: updated };
+    });
+  };
+
+  const addVmSlot = (day: string) => {
+    setVoicemail(prev => ({
+      ...prev,
+      schedule: {
+        ...prev.schedule,
+        [day]: [...(prev.schedule[day] || []), { open: "23:00", close: "12:00" }],
+      },
+    }));
+  };
+
+  const removeVmSlot = (day: string, idx: number) => {
+    setVoicemail(prev => ({
+      ...prev,
+      schedule: {
+        ...prev.schedule,
+        [day]: (prev.schedule[day] || []).filter((_, i) => i !== idx),
+      },
     }));
   };
 
@@ -317,6 +393,126 @@ export function GeneralTab() {
                 </div>
               );
             })}
+          </div>
+        </section>
+
+        <section className="p-6 rounded-xl border-2" style={{ background: "rgba(252,246,237,0.85)", borderColor: "#c4956a" }}>
+          <h3 className="text-lg font-bold text-black mb-1">{t("settings_voicemail_title")}</h3>
+          <p className="text-xs text-black mb-4">{t("settings_voicemail_desc")}</p>
+
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-5 p-3 rounded-lg border-2" style={{ borderColor: "#c4956a", background: "rgba(252,246,237,0.6)" }}>
+            <div className="flex-1">
+              <label className="text-sm font-bold text-black">{t("settings_voicemail_enabled")}</label>
+              <p className="text-xs text-black/70 mt-0.5">{t("settings_voicemail_enabled_hint")}</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setVoicemail(prev => ({ ...prev, enabled: !prev.enabled }))}
+              className="relative inline-flex items-center h-7 w-12 rounded-full transition-colors shrink-0 cursor-pointer"
+              style={{ background: voicemail.enabled ? "#c4956a" : "#d4d4d4" }}
+              role="switch"
+              aria-checked={voicemail.enabled}
+            >
+              <span
+                className="inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform"
+                style={{ transform: voicemail.enabled ? "translateX(22px)" : "translateX(4px)" }}
+              />
+            </button>
+          </div>
+
+          <div className="mb-5">
+            <label className="block text-sm font-medium text-black">{t("settings_voicemail_forward")}</label>
+            <input
+              type="tel"
+              value={voicemail.forward_phone}
+              onChange={(e) => setVoicemail(prev => ({ ...prev, forward_phone: e.target.value }))}
+              className={`mt-1 ${inputStyle}`}
+              style={inputBorder}
+              placeholder="+34641790137"
+            />
+            <p className="mt-1 text-xs text-black/70">{t("settings_voicemail_forward_hint")}</p>
+          </div>
+
+          <div className="mb-5">
+            <h4 className="text-sm font-bold text-black mb-1">{t("settings_voicemail_schedule")}</h4>
+            <p className="text-xs text-black/70 mb-3">{t("settings_voicemail_schedule_desc")}</p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+              {DAY_LABELS_KEYS.map((dayKey, dayIdx) => {
+                const dayStr = String(dayIdx);
+                const slots = voicemail.schedule[dayStr] || [];
+                return (
+                  <div
+                    key={dayStr}
+                    className="rounded-lg border-2 p-3 flex flex-col gap-2"
+                    style={{ borderColor: "#c4956a", background: "rgba(252,246,237,0.6)" }}
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-bold text-black">{t(dayKey as any)}</span>
+                      {slots.length === 0 && (
+                        <span className="text-[10px] italic text-black/60 uppercase tracking-wider">—</span>
+                      )}
+                    </div>
+                    <div className="flex flex-col gap-2">
+                      {slots.map((slot, idx) => (
+                        <div key={idx} className="flex items-center gap-1.5">
+                          <input
+                            type="time"
+                            value={slot.open}
+                            onChange={(e) => updateVmSlot(dayStr, idx, "open", e.target.value)}
+                            className="flex-1 min-w-0 rounded-md border-2 px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-[#c4956a]"
+                            style={{ borderColor: "#c4956a", background: "white" }}
+                          />
+                          <span className="text-black text-xs">—</span>
+                          <input
+                            type="time"
+                            value={slot.close}
+                            onChange={(e) => updateVmSlot(dayStr, idx, "close", e.target.value)}
+                            className="flex-1 min-w-0 rounded-md border-2 px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-[#c4956a]"
+                            style={{ borderColor: "#c4956a", background: "white" }}
+                          />
+                          <button
+                            onClick={() => removeVmSlot(dayStr, idx)}
+                            className="p-1 rounded-md text-red-600 hover:bg-red-500/10 transition-colors shrink-0"
+                            title={t("settings_remove_slot")}
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      ))}
+                      <button
+                        onClick={() => addVmSlot(dayStr)}
+                        className="w-full inline-flex items-center justify-center gap-1 px-2 py-1.5 text-xs font-semibold rounded-md border-2 border-dashed text-black hover:bg-[#c4956a]/10 transition-colors"
+                        style={{ borderColor: "#c4956a" }}
+                      >
+                        <Plus className="w-3.5 h-3.5" /> {t("settings_add_slot")}
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          <div>
+            <h4 className="text-sm font-bold text-black mb-1">{t("settings_voicemail_message")}</h4>
+            <p className="text-xs text-black/70 mb-3">{t("settings_voicemail_message_hint")}</p>
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              {(["es", "en", "it", "de"] as const).map((lang) => (
+                <div key={lang}>
+                  <label className="block text-sm font-medium text-black">{t(`settings_voicemail_message_${lang}` as any)}</label>
+                  <textarea
+                    value={voicemail.message[lang]}
+                    onChange={(e) => setVoicemail(prev => ({
+                      ...prev,
+                      message: { ...prev.message, [lang]: e.target.value },
+                    }))}
+                    rows={5}
+                    className={`mt-1 ${inputStyle}`}
+                    style={inputBorder}
+                  />
+                </div>
+              ))}
+            </div>
           </div>
         </section>
       </div>

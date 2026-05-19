@@ -473,6 +473,21 @@ export const es: Dictionary = {
   settings_day_wed: "Miércoles", settings_day_thu: "Jueves", settings_day_fri: "Viernes",
   settings_day_sat: "Sábado",
 
+  settings_voicemail_title: "Contestador automático (Vapi)",
+  settings_voicemail_desc: "Cuando el contestador está activo, el bot lee el mensaje y termina la llamada. Cuando está desactivado, las llamadas se desvían al teléfono del responsable.",
+  settings_voicemail_enabled: "Contestador activo ahora",
+  settings_voicemail_enabled_hint: "Interruptor manual. El horario de abajo lo activa y desactiva automáticamente.",
+  settings_voicemail_schedule: "Horario automático",
+  settings_voicemail_schedule_desc: "Franjas en las que el contestador se activa solo cada día. Fuera de estas franjas las llamadas se desvían al responsable.",
+  settings_voicemail_forward: "Teléfono del responsable (desvío)",
+  settings_voicemail_forward_hint: "Formato internacional, ej. +34641790137",
+  settings_voicemail_message: "Texto del contestador",
+  settings_voicemail_message_es: "Mensaje en español",
+  settings_voicemail_message_en: "Mensaje en inglés",
+  settings_voicemail_message_it: "Mensaje en italiano",
+  settings_voicemail_message_de: "Mensaje en alemán",
+  settings_voicemail_message_hint: "El bot detecta el idioma del cliente y lee el texto correspondiente. Edita libremente: los cambios se aplican en tiempo real al asistente de voz.",
+
   // Login / Auth
   auth_email: "Correo electrónico",
   auth_password: "Contraseña",

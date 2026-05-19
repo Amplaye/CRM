@@ -473,6 +473,21 @@ export const de: Dictionary = {
   settings_day_wed: "Mittwoch", settings_day_thu: "Donnerstag", settings_day_fri: "Freitag",
   settings_day_sat: "Samstag",
 
+  settings_voicemail_title: "Anrufbeantworter (Vapi)",
+  settings_voicemail_desc: "Wenn der Anrufbeantworter aktiv ist, liest der Bot die Nachricht vor und beendet das Gespräch. Ist er deaktiviert, werden die Anrufe an das Telefon des Inhabers weitergeleitet.",
+  settings_voicemail_enabled: "Anrufbeantworter jetzt aktiv",
+  settings_voicemail_enabled_hint: "Manueller Schalter. Der Zeitplan unten schaltet ihn auch automatisch ein und aus.",
+  settings_voicemail_schedule: "Automatischer Zeitplan",
+  settings_voicemail_schedule_desc: "Zeitfenster, in denen sich der Anrufbeantworter täglich von selbst einschaltet. Außerhalb dieser Fenster werden Anrufe an den Inhaber weitergeleitet.",
+  settings_voicemail_forward: "Telefon des Inhabers (Weiterleitung)",
+  settings_voicemail_forward_hint: "Internationales Format, z. B. +34641790137",
+  settings_voicemail_message: "Ansagetext",
+  settings_voicemail_message_es: "Nachricht auf Spanisch",
+  settings_voicemail_message_en: "Nachricht auf Englisch",
+  settings_voicemail_message_it: "Nachricht auf Italienisch",
+  settings_voicemail_message_de: "Nachricht auf Deutsch",
+  settings_voicemail_message_hint: "Der Bot erkennt die Sprache des Anrufers und liest den entsprechenden Text. Bearbeite frei — Änderungen werden in Echtzeit auf den Sprachassistenten angewendet.",
+
   // Login / Auth
   auth_email: "E-Mail",
   auth_password: "Passwort",

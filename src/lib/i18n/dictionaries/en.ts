@@ -470,6 +470,21 @@ export const en = {
   settings_day_wed: "Wednesday", settings_day_thu: "Thursday", settings_day_fri: "Friday",
   settings_day_sat: "Saturday",
 
+  settings_voicemail_title: "Voicemail (Vapi)",
+  settings_voicemail_desc: "When the voicemail is active the bot reads the message and ends the call. When it's off, calls are forwarded to the owner's phone.",
+  settings_voicemail_enabled: "Voicemail active now",
+  settings_voicemail_enabled_hint: "Manual switch. The schedule below also toggles it automatically.",
+  settings_voicemail_schedule: "Automatic schedule",
+  settings_voicemail_schedule_desc: "Time windows when the voicemail turns itself on each day. Outside these windows, calls forward to the owner.",
+  settings_voicemail_forward: "Owner's phone (forwarding)",
+  settings_voicemail_forward_hint: "International format, e.g. +34641790137",
+  settings_voicemail_message: "Voicemail script",
+  settings_voicemail_message_es: "Spanish message",
+  settings_voicemail_message_en: "English message",
+  settings_voicemail_message_it: "Italian message",
+  settings_voicemail_message_de: "German message",
+  settings_voicemail_message_hint: "The bot detects the caller's language and reads the matching text. Edit freely — changes apply in real time to the voice assistant.",
+
   // Login / Auth
   auth_email: "Email address",
   auth_password: "Password",
