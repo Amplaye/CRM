@@ -26,6 +26,35 @@ interface VoicemailConfig {
 
 const DAY_LABELS_KEYS = ["settings_day_sun", "settings_day_mon", "settings_day_tue", "settings_day_wed", "settings_day_thu", "settings_day_fri", "settings_day_sat"] as const;
 
+// Mirror of server-side isInsideSchedule in /api/sync-vapi-voicemail/route.ts.
+// Kept here so the toggle can reflect the effective state in real time without a roundtrip.
+function isInsideScheduleNow(schedule: VoicemailSchedule, tz: string): boolean {
+  const toMin = (hhmm: string) => {
+    const [h, m] = hhmm.split(":").map((n) => parseInt(n, 10));
+    return (isFinite(h) ? h : 0) * 60 + (isFinite(m) ? m : 0);
+  };
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: tz, hour: "2-digit", minute: "2-digit", weekday: "short", hour12: false,
+  }).formatToParts(new Date());
+  const wd = parts.find((p) => p.type === "weekday")?.value || "Sun";
+  const hh = parts.find((p) => p.type === "hour")?.value || "00";
+  const mm = parts.find((p) => p.type === "minute")?.value || "00";
+  const dayMap: Record<string, number> = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 };
+  const today = dayMap[wd] ?? 0;
+  const yesterday = (today + 6) % 7;
+  const nowMin = toMin(`${hh}:${mm}`);
+  for (const s of schedule[String(today)] || []) {
+    const a = toMin(s.open), b = toMin(s.close);
+    if (a <= b) { if (nowMin >= a && nowMin < b) return true; }
+    else if (nowMin >= a) return true;
+  }
+  for (const s of schedule[String(yesterday)] || []) {
+    const a = toMin(s.open), b = toMin(s.close);
+    if (a > b && nowMin < b) return true;
+  }
+  return false;
+}
+
 const DEFAULT_OPENING_HOURS: OpeningHours = {
   "0": [{ open: "12:30", close: "15:30" }],
   "1": [],
@@ -63,8 +92,17 @@ export function GeneralTab() {
   const [aiVoice, setAiVoice] = useState(true);
   const [openingHours, setOpeningHours] = useState<OpeningHours>(DEFAULT_OPENING_HOURS);
   const [voicemail, setVoicemail] = useState<VoicemailConfig>(DEFAULT_VOICEMAIL);
+  const [, setNowTick] = useState(0);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+
+  useEffect(() => {
+    const id = setInterval(() => setNowTick((n) => n + 1), 15000);
+    return () => clearInterval(id);
+  }, []);
+
+  const insideScheduleNow = isInsideScheduleNow(voicemail.schedule, timezone || "Atlantic/Canary");
+  const voicemailEffectiveActive = voicemail.enabled || insideScheduleNow;
 
   // Always re-fetch the active tenant from the DB on mount. The TenantContext
   // caches tenant.settings in sessionStorage, so without this call the page
@@ -404,18 +442,28 @@ export function GeneralTab() {
             <div className="flex-1">
               <label className="text-sm font-bold text-black">{t("settings_voicemail_enabled")}</label>
               <p className="text-xs text-black/70 mt-0.5">{t("settings_voicemail_enabled_hint")}</p>
+              {voicemailEffectiveActive && !voicemail.enabled && (
+                <p className="text-xs italic text-[#c4956a] font-semibold mt-1">Attiva per programmazione</p>
+              )}
+              {!voicemailEffectiveActive && (
+                <p className="text-xs italic text-black/50 mt-1">Disattivata</p>
+              )}
+              {voicemail.enabled && (
+                <p className="text-xs italic text-[#c4956a] font-semibold mt-1">Attiva manualmente</p>
+              )}
             </div>
             <button
               type="button"
               onClick={() => setVoicemail(prev => ({ ...prev, enabled: !prev.enabled }))}
               className="relative inline-flex items-center h-7 w-12 rounded-full transition-colors shrink-0 cursor-pointer"
-              style={{ background: voicemail.enabled ? "#c4956a" : "#d4d4d4" }}
+              style={{ background: voicemailEffectiveActive ? "#c4956a" : "#d4d4d4" }}
               role="switch"
-              aria-checked={voicemail.enabled}
+              aria-checked={voicemailEffectiveActive}
+              title={insideScheduleNow && !voicemail.enabled ? "Attiva per programmazione (override automatico)" : undefined}
             >
               <span
                 className="inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform"
-                style={{ transform: voicemail.enabled ? "translateX(22px)" : "translateX(4px)" }}
+                style={{ transform: voicemailEffectiveActive ? "translateX(22px)" : "translateX(4px)" }}
               />
             </button>
           </div>
