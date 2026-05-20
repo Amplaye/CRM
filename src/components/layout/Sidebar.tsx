@@ -211,7 +211,7 @@ export function Sidebar({ mobileOpen = false, onClose }: SidebarProps) {
             </div>
             <div className="ml-3 overflow-hidden">
               <p className="text-sm font-medium text-black truncate">{primaryLabel}</p>
-              <p className="text-xs font-medium text-black uppercase tracking-wider mt-0.5">{roleLabel}</p>
+              <p className="text-xs font-medium text-black mt-0.5">{roleLabel}</p>
             </div>
          </div>
          <button
