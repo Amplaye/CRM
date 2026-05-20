@@ -73,6 +73,7 @@ export type LastInstructionTopic =
   | 'nombre'
   | 'notas'
   | 'confirm'
+  | 'awaiting_confirmo'
   | 'modify_topic'
   | 'disambig';
 
