@@ -27,6 +27,9 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
   //  3. Re-check on tab/visibility regain (covers the phone-in-pocket case).
   useEffect(() => {
     if (!user?.id || !activeTenant?.id) return;
+    // Platform admins impersonate tenants without holding a tenant_members row,
+    // so the membership guard would always evict them. Skip the guard for them.
+    if (globalRole === "platform_admin") return;
 
     let cancelled = false;
     const tenantId = activeTenant.id;
@@ -82,7 +85,7 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
       document.removeEventListener("visibilitychange", onVisible);
       supabase.removeChannel(ch);
     };
-  }, [user?.id, activeTenant?.id, supabase]);
+  }, [user?.id, activeTenant?.id, globalRole, supabase]);
 
   const isPlatformOnly = !loading && globalRole === "platform_admin" && !activeTenant;
   const isOnAdminPage = pathname?.startsWith("/admin");
