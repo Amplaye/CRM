@@ -51,6 +51,8 @@ export default function LoginPage() {
     try {
       const { error } = await supabase.auth.signInWithPassword({ email, password });
       if (error) throw error;
+      // Fire-and-forget audit log; never block login on failure.
+      fetch("/api/auth/log-login", { method: "POST" }).catch(() => {});
       router.push("/");
       router.refresh();
     } catch (err: any) {

@@ -89,6 +89,7 @@ export default function RegisterPage() {
       // If no email confirmation required, sign in and create tenant
       const { error: signInError } = await supabase.auth.signInWithPassword({ email, password });
       if (signInError) throw signInError;
+      fetch("/api/auth/log-login", { method: "POST" }).catch(() => {});
 
       if (signUpData?.user) {
         const res = await fetch("/api/register-tenant", {
