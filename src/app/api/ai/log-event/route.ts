@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { assertAiSecret } from '@/lib/ai-auth';
-import { logSystemEvent, type SystemLogCategory, type SystemLogSeverity } from '@/lib/system-log';
+import { logSystemEvent, resolveSystemEvents, type SystemLogCategory, type SystemLogSeverity } from '@/lib/system-log';
 
 // Lightweight trace endpoint for n8n wrappers (chat + voice + reminders).
 // Stores a structured event in system_logs so failures and decisions are
@@ -72,6 +72,37 @@ export async function POST(request: Request) {
       ? 'low'
       : resolvedLevel === 'error' ? 'high' : resolvedLevel === 'warning' ? 'medium' : 'low';
 
+    // Identificatore stabile per dedup + auto-resolve.
+    // Per errori catturati dal workflow `[ALL] n8n Error Catcher`, il context
+    // contiene workflow_id + last_node → uso quelli (più precisi).
+    // Altrimenti fallback su wrapper:step.
+    const ctxObj = (context && typeof context === 'object') ? (context as any) : {};
+    const errorKey: string =
+      ctxObj.workflow_id && ctxObj.last_node
+        ? `n8n:${ctxObj.workflow_id}:${ctxObj.last_node}`
+        : `ai:${wrapper || 'bot'}:${step}`;
+
+    if (success === true || resolvedLevel === 'info') {
+      // Recovery: questo step è andato bene → chiudi gli open con stesso error_key
+      void resolveSystemEvents({ error_key: errorKey, tenant_id: tenant_id || undefined });
+      // Inoltre: se conosciamo il workflow_id, chiudi anche tutti i n8n_error open
+      // di quel workflow (qualunque last_node) — un run success implica che il workflow
+      // è di nuovo healthy nel suo insieme.
+      if (ctxObj.workflow_id) {
+        try {
+          const { createServiceRoleClient } = await import('@/lib/supabase/server');
+          const supabase = createServiceRoleClient();
+          await supabase
+            .from('system_logs')
+            .update({ status: 'resolved', resolved_at: new Date().toISOString() })
+            .eq('status', 'open')
+            .eq('category', 'n8n_error')
+            .contains('metadata', { workflow_id: ctxObj.workflow_id });
+        } catch (e) { /* best-effort */ }
+      }
+      return NextResponse.json({ ok: true, resolved: true });
+    }
+
     await logSystemEvent({
       tenant_id: tenant_id || undefined,
       category,
@@ -84,6 +115,7 @@ export async function POST(request: Request) {
         success: success ?? null,
         ...(context && typeof context === 'object' ? context : {}),
       },
+      error_key: errorKey,
     });
 
     return NextResponse.json({ ok: true });

@@ -3,6 +3,7 @@
 import { useTenant } from "@/lib/contexts/TenantContext";
 import { useEffect, useState } from "react";
 import { Bug, MessageSquare, Phone, Calendar, AlertTriangle, ChevronDown, ChevronRight, CheckCircle2, ExternalLink } from "lucide-react";
+import { createClient } from "@/lib/supabase/client";
 
 export default function DebugPage() {
   const { globalRole } = useTenant();
@@ -39,6 +40,22 @@ export default function DebugPage() {
   };
 
   useEffect(() => { fetchDebug(); }, [selectedTenant]);
+
+  // Realtime: rifletti subito ogni INSERT/UPDATE su system_logs per il tenant selezionato.
+  // Niente polling, niente cron.
+  useEffect(() => {
+    if (!selectedTenant) return;
+    const supabase = createClient();
+    const channel = supabase
+      .channel(`system_logs:${selectedTenant}`)
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "system_logs", filter: `tenant_id=eq.${selectedTenant}` },
+        () => { fetchDebug(); }
+      )
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [selectedTenant]);
 
   const resolveLog = async (id: string) => {
     await fetch("/api/admin/system-logs", {

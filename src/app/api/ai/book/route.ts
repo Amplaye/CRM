@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { createServiceRoleClient } from '@/lib/supabase/server';
 import { CreateBookingRequest } from '@/lib/types';
 import { logAuditEvent } from '@/lib/audit';
-import { logSystemEvent } from '@/lib/system-log';
+import { logSystemEvent, resolveSystemEvents } from '@/lib/system-log';
 import { assertAiSecret } from '@/lib/ai-auth';
 import {
   getShift,
@@ -645,6 +645,12 @@ export async function POST(request: Request) {
        }
     });
 
+    // Recovery: una booking è andata in porto → chiudi gli open di booking_error per il tenant
+    void resolveSystemEvents({
+      error_key: `booking:${payload.tenant_id}`,
+      tenant_id: payload.tenant_id,
+    });
+
     return NextResponse.json({
        success: true,
        reservation_id: newRes.id,
@@ -663,6 +669,7 @@ export async function POST(request: Request) {
       severity: "critical",
       title: "Booking creation failed",
       description: error.message,
+      error_key: `booking:service`,
     });
     return NextResponse.json({ success: false, error: "Internal Server Error" }, { status: 500 });
   }

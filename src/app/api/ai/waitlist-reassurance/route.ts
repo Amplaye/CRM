@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createServiceRoleClient } from '@/lib/supabase/server';
 import { assertAiSecret } from '@/lib/ai-auth';
-import { logSystemEvent } from '@/lib/system-log';
+import { logSystemEvent, resolveSystemEvents } from '@/lib/system-log';
 
 // Called by the n8n cron every few minutes. For each active waitlist entry
 // older than 30 minutes that hasn't been reassured yet, sends an honest
@@ -130,7 +130,11 @@ export async function POST(request: Request) {
         title: 'waitlist-reassurance partial failure',
         description: failures.join(' | '),
         metadata: { failures, sent, considered: entries.length },
+        error_key: 'waitlist-reassurance:batch',
       });
+    } else if (entries.length > 0) {
+      // Tutto inviato senza failures → chiudi eventuali open precedenti
+      void resolveSystemEvents({ error_key: 'waitlist-reassurance:batch' });
     }
 
     return NextResponse.json({ ok: true, sent, considered: entries.length, failures: failures.length });

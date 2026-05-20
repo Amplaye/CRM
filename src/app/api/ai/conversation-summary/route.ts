@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { after } from 'next/server';
 import { createServiceRoleClient } from '@/lib/supabase/server';
 import { assertAiSecret } from '@/lib/ai-auth';
-import { logSystemEvent } from '@/lib/system-log';
+import { logSystemEvent, resolveSystemEvents } from '@/lib/system-log';
 import { chatCompletion, chatCompletionsConfig } from '@/lib/openai-base-url';
 
 // Body:
@@ -178,9 +178,12 @@ async function runSummaryJob(
         title: 'conversation-summary OpenAI error',
         description: errText.slice(0, 500),
         metadata: { conversation_id: conv.id, lang },
+        error_key: 'openai:service',
       });
       return;
     }
+    // OpenAI ha risposto OK → chiudi eventuali open di "openai:service"
+    void resolveSystemEvents({ error_key: 'openai:service' });
     const aiData = await aiResp.json();
     const summary = String(aiData?.choices?.[0]?.message?.content || '').trim();
     if (!summary) return;

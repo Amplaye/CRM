@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { logSystemEvent } from "@/lib/system-log";
+import { logSystemEvent, resolveSystemEvents } from "@/lib/system-log";
 import { assertAiSecret } from "@/lib/ai-auth";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 
@@ -59,6 +59,9 @@ export async function POST(req: NextRequest) {
 
     const data = await res.json();
 
+    const normalizedTo = to.replace(/^whatsapp:/, "").trim();
+    const errorKey = `twilio:whatsapp:${normalizedTo}`;
+
     if (!res.ok) {
       logSystemEvent({
         category: "message_failure",
@@ -66,9 +69,15 @@ export async function POST(req: NextRequest) {
         title: `WhatsApp send failed to ${to}`,
         description: data.message || "Twilio error",
         metadata: { to, twilioError: data },
+        error_key: errorKey,
       });
       return NextResponse.json({ error: data.message || "Twilio error", details: data }, { status: res.status });
     }
+
+    // Recovery: questa chiamata Twilio ha funzionato → chiudi gli open per stesso destinatario
+    // e per "twilio service down" globale.
+    void resolveSystemEvents({ error_key: errorKey });
+    void resolveSystemEvents({ error_key: "twilio:service" });
 
     return NextResponse.json({ success: true, sid: data.sid });
   } catch (err: any) {
@@ -77,6 +86,7 @@ export async function POST(req: NextRequest) {
       severity: "critical",
       title: "WhatsApp send crashed",
       description: err.message,
+      error_key: "twilio:service",
     });
     return NextResponse.json({ error: err.message }, { status: 500 });
   }
