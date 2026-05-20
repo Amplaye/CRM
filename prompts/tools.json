@@ -1,0 +1,109 @@
+[
+  {
+    "type": "function",
+    "function": {
+      "name": "check_availability",
+      "description": "Verifica si hay plazas para fecha+hora+personas+zona ANTES de pedir nombre y notas. Llamala justo despues de que el cliente haya dado la zona. Si responde sin sitio, avisa al cliente antes de seguir pidiendo datos.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "fecha": { "type": "string", "description": "YYYY-MM-DD", "pattern": "^\\d{4}-\\d{2}-\\d{2}$" },
+          "hora": { "type": "string", "description": "HH:MM 24h", "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$" },
+          "personas": { "type": "integer", "minimum": 1, "maximum": 50 },
+          "zona": { "type": "string", "enum": ["interior", "exterior"] }
+        },
+        "required": ["fecha", "hora", "personas"]
+      }
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "book_reservation",
+      "description": "Crea una propuesta de reserva. Llámala SOLO cuando tienes TODOS los campos y ya has preguntado por notas especiales. El sistema envía una tarjeta de confirmación al cliente automáticamente.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "fecha": { "type": "string", "description": "YYYY-MM-DD", "pattern": "^\\d{4}-\\d{2}-\\d{2}$" },
+          "hora": { "type": "string", "description": "HH:MM formato 24h", "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$" },
+          "nombre": {
+            "type": "string",
+            "description": "Nombre REAL del cliente, dado por él mismo. PROHIBIDO inventar nombres como Amigo, Cliente, Invitado, Sin nombre, Anónimo. Si el cliente NO te ha dado el nombre, NO llames book_reservation — pregúntale primero ¿A qué nombre?"
+          },
+          "personas": { "type": "integer", "minimum": 1, "maximum": 50 },
+          "zona": {
+            "type": "string",
+            "enum": ["interior", "exterior"],
+            "description": "Zona SOLO si el cliente la ha mencionado EXPLÍCITAMENTE (interior/dentro/sala O exterior/fuera/terraza). PROHIBIDO asumirla. Si el cliente no ha expresado preferencia, OMITE este campo completamente."
+          },
+          "notas": {
+            "type": "string",
+            "description": "Peticiones especiales (alergias, niños, mascota, celíaco, silla ruedas, cumpleaños). Cadena vacía si el cliente ha confirmado NO tener ninguna."
+          },
+          "force_new": {
+            "type": "boolean",
+            "description": "Pon true SOLO si el cliente, tras ser advertido de que ya tiene una reserva activa, confirma que quiere crear una ADICIONAL (ej. dice \"es una nueva\", \"adicional\", \"otra más\"). Por defecto omite este campo."
+          }
+        },
+        "required": ["fecha", "hora", "nombre", "personas", "notas"]
+      }
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "modify_reservation",
+      "description": "Modifica una reserva existente del cliente. DISAMBIGUACIÓN OBLIGATORIA: si el cliente tiene varias reservas activas (cliente habitual), DEBES preguntar primero \"¿para qué fecha/hora era?\" y pasar fecha_actual, hora_actual y personas_actual de la reserva que quiere modificar. Personas SIEMPRE TOTAL final, no delta. Si pide cambiar zona (interior/exterior, dentro/fuera, inside/outside, indoor/outdoor) pasa zona con el nuevo valor. REGLA CRÍTICA (FIX B34, 2026-05-06): NO LLAMES esta función si el cliente solo NOMBRA los campos a cambiar (ej. \"personas y horario\", \"la fecha\", \"la hora\") sin dar los VALORES NUEVOS. En ese caso responde en su idioma preguntando los valores nuevos (ej. \"¿Para cuántas personas y a qué hora?\"). Solo llama modify_reservation cuando tengas al menos UN valor NUEVO concreto (número de personas, hora HH:MM, fecha, zona o notas) distinto del actual.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "fecha_actual": {
+            "type": "string",
+            "description": "Fecha ACTUAL de la reserva a modificar (YYYY-MM-DD). Pasar SIEMPRE si el cliente tiene varias reservas activas o si lo conoces por la conversación."
+          },
+          "hora_actual": {
+            "type": "string",
+            "description": "Hora ACTUAL de la reserva a modificar (HH:MM 24h). Disambiguator."
+          },
+          "personas_actual": {
+            "type": "integer",
+            "description": "Personas ACTUALES de la reserva a modificar. Disambiguator."
+          },
+          "fecha": { "type": "string", "description": "NUEVA fecha (YYYY-MM-DD), solo si el cliente la cambia." },
+          "hora": { "type": "string", "description": "NUEVA hora (HH:MM 24h), solo si el cliente la cambia." },
+          "personas": {
+            "type": "integer",
+            "description": "NUEVO total de personas, solo si el cliente cambia el grupo. TOTAL final (no delta)."
+          },
+          "zona": {
+            "type": "string",
+            "enum": ["interior", "exterior"],
+            "description": "NUEVA zona, solo si el cliente pide cambiarla. interior = dentro/sala/inside/indoor; exterior = fuera/terraza/outside/outdoor."
+          },
+          "nombre": { "type": "string" },
+          "notas": { "type": "string", "description": "Notas completas (incluye anteriores + nuevas)" }
+        }
+      }
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "add_waitlist",
+      "description": "Añade al cliente a lista de espera. Pregunta antes zona y notas especiales.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "fecha": { "type": "string" },
+          "hora": { "type": "string" },
+          "nombre": { "type": "string" },
+          "personas": { "type": "integer" },
+          "zona": { "type": "string", "enum": ["interior", "exterior"] },
+          "notas": { "type": "string" },
+          "turno": { "type": "string", "enum": ["Almuerzo", "Cena"] }
+        },
+        "required": ["fecha", "hora", "nombre", "personas", "turno", "notas"]
+      }
+    }
+  }
+]
