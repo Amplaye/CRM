@@ -41,6 +41,7 @@ export default function ConversationsPage() {
   const [selectedConvoId, setSelectedConvoId] = useState<string | null>(null);
   const [autoSelected, setAutoSelected] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const [channelFilter, setChannelFilter] = useState<"all" | "whatsapp" | "voice">("all");
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [deleting, setDeleting] = useState(false);
   const [replyText, setReplyText] = useState("");
@@ -146,6 +147,7 @@ export default function ConversationsPage() {
   }, [selectedConvo?.transcript]);
 
   const filtered = conversations.filter(conv => {
+    if (channelFilter !== "all" && conv.channel !== channelFilter) return false;
     if (!searchQuery) return true;
     const q = searchQuery.toLowerCase();
     const auditSummary = getAudit(conv)?.summary?.toLowerCase() || "";
@@ -284,6 +286,24 @@ export default function ConversationsPage() {
               className="w-full pl-9 pr-3 py-2 border-2 rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-[#c4956a]"
               style={{ borderColor: '#c4956a', background: 'rgba(252,246,237,0.6)' }} />
           </div>
+          <div className="mt-2 flex gap-1.5">
+            {([
+              { id: "all" as const, label: t("conv_all"), icon: null },
+              { id: "whatsapp" as const, label: t("conv_whatsapp"), icon: MessageSquare },
+              { id: "voice" as const, label: t("conv_voice"), icon: Phone },
+            ]).map(opt => {
+              const Icon = opt.icon;
+              const isActive = channelFilter === opt.id;
+              return (
+                <button key={opt.id} onClick={() => setChannelFilter(opt.id)}
+                  className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold transition-colors border ${isActive ? 'text-white border-transparent' : 'text-black/70 border-[#c4956a]/40 hover:bg-[#c4956a]/10'}`}
+                  style={isActive ? { background: 'linear-gradient(135deg, #d4a574, #c4956a)' } : undefined}>
+                  {Icon && <Icon className="w-3 h-3" />}
+                  {opt.label}
+                </button>
+              );
+            })}
+          </div>
           {selectedIds.size > 0 && (
             <div className="mt-2 flex items-center justify-between">
               <button onClick={selectAll} className="text-xs font-medium text-black">{t("conv_select_all")}</button>
@@ -317,8 +337,13 @@ export default function ConversationsPage() {
                     <input type="checkbox" checked={selectedIds.has(conv.id)}
                       onChange={(e) => { e.stopPropagation(); toggleSelect(conv.id); }}
                       className="w-4 h-4 rounded accent-[#c4956a] flex-shrink-0 cursor-pointer" />
-                    <div className={`w-9 h-9 rounded-full flex items-center justify-center text-white font-bold text-sm flex-shrink-0 ${conv.channel === 'whatsapp' ? 'bg-emerald-500' : 'bg-indigo-500'}`}>
+                    <div className={`relative w-9 h-9 rounded-full flex items-center justify-center text-white font-bold text-sm flex-shrink-0 ${conv.channel === 'whatsapp' ? 'bg-emerald-500' : 'bg-indigo-500'}`}>
                       {getGuestDisplay(conv).charAt(0).toUpperCase()}
+                      <span className="absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full bg-white flex items-center justify-center ring-1 ring-black/10">
+                        {conv.channel === 'whatsapp'
+                          ? <MessageSquare className="w-2.5 h-2.5 text-emerald-600" />
+                          : <Phone className="w-2.5 h-2.5 text-indigo-600" />}
+                      </span>
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex justify-between items-center">
