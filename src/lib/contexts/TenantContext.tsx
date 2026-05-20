@@ -51,19 +51,25 @@ export const TenantProvider = ({ children }: { children: ReactNode }) => {
       return;
     }
 
-    // Check sessionStorage cache to avoid re-fetching on every navigation
+    // Check sessionStorage cache to avoid re-fetching on every navigation.
+    // Skip cache when it looks broken (no tenants) so a failed initial fetch
+    // doesn't get stuck — platform_admin always has tenants available.
     const cacheKey = `tenant_ctx_${user.id}`;
     const cached = safeSession.get(cacheKey);
     if (cached) {
       try {
         const c = JSON.parse(cached);
-        setGlobalRole(c.globalRole);
-        setAvailableTenants(c.tenants);
-        setActiveTenant(c.activeTenant);
-        setActiveRole(c.activeRole);
-        setIsImpersonating(!!c.isImpersonating);
-        setLoading(false);
-        return;
+        const looksBroken = !Array.isArray(c.tenants) || c.tenants.length === 0;
+        if (!looksBroken) {
+          setGlobalRole(c.globalRole);
+          setAvailableTenants(c.tenants);
+          setActiveTenant(c.activeTenant);
+          setActiveRole(c.activeRole);
+          setIsImpersonating(!!c.isImpersonating);
+          setLoading(false);
+          return;
+        }
+        safeSession.remove(cacheKey);
       } catch { /* fall through to fetch */ }
     }
 
@@ -135,10 +141,13 @@ export const TenantProvider = ({ children }: { children: ReactNode }) => {
         setActiveRole(activeR);
         setIsImpersonating(impersonating);
 
-        // Cache in sessionStorage
-        safeSession.set(cacheKey, JSON.stringify({
-          globalRole: role, tenants, activeTenant: active, activeRole: activeR, isImpersonating: impersonating,
-        }));
+        // Cache in sessionStorage — but never cache an empty tenant list,
+        // otherwise a transient fetch failure would persist across navigations.
+        if (tenants.length > 0) {
+          safeSession.set(cacheKey, JSON.stringify({
+            globalRole: role, tenants, activeTenant: active, activeRole: activeR, isImpersonating: impersonating,
+          }));
+        }
       } catch (err) {
         console.error("Failed to load tenant context", err);
       } finally {
