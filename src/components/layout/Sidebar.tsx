@@ -20,6 +20,7 @@ import {
   Bug,
   StickyNote,
   Inbox,
+  ShieldAlert,
 } from "lucide-react";
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
@@ -118,6 +119,7 @@ export function Sidebar({ mobileOpen = false, onClose }: SidebarProps) {
     { href: "/admin/debug", icon: Bug, label: "Quick Debug" },
     { href: "/admin/clients", icon: StickyNote, label: "Client Notes" },
     { href: "/admin/health", icon: Activity, label: "System Health" },
+    { href: "/admin/security", icon: ShieldAlert, label: "Login Monitor" },
     { href: "/admin/incidents", icon: AlertOctagon, label: "All Incidents" },
   ];
 
