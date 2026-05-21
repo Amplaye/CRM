@@ -1,4 +1,7 @@
 import type { TenantSettings } from "./tenant-settings";
+import type { TenantStatus } from "../tenants/status";
+
+export type { TenantStatus } from "../tenants/status";
 
 export type GlobalRole = "platform_admin" | "user";
 export type TenantRole = "owner" | "admin" | "manager" | "host" | "marketing" | "readonly";
@@ -14,6 +17,7 @@ export interface User {
 export interface Tenant {
   id: string;
   name: string;
+  status: TenantStatus; // lifecycle gate — see ../tenants/status
   created_at: number;
   settings: TenantSettings; // typed in ./tenant-settings (includes `features` flags)
 }

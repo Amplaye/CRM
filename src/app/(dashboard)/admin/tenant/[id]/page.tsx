@@ -8,9 +8,17 @@ import {
   ArrowLeft, Bot, AlertTriangle, MessageSquare, Calendar,
   Phone, TrendingUp, UserX, Zap, Clock, Lightbulb, DollarSign, ShieldCheck, Eye,
 } from "lucide-react";
+import { TENANT_STATUSES, type TenantStatus } from "@/lib/tenants/status";
+
+const STATUS_BADGE: Record<TenantStatus, string> = {
+  active: "bg-emerald-50 text-emerald-700 border-emerald-200",
+  trial: "bg-blue-50 text-blue-700 border-blue-200",
+  pending: "bg-yellow-50 text-yellow-700 border-yellow-200",
+  suspended: "bg-red-50 text-red-700 border-red-200",
+};
 
 interface TenantDetail {
-  tenant: { id: string; name: string; created_at: string };
+  tenant: { id: string; name: string; status: TenantStatus; created_at: string };
   kpis: {
     aiRevenue7: number;
     aiRevenue30: number;
@@ -43,6 +51,24 @@ export default function TenantDetailPage() {
   const [data, setData] = useState<TenantDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [insights, setInsights] = useState<any[]>([]);
+  const [statusSaving, setStatusSaving] = useState(false);
+
+  const changeStatus = async (status: TenantStatus) => {
+    if (!tenantId) return;
+    setStatusSaving(true);
+    try {
+      const res = await fetch("/api/admin/tenant", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tenant_id: tenantId, status }),
+      });
+      if (!res.ok) throw new Error((await res.json()).error || "Failed");
+      setData((prev) => (prev ? { ...prev, tenant: { ...prev.tenant, status } } : prev));
+    } catch (err) {
+      console.error(err);
+    }
+    setStatusSaving(false);
+  };
 
   useEffect(() => {
     if (!tenantId) return;
@@ -87,9 +113,29 @@ export default function TenantDetailPage() {
         <Link href="/admin" className="p-2 hover:bg-[#c4956a]/10 rounded-lg transition-colors">
           <ArrowLeft className="w-4 h-4 text-black" />
         </Link>
-        <div>
-          <h1 className="text-xl sm:text-2xl font-bold text-black">{tenant.name}</h1>
+        <div className="flex-1">
+          <div className="flex items-center gap-2 flex-wrap">
+            <h1 className="text-xl sm:text-2xl font-bold text-black">{tenant.name}</h1>
+            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${STATUS_BADGE[tenant.status] || STATUS_BADGE.pending}`}>
+              {tenant.status}
+            </span>
+          </div>
           <p className="text-xs text-black">Tenant since {new Date(tenant.created_at).toLocaleDateString()}</p>
+        </div>
+        {/* Lifecycle control: only trial/active receive AI traffic. */}
+        <div className="flex items-center gap-2">
+          <label className="text-[10px] text-black uppercase tracking-wider hidden sm:block">Status</label>
+          <select
+            value={tenant.status}
+            disabled={statusSaving}
+            onChange={(e) => changeStatus(e.target.value as TenantStatus)}
+            className="text-xs border-2 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-[#c4956a] disabled:opacity-50"
+            style={{ borderColor: "#c4956a", background: "rgba(252,246,237,0.6)" }}
+          >
+            {TENANT_STATUSES.map((s) => (
+              <option key={s.value} value={s.value}>{s.label}</option>
+            ))}
+          </select>
         </div>
       </div>
 

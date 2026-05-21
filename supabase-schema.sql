@@ -23,6 +23,10 @@ create table public.tenants (
   id uuid default uuid_generate_v4() primary key,
   name text not null,
   business_type text not null default 'restaurant' check (business_type in ('restaurant', 'ecommerce', 'services', 'other')),
+  -- Tenant lifecycle (SaaS gate). Only 'trial'/'active' receive AI traffic;
+  -- 'pending' (registered, not yet provisioned) and 'suspended' (turned off) do not.
+  -- Single source of truth: src/lib/tenants/status.ts. Gate: src/app/api/webhooks/route.ts.
+  status text not null default 'active' check (status in ('pending', 'trial', 'active', 'suspended')),
   created_at timestamptz not null default now(),
   settings jsonb not null default '{"timezone": "Europe/Rome", "currency": "EUR", "ai_enabled_channels": []}'::jsonb
 );

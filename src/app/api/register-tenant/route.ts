@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServiceRoleClient } from "@/lib/supabase/server";
+import { createTenant } from "@/lib/tenants/create-tenant";
 
 export async function POST(req: NextRequest) {
   try {
@@ -10,23 +11,16 @@ export async function POST(req: NextRequest) {
 
     const supabase = createServiceRoleClient();
 
-    // Create the tenant. Single vertical: every new workspace is a restaurant.
-    // We hardcode it here rather than trusting a value from the form.
-    const { data: tenant, error: tenantErr } = await supabase
-      .from("tenants")
-      .insert({
-        name: businessName,
-        business_type: "restaurant",
-        settings: {
-          timezone: "Europe/Rome",
-          currency: "EUR",
-          ai_enabled_channels: []
-        }
-      })
-      .select("id")
-      .single();
-
-    if (tenantErr) throw tenantErr;
+    // Self-signup → "trial": live to evaluate, not yet a paying client.
+    const tenant = await createTenant(supabase, {
+      name: businessName,
+      status: "trial",
+      settings: {
+        timezone: "Europe/Rome",
+        currency: "EUR",
+        ai_enabled_channels: []
+      }
+    });
 
     // Add user as owner
     const { error: memberErr } = await supabase

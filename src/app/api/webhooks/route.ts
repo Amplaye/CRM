@@ -4,6 +4,7 @@ type WebhookStatus = "processing" | "success" | "failed";
 import { createReservationAction, updateReservationDetailsAction } from "@/app/actions/reservations";
 import { resolveTenantFromApiKey } from "@/lib/tenant-auth";
 import { assertRateLimit } from "@/lib/rate-limit";
+import { tenantReceivesTraffic, type TenantStatus } from "@/lib/tenants/status";
 
 /**
  * Main ingestion gateway for AI Agents (Bland AI, WhatsApp NLP, etc).
@@ -34,6 +35,21 @@ export async function POST(req: NextRequest) {
     }
 
     const supabase = createServiceRoleClient();
+
+    // SaaS gate: only a live tenant (trial/active) receives traffic and consumes.
+    // pending (not provisioned) / suspended (turned off) are rejected here, so the
+    // request never reaches reservation/conversation work or AI cost.
+    const { data: tenantRow } = await supabase
+      .from("tenants")
+      .select("status")
+      .eq("id", tenantId)
+      .single();
+    if (!tenantReceivesTraffic(tenantRow?.status as TenantStatus)) {
+      return NextResponse.json(
+        { error: `Tenant not active (status: ${tenantRow?.status ?? "unknown"})` },
+        { status: 403 }
+      );
+    }
 
     // 1. Idempotency Check
     const { data: existingEvents } = await supabase

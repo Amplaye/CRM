@@ -7,6 +7,7 @@
 
 import { createServiceRoleClient } from "@/lib/supabase/server";
 import { substituteTenantTokens, toCreatePayload } from "./substitute";
+import { createTenant } from "@/lib/tenants/create-tenant";
 
 const RETELL_BASE = "https://api.retellai.com";
 
@@ -159,19 +160,13 @@ export async function runOnboard(
         ai_enabled_channels: ["whatsapp", "voice"],
         currency: "EUR",
       };
-      const { data, error } = await supabase
-        .from("tenants")
-        .insert({
-          name: input.restaurant_name,
-          // Single vertical by design: there is one official template (restaurant).
-          // The column stays as a dormant hook; we never branch on other values.
-          business_type: "restaurant",
-          settings: initialSettings,
-        })
-        .select("id")
-        .single();
-      if (error) throw new Error(`tenant insert: ${error.message}`);
-      tenantId = data.id;
+      // Admin wizard provisions the full bot → born "active" (ready for traffic).
+      const created = await createTenant(supabase, {
+        name: input.restaurant_name,
+        status: "active",
+        settings: initialSettings,
+      });
+      tenantId = created.id;
       push({ step: "tenant", message: `Tenant created (${tenantId})`, ok: true, data: { tenant_id: tenantId } });
     }
 

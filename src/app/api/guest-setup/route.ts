@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServiceRoleClient } from "@/lib/supabase/server";
+import { createTenant } from "@/lib/tenants/create-tenant";
 
 export async function POST(req: NextRequest) {
   try {
@@ -19,18 +20,12 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ status: "already_setup" });
     }
 
-    // Create a demo tenant for the guest
-    const { data: tenant, error: tenantErr } = await supabase
-      .from("tenants")
-      .insert({
-        name: "Demo Restaurant",
-        business_type: "restaurant",
-        settings: { timezone: "Europe/Rome", currency: "EUR", ai_enabled_channels: ["whatsapp", "voice"] }
-      })
-      .select("id")
-      .single();
-
-    if (tenantErr) throw tenantErr;
+    // Demo tenant for the guest → "active": the demo must work immediately.
+    const tenant = await createTenant(supabase, {
+      name: "Demo Restaurant",
+      status: "active",
+      settings: { timezone: "Europe/Rome", currency: "EUR", ai_enabled_channels: ["whatsapp", "voice"] }
+    });
 
     // Add user as owner of the demo tenant
     const { error: memberErr } = await supabase

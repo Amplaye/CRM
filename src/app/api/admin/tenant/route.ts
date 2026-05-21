@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServiceRoleClient } from "@/lib/supabase/server";
+import { assertPlatformAdmin } from "@/lib/admin-auth";
+import { isTenantStatus } from "@/lib/tenants/status";
 
 export async function GET(req: NextRequest) {
   try {
@@ -19,7 +21,7 @@ export async function GET(req: NextRequest) {
     const d7Str = toDateStr(d7);
 
     const [tenantRes, reservationsRes, incidentsRes, logsRes, conversationsRes] = await Promise.all([
-      supabase.from("tenants").select("id, name, settings, created_at").eq("id", tenantId).single(),
+      supabase.from("tenants").select("id, name, status, settings, created_at").eq("id", tenantId).single(),
       supabase.from("reservations")
         .select("id, source, date, time, party_size, status, created_at, guest_id, guests(name, phone)")
         .eq("tenant_id", tenantId)
@@ -67,7 +69,7 @@ export async function GET(req: NextRequest) {
     const escalationRate = conversations.length > 0 ? Math.round((escalations / conversations.length) * 100) : 0;
 
     return NextResponse.json({
-      tenant: { id: tenant.id, name: tenant.name, created_at: tenant.created_at },
+      tenant: { id: tenant.id, name: tenant.name, status: tenant.status, created_at: tenant.created_at },
       kpis: {
         aiRevenue7,
         aiRevenue30,
@@ -91,29 +93,42 @@ export async function GET(req: NextRequest) {
 
 export async function PATCH(req: NextRequest) {
   try {
-    const { tenant_id, settings } = await req.json();
-    if (!tenant_id || !settings) {
-      return NextResponse.json({ error: "Missing tenant_id or settings" }, { status: 400 });
+    // Platform-admin only: this can suspend a tenant (cuts off its traffic).
+    const auth = await assertPlatformAdmin();
+    if (!auth.ok) return auth.res;
+
+    const { tenant_id, settings, status } = await req.json();
+    if (!tenant_id || (settings === undefined && status === undefined)) {
+      return NextResponse.json({ error: "Missing tenant_id or nothing to update" }, { status: 400 });
+    }
+    if (status !== undefined && !isTenantStatus(status)) {
+      return NextResponse.json({ error: "Invalid status" }, { status: 400 });
     }
 
     const supabase = createServiceRoleClient();
 
-    // Merge with existing settings
+    // Merge settings (if provided) with existing; set status (if provided).
     const { data: tenant } = await supabase
       .from("tenants")
       .select("settings")
       .eq("id", tenant_id)
       .single();
 
-    const merged = { ...(tenant?.settings || {}), ...settings };
+    const update: Record<string, any> = {};
+    let merged: Record<string, any> | undefined;
+    if (settings !== undefined) {
+      merged = { ...(tenant?.settings || {}), ...settings };
+      update.settings = merged;
+    }
+    if (status !== undefined) update.status = status;
 
     const { error } = await supabase
       .from("tenants")
-      .update({ settings: merged })
+      .update(update)
       .eq("id", tenant_id);
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-    return NextResponse.json({ success: true, settings: merged });
+    return NextResponse.json({ success: true, settings: merged, status });
   } catch (err: any) {
     return NextResponse.json({ error: err.message }, { status: 500 });
   }

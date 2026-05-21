@@ -26,10 +26,10 @@ Legenda stato: `⬜ da fare` · `🔄 in corso` · `✅ fatto` · `⏸️ futuro
 | 2 | Picnic → Template Ufficiale (1 solo template) | ✅ | ALTO | basso-medio |
 | 3 | Feature flags (CRM adattabile) | ✅ | ALTO | basso |
 | 4 | Registro varianti (criterio fusione) | ✅ | MEDIO | nessuno |
-| 5 | Twilio auto + stato tenant | ⬜ | ALTO | medio |
+| 5 | Stato tenant ✅ · Twilio auto ⏸️ | 🔄 | ALTO | medio |
 | 6 | Motore unico (Opzione A) | ⏸️ | ALTO | alto |
 
-> **Prima mossa non ✅ = da dove riparto.** Prossima volta: **Mossa 5** (Automazione Twilio/WhatsApp + stato tenant) — da fare quando arrivano i primi clienti reali.
+> **Prima mossa non ✅ = da dove riparto.** Mossa 5 è **a metà**: la parte **"stato tenant"** è fatta ora (lifecycle `pending`/`trial`/`active`/`suspended` + gate sul traffico + creazione tenant unificata). Resta solo l'**automazione Twilio/WhatsApp per cliente**, deliberatamente in attesa dei primi clienti reali (numeri veri, non sandbox). Prossima volta: completare quella parte quando arrivano i clienti, poi **Mossa 6**.
 
 ---
 
@@ -176,13 +176,15 @@ Creare `/Users/amplaye/CRM/docs/REGISTRO_VARIANTI.md`: una tabella dove ogni vol
 ---
 
 ### MOSSA 5 — Automazione Twilio/WhatsApp + stato tenant
-**Stato: ⬜ da fare** · Rischio: medio · Effort: M-L · Da fare quando arrivano i primi clienti reali
+**Stato: 🔄 in corso** (stato tenant ✅ · Twilio ⏸️) · Rischio: medio · Effort: M-L
 
-Due gap che bloccano il "più clienti attivi insieme":
-- **Twilio manuale:** oggi un solo numero attivo (sandbox) — vedi nota in `reference_onboard_wizard.md`. Automatizzare l'assegnazione del canale WhatsApp per tenant (numero dedicato o routing per slug) dentro l'orchestrator.
-- **Stato tenant assente (scoperta #3):** aggiungere `tenants.status` (es. `pending` / `trial` / `active` / `suspended`) e gating: un tenant non `active` non riceve traffico/non consuma. Centralizzare le 3 vie di creazione tenant (scoperta #2) così lo stato iniziale è coerente.
+Due gap che bloccano il "più clienti attivi insieme". **La parte "stato tenant" è fatta** (2026-05-21); la parte Twilio resta in attesa dei clienti reali.
 
-**Verifica:** due tenant attivi contemporaneamente ricevono e rispondono ai propri messaggi WhatsApp senza interferenze.
+> **✅ FATTO — Stato tenant (scoperta #3 + #2).** Aggiunta la colonna `tenants.status` (`pending`/`trial`/`active`/`suspended`, default `active`, applicata via Management API — il presunto blocco "DDL non applicabile" della sessione prima era falso: esiste un token Management per BaliFlow). **Una sola fonte di verità** in `src/lib/tenants/status.ts` (`tenantReceivesTraffic`, `TENANT_STATUSES`, `isTenantStatus`), letta da app + admin + futuro motore. **Gate sul traffico** in un solo punto-imbuto: `src/app/api/webhooks/route.ts` rifiuta (403) un tenant non live (`pending`/`suspended`) → non consuma AI/conversazioni. **3 vie di creazione unificate** in un solo helper `src/lib/tenants/create-tenant.ts` (self-signup→`trial`, demo guest→`active`, wizard admin→`active`), così lo stato iniziale è coerente. **Admin:** stato visibile + modificabile (badge + dropdown) sulla pagina tenant `/admin/tenant/[id]` (solo platform_admin; PATCH ora protetto da `assertPlatformAdmin`). I 3 tenant demo restano `active` (comportamento invariato). Test live: tenant sospeso→403, attivo→passa il gate; self-signup→`trial`; dati di test cancellati. tsc 0, 74/74 test (7 nuovi), build 0.
+
+> **⏸️ RESTA — Twilio manuale (gated ai clienti reali).** Oggi un solo numero attivo (sandbox) — vedi `reference_onboard_wizard.md`. Automatizzare l'assegnazione del canale WhatsApp per tenant (numero dedicato o routing per slug) dentro l'orchestrator. Da fare quando arrivano i primi clienti veri (numeri reali, non sandbox).
+
+**Verifica (parte Twilio):** due tenant attivi contemporaneamente ricevono e rispondono ai propri messaggi WhatsApp senza interferenze.
 
 ---
 
@@ -240,6 +242,7 @@ Mossa 6 (motore unico) ── FUTURO, gated dal segnale della Mossa 4
 
 > Formato riga: `AAAA-MM-GG — Mossa N — cosa fatto — commit <hash>`. La riga più recente in cima.
 
+- 2026-05-21 — Mossa 5 (parte "stato tenant") — colonna `tenants.status` (pending/trial/active/suspended, default active) via Management API; fonte unica `src/lib/tenants/status.ts` (`tenantReceivesTraffic`); gate traffico in `src/app/api/webhooks/route.ts` (403 se non live → non consuma); creazione tenant unificata in `src/lib/tenants/create-tenant.ts` (self-signup→trial, demo→active, wizard→active); admin: stato visibile+modificabile su `/admin/tenant/[id]` (PATCH protetto da assertPlatformAdmin). 3 demo tenant restano active. Test live: sospeso→403/attivo→passa, self-signup→trial, cleanup ok. tsc 0, 74/74 (7 nuovi), build 0. Resta solo l'automazione Twilio (gated ai clienti reali). — commit 7efc256
 - 2026-05-21 — Mossa 3 — feature flags: nuovo tipo `TenantSettings` + blocco `features` (7 flag) in `src/lib/types/tenant-settings.ts` (`DEFAULT_FEATURES`, `FEATURE_FLAGS`, helper `getFeatures()`), `Tenant.settings` tipato e retro-compatibile, tab **Funzionalità** in `/settings` (`FeaturesTab.tsx`, toggle semplici per owner+platform_admin), flag `waitlist_enabled` collegato alla Sidebar (config→comportamento, zero codice per cliente), i18n es/en/it/de. Default = comportamento attuale invariato. Test: tsc 0, 67/67 (5 nuovi su `getFeatures`), `next build` 0. — commit de787c2
 - 2026-05-21 — Mossa 4 — creato `docs/REGISTRO_VARIANTI.md`: tabella 3 colonne + 3 modalità (flag/template/custom) + regola d'oro + criterio "giorno della fusione" + 13 varianti note pre-popolate (elenco finito, già in gran parte coperto). — commit de787c2
 - 2026-05-21 — Mossa 2 — Picnic promosso a Template Ufficiale: rinominate costanti `PICNIC_*` → `TEMPLATE_RESTAURANT_*` (substitute.ts + orchestrator.ts), aggiunti commenti golden-source, rimossa costante morta `PICNIC_TENANT_ID` da orchestrator, `business_type` annotato "single vertical by design". Rename behavior-preserving (literal regex `picnic-*`/`PICNIC`/`[Picnic]` lasciati verbatim — matchano il contenuto live del template). Test: tsc exit 0, 62/62 test verdi. — commit f9986c6
