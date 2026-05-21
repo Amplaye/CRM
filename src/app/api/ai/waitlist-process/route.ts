@@ -37,15 +37,21 @@ export async function POST(request: Request) {
 
     const supabase = createServiceRoleClient();
 
-    // Per-tenant owner phone — fall back to Picnic default only if the
-    // tenant hasn't configured one yet. Prevents cross-tenant messages
-    // when more than one restaurant uses this endpoint.
+    // Per-tenant owner phone, read strictly from this tenant's own settings.
+    // No Picnic fallback: a missing owner_phone means the tenant isn't fully
+    // onboarded, so we error out instead of messaging another restaurant's owner.
     const { data: tenantRow } = await supabase
       .from('tenants')
       .select('settings')
       .eq('id', tenant_id)
       .maybeSingle();
-    const ownerPhoneRaw = (((tenantRow?.settings as unknown) as { owner_phone?: string })?.owner_phone) || '+34641790137';
+    const ownerPhoneRaw = ((tenantRow?.settings as unknown) as { owner_phone?: string })?.owner_phone;
+    if (!ownerPhoneRaw) {
+      return NextResponse.json(
+        { success: false, error: "owner_phone not configured for this tenant. Run onboarding first." },
+        { status: 400 }
+      );
+    }
     const ownerPhone = ownerPhoneRaw.startsWith('whatsapp:') ? ownerPhoneRaw : `whatsapp:${ownerPhoneRaw}`;
 
     // Expire stale offers first (no reply within TTL) so their tables can be

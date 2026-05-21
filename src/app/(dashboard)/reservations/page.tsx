@@ -375,23 +375,26 @@ export default function ReservationsPage() {
           body: JSON.stringify({ to: guestPhone, message: confirmMsg }),
         }).catch((e) => console.error("WhatsApp confirm error:", e));
       }
-      const ownerPhone =
-        ((activeTenant as any)?.settings?.owner_phone as string | undefined) || '+34641790137';
-      const ownerMsg = buildOwnerNewBookingMessage({
-        date: dateValue,
-        time: timeValue,
-        partySize,
-        guestName,
-        guestPhone,
-        zone: zoneFromTables ?? null,
-        tableNames,
-        notes: notesValue,
-      });
-      fetch("/api/send-whatsapp", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ to: ownerPhone, message: ownerMsg }),
-      }).catch(() => {});
+      // Notify the owner only on THIS tenant's configured number. No Picnic
+      // fallback: if it's not set yet, we simply skip the owner notification.
+      const ownerPhone = (activeTenant as any)?.settings?.owner_phone as string | undefined;
+      if (ownerPhone) {
+        const ownerMsg = buildOwnerNewBookingMessage({
+          date: dateValue,
+          time: timeValue,
+          partySize,
+          guestName,
+          guestPhone,
+          zone: zoneFromTables ?? null,
+          tableNames,
+          notes: notesValue,
+        });
+        fetch("/api/send-whatsapp", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ to: ownerPhone, message: ownerMsg }),
+        }).catch(() => {});
+      }
 
       setSelectedTableIds([]);
       setIsCreating(false);

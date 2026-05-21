@@ -477,7 +477,7 @@ export const en = {
   settings_voicemail_schedule: "Automatic schedule",
   settings_voicemail_schedule_desc: "Time windows when the voicemail turns itself on each day. Outside these windows, calls forward to the owner.",
   settings_voicemail_forward: "Owner's phone (forwarding)",
-  settings_voicemail_forward_hint: "International format, e.g. +34641790137",
+  settings_voicemail_forward_hint: "International format, e.g. +34 600 000 000",
   settings_voicemail_message: "Voicemail script",
   settings_voicemail_message_es: "Spanish message",
   settings_voicemail_message_en: "English message",

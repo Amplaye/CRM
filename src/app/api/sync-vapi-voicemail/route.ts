@@ -4,13 +4,6 @@ import { assertAiSecret } from "@/lib/ai-auth";
 
 const VAPI_BASE = "https://api.vapi.ai";
 
-const TENANT_VAPI_FALLBACK: Record<string, { assistantId: string; timezone: string }> = {
-  "626547ff-bc44-4f35-8f42-0e97f1dcf0d5": {
-    assistantId: "6c92f776-abb2-4175-8a55-45d76ec01d1a",
-    timezone: "Atlantic/Canary",
-  },
-};
-
 const VM_BLOCK_START = "<!-- VOICEMAIL_BLOCK_START -->";
 const VM_BLOCK_END = "<!-- VOICEMAIL_BLOCK_END -->";
 
@@ -111,10 +104,10 @@ function injectBlock(prompt: string, block: string): string {
   return block + "\n\n" + prompt;
 }
 
-function pickFirstMessage(active: boolean, _vm: VoicemailConfig): string {
+function pickFirstMessage(active: boolean, restaurantName: string): string {
   // Short neutral opener in both modes. The system-prompt block then drives behavior
   // (read voicemail script OR call transferCall).
-  if (active) return "Hola, restaurante Picnic.";
+  if (active) return `Hola, ${restaurantName}.`;
   return "Un momento, por favor.";
 }
 
@@ -175,9 +168,9 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "vapi_voicemail not configured for this tenant" }, { status: 400 });
     }
 
-    const vapiCfg = settings.vapi || TENANT_VAPI_FALLBACK[tenant_id];
+    const vapiCfg = settings.vapi;
     if (!vapiCfg?.assistantId) {
-      return NextResponse.json({ error: "Vapi assistantId not configured for this tenant" }, { status: 400 });
+      return NextResponse.json({ error: "Vapi assistantId not configured for this tenant. Run onboarding first." }, { status: 400 });
     }
     const tz = vapiCfg.timezone || settings.timezone || "Atlantic/Canary";
 
@@ -233,7 +226,7 @@ export async function POST(req: NextRequest) {
         messages: newMessages,
         tools: withTransferCall(assistant?.model?.tools, vm.forward_phone),
       },
-      firstMessage: pickFirstMessage(active, vm),
+      firstMessage: pickFirstMessage(active, tenant.name),
     };
 
     const patchRes = await fetch(`${VAPI_BASE}/assistant/${vapiCfg.assistantId}`, {

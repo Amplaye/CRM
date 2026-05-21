@@ -3,19 +3,20 @@ import { createServiceRoleClient } from "@/lib/supabase/server";
 
 export async function POST(req: NextRequest) {
   try {
-    const { userId, businessName, businessType } = await req.json();
-    if (!userId || !businessName || !businessType) {
+    const { userId, businessName } = await req.json();
+    if (!userId || !businessName) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
     }
 
     const supabase = createServiceRoleClient();
 
-    // Create the tenant
+    // Create the tenant. Single vertical: every new workspace is a restaurant.
+    // We hardcode it here rather than trusting a value from the form.
     const { data: tenant, error: tenantErr } = await supabase
       .from("tenants")
       .insert({
         name: businessName,
-        business_type: businessType,
+        business_type: "restaurant",
         settings: {
           timezone: "Europe/Rome",
           currency: "EUR",

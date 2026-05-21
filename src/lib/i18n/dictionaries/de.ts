@@ -480,7 +480,7 @@ export const de: Dictionary = {
   settings_voicemail_schedule: "Automatischer Zeitplan",
   settings_voicemail_schedule_desc: "Zeitfenster, in denen sich der Anrufbeantworter täglich von selbst einschaltet. Außerhalb dieser Fenster werden Anrufe an den Inhaber weitergeleitet.",
   settings_voicemail_forward: "Telefon des Inhabers (Weiterleitung)",
-  settings_voicemail_forward_hint: "Internationales Format, z. B. +34641790137",
+  settings_voicemail_forward_hint: "Internationales Format, z. B. +34 600 000 000",
   settings_voicemail_message: "Ansagetext",
   settings_voicemail_message_es: "Nachricht auf Spanisch",
   settings_voicemail_message_en: "Nachricht auf Englisch",

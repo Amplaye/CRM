@@ -13,20 +13,6 @@ function isPromptArticle(title: string): boolean {
   return title.toUpperCase().replace(/[^A-Z]/g, "") === "VOICEPROMPT";
 }
 
-// Picnic-only fallback. Every other tenant must have settings.retell.{ llmId,
-// agentId, timezone, locale } populated by the onboarding wizard.
-const TENANT_CONFIG_FALLBACK: Record<
-  string,
-  { llmId: string; agentId: string; timezone: string; locale: string }
-> = {
-  "626547ff-bc44-4f35-8f42-0e97f1dcf0d5": {
-    llmId: "llm_d19f792cd11a22132956f81dc7fe",
-    agentId: "agent_985ab572aeb67df9d2612fbb4e",
-    timezone: "Atlantic/Canary",
-    locale: "es-ES",
-  },
-};
-
 // Builds a minimal FECHA header with just HOY + MAÑANA (~150c).
 // For any other day-of-week reference ("este viernes", "lunes", "el 5 de
 // mayo"), the model is instructed to call get_current_date first. That tool
@@ -193,24 +179,19 @@ export async function POST(req: NextRequest) {
       .single();
     if (tenantErr || !tenant) return NextResponse.json({ error: "Tenant not found" }, { status: 404 });
 
-    // Resolve Retell config: prefer the tenant.settings.retell block populated
-    // by the onboarding wizard; fall back to the hardcoded Picnic entry.
+    // Resolve Retell config strictly from the tenant's own settings, populated
+    // by the onboarding wizard. No cross-tenant fallback: if it's missing the
+    // tenant simply hasn't been onboarded yet, and we say so explicitly.
     const tenantRetell = (tenant.settings as any)?.retell;
-    const cfg = (tenantRetell && tenantRetell.llmId && tenantRetell.agentId)
-      ? {
-          llmId: tenantRetell.llmId,
-          agentId: tenantRetell.agentId,
-          timezone: tenantRetell.timezone || "Atlantic/Canary",
-          locale: tenantRetell.locale || "es-ES",
-        }
-      : TENANT_CONFIG_FALLBACK[tenant_id];
-    if (!cfg) {
+    if (!tenantRetell || !tenantRetell.llmId || !tenantRetell.agentId) {
       return NextResponse.json(
         { error: `No Retell config for tenant ${tenant_id}. Run onboarding first.` },
         { status: 400 }
       );
     }
-    const { llmId, agentId, timezone, locale } = cfg;
+    const { llmId, agentId } = tenantRetell;
+    const timezone = tenantRetell.timezone || "Atlantic/Canary";
+    const locale = tenantRetell.locale || "es-ES";
 
     const { data: allArticles, error: artErr } = await supabase
       .from("knowledge_articles")

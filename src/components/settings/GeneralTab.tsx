@@ -65,15 +65,17 @@ const DEFAULT_OPENING_HOURS: OpeningHours = {
   "6": [{ open: "12:30", close: "15:30" }, { open: "19:30", close: "22:30" }],
 };
 
+// Neutral defaults — no restaurant name, no phone pre-filled. The owner sets
+// their own forwarding number and (optionally) personalizes the scripts.
 const DEFAULT_VOICEMAIL: VoicemailConfig = {
   enabled: false,
   schedule: { "0": [], "1": [], "2": [], "3": [], "4": [], "5": [], "6": [] },
-  forward_phone: "+34641790137",
+  forward_phone: "",
   message: {
-    es: "Hola, soy el contestador del restaurante Picnic. Ahora estamos cerrados. Si quiere reservar puede escribirnos por WhatsApp al mismo número o llamar durante el horario de apertura. Gracias.",
-    en: "Hi, this is the answering machine of restaurant Picnic. We are closed right now. To book a table please message us on WhatsApp at this same number or call us during opening hours. Thank you.",
-    it: "Ciao, sono la segreteria del ristorante Picnic. Adesso siamo chiusi. Per prenotare può scriverci su WhatsApp allo stesso numero o richiamare negli orari di apertura. Grazie.",
-    de: "Hallo, hier ist der Anrufbeantworter des Restaurants Picnic. Wir haben gerade geschlossen. Für eine Reservierung schreiben Sie uns bitte auf WhatsApp unter derselben Nummer oder rufen Sie während der Öffnungszeiten an. Danke.",
+    es: "Hola, ha llamado al contestador del restaurante. Ahora estamos cerrados. Si quiere reservar puede escribirnos por WhatsApp al mismo número o llamar durante el horario de apertura. Gracias.",
+    en: "Hi, you've reached the restaurant's answering machine. We are closed right now. To book a table please message us on WhatsApp at this same number or call us during opening hours. Thank you.",
+    it: "Ciao, ha chiamato la segreteria del ristorante. Adesso siamo chiusi. Per prenotare può scriverci su WhatsApp allo stesso numero o richiamare negli orari di apertura. Grazie.",
+    de: "Hallo, Sie haben den Anrufbeantworter des Restaurants erreicht. Wir haben gerade geschlossen. Für eine Reservierung schreiben Sie uns bitte auf WhatsApp unter derselben Nummer oder rufen Sie während der Öffnungszeiten an. Danke.",
   },
 };
 
@@ -476,7 +478,7 @@ export function GeneralTab() {
               onChange={(e) => setVoicemail(prev => ({ ...prev, forward_phone: e.target.value }))}
               className={`mt-1 ${inputStyle}`}
               style={inputBorder}
-              placeholder="+34641790137"
+              placeholder="+34 600 000 000"
             />
             <p className="mt-1 text-xs text-black/70">{t("settings_voicemail_forward_hint")}</p>
           </div>

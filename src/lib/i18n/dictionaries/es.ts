@@ -480,7 +480,7 @@ export const es: Dictionary = {
   settings_voicemail_schedule: "Horario automático",
   settings_voicemail_schedule_desc: "Franjas en las que el contestador se activa solo cada día. Fuera de estas franjas las llamadas se desvían al responsable.",
   settings_voicemail_forward: "Teléfono del responsable (desvío)",
-  settings_voicemail_forward_hint: "Formato internacional, ej. +34641790137",
+  settings_voicemail_forward_hint: "Formato internacional, ej. +34 600 000 000",
   settings_voicemail_message: "Texto del contestador",
   settings_voicemail_message_es: "Mensaje en español",
   settings_voicemail_message_en: "Mensaje en inglés",

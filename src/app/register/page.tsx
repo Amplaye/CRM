@@ -3,37 +3,20 @@
 import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
-import { Loader2, Lock, Mail, User, Building2, UtensilsCrossed, ShoppingBag, CalendarCheck, CheckCircle } from "lucide-react";
+import { Loader2, Lock, Mail, User, Building2, CheckCircle } from "lucide-react";
 import Link from "next/link";
 import { useLanguage } from "@/lib/contexts/LanguageContext";
 
-const businessTypes = [
-  {
-    value: "restaurant",
-    label: "Restaurant",
-    description: "Reservations, waitlist, table management",
-    icon: UtensilsCrossed
-  },
-  {
-    value: "ecommerce",
-    label: "E-commerce",
-    description: "Orders, catalog, customers",
-    icon: ShoppingBag
-  },
-  {
-    value: "services",
-    label: "Services",
-    description: "Appointments, calendar, clients",
-    icon: CalendarCheck
-  },
-];
+// Single vertical: this is the restaurant CRM. We no longer ask the user to
+// pick a business type — every workspace is a restaurant. (The server forces
+// business_type="restaurant" regardless of what the client sends.)
+const BUSINESS_TYPE = "restaurant";
 
 export default function RegisterPage() {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [businessName, setBusinessName] = useState("");
-  const [businessType, setBusinessType] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [step, setStep] = useState(1);
@@ -43,10 +26,6 @@ export default function RegisterPage() {
 
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!businessType) {
-      setError("Please select a business type.");
-      return;
-    }
     setError("");
     setLoading(true);
 
@@ -78,10 +57,10 @@ export default function RegisterPage() {
           body: JSON.stringify({
             userId: signUpData.user.id,
             businessName,
-            businessType
+            businessType: BUSINESS_TYPE
           })
         });
-        setStep(3); // Show confirmation message
+        setStep(2); // Show confirmation message
         setLoading(false);
         return;
       }
@@ -98,7 +77,7 @@ export default function RegisterPage() {
           body: JSON.stringify({
             userId: signUpData.user.id,
             businessName,
-            businessType
+            businessType: BUSINESS_TYPE
           })
         });
         if (!res.ok) {
@@ -139,56 +118,6 @@ export default function RegisterPage() {
           )}
 
           {step === 1 && (
-            <div className="space-y-6">
-              <div>
-                <label className="block text-sm font-semibold text-zinc-900 mb-3">{t("auth_business_type")}</label>
-                <div className="space-y-3">
-                  {businessTypes.map((bt) => (
-                    <button
-                      key={bt.value}
-                      type="button"
-                      onClick={() => setBusinessType(bt.value)}
-                      className={`w-full flex items-center p-4 border-2 rounded-xl transition-all text-left ${
-                        businessType === bt.value
-                          ? "border-[#c4956a] shadow-sm"
-                          : "border-[#c4956a]/40 hover:border-[#c4956a]"
-                      }`}
-                      style={{ background: businessType === bt.value ? 'rgba(196,149,106,0.15)' : 'rgba(252,246,237,0.6)' }}
-                    >
-                      <div className={`w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0`} style={{ background: businessType === bt.value ? 'rgba(196,149,106,0.2)' : 'rgba(196,149,106,0.1)' }}>
-                        <bt.icon className={`h-5 w-5 ${
-                          businessType === bt.value ? "text-[#c4956a]" : "text-black"
-                        }`} />
-                      </div>
-                      <div className="ml-4">
-                        <p className={`text-sm font-semibold ${
-                          businessType === bt.value ? "text-[#c4956a]" : "text-zinc-900"
-                        }`}>{bt.label}</p>
-                        <p className="text-xs text-black mt-0.5">{bt.description}</p>
-                      </div>
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <button
-                onClick={() => {
-                  if (!businessType) {
-                    setError("Please select a business type.");
-                    return;
-                  }
-                  setError("");
-                  setStep(2);
-                }}
-                className="w-full flex justify-center py-2.5 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#c4956a] transition-colors"
-                style={{ background: 'linear-gradient(135deg, #c4956a 0%, #b8845c 100%)' }}
-              >
-                {t("auth_continue")}
-              </button>
-            </div>
-          )}
-
-          {step === 2 && (
             <form className="space-y-5" onSubmit={handleRegister}>
               <div>
                 <label className="block text-sm font-medium text-black">{t("auth_your_name")}</label>
@@ -263,28 +192,18 @@ export default function RegisterPage() {
                 </div>
               </div>
 
-              <div className="flex gap-3">
-                <button
-                  type="button"
-                  onClick={() => setStep(1)}
-                  className="flex-1 flex justify-center py-2.5 px-4 border-2 rounded-md shadow-sm text-sm font-medium text-black transition-colors"
-                  style={{ borderColor: '#c4956a', background: 'rgba(252,246,237,0.6)' }}
-                >
-                  {t("auth_back")}
-                </button>
-                <button
-                  type="submit"
-                  disabled={loading}
-                  className="flex-[2] flex justify-center py-2.5 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#c4956a] disabled:opacity-50 transition-colors"
-                  style={{ background: 'linear-gradient(135deg, #c4956a 0%, #b8845c 100%)' }}
-                >
-                  {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : t("auth_create_account")}
-                </button>
-              </div>
+              <button
+                type="submit"
+                disabled={loading}
+                className="w-full flex justify-center py-2.5 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#c4956a] disabled:opacity-50 transition-colors"
+                style={{ background: 'linear-gradient(135deg, #c4956a 0%, #b8845c 100%)' }}
+              >
+                {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : t("auth_create_account")}
+              </button>
             </form>
           )}
 
-          {step === 3 && (
+          {step === 2 && (
             <div className="text-center space-y-4">
               <CheckCircle className="mx-auto h-12 w-12 text-emerald-500" />
               <h3 className="text-lg font-semibold text-zinc-900">{t("auth_check_email")}</h3>
@@ -300,7 +219,7 @@ export default function RegisterPage() {
             </div>
           )}
 
-          {step !== 3 && (
+          {step !== 2 && (
             <p className="mt-6 text-center text-sm text-black">
               {t("auth_has_account")}{" "}
               <Link href="/login" className="font-medium text-[#c4956a] hover:text-[#b8845c]">

@@ -1,7 +1,22 @@
 import { NextResponse } from "next/server";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 
-const PICNIC_WEBHOOK = "https://n8n.srv1468837.hstgr.cloud/webhook/picnic-whatsapp";
+// Shared n8n instance host. The per-tenant WhatsApp webhook lives at
+// `${N8N_WEBHOOK_BASE}/${slug}-whatsapp` — same naming convention the onboarding
+// orchestrator uses when it clones the workflows (picnic-* → {slug}-*).
+const N8N_WEBHOOK_BASE = "https://n8n.srv1468837.hstgr.cloud/webhook";
+
+// Tenants have no stored `slug` column; the webhook slug is derived from the
+// restaurant name the same way onboarding does (lowercase ASCII, hyphenated).
+// e.g. "PICNIC" → "picnic", "Trattoria Rossa" → "trattoria-rossa".
+function slugifyName(name: string): string {
+  return name
+    .normalize("NFKD")
+    .replace(/[̀-ͯ]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
 
 // Clears the bot_paused_at flag for a guest, then optionally re-triggers the
 // WhatsApp bot with the latest user message so it can pick up the booking
@@ -16,7 +31,7 @@ export async function POST(request: Request) {
 
     const { data: guest, error: gErr } = await supabase
       .from("guests")
-      .select("id, name, phone")
+      .select("id, name, phone, tenant_id")
       .eq("id", guest_id)
       .maybeSingle();
     if (gErr) throw gErr;
@@ -47,13 +62,27 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: true, retriggered: false, reason: "no last user message" });
     }
 
+    // Resolve the guest's own restaurant to build its WhatsApp webhook URL.
+    // No Picnic fallback: if the tenant is missing we skip the re-trigger
+    // (the unpause above already happened) instead of poking another tenant's bot.
+    const { data: tenant } = await supabase
+      .from("tenants")
+      .select("name")
+      .eq("id", guest.tenant_id)
+      .maybeSingle();
+    const slug = tenant?.name ? slugifyName(tenant.name) : "";
+    if (!slug) {
+      return NextResponse.json({ success: true, retriggered: false, reason: "tenant slug unavailable" });
+    }
+    const webhookUrl = `${N8N_WEBHOOK_BASE}/${slug}-whatsapp`;
+
     const phoneE164 = guest.phone.startsWith("+") ? guest.phone : "+" + guest.phone.replace(/\D/g, "");
     const form = new URLSearchParams();
     form.set("From", "whatsapp:" + phoneE164);
     form.set("Body", lastUserMessage);
     form.set("ProfileName", guest.name || "");
 
-    const res = await fetch(PICNIC_WEBHOOK, {
+    const res = await fetch(webhookUrl, {
       method: "POST",
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
       body: form.toString(),

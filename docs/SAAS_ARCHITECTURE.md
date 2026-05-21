@@ -38,6 +38,16 @@ La domanda-test per qualsiasi nuova feature:
 
 ---
 
+## 2-bis. Focus: UN solo verticale — i ristoranti (decisione utente, 2026-05-21)
+
+> **Questo CRM è e resta il CRM *per ristoranti*. Punto.**
+
+Oggi la pagina di registrazione offre 3 tipi di attività (ristorante / ecommerce / servizi), ma dietro ecommerce e servizi **non c'è nulla** — è una "porta dipinta sul muro". Per un investitore tre verticali vuoti pre-clienti sono il segnale opposto a quello che vogliamo: dicono *"agenzia che spruzza e prega"*, non *"prodotto focalizzato"*. Quindi: si tolgono ecommerce e servizi dalla registrazione (resta solo ristorante).
+
+**Visione futura (preferenza utente):** se un domani ci si espande ad altri settori, saranno **prodotti separati e dedicati**, NON questo CRM gonfiato per fare tutto. Conseguenza positiva sul presente: niente complessità multi-business qui dentro. La colonna `business_type` resta nel database come gancio dormiente (fissa a `restaurant`), ma non costruiamo varianti che non esistono. Quel futuro lontano riuserà questo come *scheletro* (account, fatturazione, infrastruttura AI sono comuni), non ripartirà da zero — ma è una decisione da prendere col mercato, non ora.
+
+---
+
 ## 3. Dove siamo oggi (verdetto: ~60% SaaS, ~40% agenzia)
 
 Basato sull'analisi del codice in `/Users/amplaye/CRM` e dell'infrastruttura n8n/Retell.
@@ -77,6 +87,14 @@ Il collegamento del numero WhatsApp non è automatizzato. Oggi un solo numero at
 **Problema 4 — Manutenzione a mano per cliente**
 Cartelle di backup (`/Users/amplaye/N8N/picnic/`) mostrano ritocchi manuali iterativi. Comportamento da agenzia. Va eliminato: ogni modifica deve passare dal template, mai dal singolo cliente.
 
+### 🔎 Tre scoperte dall'analisi del codice (fatti, non opinioni)
+
+Tre cose emerse leggendo il codice, che spiegano *perché* i prossimi interventi sono quelli giusti:
+
+1. **`business_type` è un filo scollegato.** La colonna esiste e viene scritta quando si crea un cliente, ma **non viene mai letta per cambiare comportamento** (nessun "se è ristorante fai X"). Cioè: il gancio per i template-per-tipo c'è, ma non è collegato a niente. (Coerente col focus ristorante: per ora resta dormiente, fisso a `restaurant`.)
+2. **Tre modi diversi di creare un cliente, non centralizzati.** Self-registration pubblica, demo guest, e wizard admin: tre strade separate, ognuna scrive a modo suo. Vanno unificate (quando arriveremo allo "stato del cliente").
+3. **Nessuno "stato" del cliente.** Appena creato, un cliente è subito "vivo": non esiste *in attesa / in prova / attivo / sospeso*. Manca quindi il filtro tra "si è registrato" e "può ricevere traffico". È il pezzo che servirà per avere più clienti attivi insieme in sicurezza.
+
 ---
 
 ## 4. La decisione chiave: come risolvere il Problema #2
@@ -93,10 +111,18 @@ Si tengono le copie, ma gestite bene. I workflow si clonano da un **template uff
 - 🟢 Veloce da realizzare da dove siamo. Rischio basso (un cliente rotto non rompe gli altri). Storia investitori comunque valida: "template standard + aggiornamenti automatici".
 - 🔴 Restano N copie da gestire. La propagazione automatica è codice da costruire/mantenere. Meno "puro".
 
-### Raccomandazione
-> **Opzione B adesso, architettura pronta per l'Opzione A dopo.**
+### Raccomandazione — il "clone-trampolino" (decisione presa con l'utente, 2026-05-21)
+> **Destinazione: motore unico (Opzione A).** L'utente vuole centinaia/migliaia di ristoranti, e a quei numeri il clone non regge.
+> **Strada: NON costruirlo ora.** Con zero clienti, costruire il motore unico significa indovinare al buio e bruciare mesi. Si parte da un **"clone-trampolino"**: un clone versionato (Opzione B) ma scritto *già orientato* al motore unico, così la migrazione futura è un'evoluzione, non una riscrittura.
 
-Motivo: l'Opzione A pura, senza un cliente reale, significa indovinare cosa serve e rischiare di bruciare mesi senza acquisire nessuno. L'Opzione B dà *subito* una storia SaaS credibile e lascia migrare al motore unico **quando i primi clienti veri** diranno cosa serve davvero. Si decide di nuovo dopo i primi 3-5 clienti.
+Perché "trampolino" e non solo "clone": ogni gradino (template ufficiale, feature flag, logica condizionale che legge i flag dal DB) avvicina al motore unico invece di allontanarsene. Quando migreremo, sposteremo logica **già testata sui clienti veri**, non codice scritto al buio.
+
+**Quando migrare al motore unico (il criterio, non una data):** quando il "registro varianti" (vedi sotto) smette di crescere — cioè quando **3-4 clienti di fila non chiedono niente di strutturalmente nuovo** (tipicamente tra i 5 e i 15 clienti). È un segnale dai dati, non una scadenza sul calendario.
+
+**Storia per gli investitori scelta dall'utente:** *"funziona ed è affidabile"* prima di *"scala all'infinito"*. Quindi: rischio basso e robustezza prima di tutto. Un cliente che si rompe non deve romperne altri — ed è esattamente ciò che il clone-trampolino garantisce nella fase iniziale.
+
+#### Il registro varianti (la bussola per il "giorno della fusione")
+Terremo un elenco (`docs/REGISTRO_VARIANTI.md`) dove ogni volta che un cliente chiede qualcosa che il motore non fa, lo annotiamo: *cosa ha chiesto · quale cliente · come l'abbiamo risolto (interruttore / template / custom a pagamento)*. Serve a due cose: (1) dimostrare agli investitori che le esigenze **non sono infinite** (la curva si appiattisce), e (2) sapere quando le varianti si sono stabilizzate → è quello il momento di unificare il motore.
 
 ---
 

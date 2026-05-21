@@ -20,16 +20,16 @@ Legenda stato: `⬜ da fare` · `🔄 in corso` · `✅ fatto` · `⏸️ futuro
 
 | # | Mossa | Stato | Impatto | Rischio |
 |---|-------|-------|---------|---------|
-| 0 | Allineare la bussola (doc) | ⬜ | — | nessuno |
-| 1 | Pulizia ripieghi Picnic (~19 punti) | ⬜ | ALTO | basso |
-| 1B | Focus ristorante: semplificare la registrazione | ⬜ | ALTO (narrativa) | basso |
+| 0 | Allineare la bussola (doc) | ✅ | — | nessuno |
+| 1 | Pulizia ripieghi Picnic (~19 punti) | ✅ | ALTO | basso |
+| 1B | Focus ristorante: semplificare la registrazione | ✅ | ALTO (narrativa) | basso |
 | 2 | Picnic → Template Ufficiale (1 solo template) | ⬜ | ALTO | basso-medio |
 | 3 | Feature flags (CRM adattabile) | ⬜ | ALTO | basso |
 | 4 | Registro varianti (criterio fusione) | ⬜ | MEDIO | nessuno |
 | 5 | Twilio auto + stato tenant | ⬜ | ALTO | medio |
 | 6 | Motore unico (Opzione A) | ⏸️ | ALTO | alto |
 
-> **Prima mossa non ✅ = da dove riparto.** Oggi: **Mossa 1** (+ Mossa 0).
+> **Prima mossa non ✅ = da dove riparto.** Prossima volta: **Mossa 2** (Picnic → Template Ufficiale).
 
 ---
 
@@ -76,14 +76,18 @@ L'investitore teme che Bali Flow sia **un'agenzia travestita da software**: se o
 ## LE 6 MOSSE (in ordine di esecuzione)
 
 ### MOSSA 0 — Allineare la bussola (doc) alle scoperte
-**Stato: ⬜ da fare** · Rischio: nessuno (solo doc) · Effort: XS
+**Stato: ✅ fatto** · Rischio: nessuno (solo doc) · Effort: XS
 
 Aggiornare `/Users/amplaye/CRM/docs/SAAS_ARCHITECTURE.md` con: la decisione "clone-trampolino", il criterio "registro varianti" per la migrazione, e le scoperte (business_type scollegato, 3 vie di creazione tenant, niente stato tenant). Rigenerare il PDF in `~/Downloads/` con lo script `/tmp/md2pdf.py` (interprete: `/opt/homebrew/Cellar/weasyprint/68.1/libexec/bin/python`).
 
 ---
 
 ### MOSSA 1 — Pulizia: togliere i "ripieghi su Picnic"
-**Stato: ⬜ da fare** · Rischio: basso · Effort: S · **Impatto investitore: ALTO** (toglie il segnale d'allarme #1)
+**Stato: ✅ fatto** · Rischio: basso · Effort: S · **Impatto investitore: ALTO** (toglie il segnale d'allarme #1)
+
+> **Due scoperte durante l'esecuzione (importanti per le mosse future):**
+> 1. **Non esiste la colonna `tenants.slug`.** Il codice di `resume-bot` la presupponeva. Risolto derivando lo slug dal nome del tenant (come fa l'onboarding: "PICNIC" → `picnic`). Da tenere a mente in Mossa 2/5.
+> 2. **La config di Picnic viveva SOLO nei ripieghi hardcoded** (Picnic non aveva `settings.retell`/`settings.vapi`/`settings.owner_phone`). Togliere i ripieghi l'avrebbe rotto. Risolto **migrando i valori identici dentro `settings` di Picnic** (modo SaaS: il dato vive nel DB). Confermato con l'utente che siamo in demo puro (numero sandbox Twilio, nessun cliente reale).
 
 Trasformare ogni fallback nascosto a Picnic in **errore esplicito** o **valore derivato dal tenant**. Picnic deve restare solo come *template* (Mossa 2), mai come ripiego runtime.
 
@@ -112,7 +116,9 @@ Trasformare ogni fallback nascosto a Picnic in **errore esplicito** o **valore d
 ---
 
 ### MOSSA 1B — Focus ristorante: semplificare la registrazione
-**Stato: ⬜ da fare** · Rischio: basso · Effort: S · **Impatto: ALTO sulla narrativa** (un verticale = storia investitori forte)
+**Stato: ✅ fatto** · Rischio: basso · Effort: S · **Impatto: ALTO sulla narrativa** (un verticale = storia investitori forte)
+
+> **Fatto:** rimosso del tutto il selettore di tipo-attività da `/register` (il form parte subito); `business_type` forzato a `"restaurant"` in `register-tenant` (anche se il client invia altro). La colonna `business_type` resta nel DB come gancio dormiente. Nessuna chiave i18n per-verticale orfana da togliere (le label del selettore erano hardcoded in inglese, non i18n).
 
 Rendere il prodotto onesto e focalizzato: questo è il CRM ristoranti, non una piattaforma multi-settore vuota.
 - `src/app/register/page.tsx` (~36, dropdown 55-83): rimuovere le opzioni `ecommerce` e `services`; lasciare solo ristorante (o togliere del tutto il selettore e fissare `restaurant`).
@@ -228,4 +234,7 @@ Mossa 6 (motore unico) ── FUTURO, gated dal segnale della Mossa 4
 
 > Formato riga: `AAAA-MM-GG — Mossa N — cosa fatto — commit <hash>`. La riga più recente in cima.
 
-- _(ancora nessuna fase eseguita — il piano è stato creato il 2026-05-21. Prima esecuzione prevista: Mossa 1 + Mossa 0.)_
+- 2026-05-21 — Mossa 1B — focus ristorante: tolto il selettore tipo-attività da `/register` (form diretto, niente ecommerce/services); `business_type` forzato a `restaurant` in `register-tenant`. Test: pagina senza selettore + API crea sempre `restaurant` anche se inviato `ecommerce`; tenant+utente di test cancellati. — commit <HASH>
+- 2026-05-21 — Mossa 1 — rimossi tutti i ripieghi Picnic runtime (sync-kb-retell, sync-vapi-voicemail, waitlist-process → errore esplicito; resume-bot → webhook da slug derivato dal nome; default voicemail e telefoni → neutri/dal tenant; hint i18n generici). Scoperte: niente colonna `slug` (derivato dal nome) + config Picnic viveva solo nei ripieghi → **migrata nelle settings di Picnic** (stessi valori). Test loop: tenant senza config → 3 errori "Run onboarding first"; Picnic supera il gate; tenant di test cancellato. tsc OK, 62/62 test. — commit <HASH>
+- 2026-05-21 — Mossa 0 — bussola `docs/SAAS_ARCHITECTURE.md` allineata (clone-trampolino, registro varianti + criterio fusione, focus ristorante-only, 3 scoperte tecniche); PDF rigenerato in `~/Downloads/SAAS_ARCHITECTURE.pdf` (387KB). — commit <HASH>
+- _(piano creato il 2026-05-21.)_

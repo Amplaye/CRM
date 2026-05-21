@@ -252,13 +252,17 @@ export default function PendingPage() {
           }).catch((e) => console.error("WhatsApp confirm error:", e));
         }
 
-        // Notify owner of manual confirmation
-        const ownerMsg = `📅 NUEVA RESERVA (confirmada manualmente)\n\n${req.guests?.name || ''}\n${formatDateLong(req.date, 'es')} ${req.time}\n${req.party_size} personas${assignedTableNames ? '\n🪑 ' + assignedTableNames : ''}${zoneLine}\nTel: ${guestPhone || '—'}`;
-        fetch("/api/send-whatsapp", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ to: '+34641790137', message: ownerMsg }),
-        }).catch(() => {});
+        // Notify owner of manual confirmation — send only to THIS tenant's
+        // configured owner phone. If it's missing we skip (no Picnic fallback).
+        const ownerPhone = (tenant as any)?.settings?.owner_phone as string | undefined;
+        if (ownerPhone) {
+          const ownerMsg = `📅 NUEVA RESERVA (confirmada manualmente)\n\n${req.guests?.name || ''}\n${formatDateLong(req.date, 'es')} ${req.time}\n${req.party_size} personas${assignedTableNames ? '\n🪑 ' + assignedTableNames : ''}${zoneLine}\nTel: ${guestPhone || '—'}`;
+          fetch("/api/send-whatsapp", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ to: ownerPhone, message: ownerMsg }),
+          }).catch(() => {});
+        }
 
         // Audit trail (best-effort)
         supabase.from('reservation_events').insert({
@@ -300,7 +304,9 @@ export default function PendingPage() {
           const rejectLang = (['es', 'it', 'en', 'de'] as const).includes(((rejectedReq as any).language || '') as any)
             ? ((rejectedReq as any).language as 'es' | 'it' | 'en' | 'de')
             : 'es';
-          const rejectMsg = `Hola${rejectedReq.guests?.name ? ' ' + rejectedReq.guests.name : ''}, lamentablemente no podemos aceptar tu solicitud de reserva para el ${formatDateLong(rejectedReq.date, rejectLang)} a las ${rejectedReq.time} (${rejectedReq.party_size} personas). Si quieres, puedes llamarnos al +34 828 712 623 para buscar otra fecha. ¡Gracias!`;
+          const restaurantPhone = (tenant as any)?.settings?.restaurant_phone as string | undefined;
+          const callPart = restaurantPhone ? ` Si quieres, puedes llamarnos al ${restaurantPhone} para buscar otra fecha.` : '';
+          const rejectMsg = `Hola${rejectedReq.guests?.name ? ' ' + rejectedReq.guests.name : ''}, lamentablemente no podemos aceptar tu solicitud de reserva para el ${formatDateLong(rejectedReq.date, rejectLang)} a las ${rejectedReq.time} (${rejectedReq.party_size} personas).${callPart} ¡Gracias!`;
           fetch("/api/send-whatsapp", {
             method: "POST",
             headers: { "Content-Type": "application/json" },

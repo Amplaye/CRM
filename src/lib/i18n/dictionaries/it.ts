@@ -480,7 +480,7 @@ export const it: Dictionary = {
   settings_voicemail_schedule: "Programmazione automatica",
   settings_voicemail_schedule_desc: "Fasce orarie in cui la segreteria si attiva da sola ogni giorno. Fuori da queste fasce, le chiamate vengono inoltrate al titolare.",
   settings_voicemail_forward: "Telefono del titolare (inoltro)",
-  settings_voicemail_forward_hint: "Formato internazionale, es. +34641790137",
+  settings_voicemail_forward_hint: "Formato internazionale, es. +34 600 000 000",
   settings_voicemail_message: "Testo della segreteria",
   settings_voicemail_message_es: "Messaggio in spagnolo",
   settings_voicemail_message_en: "Messaggio in inglese",
