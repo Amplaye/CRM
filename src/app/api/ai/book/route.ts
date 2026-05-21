@@ -22,6 +22,7 @@ import {
   checkOpeningHours,
 } from '@/lib/booking-validation';
 import { assertRateLimit } from '@/lib/rate-limit';
+import { getFeatures } from '@/lib/types/tenant-settings';
 
 export async function POST(request: Request) {
   const unauth = assertAiSecret(request);
@@ -107,6 +108,11 @@ export async function POST(request: Request) {
         .eq('phone', payload.guest_phone)
         .limit(1),
     ]);
+
+    // SaaS gate (Mossa 3): does this tenant run a waitlist? Read once from the
+    // settings we already fetched. When off, the three "full → waitlist" fallbacks
+    // below decline honestly instead of silently queuing the guest.
+    const waitlistEnabled = getFeatures(tenantRes.data?.settings).waitlist_enabled;
 
     // 0. Opening-hours guard — reject bookings on closed days or outside opening slots.
     // Same source of truth as /api/ai/availability: tenants.settings.opening_hours.
@@ -315,6 +321,18 @@ export async function POST(request: Request) {
 
       // No seats → add to waitlist instead of escalated (owner can't assign tables that don't exist)
       if (!hasCapacity) {
+        if (!waitlistEnabled) {
+          return NextResponse.json({
+            success: true,
+            on_waitlist: false,
+            status: 'full',
+            has_capacity: false,
+            free_seats: freeSeats,
+            party_size: payload.party_size,
+            shift,
+            message: `No hay plazas suficientes para ${payload.party_size} personas en ese turno (plazas libres: ${freeSeats}). No gestionamos lista de espera; ¿quieres probar con otra fecha u hora?`
+          });
+        }
         const { data: newWait, error: waitErr } = await supabase
           .from('waitlist_entries')
           .insert({
@@ -525,6 +543,19 @@ export async function POST(request: Request) {
     if (!requestedZone) {
       await supabase.from('reservations').delete().eq('id', newRes.id);
 
+      if (!waitlistEnabled) {
+        return NextResponse.json({
+          success: true,
+          on_waitlist: false,
+          status: 'full',
+          has_capacity: false,
+          free_seats_inside: freeSeatsByZone.inside,
+          free_seats_outside: freeSeatsByZone.outside,
+          party_size: payload.party_size,
+          message: `No hay plazas suficientes para ${payload.party_size} personas en ninguna zona (interior: ${freeSeatsByZone.inside}, exterior: ${freeSeatsByZone.outside}). No gestionamos lista de espera; ¿quieres probar con otra fecha u hora?`
+        });
+      }
+
       const { data: newWait, error: waitErr } = await supabase
         .from('waitlist_entries')
         .insert({
@@ -584,6 +615,18 @@ export async function POST(request: Request) {
     if (!atomicResult.success) {
       // Race condition — seats got taken between pre-check and RPC. Drop reservation, add to waitlist.
       await supabase.from('reservations').delete().eq('id', newRes.id);
+
+      if (!waitlistEnabled) {
+        return NextResponse.json({
+          success: true,
+          on_waitlist: false,
+          status: 'full',
+          has_capacity: false,
+          free_seats: atomicResult.free_seats,
+          party_size: payload.party_size,
+          message: `No hay plazas suficientes en el turno. No gestionamos lista de espera; ¿quieres probar con otra fecha u hora?`
+        });
+      }
 
       const { data: newWait, error: waitErr } = await supabase
         .from('waitlist_entries')

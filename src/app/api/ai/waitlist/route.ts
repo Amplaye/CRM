@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { createServiceRoleClient } from '@/lib/supabase/server';
 import { logAuditEvent } from '@/lib/audit';
 import { assertAiSecret } from '@/lib/ai-auth';
+import { getTenantFeatures } from '@/lib/tenants/features';
 
 export async function POST(request: Request) {
   const unauth = assertAiSecret(request);
@@ -35,6 +36,17 @@ export async function POST(request: Request) {
     }
 
     const supabase = createServiceRoleClient();
+
+    // SaaS gate (Mossa 3): respect this tenant's waitlist_enabled flag. A
+    // restaurant that turned waitlists off must not have guests silently queued
+    // by the bot — config controls engine behaviour, not just the CRM sidebar.
+    const { waitlist_enabled } = await getTenantFeatures(payload.tenant_id, supabase);
+    if (!waitlist_enabled) {
+      return NextResponse.json(
+        { success: false, reason: 'waitlist_disabled', message: 'Este restaurante no gestiona lista de espera.' },
+        { status: 409 }
+      );
+    }
 
     // Find or create guest
     let guestId: string;

@@ -7,6 +7,7 @@ import {
   calculateEndTime,
   tablesNeeded,
 } from '@/lib/restaurant-rules';
+import { getFeatures } from '@/lib/types/tenant-settings';
 
 function timeToMinutes(time: string): number {
   const [h, m] = time.split(':').map(Number);
@@ -45,6 +46,13 @@ export async function POST(request: Request) {
       .select('settings')
       .eq('id', tenant_id)
       .maybeSingle();
+    // SaaS gate (Mossa 3): a tenant with waitlists off has nothing to process —
+    // never offer freed tables from a list it doesn't run. Same source of truth
+    // (settings) we already fetched, so no extra query.
+    if (!getFeatures(tenantRow?.settings).waitlist_enabled) {
+      return NextResponse.json({ success: true, matched: 0, reason: 'waitlist_disabled', results: [] });
+    }
+
     const ownerPhoneRaw = ((tenantRow?.settings as unknown) as { owner_phone?: string })?.owner_phone;
     if (!ownerPhoneRaw) {
       return NextResponse.json(
