@@ -1,32 +1,37 @@
 "use client";
 
 import { Suspense, useState, useEffect } from "react";
-import { Settings as SettingsIcon, Users } from "lucide-react";
+import { Settings as SettingsIcon, Users, ToggleRight } from "lucide-react";
 import { useSearchParams, useRouter, usePathname } from "next/navigation";
 import { useLanguage } from "@/lib/contexts/LanguageContext";
 import { useTenant } from "@/lib/contexts/TenantContext";
 import { GeneralTab } from "@/components/settings/GeneralTab";
 import { StaffTab } from "@/components/settings/StaffTab";
+import { FeaturesTab } from "@/components/settings/FeaturesTab";
 
-type Tab = "general" | "staff";
+type Tab = "general" | "features" | "staff";
 
 function SettingsContent() {
   const { t } = useLanguage();
-  const { activeRole } = useTenant();
+  const { activeRole, globalRole } = useTenant();
   const searchParams = useSearchParams();
   const router = useRouter();
   const pathname = usePathname();
 
   const initial = (searchParams.get("tab") as Tab) || "general";
-  const [tab, setTab] = useState<Tab>(initial === "staff" ? "staff" : "general");
+  const [tab, setTab] = useState<Tab>(
+    initial === "staff" ? "staff" : initial === "features" ? "features" : "general"
+  );
 
   useEffect(() => {
     const t = searchParams.get("tab") as Tab | null;
-    if (t === "staff" || t === "general") setTab(t);
+    if (t === "staff" || t === "general" || t === "features") setTab(t);
   }, [searchParams]);
 
   // Only the Admin (DB owner — the account creator) can manage staff.
   const canSeeStaffTab = activeRole === "owner";
+  // Features = restaurant capabilities; the owner or Bali Flow staff (impersonating) sets them.
+  const canSeeFeaturesTab = activeRole === "owner" || globalRole === "platform_admin";
 
   const setActiveTab = (next: Tab) => {
     setTab(next);
@@ -53,6 +58,16 @@ function SettingsContent() {
           <SettingsIcon className="w-4 h-4" />
           {t("settings_tab_general") || "Generale"}
         </button>
+        {canSeeFeaturesTab && (
+          <button
+            onClick={() => setActiveTab("features")}
+            className={`inline-flex items-center gap-2 px-4 py-2 text-sm font-medium border-b-2 transition-colors cursor-pointer ${tab === "features" ? "text-black" : "text-black/60 hover:text-black border-transparent"}`}
+            style={tab === "features" ? { borderColor: "#c4956a" } : {}}
+          >
+            <ToggleRight className="w-4 h-4" />
+            {t("settings_tab_features") || "Funzionalità"}
+          </button>
+        )}
         {canSeeStaffTab && (
           <button
             onClick={() => setActiveTab("staff")}
@@ -66,6 +81,7 @@ function SettingsContent() {
       </div>
 
       {tab === "general" && <GeneralTab />}
+      {tab === "features" && canSeeFeaturesTab && <FeaturesTab />}
       {tab === "staff" && canSeeStaffTab && <StaffTab />}
     </div>
   );

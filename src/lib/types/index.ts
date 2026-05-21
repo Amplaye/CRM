@@ -1,3 +1,5 @@
+import type { TenantSettings } from "./tenant-settings";
+
 export type GlobalRole = "platform_admin" | "user";
 export type TenantRole = "owner" | "admin" | "manager" | "host" | "marketing" | "readonly";
 
@@ -13,11 +15,7 @@ export interface Tenant {
   id: string;
   name: string;
   created_at: number;
-  settings: {
-    timezone: string;
-    currency: string;
-    ai_enabled_channels: string[]; // e.g., ['whatsapp', 'voice']
-  };
+  settings: TenantSettings; // typed in ./tenant-settings (includes `features` flags)
 }
 
 export interface TenantMember {

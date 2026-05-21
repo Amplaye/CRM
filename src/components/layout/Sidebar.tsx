@@ -25,6 +25,7 @@ import {
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
 import { useTenant } from "@/lib/contexts/TenantContext";
+import { getFeatures } from "@/lib/types/tenant-settings";
 import { useLanguage } from "@/lib/contexts/LanguageContext";
 import { Dictionary } from "@/lib/i18n/dictionaries/en";
 import { useAuth } from "@/lib/contexts/AuthContext";
@@ -108,9 +109,12 @@ export function Sidebar({ mobileOpen = false, onClose }: SidebarProps) {
   // Staff (camerieri) see only the two pages they need: floor for walk-ins
   // and reservations to mark arrivals/no-shows. Everything else is hidden.
   const isHost = activeRole === "host";
-  const visibleNavItems = isHost
+  const features = getFeatures(activeTenant?.settings);
+  const visibleNavItems = (isHost
     ? navItems.filter(i => i.href === "/floor" || i.href === "/reservations")
-    : navItems;
+    : navItems
+  // Feature flag: hide the Waitlist page for tenants that don't use it.
+  ).filter(i => i.href !== "/waitlist" || features.waitlist_enabled);
 
   const adminNavItems = [
     { href: "/admin", icon: Shield, label: "Tenants" },

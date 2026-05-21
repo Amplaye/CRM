@@ -24,12 +24,12 @@ Legenda stato: `⬜ da fare` · `🔄 in corso` · `✅ fatto` · `⏸️ futuro
 | 1 | Pulizia ripieghi Picnic (~19 punti) | ✅ | ALTO | basso |
 | 1B | Focus ristorante: semplificare la registrazione | ✅ | ALTO (narrativa) | basso |
 | 2 | Picnic → Template Ufficiale (1 solo template) | ✅ | ALTO | basso-medio |
-| 3 | Feature flags (CRM adattabile) | ⬜ | ALTO | basso |
-| 4 | Registro varianti (criterio fusione) | ⬜ | MEDIO | nessuno |
+| 3 | Feature flags (CRM adattabile) | ✅ | ALTO | basso |
+| 4 | Registro varianti (criterio fusione) | ✅ | MEDIO | nessuno |
 | 5 | Twilio auto + stato tenant | ⬜ | ALTO | medio |
 | 6 | Motore unico (Opzione A) | ⏸️ | ALTO | alto |
 
-> **Prima mossa non ✅ = da dove riparto.** Prossima volta: **Mossa 3** (Feature flags — CRM adattabile).
+> **Prima mossa non ✅ = da dove riparto.** Prossima volta: **Mossa 5** (Automazione Twilio/WhatsApp + stato tenant) — da fare quando arrivano i primi clienti reali.
 
 ---
 
@@ -148,7 +148,9 @@ Oggi `orchestrator.ts` clona da `PICNIC_WORKFLOW_IDS` e `substitute.ts` ha costa
 ---
 
 ### MOSSA 3 — CRM adattabile: interruttori di funzionalità (feature flags)
-**Stato: ⬜ da fare** · Rischio: basso · Effort: M · **È il punto che l'utente vuole di più** ("adattabile a più esigenze fin dall'inizio")
+**Stato: ✅ fatto** · Rischio: basso · Effort: M · **È il punto che l'utente vuole di più** ("adattabile a più esigenze fin dall'inizio")
+
+> **Fatto:** creato il tipo `TenantSettings` + blocco `features` (7 flag) in `src/lib/types/tenant-settings.ts` con `DEFAULT_FEATURES`, `FEATURE_FLAGS` (lista per la UI) e l'helper `getFeatures()` (unica fonte: app e futuro motore leggono i flag da qui). `Tenant.settings` ora è tipato (`index.ts`) ma resta retro-compatibile (index signature `[key]: any` → i tanti `(as any)` esistenti non si rompono). Nuovo tab **Funzionalità** in `/settings` (`FeaturesTab.tsx`): toggle semplici sì/no (no rule-builder, rispetta `feedback_no_power_user_features`), visibile a owner + platform_admin, salva fondendo nei settings senza toccare gli altri campi + `refreshActiveTenant()`. **Filo collegato end-to-end:** il flag `waitlist_enabled` nasconde/mostra la voce "Lista d'attesa" nella Sidebar — config che cambia comportamento, zero codice per cliente. Default scelti per NON cambiare il comportamento attuale (waitlist/doppio turno/multilingua ON). i18n in es/en/it/de. Verifica: `tsc` 0, 67/67 test (5 nuovi su `getFeatures` default/merge), `next build` 0. Il **motore n8n/Retell** che legge i flag a runtime è Mossa 6 (motore unico): qui il filo è dimostrato lato CRM.
 
 Aggiungere a `tenants.settings` un blocco **`features`** (booleani) che accende/spegne comportamenti, così le varianti diventano configurazione invece di codice. Quando dimenticheremo una variante, si aggiunge **un interruttore al template una volta** → tutti i clienti futuri ce l'hanno.
 
@@ -162,7 +164,9 @@ Aggiungere a `tenants.settings` un blocco **`features`** (booleani) che accende/
 ---
 
 ### MOSSA 4 — Registro varianti (il criterio del "giorno della fusione")
-**Stato: ⬜ da fare** · Rischio: nessuno · Effort: XS · È la **bussola per decidere quando fare il motore unico**
+**Stato: ✅ fatto** · Rischio: nessuno · Effort: XS · È la **bussola per decidere quando fare il motore unico**
+
+> **Fatto:** creato `docs/REGISTRO_VARIANTI.md` con la tabella a 3 colonne (variante · cliente · risolta come), le 3 modalità 🟩flag/🟦template/🟥custom + regola d'oro ("2 clienti chiedono la stessa cosa custom → promuovila a flag una volta"), il criterio del "giorno della fusione" (3-4 clienti di fila con 0 varianti nuove), e 13 varianti note pre-popolate (orari/turni/lista d'attesa/sale/eventi/lingue/terrazza/animali/segreteria/menù/voce/valuta/numero WA) per mostrare che l'elenco è finito e già in gran parte coperto.
 
 Creare `/Users/amplaye/CRM/docs/REGISTRO_VARIANTI.md`: una tabella dove ogni volta che un cliente chiede qualcosa che il motore non fa, si segna. Tre colonne: *variante richiesta · cliente · risolta come (flag/template/custom-a-pagamento)*.
 - Serve a dimostrare che le esigenze NON sono infinite (curva che si appiattisce) — arma con investitori.
@@ -236,6 +240,8 @@ Mossa 6 (motore unico) ── FUTURO, gated dal segnale della Mossa 4
 
 > Formato riga: `AAAA-MM-GG — Mossa N — cosa fatto — commit <hash>`. La riga più recente in cima.
 
+- 2026-05-21 — Mossa 3 — feature flags: nuovo tipo `TenantSettings` + blocco `features` (7 flag) in `src/lib/types/tenant-settings.ts` (`DEFAULT_FEATURES`, `FEATURE_FLAGS`, helper `getFeatures()`), `Tenant.settings` tipato e retro-compatibile, tab **Funzionalità** in `/settings` (`FeaturesTab.tsx`, toggle semplici per owner+platform_admin), flag `waitlist_enabled` collegato alla Sidebar (config→comportamento, zero codice per cliente), i18n es/en/it/de. Default = comportamento attuale invariato. Test: tsc 0, 67/67 (5 nuovi su `getFeatures`), `next build` 0. — commit <pending>
+- 2026-05-21 — Mossa 4 — creato `docs/REGISTRO_VARIANTI.md`: tabella 3 colonne + 3 modalità (flag/template/custom) + regola d'oro + criterio "giorno della fusione" + 13 varianti note pre-popolate (elenco finito, già in gran parte coperto). — commit <pending>
 - 2026-05-21 — Mossa 2 — Picnic promosso a Template Ufficiale: rinominate costanti `PICNIC_*` → `TEMPLATE_RESTAURANT_*` (substitute.ts + orchestrator.ts), aggiunti commenti golden-source, rimossa costante morta `PICNIC_TENANT_ID` da orchestrator, `business_type` annotato "single vertical by design". Rename behavior-preserving (literal regex `picnic-*`/`PICNIC`/`[Picnic]` lasciati verbatim — matchano il contenuto live del template). Test: tsc exit 0, 62/62 test verdi. — commit f9986c6
 - 2026-05-21 — Mossa 1B — focus ristorante: tolto il selettore tipo-attività da `/register` (form diretto, niente ecommerce/services); `business_type` forzato a `restaurant` in `register-tenant`. Test: pagina senza selettore + API crea sempre `restaurant` anche se inviato `ecommerce`; tenant+utente di test cancellati. — commit 02dc704
 - 2026-05-21 — Mossa 1 — rimossi tutti i ripieghi Picnic runtime (sync-kb-retell, sync-vapi-voicemail, waitlist-process → errore esplicito; resume-bot → webhook da slug derivato dal nome; default voicemail e telefoni → neutri/dal tenant; hint i18n generici). Scoperte: niente colonna `slug` (derivato dal nome) + config Picnic viveva solo nei ripieghi → **migrata nelle settings di Picnic** (stessi valori). Test loop: tenant senza config → 3 errori "Run onboarding first"; Picnic supera il gate; tenant di test cancellato. tsc OK, 62/62 test. — commit 02dc704
