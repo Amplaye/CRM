@@ -7,6 +7,7 @@ import { useLanguage } from "@/lib/contexts/LanguageContext";
 import { useTenant } from "@/lib/contexts/TenantContext";
 import { createClient } from "@/lib/supabase/client";
 import { getShift, zoneLabel } from "@/lib/restaurant-rules";
+import { getFeatures } from "@/lib/types/tenant-settings";
 
 interface TableData {
   id: string;
@@ -185,11 +186,20 @@ export default function FloorPage() {
     };
   }, [activeTenant, fetchData, today]);
 
-  // Filter reservations by selected shift
-  const shiftReservations = reservations.filter((r) => {
-    const resShift = r.shift || getShift(r.time);
-    return resShift === selectedShift;
-  });
+  // Feature flags (see docs/PIANO_SAAS.md, Mossa 3): config, not forked code.
+  // double_shift = the venue serves both lunch and dinner; when off it runs a
+  // single service, so the shift toggle is meaningless and we show the whole
+  // day together (never hide reservations).
+  const features = getFeatures(activeTenant?.settings);
+  const useShifts = features.double_shift;
+
+  // Filter reservations by selected shift (single-service venues see them all).
+  const shiftReservations = useShifts
+    ? reservations.filter((r) => {
+        const resShift = r.shift || getShift(r.time);
+        return resShift === selectedShift;
+      })
+    : reservations;
 
   // A table is occupied as long as the linked reservation is in an active
   // state. Tables are NEVER auto-released by time — staff must free them
@@ -308,6 +318,11 @@ export default function FloorPage() {
   // Make sure activeZone is valid
   const currentZone = zones.includes(activeZone) ? activeZone : zones[0];
   const zoneTables = tables.filter((t) => (t.zone || "Principal") === currentZone);
+
+  // multi_room = the venue has separate rooms/areas. When off (single room) the
+  // owner can't create new zones; any zones that already exist stay fully
+  // visible and editable, so nothing a tenant already built can disappear.
+  const canManageZones = features.multi_room || zones.length > 1;
 
   // Persist a single table's position after drag
   const persistTablePosition = useCallback(async (tableId: string, x: number, y: number) => {
@@ -530,6 +545,7 @@ export default function FloorPage() {
           <p className="mt-1 text-sm text-black">{t("floor_subtitle")}</p>
         </div>
         <div className="mt-3 sm:mt-0 flex flex-wrap items-center gap-2 sm:gap-3">
+          {useShifts && (
           <div className="flex border-2 rounded-lg overflow-hidden flex-shrink-0" style={{ borderColor: '#c4956a' }}>
             <button
               onClick={() => setSelectedShift("lunch")}
@@ -546,6 +562,7 @@ export default function FloorPage() {
               {t("floor_dinner")}
             </button>
           </div>
+          )}
           <div className="flex items-center gap-1">
             <button onClick={() => { const d = new Date(selectedDate + 'T12:00:00'); d.setDate(d.getDate() - 1); setSelectedDate(d.toISOString().split('T')[0]); }} className="p-1 sm:p-1.5 rounded-lg hover:bg-[#c4956a]/10 transition-colors">
               <ChevronLeft className="w-4 h-4 sm:w-5 sm:h-5 text-black" />
@@ -772,7 +789,7 @@ export default function FloorPage() {
                   </div>
                 );
               })}
-              {editingPlan && (
+              {editingPlan && canManageZones && (
                 <button
                   onClick={addZone}
                   className="px-2 py-1 text-xs font-semibold rounded-lg border-2 text-black hover:bg-[#c4956a]/10 transition-colors"
@@ -857,7 +874,7 @@ export default function FloorPage() {
           style={{ borderColor: "#c4956a" }}
         >
           <h3 className="font-bold text-black">
-            {selectedShift === "lunch" ? t("floor_lunch") : t("floor_dinner")} — {selectedDate}
+            {useShifts ? `${selectedShift === "lunch" ? t("floor_lunch") : t("floor_dinner")} — ` : ""}{selectedDate}
           </h3>
         </div>
         <div className="divide-y" style={{ borderColor: "rgba(196,149,106,0.3)" }}>

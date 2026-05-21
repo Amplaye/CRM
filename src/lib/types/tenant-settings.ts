@@ -58,3 +58,22 @@ export interface TenantSettings {
 export function getFeatures(settings: TenantSettings | null | undefined): TenantFeatures {
   return { ...DEFAULT_FEATURES, ...(settings?.features || {}) };
 }
+
+/**
+ * Venue facts the assistant conveys to guests, derived from feature flags.
+ *
+ * Some flags change CRM screens directly (waitlist → sidebar, multi_room →
+ * floor zones, double_shift → shift toggle). These four instead change what the
+ * ASSISTANT knows about the venue — so the single honest home for them is the
+ * bot's info source (/api/ai/restaurant-info), as CONFIG rather than per-tenant
+ * hand-written Knowledge Base text. Front-loading them here means a new client
+ * who wants "we have a terrace" / "pets welcome" is a toggle, not a code change. */
+export function restaurantFacts(settings: TenantSettings | null | undefined) {
+  const f = getFeatures(settings);
+  return {
+    terrace: f.terrace,             // outdoor seating available
+    pet_friendly: f.pet_friendly,   // pets welcome
+    events: f.events_enabled,       // hosts private events / large groups
+    multi_language: f.multi_language, // assistant mirrors the guest's language
+  };
+}

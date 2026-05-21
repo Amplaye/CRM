@@ -43,18 +43,20 @@ preferenza (dall'alto = più SaaS, in basso = più agenzia):
 | Variante richiesta | Cliente | Risolta come |
 |--------------------|---------|--------------|
 | Orari di apertura diversi (giorni/fasce) | Picnic | 🟦 template — campo `opening_hours` nel profilo |
-| Doppio turno (pranzo + cena) | Picnic | 🟩 flag `double_shift` |
-| Lista d'attesa quando è pieno | Picnic | 🟩 flag `waitlist_enabled` |
-| Bot risponde in più lingue (es/it/en/de) | Picnic | 🟩 flag `multi_language` |
-| Più sale / ambienti separati | — (previsto) | 🟩 flag `multi_room` |
-| Eventi, serate speciali, gruppi grandi | — (previsto) | 🟩 flag `events_enabled` |
-| Terrazza / posti all'aperto | — (previsto) | 🟩 flag `terrace` |
-| Animali ammessi | — (previsto) | 🟩 flag `pet_friendly` |
+| Doppio turno (pranzo + cena) | Picnic | 🟩 flag `double_shift` → selettore Pranzo/Cena nella pianta tavoli (off = servizio unico) |
+| Lista d'attesa quando è pieno | Picnic | 🟩 flag `waitlist_enabled` → voce Sidebar |
+| Bot risponde in più lingue (es/it/en/de) | Picnic | 🟩 flag `multi_language` → `facts` in `restaurant-info` (lo legge l'assistente) |
+| Più sale / ambienti separati | — (previsto) | 🟩 flag `multi_room` → pulsante "aggiungi sala" nella pianta tavoli |
+| Eventi, serate speciali, gruppi grandi | — (previsto) | 🟩 flag `events_enabled` → `facts` in `restaurant-info` |
+| Terrazza / posti all'aperto | — (previsto) | 🟩 flag `terrace` → `facts` in `restaurant-info` |
+| Animali ammessi | — (previsto) | 🟩 flag `pet_friendly` → `facts` in `restaurant-info` |
 | Messaggio di segreteria personalizzato | Picnic | 🟦 template — `vapi_voicemail` nel profilo |
 | Menù / FAQ proprie del locale | Picnic | 🟦 template — articoli `knowledge_base` per cliente |
 | Voce del bot diversa | Picnic | 🟦 template — config Retell per cliente |
 | Valuta / fuso orario | Picnic | 🟦 template — `timezone` / `currency` nel profilo |
 | Numero WhatsApp dedicato per cliente | — (futuro) | 🟥 → da automatizzare in Mossa 5 (oggi manuale) |
+
+> **Nota (2026-05-21):** i 7 flag non sono più "decorativi" — ognuno è collegato a un comportamento reale (pianta tavoli o `facts` letti dall'assistente). I 4 "facts" (terrazza/animali/eventi/lingue) sono stati **front-loadati per scelta dell'utente** (cameriere esperto: alta probabilità di richiesta dai ristoranti reali → metterli ora = meno lavoro dopo). Differenza con le "porte dipinte" della Mossa 1B: lì erano verticali sbagliati (mai in arrivo), qui sono feature giuste in arrivo. Il consumo guest-facing pieno dei 4 facts si completa con la Mossa 6 (motore unico).
 
 ---
 

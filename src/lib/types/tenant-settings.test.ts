@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { getFeatures, DEFAULT_FEATURES, FEATURE_FLAGS } from './tenant-settings';
+import { getFeatures, DEFAULT_FEATURES, FEATURE_FLAGS, restaurantFacts } from './tenant-settings';
 
 describe('getFeatures', () => {
   it('returns defaults when settings has no features', () => {
@@ -30,5 +30,24 @@ describe('FEATURE_FLAGS', () => {
     const listed = FEATURE_FLAGS.map((f) => f.key).sort();
     const defined = Object.keys(DEFAULT_FEATURES).sort();
     expect(listed).toEqual(defined);
+  });
+});
+
+describe('restaurantFacts', () => {
+  it('reflects default flags (terrace/pets/events off, languages on)', () => {
+    expect(restaurantFacts(null)).toEqual({
+      terrace: false,
+      pet_friendly: false,
+      events: false,
+      multi_language: true,
+    });
+  });
+
+  it('mirrors a tenant turning facts on', () => {
+    const f = restaurantFacts({ features: { terrace: true, pet_friendly: true, events_enabled: true } });
+    expect(f.terrace).toBe(true);
+    expect(f.pet_friendly).toBe(true);
+    expect(f.events).toBe(true);        // maps events_enabled → events
+    expect(f.multi_language).toBe(true); // untouched → default on
   });
 });

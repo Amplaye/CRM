@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { createServiceRoleClient } from '@/lib/supabase/server';
 import { assertAiSecret } from '@/lib/ai-auth';
 import type { OpeningHours } from '@/lib/restaurant-rules';
+import { restaurantFacts } from '@/lib/types/tenant-settings';
 
 const DAY_NAMES_ES: Record<number, string> = {
   0: 'Domingo', 1: 'Lunes', 2: 'Martes', 3: 'Miércoles', 4: 'Jueves', 5: 'Viernes', 6: 'Sábado',
@@ -64,16 +65,23 @@ export async function GET(request: Request) {
 
     const supabase = createServiceRoleClient();
 
+    // Read the tenant's settings once. Two uses: the structured opening hours
+    // (below) and the venue `facts` derived from feature flags (terrace, pets,
+    // events, languages) — config the assistant reads instead of per-tenant
+    // hand-written KB text. `facts` rides on every response so the bot always
+    // knows them. See docs/PIANO_SAAS.md (Mossa 3) and restaurantFacts().
+    const { data: tenantRow } = await supabase
+      .from('tenants')
+      .select('settings')
+      .eq('id', tenantId)
+      .maybeSingle();
+    const facts = restaurantFacts(tenantRow?.settings);
+
     // HOURS fast-path: always derive from settings.opening_hours so there is
     // ONE source of truth. The KB article may exist for legacy/display, but
     // the bot always gets the live structured schedule.
     const hoursTopics = new Set(['hours', 'schedule', 'horario', 'horarios']);
     if (hoursTopics.has(topicRaw)) {
-      const { data: tenantRow } = await supabase
-        .from('tenants')
-        .select('settings')
-        .eq('id', tenantId)
-        .maybeSingle();
       const oh: OpeningHours = (tenantRow?.settings as any)?.opening_hours || {};
       const content = formatOpeningHours(oh);
       return NextResponse.json({
@@ -81,6 +89,7 @@ export async function GET(request: Request) {
         topic: 'hours',
         found: true,
         source: 'settings.opening_hours',
+        facts,
         articles: [{
           title: 'Horario del restaurante',
           category: 'general',
@@ -127,6 +136,7 @@ export async function GET(request: Request) {
           topic: topicRaw,
           found: false,
           message: 'No tengo esa información específica registrada. ¿Quieres que te pase con el responsable?',
+          facts,
           articles: [],
         });
       }
@@ -136,6 +146,7 @@ export async function GET(request: Request) {
       success: true,
       topic: topicRaw || 'all',
       found: true,
+      facts,
       articles: filtered.map((a: any) => ({
         title: a.title,
         category: a.category,
