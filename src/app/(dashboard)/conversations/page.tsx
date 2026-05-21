@@ -194,7 +194,7 @@ export default function ConversationsPage() {
       tasks.push(fetch("/api/send-whatsapp", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ to: phone, message: text })
+        body: JSON.stringify({ to: phone, message: text, tenant_id: tenant?.id })
       }));
     }
     if (guestId) {

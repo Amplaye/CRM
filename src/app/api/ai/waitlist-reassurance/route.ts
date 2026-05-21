@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { createServiceRoleClient } from '@/lib/supabase/server';
 import { assertAiSecret } from '@/lib/ai-auth';
 import { logSystemEvent, resolveSystemEvents } from '@/lib/system-log';
+import { resolveWhatsAppFrom, tenantWhatsAppFrom } from '@/lib/whatsapp/from';
 
 // Called by the n8n cron every few minutes. For each active waitlist entry
 // older than 30 minutes that hasn't been reassured yet, sends an honest
@@ -15,7 +16,6 @@ export async function POST(request: Request) {
 
   const TWILIO_SID = process.env.TWILIO_ACCOUNT_SID;
   const TWILIO_TOKEN = process.env.TWILIO_AUTH_TOKEN;
-  const TWILIO_FROM = process.env.TWILIO_WHATSAPP_FROM || 'whatsapp:+14155238886';
   if (!TWILIO_SID || !TWILIO_TOKEN) {
     return NextResponse.json({ ok: false, error: 'Twilio credentials not configured' }, { status: 500 });
   }
@@ -60,6 +60,20 @@ export async function POST(request: Request) {
     let sent = 0;
     const failures: string[] = [];
 
+    // Each tenant sends from its OWN WhatsApp number (config, not code). One
+    // settings fetch for all tenants in this sweep; unset → platform default.
+    const tenantIds = [...new Set((entries as any[]).map((e) => e.tenant_id).filter(Boolean))];
+    const fromByTenant = new Map<string, string | undefined>();
+    if (tenantIds.length > 0) {
+      const { data: tenantRows } = await supabase
+        .from('tenants')
+        .select('id, settings')
+        .in('id', tenantIds);
+      for (const t of (tenantRows || []) as any[]) {
+        fromByTenant.set(t.id, tenantWhatsAppFrom(t.settings));
+      }
+    }
+
     for (const e of entries as any[]) {
       const phone = e.guests?.phone;
       if (!phone) {
@@ -93,7 +107,7 @@ export async function POST(request: Request) {
       const body = M[lang];
 
       const form = new URLSearchParams();
-      form.set('From', TWILIO_FROM);
+      form.set('From', resolveWhatsAppFrom(fromByTenant.get(e.tenant_id)));
       form.set('To', to);
       form.set('Body', body);
 

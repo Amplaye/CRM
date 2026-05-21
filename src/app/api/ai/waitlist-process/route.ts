@@ -8,6 +8,7 @@ import {
   tablesNeeded,
 } from '@/lib/restaurant-rules';
 import { getFeatures } from '@/lib/types/tenant-settings';
+import { resolveWhatsAppFrom, tenantWhatsAppFrom } from '@/lib/whatsapp/from';
 
 function timeToMinutes(time: string): number {
   const [h, m] = time.split(':').map(Number);
@@ -61,6 +62,9 @@ export async function POST(request: Request) {
       );
     }
     const ownerPhone = ownerPhoneRaw.startsWith('whatsapp:') ? ownerPhoneRaw : `whatsapp:${ownerPhoneRaw}`;
+    // Send FROM this tenant's own WhatsApp number (config, not code). Unset →
+    // platform default. Same settings object we already loaded, no extra query.
+    const tenantFrom = tenantWhatsAppFrom(tenantRow?.settings);
 
     // Expire stale offers first (no reply within TTL) so their tables can be
     // re-offered. Runs inline so every invocation naturally self-cleans.
@@ -214,11 +218,11 @@ export async function POST(request: Request) {
 
           // Notify client via WhatsApp — ask for explicit CONFIRMO
           if (guestPhone) {
-            await notifyClient(guestPhone, guestName, date, entry.target_time, endTime, entry.party_size, assignedTables.map((t: any) => t.name), null);
+            await notifyClient(guestPhone, guestName, date, entry.target_time, endTime, entry.party_size, assignedTables.map((t: any) => t.name), null, tenantFrom);
           }
 
           // Notify owner
-          await notifyOwner(ownerPhone, guestName, date, entry.target_time, entry.party_size, assignedTables.map((t: any) => t.name), guestPhone, false);
+          await notifyOwner(ownerPhone, guestName, date, entry.target_time, entry.party_size, assignedTables.map((t: any) => t.name), guestPhone, false, undefined, tenantFrom);
 
           totalMatched++;
           results.push({ type: 'full_shift_offered', entryId: entry.id, reservationId: newRes.id });
@@ -278,10 +282,10 @@ export async function POST(request: Request) {
 
               // Notify client with time limit — ask for explicit CONFIRMO
               if (guestPhone) {
-                await notifyClient(guestPhone, guestName, date, entry.target_time, limitedEndTime, entry.party_size, tableNames, limitedEndTime);
+                await notifyClient(guestPhone, guestName, date, entry.target_time, limitedEndTime, entry.party_size, tableNames, limitedEndTime, tenantFrom);
               }
 
-              await notifyOwner(ownerPhone, guestName, date, entry.target_time, entry.party_size, tableNames, guestPhone, true, limitedEndTime);
+              await notifyOwner(ownerPhone, guestName, date, entry.target_time, entry.party_size, tableNames, guestPhone, true, limitedEndTime, tenantFrom);
 
               totalMatched++;
               results.push({ type: 'gap_based_offered', entryId: entry.id, reservationId: newRes.id, endTime: limitedEndTime });
@@ -425,11 +429,12 @@ async function notifyClient(
   endTime: string,
   partySize: number,
   tableNames: string[],
-  timeLimit: string | null
+  timeLimit: string | null,
+  from?: string
 ) {
   const TWILIO_SID = process.env.TWILIO_ACCOUNT_SID;
   const TWILIO_TOKEN = process.env.TWILIO_AUTH_TOKEN;
-  const TWILIO_FROM = process.env.TWILIO_WHATSAPP_FROM || 'whatsapp:+14155238886';
+  const TWILIO_FROM = resolveWhatsAppFrom(from);
 
   if (!TWILIO_SID || !TWILIO_TOKEN) return;
 
@@ -471,11 +476,12 @@ async function notifyOwner(
   tableNames: string[],
   guestPhone: string,
   isTimeLimited: boolean,
-  endTime?: string
+  endTime?: string,
+  from?: string
 ) {
   const TWILIO_SID = process.env.TWILIO_ACCOUNT_SID;
   const TWILIO_TOKEN = process.env.TWILIO_AUTH_TOKEN;
-  const TWILIO_FROM = process.env.TWILIO_WHATSAPP_FROM || 'whatsapp:+14155238886';
+  const TWILIO_FROM = resolveWhatsAppFrom(from);
   const OWNER_PHONE = ownerPhone;
 
   if (!TWILIO_SID || !TWILIO_TOKEN) return;

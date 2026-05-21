@@ -335,7 +335,7 @@ export default function WaitlistPage() {
           await fetch("/api/send-whatsapp", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ to: guestPhone, message: confirmMsg }),
+            body: JSON.stringify({ to: guestPhone, message: confirmMsg, tenant_id: tenant.id }),
           });
         } catch (e) { console.error("WhatsApp confirm error:", e); }
       }

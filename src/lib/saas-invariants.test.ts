@@ -54,6 +54,21 @@ describe("SaaS pillar — no cross-tenant (Picnic) fallback in runtime routes [M
   });
 });
 
+describe("SaaS pillar — WhatsApp sender is config, resolved in one place [Mossa 5]", () => {
+  const files = sourceFiles(API_DIR);
+
+  // The Twilio sandbox sender. It must live ONLY in src/lib/whatsapp/from.ts; a
+  // route that re-hardcodes it is the "one number for everyone" agency smell —
+  // the sending number is per-tenant config (settings.whatsapp.from) resolved by
+  // resolveWhatsAppFrom().
+  const SANDBOX_FROM = "14155238886";
+
+  it("no API route hardcodes the WhatsApp sandbox sender — use resolveWhatsAppFrom()", () => {
+    const offenders = files.filter((f) => readFileSync(f, "utf8").includes(SANDBOX_FROM));
+    expect(offenders, `sandbox sender hardcoded in routes:\n${offenders.join("\n")}`).toEqual([]);
+  });
+});
+
 describe("SaaS pillar — config-not-code: a flag changes one tenant only [Mossa 3]", () => {
   it("flipping a flag affects only that tenant's resolved behaviour", () => {
     const tenantOff = getFeatures({ features: { waitlist_enabled: false } });

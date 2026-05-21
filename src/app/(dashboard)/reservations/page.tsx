@@ -372,7 +372,7 @@ export default function ReservationsPage() {
         fetch("/api/send-whatsapp", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ to: guestPhone, message: confirmMsg }),
+          body: JSON.stringify({ to: guestPhone, message: confirmMsg, tenant_id: activeTenant.id }),
         }).catch((e) => console.error("WhatsApp confirm error:", e));
       }
       // Notify the owner only on THIS tenant's configured number. No Picnic
@@ -392,7 +392,7 @@ export default function ReservationsPage() {
         fetch("/api/send-whatsapp", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ to: ownerPhone, message: ownerMsg }),
+          body: JSON.stringify({ to: ownerPhone, message: ownerMsg, tenant_id: activeTenant.id }),
         }).catch(() => {});
       }
 

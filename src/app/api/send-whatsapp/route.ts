@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { logSystemEvent, resolveSystemEvents } from "@/lib/system-log";
 import { assertAiSecret } from "@/lib/ai-auth";
-import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { createServerSupabaseClient, createServiceRoleClient } from "@/lib/supabase/server";
+import { resolveWhatsAppFrom, tenantWhatsAppFrom } from "@/lib/whatsapp/from";
 
 export async function POST(req: NextRequest) {
   // Accept either: (a) valid x-ai-secret (n8n/Retell) or (b) a signed-in dashboard session.
@@ -18,7 +19,7 @@ export async function POST(req: NextRequest) {
     }
   }
   try {
-    const { to, message } = await req.json();
+    const { to, message, tenant_id } = await req.json();
 
     if (!to || !message) {
       return NextResponse.json({ error: "Missing 'to' or 'message'" }, { status: 400 });
@@ -26,11 +27,25 @@ export async function POST(req: NextRequest) {
 
     const TWILIO_SID = process.env.TWILIO_ACCOUNT_SID;
     const TWILIO_TOKEN = process.env.TWILIO_AUTH_TOKEN;
-    const TWILIO_FROM = process.env.TWILIO_WHATSAPP_FROM || "whatsapp:+14155238886";
 
     if (!TWILIO_SID || !TWILIO_TOKEN) {
       return NextResponse.json({ error: "Twilio credentials not configured" }, { status: 500 });
     }
+
+    // Send FROM the tenant's own number when the caller names a tenant; otherwise
+    // the platform default. One source of truth (resolveWhatsAppFrom) — no number
+    // hardcoded here. Today every tenant resolves to the same sandbox/env number,
+    // so this is byte-identical until a customer sets settings.whatsapp.from.
+    let tenantFrom: string | undefined;
+    if (tenant_id) {
+      const { data: tenantRow } = await createServiceRoleClient()
+        .from("tenants")
+        .select("settings")
+        .eq("id", tenant_id)
+        .maybeSingle();
+      tenantFrom = tenantWhatsAppFrom(tenantRow?.settings);
+    }
+    const TWILIO_FROM = resolveWhatsAppFrom(tenantFrom);
 
     // Format phone number for WhatsApp
     let whatsappTo = to;

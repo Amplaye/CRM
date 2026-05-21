@@ -248,7 +248,7 @@ export default function PendingPage() {
           fetch("/api/send-whatsapp", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ to: guestPhone, message: confirmMsg }),
+            body: JSON.stringify({ to: guestPhone, message: confirmMsg, tenant_id: tenant?.id }),
           }).catch((e) => console.error("WhatsApp confirm error:", e));
         }
 
@@ -260,7 +260,7 @@ export default function PendingPage() {
           fetch("/api/send-whatsapp", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ to: ownerPhone, message: ownerMsg }),
+            body: JSON.stringify({ to: ownerPhone, message: ownerMsg, tenant_id: tenant?.id }),
           }).catch(() => {});
         }
 
@@ -310,7 +310,7 @@ export default function PendingPage() {
           fetch("/api/send-whatsapp", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ to: guestPhone, message: rejectMsg }),
+            body: JSON.stringify({ to: guestPhone, message: rejectMsg, tenant_id: tenant?.id }),
           }).catch((e) => console.error("WhatsApp reject error:", e));
         }
 

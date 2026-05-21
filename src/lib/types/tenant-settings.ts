@@ -50,6 +50,10 @@ export interface TenantSettings {
   currency?: string;
   ai_enabled_channels?: string[];
   features?: Partial<TenantFeatures>;
+  /** Per-tenant WhatsApp channel config. `from` is the tenant's own sender
+   * number (e.g. "whatsapp:+34..."); unset → platform default. Resolved in one
+   * place by src/lib/whatsapp/from.ts (Mossa 5: sending number is config, not code). */
+  whatsapp?: { from?: string };
   [key: string]: any;
 }
 
