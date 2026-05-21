@@ -1,21 +1,30 @@
 // Tenant-onboarding workflow substitution.
 //
-// At runtime we fetch the Picnic workflows from n8n via API and rewrite
-// every tenant-specific value (UUID, owner phone, restaurant name,
-// webhook path, Retell agent/LLM/KB ids, Picnic phone, Google review URL)
-// to the new tenant's values. We don't store template files in the repo —
-// Picnic is the live "golden source" of behavior, and any patch we make
-// to it automatically flows into the next onboarding.
+// THE OFFICIAL RESTAURANT TEMPLATE ("template ristorante v1").
+// We don't store template files in the repo: the live n8n workflows + Retell
+// agent (which historically lived under the Picnic account) ARE the golden
+// source of bot behavior. At runtime we fetch them via API and rewrite every
+// template-specific value (UUID, owner phone, restaurant name, webhook path,
+// Retell agent/LLM/KB ids, restaurant phone, Google review URL) to the new
+// tenant's values.
+//
+// GOLDEN-SOURCE RULE: any improvement to bot behavior must be patched on this
+// template (the ids below), never on a single client. That is what keeps Bali
+// Flow a SaaS (one engine, many configs) instead of an agency (many copies).
+//
+// The constant VALUES below are the template's own ids/strings. The regex
+// literals further down ("picnic-…", "PICNIC", "[Picnic]") match text still
+// embedded inside the live template content, so they must stay verbatim.
 
-const PICNIC_TENANT_ID = "626547ff-bc44-4f35-8f42-0e97f1dcf0d5";
-const PICNIC_OWNER_PHONE = "+34641790137";
-const PICNIC_RESTAURANT_PHONE = "+34 828 712 623";
-const PICNIC_RESTAURANT_PHONE_BARE = "828 712 623";
-const PICNIC_RESTAURANT_PHONE_DIGITS = "828712623";
-const PICNIC_REVIEW_URL_FRAGMENT = "cid=975701473301178074";
-const PICNIC_RETELL_AGENT_ID = "agent_985ab572aeb67df9d2612fbb4e";
-const PICNIC_RETELL_LLM_ID = "llm_d19f792cd11a22132956f81dc7fe";
-const PICNIC_RETELL_KB_ID = "knowledge_base_eebeefd1538418b1";
+const TEMPLATE_RESTAURANT_TENANT_ID = "626547ff-bc44-4f35-8f42-0e97f1dcf0d5";
+const TEMPLATE_RESTAURANT_OWNER_PHONE = "+34641790137";
+const TEMPLATE_RESTAURANT_PHONE = "+34 828 712 623";
+const TEMPLATE_RESTAURANT_PHONE_BARE = "828 712 623";
+const TEMPLATE_RESTAURANT_PHONE_DIGITS = "828712623";
+const TEMPLATE_RESTAURANT_REVIEW_URL_FRAGMENT = "cid=975701473301178074";
+const TEMPLATE_RESTAURANT_RETELL_AGENT_ID = "agent_985ab572aeb67df9d2612fbb4e";
+const TEMPLATE_RESTAURANT_RETELL_LLM_ID = "llm_d19f792cd11a22132956f81dc7fe";
+const TEMPLATE_RESTAURANT_RETELL_KB_ID = "knowledge_base_eebeefd1538418b1";
 
 export interface OnboardSubstitutions {
   newTenantId: string;
@@ -44,29 +53,29 @@ function replaceAll(haystack: string, needle: string, replacement: string): stri
 export function substituteTenantTokens(workflowJsonText: string, sub: OnboardSubstitutions): string {
   let text = workflowJsonText;
 
-  text = replaceAll(text, PICNIC_TENANT_ID, sub.newTenantId);
-  text = replaceAll(text, PICNIC_OWNER_PHONE, sub.newOwnerPhone);
-  text = replaceAll(text, PICNIC_RESTAURANT_PHONE, sub.newRestaurantPhone);
-  text = replaceAll(text, PICNIC_RESTAURANT_PHONE_BARE, sub.newRestaurantPhone.replace(/^\+?\d+\s/, ""));
-  text = replaceAll(text, PICNIC_RESTAURANT_PHONE_DIGITS, sub.newRestaurantPhone.replace(/\D/g, ""));
+  text = replaceAll(text, TEMPLATE_RESTAURANT_TENANT_ID, sub.newTenantId);
+  text = replaceAll(text, TEMPLATE_RESTAURANT_OWNER_PHONE, sub.newOwnerPhone);
+  text = replaceAll(text, TEMPLATE_RESTAURANT_PHONE, sub.newRestaurantPhone);
+  text = replaceAll(text, TEMPLATE_RESTAURANT_PHONE_BARE, sub.newRestaurantPhone.replace(/^\+?\d+\s/, ""));
+  text = replaceAll(text, TEMPLATE_RESTAURANT_PHONE_DIGITS, sub.newRestaurantPhone.replace(/\D/g, ""));
 
   // Google review URL: replace the cid fragment OR the full URL if present
   if (sub.newReviewUrl) {
     text = replaceAll(text, "https://www.google.com/maps?cid=975701473301178074", sub.newReviewUrl);
-    text = replaceAll(text, PICNIC_REVIEW_URL_FRAGMENT, sub.newReviewUrl);
+    text = replaceAll(text, TEMPLATE_RESTAURANT_REVIEW_URL_FRAGMENT, sub.newReviewUrl);
   }
 
   // Retell ids — only substitute if caller provided them
-  if (sub.newRetellAgentId) text = replaceAll(text, PICNIC_RETELL_AGENT_ID, sub.newRetellAgentId);
-  if (sub.newRetellLlmId) text = replaceAll(text, PICNIC_RETELL_LLM_ID, sub.newRetellLlmId);
-  if (sub.newRetellKbId) text = replaceAll(text, PICNIC_RETELL_KB_ID, sub.newRetellKbId);
+  if (sub.newRetellAgentId) text = replaceAll(text, TEMPLATE_RESTAURANT_RETELL_AGENT_ID, sub.newRetellAgentId);
+  if (sub.newRetellLlmId) text = replaceAll(text, TEMPLATE_RESTAURANT_RETELL_LLM_ID, sub.newRetellLlmId);
+  if (sub.newRetellKbId) text = replaceAll(text, TEMPLATE_RESTAURANT_RETELL_KB_ID, sub.newRetellKbId);
 
-  // Webhook paths: picnic-* → {slug}-*
+  // Webhook paths embedded in the template: "picnic-*" → "{slug}-*".
   text = text.replace(new RegExp("picnic-(\\w+)", "g"), `${sub.newSlug}-$1`);
 
-  // Restaurant name in messages and prompts. Be careful: only replace
-  // standalone occurrences of "PICNIC" / "Picnic", not substrings inside
-  // arbitrary words. Use word boundaries.
+  // Restaurant name in messages and prompts. The template content still says
+  // "PICNIC"/"Picnic" — replace only standalone occurrences (word boundaries),
+  // not substrings inside arbitrary words.
   text = text.replace(/\bPICNIC\b/g, sub.newRestaurantName.toUpperCase());
   text = text.replace(/\bPicnic\b/g, sub.newRestaurantName);
 

@@ -23,13 +23,13 @@ Legenda stato: `⬜ da fare` · `🔄 in corso` · `✅ fatto` · `⏸️ futuro
 | 0 | Allineare la bussola (doc) | ✅ | — | nessuno |
 | 1 | Pulizia ripieghi Picnic (~19 punti) | ✅ | ALTO | basso |
 | 1B | Focus ristorante: semplificare la registrazione | ✅ | ALTO (narrativa) | basso |
-| 2 | Picnic → Template Ufficiale (1 solo template) | ⬜ | ALTO | basso-medio |
+| 2 | Picnic → Template Ufficiale (1 solo template) | ✅ | ALTO | basso-medio |
 | 3 | Feature flags (CRM adattabile) | ⬜ | ALTO | basso |
 | 4 | Registro varianti (criterio fusione) | ⬜ | MEDIO | nessuno |
 | 5 | Twilio auto + stato tenant | ⬜ | ALTO | medio |
 | 6 | Motore unico (Opzione A) | ⏸️ | ALTO | alto |
 
-> **Prima mossa non ✅ = da dove riparto.** Prossima volta: **Mossa 2** (Picnic → Template Ufficiale).
+> **Prima mossa non ✅ = da dove riparto.** Prossima volta: **Mossa 3** (Feature flags — CRM adattabile).
 
 ---
 
@@ -131,7 +131,9 @@ Rendere il prodotto onesto e focalizzato: questo è il CRM ristoranti, non una p
 ---
 
 ### MOSSA 2 — Promuovere Picnic da "cliente" a "Template Ufficiale"
-**Stato: ⬜ da fare** · Rischio: basso-medio · Effort: M · È il **primo gradino del trampolino**
+**Stato: ✅ fatto** · Rischio: basso-medio · Effort: M · È il **primo gradino del trampolino**
+
+> **Fatto:** rinominate le costanti `PICNIC_*` → `TEMPLATE_RESTAURANT_*` in `substitute.ts` (9 costanti) e `PICNIC_WORKFLOW_IDS` → `TEMPLATE_RESTAURANT_WORKFLOW_IDS` in `orchestrator.ts`. Aggiunti commenti "golden-source rule" (le patch al comportamento bot vanno fatte sul template, mai sul singolo cliente). Rimossa la costante morta `PICNIC_TENANT_ID` in `orchestrator.ts` (definita, mai usata). `business_type` resta hardcoded a `restaurant` con commento "single vertical by design". `trello-sync` lasciato com'è (scope Picnic-only voluto, cat. E di Mossa 1). I literal regex `picnic-*`/`PICNIC`/`[Picnic]` restano verbatim: matchano il testo ancora dentro i workflow live del template, rinominarli romperebbe la sostituzione. Pure rename → comportamento identico (stessi 13 ID, stessi valori sostituiti). Verifica: `tsc` exit 0 + 62/62 test (nessun onboarding live eseguito per non creare workflow/agenti reali; il cambiamento è solo-nomi quindi i test coprono).
 
 Oggi `orchestrator.ts` clona da `PICNIC_WORKFLOW_IDS` e `substitute.ts` ha costanti `PICNIC_*`. Concettualmente Picnic *è già* il template, ma travestito da cliente. **Dato il focus ristorante-only (Mossa 1B), c'è UN SOLO template** — niente mappa multi-business da costruire ora.
 
@@ -234,6 +236,7 @@ Mossa 6 (motore unico) ── FUTURO, gated dal segnale della Mossa 4
 
 > Formato riga: `AAAA-MM-GG — Mossa N — cosa fatto — commit <hash>`. La riga più recente in cima.
 
+- 2026-05-21 — Mossa 2 — Picnic promosso a Template Ufficiale: rinominate costanti `PICNIC_*` → `TEMPLATE_RESTAURANT_*` (substitute.ts + orchestrator.ts), aggiunti commenti golden-source, rimossa costante morta `PICNIC_TENANT_ID` da orchestrator, `business_type` annotato "single vertical by design". Rename behavior-preserving (literal regex `picnic-*`/`PICNIC`/`[Picnic]` lasciati verbatim — matchano il contenuto live del template). Test: tsc exit 0, 62/62 test verdi. — commit <pending>
 - 2026-05-21 — Mossa 1B — focus ristorante: tolto il selettore tipo-attività da `/register` (form diretto, niente ecommerce/services); `business_type` forzato a `restaurant` in `register-tenant`. Test: pagina senza selettore + API crea sempre `restaurant` anche se inviato `ecommerce`; tenant+utente di test cancellati. — commit 02dc704
 - 2026-05-21 — Mossa 1 — rimossi tutti i ripieghi Picnic runtime (sync-kb-retell, sync-vapi-voicemail, waitlist-process → errore esplicito; resume-bot → webhook da slug derivato dal nome; default voicemail e telefoni → neutri/dal tenant; hint i18n generici). Scoperte: niente colonna `slug` (derivato dal nome) + config Picnic viveva solo nei ripieghi → **migrata nelle settings di Picnic** (stessi valori). Test loop: tenant senza config → 3 errori "Run onboarding first"; Picnic supera il gate; tenant di test cancellato. tsc OK, 62/62 test. — commit 02dc704
 - 2026-05-21 — Mossa 0 — bussola `docs/SAAS_ARCHITECTURE.md` allineata (clone-trampolino, registro varianti + criterio fusione, focus ristorante-only, 3 scoperte tecniche); PDF rigenerato in `~/Downloads/SAAS_ARCHITECTURE.pdf` (387KB). — commit 02dc704

@@ -51,8 +51,11 @@ const DEFAULT_TABLE_SIZE: Record<OnboardInput["table_size_preset"], number> = {
 // Default voice id (Yerom) used across every demo per the user's preference.
 const DEFAULT_VOICE_ID = "custom_voice_da9c1a838c8cfd4064a9ce1730";
 
-const PICNIC_TENANT_ID = "626547ff-bc44-4f35-8f42-0e97f1dcf0d5";
-const PICNIC_WORKFLOW_IDS = [
+// The 13 n8n workflows that make up the OFFICIAL RESTAURANT TEMPLATE
+// ("template ristorante v1"). These live workflows are the golden source:
+// onboarding clones them and rewrites the tenant-specific tokens (see
+// substitute.ts). Patch bot behavior HERE, never on a single client.
+const TEMPLATE_RESTAURANT_WORKFLOW_IDS = [
   "166QnQsGHqXDpBxa", // Chatbot WhatsApp
   "2PhhKlZHe0kg23qT", // Web Call Token
   "2t5TL552kz3HL0By", // Daily Summary 10AM
@@ -160,6 +163,8 @@ export async function runOnboard(
         .from("tenants")
         .insert({
           name: input.restaurant_name,
+          // Single vertical by design: there is one official template (restaurant).
+          // The column stays as a dormant hook; we never branch on other values.
           business_type: "restaurant",
           settings: initialSettings,
         })
@@ -268,10 +273,11 @@ export async function runOnboard(
         newRetellKbId: retellKbId,
       };
 
-      for (const wid of PICNIC_WORKFLOW_IDS) {
+      for (const wid of TEMPLATE_RESTAURANT_WORKFLOW_IDS) {
         const original = await n8n("GET", `/workflows/${wid}`);
         const originalText = JSON.stringify(original);
         const rewritten = JSON.parse(substituteTenantTokens(originalText, sub));
+        // Template workflow names are prefixed "[Picnic]" → swap for the tenant.
         const newName = (original.name || "Workflow").replace(/^\[Picnic\]/, `[${input.restaurant_name}]`);
         const payload = toCreatePayload(rewritten, newName);
         const created = await n8n("POST", "/workflows", payload);
