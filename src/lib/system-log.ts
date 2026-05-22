@@ -14,7 +14,7 @@ export type SystemLogCategory =
 export type SystemLogSeverity = "low" | "medium" | "high" | "critical";
 
 export async function logSystemEvent(event: {
-  tenant_id?: string;
+  tenant_id?: string | null;
   category: SystemLogCategory;
   severity: SystemLogSeverity;
   title: string;
