@@ -46,6 +46,13 @@ export async function uploadTenantExport(
     .from(EXPORT_BUCKET)
     .upload(path, JSON.stringify(data, null, 2), { contentType: "application/json", upsert: true });
   if (error) throw new Error(`export upload: ${error.message}`);
-  const { data: signed } = await supabase.storage.from(EXPORT_BUCKET).createSignedUrl(path, 60 * 60 * 24 * 7);
+  // `download` makes the signed URL serve Content-Disposition: attachment, so the
+  // browser saves a file instead of opening the JSON inline. A friendly filename
+  // (tenant name + date) is sanitised so storage/headers stay happy.
+  const safeName = (data.tenant.name || "tenant").replace(/[^\w.-]+/g, "_");
+  const filename = `${safeName}-${data.exported_at.slice(0, 10)}.json`;
+  const { data: signed } = await supabase.storage
+    .from(EXPORT_BUCKET)
+    .createSignedUrl(path, 60 * 60 * 24 * 7, { download: filename });
   return { path, signedUrl: signed?.signedUrl || null };
 }
