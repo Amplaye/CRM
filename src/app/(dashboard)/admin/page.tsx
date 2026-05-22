@@ -46,6 +46,7 @@ export default function AdminPage() {
   const [platform, setPlatform] = useState<PlatformTotals | null>(null);
   const [loading, setLoading] = useState(true);
   const [pendingWa, setPendingWa] = useState<Array<{ id: string; name: string; slug: string }>>([]);
+  const [archived, setArchived] = useState<Array<{ id: string; name: string; archived_at: string; purge_after: string }>>([]);
 
   const fetchData = async () => {
     setLoading(true);
@@ -75,7 +76,14 @@ export default function AdminPage() {
     }).catch(() => {});
   };
 
-  useEffect(() => { fetchData(); fetchPendingWa(); }, []);
+  const fetchArchived = async () => {
+    try {
+      const res = await fetch("/api/admin/archived-tenants");
+      if (res.ok) setArchived((await res.json()).archived || []);
+    } catch { /* non-blocking */ }
+  };
+
+  useEffect(() => { fetchData(); fetchPendingWa(); fetchArchived(); }, []);
 
   if (globalRole !== "platform_admin") {
     return (
@@ -154,6 +162,30 @@ export default function AdminPage() {
           <div className="rounded-xl p-3 sm:p-4 border-2" style={cardStyle}>
             <p className="text-xs text-black font-medium">Critical</p>
             <p className={`text-xl font-bold ${platform.totalCritical > 0 ? "text-red-600" : "text-black"}`}>{platform.totalCritical}</p>
+          </div>
+        </div>
+      )}
+
+      {/* Archived tenants — recoverable until their purge date */}
+      {archived.length > 0 && (
+        <div className="rounded-xl border-2 border-zinc-300 bg-zinc-50 p-4 space-y-2">
+          <h2 className="text-sm font-bold text-zinc-700 uppercase tracking-wider">Archiviati ({archived.length})</h2>
+          <div className="space-y-2">
+            {archived.map((a) => (
+              <div key={a.id} className="flex items-center justify-between gap-3 rounded-lg bg-white/70 px-3 py-2 text-sm">
+                <div className="min-w-0">
+                  <span className="font-semibold text-black">{a.name}</span>
+                  {a.purge_after && (
+                    <span className="text-xs text-zinc-500 block sm:inline sm:ml-2">
+                      cancellazione il {new Date(a.purge_after).toLocaleDateString()}
+                    </span>
+                  )}
+                </div>
+                <Link href={`/admin/tenant/${a.id}`} className="text-xs font-bold text-[#c4956a] hover:text-[#8b6540] flex-shrink-0">
+                  Gestisci →
+                </Link>
+              </div>
+            ))}
           </div>
         </div>
       )}

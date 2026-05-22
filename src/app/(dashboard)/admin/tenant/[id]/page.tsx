@@ -15,10 +15,11 @@ const STATUS_BADGE: Record<TenantStatus, string> = {
   trial: "bg-blue-50 text-blue-700 border-blue-200",
   pending: "bg-yellow-50 text-yellow-700 border-yellow-200",
   suspended: "bg-red-50 text-red-700 border-red-200",
+  archived: "bg-zinc-100 text-zinc-600 border-zinc-300",
 };
 
 interface TenantDetail {
-  tenant: { id: string; name: string; status: TenantStatus; created_at: string };
+  tenant: { id: string; name: string; status: TenantStatus; created_at: string; archived_at?: string | null; purge_after?: string | null };
   kpis: {
     aiRevenue7: number;
     aiRevenue30: number;
@@ -52,6 +53,57 @@ export default function TenantDetailPage() {
   const [loading, setLoading] = useState(true);
   const [insights, setInsights] = useState<any[]>([]);
   const [statusSaving, setStatusSaving] = useState(false);
+  const [danger, setDanger] = useState<null | "archive" | "purge">(null);
+  const [confirmText, setConfirmText] = useState("");
+  const [working, setWorking] = useState(false);
+  const [downloadUrl, setDownloadUrl] = useState<string | null>(null);
+  const [actionMsg, setActionMsg] = useState<string | null>(null);
+
+  const runArchive = async () => {
+    setWorking(true); setActionMsg(null);
+    try {
+      const res = await fetch("/api/admin/tenant/archive", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tenant_id: tenantId, confirm_name: confirmText }),
+      });
+      const j = await res.json();
+      if (!res.ok) throw new Error(j.error || "Failed");
+      setDownloadUrl(j.download_url || null);
+      setActionMsg(`Archiviato. Cancellazione definitiva il ${new Date(j.purge_after).toLocaleDateString()}.`);
+      setData((p) => (p ? { ...p, tenant: { ...p.tenant, status: "archived" } } : p));
+      setDanger(null); setConfirmText("");
+    } catch (e: any) { setActionMsg(e.message); }
+    setWorking(false);
+  };
+  const runPurge = async () => {
+    setWorking(true); setActionMsg(null);
+    try {
+      const res = await fetch("/api/admin/tenant/purge", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tenant_id: tenantId, confirm_name: confirmText }),
+      });
+      const j = await res.json();
+      if (!res.ok) throw new Error(j.error || "Failed");
+      setActionMsg("Cliente cancellato definitivamente.");
+      setDanger(null); setConfirmText("");
+      setTimeout(() => { window.location.href = "/admin"; }, 1200);
+    } catch (e: any) { setActionMsg(e.message); }
+    setWorking(false);
+  };
+  const runRestore = async () => {
+    setWorking(true); setActionMsg(null);
+    try {
+      const res = await fetch("/api/admin/tenant/restore", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tenant_id: tenantId }),
+      });
+      const j = await res.json();
+      if (!res.ok) throw new Error(j.error || "Failed");
+      setActionMsg("Ripristinato.");
+      setData((p) => (p ? { ...p, tenant: { ...p.tenant, status: j.status } } : p));
+    } catch (e: any) { setActionMsg(e.message); }
+    setWorking(false);
+  };
 
   const changeStatus = async (status: TenantStatus) => {
     if (!tenantId) return;
@@ -127,7 +179,7 @@ export default function TenantDetailPage() {
           <label className="text-[10px] text-black uppercase tracking-wider hidden sm:block">Status</label>
           <select
             value={tenant.status}
-            disabled={statusSaving}
+            disabled={statusSaving || tenant.status === "archived"}
             onChange={(e) => changeStatus(e.target.value as TenantStatus)}
             className="text-xs border-2 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-[#c4956a] disabled:opacity-50"
             style={{ borderColor: "#c4956a", background: "rgba(252,246,237,0.6)" }}
@@ -347,6 +399,81 @@ export default function TenantDetailPage() {
           </div>
         </div>
       </div>
+
+      {/* Danger Zone — platform_admin only (page already gates) */}
+      <div className="rounded-xl border-2 border-red-300 bg-red-50/60 p-4 space-y-3">
+        <div className="flex items-center gap-2 text-red-700 font-bold text-sm">
+          <AlertTriangle className="w-4 h-4" /> Danger Zone
+        </div>
+
+        {actionMsg && <p className="text-xs font-medium text-black">{actionMsg}</p>}
+        {downloadUrl && (
+          <a href={downloadUrl} className="text-xs font-bold text-blue-700 underline" target="_blank" rel="noreferrer">
+            ⬇︎ Scarica il backup dei dati (JSON)
+          </a>
+        )}
+
+        {tenant.status === "archived" ? (
+          <div className="space-y-2">
+            <p className="text-xs text-black">
+              Archiviato{tenant.archived_at ? ` il ${new Date(tenant.archived_at).toLocaleDateString()}` : ""}.
+              {tenant.purge_after ? ` Cancellazione automatica il ${new Date(tenant.purge_after).toLocaleDateString()}.` : ""}
+            </p>
+            <div className="flex flex-wrap gap-2">
+              <button onClick={runRestore} disabled={working}
+                className="px-3 py-1.5 rounded-lg bg-emerald-600 text-white text-xs font-bold hover:bg-emerald-700 disabled:opacity-50">
+                Ripristina
+              </button>
+              <button onClick={() => { setDanger("purge"); setConfirmText(""); }} disabled={working}
+                className="px-3 py-1.5 rounded-lg bg-red-600 text-white text-xs font-bold hover:bg-red-700 disabled:opacity-50">
+                Cancella adesso definitivamente
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div className="flex flex-wrap gap-2">
+            <button onClick={() => { setDanger("archive"); setConfirmText(""); }} disabled={working}
+              className="px-3 py-1.5 rounded-lg bg-orange-600 text-white text-xs font-bold hover:bg-orange-700 disabled:opacity-50">
+              Archivia &amp; rimuovi (recuperabile 30 giorni)
+            </button>
+            <button onClick={() => { setDanger("purge"); setConfirmText(""); }} disabled={working}
+              className="px-3 py-1.5 rounded-lg bg-red-600 text-white text-xs font-bold hover:bg-red-700 disabled:opacity-50">
+              Cancella subito (salta l&apos;attesa)
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* Typed-name confirm modal */}
+      {danger && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => !working && setDanger(null)}>
+          <div className="w-full max-w-md rounded-xl bg-white p-5 space-y-3" onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-sm font-bold text-red-700 flex items-center gap-2">
+              <AlertTriangle className="w-4 h-4" />
+              {danger === "archive" ? "Archivia e rimuovi" : "Cancella definitivamente"}
+            </h3>
+            <p className="text-xs text-black">
+              {danger === "archive"
+                ? "Il cliente sparisce subito dal CRM e i suoi servizi si fermano. Recuperabile per 30 giorni, poi cancellato per sempre."
+                : "Cancellazione IMMEDIATA e irreversibile: dati, workflow n8n, assistente vocale e accessi staff. Esiste un backup scaricabile."}
+            </p>
+            <p className="text-xs text-black">Scrivi il nome esatto del ristorante per confermare: <b>{tenant.name}</b></p>
+            <input autoFocus value={confirmText} onChange={(e) => setConfirmText(e.target.value)}
+              className="w-full border-2 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-red-400"
+              style={{ borderColor: "#fca5a5" }} placeholder={tenant.name} />
+            <div className="flex justify-end gap-2">
+              <button onClick={() => setDanger(null)} disabled={working}
+                className="px-3 py-1.5 rounded-lg border text-xs font-bold text-black disabled:opacity-50">Annulla</button>
+              <button
+                onClick={danger === "archive" ? runArchive : runPurge}
+                disabled={working || confirmText.trim() !== tenant.name}
+                className="px-3 py-1.5 rounded-lg bg-red-600 text-white text-xs font-bold hover:bg-red-700 disabled:opacity-50">
+                {working ? "..." : (danger === "archive" ? "Archivia" : "Cancella per sempre")}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
