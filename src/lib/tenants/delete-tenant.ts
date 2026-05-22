@@ -16,7 +16,7 @@ import {
 } from "./teardown";
 
 /** Recoverable window before automatic permanent deletion. */
-export const GRACE_PERIOD_DAYS = 30;
+export const GRACE_PERIOD_DAYS = 90;
 
 export function computePurgeAfter(from: Date = new Date()): Date {
   const d = new Date(from);

@@ -434,7 +434,7 @@ export default function TenantDetailPage() {
           <div className="flex flex-wrap gap-2">
             <button onClick={() => { setDanger("archive"); setConfirmText(""); }} disabled={working}
               className="px-3 py-1.5 rounded-lg bg-orange-600 text-white text-xs font-bold hover:bg-orange-700 disabled:opacity-50">
-              Archivia &amp; rimuovi (recuperabile 30 giorni)
+              Archivia &amp; rimuovi (recuperabile 90 giorni)
             </button>
             <button onClick={() => { setDanger("purge"); setConfirmText(""); }} disabled={working}
               className="px-3 py-1.5 rounded-lg bg-red-600 text-white text-xs font-bold hover:bg-red-700 disabled:opacity-50">
@@ -454,7 +454,7 @@ export default function TenantDetailPage() {
             </h3>
             <p className="text-xs text-black">
               {danger === "archive"
-                ? "Il cliente sparisce subito dal CRM e i suoi servizi si fermano. Recuperabile per 30 giorni, poi cancellato per sempre."
+                ? "Il cliente sparisce subito dal CRM e i suoi servizi si fermano. Recuperabile per 90 giorni, poi cancellato per sempre."
                 : "Cancellazione IMMEDIATA e irreversibile: dati, workflow n8n, assistente vocale e accessi staff. Esiste un backup scaricabile."}
             </p>
             <p className="text-xs text-black">Scrivi il nome esatto del ristorante per confermare: <b>{tenant.name}</b></p>
