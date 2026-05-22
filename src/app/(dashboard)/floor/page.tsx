@@ -7,6 +7,7 @@ import { useLanguage } from "@/lib/contexts/LanguageContext";
 import { useTenant } from "@/lib/contexts/TenantContext";
 import { createClient } from "@/lib/supabase/client";
 import { getShift, zoneLabel } from "@/lib/restaurant-rules";
+import { reservationsForShift, canAddZones } from "@/lib/floor/feature-logic";
 import { getFeatures } from "@/lib/types/tenant-settings";
 
 interface TableData {
@@ -194,12 +195,7 @@ export default function FloorPage() {
   const useShifts = features.double_shift;
 
   // Filter reservations by selected shift (single-service venues see them all).
-  const shiftReservations = useShifts
-    ? reservations.filter((r) => {
-        const resShift = r.shift || getShift(r.time);
-        return resShift === selectedShift;
-      })
-    : reservations;
+  const shiftReservations = reservationsForShift(reservations, useShifts, selectedShift, getShift);
 
   // A table is occupied as long as the linked reservation is in an active
   // state. Tables are NEVER auto-released by time — staff must free them
@@ -322,7 +318,7 @@ export default function FloorPage() {
   // multi_room = the venue has separate rooms/areas. When off (single room) the
   // owner can't create new zones; any zones that already exist stay fully
   // visible and editable, so nothing a tenant already built can disappear.
-  const canManageZones = features.multi_room || zones.length > 1;
+  const canManageZones = canAddZones(features.multi_room, zones.length);
 
   // Persist a single table's position after drag
   const persistTablePosition = useCallback(async (tableId: string, x: number, y: number) => {
