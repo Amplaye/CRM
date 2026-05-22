@@ -24,9 +24,14 @@ create table public.tenants (
   name text not null,
   business_type text not null default 'restaurant' check (business_type in ('restaurant', 'ecommerce', 'services', 'other')),
   -- Tenant lifecycle (SaaS gate). Only 'trial'/'active' receive AI traffic;
-  -- 'pending' (registered, not yet provisioned) and 'suspended' (turned off) do not.
-  -- Single source of truth: src/lib/tenants/status.ts. Gate: src/app/api/webhooks/route.ts.
-  status text not null default 'active' check (status in ('pending', 'trial', 'active', 'suspended')),
+  -- 'pending' (registered, not yet provisioned), 'suspended' (turned off) and
+  -- 'archived' (soft-removed via offboarding, hidden, purged after a grace period)
+  -- do not. Single source of truth: src/lib/tenants/status.ts. Gate: src/app/api/webhooks/route.ts.
+  status text not null default 'active' check (status in ('pending', 'trial', 'active', 'suspended', 'archived')),
+  -- Set by the offboarding flow (src/lib/tenants/delete-tenant.ts): when archived
+  -- and purge_after has passed, the daily cron permanently deletes the tenant.
+  archived_at timestamptz,
+  purge_after timestamptz,
   created_at timestamptz not null default now(),
   settings jsonb not null default '{"timezone": "Europe/Rome", "currency": "EUR", "ai_enabled_channels": []}'::jsonb
 );
