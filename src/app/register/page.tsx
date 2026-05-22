@@ -36,7 +36,8 @@ export default function RegisterPage() {
         password,
         options: {
           data: { name },
-          emailRedirectTo: `${window.location.origin}/auth/callback?next=/`
+          // New owners land in the self-serve onboarding wizard, not an empty CRM.
+          emailRedirectTo: `${window.location.origin}/auth/callback?next=/onboarding`
         }
       });
       if (signUpError) throw signUpError;
@@ -86,7 +87,7 @@ export default function RegisterPage() {
         }
       }
 
-      router.push("/");
+      router.push("/onboarding");
       router.refresh();
     } catch (err: any) {
       setError(err.message || "Registration failed.");

@@ -4,7 +4,7 @@ import { useTenant } from "@/lib/contexts/TenantContext";
 import { useLanguage } from "@/lib/contexts/LanguageContext";
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Shield, AlertTriangle, TrendingUp, TrendingDown, Minus, RefreshCw } from "lucide-react";
+import { Shield, AlertTriangle, TrendingUp, TrendingDown, Minus, RefreshCw, MessageSquare, Check } from "lucide-react";
 
 interface TenantOverview {
   id: string;
@@ -45,6 +45,7 @@ export default function AdminPage() {
   const [tenants, setTenants] = useState<TenantOverview[]>([]);
   const [platform, setPlatform] = useState<PlatformTotals | null>(null);
   const [loading, setLoading] = useState(true);
+  const [pendingWa, setPendingWa] = useState<Array<{ id: string; name: string; slug: string }>>([]);
 
   const fetchData = async () => {
     setLoading(true);
@@ -59,7 +60,22 @@ export default function AdminPage() {
     setLoading(false);
   };
 
-  useEffect(() => { fetchData(); }, []);
+  const fetchPendingWa = async () => {
+    try {
+      const res = await fetch("/api/admin/pending-whatsapp");
+      if (res.ok) setPendingWa((await res.json()).pending || []);
+    } catch { /* non-blocking reminder */ }
+  };
+
+  const markWaDone = async (tenantId: string) => {
+    setPendingWa((p) => p.filter((x) => x.id !== tenantId)); // optimistic
+    await fetch("/api/admin/mark-whatsapp", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ tenant_id: tenantId }),
+    }).catch(() => {});
+  };
+
+  useEffect(() => { fetchData(); fetchPendingWa(); }, []);
 
   if (globalRole !== "platform_admin") {
     return (
@@ -83,6 +99,38 @@ export default function AdminPage() {
           <RefreshCw className={`w-4 h-4 text-black ${loading ? "animate-spin" : ""}`} />
         </button>
       </div>
+
+      {/* New self-serve clients waiting for the WhatsApp number (non-blocking reminder) */}
+      {pendingWa.length > 0 && (
+        <div className="rounded-xl border-2 border-emerald-300 bg-emerald-50 p-4 space-y-3">
+          <div className="flex items-center gap-2 text-emerald-800 font-bold text-sm">
+            <MessageSquare className="w-4 h-4" />
+            {pendingWa.length === 1
+              ? "1 nuovo cliente ha completato il provisioning — attacca il numero WhatsApp"
+              : `${pendingWa.length} nuovi clienti hanno completato il provisioning — attacca il numero WhatsApp`}
+          </div>
+          <div className="space-y-2">
+            {pendingWa.map((p) => (
+              <div key={p.id} className="flex items-center justify-between gap-3 rounded-lg bg-white/70 px-3 py-2 text-sm">
+                <div className="min-w-0">
+                  <span className="font-semibold text-black">{p.name}</span>
+                  {p.slug && (
+                    <span className="text-xs text-emerald-700/90 block sm:inline sm:ml-2">
+                      webhook Twilio → <code className="bg-white px-1 py-0.5 rounded">{p.slug}-whatsapp</code>
+                    </span>
+                  )}
+                </div>
+                <button
+                  onClick={() => markWaDone(p.id)}
+                  className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-emerald-600 text-white text-xs font-bold hover:bg-emerald-700 transition-colors flex-shrink-0"
+                >
+                  <Check className="w-3 h-3" /> Fatto
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Platform Summary */}
       {platform && (

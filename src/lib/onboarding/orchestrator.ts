@@ -8,6 +8,7 @@
 import { createServiceRoleClient } from "@/lib/supabase/server";
 import { substituteTenantTokens, toCreatePayload } from "./substitute";
 import { createTenant } from "@/lib/tenants/create-tenant";
+import { buildVoicePrompt } from "./voice-prompt";
 
 const RETELL_BASE = "https://api.retellai.com";
 
@@ -29,11 +30,23 @@ export interface OnboardInput {
   table_size_preset: "small" | "medium" | "large"; // 6/12/20 tables auto-generated
   // Knowledge base
   kb_articles: Array<{ title: string; content: string; category: string }>;
-  voice_prompt: string; // body of the VOICE PROMPT KB article (Retell general_prompt template)
+  // Body of the VOICE PROMPT KB article. Optional: when omitted (self-serve),
+  // the orchestrator builds it server-side from the fixed agency template so
+  // the client never writes or sees it (see voice-prompt.ts).
+  voice_prompt?: string;
   // Owner login
   owner_email: string;
   owner_password: string;
   owner_name: string;
+
+  // --- Self-serve mode (owner provisions their own pre-created tenant) ---
+  // When set, the orchestrator UPGRADES this existing tenant instead of
+  // creating a new one, and links the EXISTING owner user instead of creating
+  // an auth account. The owner endpoint forces both to the caller's identity
+  // (see owner-tenant.ts) — they are never trusted from a public form.
+  tenant_id?: string;
+  owner_user_id?: string;
+  self_serve?: boolean;
 }
 
 export interface OnboardProgress {
@@ -147,9 +160,9 @@ export async function runOnboard(
   try {
     const supabase = createServiceRoleClient();
 
-    // 1. Tenant row
+    // 1. Tenant row — create new (admin) or upgrade existing (self-serve)
     {
-      const initialSettings = {
+      const provisioningSettings = {
         timezone: input.timezone,
         locale: input.locale,
         opening_hours: input.opening_hours,
@@ -160,14 +173,32 @@ export async function runOnboard(
         ai_enabled_channels: ["whatsapp", "voice"],
         currency: "EUR",
       };
-      // Admin wizard provisions the full bot → born "active" (ready for traffic).
-      const created = await createTenant(supabase, {
-        name: input.restaurant_name,
-        status: "active",
-        settings: initialSettings,
-      });
-      tenantId = created.id;
-      push({ step: "tenant", message: `Tenant created (${tenantId})`, ok: true, data: { tenant_id: tenantId } });
+
+      if (input.tenant_id) {
+        // Self-serve: the owner's trial tenant already exists. Merge the
+        // provisioning settings onto whatever the signup wrote and flip it to
+        // "active" (full bot now provisioned).
+        const { data: cur, error: getErr } = await supabase
+          .from("tenants").select("settings").eq("id", input.tenant_id).single();
+        if (getErr || !cur) throw new Error(`tenant ${input.tenant_id} not found`);
+        const mergedSettings = { ...((cur.settings as any) || {}), ...provisioningSettings };
+        const { error: updErr } = await supabase
+          .from("tenants")
+          .update({ name: input.restaurant_name, status: "active", settings: mergedSettings })
+          .eq("id", input.tenant_id);
+        if (updErr) throw new Error(`tenant upgrade: ${updErr.message}`);
+        tenantId = input.tenant_id;
+        push({ step: "tenant", message: `Tenant upgraded (${tenantId})`, ok: true, data: { tenant_id: tenantId } });
+      } else {
+        // Admin wizard provisions the full bot → born "active" (ready for traffic).
+        const created = await createTenant(supabase, {
+          name: input.restaurant_name,
+          status: "active",
+          settings: provisioningSettings,
+        });
+        tenantId = created.id;
+        push({ step: "tenant", message: `Tenant created (${tenantId})`, ok: true, data: { tenant_id: tenantId } });
+      }
     }
 
     // 2. Tables
@@ -188,11 +219,20 @@ export async function runOnboard(
         status: "published",
       }));
       // Voice prompt is stored as a "VOICE PROMPT" titled article — sync-kb-retell
-      // recognises this title and uses the body as Retell general_prompt.
+      // recognises this title and uses the body as Retell general_prompt. When the
+      // caller didn't supply one (self-serve path), build it from the fixed agency
+      // template so the client never writes or sees it.
+      const voicePrompt = input.voice_prompt?.trim()
+        ? input.voice_prompt
+        : buildVoicePrompt({
+            restaurant_name: input.restaurant_name,
+            language: input.language,
+            opening_hours: input.opening_hours,
+          });
       articles.push({
         tenant_id: tenantId,
         title: "VOICE PROMPT",
-        content: input.voice_prompt,
+        content: voicePrompt,
         category: "general",
         status: "published",
       });
@@ -285,30 +325,64 @@ export async function runOnboard(
 
     // 7. Owner user account + tenant_member link
     {
-      const { data: created, error: cuErr } = await supabase.auth.admin.createUser({
-        email: input.owner_email,
-        password: input.owner_password,
-        email_confirm: true,
-        user_metadata: { name: input.owner_name },
-      });
-      if (cuErr) throw new Error(`owner user: ${cuErr.message}`);
-      const ownerId = created.user!.id;
-      // The handle_new_user trigger inserts into public.users automatically.
-      // Add the tenant membership.
-      const { error: mErr } = await supabase
-        .from("tenant_members")
-        .insert({ tenant_id: tenantId, user_id: ownerId, role: "owner" });
-      if (mErr) throw new Error(`tenant_member: ${mErr.message}`);
-      push({ step: "owner", message: `Owner account ${input.owner_email} linked`, ok: true });
+      if (input.owner_user_id) {
+        // Self-serve: the owner already signed up and is already a member of
+        // their trial tenant (created at signup). Don't create a duplicate auth
+        // account — just make sure the membership row exists.
+        const { data: existing } = await supabase
+          .from("tenant_members")
+          .select("id")
+          .eq("tenant_id", tenantId)
+          .eq("user_id", input.owner_user_id)
+          .maybeSingle();
+        if (!existing) {
+          const { error: mErr } = await supabase
+            .from("tenant_members")
+            .insert({ tenant_id: tenantId, user_id: input.owner_user_id, role: "owner" });
+          if (mErr) throw new Error(`tenant_member: ${mErr.message}`);
+        }
+        push({ step: "owner", message: `Owner ${input.owner_email} linked`, ok: true });
+      } else {
+        const { data: created, error: cuErr } = await supabase.auth.admin.createUser({
+          email: input.owner_email,
+          password: input.owner_password,
+          email_confirm: true,
+          user_metadata: { name: input.owner_name },
+        });
+        if (cuErr) throw new Error(`owner user: ${cuErr.message}`);
+        const ownerId = created.user!.id;
+        // The handle_new_user trigger inserts into public.users automatically.
+        // Add the tenant membership.
+        const { error: mErr } = await supabase
+          .from("tenant_members")
+          .insert({ tenant_id: tenantId, user_id: ownerId, role: "owner" });
+        if (mErr) throw new Error(`tenant_member: ${mErr.message}`);
+        push({ step: "owner", message: `Owner account ${input.owner_email} linked`, ok: true });
+      }
     }
 
-    // 8. Save tenant.settings.workflow_ids so the admin UI can show / activate them later
+    // 8. Save workflow ids + (self-serve) the provisioning marker the admin panel
+    //    watches. Marking onboarding.completed also tells the dashboard guard to
+    //    stop redirecting the owner back into the wizard.
     {
       const { data: cur } = await supabase.from("tenants").select("settings").eq("id", tenantId).single();
-      const merged = {
-        ...((cur?.settings as any) || {}),
+      const prev = (cur?.settings as any) || {};
+      const merged: Record<string, any> = {
+        ...prev,
         n8n: { workflow_ids: createdWorkflowIds },
       };
+      if (input.self_serve) {
+        merged.onboarding = { ...(prev.onboarding || {}), completed: true, completed_at: new Date().toISOString() };
+        // whatsapp_attached:false → surfaced in the admin panel as "attach the
+        // number" (the one manual step left). Doesn't block the client.
+        merged.provisioning = {
+          ...(prev.provisioning || {}),
+          self_serve: true,
+          completed_at: new Date().toISOString(),
+          whatsapp_attached: false,
+          slug: input.slug,
+        };
+      }
       await supabase.from("tenants").update({ settings: merged }).eq("id", tenantId);
     }
 

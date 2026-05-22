@@ -12,13 +12,18 @@ export async function POST(req: NextRequest) {
     const supabase = createServiceRoleClient();
 
     // Self-signup → "trial": live to evaluate, not yet a paying client.
+    // The bot isn't provisioned yet — `onboarding.completed:false` is the
+    // explicit signal that routes the owner into the self-serve wizard
+    // (see /onboarding + the dashboard guard). Legacy tenants lack this marker
+    // and are therefore never force-redirected.
     const tenant = await createTenant(supabase, {
       name: businessName,
       status: "trial",
       settings: {
         timezone: "Europe/Rome",
         currency: "EUR",
-        ai_enabled_channels: []
+        ai_enabled_channels: [],
+        onboarding: { completed: false }
       }
     });
 

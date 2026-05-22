@@ -12,7 +12,7 @@ import { Loader2 } from "lucide-react";
 
 export function DashboardLayout({ children }: { children: ReactNode }) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const { globalRole, activeTenant, loading } = useTenant();
+  const { globalRole, activeTenant, activeRole, loading } = useTenant();
   const { user } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
@@ -96,6 +96,16 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
       router.replace("/admin");
     }
   }, [loading, isPlatformOnly, isOnAdminPage, router]);
+
+  // Self-serve owner whose bot isn't provisioned yet → push into the wizard.
+  // Gated on the EXPLICIT marker register-tenant writes (onboarding.completed:false),
+  // so legacy tenants (which lack the marker) are never force-redirected.
+  const needsOnboarding =
+    !loading && globalRole !== "platform_admin" && activeRole === "owner" &&
+    (activeTenant?.settings as any)?.onboarding?.completed === false;
+  useEffect(() => {
+    if (needsOnboarding) router.replace("/onboarding");
+  }, [needsOnboarding, router]);
 
   // Show spinner only briefly while auth is resolving — not on every navigation
   // Skip spinner entirely if on admin pages (they don't need tenant)
