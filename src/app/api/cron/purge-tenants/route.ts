@@ -23,7 +23,7 @@ export async function GET(req: NextRequest) {
       await logSystemEvent({
         tenant_id: null,
         category: "system",
-        severity: "medium",
+        severity: "low", // informational audit event, not a bug
         title: `Tenant purged (auto): ${r.tenantName}`,
         metadata: { tenant_id: t.id, ...r },
       });

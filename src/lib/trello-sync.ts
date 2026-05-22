@@ -170,6 +170,15 @@ export async function syncSystemLogToTrello(
 
   let result: any = {};
 
+  // `low` severity is informational (e.g. successful tenant purges, audit
+  // events). It belongs in system_logs for the record, but it is not a bug —
+  // so it never creates a card in "Bugs activos".
+  const isInformational = record.severity === "low";
+
+  if (isInformational && !record.metadata?.trello_card_id) {
+    return { skipped: "informational (severity=low)" };
+  }
+
   if (becameResolved) {
     result = await resolveCard(record);
   } else if (isOpen && !record.metadata?.trello_card_id) {

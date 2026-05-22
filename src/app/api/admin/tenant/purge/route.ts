@@ -25,7 +25,7 @@ export async function POST(req: NextRequest) {
     await logSystemEvent({
       tenant_id: null,
       category: "system",
-      severity: "medium",
+      severity: "low", // informational audit event, not a bug
       title: `Tenant purged (manual): ${result.tenantName}`,
       description: `by ${auth.userId}`,
       metadata: { tenant_id, by: auth.userId, ...result },
