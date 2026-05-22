@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServiceRoleClient } from "@/lib/supabase/server";
 import { assertPlatformAdmin } from "@/lib/admin-auth";
-import { isTenantStatus } from "@/lib/tenants/status";
+import { isAdminSettableStatus } from "@/lib/tenants/status";
 
 export async function GET(req: NextRequest) {
   try {
@@ -21,7 +21,7 @@ export async function GET(req: NextRequest) {
     const d7Str = toDateStr(d7);
 
     const [tenantRes, reservationsRes, incidentsRes, logsRes, conversationsRes] = await Promise.all([
-      supabase.from("tenants").select("id, name, status, settings, created_at").eq("id", tenantId).single(),
+      supabase.from("tenants").select("id, name, status, settings, created_at, archived_at, purge_after").eq("id", tenantId).single(),
       supabase.from("reservations")
         .select("id, source, date, time, party_size, status, created_at, guest_id, guests(name, phone)")
         .eq("tenant_id", tenantId)
@@ -69,7 +69,7 @@ export async function GET(req: NextRequest) {
     const escalationRate = conversations.length > 0 ? Math.round((escalations / conversations.length) * 100) : 0;
 
     return NextResponse.json({
-      tenant: { id: tenant.id, name: tenant.name, status: tenant.status, created_at: tenant.created_at },
+      tenant: { id: tenant.id, name: tenant.name, status: tenant.status, created_at: tenant.created_at, archived_at: tenant.archived_at, purge_after: tenant.purge_after },
       kpis: {
         aiRevenue7,
         aiRevenue30,
@@ -101,7 +101,8 @@ export async function PATCH(req: NextRequest) {
     if (!tenant_id || (settings === undefined && status === undefined)) {
       return NextResponse.json({ error: "Missing tenant_id or nothing to update" }, { status: 400 });
     }
-    if (status !== undefined && !isTenantStatus(status)) {
+    if (status !== undefined && !isAdminSettableStatus(status)) {
+      // 'archived' is reachable only through the protected archive flow.
       return NextResponse.json({ error: "Invalid status" }, { status: 400 });
     }
 

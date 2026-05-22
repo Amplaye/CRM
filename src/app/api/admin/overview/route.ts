@@ -18,10 +18,12 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    // Get all tenants
-    const { data: tenants } = await supabase
+    // Get all tenants (archived ones disappear from the CRM immediately —
+    // recoverable via the Archived section on the admin page).
+    const { data: allTenants } = await supabase
       .from("tenants")
-      .select("id, name, settings, created_at");
+      .select("id, name, settings, created_at, status");
+    const tenants = (allTenants || []).filter((t: any) => t.status !== "archived");
 
     if (!tenants || tenants.length === 0) {
       return NextResponse.json({ tenants: [] });
