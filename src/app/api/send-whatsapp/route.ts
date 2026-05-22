@@ -5,7 +5,7 @@ import { createServerSupabaseClient, createServiceRoleClient } from "@/lib/supab
 import { resolveWhatsAppFrom, tenantWhatsAppFrom } from "@/lib/whatsapp/from";
 
 export async function POST(req: NextRequest) {
-  // Accept either: (a) valid x-ai-secret (n8n/Retell) or (b) a signed-in dashboard session.
+  // Accept either: (a) valid x-ai-secret (n8n/Vapi) or (b) a signed-in dashboard session.
   // This lets /pending and other dashboard pages call this endpoint from the browser
   // (same-origin cookies) without embedding the shared secret in the JS bundle.
   const unauth = assertAiSecret(req);

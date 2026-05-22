@@ -27,10 +27,10 @@ export default function KnowledgePage() {
 
   const [saving, setSaving] = useState(false);
 
-  const syncRetellKB = async () => {
+  const syncVapiKB = async () => {
     if (!tenant) return;
     try {
-      await fetch("/api/sync-kb-retell", {
+      await fetch("/api/sync-kb-vapi", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ tenant_id: tenant.id }),
@@ -138,7 +138,7 @@ export default function KnowledgePage() {
            }
         }
         setIsEditing(false);
-        syncRetellKB();
+        syncVapiKB();
      } catch (err) { console.error(err); }
      setSaving(false);
   };
@@ -148,7 +148,7 @@ export default function KnowledgePage() {
      try {
         await supabase.from("knowledge_articles").delete().eq("id", id);
         if (selectedArticleId === id) setSelectedArticleId(null);
-        syncRetellKB();
+        syncVapiKB();
      } catch (err) { console.error(err); }
   }
 
@@ -173,7 +173,7 @@ export default function KnowledgePage() {
     await Promise.all(updated.map(a =>
       supabase.from("knowledge_articles").update({ display_order: a.display_order }).eq("id", a.id)
     ));
-    syncRetellKB();
+    syncVapiKB();
   }, [articles, supabase]);
 
   // Touch drag handlers for mobile

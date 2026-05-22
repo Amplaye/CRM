@@ -219,7 +219,7 @@ export function GeneralTab() {
         });
       }
 
-      await fetch("/api/sync-kb-retell", {
+      await fetch("/api/sync-kb-vapi", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ tenant_id: tenant.id }),

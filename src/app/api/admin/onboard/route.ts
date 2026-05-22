@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { runOnboard, OnboardInput, OnboardProgress } from "@/lib/onboarding/orchestrator";
 
-// Onboarding can take up to ~60s end-to-end (Retell + 13 n8n clones + KB sync).
+// Onboarding can take up to ~60s end-to-end (Vapi + 13 n8n clones + KB sync).
 // Fluid Compute supports up to 800s, so 120s is comfortably within limits.
 export const maxDuration = 120;
 

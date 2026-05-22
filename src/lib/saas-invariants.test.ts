@@ -7,7 +7,7 @@ import { getFeatures } from "./types/tenant-settings";
  * SAAS PROOF SUITE — the investor pillars, locked by the build.
  *
  * docs/PIANO_SAAS.md ships a manual "VERIFICA GLOBALE" checklist. The pillars
- * that can be proven in-process (no external Retell/n8n/Twilio call) are asserted
+ * that can be proven in-process (no external Vapi/n8n/Twilio call) are asserted
  * here, so a future edit cannot silently undo them. Companion: docs/PROVA_SAAS.md.
  */
 

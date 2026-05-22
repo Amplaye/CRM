@@ -1,5 +1,5 @@
 // Onboarding orchestrator: turn a wizard form payload into a fully
-// provisioned tenant (DB rows + Retell agent + cloned n8n workflows).
+// provisioned tenant (DB rows + Vapi assistant + cloned n8n workflows).
 // All steps are idempotent-friendly: on failure we report which step
 // failed so the caller can retry without leaving partial state behind
 // in critical resources (the cloned n8n workflows are deactivated by
@@ -9,8 +9,7 @@ import { createServiceRoleClient } from "@/lib/supabase/server";
 import { substituteTenantTokens, toCreatePayload } from "./substitute";
 import { createTenant } from "@/lib/tenants/create-tenant";
 import { buildVoicePrompt } from "./voice-prompt";
-
-const RETELL_BASE = "https://api.retellai.com";
+import { cloneTemplateAssistant } from "./vapi";
 
 export type OpeningHoursSlot = { open: string; close: string };
 export type OpeningHours = Record<string, OpeningHoursSlot[]>; // keys 0..6 (Sunday=0)
@@ -22,7 +21,7 @@ export interface OnboardInput {
   restaurant_phone: string; // public phone shown in messages, e.g. "+34 928 123 456"
   owner_phone: string; // WhatsApp e164 of the staff/owner who receives notifications, e.g. "+34123456789"
   timezone: string;
-  locale: string; // "es-ES" | "it-IT" | "en-GB" — used by the Retell FECHA header
+  locale: string; // "es-ES" | "it-IT" | "en-GB" — used by the voice-prompt FECHA header
   language: "es" | "it" | "en" | "de"; // primary language for the bot
   review_url: string; // Google Maps review link for the post-meal followup
   // Operations
@@ -62,9 +61,6 @@ const DEFAULT_TABLE_SIZE: Record<OnboardInput["table_size_preset"], number> = {
   large: 20,
 };
 
-// Default voice id (Yerom) used across every demo per the user's preference.
-const DEFAULT_VOICE_ID = "custom_voice_da9c1a838c8cfd4064a9ce1730";
-
 // The 13 n8n workflows that make up the OFFICIAL RESTAURANT TEMPLATE
 // ("template ristorante v1"). These live workflows are the golden source:
 // onboarding clones them and rewrites the tenant-specific tokens (see
@@ -103,19 +99,6 @@ async function n8n(method: string, path: string, body?: any): Promise<any> {
   }
 }
 
-async function retell(method: string, path: string, body?: any): Promise<any> {
-  const key = process.env.RETELL_API_KEY;
-  if (!key) throw new Error("RETELL_API_KEY not configured");
-  const res = await fetch(`${RETELL_BASE}${path}`, {
-    method,
-    headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
-    body: body ? JSON.stringify(body) : undefined,
-  });
-  const text = await res.text();
-  if (!res.ok) throw new Error(`Retell ${method} ${path} → ${res.status}: ${text.slice(0, 300)}`);
-  return JSON.parse(text);
-}
-
 function buildDefaultTables(tenantId: string, count: number) {
   // Half inside, half outside for demo realism. Round/square mixed by seat count.
   const tables: any[] = [];
@@ -152,10 +135,20 @@ export async function runOnboard(
   };
 
   let tenantId = "";
-  let retellLlmId = "";
-  let retellAgentId = "";
-  let retellKbId = "";
+  let vapiAssistantId = "";
   const createdWorkflowIds: string[] = [];
+
+  // Voice prompt body, computed once: the caller's text (admin wizard) or, when
+  // omitted (self-serve), built from the fixed agency template. Reused as the
+  // VOICE PROMPT KB article (step 3) and the cloned assistant's system prompt
+  // stub (step 4); the full KB is then merged in by sync-kb-vapi (step 5).
+  const voicePromptBody = input.voice_prompt?.trim()
+    ? input.voice_prompt
+    : buildVoicePrompt({
+        restaurant_name: input.restaurant_name,
+        language: input.language,
+        opening_hours: input.opening_hours,
+      });
 
   try {
     const supabase = createServiceRoleClient();
@@ -218,21 +211,13 @@ export async function runOnboard(
         category: a.category || "general",
         status: "published",
       }));
-      // Voice prompt is stored as a "VOICE PROMPT" titled article — sync-kb-retell
-      // recognises this title and uses the body as Retell general_prompt. When the
-      // caller didn't supply one (self-serve path), build it from the fixed agency
-      // template so the client never writes or sees it.
-      const voicePrompt = input.voice_prompt?.trim()
-        ? input.voice_prompt
-        : buildVoicePrompt({
-            restaurant_name: input.restaurant_name,
-            language: input.language,
-            opening_hours: input.opening_hours,
-          });
+      // Voice prompt is stored as a "VOICE PROMPT" titled article — sync-kb-vapi
+      // recognises this title and uses the body as the assistant's voice prompt
+      // (the rest of the articles become the KB block in the same system prompt).
       articles.push({
         tenant_id: tenantId,
         title: "VOICE PROMPT",
-        content: voicePrompt,
+        content: voicePromptBody,
         category: "general",
         status: "published",
       });
@@ -241,57 +226,57 @@ export async function runOnboard(
       push({ step: "kb", message: `${articles.length} KB articles inserted`, ok: true });
     }
 
-    // 4. Retell LLM + agent
+    // 4. Vapi assistant — clone the agency template ("PICNIC - Sofía"). We reuse
+    //    its voice / model / tools and only change the name, system prompt and
+    //    greeting. The system prompt starts as the voice prompt body; step 5
+    //    merges in the KB. A localized greeting avoids leaking the template's
+    //    Picnic opener until the voicemail sync overwrites firstMessage.
     {
-      // Stub general_prompt — sync-kb-retell will replace it with the full
-      // VOICE PROMPT body wrapped with a dynamic FECHA header on first sync.
-      const llm = await retell("POST", "/create-retell-llm", {
-        model: "gpt-4o-mini",
-        general_prompt: `Eres el agente vocal de ${input.restaurant_name}. Sé breve y útil.`,
+      const greetings: Record<OnboardInput["language"], string> = {
+        es: `¡Hola, ${input.restaurant_name}, bienvenido! ¿En qué te puedo ayudar?`,
+        it: `Ciao, ${input.restaurant_name}, benvenuto! Come posso aiutarti?`,
+        en: `Hello, welcome to ${input.restaurant_name}! How can I help you?`,
+        de: `Hallo, willkommen bei ${input.restaurant_name}! Wie kann ich helfen?`,
+      };
+      const key = process.env.VAPI_PRIVATE_KEY;
+      if (!key) throw new Error("VAPI_PRIVATE_KEY not configured");
+      const { assistantId } = await cloneTemplateAssistant({
+        key,
+        name: `${input.restaurant_name} — Voice`,
+        systemPrompt: voicePromptBody,
+        firstMessage: greetings[input.language] || greetings.es,
       });
-      retellLlmId = llm.llm_id;
+      vapiAssistantId = assistantId;
 
-      const agent = await retell("POST", "/create-agent", {
-        response_engine: { type: "retell-llm", llm_id: retellLlmId },
-        voice_id: DEFAULT_VOICE_ID,
-        agent_name: `${input.restaurant_name} Agent`,
-        language: input.language === "it" ? "it-IT" : input.language === "en" ? "en-US" : "es-ES",
-      });
-      retellAgentId = agent.agent_id;
-
-      // Persist the Retell ids in tenant.settings so sync-kb-retell can find them
-      // without code changes per-tenant.
+      // Persist the Vapi assistant id in tenant.settings so sync-kb-vapi and the
+      // voicemail sync can find it without code changes per-tenant.
       const { data: cur } = await supabase.from("tenants").select("settings").eq("id", tenantId).single();
       const merged = {
         ...((cur?.settings as any) || {}),
-        retell: {
-          llmId: retellLlmId,
-          agentId: retellAgentId,
+        vapi: {
+          assistantId: vapiAssistantId,
           timezone: input.timezone,
           locale: input.locale,
-          voiceId: DEFAULT_VOICE_ID,
         },
       };
       await supabase.from("tenants").update({ settings: merged }).eq("id", tenantId);
-      push({ step: "retell", message: `Retell agent ${retellAgentId} created`, ok: true, data: { llmId: retellLlmId, agentId: retellAgentId } });
+      push({ step: "vapi", message: `Vapi assistant ${vapiAssistantId} cloned`, ok: true, data: { assistantId: vapiAssistantId } });
     }
 
-    // 5. Sync KB into Retell so the agent has menu / policies / voice prompt
+    // 5. Sync KB into the Vapi assistant so its prompt has menu / policies / voice prompt
     {
       const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "https://crm.baliflowagency.com";
       const sec = process.env.AI_WEBHOOK_SECRET || "";
-      const r = await fetch(`${baseUrl}/api/sync-kb-retell`, {
+      const r = await fetch(`${baseUrl}/api/sync-kb-vapi`, {
         method: "POST",
         headers: { "Content-Type": "application/json", "x-ai-secret": sec },
         body: JSON.stringify({ tenant_id: tenantId }),
       });
       if (!r.ok) {
         const t = await r.text();
-        throw new Error(`sync-kb-retell: ${r.status} ${t.slice(0, 200)}`);
+        throw new Error(`sync-kb-vapi: ${r.status} ${t.slice(0, 200)}`);
       }
-      const j = await r.json();
-      retellKbId = j.kb_id || "";
-      push({ step: "kb_sync", message: `KB synced to Retell (${retellKbId})`, ok: true });
+      push({ step: "kb_sync", message: `KB synced into Vapi assistant ${vapiAssistantId}`, ok: true });
     }
 
     // 6. Clone n8n workflows
@@ -303,9 +288,7 @@ export async function runOnboard(
         newRestaurantName: input.restaurant_name,
         newRestaurantPhone: input.restaurant_phone,
         newReviewUrl: input.review_url,
-        newRetellAgentId: retellAgentId,
-        newRetellLlmId: retellLlmId,
-        newRetellKbId: retellKbId,
+        newVapiAssistantId: vapiAssistantId,
       };
 
       for (const wid of TEMPLATE_RESTAURANT_WORKFLOW_IDS) {

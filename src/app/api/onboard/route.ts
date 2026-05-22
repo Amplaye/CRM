@@ -6,7 +6,7 @@ import { generateKbArticles, KbQuestionnaire, Lang } from "@/lib/onboarding/kb-g
 
 // Owner self-serve provisioning. Same engine as the admin wizard
 // (/api/admin/onboard → runOnboard), but driven by the restaurant owner for
-// THEIR OWN tenant. Up to ~60s end-to-end (Retell + 13 n8n clones + KB sync).
+// THEIR OWN tenant. Up to ~60s end-to-end (Vapi + 13 n8n clones + KB sync).
 export const maxDuration = 120;
 
 const localeFor = (l: Lang) =>
@@ -55,11 +55,11 @@ export async function POST(req: Request) {
   }
   const tenantId = resolved.tenantId;
 
-  // 3. Idempotency: never double-provision (would orphan Retell/n8n resources).
+  // 3. Idempotency: never double-provision (would orphan Vapi/n8n resources).
   const { data: tenant } = await svc
     .from("tenants").select("id, settings").eq("id", tenantId).single();
   if (!tenant) return NextResponse.json({ error: "tenant_not_found" }, { status: 404 });
-  if ((tenant.settings as any)?.retell?.agentId) {
+  if ((tenant.settings as any)?.vapi?.assistantId) {
     return NextResponse.json({ error: "already_provisioned" }, { status: 409 });
   }
 

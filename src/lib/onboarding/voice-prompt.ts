@@ -4,8 +4,8 @@
 // something each client writes. The restaurateur never sees or edits this — it
 // is filled in from their structured data (name, language, opening hours) at
 // provisioning time and stored as the special "VOICE PROMPT" KB article, which
-// sync-kb-retell turns into the Retell general_prompt (with a dynamic FECHA
-// header prepended at sync time — so we deliberately omit dates here).
+// sync-kb-vapi uses as the body of the Vapi assistant's system prompt (with the
+// published KB articles concatenated after it).
 
 import type { Lang } from "./kb-generator";
 

@@ -1,11 +1,11 @@
 // Tenant-onboarding workflow substitution.
 //
 // THE OFFICIAL RESTAURANT TEMPLATE ("template ristorante v1").
-// We don't store template files in the repo: the live n8n workflows + Retell
-// agent (which historically lived under the Picnic account) ARE the golden
+// We don't store template files in the repo: the live n8n workflows + Vapi
+// assistant (which historically lived under the Picnic account) ARE the golden
 // source of bot behavior. At runtime we fetch them via API and rewrite every
 // template-specific value (UUID, owner phone, restaurant name, webhook path,
-// Retell agent/LLM/KB ids, restaurant phone, Google review URL) to the new
+// Vapi assistant id, restaurant phone, Google review URL) to the new
 // tenant's values.
 //
 // GOLDEN-SOURCE RULE: any improvement to bot behavior must be patched on this
@@ -22,9 +22,10 @@ const TEMPLATE_RESTAURANT_PHONE = "+34 828 712 623";
 const TEMPLATE_RESTAURANT_PHONE_BARE = "828 712 623";
 const TEMPLATE_RESTAURANT_PHONE_DIGITS = "828712623";
 const TEMPLATE_RESTAURANT_REVIEW_URL_FRAGMENT = "cid=975701473301178074";
-const TEMPLATE_RESTAURANT_RETELL_AGENT_ID = "agent_985ab572aeb67df9d2612fbb4e";
-const TEMPLATE_RESTAURANT_RETELL_LLM_ID = "llm_d19f792cd11a22132956f81dc7fe";
-const TEMPLATE_RESTAURANT_RETELL_KB_ID = "knowledge_base_eebeefd1538418b1";
+// The template Vapi assistant ("PICNIC - Sofía"). Cloned per tenant by the
+// orchestrator; wherever the n8n template references this id, rewrite it to the
+// new tenant's cloned assistant id.
+const TEMPLATE_VAPI_ASSISTANT_ID = "6c92f776-abb2-4175-8a55-45d76ec01d1a";
 
 export interface OnboardSubstitutions {
   newTenantId: string;
@@ -33,9 +34,7 @@ export interface OnboardSubstitutions {
   newRestaurantName: string;
   newRestaurantPhone: string;
   newReviewUrl: string;
-  newRetellAgentId?: string;
-  newRetellLlmId?: string;
-  newRetellKbId?: string;
+  newVapiAssistantId?: string;
 }
 
 function escapeRegex(s: string): string {
@@ -65,10 +64,8 @@ export function substituteTenantTokens(workflowJsonText: string, sub: OnboardSub
     text = replaceAll(text, TEMPLATE_RESTAURANT_REVIEW_URL_FRAGMENT, sub.newReviewUrl);
   }
 
-  // Retell ids — only substitute if caller provided them
-  if (sub.newRetellAgentId) text = replaceAll(text, TEMPLATE_RESTAURANT_RETELL_AGENT_ID, sub.newRetellAgentId);
-  if (sub.newRetellLlmId) text = replaceAll(text, TEMPLATE_RESTAURANT_RETELL_LLM_ID, sub.newRetellLlmId);
-  if (sub.newRetellKbId) text = replaceAll(text, TEMPLATE_RESTAURANT_RETELL_KB_ID, sub.newRetellKbId);
+  // Vapi assistant id — only substitute if caller provided it
+  if (sub.newVapiAssistantId) text = replaceAll(text, TEMPLATE_VAPI_ASSISTANT_ID, sub.newVapiAssistantId);
 
   // Webhook paths embedded in the template: "picnic-*" → "{slug}-*".
   text = text.replace(new RegExp("picnic-(\\w+)", "g"), `${sub.newSlug}-$1`);

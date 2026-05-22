@@ -212,7 +212,7 @@ export default function OnboardPage() {
             ? "✅ Completato. Vedi link sotto."
             : done && !done.ok
               ? "❌ Onboarding fallito. Controlla il log e riprova."
-              : "Provisioning di tenant, KB, Retell agent e workflow n8n…"}
+              : "Provisioning di tenant, KB, assistente Vapi e workflow n8n…"}
         </p>
 
         <div className="rounded-xl border-2 border-[#c4956a] bg-white p-4 space-y-2 max-h-[60vh] overflow-y-auto">
@@ -377,7 +377,7 @@ export default function OnboardPage() {
             <button onClick={addKbArticle} className="text-sm font-semibold text-[#8b6540]">+ articolo</button>
           </div>
           <div className="rounded-xl border-2 border-zinc-200 bg-zinc-50 p-3">
-            <h4 className="text-xs font-bold uppercase tracking-widest mb-2">Voice prompt (Retell)</h4>
+            <h4 className="text-xs font-bold uppercase tracking-widest mb-2">Voice prompt (Vapi)</h4>
             <textarea value={voicePrompt} onChange={(e) => setVoicePrompt(e.target.value)} rows={10} className="w-full border border-zinc-200 rounded px-3 py-2 text-sm font-mono" />
           </div>
         </div>
