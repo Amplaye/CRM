@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   tenantReceivesTraffic,
   isTenantStatus,
+  isAdminSettableStatus,
   TRAFFIC_ALLOWED_STATUSES,
   TENANT_STATUSES,
 } from "./status";
@@ -50,5 +51,22 @@ describe("isTenantStatus", () => {
       "suspended",
       "trial",
     ]);
+  });
+});
+
+describe("archived status", () => {
+  it("archived is a valid TenantStatus", () => {
+    expect(isTenantStatus("archived")).toBe(true);
+  });
+  it("archived does NOT receive traffic", () => {
+    expect(tenantReceivesTraffic("archived")).toBe(false);
+  });
+  it("archived is not offered in the admin status dropdown", () => {
+    expect(TENANT_STATUSES.map((s) => s.value)).not.toContain("archived");
+  });
+  it("admin cannot set archived via the dropdown guard", () => {
+    expect(isAdminSettableStatus("active")).toBe(true);
+    expect(isAdminSettableStatus("archived")).toBe(false);
+    expect(isAdminSettableStatus("garbage")).toBe(false);
   });
 });
