@@ -190,6 +190,8 @@ export async function purgeTenant(
   } catch { /* tolerate */ }
 
   // 5) Staff logins (capture members BEFORE cascade; never touch admins/multi-tenant).
+  //    Single-tenant staff are deleted so their email is freed; the ban loop below
+  //    is now a no-op (kept for back-compat) since classifyStaffForTeardown no longer bans.
   const { data: members } = await supabase.from("tenant_members").select("user_id").eq("tenant_id", tenantId);
   const userIds = Array.from(new Set(((members as any[]) || []).map((m) => m.user_id)));
   const staffPlan = await resolveStaffPlan(supabase, tenantId, userIds);

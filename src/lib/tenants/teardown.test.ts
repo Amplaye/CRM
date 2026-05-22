@@ -51,13 +51,13 @@ describe("classifyStaffForTeardown", () => {
     expect(plan.delete).toEqual([]);
     expect(plan.ban).toEqual([]);
   });
-  it("deletes QR-staff, bans real single-tenant staff", () => {
+  it("deletes both QR-staff and real single-tenant staff (frees their email)", () => {
     const plan = classifyStaffForTeardown([
       { user_id: "qr", email: "x@baliflow.local", global_role: "user", otherTenantCount: 0 },
       { user_id: "real", email: "joe@gmail.com", global_role: "user", otherTenantCount: 0 },
     ]);
-    expect(plan.delete).toEqual(["qr"]);
-    expect(plan.ban).toEqual(["real"]);
+    expect(plan.delete.sort()).toEqual(["qr", "real"]);
+    expect(plan.ban).toEqual([]);
   });
   it("de-dupes repeated user_ids", () => {
     const plan = classifyStaffForTeardown([

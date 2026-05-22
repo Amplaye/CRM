@@ -60,9 +60,11 @@ export interface StaffPlan {
 }
 
 /** Classify a tenant's staff for login teardown. NEVER touch platform_admins or
- * users that belong to another tenant. Synthetic QR-staff (@baliflow.local) are
- * deleted (they exist only for this tenant); real single-tenant staff are banned
- * (login disabled, reversible). */
+ * users that belong to another tenant. Everyone else who belongs ONLY to this
+ * tenant — synthetic QR-staff (@baliflow.local) and real single-tenant staff
+ * alike — is deleted, so their email is freed for re-registration after the
+ * service is cancelled. (The `ban` bucket is retained for back-compat but is no
+ * longer populated.) */
 export function classifyStaffForTeardown(members: StaffMember[]): StaffPlan {
   const plan: StaffPlan = { delete: [], ban: [], skip: [] };
   const seen = new Set<string>();
@@ -73,8 +75,7 @@ export function classifyStaffForTeardown(members: StaffMember[]): StaffPlan {
       plan.skip.push(m.user_id);
       continue;
     }
-    if (/@baliflow\.local$/i.test(m.email || "")) plan.delete.push(m.user_id);
-    else plan.ban.push(m.user_id);
+    plan.delete.push(m.user_id);
   }
   return plan;
 }
