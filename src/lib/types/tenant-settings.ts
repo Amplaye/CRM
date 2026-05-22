@@ -1,4 +1,5 @@
 // Feature flags + typed tenant settings.
+import type { TenantStatus } from "@/lib/tenants/status";
 //
 // SaaS principle (see docs/PIANO_SAAS.md, Mossa 3): a restaurant's differences
 // live as DATA here — config, never forked code. Adding a new capability means
@@ -54,6 +55,14 @@ export interface TenantSettings {
    * number (e.g. "whatsapp:+34..."); unset → platform default. Resolved in one
    * place by src/lib/whatsapp/from.ts (Mossa 5: sending number is config, not code). */
   whatsapp?: { from?: string };
+  /** Offboarding bookkeeping, written by the archive flow (src/lib/tenants/delete-tenant.ts). */
+  archive?: { prev_status: TenantStatus; export_path?: string };
+  /** Voice provider config — exactly one is present per tenant. */
+  vapi?: { assistantId?: string };
+  retell?: { agentId?: string; llmId?: string };
+  retell_kb?: { id?: string };
+  /** Cloned n8n workflow ids (present for tenants provisioned via the orchestrator). */
+  n8n?: { workflow_ids?: string[] };
   [key: string]: any;
 }
 
