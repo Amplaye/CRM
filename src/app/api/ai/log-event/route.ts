@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { assertAiSecret } from '@/lib/ai-auth';
 import { logSystemEvent, resolveSystemEvents, type SystemLogCategory, type SystemLogSeverity } from '@/lib/system-log';
+import { isUserFlowRejection } from '@/lib/ai/user-case';
 
 // Lightweight trace endpoint for n8n wrappers (chat + voice + reminders).
 // Stores a structured event in system_logs so failures and decisions are
@@ -48,25 +49,7 @@ export async function POST(request: Request) {
     // Step-level marker also indicates a deterministic rejection path (e.g.
     // `book.rejected_closing_time`, `modify.rejected_closing_time`).
     const stepLower = String(step || '').toLowerCase();
-    const isUserCase = [
-      'no active reservation found',
-      'no se ha encontrado',
-      'no encontrada',
-      'already cancelled',
-      'ya cancelad',
-      'ya cancelada',
-      'in the past',
-      'fecha pasada',
-      'past_date',
-      'past_time',
-      'no_tables',
-      'outside_hours',
-      'closed_day',
-      'closing_time',
-      'before_opening',
-      'ambiguous',
-      'ambiguous_reservation',
-    ].some((m) => errMsg.includes(m) || stepLower.includes(m));
+    const isUserCase = isUserFlowRejection(errMsg, stepLower);
 
     const severity: SystemLogSeverity = isUserCase
       ? 'low'
