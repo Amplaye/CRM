@@ -31,6 +31,13 @@ Sessions are remembered per phone in the workflow's `staticData`
 (`global.sessions`: `phone → slug`). A greeting/`menu`/`cambia` always re-opens
 the menu (so the first "hola" of a session never gets eaten by an old binding).
 
+**Choice beats session.** After the menu is shown, the phone is flagged
+`global.awaiting[phone] = true`, and the *next* message is read as a menu choice
+**before** any existing session is consulted. Without this, picking a different
+restaurant ("chef oraz") right after switching from a prior session got
+forwarded to the *old* session instead of switching. If that next message
+doesn't match any tenant, the menu is re-shown and the phone stays awaiting.
+
 ## How a new CRM gets connected — automatically
 
 The router reads its menu **live from the database** on every message:
