@@ -37,6 +37,16 @@ interface Q4Strings {
   // card 5
   chefHint: string;
   optional: string; // suffix " (opcional)" used in several labels
+  // Inline ⓘ help bubbles for the non-obvious policy fields only. Plain-language
+  // explanations the owner reads in THIS form; they answer "what does this field
+  // actually do?" so the admin doesn't have to explain it by hand. Not every
+  // field has one — obvious fields (name, wifi, terrace…) are intentionally left
+  // without help.
+  info: {
+    autoConfirm: string; largeGroups: string; deposit: string; lateTolerance: string;
+    lateGrace: string; cancellationNotice: string; noShowRelease: string; lastReservation: string;
+    celiac: string; cannotGuarantee: string; severeAllergy: string; allergenSheet: string;
+  };
 }
 
 interface UiStrings {
@@ -125,6 +135,20 @@ export const UI: Record<UiLang, UiStrings> = {
       pkOwn: "Parking propio", pkPublic: "Parking público cercano", pkStreet: "En la calle", pkNone: "Sin aparcamiento",
       chefHint: "Añade hasta 6 platos que recomiendas, con una nota corta. El asistente los usará para responder «¿qué me recomiendas?». Déjalo vacío si prefieres remitir a la carta.",
       optional: " (opcional)",
+      info: {
+        autoConfirm: "Hasta cuántas personas el asistente confirma la reserva al instante, sin que tú tengas que aprobarla. Por encima de ese número, queda pendiente de tu OK.",
+        largeGroups: "Si aceptáis mesas por encima del número de confirmación automática. Esas reservas no se confirman solas: te llegan para que las apruebes tú.",
+        deposit: "Si para los grupos grandes pedís un anticipo o señal para confirmar. El asistente lo mencionará al gestionar esas reservas.",
+        lateTolerance: "Cuántos minutos esperáis a un cliente que llega tarde antes de poder dar la mesa a otro.",
+        lateGrace: "Si el cliente avisa de que llega tarde, ¿le guardáis la mesa más tiempo? El asistente será más flexible en ese caso.",
+        cancellationNotice: "Con cuánta antelación debe avisar el cliente para cancelar sin problema. Sirve para que el asistente sepa cuándo una cancelación llega «a tiempo» o «tarde»; no bloquea nada por sí solo.",
+        noShowRelease: "Si el cliente no aparece y no avisa, cuánto tiempo esperáis antes de liberar la mesa y darla a otro.",
+        lastReservation: "La hora más tarde a la que aceptáis una reserva en ese servicio (p. ej. la última mesa de la cena). El asistente no ofrecerá horas posteriores.",
+        celiac: "No es lo mismo que «sin gluten». Marca SÍ solo si preparáis el plato aparte, con utensilios y zona limpios, apto para un celíaco real.",
+        cannotGuarantee: "Marca SÍ si en tu cocina no podéis asegurar la ausencia total de trazas. El asistente lo advertirá a quien pregunte por alergias.",
+        severeAllergy: "Ante una alergia grave, ¿prefieres que el asistente no decida y lo derive a cocina o a un responsable? Marca SÍ para mayor seguridad.",
+        allergenSheet: "Si tenéis la lista oficial de alérgenos para enseñar al cliente que la pida.",
+      },
     },
     addDish: "+ añadir plato",
     sumRestaurant: "Restaurante", sumLanguages: "Idiomas del asistente", sumCrmLang: "Idioma del panel", sumTables: "Mesas iniciales",
@@ -190,6 +214,20 @@ export const UI: Record<UiLang, UiStrings> = {
       pkOwn: "Parcheggio proprio", pkPublic: "Parcheggio pubblico vicino", pkStreet: "Su strada", pkNone: "Nessun parcheggio",
       chefHint: "Aggiungi fino a 6 piatti che consigli, con una nota breve. L'assistente li userà per rispondere «cosa mi consigli?». Lascia vuoto se preferisci rimandare al menù.",
       optional: " (opzionale)",
+      info: {
+        autoConfirm: "Fino a quante persone l'assistente conferma la prenotazione subito, senza il tuo via libera. Oltre quel numero, resta in attesa della tua approvazione.",
+        largeGroups: "Se accettate tavoli oltre il numero di conferma automatica. Quelle prenotazioni non si confermano da sole: arrivano a te per l'approvazione.",
+        deposit: "Se per i gruppi numerosi chiedete un acconto o una caparra per confermare. L'assistente lo ricorderà gestendo quelle prenotazioni.",
+        lateTolerance: "Quanti minuti aspettate un cliente in ritardo prima di poter dare il tavolo a qualcun altro.",
+        lateGrace: "Se il cliente avvisa che farà tardi, gli tenete il tavolo più a lungo? In quel caso l'assistente sarà più flessibile.",
+        cancellationNotice: "Con quanto anticipo il cliente deve avvisare per cancellare senza problemi. Serve all'assistente per capire quando una cancellazione è «in tempo» o «in ritardo»; da solo non blocca nulla.",
+        noShowRelease: "Se il cliente non si presenta e non avvisa, quanto aspettate prima di liberare il tavolo e darlo ad altri.",
+        lastReservation: "L'ora più tardi a cui accettate una prenotazione in quel servizio (es. l'ultimo tavolo a cena). L'assistente non proporrà orari successivi.",
+        celiac: "Non è come «senza glutine». Metti SÌ solo se preparate il piatto a parte, con utensili e zona puliti, adatto a un vero celiaco.",
+        cannotGuarantee: "Metti SÌ se in cucina non potete garantire l'assenza totale di tracce. L'assistente avviserà chi chiede per allergie.",
+        severeAllergy: "Davanti a un'allergia grave, preferisci che l'assistente non decida e passi la palla alla cucina o a un responsabile? Metti SÌ per maggiore sicurezza.",
+        allergenSheet: "Se avete la lista ufficiale degli allergeni da mostrare al cliente che la chiede.",
+      },
     },
     addDish: "+ aggiungi piatto",
     sumRestaurant: "Ristorante", sumLanguages: "Lingue dell'assistente", sumCrmLang: "Lingua del pannello", sumTables: "Tavoli iniziali",
@@ -255,6 +293,20 @@ export const UI: Record<UiLang, UiStrings> = {
       pkOwn: "Private parking", pkPublic: "Public car park nearby", pkStreet: "On the street", pkNone: "No parking",
       chefHint: "Add up to 6 dishes you recommend, with a short note. The assistant will use them to answer “what do you recommend?”. Leave empty if you prefer to point to the menu.",
       optional: " (optional)",
+      info: {
+        autoConfirm: "Up to how many people the assistant confirms a booking instantly, without your sign-off. Above that number, it waits for your OK.",
+        largeGroups: "Whether you take tables above the auto-confirm number. Those bookings aren't confirmed automatically — they come to you to approve.",
+        deposit: "Whether large groups must pay a deposit to confirm. The assistant will mention it when handling those bookings.",
+        lateTolerance: "How many minutes you hold a table for a late guest before you can give it to someone else.",
+        lateGrace: "If the guest warns you they'll be late, do you hold the table longer? The assistant will be more flexible in that case.",
+        cancellationNotice: "How far in advance a guest must tell you to cancel without a problem. It lets the assistant know when a cancellation is “on time” or “late”; on its own it blocks nothing.",
+        noShowRelease: "If a guest doesn't show up and didn't warn you, how long you wait before releasing the table to someone else.",
+        lastReservation: "The latest time you take a booking for that service (e.g. the last dinner table). The assistant won't offer times after it.",
+        celiac: "Not the same as “gluten-free”. Tick YES only if you prepare the dish separately, with clean tools and area, safe for a real coeliac.",
+        cannotGuarantee: "Tick YES if your kitchen can't guarantee the total absence of traces. The assistant will warn anyone asking about allergies.",
+        severeAllergy: "For a severe allergy, would you rather the assistant not decide and hand it to the kitchen or a manager? Tick YES to be safe.",
+        allergenSheet: "Whether you have the official allergen list to show a guest who asks for it.",
+      },
     },
     addDish: "+ add dish",
     sumRestaurant: "Restaurant", sumLanguages: "Assistant languages", sumCrmLang: "Dashboard language", sumTables: "Initial tables",
@@ -320,6 +372,20 @@ export const UI: Record<UiLang, UiStrings> = {
       pkOwn: "Eigener Parkplatz", pkPublic: "Öffentlicher Parkplatz in der Nähe", pkStreet: "Auf der Straße", pkNone: "Kein Parkplatz",
       chefHint: "Füge bis zu 6 empfohlene Gerichte mit einer kurzen Notiz hinzu. Der Assistent nutzt sie, um auf „Was empfiehlst du?“ zu antworten. Leer lassen, wenn du lieber auf die Karte verweist.",
       optional: " (optional)",
+      info: {
+        autoConfirm: "Bis zu wie vielen Personen der Assistent eine Reservierung sofort bestätigt, ohne deine Freigabe. Darüber wartet er auf dein OK.",
+        largeGroups: "Ob ihr Tische über der Auto-Bestätigungszahl annehmt. Diese Reservierungen werden nicht automatisch bestätigt — sie kommen zu dir zur Freigabe.",
+        deposit: "Ob große Gruppen eine Anzahlung zur Bestätigung leisten müssen. Der Assistent erwähnt das bei der Bearbeitung dieser Reservierungen.",
+        lateTolerance: "Wie viele Minuten ihr einen verspäteten Gast haltet, bevor ihr den Tisch anderweitig vergeben könnt.",
+        lateGrace: "Wenn der Gast Bescheid gibt, dass er später kommt, haltet ihr den Tisch länger? Der Assistent ist dann flexibler.",
+        cancellationNotice: "Wie früh ein Gast Bescheid geben muss, um problemlos zu stornieren. So weiß der Assistent, wann eine Stornierung „rechtzeitig“ oder „spät“ ist; allein blockiert sie nichts.",
+        noShowRelease: "Wenn ein Gast nicht erscheint und nicht Bescheid gibt, wie lange ihr wartet, bevor ihr den Tisch freigebt.",
+        lastReservation: "Die späteste Uhrzeit, zu der ihr für diesen Service eine Reservierung annehmt (z. B. der letzte Tisch am Abend). Der Assistent bietet keine späteren Zeiten an.",
+        celiac: "Nicht dasselbe wie „glutenfrei“. Wähle JA nur, wenn ihr das Gericht separat zubereitet, mit sauberem Werkzeug und Bereich, sicher für einen echten Zöliakie-Betroffenen.",
+        cannotGuarantee: "Wähle JA, wenn eure Küche die völlige Spurenfreiheit nicht garantieren kann. Der Assistent warnt jeden, der nach Allergien fragt.",
+        severeAllergy: "Soll der Assistent bei einer schweren Allergie lieber nicht entscheiden und an die Küche oder Leitung übergeben? Wähle JA für mehr Sicherheit.",
+        allergenSheet: "Ob ihr die offizielle Allergenliste habt, um sie einem Gast auf Anfrage zu zeigen.",
+      },
     },
     addDish: "+ Gericht hinzufügen",
     sumRestaurant: "Restaurant", sumLanguages: "Sprachen des Assistenten", sumCrmLang: "Dashboard-Sprache", sumTables: "Anfangstische",

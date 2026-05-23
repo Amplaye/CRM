@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import {
   ChevronLeft, ChevronRight, ChevronDown, Check, AlertTriangle, RefreshCw,
-  Building, Clock, Grid3X3, ClipboardList, Loader2, Globe, Star,
+  Building, Clock, Grid3X3, ClipboardList, Loader2, Globe, Star, Info,
 } from "lucide-react";
 import {
   KbQuestionnaire, PaymentMethod, ParkingKind, Allergen, CancellationNotice, defaultQuestionnaire,
@@ -388,15 +388,15 @@ export default function OnboardingPage() {
           {/* Card 1 — Reservations & groups */}
           <Card title={t.q4.cardReservations}>
             <NumField label={t.q4.capacity} value={q.capacity_seats} onChange={(v) => setQF("capacity_seats", v)} />
-            <PresetOrCustomNumber label={t.q4.autoConfirmUpTo} value={q.auto_confirm_max} onChange={(v) => setQF("auto_confirm_max", v)} presets={AUTO_CONFIRM_PRESETS} unit={t.q4.personsUnit} otherLabel={t.q4.optOther} optLabel={t.q4.optPersons} />
-            <YesNo label={t.q4.largeGroups} value={q.accepts_large_groups} onChange={(v) => setQF("accepts_large_groups", v)} t={t} />
-            {q.accepts_large_groups && <YesNo label={t.q4.deposit} value={q.deposit_required} onChange={(v) => setQF("deposit_required", v)} t={t} />}
-            <Dropdown label={t.q4.lateTolerance} value={String(q.late_tolerance_min)} onChange={(v) => setQF("late_tolerance_min", Number(v))} options={[["10", "10 min"], ["15", "15 min"], ["20", "20 min"], ["30", "30 min"]]} />
-            <YesNo label={t.q4.lateGrace} value={q.late_grace_if_notified} onChange={(v) => setQF("late_grace_if_notified", v)} t={t} />
-            <Dropdown label={t.q4.cancellationNotice} value={q.cancellation_notice} onChange={(v) => setQF("cancellation_notice", v as CancellationNotice)} options={CANCELLATIONS(t.q4)} />
-            <Dropdown label={t.q4.noShowRelease} value={String(q.noshow_release_min)} onChange={(v) => setQF("noshow_release_min", Number(v))} options={NOSHOW_OPTS(t.q4)} />
-            <TimeField label={t.q4.lastLunch} value={q.last_lunch} onChange={(v) => setQF("last_lunch", v)} />
-            <TimeField label={t.q4.lastDinner} value={q.last_dinner} onChange={(v) => setQF("last_dinner", v)} />
+            <PresetOrCustomNumber label={t.q4.autoConfirmUpTo} value={q.auto_confirm_max} onChange={(v) => setQF("auto_confirm_max", v)} presets={AUTO_CONFIRM_PRESETS} unit={t.q4.personsUnit} otherLabel={t.q4.optOther} optLabel={t.q4.optPersons} info={t.q4.info.autoConfirm} />
+            <YesNo label={t.q4.largeGroups} value={q.accepts_large_groups} onChange={(v) => setQF("accepts_large_groups", v)} t={t} info={t.q4.info.largeGroups} />
+            {q.accepts_large_groups && <YesNo label={t.q4.deposit} value={q.deposit_required} onChange={(v) => setQF("deposit_required", v)} t={t} info={t.q4.info.deposit} />}
+            <Dropdown label={t.q4.lateTolerance} value={String(q.late_tolerance_min)} onChange={(v) => setQF("late_tolerance_min", Number(v))} options={[["10", "10 min"], ["15", "15 min"], ["20", "20 min"], ["30", "30 min"]]} info={t.q4.info.lateTolerance} />
+            <YesNo label={t.q4.lateGrace} value={q.late_grace_if_notified} onChange={(v) => setQF("late_grace_if_notified", v)} t={t} info={t.q4.info.lateGrace} />
+            <Dropdown label={t.q4.cancellationNotice} value={q.cancellation_notice} onChange={(v) => setQF("cancellation_notice", v as CancellationNotice)} options={CANCELLATIONS(t.q4)} info={t.q4.info.cancellationNotice} />
+            <Dropdown label={t.q4.noShowRelease} value={String(q.noshow_release_min)} onChange={(v) => setQF("noshow_release_min", Number(v))} options={NOSHOW_OPTS(t.q4)} info={t.q4.info.noShowRelease} />
+            <TimeField label={t.q4.lastLunch} value={q.last_lunch} onChange={(v) => setQF("last_lunch", v)} info={t.q4.info.lastReservation} />
+            <TimeField label={t.q4.lastDinner} value={q.last_dinner} onChange={(v) => setQF("last_dinner", v)} info={t.q4.info.lastReservation} />
           </Card>
 
           {/* Card 2 — Practical services */}
@@ -430,7 +430,7 @@ export default function OnboardingPage() {
             <YesNo label={t.q4.vegan} value={q.vegan} onChange={(v) => setQF("vegan", v)} t={t} />
             <YesNo label={t.q4.glutenFree} value={q.gluten_free} onChange={(v) => setQF("gluten_free", v)} t={t} />
             <YesNo label={t.q4.lactoseFree} value={q.lactose_free} onChange={(v) => setQF("lactose_free", v)} t={t} />
-            <YesNo label={t.q4.celiac} value={q.celiac_safe} onChange={(v) => setQF("celiac_safe", v)} t={t} />
+            <YesNo label={t.q4.celiac} value={q.celiac_safe} onChange={(v) => setQF("celiac_safe", v)} t={t} info={t.q4.info.celiac} />
             <div className="pt-1 border-t border-zinc-100">
               <Lbl>{t.q4.allergensTitle}</Lbl>
               <p className="text-[11px] text-black/50 mb-2">{t.q4.allergensHint}</p>
@@ -440,9 +440,9 @@ export default function OnboardingPage() {
                 ))}
               </div>
             </div>
-            <YesNo label={t.q4.cannotGuarantee} value={q.cannot_guarantee_traces} onChange={(v) => setQF("cannot_guarantee_traces", v)} t={t} />
-            <YesNo label={t.q4.severeAllergy} value={q.severe_allergy_escalate} onChange={(v) => setQF("severe_allergy_escalate", v)} t={t} />
-            <YesNo label={t.q4.allergenSheet} value={q.allergen_info} onChange={(v) => setQF("allergen_info", v)} t={t} />
+            <YesNo label={t.q4.cannotGuarantee} value={q.cannot_guarantee_traces} onChange={(v) => setQF("cannot_guarantee_traces", v)} t={t} info={t.q4.info.cannotGuarantee} />
+            <YesNo label={t.q4.severeAllergy} value={q.severe_allergy_escalate} onChange={(v) => setQF("severe_allergy_escalate", v)} t={t} info={t.q4.info.severeAllergy} />
+            <YesNo label={t.q4.allergenSheet} value={q.allergen_info} onChange={(v) => setQF("allergen_info", v)} t={t} info={t.q4.info.allergenSheet} />
           </Card>
 
           {/* Card 4 — How to get there */}
@@ -610,8 +610,51 @@ function LangMultiSelect({
   );
 }
 
-function Lbl({ children }: { children: React.ReactNode }) {
-  return <label className="block text-xs font-bold uppercase tracking-wider mb-1 text-black/70">{children}</label>;
+// Inline help affordance: a small ⓘ next to a label. The bubble opens on hover
+// (desktop) and on tap/click (mobile/keyboard) — tap toggles, so it works where
+// there is no hover. It closes on outside click or Escape. Self-contained so it
+// can sit next to any label without extra wiring; only needs the help text.
+function InfoTip({ text }: { text: string }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLSpanElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const onDoc = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false); };
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setOpen(false); };
+    document.addEventListener("mousedown", onDoc);
+    document.addEventListener("keydown", onKey);
+    return () => { document.removeEventListener("mousedown", onDoc); document.removeEventListener("keydown", onKey); };
+  }, [open]);
+  return (
+    <span ref={ref} className="relative inline-flex align-middle group" onMouseEnter={() => setOpen(true)} onMouseLeave={() => setOpen(false)}>
+      <button
+        type="button"
+        onClick={(e) => { e.preventDefault(); setOpen((o) => !o); }}
+        aria-label={text}
+        aria-expanded={open}
+        className="inline-flex items-center justify-center w-4 h-4 rounded-full text-[#8b6540] hover:text-[#5e421f] focus:outline-none focus:ring-2 focus:ring-[#c4956a]/40"
+      >
+        <Info className="w-3.5 h-3.5" aria-hidden />
+      </button>
+      {open && (
+        <span
+          role="tooltip"
+          className="absolute left-1/2 -translate-x-1/2 bottom-full mb-1.5 z-30 w-56 max-w-[min(16rem,70vw)] rounded-lg bg-[#3a2a18] px-3 py-2 text-[11px] font-normal normal-case tracking-normal leading-snug text-white shadow-lg"
+        >
+          {text}
+          <span className="absolute left-1/2 -translate-x-1/2 top-full -mt-px border-4 border-transparent border-t-[#3a2a18]" aria-hidden />
+        </span>
+      )}
+    </span>
+  );
+}
+function Lbl({ children, info }: { children: React.ReactNode; info?: string }) {
+  return (
+    <label className="flex items-center gap-1 text-xs font-bold uppercase tracking-wider mb-1 text-black/70">
+      <span>{children}</span>
+      {info && <InfoTip text={info} />}
+    </label>
+  );
 }
 function Card({ title, children }: { title: string; children: React.ReactNode }) {
   return (
@@ -621,11 +664,11 @@ function Card({ title, children }: { title: string; children: React.ReactNode })
     </div>
   );
 }
-function Field({ label, value, onChange, placeholder, type = "text", inputMode }: { label: string; value: string; onChange: (v: string) => void; placeholder?: string; type?: string; inputMode?: React.HTMLAttributes<HTMLInputElement>["inputMode"] }) {
-  return (<div><Lbl>{label}</Lbl><input type={type} inputMode={inputMode} value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} className="w-full border border-zinc-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#c4956a]/40 focus:border-[#c4956a]" /></div>);
+function Field({ label, value, onChange, placeholder, type = "text", inputMode, info }: { label: string; value: string; onChange: (v: string) => void; placeholder?: string; type?: string; inputMode?: React.HTMLAttributes<HTMLInputElement>["inputMode"]; info?: string }) {
+  return (<div><Lbl info={info}>{label}</Lbl><input type={type} inputMode={inputMode} value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} className="w-full border border-zinc-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#c4956a]/40 focus:border-[#c4956a]" /></div>);
 }
-function NumField({ label, value, onChange }: { label: string; value: number; onChange: (v: number) => void }) {
-  return (<div><Lbl>{label}</Lbl><input type="number" min={0} value={value} onChange={(e) => onChange(Number(e.target.value))} className="w-full border border-zinc-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#c4956a]/40 focus:border-[#c4956a]" /></div>);
+function NumField({ label, value, onChange, info }: { label: string; value: number; onChange: (v: number) => void; info?: string }) {
+  return (<div><Lbl info={info}>{label}</Lbl><input type="number" min={0} value={value} onChange={(e) => onChange(Number(e.target.value))} className="w-full border border-zinc-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#c4956a]/40 focus:border-[#c4956a]" /></div>);
 }
 // Number field with quick presets plus a free-entry escape hatch. The select
 // offers the presets and an "Other…" option; choosing it reveals a numeric
@@ -633,10 +676,10 @@ function NumField({ label, value, onChange }: { label: string; value: number; on
 // contract is unchanged) — "custom mode" is local UI state, seeded from whether
 // the current value is already a non-preset number.
 function PresetOrCustomNumber({
-  label, value, onChange, presets, unit, otherLabel, optLabel,
+  label, value, onChange, presets, unit, otherLabel, optLabel, info,
 }: {
   label: string; value: number; onChange: (v: number) => void; presets: number[];
-  unit: string; otherLabel: string; optLabel: (n: number) => string;
+  unit: string; otherLabel: string; optLabel: (n: number) => string; info?: string;
 }) {
   const isPreset = presets.includes(value);
   const [custom, setCustom] = useState(!isPreset);
@@ -648,7 +691,7 @@ function PresetOrCustomNumber({
   const OTHER = "__other__";
   return (
     <div>
-      <Lbl>{label}</Lbl>
+      <Lbl info={info}>{label}</Lbl>
       <div className="relative">
         <select
           value={custom ? OTHER : String(value)}
@@ -684,16 +727,16 @@ function PresetOrCustomNumber({
     </div>
   );
 }
-function TimeField({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) {
-  return (<div><Lbl>{label}</Lbl><input type="time" value={value} onChange={(e) => onChange(e.target.value)} className="border border-zinc-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#c4956a]/40 focus:border-[#c4956a]" /></div>);
+function TimeField({ label, value, onChange, info }: { label: string; value: string; onChange: (v: string) => void; info?: string }) {
+  return (<div><Lbl info={info}>{label}</Lbl><input type="time" value={value} onChange={(e) => onChange(e.target.value)} className="border border-zinc-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#c4956a]/40 focus:border-[#c4956a]" /></div>);
 }
 // Native select with a CUSTOM chevron. The browser arrow is removed
 // (appearance-none) and replaced by a lucide chevron positioned with right
 // padding, so it never crowds the input border.
-function SelectField({ label, value, onChange, options }: { label: string; value: string; onChange: (v: string) => void; options: Array<[string, string]> }) {
+function SelectField({ label, value, onChange, options, info }: { label: string; value: string; onChange: (v: string) => void; options: Array<[string, string]>; info?: string }) {
   return (
     <div>
-      <Lbl>{label}</Lbl>
+      <Lbl info={info}>{label}</Lbl>
       <div className="relative">
         <select
           value={value}
@@ -707,13 +750,13 @@ function SelectField({ label, value, onChange, options }: { label: string; value
     </div>
   );
 }
-function Dropdown(props: { label: string; value: string; onChange: (v: string) => void; options: Array<[string, string]> }) {
+function Dropdown(props: { label: string; value: string; onChange: (v: string) => void; options: Array<[string, string]>; info?: string }) {
   return <SelectField {...props} />;
 }
-function YesNo({ label, value, onChange, t }: { label: string; value: boolean; onChange: (v: boolean) => void; t: (typeof UI)[UiLang] }) {
+function YesNo({ label, value, onChange, t, info }: { label: string; value: boolean; onChange: (v: boolean) => void; t: (typeof UI)[UiLang]; info?: string }) {
   return (
     <div className="flex items-center justify-between gap-3">
-      <span className="text-sm text-black/80">{label}</span>
+      <span className="flex items-center gap-1 text-sm text-black/80">{label}{info && <InfoTip text={info} />}</span>
       <div className="flex rounded-lg overflow-hidden border-2 border-[#c4956a]/40 flex-shrink-0">
         <button type="button" onClick={() => onChange(true)} className={`px-3 py-1 text-sm font-semibold transition-colors ${value ? "bg-[#c4956a] text-white" : "bg-white text-black/60"}`}>{t.yes}</button>
         <button type="button" onClick={() => onChange(false)} className={`px-3 py-1 text-sm font-semibold transition-colors ${!value ? "bg-[#c4956a] text-white" : "bg-white text-black/60"}`}>{t.no}</button>
