@@ -366,11 +366,20 @@ export async function runOnboard(
         merged.onboarding = { ...(prev.onboarding || {}), completed: true, completed_at: new Date().toISOString() };
         // whatsapp_attached:false → surfaced in the admin panel as "attach the
         // number" (the one manual step left). Doesn't block the client.
+        //
+        // sandbox_routable:true → while no real WA number is attached, this tenant
+        // shares the Twilio sandbox with the other test tenants. The [Router]
+        // WhatsApp n8n workflow lists every active+routable tenant in its "which
+        // restaurant?" menu, so a freshly-onboarded CRM is reachable for testing
+        // with zero manual steps. A real customer (own number) won't carry this
+        // flag and so won't appear in the shared test menu. See
+        // docs/SANDBOX_ROUTER.md.
         merged.provisioning = {
           ...(prev.provisioning || {}),
           self_serve: true,
           completed_at: new Date().toISOString(),
           whatsapp_attached: false,
+          sandbox_routable: true,
           slug: input.slug,
         };
       }
