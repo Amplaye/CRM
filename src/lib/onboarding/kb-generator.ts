@@ -508,6 +508,48 @@ export function generateKbArticles(q: KbQuestionnaire, ctx: KbContext): Generate
   return articles;
 }
 
+// English name of each language, used to label article sections when the
+// assistant speaks several languages (so the agent knows which block to quote).
+const LANG_NAME: Record<Lang, string> = {
+  es: "Español", it: "Italiano", en: "English", de: "Deutsch",
+};
+
+/**
+ * Multi-language KB. The assistant answers in several languages, so each article
+ * is generated once per selected language and merged: one article per topic,
+ * its body stacking every language separated by a language header. With a single
+ * language this is byte-identical to generateKbArticles (no header noise).
+ *
+ * `languages[0]` is the primary one — its TITLE/category label the merged
+ * article and its block comes first. Articles are merged by POSITION, not by
+ * title, because titles are themselves localized ("Horario del restaurante" vs
+ * "Öffnungszeiten"). This is sound: generateKbArticles emits the same article
+ * topics in the same order for every language — the only conditional articles
+ * (Schedule, Chef recommendations) depend on the questionnaire/hours, not the
+ * language, so all languages agree on which are present.
+ */
+export function generateKbArticlesMulti(
+  q: KbQuestionnaire,
+  ctx: Omit<KbContext, "language">,
+  languages: Lang[],
+): GeneratedArticle[] {
+  const langs = languages.length ? languages : (["es"] as Lang[]);
+  if (langs.length === 1) {
+    return generateKbArticles(q, { ...ctx, language: langs[0] });
+  }
+
+  // Per-language article lists, all the same length & topic order (see docblock).
+  const perLang = langs.map((lang) => ({ lang, arts: generateKbArticles(q, { ...ctx, language: lang }) }));
+  const primary = perLang[0].arts; // titles/categories come from the primary language
+
+  return primary.map((art, i) => {
+    const content = perLang
+      .map(({ lang, arts }) => `[${LANG_NAME[lang]}]\n${arts[i].content}`)
+      .join("\n\n");
+    return { title: art.title, category: art.category, content };
+  });
+}
+
 /** Sensible defaults so the wizard never starts blank (client just edits).
  *  Safety-sensitive policy fields (no-show release, cuisine, city…) default to
  *  "unset" so we never invent a policy the restaurant didn't state; the present

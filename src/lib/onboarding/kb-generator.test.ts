@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
-  generateKbArticles, defaultQuestionnaire, KbQuestionnaire, KbContext, OpeningHours,
+  generateKbArticles, generateKbArticlesMulti, defaultQuestionnaire, KbQuestionnaire, KbContext, OpeningHours,
 } from "./kb-generator";
 
 const ctx: KbContext = { restaurant_name: "Trattoria Rossa", restaurant_phone: "+34 928 123 456", language: "es" };
@@ -178,5 +178,50 @@ describe("generateKbArticles — questionnaire → formatted KB", () => {
       expect(arts.length).toBeGreaterThanOrEqual(5); // schedule + 4 core
       for (const a of arts) expect(a.content.trim().length).toBeGreaterThan(0);
     }
+  });
+});
+
+describe("generateKbArticlesMulti — assistant speaks several languages", () => {
+  const mctx = { restaurant_name: ctx.restaurant_name, restaurant_phone: ctx.restaurant_phone };
+
+  it("single language is byte-identical to generateKbArticles (no header noise)", () => {
+    const multi = generateKbArticlesMulti(defaultQuestionnaire(), { ...mctx, opening_hours: HOURS }, ["it"]);
+    const single = generateKbArticles(defaultQuestionnaire(), { ...ctx, language: "it", opening_hours: HOURS });
+    expect(multi).toEqual(single);
+  });
+
+  it("empty language list falls back to Spanish", () => {
+    const arts = generateKbArticlesMulti(defaultQuestionnaire(), mctx, []);
+    expect(byTitle(arts, "Política de reservas")).toBeTruthy(); // Spanish title
+  });
+
+  it("merges every language under one article per title, primary first", () => {
+    const arts = generateKbArticlesMulti(defaultQuestionnaire(), mctx, ["it", "en"]);
+    // Titles come from the PRIMARY language (Italian), one entry per title.
+    const titles = arts.map((a) => a.title);
+    expect(titles).toContain("Politica di prenotazione");
+    expect(new Set(titles).size).toBe(titles.length); // no duplicate titles
+    const resv = byTitle(arts, "Politica di prenotazione")!;
+    // Both language blocks present, Italian (primary) before English.
+    expect(resv.content).toContain("[Italiano]");
+    expect(resv.content).toContain("[English]");
+    expect(resv.content.indexOf("[Italiano]")).toBeLessThan(resv.content.indexOf("[English]"));
+  });
+
+  it("conditional articles (schedule, chef picks) appear once with all languages", () => {
+    const q = { ...defaultQuestionnaire(), chef_recommendations: ["Mortazza"] };
+    const arts = generateKbArticlesMulti(q, { ...mctx, opening_hours: HOURS }, ["es", "de"]);
+    const sched = byTitle(arts, "Horario del restaurante")!; // Spanish primary title
+    expect(sched.content).toContain("[Español]");
+    expect(sched.content).toContain("[Deutsch]");
+    const chef = byTitle(arts, "Recomendaciones del chef")!;
+    expect(chef.content.match(/Mortazza/g)?.length).toBe(2); // once per language
+  });
+
+  it("article count is stable regardless of how many languages (one per topic)", () => {
+    const single = generateKbArticlesMulti(defaultQuestionnaire(), { ...mctx, opening_hours: HOURS }, ["es"]);
+    const triple = generateKbArticlesMulti(defaultQuestionnaire(), { ...mctx, opening_hours: HOURS }, ["es", "it", "en"]);
+    expect(triple.length).toBe(single.length); // merged by topic, not concatenated
+    expect(triple.map((a) => a.title)).toEqual(single.map((a) => a.title)); // primary titles
   });
 });

@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { createServerSupabaseClient, createServiceRoleClient } from "@/lib/supabase/server";
 import { runOnboard, OnboardInput, OnboardProgress } from "@/lib/onboarding/orchestrator";
 import { resolveOwnerProvisionTenant } from "@/lib/onboarding/owner-tenant";
-import { generateKbArticles, KbQuestionnaire, Lang } from "@/lib/onboarding/kb-generator";
+import { generateKbArticlesMulti, KbQuestionnaire, Lang } from "@/lib/onboarding/kb-generator";
 
 // Owner self-serve provisioning. Same engine as the admin wizard
 // (/api/admin/onboard → runOnboard), but driven by the restaurant owner for
@@ -21,7 +21,8 @@ interface SelfServeBody {
   restaurant_name: string;
   restaurant_phone: string;
   owner_phone: string;
-  language: Lang;
+  language?: Lang; // legacy single-language hint (still honoured)
+  languages?: Lang[]; // assistant speaks these; languages[0] is the primary one
   timezone: string;
   review_url?: string;
   opening_hours: Record<string, Array<{ open: string; close: string }>>;
@@ -67,13 +68,18 @@ export async function POST(req: Request) {
   //    the fixed-field questionnaire (the client never ships free-text). The
   //    voice prompt is omitted on purpose → orchestrator builds it from the
   //    agency template.
-  const lang = (body.language || "es") as Lang;
-  const kbArticles = generateKbArticles(body.questionnaire, {
+  // The assistant can speak several languages. languages[0] is the primary one
+  // (drives voice prompt, locale and greeting); the KB is built in every one.
+  const ALL: Lang[] = ["es", "it", "en", "de"];
+  const langs = (Array.isArray(body.languages) ? body.languages : [body.language])
+    .filter((l): l is Lang => !!l && ALL.includes(l));
+  const selected: Lang[] = langs.length ? Array.from(new Set(langs)) : ["es"];
+  const lang = selected[0];
+  const kbArticles = generateKbArticlesMulti(body.questionnaire, {
     restaurant_name: body.restaurant_name,
     restaurant_phone: body.restaurant_phone || "",
-    language: lang,
     opening_hours: body.opening_hours || {},
-  });
+  }, selected);
   // Slug carries a tenant-id suffix so two restaurants with the same name never
   // collide on n8n webhook paths.
   const slug = `${slugify(body.restaurant_name) || "resto"}-${tenantId.slice(0, 4)}`;
