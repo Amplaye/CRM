@@ -2,15 +2,17 @@
 //
 // The restaurateur is NOT a writer (see [[feedback_no_power_user_features]]):
 // they never type free-form KB articles. Instead the client wizard collects a
-// FIXED-FIELD questionnaire (yes/no, dropdowns, short fields) and this pure
-// server-side function turns those structured answers into well-formatted
-// knowledge_articles — modelled on the hand-written DEFAULT_KB that used to
-// live in the admin wizard. The 4 questionnaire cards map 1:1 to 4 articles:
+// FIXED-FIELD questionnaire (yes/no, dropdowns, multi-selects, short fields)
+// and this pure server-side function turns those structured answers into
+// well-formatted knowledge_articles — modelled on the hand-written PICNIC KB,
+// the most complete one we have. The questionnaire cards map to articles:
 //
-//   1. Prenotazioni e gruppi   → "Política de reservas"      (policies)
-//   2. Servizi pratici         → "Servicios adicionales"     (general)
-//   3. Diete e allergie        → "Dietas y alergias"         (policies)
-//   4. Come arrivare           → "Ubicación y cómo llegar"   (general)
+//   Schedule (from opening_hours)   → "Horario del restaurante"   (general)
+//   Reservas y grupos               → "Política de reservas"      (policies)
+//   Dietas y alergias               → "Dietas y alergias"         (policies)
+//   Servicios prácticos             → "Servicios adicionales"     (general)
+//   Platos recomendados (optional)  → "Recomendaciones del chef"  (menu)
+//   Cómo llegar                     → "Ubicación y cómo llegar"   (general)
 //
 // Articles are written in the restaurant's primary `language` because they are
 // consumed by the AI agent (WhatsApp + voice) which speaks that language.
@@ -19,47 +21,77 @@ export type Lang = "es" | "it" | "en" | "de";
 
 export type PaymentMethod = "cash" | "card" | "contactless" | "bizum";
 export type ParkingKind = "own" | "public" | "street" | "none";
+// Major kitchen allergens whose PRESENCE drives cross-contamination warnings.
+// Independent from the diet OPTIONS the kitchen offers: a place can serve
+// gluten-free dishes yet still handle wheat (cross-contamination risk).
+export type Allergen =
+  | "gluten" | "nuts" | "peanuts" | "dairy" | "egg" | "fish" | "shellfish" | "soy" | "sesame";
+// How far in advance a cancellation should be notified.
+export type CancellationNotice = "none" | "same_day" | "2h" | "24h";
 
-/** The fixed-field answers the client wizard collects. NO free-text prose. */
+export type OpeningHoursSlot = { open: string; close: string };
+export type OpeningHours = Record<string, OpeningHoursSlot[]>; // keys "0".."6" (Sunday = 0)
+
+/** The fixed-field answers the client wizard collects. NO free-text prose
+ *  (the only multi-value text is the short chef-recommendation lines). */
 export interface KbQuestionnaire {
-  // Card 1 — Prenotazioni e gruppi
+  // Card 1 — Reservas y grupos
   capacity_seats: number; // short number field
   auto_confirm_max: number; // dropdown: party size auto-confirmed (e.g. 6)
   accepts_large_groups: boolean; // yes/no — groups above the threshold at all
+  deposit_required: boolean; // yes/no — deposit for large groups
   late_tolerance_min: number; // dropdown: 10/15/20/30
+  late_grace_if_notified: boolean; // yes/no — more margin if the guest warns ahead
   last_lunch: string; // time "14:45" ("" = no lunch service)
   last_dinner: string; // time "21:30" ("" = no dinner service)
-  deposit_required: boolean; // yes/no — deposit for large groups
+  cancellation_notice: CancellationNotice; // dropdown
+  noshow_release_min: number; // dropdown: 0 = don't state / 15 / 30 / 45 / 60
 
-  // Card 2 — Servizi pratici
+  // Card 2 — Servicios prácticos
   high_chairs: boolean;
+  kids_menu: boolean;
   pets: boolean;
   accessible: boolean;
-  payments: PaymentMethod[]; // multi-select dropdown
+  payments: PaymentMethod[]; // multi-select
   wifi: boolean;
   parking_lot: boolean; // own parking on site
   terrace: boolean;
   takeaway: boolean;
+  takeaway_wait: string; // short field, e.g. "20-30 min" ("" = omit)
+  delivery: boolean;
+  delivery_platform: string; // short field, e.g. "Glovo, Uber Eats" ("" = generic)
+  celebrations: boolean; // birthdays / celebrations welcome
+  outside_cake: boolean; // bringing your own cake allowed
 
-  // Card 3 — Diete e allergie
+  // Card 3 — Dietas y alergias
   vegetarian: boolean;
   vegan: boolean;
   gluten_free: boolean;
-  celiac_safe: boolean; // protocol / separate prep for coeliacs
   lactose_free: boolean;
+  celiac_safe: boolean; // protocol / separate prep for coeliacs
+  kitchen_allergens: Allergen[]; // multi-select — allergens present in the kitchen
+  cannot_guarantee_traces: boolean; // safety disclaimer (default yes)
+  severe_allergy_escalate: boolean; // severe allergy → consult kitchen / manager (default yes)
   allergen_info: boolean; // allergen sheet available on request
 
-  // Card 4 — Come arrivare
-  address: string; // short field
+  // Card 4 — Cómo llegar
+  cuisine_type: string; // short field, e.g. "Trattoria Napoletana" ("" = omit)
+  address: string; // street, short field
+  city: string; // short field, e.g. "35002 Las Palmas de Gran Canaria"
+  neighborhood: string; // short field, e.g. "Triana / Vegueta"
   parking_info: ParkingKind; // dropdown
   public_transport: boolean; // yes/no
   landmark: string; // short field — reference point ("" = none)
+
+  // Card 5 — Platos recomendados (chef's picks, 0-6 short lines, optional)
+  chef_recommendations: string[]; // e.g. ["Mortazza — la más pedida", "Marinara — vegana"]
 }
 
 export interface KbContext {
   restaurant_name: string;
   restaurant_phone: string;
   language: Lang;
+  opening_hours?: OpeningHours; // when provided, a Schedule article is generated
 }
 
 export interface GeneratedArticle {
@@ -77,46 +109,72 @@ interface Labels {
   no: string;
   available: string;
   notAvailable: string;
+  and: string;
   // titles
+  tSchedule: string;
   tReservations: string;
   tServices: string;
   tDiets: string;
+  tChef: string;
   tLocation: string;
+  // schedule
+  days: string[]; // length 7, index 0 = Sunday
+  closed: string;
+  lunch: string;
+  dinner: string;
   // reservations
   capacity: string;
-  autoConfirm: string; // "{n}" placeholder
+  autoConfirm: string; // "{n}"
   largeGroups: string;
-  largeGroupsYes: string;
-  largeGroupsNo: string;
+  largeGroupsYes: string; // "{n}"
+  largeGroupsNo: string; // "{n}"
   lateTolerance: string; // "{n}"
+  lateGrace: string; // appended phrase when grace-if-notified
   lastLunch: string;
   lastDinner: string;
   noService: string;
   deposit: string;
   depositYes: string;
   depositNo: string;
+  cancellation: string;
+  cancellations: Record<CancellationNotice, string>;
+  noShow: string; // "{n}"
+  terraceNotGuaranteed: string;
   minutes: string;
   // services
   highChairs: string;
+  kidsMenu: string;
   pets: string;
   petsYes: string;
-  accessible: string;
+  accessible: string; // full enriched line
+  celebrations: string;
+  outsideCake: string;
   payments: string;
   wifi: string;
   parking: string; // on-site parking line label
   terrace: string;
   takeaway: string;
+  takeawayWait: string; // label for the wait-time suffix, e.g. "tiempo de espera"
+  delivery: string;
+  deliveryYes: string; // generic, no platform
+  deliveryVia: string; // "{p}" platform suffix
   // diets
   vegetarian: string;
   vegan: string;
   glutenFree: string;
-  celiac: string;
   lactoseFree: string;
+  celiacYes: string; // "Protocolo para celíacos: preparación separada disponible"
+  allergenIntro: string; // header before the present-allergen bullet list
+  allergens: Record<Allergen, string>;
+  cannotGuarantee: string;
+  severeAllergy: string;
   allergenInfo: string;
   allergenInfoYes: string;
   noneDeclared: string;
   // location
   address: string;
+  city: string;
+  neighborhood: string;
   parkingInfo: string;
   parkOwn: string;
   parkPublic: string;
@@ -134,96 +192,188 @@ interface Labels {
 
 const DICT: Record<Lang, Labels> = {
   es: {
-    yes: "Sí", no: "No", available: "disponible", notAvailable: "no disponible",
-    tReservations: "Política de reservas", tServices: "Servicios adicionales",
-    tDiets: "Dietas y alergias", tLocation: "Ubicación y cómo llegar",
+    yes: "Sí", no: "No", available: "disponible", notAvailable: "no disponible", and: "y",
+    tSchedule: "Horario del restaurante", tReservations: "Política de reservas",
+    tServices: "Servicios adicionales", tDiets: "Dietas y alergias",
+    tChef: "Recomendaciones del chef", tLocation: "Ubicación y cómo llegar",
+    days: ["Domingo", "Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado"],
+    closed: "CERRADO", lunch: "almuerzo", dinner: "cena",
     capacity: "Capacidad", autoConfirm: "Grupos 1-{n}: confirmación automática si hay disponibilidad",
     largeGroups: "Grupos grandes", largeGroupsYes: "Grupos {n}+: solicitud pendiente, el responsable contacta al cliente",
     largeGroupsNo: "No se aceptan grupos de más de {n} personas",
-    lateTolerance: "Tolerancia de retraso", lastLunch: "Última reserva almuerzo", lastDinner: "Última reserva cena",
+    lateTolerance: "Tolerancia de retraso", lateGrace: "más margen si el cliente avisa con antelación",
+    lastLunch: "Última reserva almuerzo", lastDinner: "Última reserva cena",
     noService: "sin servicio", deposit: "Depósito",
-    depositYes: "se solicita depósito para grupos grandes", depositNo: "no se solicita depósito", minutes: "min",
-    highChairs: "Familias: tronas", pets: "Mascotas", petsYes: "sí, avisar al reservar",
-    accessible: "Accesibilidad: entrada accesible", payments: "Pagos", wifi: "WiFi",
-    parking: "Parking propio", terrace: "Terraza", takeaway: "Comida para llevar",
+    depositYes: "se solicita depósito para grupos grandes", depositNo: "no se solicita depósito",
+    cancellation: "Cancelación",
+    cancellations: {
+      none: "no requiere aviso previo", same_day: "avisar el mismo día",
+      "2h": "avisar con al menos 2 h de antelación", "24h": "avisar con al menos 24 h de antelación",
+    },
+    noShow: "No-show: la mesa se libera pasados {n} min sin avisar",
+    terraceNotGuaranteed: "Terraza: sujeta a disponibilidad, no se garantiza",
+    minutes: "min",
+    highChairs: "Familias: tronas", kidsMenu: "Menú infantil", pets: "Mascotas", petsYes: "sí, avisar al reservar",
+    accessible: "Accesibilidad: entrada accesible, mesa cómoda con aviso previo",
+    celebrations: "Celebraciones (cumpleaños, aniversarios): bienvenidas, avisar al reservar",
+    outsideCake: "Tarta propia: se permite traerla (avisar al reservar)",
+    payments: "Pagos", wifi: "WiFi", parking: "Parking propio", terrace: "Terraza",
+    takeaway: "Comida para llevar", takeawayWait: "tiempo de espera", delivery: "Delivery",
+    deliveryYes: "sí", deliveryVia: "sí, a través de {p}",
     vegetarian: "Opciones vegetarianas", vegan: "Opciones veganas", glutenFree: "Opciones sin gluten",
-    celiac: "Protocolo para celíacos", lactoseFree: "Opciones sin lactosa",
+    lactoseFree: "Opciones sin lactosa", celiacYes: "Protocolo para celíacos: preparación separada disponible",
+    allergenIntro: "IMPORTANTE — alérgenos presentes en cocina (riesgo de contaminación cruzada):",
+    allergens: {
+      gluten: "gluten / harina de trigo", nuts: "frutos secos", peanuts: "cacahuetes", dairy: "lácteos",
+      egg: "huevo", fish: "pescado", shellfish: "marisco / crustáceos", soy: "soja", sesame: "sésamo",
+    },
+    cannotGuarantee: "No se puede garantizar la ausencia total de trazas.",
+    severeAllergy: "Alergia severa: máxima transparencia, consultar con cocina o derivar al responsable.",
     allergenInfo: "Información de alérgenos", allergenInfoYes: "disponible bajo petición",
     noneDeclared: "Sin opciones especiales declaradas — consultar al reservar",
-    address: "Dirección", parkingInfo: "Aparcamiento",
+    address: "Dirección", city: "Población", neighborhood: "Zona", parkingInfo: "Aparcamiento",
     parkOwn: "parking propio", parkPublic: "parking público cercano", parkStreet: "aparcamiento en la calle", parkNone: "sin aparcamiento propio",
     publicTransport: "Transporte público", landmark: "Referencia", phone: "Teléfono",
     payCash: "efectivo", payCard: "tarjeta", payContactless: "contactless", payBizum: "Bizum",
   },
   it: {
-    yes: "Sì", no: "No", available: "disponibile", notAvailable: "non disponibile",
-    tReservations: "Politica di prenotazione", tServices: "Servizi aggiuntivi",
-    tDiets: "Diete e allergie", tLocation: "Posizione e come arrivare",
+    yes: "Sì", no: "No", available: "disponibile", notAvailable: "non disponibile", and: "e",
+    tSchedule: "Orari del ristorante", tReservations: "Politica di prenotazione",
+    tServices: "Servizi aggiuntivi", tDiets: "Diete e allergie",
+    tChef: "Consigli dello chef", tLocation: "Posizione e come arrivare",
+    days: ["Domenica", "Lunedì", "Martedì", "Mercoledì", "Giovedì", "Venerdì", "Sabato"],
+    closed: "CHIUSO", lunch: "pranzo", dinner: "cena",
     capacity: "Capienza", autoConfirm: "Gruppi 1-{n}: conferma automatica se c'è disponibilità",
     largeGroups: "Gruppi numerosi", largeGroupsYes: "Gruppi {n}+: richiesta in sospeso, il responsabile ricontatta il cliente",
     largeGroupsNo: "Non si accettano gruppi di più di {n} persone",
-    lateTolerance: "Tolleranza ritardo", lastLunch: "Ultima prenotazione pranzo", lastDinner: "Ultima prenotazione cena",
+    lateTolerance: "Tolleranza ritardo", lateGrace: "più margine se il cliente avvisa in anticipo",
+    lastLunch: "Ultima prenotazione pranzo", lastDinner: "Ultima prenotazione cena",
     noService: "nessun servizio", deposit: "Caparra",
-    depositYes: "è richiesta una caparra per i gruppi numerosi", depositNo: "nessuna caparra richiesta", minutes: "min",
-    highChairs: "Famiglie: seggioloni", pets: "Animali", petsYes: "sì, avvisare alla prenotazione",
-    accessible: "Accessibilità: ingresso accessibile", payments: "Pagamenti", wifi: "WiFi",
-    parking: "Parcheggio proprio", terrace: "Terrazza", takeaway: "Cibo da asporto",
+    depositYes: "è richiesta una caparra per i gruppi numerosi", depositNo: "nessuna caparra richiesta",
+    cancellation: "Cancellazione",
+    cancellations: {
+      none: "nessun preavviso richiesto", same_day: "avvisare in giornata",
+      "2h": "avvisare almeno 2 h prima", "24h": "avvisare almeno 24 h prima",
+    },
+    noShow: "No-show: il tavolo viene liberato dopo {n} min senza avviso",
+    terraceNotGuaranteed: "Terrazza: soggetta a disponibilità, non garantita",
+    minutes: "min",
+    highChairs: "Famiglie: seggioloni", kidsMenu: "Menù bambini", pets: "Animali", petsYes: "sì, avvisare alla prenotazione",
+    accessible: "Accessibilità: ingresso accessibile, tavolo comodo con preavviso",
+    celebrations: "Celebrazioni (compleanni, anniversari): benvenute, avvisare alla prenotazione",
+    outsideCake: "Torta propria: è consentito portarla (avvisare alla prenotazione)",
+    payments: "Pagamenti", wifi: "WiFi", parking: "Parcheggio proprio", terrace: "Terrazza",
+    takeaway: "Cibo da asporto", takeawayWait: "tempo di attesa", delivery: "Delivery",
+    deliveryYes: "sì", deliveryVia: "sì, tramite {p}",
     vegetarian: "Opzioni vegetariane", vegan: "Opzioni vegane", glutenFree: "Opzioni senza glutine",
-    celiac: "Protocollo per celiaci", lactoseFree: "Opzioni senza lattosio",
+    lactoseFree: "Opzioni senza lattosio", celiacYes: "Protocollo per celiaci: preparazione separata disponibile",
+    allergenIntro: "IMPORTANTE — allergeni presenti in cucina (rischio di contaminazione crociata):",
+    allergens: {
+      gluten: "glutine / farina di frumento", nuts: "frutta a guscio", peanuts: "arachidi", dairy: "latticini",
+      egg: "uova", fish: "pesce", shellfish: "crostacei / molluschi", soy: "soia", sesame: "sesamo",
+    },
+    cannotGuarantee: "Non è possibile garantire l'assenza totale di tracce.",
+    severeAllergy: "Allergia grave: massima trasparenza, consultare la cucina o rivolgersi al responsabile.",
     allergenInfo: "Informazioni sugli allergeni", allergenInfoYes: "disponibili su richiesta",
     noneDeclared: "Nessuna opzione speciale dichiarata — chiedere alla prenotazione",
-    address: "Indirizzo", parkingInfo: "Parcheggio",
+    address: "Indirizzo", city: "Città", neighborhood: "Zona", parkingInfo: "Parcheggio",
     parkOwn: "parcheggio proprio", parkPublic: "parcheggio pubblico vicino", parkStreet: "parcheggio su strada", parkNone: "nessun parcheggio proprio",
     publicTransport: "Trasporto pubblico", landmark: "Riferimento", phone: "Telefono",
     payCash: "contanti", payCard: "carta", payContactless: "contactless", payBizum: "Bizum",
   },
   en: {
-    yes: "Yes", no: "No", available: "available", notAvailable: "not available",
-    tReservations: "Reservation policy", tServices: "Additional services",
-    tDiets: "Diets and allergies", tLocation: "Location and how to get there",
+    yes: "Yes", no: "No", available: "available", notAvailable: "not available", and: "and",
+    tSchedule: "Opening hours", tReservations: "Reservation policy",
+    tServices: "Additional services", tDiets: "Diets and allergies",
+    tChef: "Chef's recommendations", tLocation: "Location and how to get there",
+    days: ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"],
+    closed: "CLOSED", lunch: "lunch", dinner: "dinner",
     capacity: "Capacity", autoConfirm: "Groups of 1-{n}: confirmed automatically if there is availability",
     largeGroups: "Large groups", largeGroupsYes: "Groups of {n}+: request pending, the manager contacts the guest",
     largeGroupsNo: "Groups larger than {n} are not accepted",
-    lateTolerance: "Late arrival tolerance", lastLunch: "Last lunch reservation", lastDinner: "Last dinner reservation",
+    lateTolerance: "Late arrival tolerance", lateGrace: "more leeway if the guest lets us know in advance",
+    lastLunch: "Last lunch reservation", lastDinner: "Last dinner reservation",
     noService: "no service", deposit: "Deposit",
-    depositYes: "a deposit is required for large groups", depositNo: "no deposit required", minutes: "min",
-    highChairs: "Families: high chairs", pets: "Pets", petsYes: "yes, please mention when booking",
-    accessible: "Accessibility: accessible entrance", payments: "Payments", wifi: "WiFi",
-    parking: "Private parking", terrace: "Terrace", takeaway: "Takeaway",
+    depositYes: "a deposit is required for large groups", depositNo: "no deposit required",
+    cancellation: "Cancellation",
+    cancellations: {
+      none: "no advance notice required", same_day: "let us know the same day",
+      "2h": "let us know at least 2 h in advance", "24h": "let us know at least 24 h in advance",
+    },
+    noShow: "No-show: the table is released after {n} min without notice",
+    terraceNotGuaranteed: "Terrace: subject to availability, not guaranteed",
+    minutes: "min",
+    highChairs: "Families: high chairs", kidsMenu: "Kids' menu", pets: "Pets", petsYes: "yes, please mention when booking",
+    accessible: "Accessibility: accessible entrance, comfortable table with prior notice",
+    celebrations: "Celebrations (birthdays, anniversaries): welcome, please mention when booking",
+    outsideCake: "Own cake: you may bring your own (please mention when booking)",
+    payments: "Payments", wifi: "WiFi", parking: "Private parking", terrace: "Terrace",
+    takeaway: "Takeaway", takeawayWait: "wait time", delivery: "Delivery",
+    deliveryYes: "yes", deliveryVia: "yes, via {p}",
     vegetarian: "Vegetarian options", vegan: "Vegan options", glutenFree: "Gluten-free options",
-    celiac: "Coeliac protocol", lactoseFree: "Lactose-free options",
+    lactoseFree: "Lactose-free options", celiacYes: "Coeliac protocol: separate preparation available",
+    allergenIntro: "IMPORTANT — allergens present in the kitchen (cross-contamination risk):",
+    allergens: {
+      gluten: "gluten / wheat", nuts: "tree nuts", peanuts: "peanuts", dairy: "dairy",
+      egg: "egg", fish: "fish", shellfish: "shellfish / crustaceans", soy: "soy", sesame: "sesame",
+    },
+    cannotGuarantee: "We cannot guarantee the total absence of traces.",
+    severeAllergy: "Severe allergy: full transparency, check with the kitchen or refer to the manager.",
     allergenInfo: "Allergen information", allergenInfoYes: "available on request",
     noneDeclared: "No special options declared — please ask when booking",
-    address: "Address", parkingInfo: "Parking",
+    address: "Address", city: "City", neighborhood: "Area", parkingInfo: "Parking",
     parkOwn: "private car park", parkPublic: "public car park nearby", parkStreet: "street parking", parkNone: "no private parking",
     publicTransport: "Public transport", landmark: "Landmark", phone: "Phone",
     payCash: "cash", payCard: "card", payContactless: "contactless", payBizum: "Bizum",
   },
   de: {
-    yes: "Ja", no: "Nein", available: "verfügbar", notAvailable: "nicht verfügbar",
-    tReservations: "Reservierungsrichtlinie", tServices: "Zusätzliche Leistungen",
-    tDiets: "Diäten und Allergien", tLocation: "Lage und Anfahrt",
+    yes: "Ja", no: "Nein", available: "verfügbar", notAvailable: "nicht verfügbar", and: "und",
+    tSchedule: "Öffnungszeiten", tReservations: "Reservierungsrichtlinie",
+    tServices: "Zusätzliche Leistungen", tDiets: "Diäten und Allergien",
+    tChef: "Empfehlungen des Küchenchefs", tLocation: "Lage und Anfahrt",
+    days: ["Sonntag", "Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag"],
+    closed: "GESCHLOSSEN", lunch: "Mittag", dinner: "Abend",
     capacity: "Kapazität", autoConfirm: "Gruppen 1-{n}: automatische Bestätigung bei Verfügbarkeit",
     largeGroups: "Große Gruppen", largeGroupsYes: "Gruppen ab {n}: Anfrage offen, die Leitung kontaktiert den Gast",
     largeGroupsNo: "Gruppen größer als {n} werden nicht angenommen",
-    lateTolerance: "Verspätungstoleranz", lastLunch: "Letzte Mittagsreservierung", lastDinner: "Letzte Abendreservierung",
+    lateTolerance: "Verspätungstoleranz", lateGrace: "mehr Spielraum, wenn der Gast vorher Bescheid gibt",
+    lastLunch: "Letzte Mittagsreservierung", lastDinner: "Letzte Abendreservierung",
     noService: "kein Service", deposit: "Anzahlung",
-    depositYes: "für große Gruppen ist eine Anzahlung erforderlich", depositNo: "keine Anzahlung erforderlich", minutes: "Min.",
-    highChairs: "Familien: Hochstühle", pets: "Haustiere", petsYes: "ja, bitte bei der Buchung angeben",
-    accessible: "Barrierefreiheit: barrierefreier Eingang", payments: "Zahlung", wifi: "WLAN",
-    parking: "Eigener Parkplatz", terrace: "Terrasse", takeaway: "Essen zum Mitnehmen",
+    depositYes: "für große Gruppen ist eine Anzahlung erforderlich", depositNo: "keine Anzahlung erforderlich",
+    cancellation: "Stornierung",
+    cancellations: {
+      none: "keine Vorankündigung nötig", same_day: "am selben Tag Bescheid geben",
+      "2h": "mindestens 2 Std. vorher Bescheid geben", "24h": "mindestens 24 Std. vorher Bescheid geben",
+    },
+    noShow: "No-Show: der Tisch wird nach {n} Min. ohne Nachricht freigegeben",
+    terraceNotGuaranteed: "Terrasse: je nach Verfügbarkeit, nicht garantiert",
+    minutes: "Min.",
+    highChairs: "Familien: Hochstühle", kidsMenu: "Kindermenü", pets: "Haustiere", petsYes: "ja, bitte bei der Buchung angeben",
+    accessible: "Barrierefreiheit: barrierefreier Eingang, bequemer Tisch mit Voranmeldung",
+    celebrations: "Feiern (Geburtstage, Jubiläen): willkommen, bitte bei der Buchung angeben",
+    outsideCake: "Eigene Torte: darf mitgebracht werden (bitte bei der Buchung angeben)",
+    payments: "Zahlung", wifi: "WLAN", parking: "Eigener Parkplatz", terrace: "Terrasse",
+    takeaway: "Essen zum Mitnehmen", takeawayWait: "Wartezeit", delivery: "Lieferung",
+    deliveryYes: "ja", deliveryVia: "ja, über {p}",
     vegetarian: "Vegetarische Optionen", vegan: "Vegane Optionen", glutenFree: "Glutenfreie Optionen",
-    celiac: "Zöliakie-Protokoll", lactoseFree: "Laktosefreie Optionen",
+    lactoseFree: "Laktosefreie Optionen", celiacYes: "Zöliakie-Protokoll: separate Zubereitung möglich",
+    allergenIntro: "WICHTIG — in der Küche vorhandene Allergene (Risiko von Kreuzkontamination):",
+    allergens: {
+      gluten: "Gluten / Weizen", nuts: "Schalenfrüchte", peanuts: "Erdnüsse", dairy: "Milchprodukte",
+      egg: "Ei", fish: "Fisch", shellfish: "Schalentiere / Krebstiere", soy: "Soja", sesame: "Sesam",
+    },
+    cannotGuarantee: "Eine vollständige Spurenfreiheit kann nicht garantiert werden.",
+    severeAllergy: "Schwere Allergie: volle Transparenz, Rücksprache mit der Küche oder an die Leitung verweisen.",
     allergenInfo: "Allergeninformationen", allergenInfoYes: "auf Anfrage verfügbar",
     noneDeclared: "Keine besonderen Optionen angegeben — bitte bei der Buchung erfragen",
-    address: "Adresse", parkingInfo: "Parken",
+    address: "Adresse", city: "Stadt", neighborhood: "Gegend", parkingInfo: "Parken",
     parkOwn: "eigener Parkplatz", parkPublic: "öffentlicher Parkplatz in der Nähe", parkStreet: "Parken auf der Straße", parkNone: "kein eigener Parkplatz",
     publicTransport: "Öffentliche Verkehrsmittel", landmark: "Orientierungspunkt", phone: "Telefon",
     payCash: "Bargeld", payCard: "Karte", payContactless: "kontaktlos", payBizum: "Bizum",
   },
 };
 
-const fill = (s: string, n: number) => s.replace("{n}", String(n));
+const fill = (s: string, n: number | string) => s.replace("{n}", String(n)).replace("{p}", String(n));
 
 function paymentLabel(L: Labels, m: PaymentMethod): string {
   return m === "cash" ? L.payCash : m === "card" ? L.payCard : m === "contactless" ? L.payContactless : L.payBizum;
@@ -233,82 +383,149 @@ function yn(L: Labels, v: boolean): string {
   return v ? L.yes : L.no;
 }
 
+// Classify an opening slot as lunch or dinner by its start hour (< 17:00 = lunch).
+function slotPeriod(L: Labels, open: string): string {
+  const h = parseInt(open.slice(0, 2), 10);
+  return Number.isFinite(h) && h < 17 ? L.lunch : L.dinner;
+}
+
+/** Schedule lines (Mon→Sun). Returns [] when no day is open. */
+function buildScheduleLines(L: Labels, hours?: OpeningHours): string[] {
+  if (!hours) return [];
+  const order = [1, 2, 3, 4, 5, 6, 0]; // Monday first, Sunday last
+  const lines: string[] = [];
+  let anyOpen = false;
+  for (const d of order) {
+    const slots = hours[String(d)] || [];
+    if (slots.length === 0) {
+      lines.push(`${L.days[d]}: ${L.closed}`);
+    } else {
+      anyOpen = true;
+      const parts = slots
+        .filter((s) => s.open && s.close)
+        .map((s) => `${s.open}-${s.close} (${slotPeriod(L, s.open)})`);
+      lines.push(`${L.days[d]}: ${parts.join(` ${L.and} `)}`);
+    }
+  }
+  return anyOpen ? lines : [];
+}
+
 /**
- * Turn the questionnaire into 4 formatted KB articles. Pure: same input →
- * same output. The voice prompt is generated separately (see voice-prompt.ts);
- * this only produces the knowledge sources the agent reads.
+ * Turn the questionnaire into formatted KB articles. Pure: same input → same
+ * output. The voice prompt is generated separately (see voice-prompt.ts); this
+ * only produces the knowledge sources the agent reads. Article count varies
+ * (4-6): the Schedule article appears only with opening hours, and the Chef
+ * recommendations article only when the owner listed any dishes.
  */
 export function generateKbArticles(q: KbQuestionnaire, ctx: KbContext): GeneratedArticle[] {
   const L = DICT[ctx.language] || DICT.es;
   const threshold = q.auto_confirm_max + 1;
+  const articles: GeneratedArticle[] = [];
 
-  // --- Card 1: Reservation policy ---
+  // --- Schedule (from opening_hours) ---
+  const scheduleLines = buildScheduleLines(L, ctx.opening_hours);
+  if (scheduleLines.length) {
+    articles.push({ title: L.tSchedule, category: "general", content: scheduleLines.join("\n") });
+  }
+
+  // --- Reservation policy ---
   const reservationLines: string[] = [];
   if (q.capacity_seats > 0) reservationLines.push(`${L.capacity}: ${q.capacity_seats}`);
   reservationLines.push(fill(L.autoConfirm, q.auto_confirm_max));
   reservationLines.push(q.accepts_large_groups ? fill(L.largeGroupsYes, threshold) : fill(L.largeGroupsNo, q.auto_confirm_max));
-  reservationLines.push(`${L.lateTolerance}: ${q.late_tolerance_min} ${L.minutes}`);
+  const tolerance = `${L.lateTolerance}: ${q.late_tolerance_min} ${L.minutes}` + (q.late_grace_if_notified ? ` (${L.lateGrace})` : "");
+  reservationLines.push(tolerance);
+  reservationLines.push(`${L.cancellation}: ${L.cancellations[q.cancellation_notice]}`);
+  if (q.noshow_release_min > 0) reservationLines.push(fill(L.noShow, q.noshow_release_min));
   reservationLines.push(`${L.lastLunch}: ${q.last_lunch || L.noService}`);
   reservationLines.push(`${L.lastDinner}: ${q.last_dinner || L.noService}`);
-  if (q.accepts_large_groups) {
-    reservationLines.push(`${L.deposit}: ${q.deposit_required ? L.depositYes : L.depositNo}`);
-  }
+  if (q.accepts_large_groups) reservationLines.push(`${L.deposit}: ${q.deposit_required ? L.depositYes : L.depositNo}`);
+  if (q.terrace) reservationLines.push(L.terraceNotGuaranteed);
+  articles.push({ title: L.tReservations, category: "policies", content: reservationLines.join("\n") });
 
-  // --- Card 2: Additional services ---
+  // --- Diets and allergies (diet options + real allergen safety protocol) ---
+  const dietLines: string[] = [];
+  const dietPairs: Array<[string, boolean]> = [
+    [L.vegetarian, q.vegetarian],
+    [L.vegan, q.vegan],
+    [L.glutenFree, q.gluten_free],
+    [L.lactoseFree, q.lactose_free],
+  ];
+  for (const [label, v] of dietPairs) if (v) dietLines.push(`${label}: ${L.yes}`);
+  if (q.celiac_safe) dietLines.push(L.celiacYes);
+  if (q.kitchen_allergens.length) {
+    dietLines.push("", L.allergenIntro);
+    for (const a of q.kitchen_allergens) dietLines.push(`- ${L.allergens[a]}`);
+    if (q.cannot_guarantee_traces) dietLines.push(L.cannotGuarantee);
+    if (q.severe_allergy_escalate) dietLines.push(L.severeAllergy);
+  }
+  if (q.allergen_info) dietLines.push(`${L.allergenInfo}: ${L.allergenInfoYes}`);
+  if (dietLines.filter((l) => l.trim()).length === 0) dietLines.push(L.noneDeclared);
+  articles.push({ title: L.tDiets, category: "policies", content: dietLines.join("\n") });
+
+  // --- Additional services ---
   const serviceLines: string[] = [];
-  serviceLines.push(`${L.highChairs}: ${q.high_chairs ? L.available : L.notAvailable}`);
+  serviceLines.push(`${L.highChairs} ${q.high_chairs ? L.available : L.notAvailable}`);
+  if (q.kids_menu) serviceLines.push(`${L.kidsMenu}: ${L.available}`);
   serviceLines.push(`${L.pets}: ${q.pets ? L.petsYes : L.no}`);
   if (q.accessible) serviceLines.push(L.accessible);
+  if (q.celebrations) serviceLines.push(L.celebrations);
+  if (q.outside_cake) serviceLines.push(L.outsideCake);
   const pay = q.payments.length ? q.payments.map((p) => paymentLabel(L, p)).join(", ") : L.notAvailable;
   serviceLines.push(`${L.payments}: ${pay}`);
   serviceLines.push(`${L.wifi}: ${yn(L, q.wifi)}`);
   serviceLines.push(`${L.parking}: ${yn(L, q.parking_lot)}`);
   serviceLines.push(`${L.terrace}: ${yn(L, q.terrace)}`);
-  serviceLines.push(`${L.takeaway}: ${yn(L, q.takeaway)}`);
+  const takeawayLine = `${L.takeaway}: ${q.takeaway ? L.yes : L.no}` +
+    (q.takeaway && q.takeaway_wait.trim() ? ` (${L.takeawayWait}: ${q.takeaway_wait.trim()})` : "");
+  serviceLines.push(takeawayLine);
+  const deliveryValue = !q.delivery ? L.no : q.delivery_platform.trim() ? fill(L.deliveryVia, q.delivery_platform.trim()) : L.deliveryYes;
+  serviceLines.push(`${L.delivery}: ${deliveryValue}`);
+  articles.push({ title: L.tServices, category: "general", content: serviceLines.join("\n") });
 
-  // --- Card 3: Diets and allergies ---
-  const dietPairs: Array<[string, boolean]> = [
-    [L.vegetarian, q.vegetarian],
-    [L.vegan, q.vegan],
-    [L.glutenFree, q.gluten_free],
-    [L.celiac, q.celiac_safe],
-    [L.lactoseFree, q.lactose_free],
-  ];
-  const dietLines = dietPairs.filter(([, v]) => v).map(([label]) => `${label}: ${L.yes}`);
-  if (q.allergen_info) dietLines.push(`${L.allergenInfo}: ${L.allergenInfoYes}`);
-  if (dietLines.length === 0) dietLines.push(L.noneDeclared);
+  // --- Chef recommendations (optional) ---
+  const recs = q.chef_recommendations.map((r) => r.trim()).filter(Boolean);
+  if (recs.length) {
+    articles.push({ title: L.tChef, category: "menu", content: recs.map((r) => `- ${r}`).join("\n") });
+  }
 
-  // --- Card 4: Location ---
+  // --- Location ---
   const parkKind =
     q.parking_info === "own" ? L.parkOwn :
     q.parking_info === "public" ? L.parkPublic :
     q.parking_info === "street" ? L.parkStreet : L.parkNone;
-  const locationLines: string[] = [ctx.restaurant_name];
+  const header = q.cuisine_type.trim() ? `${ctx.restaurant_name} - ${q.cuisine_type.trim()}` : ctx.restaurant_name;
+  const locationLines: string[] = [header];
   if (q.address.trim()) locationLines.push(`${L.address}: ${q.address.trim()}`);
+  if (q.city.trim()) locationLines.push(`${L.city}: ${q.city.trim()}`);
+  if (q.neighborhood.trim()) locationLines.push(`${L.neighborhood}: ${q.neighborhood.trim()}`);
   locationLines.push(`${L.parkingInfo}: ${parkKind}`);
   locationLines.push(`${L.publicTransport}: ${yn(L, q.public_transport)}`);
   if (q.landmark.trim()) locationLines.push(`${L.landmark}: ${q.landmark.trim()}`);
   if (ctx.restaurant_phone.trim()) locationLines.push(`${L.phone}: ${ctx.restaurant_phone.trim()}`);
+  articles.push({ title: L.tLocation, category: "general", content: locationLines.join("\n") });
 
-  return [
-    { title: L.tReservations, category: "policies", content: reservationLines.join("\n") },
-    { title: L.tServices, category: "general", content: serviceLines.join("\n") },
-    { title: L.tDiets, category: "policies", content: dietLines.join("\n") },
-    { title: L.tLocation, category: "general", content: locationLines.join("\n") },
-  ];
+  return articles;
 }
 
-/** Sensible defaults so the wizard never starts blank (client just edits). */
+/** Sensible defaults so the wizard never starts blank (client just edits).
+ *  Safety-sensitive policy fields (no-show release, cuisine, city…) default to
+ *  "unset" so we never invent a policy the restaurant didn't state; the present
+ *  allergens seed common kitchen staples (gluten + dairy) the owner adjusts. */
 export function defaultQuestionnaire(): KbQuestionnaire {
   return {
     capacity_seats: 50,
     auto_confirm_max: 6,
     accepts_large_groups: true,
+    deposit_required: false,
     late_tolerance_min: 15,
+    late_grace_if_notified: true,
     last_lunch: "14:45",
     last_dinner: "21:30",
-    deposit_required: false,
+    cancellation_notice: "same_day",
+    noshow_release_min: 0,
     high_chairs: true,
+    kids_menu: false,
     pets: false,
     accessible: true,
     payments: ["cash", "card", "contactless"],
@@ -316,15 +533,27 @@ export function defaultQuestionnaire(): KbQuestionnaire {
     parking_lot: false,
     terrace: true,
     takeaway: false,
+    takeaway_wait: "",
+    delivery: false,
+    delivery_platform: "",
+    celebrations: true,
+    outside_cake: false,
     vegetarian: true,
     vegan: false,
     gluten_free: true,
-    celiac_safe: false,
     lactose_free: false,
+    celiac_safe: false,
+    kitchen_allergens: ["gluten", "dairy"],
+    cannot_guarantee_traces: true,
+    severe_allergy_escalate: true,
     allergen_info: true,
+    cuisine_type: "",
     address: "",
+    city: "",
+    neighborhood: "",
     parking_info: "public",
     public_transport: true,
     landmark: "",
+    chef_recommendations: [],
   };
 }

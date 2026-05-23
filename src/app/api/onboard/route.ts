@@ -72,6 +72,7 @@ export async function POST(req: Request) {
     restaurant_name: body.restaurant_name,
     restaurant_phone: body.restaurant_phone || "",
     language: lang,
+    opening_hours: body.opening_hours || {},
   });
   // Slug carries a tenant-id suffix so two restaurants with the same name never
   // collide on n8n webhook paths.
