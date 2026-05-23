@@ -16,6 +16,7 @@ interface Q4Strings {
   cardReservations: string; cardServices: string; cardDiets: string; cardLocation: string; cardChef: string;
   // card 1
   capacity: string; autoConfirmUpTo: string; optPersons: (n: number) => string;
+  optOther: string; personsUnit: string; // "Otro…" preset + the "personas" unit for the custom input
   largeGroups: string; deposit: string; lateTolerance: string; lateGrace: string;
   cancellationNotice: string; noShowRelease: string; lastLunch: string; lastDinner: string;
   cxNone: string; cxSameDay: string; cx2h: string; cx24h: string;
@@ -93,6 +94,7 @@ export const UI: Record<UiLang, UiStrings> = {
       cardReservations: "Reservas y grupos", cardServices: "Servicios prácticos",
       cardDiets: "Dietas y alergias", cardLocation: "Cómo llegar", cardChef: "Platos recomendados (opcional)",
       capacity: "Aforo (plazas)", autoConfirmUpTo: "Confirmación automática hasta", optPersons: (n) => `${n} personas`,
+      optOther: "Otro…", personsUnit: "personas",
       largeGroups: "¿Aceptáis grupos grandes (por encima de ese número)?", deposit: "¿Pedís depósito para grupos grandes?",
       lateTolerance: "Tolerancia de retraso", lateGrace: "¿Más margen si el cliente avisa con antelación?",
       cancellationNotice: "Aviso de cancelación", noShowRelease: "Liberar mesa por no-show tras",
@@ -155,6 +157,7 @@ export const UI: Record<UiLang, UiStrings> = {
       cardReservations: "Prenotazioni e gruppi", cardServices: "Servizi pratici",
       cardDiets: "Diete e allergie", cardLocation: "Come arrivare", cardChef: "Piatti consigliati (opzionale)",
       capacity: "Capienza (coperti)", autoConfirmUpTo: "Conferma automatica fino a", optPersons: (n) => `${n} persone`,
+      optOther: "Altro…", personsUnit: "persone",
       largeGroups: "Accettate gruppi numerosi (oltre quel numero)?", deposit: "Chiedete una caparra per i gruppi numerosi?",
       lateTolerance: "Tolleranza ritardo", lateGrace: "Più margine se il cliente avvisa in anticipo?",
       cancellationNotice: "Preavviso di cancellazione", noShowRelease: "Libera il tavolo per no-show dopo",
@@ -217,6 +220,7 @@ export const UI: Record<UiLang, UiStrings> = {
       cardReservations: "Reservations and groups", cardServices: "Practical services",
       cardDiets: "Diets and allergies", cardLocation: "How to get there", cardChef: "Recommended dishes (optional)",
       capacity: "Capacity (seats)", autoConfirmUpTo: "Auto-confirm up to", optPersons: (n) => `${n} people`,
+      optOther: "Other…", personsUnit: "people",
       largeGroups: "Do you accept large groups (above that number)?", deposit: "Do you ask for a deposit for large groups?",
       lateTolerance: "Late arrival tolerance", lateGrace: "More leeway if the guest lets you know in advance?",
       cancellationNotice: "Cancellation notice", noShowRelease: "Release the table for no-show after",
@@ -279,6 +283,7 @@ export const UI: Record<UiLang, UiStrings> = {
       cardReservations: "Reservierungen und Gruppen", cardServices: "Praktische Leistungen",
       cardDiets: "Diäten und Allergien", cardLocation: "Anfahrt", cardChef: "Empfohlene Gerichte (optional)",
       capacity: "Kapazität (Plätze)", autoConfirmUpTo: "Automatische Bestätigung bis", optPersons: (n) => `${n} Personen`,
+      optOther: "Andere…", personsUnit: "Personen",
       largeGroups: "Nehmt ihr große Gruppen an (über dieser Zahl)?", deposit: "Verlangt ihr eine Anzahlung für große Gruppen?",
       lateTolerance: "Verspätungstoleranz", lateGrace: "Mehr Spielraum, wenn der Gast vorher Bescheid gibt?",
       cancellationNotice: "Stornierungsfrist", noShowRelease: "Tisch bei No-Show freigeben nach",

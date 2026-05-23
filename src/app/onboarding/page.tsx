@@ -63,6 +63,10 @@ const NOSHOW_OPTS = (q4: Q4): Array<[string, string]> => [
   ["0", q4.nsNone], ["15", "15 min"], ["30", "30 min"], ["45", "45 min"], ["60", "60 min"],
 ];
 
+// Quick-pick party sizes for auto-confirmation; "Other…" lets the owner type any
+// number. Module-level so the array identity is stable across renders.
+const AUTO_CONFIRM_PRESETS = [4, 6, 8, 10];
+
 const TIMEZONES: Array<[string, string]> = [
   ["Atlantic/Canary", "Atlantic/Canary (Las Palmas)"],
   ["Europe/Madrid", "Europe/Madrid"],
@@ -359,7 +363,7 @@ export default function OnboardingPage() {
           {/* Card 1 — Reservations & groups */}
           <Card title={t.q4.cardReservations}>
             <NumField label={t.q4.capacity} value={q.capacity_seats} onChange={(v) => setQF("capacity_seats", v)} />
-            <Dropdown label={t.q4.autoConfirmUpTo} value={String(q.auto_confirm_max)} onChange={(v) => setQF("auto_confirm_max", Number(v))} options={[4, 6, 8, 10].map((n) => [String(n), t.q4.optPersons(n)])} />
+            <PresetOrCustomNumber label={t.q4.autoConfirmUpTo} value={q.auto_confirm_max} onChange={(v) => setQF("auto_confirm_max", v)} presets={AUTO_CONFIRM_PRESETS} unit={t.q4.personsUnit} otherLabel={t.q4.optOther} optLabel={t.q4.optPersons} />
             <YesNo label={t.q4.largeGroups} value={q.accepts_large_groups} onChange={(v) => setQF("accepts_large_groups", v)} t={t} />
             {q.accepts_large_groups && <YesNo label={t.q4.deposit} value={q.deposit_required} onChange={(v) => setQF("deposit_required", v)} t={t} />}
             <Dropdown label={t.q4.lateTolerance} value={String(q.late_tolerance_min)} onChange={(v) => setQF("late_tolerance_min", Number(v))} options={[["10", "10 min"], ["15", "15 min"], ["20", "20 min"], ["30", "30 min"]]} />
@@ -596,6 +600,63 @@ function Field({ label, value, onChange, placeholder, type = "text", inputMode }
 }
 function NumField({ label, value, onChange }: { label: string; value: number; onChange: (v: number) => void }) {
   return (<div><Lbl>{label}</Lbl><input type="number" min={0} value={value} onChange={(e) => onChange(Number(e.target.value))} className="w-full border border-zinc-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#c4956a]/40 focus:border-[#c4956a]" /></div>);
+}
+// Number field with quick presets plus a free-entry escape hatch. The select
+// offers the presets and an "Other…" option; choosing it reveals a numeric
+// input for any value. The stored value stays a plain number (the API/KB
+// contract is unchanged) — "custom mode" is local UI state, seeded from whether
+// the current value is already a non-preset number.
+function PresetOrCustomNumber({
+  label, value, onChange, presets, unit, otherLabel, optLabel,
+}: {
+  label: string; value: number; onChange: (v: number) => void; presets: number[];
+  unit: string; otherLabel: string; optLabel: (n: number) => string;
+}) {
+  const isPreset = presets.includes(value);
+  const [custom, setCustom] = useState(!isPreset);
+  // If the value becomes a preset again (e.g. user typed 6), follow it back to
+  // the dropdown; if it drifts off-preset, switch to custom. Keeps UI in sync
+  // when the value changes from outside this component.
+  useEffect(() => { setCustom(!presets.includes(value)); }, [value, presets]);
+
+  const OTHER = "__other__";
+  return (
+    <div>
+      <Lbl>{label}</Lbl>
+      <div className="relative">
+        <select
+          value={custom ? OTHER : String(value)}
+          onChange={(e) => {
+            if (e.target.value === OTHER) {
+              setCustom(true);
+              // Seed the custom input just past the largest preset so it never
+              // starts on a value the dropdown would reclaim.
+              if (isPreset) onChange(Math.max(...presets) + 1);
+            } else {
+              setCustom(false);
+              onChange(Number(e.target.value));
+            }
+          }}
+          className="w-full appearance-none border border-zinc-300 rounded-lg pl-3 pr-9 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#c4956a]/40 focus:border-[#c4956a] cursor-pointer"
+        >
+          {presets.map((n) => <option key={n} value={String(n)}>{optLabel(n)}</option>)}
+          <option value={OTHER}>{otherLabel}</option>
+        </select>
+        <ChevronDown className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#8b6540]" aria-hidden />
+      </div>
+      {custom && (
+        <div className="mt-2 flex items-center gap-2">
+          <input
+            type="number" min={1} autoFocus
+            value={value || ""}
+            onChange={(e) => onChange(Math.max(0, Number(e.target.value)))}
+            className="w-24 border border-zinc-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#c4956a]/40 focus:border-[#c4956a]"
+          />
+          <span className="text-sm text-black/60">{unit}</span>
+        </div>
+      )}
+    </div>
+  );
 }
 function TimeField({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) {
   return (<div><Lbl>{label}</Lbl><input type="time" value={value} onChange={(e) => onChange(e.target.value)} className="border border-zinc-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#c4956a]/40 focus:border-[#c4956a]" /></div>);
