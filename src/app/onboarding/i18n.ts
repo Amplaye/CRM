@@ -1,13 +1,42 @@
-// UI strings for the onboarding wizard CHROME (titles, buttons, step headers,
-// the language section). This is the wizard's own interface language, switched
-// from the top-right control — NOT the language(s) the assistant will speak.
+// UI strings for the whole onboarding wizard, switched from the top-right
+// control — this is the wizard's own interface language, NOT the language(s)
+// the assistant will speak.
 //
-// Scope is deliberately the navigation/structure strings the owner sees on
-// every step; the step-4 questionnaire field labels stay in Spanish because
-// they map 1:1 to the Spanish KB categories generated server-side.
+// The `q4` block covers the step-4 questionnaire labels/placeholders the owner
+// reads while filling it in. Note: the KB ARTICLES generated server-side
+// (titles like "Política de reservas") stay in the assistant's language and are
+// unrelated to these UI labels.
 
 export const UI_LANGS = ["es", "it", "en", "de"] as const;
 export type UiLang = (typeof UI_LANGS)[number];
+
+// Step-4 questionnaire labels. `optPersons` formats the party-size dropdown
+// ("6 personas" / "6 people" …); other dropdown values reuse chrome strings.
+interface Q4Strings {
+  cardReservations: string; cardServices: string; cardDiets: string; cardLocation: string; cardChef: string;
+  // card 1
+  capacity: string; autoConfirmUpTo: string; optPersons: (n: number) => string;
+  largeGroups: string; deposit: string; lateTolerance: string; lateGrace: string;
+  cancellationNotice: string; noShowRelease: string; lastLunch: string; lastDinner: string;
+  cxNone: string; cxSameDay: string; cx2h: string; cx24h: string;
+  nsNone: string;
+  // card 2
+  highChairs: string; kidsMenu: string; pets: string; accessible: string; wifi: string;
+  ownParking: string; terrace: string; takeaway: string; takeawayWait: string;
+  delivery: string; deliveryPlatform: string; celebrations: string; outsideCake: string;
+  paymentMethods: string; payCash: string; payCard: string; payContactless: string;
+  // card 3
+  vegetarian: string; vegan: string; glutenFree: string; lactoseFree: string; celiac: string;
+  allergensTitle: string; allergensHint: string; cannotGuarantee: string; severeAllergy: string; allergenSheet: string;
+  alGluten: string; alDairy: string; alEgg: string; alNuts: string; alPeanuts: string; alFish: string; alShellfish: string; alSoy: string; alSesame: string;
+  // card 4
+  cuisineType: string; address: string; cityPostal: string; area: string; parking: string;
+  publicTransport: string; landmark: string;
+  pkOwn: string; pkPublic: string; pkStreet: string; pkNone: string;
+  // card 5
+  chefHint: string;
+  optional: string; // suffix " (opcional)" used in several labels
+}
 
 interface UiStrings {
   uiLangLabel: string;
@@ -27,6 +56,8 @@ interface UiStrings {
   tblSmall: string; tblSmallD: string;
   tblMedium: string; tblMediumD: string;
   tblLarge: string; tblLargeD: string;
+  // step 4 questionnaire
+  q4: Q4Strings;
   // step 4 / 5
   addDish: string;
   sumRestaurant: string; sumLanguages: string; sumTables: string;
@@ -58,6 +89,38 @@ export const UI: Record<UiLang, UiStrings> = {
     tblSmall: "Pequeño (6)", tblSmallD: "<30 comensales",
     tblMedium: "Mediano (12)", tblMediumD: "30-60 comensales",
     tblLarge: "Grande (20)", tblLargeD: ">60 comensales",
+    q4: {
+      cardReservations: "Reservas y grupos", cardServices: "Servicios prácticos",
+      cardDiets: "Dietas y alergias", cardLocation: "Cómo llegar", cardChef: "Platos recomendados (opcional)",
+      capacity: "Aforo (plazas)", autoConfirmUpTo: "Confirmación automática hasta", optPersons: (n) => `${n} personas`,
+      largeGroups: "¿Aceptáis grupos grandes (por encima de ese número)?", deposit: "¿Pedís depósito para grupos grandes?",
+      lateTolerance: "Tolerancia de retraso", lateGrace: "¿Más margen si el cliente avisa con antelación?",
+      cancellationNotice: "Aviso de cancelación", noShowRelease: "Liberar mesa por no-show tras",
+      lastLunch: "Última reserva (comida)", lastDinner: "Última reserva (cena)",
+      cxNone: "Sin aviso previo", cxSameDay: "El mismo día", cx2h: "2 h antes", cx24h: "24 h antes",
+      nsNone: "No especificar",
+      highChairs: "¿Tronas para niños?", kidsMenu: "¿Menú infantil?", pets: "¿Se admiten mascotas?",
+      accessible: "¿Entrada accesible?", wifi: "¿WiFi para clientes?", ownParking: "¿Parking propio?",
+      terrace: "¿Terraza?", takeaway: "¿Comida para llevar?", takeawayWait: "Tiempo de espera para llevar (opcional)",
+      delivery: "¿Delivery (a domicilio)?", deliveryPlatform: "Plataforma de delivery (opcional)",
+      celebrations: "¿Aceptáis celebraciones (cumpleaños, etc.)?", outsideCake: "¿Se puede traer tarta propia?",
+      paymentMethods: "Métodos de pago", payCash: "Efectivo", payCard: "Tarjeta", payContactless: "Contactless",
+      vegetarian: "¿Opciones vegetarianas?", vegan: "¿Opciones veganas?", glutenFree: "¿Opciones sin gluten?",
+      lactoseFree: "¿Opciones sin lactosa?", celiac: "¿Protocolo para celíacos (preparación separada)?",
+      allergensTitle: "Alérgenos presentes en cocina",
+      allergensHint: "Marca los que se manipulan: el asistente avisará del riesgo de contaminación cruzada.",
+      cannotGuarantee: "¿No podéis garantizar ausencia total de trazas?",
+      severeAllergy: "¿Alergia severa → consultar cocina / responsable?",
+      allergenSheet: "¿Hoja de alérgenos disponible bajo petición?",
+      alGluten: "Gluten / trigo", alDairy: "Lácteos", alEgg: "Huevo", alNuts: "Frutos secos", alPeanuts: "Cacahuetes",
+      alFish: "Pescado", alShellfish: "Marisco", alSoy: "Soja", alSesame: "Sésamo",
+      cuisineType: "Tipo de cocina / concepto (opcional)", address: "Dirección",
+      cityPostal: "Población / código postal (opcional)", area: "Zona / barrio (opcional)", parking: "Aparcamiento",
+      publicTransport: "¿Bien comunicado en transporte público?", landmark: "Punto de referencia (opcional)",
+      pkOwn: "Parking propio", pkPublic: "Parking público cercano", pkStreet: "En la calle", pkNone: "Sin aparcamiento",
+      chefHint: "Añade hasta 6 platos que recomiendas, con una nota corta. El asistente los usará para responder «¿qué me recomiendas?». Déjalo vacío si prefieres remitir a la carta.",
+      optional: " (opcional)",
+    },
     addDish: "+ añadir plato",
     sumRestaurant: "Restaurante", sumLanguages: "Idiomas del asistente", sumTables: "Mesas iniciales",
     sumCapacity: "Aforo", sumAutoConfirm: "confirmación auto hasta", sumPayments: "Métodos de pago",
@@ -88,6 +151,38 @@ export const UI: Record<UiLang, UiStrings> = {
     tblSmall: "Piccolo (6)", tblSmallD: "<30 coperti",
     tblMedium: "Medio (12)", tblMediumD: "30-60 coperti",
     tblLarge: "Grande (20)", tblLargeD: ">60 coperti",
+    q4: {
+      cardReservations: "Prenotazioni e gruppi", cardServices: "Servizi pratici",
+      cardDiets: "Diete e allergie", cardLocation: "Come arrivare", cardChef: "Piatti consigliati (opzionale)",
+      capacity: "Capienza (coperti)", autoConfirmUpTo: "Conferma automatica fino a", optPersons: (n) => `${n} persone`,
+      largeGroups: "Accettate gruppi numerosi (oltre quel numero)?", deposit: "Chiedete una caparra per i gruppi numerosi?",
+      lateTolerance: "Tolleranza ritardo", lateGrace: "Più margine se il cliente avvisa in anticipo?",
+      cancellationNotice: "Preavviso di cancellazione", noShowRelease: "Libera il tavolo per no-show dopo",
+      lastLunch: "Ultima prenotazione (pranzo)", lastDinner: "Ultima prenotazione (cena)",
+      cxNone: "Nessun preavviso", cxSameDay: "In giornata", cx2h: "2 h prima", cx24h: "24 h prima",
+      nsNone: "Non specificare",
+      highChairs: "Seggioloni per bambini?", kidsMenu: "Menù bambini?", pets: "Sono ammessi animali?",
+      accessible: "Ingresso accessibile?", wifi: "WiFi per i clienti?", ownParking: "Parcheggio proprio?",
+      terrace: "Terrazza?", takeaway: "Cibo da asporto?", takeawayWait: "Tempo di attesa per l'asporto (opzionale)",
+      delivery: "Delivery (a domicilio)?", deliveryPlatform: "Piattaforma di delivery (opzionale)",
+      celebrations: "Accettate celebrazioni (compleanni, ecc.)?", outsideCake: "Si può portare la propria torta?",
+      paymentMethods: "Metodi di pagamento", payCash: "Contanti", payCard: "Carta", payContactless: "Contactless",
+      vegetarian: "Opzioni vegetariane?", vegan: "Opzioni vegane?", glutenFree: "Opzioni senza glutine?",
+      lactoseFree: "Opzioni senza lattosio?", celiac: "Protocollo per celiaci (preparazione separata)?",
+      allergensTitle: "Allergeni presenti in cucina",
+      allergensHint: "Seleziona quelli che vengono manipolati: l'assistente avviserà del rischio di contaminazione crociata.",
+      cannotGuarantee: "Non potete garantire l'assenza totale di tracce?",
+      severeAllergy: "Allergia grave → consultare cucina / responsabile?",
+      allergenSheet: "Scheda allergeni disponibile su richiesta?",
+      alGluten: "Glutine / frumento", alDairy: "Latticini", alEgg: "Uova", alNuts: "Frutta a guscio", alPeanuts: "Arachidi",
+      alFish: "Pesce", alShellfish: "Crostacei", alSoy: "Soia", alSesame: "Sesamo",
+      cuisineType: "Tipo di cucina / concept (opzionale)", address: "Indirizzo",
+      cityPostal: "Città / CAP (opzionale)", area: "Zona / quartiere (opzionale)", parking: "Parcheggio",
+      publicTransport: "Ben servito dai mezzi pubblici?", landmark: "Punto di riferimento (opzionale)",
+      pkOwn: "Parcheggio proprio", pkPublic: "Parcheggio pubblico vicino", pkStreet: "Su strada", pkNone: "Nessun parcheggio",
+      chefHint: "Aggiungi fino a 6 piatti che consigli, con una nota breve. L'assistente li userà per rispondere «cosa mi consigli?». Lascia vuoto se preferisci rimandare al menù.",
+      optional: " (opzionale)",
+    },
     addDish: "+ aggiungi piatto",
     sumRestaurant: "Ristorante", sumLanguages: "Lingue dell'assistente", sumTables: "Tavoli iniziali",
     sumCapacity: "Capienza", sumAutoConfirm: "conferma auto fino a", sumPayments: "Metodi di pagamento",
@@ -118,6 +213,38 @@ export const UI: Record<UiLang, UiStrings> = {
     tblSmall: "Small (6)", tblSmallD: "<30 covers",
     tblMedium: "Medium (12)", tblMediumD: "30-60 covers",
     tblLarge: "Large (20)", tblLargeD: ">60 covers",
+    q4: {
+      cardReservations: "Reservations and groups", cardServices: "Practical services",
+      cardDiets: "Diets and allergies", cardLocation: "How to get there", cardChef: "Recommended dishes (optional)",
+      capacity: "Capacity (seats)", autoConfirmUpTo: "Auto-confirm up to", optPersons: (n) => `${n} people`,
+      largeGroups: "Do you accept large groups (above that number)?", deposit: "Do you ask for a deposit for large groups?",
+      lateTolerance: "Late arrival tolerance", lateGrace: "More leeway if the guest lets you know in advance?",
+      cancellationNotice: "Cancellation notice", noShowRelease: "Release the table for no-show after",
+      lastLunch: "Last reservation (lunch)", lastDinner: "Last reservation (dinner)",
+      cxNone: "No advance notice", cxSameDay: "Same day", cx2h: "2 h before", cx24h: "24 h before",
+      nsNone: "Don't specify",
+      highChairs: "High chairs for children?", kidsMenu: "Kids' menu?", pets: "Are pets allowed?",
+      accessible: "Accessible entrance?", wifi: "WiFi for guests?", ownParking: "Private parking?",
+      terrace: "Terrace?", takeaway: "Takeaway?", takeawayWait: "Takeaway wait time (optional)",
+      delivery: "Delivery (to home)?", deliveryPlatform: "Delivery platform (optional)",
+      celebrations: "Do you accept celebrations (birthdays, etc.)?", outsideCake: "Can guests bring their own cake?",
+      paymentMethods: "Payment methods", payCash: "Cash", payCard: "Card", payContactless: "Contactless",
+      vegetarian: "Vegetarian options?", vegan: "Vegan options?", glutenFree: "Gluten-free options?",
+      lactoseFree: "Lactose-free options?", celiac: "Coeliac protocol (separate preparation)?",
+      allergensTitle: "Allergens present in the kitchen",
+      allergensHint: "Tick the ones you handle: the assistant will warn about the cross-contamination risk.",
+      cannotGuarantee: "Can't you guarantee the total absence of traces?",
+      severeAllergy: "Severe allergy → check with kitchen / manager?",
+      allergenSheet: "Allergen sheet available on request?",
+      alGluten: "Gluten / wheat", alDairy: "Dairy", alEgg: "Egg", alNuts: "Tree nuts", alPeanuts: "Peanuts",
+      alFish: "Fish", alShellfish: "Shellfish", alSoy: "Soy", alSesame: "Sesame",
+      cuisineType: "Cuisine type / concept (optional)", address: "Address",
+      cityPostal: "City / postcode (optional)", area: "Area / neighbourhood (optional)", parking: "Parking",
+      publicTransport: "Well connected by public transport?", landmark: "Landmark (optional)",
+      pkOwn: "Private parking", pkPublic: "Public car park nearby", pkStreet: "On the street", pkNone: "No parking",
+      chefHint: "Add up to 6 dishes you recommend, with a short note. The assistant will use them to answer “what do you recommend?”. Leave empty if you prefer to point to the menu.",
+      optional: " (optional)",
+    },
     addDish: "+ add dish",
     sumRestaurant: "Restaurant", sumLanguages: "Assistant languages", sumTables: "Initial tables",
     sumCapacity: "Capacity", sumAutoConfirm: "auto-confirm up to", sumPayments: "Payment methods",
@@ -148,6 +275,38 @@ export const UI: Record<UiLang, UiStrings> = {
     tblSmall: "Klein (6)", tblSmallD: "<30 Gäste",
     tblMedium: "Mittel (12)", tblMediumD: "30-60 Gäste",
     tblLarge: "Groß (20)", tblLargeD: ">60 Gäste",
+    q4: {
+      cardReservations: "Reservierungen und Gruppen", cardServices: "Praktische Leistungen",
+      cardDiets: "Diäten und Allergien", cardLocation: "Anfahrt", cardChef: "Empfohlene Gerichte (optional)",
+      capacity: "Kapazität (Plätze)", autoConfirmUpTo: "Automatische Bestätigung bis", optPersons: (n) => `${n} Personen`,
+      largeGroups: "Nehmt ihr große Gruppen an (über dieser Zahl)?", deposit: "Verlangt ihr eine Anzahlung für große Gruppen?",
+      lateTolerance: "Verspätungstoleranz", lateGrace: "Mehr Spielraum, wenn der Gast vorher Bescheid gibt?",
+      cancellationNotice: "Stornierungsfrist", noShowRelease: "Tisch bei No-Show freigeben nach",
+      lastLunch: "Letzte Reservierung (Mittag)", lastDinner: "Letzte Reservierung (Abend)",
+      cxNone: "Keine Vorankündigung", cxSameDay: "Am selben Tag", cx2h: "2 Std. vorher", cx24h: "24 Std. vorher",
+      nsNone: "Nicht angeben",
+      highChairs: "Hochstühle für Kinder?", kidsMenu: "Kindermenü?", pets: "Sind Haustiere erlaubt?",
+      accessible: "Barrierefreier Eingang?", wifi: "WLAN für Gäste?", ownParking: "Eigener Parkplatz?",
+      terrace: "Terrasse?", takeaway: "Essen zum Mitnehmen?", takeawayWait: "Wartezeit zum Mitnehmen (optional)",
+      delivery: "Lieferung (nach Hause)?", deliveryPlatform: "Lieferplattform (optional)",
+      celebrations: "Nehmt ihr Feiern an (Geburtstage usw.)?", outsideCake: "Darf eigene Torte mitgebracht werden?",
+      paymentMethods: "Zahlungsarten", payCash: "Bargeld", payCard: "Karte", payContactless: "Kontaktlos",
+      vegetarian: "Vegetarische Optionen?", vegan: "Vegane Optionen?", glutenFree: "Glutenfreie Optionen?",
+      lactoseFree: "Laktosefreie Optionen?", celiac: "Zöliakie-Protokoll (separate Zubereitung)?",
+      allergensTitle: "In der Küche vorhandene Allergene",
+      allergensHint: "Markiere die, die verarbeitet werden: der Assistent warnt vor dem Risiko der Kreuzkontamination.",
+      cannotGuarantee: "Könnt ihr die völlige Spurenfreiheit nicht garantieren?",
+      severeAllergy: "Schwere Allergie → Küche / Leitung fragen?",
+      allergenSheet: "Allergenliste auf Anfrage verfügbar?",
+      alGluten: "Gluten / Weizen", alDairy: "Milchprodukte", alEgg: "Ei", alNuts: "Schalenfrüchte", alPeanuts: "Erdnüsse",
+      alFish: "Fisch", alShellfish: "Schalentiere", alSoy: "Soja", alSesame: "Sesam",
+      cuisineType: "Küchenart / Konzept (optional)", address: "Adresse",
+      cityPostal: "Stadt / PLZ (optional)", area: "Gegend / Viertel (optional)", parking: "Parken",
+      publicTransport: "Gut mit öffentlichen Verkehrsmitteln erreichbar?", landmark: "Orientierungspunkt (optional)",
+      pkOwn: "Eigener Parkplatz", pkPublic: "Öffentlicher Parkplatz in der Nähe", pkStreet: "Auf der Straße", pkNone: "Kein Parkplatz",
+      chefHint: "Füge bis zu 6 empfohlene Gerichte mit einer kurzen Notiz hinzu. Der Assistent nutzt sie, um auf „Was empfiehlst du?“ zu antworten. Leer lassen, wenn du lieber auf die Karte verweist.",
+      optional: " (optional)",
+    },
     addDish: "+ Gericht hinzufügen",
     sumRestaurant: "Restaurant", sumLanguages: "Sprachen des Assistenten", sumTables: "Anfangstische",
     sumCapacity: "Kapazität", sumAutoConfirm: "Auto-Bestätigung bis", sumPayments: "Zahlungsarten",

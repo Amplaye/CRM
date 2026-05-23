@@ -44,22 +44,23 @@ const DEFAULT_HOURS: Hours = {
   "6": [{ open: "12:30", close: "15:30" }, { open: "19:30", close: "22:30" }],
 };
 
-const PAYMENTS: Array<[PaymentMethod, string]> = [
-  ["cash", "Efectivo"], ["card", "Tarjeta"], ["contactless", "Contactless"], ["bizum", "Bizum"],
+// Option lists pair a stable enum key with a TRANSLATED label, so the labels
+// follow the UI language while the value sent to the API never changes.
+// "Bizum" is a brand name and stays untranslated.
+type Q4 = (typeof UI)[UiLang]["q4"];
+const PAYMENTS = (q4: Q4): Array<[PaymentMethod, string]> => [
+  ["cash", q4.payCash], ["card", q4.payCard], ["contactless", q4.payContactless], ["bizum", "Bizum"],
 ];
-
 // Major kitchen allergens (presence → cross-contamination warning in the KB).
-const ALLERGENS: Array<[Allergen, string]> = [
-  ["gluten", "Gluten / trigo"], ["dairy", "Lácteos"], ["egg", "Huevo"], ["nuts", "Frutos secos"],
-  ["peanuts", "Cacahuetes"], ["fish", "Pescado"], ["shellfish", "Marisco"], ["soy", "Soja"], ["sesame", "Sésamo"],
+const ALLERGENS = (q4: Q4): Array<[Allergen, string]> => [
+  ["gluten", q4.alGluten], ["dairy", q4.alDairy], ["egg", q4.alEgg], ["nuts", q4.alNuts],
+  ["peanuts", q4.alPeanuts], ["fish", q4.alFish], ["shellfish", q4.alShellfish], ["soy", q4.alSoy], ["sesame", q4.alSesame],
 ];
-
-const CANCELLATIONS: Array<[CancellationNotice, string]> = [
-  ["none", "Sin aviso previo"], ["same_day", "El mismo día"], ["2h", "2 h antes"], ["24h", "24 h antes"],
+const CANCELLATIONS = (q4: Q4): Array<[CancellationNotice, string]> => [
+  ["none", q4.cxNone], ["same_day", q4.cxSameDay], ["2h", q4.cx2h], ["24h", q4.cx24h],
 ];
-
-const NOSHOW_OPTS: Array<[string, string]> = [
-  ["0", "No especificar"], ["15", "15 min"], ["30", "30 min"], ["45", "45 min"], ["60", "60 min"],
+const NOSHOW_OPTS = (q4: Q4): Array<[string, string]> => [
+  ["0", q4.nsNone], ["15", "15 min"], ["30", "30 min"], ["45", "45 min"], ["60", "60 min"],
 ];
 
 const TIMEZONES: Array<[string, string]> = [
@@ -355,80 +356,80 @@ export default function OnboardingPage() {
           <h2 className="text-base font-bold flex items-center gap-2"><ClipboardList className="w-4 h-4" /> 4. {t.s4}</h2>
           <p className="text-xs text-black/60">{t.s4hint}</p>
 
-          {/* Card 1 — Reservas y grupos */}
-          <Card title="Reservas y grupos">
-            <NumField label="Aforo (plazas)" value={q.capacity_seats} onChange={(v) => setQF("capacity_seats", v)} />
-            <Dropdown label="Confirmación automática hasta" value={String(q.auto_confirm_max)} onChange={(v) => setQF("auto_confirm_max", Number(v))} options={[["4", "4 personas"], ["6", "6 personas"], ["8", "8 personas"], ["10", "10 personas"]]} />
-            <YesNo label="¿Aceptáis grupos grandes (por encima de ese número)?" value={q.accepts_large_groups} onChange={(v) => setQF("accepts_large_groups", v)} t={t} />
-            {q.accepts_large_groups && <YesNo label="¿Pedís depósito para grupos grandes?" value={q.deposit_required} onChange={(v) => setQF("deposit_required", v)} t={t} />}
-            <Dropdown label="Tolerancia de retraso" value={String(q.late_tolerance_min)} onChange={(v) => setQF("late_tolerance_min", Number(v))} options={[["10", "10 min"], ["15", "15 min"], ["20", "20 min"], ["30", "30 min"]]} />
-            <YesNo label="¿Más margen si el cliente avisa con antelación?" value={q.late_grace_if_notified} onChange={(v) => setQF("late_grace_if_notified", v)} t={t} />
-            <Dropdown label="Aviso de cancelación" value={q.cancellation_notice} onChange={(v) => setQF("cancellation_notice", v as CancellationNotice)} options={CANCELLATIONS} />
-            <Dropdown label="Liberar mesa por no-show tras" value={String(q.noshow_release_min)} onChange={(v) => setQF("noshow_release_min", Number(v))} options={NOSHOW_OPTS} />
-            <TimeField label="Última reserva (comida)" value={q.last_lunch} onChange={(v) => setQF("last_lunch", v)} />
-            <TimeField label="Última reserva (cena)" value={q.last_dinner} onChange={(v) => setQF("last_dinner", v)} />
+          {/* Card 1 — Reservations & groups */}
+          <Card title={t.q4.cardReservations}>
+            <NumField label={t.q4.capacity} value={q.capacity_seats} onChange={(v) => setQF("capacity_seats", v)} />
+            <Dropdown label={t.q4.autoConfirmUpTo} value={String(q.auto_confirm_max)} onChange={(v) => setQF("auto_confirm_max", Number(v))} options={[4, 6, 8, 10].map((n) => [String(n), t.q4.optPersons(n)])} />
+            <YesNo label={t.q4.largeGroups} value={q.accepts_large_groups} onChange={(v) => setQF("accepts_large_groups", v)} t={t} />
+            {q.accepts_large_groups && <YesNo label={t.q4.deposit} value={q.deposit_required} onChange={(v) => setQF("deposit_required", v)} t={t} />}
+            <Dropdown label={t.q4.lateTolerance} value={String(q.late_tolerance_min)} onChange={(v) => setQF("late_tolerance_min", Number(v))} options={[["10", "10 min"], ["15", "15 min"], ["20", "20 min"], ["30", "30 min"]]} />
+            <YesNo label={t.q4.lateGrace} value={q.late_grace_if_notified} onChange={(v) => setQF("late_grace_if_notified", v)} t={t} />
+            <Dropdown label={t.q4.cancellationNotice} value={q.cancellation_notice} onChange={(v) => setQF("cancellation_notice", v as CancellationNotice)} options={CANCELLATIONS(t.q4)} />
+            <Dropdown label={t.q4.noShowRelease} value={String(q.noshow_release_min)} onChange={(v) => setQF("noshow_release_min", Number(v))} options={NOSHOW_OPTS(t.q4)} />
+            <TimeField label={t.q4.lastLunch} value={q.last_lunch} onChange={(v) => setQF("last_lunch", v)} />
+            <TimeField label={t.q4.lastDinner} value={q.last_dinner} onChange={(v) => setQF("last_dinner", v)} />
           </Card>
 
-          {/* Card 2 — Servicios prácticos */}
-          <Card title="Servicios prácticos">
-            <YesNo label="¿Tronas para niños?" value={q.high_chairs} onChange={(v) => setQF("high_chairs", v)} t={t} />
-            <YesNo label="¿Menú infantil?" value={q.kids_menu} onChange={(v) => setQF("kids_menu", v)} t={t} />
-            <YesNo label="¿Se admiten mascotas?" value={q.pets} onChange={(v) => setQF("pets", v)} t={t} />
-            <YesNo label="¿Entrada accesible?" value={q.accessible} onChange={(v) => setQF("accessible", v)} t={t} />
-            <YesNo label="¿WiFi para clientes?" value={q.wifi} onChange={(v) => setQF("wifi", v)} t={t} />
-            <YesNo label="¿Parking propio?" value={q.parking_lot} onChange={(v) => setQF("parking_lot", v)} t={t} />
-            <YesNo label="¿Terraza?" value={q.terrace} onChange={(v) => setQF("terrace", v)} t={t} />
-            <YesNo label="¿Comida para llevar?" value={q.takeaway} onChange={(v) => setQF("takeaway", v)} t={t} />
-            {q.takeaway && <Field label="Tiempo de espera para llevar (opcional)" value={q.takeaway_wait} onChange={(v) => setQF("takeaway_wait", v)} placeholder="20-30 min" />}
-            <YesNo label="¿Delivery (a domicilio)?" value={q.delivery} onChange={(v) => setQF("delivery", v)} t={t} />
-            {q.delivery && <Field label="Plataforma de delivery (opcional)" value={q.delivery_platform} onChange={(v) => setQF("delivery_platform", v)} placeholder="Glovo, Uber Eats…" />}
-            <YesNo label="¿Aceptáis celebraciones (cumpleaños, etc.)?" value={q.celebrations} onChange={(v) => setQF("celebrations", v)} t={t} />
-            <YesNo label="¿Se puede traer tarta propia?" value={q.outside_cake} onChange={(v) => setQF("outside_cake", v)} t={t} />
+          {/* Card 2 — Practical services */}
+          <Card title={t.q4.cardServices}>
+            <YesNo label={t.q4.highChairs} value={q.high_chairs} onChange={(v) => setQF("high_chairs", v)} t={t} />
+            <YesNo label={t.q4.kidsMenu} value={q.kids_menu} onChange={(v) => setQF("kids_menu", v)} t={t} />
+            <YesNo label={t.q4.pets} value={q.pets} onChange={(v) => setQF("pets", v)} t={t} />
+            <YesNo label={t.q4.accessible} value={q.accessible} onChange={(v) => setQF("accessible", v)} t={t} />
+            <YesNo label={t.q4.wifi} value={q.wifi} onChange={(v) => setQF("wifi", v)} t={t} />
+            <YesNo label={t.q4.ownParking} value={q.parking_lot} onChange={(v) => setQF("parking_lot", v)} t={t} />
+            <YesNo label={t.q4.terrace} value={q.terrace} onChange={(v) => setQF("terrace", v)} t={t} />
+            <YesNo label={t.q4.takeaway} value={q.takeaway} onChange={(v) => setQF("takeaway", v)} t={t} />
+            {q.takeaway && <Field label={t.q4.takeawayWait} value={q.takeaway_wait} onChange={(v) => setQF("takeaway_wait", v)} placeholder="20-30 min" />}
+            <YesNo label={t.q4.delivery} value={q.delivery} onChange={(v) => setQF("delivery", v)} t={t} />
+            {q.delivery && <Field label={t.q4.deliveryPlatform} value={q.delivery_platform} onChange={(v) => setQF("delivery_platform", v)} placeholder="Glovo, Uber Eats…" />}
+            <YesNo label={t.q4.celebrations} value={q.celebrations} onChange={(v) => setQF("celebrations", v)} t={t} />
+            <YesNo label={t.q4.outsideCake} value={q.outside_cake} onChange={(v) => setQF("outside_cake", v)} t={t} />
             <div>
-              <Lbl>Métodos de pago</Lbl>
+              <Lbl>{t.q4.paymentMethods}</Lbl>
               <div className="flex flex-wrap gap-2">
-                {PAYMENTS.map(([k, lbl]) => (
+                {PAYMENTS(t.q4).map(([k, lbl]) => (
                   <button key={k} type="button" onClick={() => togglePayment(k)} className={`px-3 py-1.5 rounded-full text-sm border-2 transition-colors ${q.payments.includes(k) ? "border-[#c4956a] bg-[#c4956a]/15 font-semibold" : "border-zinc-200 bg-white hover:border-[#c4956a]/50"}`}>{lbl}</button>
                 ))}
               </div>
             </div>
           </Card>
 
-          {/* Card 3 — Dietas y alergias */}
-          <Card title="Dietas y alergias">
-            <YesNo label="¿Opciones vegetarianas?" value={q.vegetarian} onChange={(v) => setQF("vegetarian", v)} t={t} />
-            <YesNo label="¿Opciones veganas?" value={q.vegan} onChange={(v) => setQF("vegan", v)} t={t} />
-            <YesNo label="¿Opciones sin gluten?" value={q.gluten_free} onChange={(v) => setQF("gluten_free", v)} t={t} />
-            <YesNo label="¿Opciones sin lactosa?" value={q.lactose_free} onChange={(v) => setQF("lactose_free", v)} t={t} />
-            <YesNo label="¿Protocolo para celíacos (preparación separada)?" value={q.celiac_safe} onChange={(v) => setQF("celiac_safe", v)} t={t} />
+          {/* Card 3 — Diets & allergies */}
+          <Card title={t.q4.cardDiets}>
+            <YesNo label={t.q4.vegetarian} value={q.vegetarian} onChange={(v) => setQF("vegetarian", v)} t={t} />
+            <YesNo label={t.q4.vegan} value={q.vegan} onChange={(v) => setQF("vegan", v)} t={t} />
+            <YesNo label={t.q4.glutenFree} value={q.gluten_free} onChange={(v) => setQF("gluten_free", v)} t={t} />
+            <YesNo label={t.q4.lactoseFree} value={q.lactose_free} onChange={(v) => setQF("lactose_free", v)} t={t} />
+            <YesNo label={t.q4.celiac} value={q.celiac_safe} onChange={(v) => setQF("celiac_safe", v)} t={t} />
             <div className="pt-1 border-t border-zinc-100">
-              <Lbl>Alérgenos presentes en cocina</Lbl>
-              <p className="text-[11px] text-black/50 mb-2">Marca los que se manipulan: el asistente avisará del riesgo de contaminación cruzada.</p>
+              <Lbl>{t.q4.allergensTitle}</Lbl>
+              <p className="text-[11px] text-black/50 mb-2">{t.q4.allergensHint}</p>
               <div className="flex flex-wrap gap-2">
-                {ALLERGENS.map(([k, lbl]) => (
+                {ALLERGENS(t.q4).map(([k, lbl]) => (
                   <button key={k} type="button" onClick={() => toggleAllergen(k)} className={`px-3 py-1.5 rounded-full text-sm border-2 transition-colors ${q.kitchen_allergens.includes(k) ? "border-[#c4956a] bg-[#c4956a]/15 font-semibold" : "border-zinc-200 bg-white hover:border-[#c4956a]/50"}`}>{lbl}</button>
                 ))}
               </div>
             </div>
-            <YesNo label="¿No podéis garantizar ausencia total de trazas?" value={q.cannot_guarantee_traces} onChange={(v) => setQF("cannot_guarantee_traces", v)} t={t} />
-            <YesNo label="¿Alergia severa → consultar cocina / responsable?" value={q.severe_allergy_escalate} onChange={(v) => setQF("severe_allergy_escalate", v)} t={t} />
-            <YesNo label="¿Hoja de alérgenos disponible bajo petición?" value={q.allergen_info} onChange={(v) => setQF("allergen_info", v)} t={t} />
+            <YesNo label={t.q4.cannotGuarantee} value={q.cannot_guarantee_traces} onChange={(v) => setQF("cannot_guarantee_traces", v)} t={t} />
+            <YesNo label={t.q4.severeAllergy} value={q.severe_allergy_escalate} onChange={(v) => setQF("severe_allergy_escalate", v)} t={t} />
+            <YesNo label={t.q4.allergenSheet} value={q.allergen_info} onChange={(v) => setQF("allergen_info", v)} t={t} />
           </Card>
 
-          {/* Card 4 — Cómo llegar */}
-          <Card title="Cómo llegar">
-            <Field label="Tipo de cocina / concepto (opcional)" value={q.cuisine_type} onChange={(v) => setQF("cuisine_type", v)} placeholder="Trattoria napolitana" />
-            <Field label="Dirección" value={q.address} onChange={(v) => setQF("address", v)} placeholder="Avenida Rafael Cabrera, 7" />
-            <Field label="Población / código postal (opcional)" value={q.city} onChange={(v) => setQF("city", v)} placeholder="35002 Las Palmas de Gran Canaria" />
-            <Field label="Zona / barrio (opcional)" value={q.neighborhood} onChange={(v) => setQF("neighborhood", v)} placeholder="Triana / Vegueta" />
-            <Dropdown label="Aparcamiento" value={q.parking_info} onChange={(v) => setQF("parking_info", v as ParkingKind)} options={[["own", "Parking propio"], ["public", "Parking público cercano"], ["street", "En la calle"], ["none", "Sin aparcamiento"]]} />
-            <YesNo label="¿Bien comunicado en transporte público?" value={q.public_transport} onChange={(v) => setQF("public_transport", v)} t={t} />
-            <Field label="Punto de referencia (opcional)" value={q.landmark} onChange={(v) => setQF("landmark", v)} placeholder="Junto a la playa de Las Canteras" />
+          {/* Card 4 — How to get there */}
+          <Card title={t.q4.cardLocation}>
+            <Field label={t.q4.cuisineType} value={q.cuisine_type} onChange={(v) => setQF("cuisine_type", v)} placeholder="Trattoria napolitana" />
+            <Field label={t.q4.address} value={q.address} onChange={(v) => setQF("address", v)} placeholder="Avenida Rafael Cabrera, 7" />
+            <Field label={t.q4.cityPostal} value={q.city} onChange={(v) => setQF("city", v)} placeholder="35002 Las Palmas de Gran Canaria" />
+            <Field label={t.q4.area} value={q.neighborhood} onChange={(v) => setQF("neighborhood", v)} placeholder="Triana / Vegueta" />
+            <Dropdown label={t.q4.parking} value={q.parking_info} onChange={(v) => setQF("parking_info", v as ParkingKind)} options={[["own", t.q4.pkOwn], ["public", t.q4.pkPublic], ["street", t.q4.pkStreet], ["none", t.q4.pkNone]]} />
+            <YesNo label={t.q4.publicTransport} value={q.public_transport} onChange={(v) => setQF("public_transport", v)} t={t} />
+            <Field label={t.q4.landmark} value={q.landmark} onChange={(v) => setQF("landmark", v)} placeholder="Junto a la playa de Las Canteras" />
           </Card>
 
-          {/* Card 5 — Platos recomendados (opcional) */}
-          <Card title="Platos recomendados (opcional)">
-            <p className="text-[11px] text-black/50 -mt-1">Añade hasta 6 platos que recomiendas, con una nota corta. El asistente los usará para responder «¿qué me recomiendas?». Déjalo vacío si prefieres remitir a la carta.</p>
+          {/* Card 5 — Recommended dishes (optional) */}
+          <Card title={t.q4.cardChef}>
+            <p className="text-[11px] text-black/50 -mt-1">{t.q4.chefHint}</p>
             <div className="space-y-2">
               {q.chef_recommendations.map((r, i) => (
                 <div key={i} className="flex gap-2 items-center">
