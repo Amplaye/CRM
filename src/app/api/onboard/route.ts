@@ -23,6 +23,7 @@ interface SelfServeBody {
   owner_phone: string;
   language?: Lang; // legacy single-language hint (still honoured)
   languages?: Lang[]; // assistant speaks these; languages[0] is the primary one
+  crm_locale?: Lang; // the single language the owner's dashboard will be in
   timezone: string;
   review_url?: string;
   opening_hours: Record<string, Array<{ open: string; close: string }>>;
@@ -75,6 +76,9 @@ export async function POST(req: Request) {
     .filter((l): l is Lang => !!l && ALL.includes(l));
   const selected: Lang[] = langs.length ? Array.from(new Set(langs)) : ["es"];
   const lang = selected[0];
+  // CRM dashboard language — a single locale, independent of the assistant
+  // languages. Falls back to the primary assistant language if not provided.
+  const crmLocale: Lang = ALL.includes(body.crm_locale as Lang) ? (body.crm_locale as Lang) : lang;
   const kbArticles = generateKbArticlesMulti(body.questionnaire, {
     restaurant_name: body.restaurant_name,
     restaurant_phone: body.restaurant_phone || "",
@@ -92,6 +96,7 @@ export async function POST(req: Request) {
     timezone: body.timezone || "Atlantic/Canary",
     locale: localeFor(lang),
     language: lang,
+    crm_locale: crmLocale,
     review_url: (body.review_url || "").trim(),
     opening_hours: body.opening_hours || {},
     table_size_preset: body.table_size_preset || "medium",

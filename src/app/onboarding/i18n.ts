@@ -49,6 +49,7 @@ interface UiStrings {
   // step 1 fields
   fName: string; fPhone: string; fWhatsapp: string; fReview: string;
   fTimezone: string; fLanguages: string; fLanguagesHint: string;
+  fCrmLang: string; fCrmLangHint: string;
   primary: string; makePrimaryHint: string;
   // step 2
   days: string[]; // Monday-first
@@ -61,7 +62,7 @@ interface UiStrings {
   q4: Q4Strings;
   // step 4 / 5
   addDish: string;
-  sumRestaurant: string; sumLanguages: string; sumTables: string;
+  sumRestaurant: string; sumLanguages: string; sumCrmLang: string; sumTables: string;
   sumCapacity: string; sumAutoConfirm: string; sumPayments: string; sumFootnote: string;
   // nav + yes/no
   back: string; next: string; createCrm: string; yes: string; no: string;
@@ -84,6 +85,8 @@ export const UI: Record<UiLang, UiStrings> = {
     fWhatsapp: "Tu WhatsApp (avisos al personal)", fReview: "Enlace de reseñas Google (opcional)",
     fTimezone: "Zona horaria", fLanguages: "Idiomas del asistente",
     fLanguagesHint: "Elige uno o varios. El primero (★) es el principal: define el saludo y la voz.",
+    fCrmLang: "Idioma de tu panel (CRM)",
+    fCrmLangHint: "El idioma en el que verás tu panel. Se fija ahora y no se puede cambiar después. Es independiente de los idiomas del asistente.",
     primary: "Principal", makePrimaryHint: "Marcar como principal",
     days: ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo"],
     addSlot: "+ tramo", closed: "Cerrado", remove: "quitar",
@@ -124,7 +127,7 @@ export const UI: Record<UiLang, UiStrings> = {
       optional: " (opcional)",
     },
     addDish: "+ añadir plato",
-    sumRestaurant: "Restaurante", sumLanguages: "Idiomas del asistente", sumTables: "Mesas iniciales",
+    sumRestaurant: "Restaurante", sumLanguages: "Idiomas del asistente", sumCrmLang: "Idioma del panel", sumTables: "Mesas iniciales",
     sumCapacity: "Aforo", sumAutoConfirm: "confirmación auto hasta", sumPayments: "Métodos de pago",
     sumFootnote: "Al pulsar Crear mi CRM configuramos todo automáticamente (~1 minuto).",
     back: "Atrás", next: "Siguiente", createCrm: "Crear mi CRM", yes: "Sí", no: "No",
@@ -147,6 +150,8 @@ export const UI: Record<UiLang, UiStrings> = {
     fWhatsapp: "Il tuo WhatsApp (avvisi al personale)", fReview: "Link recensioni Google (opzionale)",
     fTimezone: "Fuso orario", fLanguages: "Lingue dell'assistente",
     fLanguagesHint: "Scegline una o più. La prima (★) è la principale: definisce il saluto e la voce.",
+    fCrmLang: "Lingua del tuo pannello (CRM)",
+    fCrmLangHint: "La lingua in cui vedrai il tuo pannello. Si imposta ora e non si può cambiare dopo. È indipendente dalle lingue dell'assistente.",
     primary: "Principale", makePrimaryHint: "Imposta come principale",
     days: ["Lunedì", "Martedì", "Mercoledì", "Giovedì", "Venerdì", "Sabato", "Domenica"],
     addSlot: "+ fascia", closed: "Chiuso", remove: "rimuovi",
@@ -187,7 +192,7 @@ export const UI: Record<UiLang, UiStrings> = {
       optional: " (opzionale)",
     },
     addDish: "+ aggiungi piatto",
-    sumRestaurant: "Ristorante", sumLanguages: "Lingue dell'assistente", sumTables: "Tavoli iniziali",
+    sumRestaurant: "Ristorante", sumLanguages: "Lingue dell'assistente", sumCrmLang: "Lingua del pannello", sumTables: "Tavoli iniziali",
     sumCapacity: "Capienza", sumAutoConfirm: "conferma auto fino a", sumPayments: "Metodi di pagamento",
     sumFootnote: "Premendo Crea il mio CRM configuriamo tutto automaticamente (~1 minuto).",
     back: "Indietro", next: "Avanti", createCrm: "Crea il mio CRM", yes: "Sì", no: "No",
@@ -210,6 +215,8 @@ export const UI: Record<UiLang, UiStrings> = {
     fWhatsapp: "Your WhatsApp (staff alerts)", fReview: "Google reviews link (optional)",
     fTimezone: "Time zone", fLanguages: "Assistant languages",
     fLanguagesHint: "Pick one or more. The first one (★) is primary: it sets the greeting and the voice.",
+    fCrmLang: "Your dashboard (CRM) language",
+    fCrmLangHint: "The language your dashboard will be in. Set now and can't be changed later. Independent from the assistant languages.",
     primary: "Primary", makePrimaryHint: "Set as primary",
     days: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"],
     addSlot: "+ slot", closed: "Closed", remove: "remove",
@@ -250,7 +257,7 @@ export const UI: Record<UiLang, UiStrings> = {
       optional: " (optional)",
     },
     addDish: "+ add dish",
-    sumRestaurant: "Restaurant", sumLanguages: "Assistant languages", sumTables: "Initial tables",
+    sumRestaurant: "Restaurant", sumLanguages: "Assistant languages", sumCrmLang: "Dashboard language", sumTables: "Initial tables",
     sumCapacity: "Capacity", sumAutoConfirm: "auto-confirm up to", sumPayments: "Payment methods",
     sumFootnote: "When you press Create my CRM we set everything up automatically (~1 minute).",
     back: "Back", next: "Next", createCrm: "Create my CRM", yes: "Yes", no: "No",
@@ -273,6 +280,8 @@ export const UI: Record<UiLang, UiStrings> = {
     fWhatsapp: "Dein WhatsApp (Personal-Benachrichtigungen)", fReview: "Google-Bewertungslink (optional)",
     fTimezone: "Zeitzone", fLanguages: "Sprachen des Assistenten",
     fLanguagesHint: "Wähle eine oder mehrere. Die erste (★) ist die primäre: sie bestimmt Begrüßung und Stimme.",
+    fCrmLang: "Sprache deines Dashboards (CRM)",
+    fCrmLangHint: "Die Sprache deines Dashboards. Wird jetzt festgelegt und kann später nicht geändert werden. Unabhängig von den Sprachen des Assistenten.",
     primary: "Primär", makePrimaryHint: "Als primär festlegen",
     days: ["Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag", "Sonntag"],
     addSlot: "+ Zeitfenster", closed: "Geschlossen", remove: "entfernen",
@@ -313,7 +322,7 @@ export const UI: Record<UiLang, UiStrings> = {
       optional: " (optional)",
     },
     addDish: "+ Gericht hinzufügen",
-    sumRestaurant: "Restaurant", sumLanguages: "Sprachen des Assistenten", sumTables: "Anfangstische",
+    sumRestaurant: "Restaurant", sumLanguages: "Sprachen des Assistenten", sumCrmLang: "Dashboard-Sprache", sumTables: "Anfangstische",
     sumCapacity: "Kapazität", sumAutoConfirm: "Auto-Bestätigung bis", sumPayments: "Zahlungsarten",
     sumFootnote: "Wenn du Mein CRM erstellen drückst, richten wir alles automatisch ein (~1 Minute).",
     back: "Zurück", next: "Weiter", createCrm: "Mein CRM erstellen", yes: "Ja", no: "Nein",

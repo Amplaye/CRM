@@ -48,6 +48,13 @@ export const FEATURE_FLAGS: ReadonlyArray<{ key: keyof TenantFeatures; labelKey:
  */
 export interface TenantSettings {
   timezone?: string;
+  /** Voice/assistant locale, e.g. "es-ES" — drives the voice prompt FECHA header
+   * and date formatting. Derived from the PRIMARY assistant language. */
+  locale?: string;
+  /** CRM dashboard UI language (a bare code: "es" | "it" | "en" | "de").
+   * Independent of `locale`/the assistant — chosen once at onboarding and read
+   * at app boot to fix the dashboard language (there is no in-app switcher). */
+  crm_locale?: "es" | "it" | "en" | "de";
   currency?: string;
   ai_enabled_channels?: string[];
   features?: Partial<TenantFeatures>;

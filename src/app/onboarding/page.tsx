@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import {
@@ -19,13 +19,18 @@ import { UI, type UiLang, UI_LANGS } from "./i18n";
 // server-side and the client never sees it. The admin's only remaining manual
 // step (attaching the real WhatsApp number) happens afterwards.
 //
-// Two distinct "languages" live on this page, do not conflate them:
-//   • UI language  — the wizard's own interface (top-right switcher).
+// Three distinct "languages" live on this page, do not conflate them:
+//   • UI language  — the wizard's own interface (top-right switcher); only
+//     affects what THIS form looks like while filling it in.
 //   • assistant languages — which language(s) the bot will SPEAK (multi-select
-//     in step 1); the first one is primary and drives voice/locale/greeting.
+//     in step 1); the first one is primary and drives the voice + greeting.
+//   • CRM language — the single language the owner's dashboard will be in after
+//     onboarding (single-select in step 1). Saved on the tenant; the CRM is
+//     then fixed to it (no in-app switcher). Independent of the two above.
 
 type Step = 1 | 2 | 3 | 4 | 5;
 type AsstLang = "es" | "it" | "en" | "de";
+type CrmLang = "es" | "it" | "en" | "de";
 
 interface Slot { open: string; close: string }
 type Hours = Record<string, Slot[]>;
@@ -80,11 +85,21 @@ export default function OnboardingPage() {
 
   // UI language for the wizard chrome (separate from the assistant languages).
   const [ui, setUi] = useState<UiLang>("es");
+  // Tracks whether the owner has explicitly picked a CRM language; until then we
+  // mirror the wizard UI language into it (the most likely choice).
+  const crmTouched = useRef(false);
   useEffect(() => {
     const saved = safeLocal.get("onboarding_ui_lang") as UiLang | null;
-    if (saved && (UI_LANGS as readonly string[]).includes(saved)) setUi(saved);
+    if (saved && (UI_LANGS as readonly string[]).includes(saved)) {
+      setUi(saved);
+      if (!crmTouched.current) setCrmLocale(saved);
+    }
   }, []);
-  const changeUi = (l: UiLang) => { setUi(l); safeLocal.set("onboarding_ui_lang", l); };
+  const changeUi = (l: UiLang) => {
+    setUi(l); safeLocal.set("onboarding_ui_lang", l);
+    if (!crmTouched.current) setCrmLocale(l); // keep CRM lang in step with UI until chosen
+  };
+  const changeCrmLocale = (l: CrmLang) => { crmTouched.current = true; setCrmLocale(l); };
   const t = UI[ui];
 
   const [bootState, setBootState] = useState<"loading" | "ready" | "anon">("loading");
@@ -95,8 +110,12 @@ export default function OnboardingPage() {
   const [restaurantName, setRestaurantName] = useState("");
   const [restaurantPhone, setRestaurantPhone] = useState("+34 ");
   const [ownerPhone, setOwnerPhone] = useState("+34");
-  // Assistant speaks these; the first is primary (drives voice/locale/greeting).
+  // Assistant speaks these; the first is primary (drives voice/greeting).
   const [languages, setLanguages] = useState<AsstLang[]>(["es"]);
+  // The single language the owner's CRM dashboard will be in (independent of
+  // the assistant languages above). Defaults to the wizard's UI language so the
+  // most likely choice is pre-filled.
+  const [crmLocale, setCrmLocale] = useState<CrmLang>("es");
   const [timezone, setTimezone] = useState("Atlantic/Canary");
   const [reviewUrl, setReviewUrl] = useState("");
 
@@ -194,6 +213,8 @@ export default function OnboardingPage() {
           owner_phone: ownerPhone.trim(),
           // Send the full list (primary first); keep `language` for back-compat.
           language: languages[0], languages,
+          // The dashboard language (independent of the assistant languages).
+          crm_locale: crmLocale,
           timezone,
           review_url: reviewUrl.trim(),
           opening_hours: hours,
@@ -299,6 +320,10 @@ export default function OnboardingPage() {
                 onToggle={toggleLang}
                 onPrimary={makePrimary}
               />
+            </div>
+            <div className="sm:col-span-2">
+              <SelectField label={t.fCrmLang} value={crmLocale} onChange={(v) => changeCrmLocale(v as CrmLang)} options={ASST_LANGS} />
+              <p className="text-[11px] text-black/50 mt-2">{t.fCrmLangHint}</p>
             </div>
           </div>
         </div>
@@ -456,6 +481,7 @@ export default function OnboardingPage() {
             <ul className="text-xs space-y-0.5">
               <li>• {t.sumRestaurant}: <b>{restaurantName || "—"}</b></li>
               <li>• {t.sumLanguages}: <b>{languages.map((l) => ASST_LANGS.find(([v]) => v === l)?.[1] || l).join(", ")}</b></li>
+              <li>• {t.sumCrmLang}: <b>{ASST_LANGS.find(([v]) => v === crmLocale)?.[1] || crmLocale}</b></li>
               <li>• {t.sumTables}: {tableSize}</li>
               <li>• {t.sumCapacity}: {q.capacity_seats} · {t.sumAutoConfirm} {q.auto_confirm_max}</li>
               <li>• {t.sumPayments}: {q.payments.length || "—"}</li>

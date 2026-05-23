@@ -30,9 +30,14 @@ const LanguageContext = createContext<LanguageContextType>({
 
 export const LanguageProvider = ({ children }: { children: ReactNode }) => {
   // Server and first client render both start at "en" so the hydrated DOM
-  // matches the SSR markup (avoids React error #418). After mount, we read
-  // the saved preference from localStorage and switch if the user previously
-  // picked another language. No browser-language auto-detect.
+  // matches the SSR markup (avoids React error #418). After mount we seed from
+  // localStorage (the language used on the last visit). Authority then passes
+  // to two callers depending on the route:
+  //   • inside the dashboard, CrmLanguageBridge forces the active tenant's
+  //     crm_locale (the CRM language is fixed per tenant — no in-app switcher);
+  //   • on the login page (no tenant yet), the page auto-detects the browser
+  //     language via setLanguage.
+  // setLanguage persists to localStorage, so the next boot starts correct.
   const [language, setLanguageState] = useState<LanguageCode>("en");
 
   useEffect(() => {

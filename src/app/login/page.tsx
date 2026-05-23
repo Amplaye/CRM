@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
-import { Loader2, Lock, Mail, Globe, Eye, EyeOff } from "lucide-react";
+import { Loader2, Lock, Mail, Eye, EyeOff } from "lucide-react";
 import Link from "next/link";
 import { useLanguage } from "@/lib/contexts/LanguageContext";
 import { safeLocal } from "@/lib/safe-storage";
@@ -30,7 +30,18 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const router = useRouter();
   const supabase = createClient();
-  const { language, setLanguage, t } = useLanguage();
+  const { setLanguage, t } = useLanguage();
+
+  // The login page is shown before any tenant is known, so there's no
+  // crm_locale to honour yet. Auto-detect the browser language for a first-time
+  // visitor; a returning user's last-used language (already in localStorage and
+  // seeded by LanguageProvider) takes precedence, so we only set when none was
+  // saved. After login, CrmLanguageBridge fixes the language to the tenant's.
+  useEffect(() => {
+    if (safeLocal.get("app_lang_v2")) return; // returning user → keep their language
+    const code = (navigator.language || "").slice(0, 2).toLowerCase();
+    if (code === "es" || code === "it" || code === "de" || code === "en") setLanguage(code);
+  }, [setLanguage]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -64,23 +75,6 @@ export default function LoginPage() {
 
   return (
     <div className="min-h-[100dvh] flex flex-col justify-center px-4 sm:px-6 lg:px-8 py-4 sm:py-6 relative overflow-hidden">
-      {/* Language selector */}
-      <div className="absolute top-3 right-3 sm:top-4 sm:right-4 z-20">
-        <div className="flex items-center border-2 rounded-lg px-2.5 py-1.5 sm:px-3 sm:py-2" style={{ borderColor: '#c4956a', background: 'rgba(252,246,237,0.6)' }}>
-          <Globe className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-black mr-1.5 sm:mr-2" />
-          <select
-            value={language}
-            onChange={(e) => setLanguage(e.target.value as "en" | "es" | "it" | "de")}
-            className="bg-transparent text-xs sm:text-sm font-medium text-black outline-none cursor-pointer"
-          >
-            <option value="en">EN</option>
-            <option value="es">ES</option>
-            <option value="it">IT</option>
-            <option value="de">DE</option>
-          </select>
-        </div>
-      </div>
-
       <div className="mx-auto w-full max-w-md relative z-10">
         <div className="flex justify-center">
            <img src="/logo-horizontal.png" alt="BaliFlow" className="w-full h-auto max-w-full" style={{

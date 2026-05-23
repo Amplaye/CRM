@@ -23,6 +23,11 @@ export interface OnboardInput {
   timezone: string;
   locale: string; // "es-ES" | "it-IT" | "en-GB" — used by the voice-prompt FECHA header
   language: "es" | "it" | "en" | "de"; // primary language for the bot
+  // The single language the owner's CRM dashboard is shown in. Independent of
+  // `language`/`locale` (those drive the assistant). Persisted on the tenant as
+  // settings.crm_locale and read at app boot to fix the UI language. Optional:
+  // the admin wizard omits it, in which case it falls back to `language`.
+  crm_locale?: "es" | "it" | "en" | "de";
   review_url: string; // Google Maps review link for the post-meal followup
   // Operations
   opening_hours: OpeningHours;
@@ -158,6 +163,9 @@ export async function runOnboard(
       const provisioningSettings = {
         timezone: input.timezone,
         locale: input.locale,
+        // CRM dashboard language (separate from the assistant's locale above).
+        // The app reads this at boot to fix the UI language.
+        crm_locale: input.crm_locale || input.language,
         opening_hours: input.opening_hours,
         avg_spend: 25,
         avg_cost: 10,
