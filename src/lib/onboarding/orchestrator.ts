@@ -9,7 +9,7 @@ import { createServiceRoleClient } from "@/lib/supabase/server";
 import { substituteTenantTokens, toCreatePayload } from "./substitute";
 import { createTenant } from "@/lib/tenants/create-tenant";
 import { buildVoicePrompt } from "./voice-prompt";
-import { cloneTemplateAssistant } from "./vapi";
+import { cloneTemplateAssistant, findAssistantByName } from "./vapi";
 
 export type OpeningHoursSlot = { open: string; close: string };
 export type OpeningHours = Record<string, OpeningHoursSlot[]>; // keys 0..6 (Sunday=0)
@@ -202,36 +202,53 @@ export async function runOnboard(
       }
     }
 
-    // 2. Tables
+    // 2. Tables — idempotent: a retry after a truncated run must not double them.
     {
-      const tables = buildDefaultTables(tenantId, DEFAULT_TABLE_SIZE[input.table_size_preset]);
-      const { error } = await supabase.from("restaurant_tables").insert(tables);
-      if (error) throw new Error(`tables insert: ${error.message}`);
-      push({ step: "tables", message: `${tables.length} default tables created`, ok: true });
+      const { count } = await supabase
+        .from("restaurant_tables")
+        .select("id", { count: "exact", head: true })
+        .eq("tenant_id", tenantId);
+      if (count && count > 0) {
+        push({ step: "tables", message: `${count} tables already present — skipped`, ok: true });
+      } else {
+        const tables = buildDefaultTables(tenantId, DEFAULT_TABLE_SIZE[input.table_size_preset]);
+        const { error } = await supabase.from("restaurant_tables").insert(tables);
+        if (error) throw new Error(`tables insert: ${error.message}`);
+        push({ step: "tables", message: `${tables.length} default tables created`, ok: true });
+      }
     }
 
-    // 3. KB articles (regular + the special VOICE PROMPT)
+    // 3. KB articles (regular + the special VOICE PROMPT) — idempotent: skip if
+    //    the tenant already has articles (avoids a duplicated KB on retry).
     {
-      const articles = input.kb_articles.map((a) => ({
-        tenant_id: tenantId,
-        title: a.title,
-        content: a.content,
-        category: a.category || "general",
-        status: "published",
-      }));
-      // Voice prompt is stored as a "VOICE PROMPT" titled article — sync-kb-vapi
-      // recognises this title and uses the body as the assistant's voice prompt
-      // (the rest of the articles become the KB block in the same system prompt).
-      articles.push({
-        tenant_id: tenantId,
-        title: "VOICE PROMPT",
-        content: voicePromptBody,
-        category: "general",
-        status: "published",
-      });
-      const { error } = await supabase.from("knowledge_articles").insert(articles);
-      if (error) throw new Error(`KB insert: ${error.message}`);
-      push({ step: "kb", message: `${articles.length} KB articles inserted`, ok: true });
+      const { count } = await supabase
+        .from("knowledge_articles")
+        .select("id", { count: "exact", head: true })
+        .eq("tenant_id", tenantId);
+      if (count && count > 0) {
+        push({ step: "kb", message: `${count} KB articles already present — skipped`, ok: true });
+      } else {
+        const articles = input.kb_articles.map((a) => ({
+          tenant_id: tenantId,
+          title: a.title,
+          content: a.content,
+          category: a.category || "general",
+          status: "published",
+        }));
+        // Voice prompt is stored as a "VOICE PROMPT" titled article — sync-kb-vapi
+        // recognises this title and uses the body as the assistant's voice prompt
+        // (the rest of the articles become the KB block in the same system prompt).
+        articles.push({
+          tenant_id: tenantId,
+          title: "VOICE PROMPT",
+          content: voicePromptBody,
+          category: "general",
+          status: "published",
+        });
+        const { error } = await supabase.from("knowledge_articles").insert(articles);
+        if (error) throw new Error(`KB insert: ${error.message}`);
+        push({ step: "kb", message: `${articles.length} KB articles inserted`, ok: true });
+      }
     }
 
     // 4. Vapi assistant — clone the agency template ("PICNIC - Sofía"). We reuse
@@ -248,12 +265,24 @@ export async function runOnboard(
       };
       const key = process.env.VAPI_PRIVATE_KEY;
       if (!key) throw new Error("VAPI_PRIVATE_KEY not configured");
-      const { assistantId } = await cloneTemplateAssistant({
-        key,
-        name: `${input.restaurant_name} — Voice`,
-        systemPrompt: voicePromptBody,
-        firstMessage: greetings[input.language] || greetings.es,
-      });
+      const assistantName = `${input.restaurant_name} — Voice`;
+
+      // Idempotent: don't leak a second clone on retry. Prefer the id already on
+      // the tenant; else recover one a previous (truncated) run created under the
+      // same name; else clone fresh.
+      const { data: pre } = await supabase.from("tenants").select("settings").eq("id", tenantId).single();
+      const existingId = (pre?.settings as any)?.vapi?.assistantId as string | undefined;
+      let assistantId = existingId || (await findAssistantByName(key, assistantName)) || "";
+      if (assistantId) {
+        push({ step: "vapi", message: `Reusing existing Vapi assistant ${assistantId}`, ok: true, data: { assistantId } });
+      } else {
+        ({ assistantId } = await cloneTemplateAssistant({
+          key,
+          name: assistantName,
+          systemPrompt: voicePromptBody,
+          firstMessage: greetings[input.language] || greetings.es,
+        }));
+      }
       vapiAssistantId = assistantId;
 
       // Persist the Vapi assistant id in tenant.settings so sync-kb-vapi and the
@@ -268,7 +297,9 @@ export async function runOnboard(
         },
       };
       await supabase.from("tenants").update({ settings: merged }).eq("id", tenantId);
-      push({ step: "vapi", message: `Vapi assistant ${vapiAssistantId} cloned`, ok: true, data: { assistantId: vapiAssistantId } });
+      if (!assistantId || assistantId !== existingId) {
+        push({ step: "vapi", message: `Vapi assistant ${vapiAssistantId} ready`, ok: true, data: { assistantId: vapiAssistantId } });
+      }
     }
 
     // 5. Sync KB into the Vapi assistant so its prompt has menu / policies / voice prompt
@@ -287,31 +318,60 @@ export async function runOnboard(
       push({ step: "kb_sync", message: `KB synced into Vapi assistant ${vapiAssistantId}`, ok: true });
     }
 
-    // 6. Clone n8n workflows
+    // 6. Clone n8n workflows — idempotent. A truncated run can leave the 13
+    //    workflows created but never recorded on the tenant; cloning again would
+    //    orphan a second set of 13. So: if this tenant's workflows already exist
+    //    (matched by the "[<restaurant_name>]" name prefix), reuse them.
     {
-      const sub = {
-        newTenantId: tenantId,
-        newSlug: input.slug,
-        newOwnerPhone: input.owner_phone.startsWith("+") ? input.owner_phone : `+${input.owner_phone}`,
-        newRestaurantName: input.restaurant_name,
-        newRestaurantPhone: input.restaurant_phone,
-        newReviewUrl: input.review_url,
-        newVapiAssistantId: vapiAssistantId,
-      };
+      const namePrefix = `[${input.restaurant_name}]`;
+      const existing = await n8n("GET", `/workflows?limit=250`);
+      const already: string[] = (existing?.data || [])
+        .filter((w: any) => typeof w?.name === "string" && w.name.startsWith(namePrefix))
+        .map((w: any) => w.id);
 
-      for (const wid of TEMPLATE_RESTAURANT_WORKFLOW_IDS) {
-        const original = await n8n("GET", `/workflows/${wid}`);
-        const originalText = JSON.stringify(original);
-        const rewritten = JSON.parse(substituteTenantTokens(originalText, sub));
-        // Template workflow names are prefixed "[Picnic]" → swap for the tenant.
-        const newName = (original.name || "Workflow").replace(/^\[Picnic\]/, `[${input.restaurant_name}]`);
-        const payload = toCreatePayload(rewritten, newName);
-        const created = await n8n("POST", "/workflows", payload);
-        createdWorkflowIds.push(created.id);
-        // Activate immediately so cron triggers + webhooks fire without manual action.
-        try { await n8n("POST", `/workflows/${created.id}/activate`); } catch { /* tolerate */ }
+      if (already.length >= TEMPLATE_RESTAURANT_WORKFLOW_IDS.length) {
+        createdWorkflowIds.push(...already);
+        // Make sure they're active (a prior run may have died before activating).
+        for (const id of already) {
+          try { await n8n("POST", `/workflows/${id}/activate`); } catch { /* tolerate */ }
+        }
+        push({ step: "n8n", message: `${already.length} workflows already present — reused`, ok: true, data: { workflow_ids: already } });
+      } else {
+        const sub = {
+          newTenantId: tenantId,
+          newSlug: input.slug,
+          newOwnerPhone: input.owner_phone.startsWith("+") ? input.owner_phone : `+${input.owner_phone}`,
+          newRestaurantName: input.restaurant_name,
+          newRestaurantPhone: input.restaurant_phone,
+          newReviewUrl: input.review_url,
+          newVapiAssistantId: vapiAssistantId,
+        };
+
+        for (const wid of TEMPLATE_RESTAURANT_WORKFLOW_IDS) {
+          const original = await n8n("GET", `/workflows/${wid}`);
+          const originalText = JSON.stringify(original);
+          const rewritten = JSON.parse(substituteTenantTokens(originalText, sub));
+          // Template workflow names are prefixed "[Picnic]" → swap for the tenant.
+          const newName = (original.name || "Workflow").replace(/^\[Picnic\]/, namePrefix);
+          const payload = toCreatePayload(rewritten, newName);
+          const created = await n8n("POST", "/workflows", payload);
+          createdWorkflowIds.push(created.id);
+          // Activate immediately so cron triggers + webhooks fire without manual action.
+          try { await n8n("POST", `/workflows/${created.id}/activate`); } catch { /* tolerate */ }
+        }
+        push({ step: "n8n", message: `${createdWorkflowIds.length} workflows cloned & activated`, ok: true, data: { workflow_ids: createdWorkflowIds } });
       }
-      push({ step: "n8n", message: `${createdWorkflowIds.length} workflows cloned & activated`, ok: true, data: { workflow_ids: createdWorkflowIds } });
+
+      // Persist the workflow ids NOW, right after creation — not only in the
+      // final settings merge. This is exactly what the chef-oraz incident lost:
+      // n8n succeeded but the process ended before the trailing update ran,
+      // orphaning 13 workflows. Writing here means even a later truncation
+      // leaves a tenant that a retry can fully recover.
+      {
+        const { data: cur } = await supabase.from("tenants").select("settings").eq("id", tenantId).single();
+        const merged = { ...((cur?.settings as any) || {}), n8n: { workflow_ids: createdWorkflowIds } };
+        await supabase.from("tenants").update({ settings: merged }).eq("id", tenantId);
+      }
     }
 
     // 7. Owner user account + tenant_member link
@@ -352,38 +412,64 @@ export async function runOnboard(
       }
     }
 
-    // 8. Save workflow ids + (self-serve) the provisioning marker the admin panel
-    //    watches. Marking onboarding.completed also tells the dashboard guard to
-    //    stop redirecting the owner back into the wizard.
+    // 8. Final commit: workflow ids + (self-serve) the provisioning markers, and
+    //    re-assert status:active. This is the step the chef-oraz incident lost,
+    //    so it must be the LAST thing and must actually land: we read back the
+    //    row and retry once if the markers aren't there. Marking
+    //    onboarding.completed also stops the dashboard guard from bouncing the
+    //    owner back into the wizard.
     {
-      const { data: cur } = await supabase.from("tenants").select("settings").eq("id", tenantId).single();
-      const prev = (cur?.settings as any) || {};
-      const merged: Record<string, any> = {
-        ...prev,
-        n8n: { workflow_ids: createdWorkflowIds },
-      };
-      if (input.self_serve) {
-        merged.onboarding = { ...(prev.onboarding || {}), completed: true, completed_at: new Date().toISOString() };
-        // whatsapp_attached:false → surfaced in the admin panel as "attach the
-        // number" (the one manual step left). Doesn't block the client.
-        //
-        // sandbox_routable:true → while no real WA number is attached, this tenant
-        // shares the Twilio sandbox with the other test tenants. The [Router]
-        // WhatsApp n8n workflow lists every active+routable tenant in its "which
-        // restaurant?" menu, so a freshly-onboarded CRM is reachable for testing
-        // with zero manual steps. A real customer (own number) won't carry this
-        // flag and so won't appear in the shared test menu. See
-        // docs/SANDBOX_ROUTER.md.
-        merged.provisioning = {
-          ...(prev.provisioning || {}),
-          self_serve: true,
-          completed_at: new Date().toISOString(),
-          whatsapp_attached: false,
-          sandbox_routable: true,
-          slug: input.slug,
+      const writeFinal = async () => {
+        const { data: cur } = await supabase.from("tenants").select("settings").eq("id", tenantId).single();
+        const prev = (cur?.settings as any) || {};
+        const merged: Record<string, any> = {
+          ...prev,
+          n8n: { workflow_ids: createdWorkflowIds },
         };
+        if (input.self_serve) {
+          merged.onboarding = { ...(prev.onboarding || {}), completed: true, completed_at: new Date().toISOString() };
+          // whatsapp_attached:false → surfaced in the admin panel as "attach the
+          // number" (the one manual step left). Doesn't block the client.
+          //
+          // sandbox_routable:true → while no real WA number is attached, this tenant
+          // shares the Twilio sandbox with the other test tenants. The [Router]
+          // WhatsApp n8n workflow lists every active+routable tenant in its "which
+          // restaurant?" menu, so a freshly-onboarded CRM is reachable for testing
+          // with zero manual steps. A real customer (own number) won't carry this
+          // flag and so won't appear in the shared test menu. See
+          // docs/SANDBOX_ROUTER.md.
+          merged.provisioning = {
+            ...(prev.provisioning || {}),
+            self_serve: true,
+            completed_at: new Date().toISOString(),
+            whatsapp_attached: false,
+            sandbox_routable: true,
+            slug: input.slug,
+          };
+        }
+        // Re-assert active here too (not only in step 1): the markers and the
+        // status now land together, so a tenant is never "active but unmarked"
+        // nor "marked but trial".
+        const { error } = await supabase
+          .from("tenants")
+          .update({ status: "active", settings: merged })
+          .eq("id", tenantId);
+        return error;
+      };
+
+      let finalErr = await writeFinal();
+      if (finalErr) {
+        // One retry — a transient write failure here was the whole incident.
+        finalErr = await writeFinal();
+        if (finalErr) throw new Error(`final commit: ${finalErr.message}`);
       }
-      await supabase.from("tenants").update({ settings: merged }).eq("id", tenantId);
+
+      // Verify it actually landed before reporting success.
+      const { data: check } = await supabase
+        .from("tenants").select("status, settings").eq("id", tenantId).single();
+      const ok = check?.status === "active" &&
+        (!input.self_serve || (check?.settings as any)?.onboarding?.completed === true);
+      if (!ok) throw new Error("final commit did not persist (status/markers missing)");
     }
 
     push({ step: "done", message: "Onboarding complete", ok: true });

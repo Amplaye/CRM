@@ -1,5 +1,5 @@
-import { describe, it, expect } from "vitest";
-import { composeVapiSystemPrompt, isPromptArticle } from "./vapi";
+import { describe, it, expect, vi, afterEach } from "vitest";
+import { composeVapiSystemPrompt, isPromptArticle, findAssistantByName } from "./vapi";
 
 const VM_BLOCK_START = "<!-- VOICEMAIL_BLOCK_START -->";
 const VM_BLOCK_END = "<!-- VOICEMAIL_BLOCK_END -->";
@@ -78,5 +78,50 @@ describe("composeVapiSystemPrompt", () => {
     const first = composeVapiSystemPrompt({ voicePromptBody: voicePrompt, kbArticles: kb, existingPrompt: vmBlock });
     const second = composeVapiSystemPrompt({ voicePromptBody: voicePrompt, kbArticles: kb, existingPrompt: first });
     expect(second).toBe(first);
+  });
+});
+
+// Recovery path for idempotent provisioning: when a truncated run already cloned
+// the assistant but never recorded its id on the tenant, a retry finds it by name
+// instead of leaking a second clone (the chef-oraz incident).
+describe("findAssistantByName", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  const mockFetch = (status: number, body: unknown) =>
+    vi.stubGlobal("fetch", vi.fn(async () => ({
+      ok: status >= 200 && status < 300,
+      status,
+      json: async () => body,
+    })));
+
+  it("returns the id of an exact name match", async () => {
+    mockFetch(200, [
+      { id: "a1", name: "Other — Voice", createdAt: "2026-01-01" },
+      { id: "a2", name: "chef oraz — Voice", createdAt: "2026-05-23" },
+    ]);
+    expect(await findAssistantByName("k", "chef oraz — Voice")).toBe("a2");
+  });
+
+  it("returns null when no assistant matches the name", async () => {
+    mockFetch(200, [{ id: "a1", name: "Other — Voice", createdAt: "2026-01-01" }]);
+    expect(await findAssistantByName("k", "chef oraz — Voice")).toBeNull();
+  });
+
+  it("prefers the newest when duplicates share the name", async () => {
+    mockFetch(200, [
+      { id: "old", name: "Dup — Voice", createdAt: "2026-05-01T10:00:00Z" },
+      { id: "new", name: "Dup — Voice", createdAt: "2026-05-23T19:07:00Z" },
+    ]);
+    expect(await findAssistantByName("k", "Dup — Voice")).toBe("new");
+  });
+
+  it("is best-effort: a failed lookup returns null and never throws", async () => {
+    mockFetch(500, { error: "boom" });
+    expect(await findAssistantByName("k", "whatever")).toBeNull();
+  });
+
+  it("tolerates a non-array body", async () => {
+    mockFetch(200, { message: "unexpected" });
+    expect(await findAssistantByName("k", "whatever")).toBeNull();
   });
 });

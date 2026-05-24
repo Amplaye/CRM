@@ -178,6 +178,27 @@ export async function cloneTemplateAssistant({
   throw new Error("Vapi POST /assistant: gave up after stripping fields on repeated 400s");
 }
 
+/**
+ * Find an existing assistant by exact name. Used to make provisioning
+ * idempotent: if a previous (truncated) run already cloned the assistant but the
+ * tenant row never recorded its id, a retry can recover it instead of leaking a
+ * second clone. Returns the newest match's id, or null.
+ */
+export async function findAssistantByName(
+  key: string,
+  name: string
+): Promise<string | null> {
+  const res = await fetch(`${VAPI_BASE}/assistant?limit=100`, { headers: authHeaders(key) });
+  if (!res.ok) return null; // best-effort: a failed lookup must not block provisioning
+  let list: any;
+  try { list = await res.json(); } catch { return null; }
+  if (!Array.isArray(list)) return null;
+  const matches = list
+    .filter((a) => a && a.name === name && a.id)
+    .sort((a, b) => String(b.createdAt || "").localeCompare(String(a.createdAt || "")));
+  return matches.length ? matches[0].id : null;
+}
+
 export interface SyncPromptInput {
   key: string;
   assistantId: string;
