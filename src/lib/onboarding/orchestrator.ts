@@ -66,11 +66,20 @@ const DEFAULT_TABLE_SIZE: Record<OnboardInput["table_size_preset"], number> = {
   large: 20,
 };
 
-// The 13 n8n workflows that make up the OFFICIAL RESTAURANT TEMPLATE
+// The n8n workflows that make up the OFFICIAL RESTAURANT TEMPLATE
 // ("template ristorante v1"). These live workflows are the golden source:
 // onboarding clones them and rewrites the tenant-specific tokens (see
 // substitute.ts). Patch bot behavior HERE, never on a single client.
-const TEMPLATE_RESTAURANT_WORKFLOW_IDS = [
+//
+// This list is kept ALIGNED WITH PICNIC, the gold-standard legacy tenant that
+// runs maintenance-free. Every per-tenant workflow PICNIC has must be here so a
+// new client is born complete (same engine, only the KB differs). The four
+// added 2026-05-24 closed the gap that left new tenants (e.g. Chef Oraz) with
+// 13 while PICNIC had 17 working — each was verified per-tenant (references the
+// tenant's own id / Vapi assistant / a "picnic-*" webhook path that
+// substitute.ts rewrites to the new slug). Excluded from PICNIC's live set: a
+// disabled duplicate "Deflector Post-Call" (junk, not the active one).
+export const TEMPLATE_RESTAURANT_WORKFLOW_IDS = [
   "166QnQsGHqXDpBxa", // Chatbot WhatsApp
   "2PhhKlZHe0kg23qT", // Web Call Token
   "2t5TL552kz3HL0By", // Daily Summary 10AM
@@ -84,6 +93,11 @@ const TEMPLATE_RESTAURANT_WORKFLOW_IDS = [
   "nZdFqTRUrBlPOb3z", // Menu del Dia - 30min antes
   "z1Akph5impMRh28Y", // Pre-Turno Summary
   "IDx1EqaQTUq6YHEu", // Weekly AI Report
+  // Added 2026-05-24 to match PICNIC (were missing from new tenants):
+  "ZiEQ8iUpt8LnAYp5", // Vapi Voicemail Scheduler — per-tenant (tenant_id)
+  "w2J411dX5JcOZZsJ", // Nightly Conversation Audit — per-tenant (tenant_id + picnic-audit-run webhook)
+  "fenoM2b2Q9MMa0Kd", // Deflector Post-Call — per-tenant (picnic-deflector-postcall webhook)
+  "y0HusBGSBVW7u9rm", // Warmup — keep infra warm — per-tenant (pings the tenant's own Vapi assistant)
 ];
 
 async function n8n(method: string, path: string, body?: any): Promise<any> {

@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { getFeatures } from "./types/tenant-settings";
+import { N8N_TEMPLATE_COUNT } from "./tenants/activation";
 
 /**
  * SAAS PROOF SUITE — the investor pillars, locked by the build.
@@ -82,5 +83,27 @@ describe("SaaS pillar — config-not-code: a flag changes one tenant only [Mossa
     expect(f.waitlist_enabled).toBe(true);
     expect(f.double_shift).toBe(true);
     expect(f.multi_language).toBe(true);
+  });
+});
+
+describe("SaaS pillar — every new tenant clones PICNIC's full workflow set [gold standard]", () => {
+  // PICNIC is the maintenance-free legacy tenant. The onboarding template must
+  // clone exactly its per-tenant workflows so a new client is born complete.
+  // Two numbers express the same count and must never drift: the clone list in
+  // the orchestrator, and the health card's "fully provisioned" threshold. We
+  // read the orchestrator's SOURCE (not its module — that pulls server-only
+  // supabase deps) and count the id literals in the exported array.
+  const src = readFileSync(join(process.cwd(), "src", "lib", "onboarding", "orchestrator.ts"), "utf8");
+  const block = src.match(/TEMPLATE_RESTAURANT_WORKFLOW_IDS\s*=\s*\[([\s\S]*?)\]/);
+
+  it("finds the workflow-id array in the orchestrator", () => {
+    expect(block).not.toBeNull();
+  });
+
+  it("the clone count equals N8N_TEMPLATE_COUNT (no drift between template and health check)", () => {
+    const ids = (block![1].match(/"[A-Za-z0-9]+"/g) || []).map((s) => s.replace(/"/g, ""));
+    expect(ids.length).toBe(N8N_TEMPLATE_COUNT);
+    // no accidental duplicate ids (would clone the same workflow twice)
+    expect(new Set(ids).size).toBe(ids.length);
   });
 });

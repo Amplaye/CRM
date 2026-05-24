@@ -9,5 +9,7 @@
 // network probes); only the template count is shared here.
 
 /** Official restaurant template workflow count — a fully provisioned tenant has
- * at least this many active [Name]* workflows on n8n. */
-export const N8N_TEMPLATE_COUNT = 13;
+ * at least this many active [Name]* workflows on n8n. Must equal the length of
+ * TEMPLATE_RESTAURANT_WORKFLOW_IDS in src/lib/onboarding/orchestrator.ts (kept
+ * aligned with PICNIC, the gold-standard tenant). Raised 13→17 on 2026-05-24. */
+export const N8N_TEMPLATE_COUNT = 17;
