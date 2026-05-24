@@ -35,9 +35,12 @@ async function n8nCountFor(restaurantName: string): Promise<number | null> {
     });
     if (!res.ok) return null;
     const data = await res.json();
-    const prefix = `[${restaurantName}]`;
+    // Case-insensitive: a tenant named "PICNIC" has workflows named "[Picnic] …".
+    // A case-sensitive match returned 0 and falsely flagged a working legacy
+    // tenant as "0/13 incomplete".
+    const prefix = `[${restaurantName}]`.toLowerCase();
     return (data?.data || []).filter(
-      (w: any) => typeof w?.name === "string" && w.name.startsWith(prefix) && w.active
+      (w: any) => typeof w?.name === "string" && w.name.toLowerCase().startsWith(prefix) && w.active
     ).length;
   } catch {
     return null;
@@ -89,12 +92,16 @@ export async function GET(req: NextRequest) {
   });
 
   // 2. Onboarding marker — what the dashboard guard reads to stop redirecting.
+  // NOT blocking: legacy tenants (provisioned by hand before the wizard existed,
+  // e.g. PICNIC) never wrote this marker yet work perfectly. Its absence is only
+  // a warning; the authoritative "does the bot work" signals are the live Vapi
+  // assistant and the active n8n workflows below.
   const completed = s?.onboarding?.completed === true;
   checks.push({
     key: "onboarding",
     label: "Onboarding completato",
-    state: completed ? "ok" : "fail",
-    detail: completed ? "sì" : "marker mancante (interrotto a metà)",
+    state: completed ? "ok" : "warn",
+    detail: completed ? "sì" : "marker mancante (tenant legacy o wizard interrotto)",
   });
 
   // 3. Vapi assistant — recorded AND actually existing on Vapi.
@@ -109,14 +116,22 @@ export async function GET(req: NextRequest) {
   }
   checks.push({ key: "vapi", label: "Assistente vocale (Vapi)", state: vapiState, detail: vapiDetail });
 
-  // 4. n8n workflows — recorded count and how many are active right now.
+  // 4. n8n workflows — the AUTHORITATIVE signal is how many [Name]* workflows are
+  // active on n8n right now (live), not what the settings recorded. Legacy
+  // tenants have no recorded ids but plenty of live workflows. The recorded
+  // count is only a fallback hint when n8n is unreachable.
   const recordedIds: string[] = Array.isArray(s?.n8n?.workflow_ids) ? s.n8n.workflow_ids : [];
   const activeCount = await n8nCountFor(tenant.name);
   let n8nState: CheckState;
   let n8nDetail: string;
   if (activeCount === null) {
-    n8nState = recordedIds.length >= N8N_TEMPLATE_COUNT ? "warn" : "fail";
-    n8nDetail = `${recordedIds.length} registrati; stato n8n non verificabile ora`;
+    // Can't verify live → never hard-fail on the recorded count alone (a legacy
+    // tenant with 0 recorded ids may still be fully live). Worst case: warn.
+    n8nState = "warn";
+    n8nDetail =
+      recordedIds.length > 0
+        ? `${recordedIds.length} registrati; stato n8n non verificabile ora`
+        : "stato n8n non verificabile ora";
   } else if (activeCount >= N8N_TEMPLATE_COUNT) {
     n8nState = "ok";
     n8nDetail = `${activeCount}/${N8N_TEMPLATE_COUNT} workflow attivi`;

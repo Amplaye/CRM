@@ -4,7 +4,7 @@ import { useTenant } from "@/lib/contexts/TenantContext";
 import { useLanguage } from "@/lib/contexts/LanguageContext";
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Shield, AlertTriangle, TrendingUp, TrendingDown, Minus, RefreshCw, MessageSquare, Check, XCircle } from "lucide-react";
+import { Shield, AlertTriangle, TrendingUp, TrendingDown, Minus, RefreshCw, MessageSquare, Check } from "lucide-react";
 
 interface TenantOverview {
   id: string;
@@ -21,8 +21,6 @@ interface TenantOverview {
   criticalIssues: number;
   lastActivity: string;
   bookingChange: number;
-  activationIncomplete?: boolean;
-  activationReasons?: string[];
 }
 
 interface PlatformTotals {
@@ -230,19 +228,7 @@ export default function AdminPage() {
                           {badge.label}
                         </span>
                       </td>
-                      <td className="px-4 py-3 font-medium text-black">
-                        <div className="flex flex-col">
-                          <span>{t.name}</span>
-                          {t.activationIncomplete && (
-                            <span
-                              className="inline-flex items-center gap-1 text-[10px] font-bold text-red-700 mt-0.5"
-                              title={t.activationReasons?.join(" · ")}
-                            >
-                              <XCircle className="w-3 h-3" /> Attivazione incompleta
-                            </span>
-                          )}
-                        </div>
-                      </td>
+                      <td className="px-4 py-3 font-medium text-black">{t.name}</td>
                       <td className="px-4 py-3 text-right font-medium text-[#22c55e]">€{t.aiRevenue7.toLocaleString()}</td>
                       <td className="px-4 py-3 text-right text-black">€{t.aiRevenue30.toLocaleString()}</td>
                       <td className="px-4 py-3 text-right text-black">{t.aiPct}%</td>
