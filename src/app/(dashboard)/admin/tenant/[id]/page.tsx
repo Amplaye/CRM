@@ -7,6 +7,7 @@ import Link from "next/link";
 import {
   ArrowLeft, Bot, AlertTriangle, MessageSquare, Calendar,
   Phone, TrendingUp, UserX, Zap, Clock, Lightbulb, DollarSign, ShieldCheck, Eye,
+  CheckCircle2, XCircle, AlertCircle,
 } from "lucide-react";
 import { TENANT_STATUSES, type TenantStatus } from "@/lib/tenants/status";
 
@@ -17,6 +18,11 @@ const STATUS_BADGE: Record<TenantStatus, string> = {
   suspended: "bg-red-50 text-red-700 border-red-200",
   archived: "bg-zinc-100 text-zinc-600 border-zinc-300",
 };
+
+interface TenantHealth {
+  overall: "ok" | "warn" | "fail";
+  checks: Array<{ key: string; label: string; state: "ok" | "warn" | "fail"; detail: string }>;
+}
 
 interface TenantDetail {
   tenant: { id: string; name: string; status: TenantStatus; created_at: string; archived_at?: string | null; purge_after?: string | null };
@@ -52,6 +58,7 @@ export default function TenantDetailPage() {
   const [data, setData] = useState<TenantDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [insights, setInsights] = useState<any[]>([]);
+  const [health, setHealth] = useState<TenantHealth | null>(null);
   const [statusSaving, setStatusSaving] = useState(false);
   const [danger, setDanger] = useState<null | "archive" | "purge">(null);
   const [confirmText, setConfirmText] = useState("");
@@ -127,15 +134,20 @@ export default function TenantDetailPage() {
     const fetchDetail = async () => {
       setLoading(true);
       try {
-        const [detailRes, insightRes] = await Promise.all([
+        const [detailRes, insightRes, healthRes] = await Promise.all([
           fetch(`/api/admin/tenant?id=${tenantId}`),
           fetch(`/api/insights?tenant_id=${tenantId}`),
+          fetch(`/api/admin/tenant/health?id=${tenantId}`),
         ]);
         const json = await detailRes.json();
         if (json.error) throw new Error(json.error);
         setData(json);
         const insightData = await insightRes.json();
         setInsights(insightData.all_insights || []);
+        try {
+          const h = await healthRes.json();
+          if (!h.error) setHealth(h);
+        } catch { /* health is best-effort; never blocks the page */ }
       } catch (err) { console.error(err); }
       setLoading(false);
     };
@@ -190,6 +202,53 @@ export default function TenantDetailPage() {
           </select>
         </div>
       </div>
+
+      {/* Activation health — the green/yellow/red light that tells you, at a
+          glance, whether this tenant actually provisioned correctly (the
+          chef-oraz incident showed "completed" while half-broken). */}
+      {health && (
+        <div
+          className="rounded-xl p-4 border-2"
+          style={{
+            background:
+              health.overall === "ok" ? "rgba(16,185,129,0.06)"
+              : health.overall === "warn" ? "rgba(234,179,8,0.07)"
+              : "rgba(239,68,68,0.07)",
+            borderColor:
+              health.overall === "ok" ? "#10b981"
+              : health.overall === "warn" ? "#eab308"
+              : "#ef4444",
+          }}
+        >
+          <div className="flex items-center gap-2 mb-3">
+            {health.overall === "ok" ? <CheckCircle2 className="w-5 h-5 text-emerald-600" />
+              : health.overall === "warn" ? <AlertCircle className="w-5 h-5 text-yellow-600" />
+              : <XCircle className="w-5 h-5 text-red-600" />}
+            <h2 className="text-sm font-bold text-black">
+              {health.overall === "ok" ? "Attivazione completa — il cliente funziona"
+                : health.overall === "warn" ? "Attivo, ma con avvisi da controllare"
+                : "Attivazione INCOMPLETA — il bot non funziona del tutto"}
+            </h2>
+          </div>
+          <div className="grid sm:grid-cols-2 gap-x-6 gap-y-1.5">
+            {health.checks.map((c) => (
+              <div key={c.key} className="flex items-start gap-2 text-xs">
+                {c.state === "ok" ? <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 mt-0.5 shrink-0" />
+                  : c.state === "warn" ? <AlertCircle className="w-3.5 h-3.5 text-yellow-600 mt-0.5 shrink-0" />
+                  : <XCircle className="w-3.5 h-3.5 text-red-600 mt-0.5 shrink-0" />}
+                <span className="text-black">
+                  <span className="font-medium">{c.label}:</span> {c.detail}
+                </span>
+              </div>
+            ))}
+          </div>
+          {health.overall === "fail" && (
+            <p className="text-[11px] text-black/70 mt-3 pt-3 border-t border-black/10">
+              Per riparare: riapri l&apos;onboarding di questo cliente e premi invia — il provisioning si completa da dove si era interrotto, senza duplicati.
+            </p>
+          )}
+        </div>
+      )}
 
       {/* KPI Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-2 sm:gap-4">
