@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServiceRoleClient } from "@/lib/supabase/server";
 import { assertPlatformAdmin } from "@/lib/admin-auth";
+import { N8N_TEMPLATE_COUNT } from "@/lib/tenants/activation";
 
 // Activation health-check for a single tenant.
 //
@@ -13,7 +14,8 @@ import { assertPlatformAdmin } from "@/lib/admin-auth";
 // and returns a per-check verdict so the admin UI can show a green/yellow/red
 // light. It's read-only — it diagnoses, it doesn't repair.
 
-const N8N_TEMPLATE_COUNT = 13; // the official restaurant template workflow count
+// N8N_TEMPLATE_COUNT now lives in src/lib/tenants/activation.ts so the list and
+// this card share one definition of "fully provisioned".
 
 type CheckState = "ok" | "warn" | "fail";
 interface Check {

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServiceRoleClient } from "@/lib/supabase/server";
+import { activationFromSettings } from "@/lib/tenants/activation";
 
 export async function GET(req: NextRequest) {
   try {
@@ -109,6 +110,14 @@ export async function GET(req: NextRequest) {
       else if (activeIssues > 2 || (r7.length === 0 && r30.length > 0)) health = "attention";
       else if (noShowTrend === "up") health = "attention";
 
+      // Activation health (provisioning) — derived from the row alone. A
+      // half-provisioned tenant whose bot does not work must NOT show "Healthy"
+      // in the master list just because it has no open issues. We never DOWNgrade
+      // an already-critical row, but a broken activation forces at least
+      // "attention" so the admin sees it and opens the detail card.
+      const activation = activationFromSettings(t.status, s);
+      if (activation.incomplete && health === "healthy") health = "attention";
+
       // Booking change week over week
       const prevWeekCount = prevR7.length;
       const bookingChange = prevWeekCount > 0
@@ -130,6 +139,8 @@ export async function GET(req: NextRequest) {
         criticalIssues,
         lastActivity,
         bookingChange,
+        activationIncomplete: activation.incomplete,
+        activationReasons: activation.reasons,
       };
     });
 
