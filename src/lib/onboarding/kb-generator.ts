@@ -42,8 +42,11 @@ export interface KbQuestionnaire {
   deposit_required: boolean; // yes/no — deposit for large groups
   late_tolerance_min: number; // dropdown: 10/15/20/30
   late_grace_if_notified: boolean; // yes/no — more margin if the guest warns ahead
-  last_lunch: string; // time "14:45" ("" = no lunch service)
-  last_dinner: string; // time "21:30" ("" = no dinner service)
+  // Minutes BEFORE closing time that the last reservation is accepted, chosen
+  // from a dropdown. The actual cut-off time is derived per day from that
+  // shift's closing time (close − offset). -1 = no service for that shift.
+  last_lunch_offset_min: number; // e.g. 30 / 45 / 60 / 90 ; -1 = no lunch service
+  last_dinner_offset_min: number; // e.g. 30 / 45 / 60 / 90 ; -1 = no dinner service
   cancellation_notice: CancellationNotice; // dropdown
   noshow_release_min: number; // dropdown: 0 = don't state / 15 / 30 / 45 / 60
 
@@ -389,6 +392,32 @@ function slotPeriod(L: Labels, open: string): string {
   return Number.isFinite(h) && h < 17 ? L.lunch : L.dinner;
 }
 
+// Latest reservation time for a shift = (closing time of that shift) − offset.
+// Picks the widest closing across days that have the shift, so the KB states a
+// single representative cut-off. Returns null when no day serves that shift.
+function lastReservationFromHours(
+  hours: OpeningHours | undefined,
+  shift: "lunch" | "dinner",
+  offsetMin: number,
+): string | null {
+  if (!hours || offsetMin < 0) return null;
+  let bestCloseMin: number | null = null;
+  for (const slots of Object.values(hours)) {
+    for (const s of slots) {
+      if (!s.open || !s.close) continue;
+      const startH = parseInt(s.open.slice(0, 2), 10);
+      const isLunch = Number.isFinite(startH) && startH < 17;
+      if ((shift === "lunch") !== isLunch) continue;
+      const [ch, cm] = s.close.split(":").map(Number);
+      const closeMin = ch * 60 + cm;
+      if (bestCloseMin === null || closeMin > bestCloseMin) bestCloseMin = closeMin;
+    }
+  }
+  if (bestCloseMin === null) return null;
+  const cut = bestCloseMin - offsetMin;
+  return `${String(Math.floor(cut / 60)).padStart(2, "0")}:${String(cut % 60).padStart(2, "0")}`;
+}
+
 /** Schedule lines (Mon→Sun). Returns [] when no day is open. */
 function buildScheduleLines(L: Labels, hours?: OpeningHours): string[] {
   if (!hours) return [];
@@ -437,8 +466,10 @@ export function generateKbArticles(q: KbQuestionnaire, ctx: KbContext): Generate
   reservationLines.push(tolerance);
   reservationLines.push(`${L.cancellation}: ${L.cancellations[q.cancellation_notice]}`);
   if (q.noshow_release_min > 0) reservationLines.push(fill(L.noShow, q.noshow_release_min));
-  reservationLines.push(`${L.lastLunch}: ${q.last_lunch || L.noService}`);
-  reservationLines.push(`${L.lastDinner}: ${q.last_dinner || L.noService}`);
+  const lastLunch = lastReservationFromHours(ctx.opening_hours, "lunch", q.last_lunch_offset_min);
+  const lastDinner = lastReservationFromHours(ctx.opening_hours, "dinner", q.last_dinner_offset_min);
+  reservationLines.push(`${L.lastLunch}: ${lastLunch || L.noService}`);
+  reservationLines.push(`${L.lastDinner}: ${lastDinner || L.noService}`);
   if (q.accepts_large_groups) reservationLines.push(`${L.deposit}: ${q.deposit_required ? L.depositYes : L.depositNo}`);
   if (q.terrace) reservationLines.push(L.terraceNotGuaranteed);
   articles.push({ title: L.tReservations, category: "policies", content: reservationLines.join("\n") });
@@ -562,8 +593,8 @@ export function defaultQuestionnaire(): KbQuestionnaire {
     deposit_required: false,
     late_tolerance_min: 15,
     late_grace_if_notified: true,
-    last_lunch: "14:45",
-    last_dinner: "21:30",
+    last_lunch_offset_min: 45,
+    last_dinner_offset_min: 60,
     cancellation_notice: "same_day",
     noshow_release_min: 0,
     high_chairs: true,

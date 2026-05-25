@@ -37,10 +37,15 @@ function findNextOpenDay(openingHours: OpeningHours, fromDate: string, maxLookah
   return null;
 }
 
-function lastBookingTime(shiftHours: { open: string; close: string }[], shift: 'lunch' | 'dinner'): string | null {
-  // Last reservation cutoff before close: lunch 45 min, dinner 60 min.
-  // Matches Picnic's KB policy (última reserva 14:45 / 21:30).
-  const offset = shift === 'dinner' ? 60 : 45;
+function lastBookingTime(
+  shiftHours: { open: string; close: string }[],
+  shift: 'lunch' | 'dinner',
+  offset: number,
+): string | null {
+  // Last reservation cut-off = close − offset (minutes the owner picked in the
+  // setup wizard, stored in settings.last_reservation_offset). offset < 0 means
+  // the shift isn't served → no cut-off.
+  if (offset < 0) return null;
   for (const s of shiftHours) {
     const startMin = timeToMin(s.open);
     if ((shift === 'lunch' && startMin < 17 * 60) || (shift === 'dinner' && startMin >= 17 * 60)) {
@@ -85,12 +90,22 @@ export async function GET(request: Request) {
       .maybeSingle();
     if (tenantErr) throw tenantErr;
 
-    const openingHours: OpeningHours = ((tenantRow?.settings as unknown) as { opening_hours?: OpeningHours })?.opening_hours || {};
+    const tenantSettings = (tenantRow?.settings as unknown) as {
+      opening_hours?: OpeningHours;
+      last_reservation_offset?: { lunch?: number; dinner?: number };
+    } | null;
+    const openingHours: OpeningHours = tenantSettings?.opening_hours || {};
     const hoursToday = openingHours[String(dayOfWeek)] || [];
     const slots = getTimeSlots(dayOfWeek, openingHours);
 
-    const lastLunch = lastBookingTime(hoursToday, 'lunch');
-    const lastDinner = lastBookingTime(hoursToday, 'dinner');
+    // Owner-chosen cut-off (setup wizard). Fallback to the legacy 45/60 min for
+    // tenants provisioned before this field existed.
+    const offsets = tenantSettings?.last_reservation_offset || {};
+    const lunchOffset = Number.isFinite(offsets.lunch) ? (offsets.lunch as number) : 45;
+    const dinnerOffset = Number.isFinite(offsets.dinner) ? (offsets.dinner as number) : 60;
+
+    const lastLunch = lastBookingTime(hoursToday, 'lunch', lunchOffset);
+    const lastDinner = lastBookingTime(hoursToday, 'dinner', dinnerOffset);
     const lastReservationTimes = {
       ...(lastLunch ? { lunch: lastLunch } : {}),
       ...(lastDinner ? { dinner: lastDinner } : {}),

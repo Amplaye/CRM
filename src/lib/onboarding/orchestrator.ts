@@ -31,6 +31,10 @@ export interface OnboardInput {
   review_url: string; // Google Maps review link for the post-meal followup
   // Operations
   opening_hours: OpeningHours;
+  // Minutes before each shift's closing time to stop taking reservations. The
+  // availability API derives the actual cut-off per day (close − offset). -1 =
+  // shift not served. Persisted to settings.last_reservation_offset.
+  last_reservation_offset?: { lunch: number; dinner: number };
   table_size_preset: "small" | "medium" | "large"; // 6/12/20 tables auto-generated
   // Knowledge base
   kb_articles: Array<{ title: string; content: string; category: string }>;
@@ -181,6 +185,7 @@ export async function runOnboard(
         // The app reads this at boot to fix the UI language.
         crm_locale: input.crm_locale || input.language,
         opening_hours: input.opening_hours,
+        last_reservation_offset: input.last_reservation_offset || { lunch: 45, dinner: 60 },
         avg_spend: 25,
         avg_cost: 10,
         ai_monthly_cost: 450,

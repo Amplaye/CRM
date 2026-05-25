@@ -21,6 +21,9 @@ interface Q4Strings {
   cancellationNotice: string; noShowRelease: string; lastLunch: string; lastDinner: string;
   cxNone: string; cxSameDay: string; cx2h: string; cx24h: string;
   nsNone: string;
+  // Last-reservation dropdown: the owner picks how long before closing the last
+  // booking is accepted. lrBeforeClose is the suffix appended to "30 min", "1 h"…
+  lrAtClose: string; lrBeforeClose: string; lrNoService: string;
   // card 2
   highChairs: string; kidsMenu: string; pets: string; accessible: string; wifi: string;
   ownParking: string; terrace: string; takeaway: string; takeawayWait: string;
@@ -114,6 +117,7 @@ export const UI: Record<UiLang, UiStrings> = {
       lastLunch: "Última reserva (comida)", lastDinner: "Última reserva (cena)",
       cxNone: "Sin aviso previo", cxSameDay: "El mismo día", cx2h: "2 h antes", cx24h: "24 h antes",
       nsNone: "No especificar",
+      lrAtClose: "Hasta la hora de cierre", lrBeforeClose: "antes del cierre", lrNoService: "Sin este servicio",
       highChairs: "¿Tronas para niños?", kidsMenu: "¿Menú infantil?", pets: "¿Se admiten mascotas?",
       accessible: "¿Entrada accesible?", wifi: "¿WiFi para clientes?", ownParking: "¿Parking propio?",
       terrace: "¿Terraza?", takeaway: "¿Comida para llevar?", takeawayWait: "Tiempo de espera para llevar (opcional)",
@@ -143,7 +147,7 @@ export const UI: Record<UiLang, UiStrings> = {
         lateGrace: "Si el cliente avisa de que llega tarde, ¿le guardáis la mesa más tiempo? El asistente será más flexible en ese caso.",
         cancellationNotice: "Con cuánta antelación debe avisar el cliente para cancelar sin problema. Sirve para que el asistente sepa cuándo una cancelación llega «a tiempo» o «tarde»; no bloquea nada por sí solo.",
         noShowRelease: "Si el cliente no aparece y no avisa, cuánto tiempo esperáis antes de liberar la mesa y darla a otro.",
-        lastReservation: "La hora más tarde a la que aceptáis una reserva en ese servicio (p. ej. la última mesa de la cena). El asistente no ofrecerá horas posteriores.",
+        lastReservation: "Cuánto antes de la hora de cierre aceptáis la última reserva de ese servicio. El asistente lo calcula solo a partir del cierre de cada día (p. ej. cierre 22:30 + «1 h antes» = última reserva 21:30) y no ofrecerá horas posteriores.",
         celiac: "No es lo mismo que «sin gluten». Marca SÍ solo si preparáis el plato aparte, con utensilios y zona limpios, apto para un celíaco real.",
         cannotGuarantee: "Marca SÍ si en tu cocina no podéis asegurar la ausencia total de trazas. El asistente lo advertirá a quien pregunte por alergias.",
         severeAllergy: "Ante una alergia grave, ¿prefieres que el asistente no decida y lo derive a cocina o a un responsable? Marca SÍ para mayor seguridad.",
@@ -193,6 +197,7 @@ export const UI: Record<UiLang, UiStrings> = {
       lastLunch: "Ultima prenotazione (pranzo)", lastDinner: "Ultima prenotazione (cena)",
       cxNone: "Nessun preavviso", cxSameDay: "In giornata", cx2h: "2 h prima", cx24h: "24 h prima",
       nsNone: "Non specificare",
+      lrAtClose: "Fino all'orario di chiusura", lrBeforeClose: "prima della chiusura", lrNoService: "Servizio non attivo",
       highChairs: "Seggioloni per bambini?", kidsMenu: "Menù bambini?", pets: "Sono ammessi animali?",
       accessible: "Ingresso accessibile?", wifi: "WiFi per i clienti?", ownParking: "Parcheggio proprio?",
       terrace: "Terrazza?", takeaway: "Cibo da asporto?", takeawayWait: "Tempo di attesa per l'asporto (opzionale)",
@@ -222,7 +227,7 @@ export const UI: Record<UiLang, UiStrings> = {
         lateGrace: "Se il cliente avvisa che farà tardi, gli tenete il tavolo più a lungo? In quel caso l'assistente sarà più flessibile.",
         cancellationNotice: "Con quanto anticipo il cliente deve avvisare per cancellare senza problemi. Serve all'assistente per capire quando una cancellazione è «in tempo» o «in ritardo»; da solo non blocca nulla.",
         noShowRelease: "Se il cliente non si presenta e non avvisa, quanto aspettate prima di liberare il tavolo e darlo ad altri.",
-        lastReservation: "L'ora più tardi a cui accettate una prenotazione in quel servizio (es. l'ultimo tavolo a cena). L'assistente non proporrà orari successivi.",
+        lastReservation: "Quanto prima dell'orario di chiusura accettate l'ultima prenotazione di quel servizio. L'assistente la calcola da solo dalla chiusura di ogni giorno (es. chiusura 22:30 + «1 h prima» = ultima prenotazione 21:30) e non proporrà orari successivi.",
         celiac: "Non è come «senza glutine». Metti SÌ solo se preparate il piatto a parte, con utensili e zona puliti, adatto a un vero celiaco.",
         cannotGuarantee: "Metti SÌ se in cucina non potete garantire l'assenza totale di tracce. L'assistente avviserà chi chiede per allergie.",
         severeAllergy: "Davanti a un'allergia grave, preferisci che l'assistente non decida e passi la palla alla cucina o a un responsabile? Metti SÌ per maggiore sicurezza.",
@@ -272,6 +277,7 @@ export const UI: Record<UiLang, UiStrings> = {
       lastLunch: "Last reservation (lunch)", lastDinner: "Last reservation (dinner)",
       cxNone: "No advance notice", cxSameDay: "Same day", cx2h: "2 h before", cx24h: "24 h before",
       nsNone: "Don't specify",
+      lrAtClose: "Up to closing time", lrBeforeClose: "before closing", lrNoService: "No such service",
       highChairs: "High chairs for children?", kidsMenu: "Kids' menu?", pets: "Are pets allowed?",
       accessible: "Accessible entrance?", wifi: "WiFi for guests?", ownParking: "Private parking?",
       terrace: "Terrace?", takeaway: "Takeaway?", takeawayWait: "Takeaway wait time (optional)",
@@ -301,7 +307,7 @@ export const UI: Record<UiLang, UiStrings> = {
         lateGrace: "If the guest warns you they'll be late, do you hold the table longer? The assistant will be more flexible in that case.",
         cancellationNotice: "How far in advance a guest must tell you to cancel without a problem. It lets the assistant know when a cancellation is “on time” or “late”; on its own it blocks nothing.",
         noShowRelease: "If a guest doesn't show up and didn't warn you, how long you wait before releasing the table to someone else.",
-        lastReservation: "The latest time you take a booking for that service (e.g. the last dinner table). The assistant won't offer times after it.",
+        lastReservation: "How long before closing you accept the last booking for that service. The assistant works the time out per day from each closing (e.g. closing 22:30 + “1 h before” = last booking 21:30) and won't offer times after it.",
         celiac: "Not the same as “gluten-free”. Tick YES only if you prepare the dish separately, with clean tools and area, safe for a real coeliac.",
         cannotGuarantee: "Tick YES if your kitchen can't guarantee the total absence of traces. The assistant will warn anyone asking about allergies.",
         severeAllergy: "For a severe allergy, would you rather the assistant not decide and hand it to the kitchen or a manager? Tick YES to be safe.",
@@ -351,6 +357,7 @@ export const UI: Record<UiLang, UiStrings> = {
       lastLunch: "Letzte Reservierung (Mittag)", lastDinner: "Letzte Reservierung (Abend)",
       cxNone: "Keine Vorankündigung", cxSameDay: "Am selben Tag", cx2h: "2 Std. vorher", cx24h: "24 Std. vorher",
       nsNone: "Nicht angeben",
+      lrAtClose: "Bis zur Schließzeit", lrBeforeClose: "vor Schließung", lrNoService: "Kein solcher Service",
       highChairs: "Hochstühle für Kinder?", kidsMenu: "Kindermenü?", pets: "Sind Haustiere erlaubt?",
       accessible: "Barrierefreier Eingang?", wifi: "WLAN für Gäste?", ownParking: "Eigener Parkplatz?",
       terrace: "Terrasse?", takeaway: "Essen zum Mitnehmen?", takeawayWait: "Wartezeit zum Mitnehmen (optional)",
@@ -380,7 +387,7 @@ export const UI: Record<UiLang, UiStrings> = {
         lateGrace: "Wenn der Gast Bescheid gibt, dass er später kommt, haltet ihr den Tisch länger? Der Assistent ist dann flexibler.",
         cancellationNotice: "Wie früh ein Gast Bescheid geben muss, um problemlos zu stornieren. So weiß der Assistent, wann eine Stornierung „rechtzeitig“ oder „spät“ ist; allein blockiert sie nichts.",
         noShowRelease: "Wenn ein Gast nicht erscheint und nicht Bescheid gibt, wie lange ihr wartet, bevor ihr den Tisch freigebt.",
-        lastReservation: "Die späteste Uhrzeit, zu der ihr für diesen Service eine Reservierung annehmt (z. B. der letzte Tisch am Abend). Der Assistent bietet keine späteren Zeiten an.",
+        lastReservation: "Wie lange vor Schließung ihr die letzte Reservierung für diesen Service annehmt. Der Assistent berechnet die Zeit pro Tag aus der jeweiligen Schließzeit (z. B. Schließung 22:30 + „1 Std. vorher“ = letzte Reservierung 21:30) und bietet keine späteren Zeiten an.",
         celiac: "Nicht dasselbe wie „glutenfrei“. Wähle JA nur, wenn ihr das Gericht separat zubereitet, mit sauberem Werkzeug und Bereich, sicher für einen echten Zöliakie-Betroffenen.",
         cannotGuarantee: "Wähle JA, wenn eure Küche die völlige Spurenfreiheit nicht garantieren kann. Der Assistent warnt jeden, der nach Allergien fragt.",
         severeAllergy: "Soll der Assistent bei einer schweren Allergie lieber nicht entscheiden und an die Küche oder Leitung übergeben? Wähle JA für mehr Sicherheit.",

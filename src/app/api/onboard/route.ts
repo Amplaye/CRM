@@ -99,6 +99,10 @@ export async function POST(req: Request) {
     crm_locale: crmLocale,
     review_url: (body.review_url || "").trim(),
     opening_hours: body.opening_hours || {},
+    last_reservation_offset: {
+      lunch: body.questionnaire.last_lunch_offset_min,
+      dinner: body.questionnaire.last_dinner_offset_min,
+    },
     table_size_preset: body.table_size_preset || "medium",
     kb_articles: kbArticles,
     // voice_prompt intentionally omitted → built from the agency template.

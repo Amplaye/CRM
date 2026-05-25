@@ -67,6 +67,14 @@ const CANCELLATIONS = (q4: Q4): Array<[CancellationNotice, string]> => [
 const NOSHOW_OPTS = (q4: Q4): Array<[string, string]> => [
   ["0", q4.nsNone], ["15", "15 min"], ["30", "30 min"], ["45", "45 min"], ["60", "60 min"],
 ];
+// Last-reservation cut-off = minutes BEFORE each shift's closing time. The actual
+// time is computed per day from opening_hours; the owner only picks the margin.
+// -1 = that shift isn't served at all.
+const LAST_RESERVATION_OPTS = (q4: Q4): Array<[string, string]> => [
+  ["0", q4.lrAtClose], ["15", `15 min ${q4.lrBeforeClose}`], ["30", `30 min ${q4.lrBeforeClose}`],
+  ["45", `45 min ${q4.lrBeforeClose}`], ["60", `1 h ${q4.lrBeforeClose}`], ["90", `1 h 30 ${q4.lrBeforeClose}`],
+  ["-1", q4.lrNoService],
+];
 
 // Quick-pick party sizes for auto-confirmation; "Other…" lets the owner type any
 // number. Module-level so the array identity is stable across renders.
@@ -395,8 +403,8 @@ export default function OnboardingPage() {
             <YesNo label={t.q4.lateGrace} value={q.late_grace_if_notified} onChange={(v) => setQF("late_grace_if_notified", v)} t={t} info={t.q4.info.lateGrace} />
             <Dropdown label={t.q4.cancellationNotice} value={q.cancellation_notice} onChange={(v) => setQF("cancellation_notice", v as CancellationNotice)} options={CANCELLATIONS(t.q4)} info={t.q4.info.cancellationNotice} />
             <Dropdown label={t.q4.noShowRelease} value={String(q.noshow_release_min)} onChange={(v) => setQF("noshow_release_min", Number(v))} options={NOSHOW_OPTS(t.q4)} info={t.q4.info.noShowRelease} />
-            <TimeField label={t.q4.lastLunch} value={q.last_lunch} onChange={(v) => setQF("last_lunch", v)} info={t.q4.info.lastReservation} />
-            <TimeField label={t.q4.lastDinner} value={q.last_dinner} onChange={(v) => setQF("last_dinner", v)} info={t.q4.info.lastReservation} />
+            <Dropdown label={t.q4.lastLunch} value={String(q.last_lunch_offset_min)} onChange={(v) => setQF("last_lunch_offset_min", Number(v))} options={LAST_RESERVATION_OPTS(t.q4)} info={t.q4.info.lastReservation} />
+            <Dropdown label={t.q4.lastDinner} value={String(q.last_dinner_offset_min)} onChange={(v) => setQF("last_dinner_offset_min", Number(v))} options={LAST_RESERVATION_OPTS(t.q4)} info={t.q4.info.lastReservation} />
           </Card>
 
           {/* Card 2 — Practical services */}
@@ -726,9 +734,6 @@ function PresetOrCustomNumber({
       )}
     </div>
   );
-}
-function TimeField({ label, value, onChange, info }: { label: string; value: string; onChange: (v: string) => void; info?: string }) {
-  return (<div><Lbl info={info}>{label}</Lbl><input type="time" value={value} onChange={(e) => onChange(e.target.value)} className="border border-zinc-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#c4956a]/40 focus:border-[#c4956a]" /></div>);
 }
 // Native select with a CUSTOM chevron. The browser arrow is removed
 // (appearance-none) and replaced by a lucide chevron positioned with right
