@@ -82,7 +82,7 @@ export interface KbQuestionnaire {
   address: string; // street, short field
   city: string; // short field, e.g. "35002 Las Palmas de Gran Canaria"
   neighborhood: string; // short field, e.g. "Triana / Vegueta"
-  parking_info: ParkingKind; // dropdown
+  parking_info: ParkingKind[]; // multi-select (a venue can have several parking options at once)
   public_transport: boolean; // yes/no
   landmark: string; // short field — reference point ("" = none)
 
@@ -521,10 +521,10 @@ export function generateKbArticles(q: KbQuestionnaire, ctx: KbContext): Generate
   }
 
   // --- Location ---
-  const parkKind =
-    q.parking_info === "own" ? L.parkOwn :
-    q.parking_info === "public" ? L.parkPublic :
-    q.parking_info === "street" ? L.parkStreet : L.parkNone;
+  const parkLabel = (k: ParkingKind) =>
+    k === "own" ? L.parkOwn : k === "public" ? L.parkPublic : k === "street" ? L.parkStreet : L.parkNone;
+  const parkChosen = q.parking_info.filter((k) => k !== "none");
+  const parkKind = parkChosen.length ? parkChosen.map(parkLabel).join(", ") : L.parkNone;
   const header = q.cuisine_type.trim() ? `${ctx.restaurant_name} - ${q.cuisine_type.trim()}` : ctx.restaurant_name;
   const locationLines: string[] = [header];
   if (q.address.trim()) locationLines.push(`${L.address}: ${q.address.trim()}`);
@@ -624,7 +624,7 @@ export function defaultQuestionnaire(): KbQuestionnaire {
     address: "",
     city: "",
     neighborhood: "",
-    parking_info: "public",
+    parking_info: ["public"],
     public_transport: true,
     landmark: "",
     chef_recommendations: [],

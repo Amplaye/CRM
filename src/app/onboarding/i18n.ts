@@ -34,7 +34,7 @@ interface Q4Strings {
   allergensTitle: string; allergensHint: string; cannotGuarantee: string; severeAllergy: string; allergenSheet: string;
   alGluten: string; alDairy: string; alEgg: string; alNuts: string; alPeanuts: string; alFish: string; alShellfish: string; alSoy: string; alSesame: string;
   // card 4
-  cuisineType: string; address: string; cityPostal: string; area: string; parking: string;
+  cuisineType: string; address: string; addressHint: string; addressSearching: string; cityPostal: string; area: string; parking: string;
   publicTransport: string; landmark: string;
   pkOwn: string; pkPublic: string; pkStreet: string; pkNone: string;
   // card 5
@@ -134,6 +134,8 @@ export const UI: Record<UiLang, UiStrings> = {
       alGluten: "Gluten / trigo", alDairy: "Lácteos", alEgg: "Huevo", alNuts: "Frutos secos", alPeanuts: "Cacahuetes",
       alFish: "Pescado", alShellfish: "Marisco", alSoy: "Soja", alSesame: "Sésamo",
       cuisineType: "Tipo de cocina / concepto (opcional)", address: "Dirección",
+      addressHint: "Empieza a escribir y elige una sugerencia: rellenamos población y zona automáticamente.",
+      addressSearching: "Buscando direcciones…",
       cityPostal: "Población / código postal (opcional)", area: "Zona / barrio (opcional)", parking: "Aparcamiento",
       publicTransport: "¿Bien comunicado en transporte público?", landmark: "Punto de referencia (opcional)",
       pkOwn: "Parking propio", pkPublic: "Parking público cercano", pkStreet: "En la calle", pkNone: "Sin aparcamiento",
@@ -214,6 +216,8 @@ export const UI: Record<UiLang, UiStrings> = {
       alGluten: "Glutine / frumento", alDairy: "Latticini", alEgg: "Uova", alNuts: "Frutta a guscio", alPeanuts: "Arachidi",
       alFish: "Pesce", alShellfish: "Crostacei", alSoy: "Soia", alSesame: "Sesamo",
       cuisineType: "Tipo di cucina / concept (opzionale)", address: "Indirizzo",
+      addressHint: "Inizia a scrivere e scegli un suggerimento: città e zona si compilano da sole.",
+      addressSearching: "Cerco gli indirizzi…",
       cityPostal: "Città / CAP (opzionale)", area: "Zona / quartiere (opzionale)", parking: "Parcheggio",
       publicTransport: "Ben servito dai mezzi pubblici?", landmark: "Punto di riferimento (opzionale)",
       pkOwn: "Parcheggio proprio", pkPublic: "Parcheggio pubblico vicino", pkStreet: "Su strada", pkNone: "Nessun parcheggio",
@@ -294,6 +298,8 @@ export const UI: Record<UiLang, UiStrings> = {
       alGluten: "Gluten / wheat", alDairy: "Dairy", alEgg: "Egg", alNuts: "Tree nuts", alPeanuts: "Peanuts",
       alFish: "Fish", alShellfish: "Shellfish", alSoy: "Soy", alSesame: "Sesame",
       cuisineType: "Cuisine type / concept (optional)", address: "Address",
+      addressHint: "Start typing and pick a suggestion — we fill city and area for you.",
+      addressSearching: "Searching addresses…",
       cityPostal: "City / postcode (optional)", area: "Area / neighbourhood (optional)", parking: "Parking",
       publicTransport: "Well connected by public transport?", landmark: "Landmark (optional)",
       pkOwn: "Private parking", pkPublic: "Public car park nearby", pkStreet: "On the street", pkNone: "No parking",
@@ -374,6 +380,8 @@ export const UI: Record<UiLang, UiStrings> = {
       alGluten: "Gluten / Weizen", alDairy: "Milchprodukte", alEgg: "Ei", alNuts: "Schalenfrüchte", alPeanuts: "Erdnüsse",
       alFish: "Fisch", alShellfish: "Schalentiere", alSoy: "Soja", alSesame: "Sesam",
       cuisineType: "Küchenart / Konzept (optional)", address: "Adresse",
+      addressHint: "Tippen und einen Vorschlag wählen – Stadt und Gegend füllen wir automatisch aus.",
+      addressSearching: "Adressen werden gesucht…",
       cityPostal: "Stadt / PLZ (optional)", area: "Gegend / Viertel (optional)", parking: "Parken",
       publicTransport: "Gut mit öffentlichen Verkehrsmitteln erreichbar?", landmark: "Orientierungspunkt (optional)",
       pkOwn: "Eigener Parkplatz", pkPublic: "Öffentlicher Parkplatz in der Nähe", pkStreet: "Auf der Straße", pkNone: "Kein Parkplatz",

@@ -138,7 +138,7 @@ describe("generateKbArticles — questionnaire → formatted KB", () => {
   it("location article includes cuisine type in the header, address, city, neighborhood, parking and phone", () => {
     const q: KbQuestionnaire = {
       ...defaultQuestionnaire(), cuisine_type: "Trattoria Napoletana", address: "Avenida Rafael Cabrera, 7",
-      city: "35002 Las Palmas", neighborhood: "Triana", parking_info: "own", landmark: "Playa de Las Canteras",
+      city: "35002 Las Palmas", neighborhood: "Triana", parking_info: ["own"], landmark: "Playa de Las Canteras",
     };
     const loc = byTitle(generateKbArticles(q, ctx), "Ubicación y cómo llegar")!;
     expect(loc.content).toContain("Trattoria Rossa - Trattoria Napoletana");

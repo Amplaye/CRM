@@ -186,6 +186,18 @@ export default function OnboardingPage() {
         ? prev.kitchen_allergens.filter((x) => x !== a)
         : [...prev.kitchen_allergens, a],
     }));
+  // Parking is multi-select (a venue can offer several options at once), but
+  // "none" is mutually exclusive: picking it clears the rest, and picking any
+  // real option clears "none".
+  const toggleParking = (p: ParkingKind) =>
+    setQ((prev) => {
+      if (p === "none") return { ...prev, parking_info: prev.parking_info.includes("none") ? [] : ["none"] };
+      const without = prev.parking_info.filter((x) => x !== "none");
+      return {
+        ...prev,
+        parking_info: without.includes(p) ? without.filter((x) => x !== p) : [...without, p],
+      };
+    });
   const setRec = (i: number, v: string) =>
     setQ((prev) => { const next = [...prev.chef_recommendations]; next[i] = v; return { ...prev, chef_recommendations: next }; });
   const addRec = () =>
@@ -456,10 +468,25 @@ export default function OnboardingPage() {
           {/* Card 4 — How to get there */}
           <Card title={t.q4.cardLocation}>
             <Field label={t.q4.cuisineType} value={q.cuisine_type} onChange={(v) => setQF("cuisine_type", v)} placeholder="Trattoria napolitana" />
-            <Field label={t.q4.address} value={q.address} onChange={(v) => setQF("address", v)} placeholder="Avenida Rafael Cabrera, 7" />
+            <AddressField
+              label={t.q4.address}
+              value={q.address}
+              placeholder="Avenida Rafael Cabrera, 7"
+              hint={t.q4.addressHint}
+              searching={t.q4.addressSearching}
+              onChange={(v) => setQF("address", v)}
+              onSelect={(p) => setQ((prev) => ({ ...prev, address: p.address, city: p.city || prev.city, neighborhood: p.neighborhood || prev.neighborhood }))}
+            />
             <Field label={t.q4.cityPostal} value={q.city} onChange={(v) => setQF("city", v)} placeholder="35002 Las Palmas de Gran Canaria" />
             <Field label={t.q4.area} value={q.neighborhood} onChange={(v) => setQF("neighborhood", v)} placeholder="Triana / Vegueta" />
-            <Dropdown label={t.q4.parking} value={q.parking_info} onChange={(v) => setQF("parking_info", v as ParkingKind)} options={[["own", t.q4.pkOwn], ["public", t.q4.pkPublic], ["street", t.q4.pkStreet], ["none", t.q4.pkNone]]} />
+            <div>
+              <Lbl>{t.q4.parking}</Lbl>
+              <div className="flex flex-wrap gap-2">
+                {([["own", t.q4.pkOwn], ["public", t.q4.pkPublic], ["street", t.q4.pkStreet], ["none", t.q4.pkNone]] as Array<[ParkingKind, string]>).map(([k, lbl]) => (
+                  <button key={k} type="button" onClick={() => toggleParking(k)} className={`px-3 py-1.5 rounded-full text-sm border-2 transition-colors ${q.parking_info.includes(k) ? "border-[#c4956a] bg-[#c4956a]/15 font-semibold" : "border-zinc-200 bg-white hover:border-[#c4956a]/50"}`}>{lbl}</button>
+                ))}
+              </div>
+            </div>
             <YesNo label={t.q4.publicTransport} value={q.public_transport} onChange={(v) => setQF("public_transport", v)} t={t} />
             <Field label={t.q4.landmark} value={q.landmark} onChange={(v) => setQF("landmark", v)} placeholder="Junto a la playa de Las Canteras" />
           </Card>
@@ -674,6 +701,96 @@ function Card({ title, children }: { title: string; children: React.ReactNode })
 }
 function Field({ label, value, onChange, placeholder, type = "text", inputMode, info }: { label: string; value: string; onChange: (v: string) => void; placeholder?: string; type?: string; inputMode?: React.HTMLAttributes<HTMLInputElement>["inputMode"]; info?: string }) {
   return (<div><Lbl info={info}>{label}</Lbl><input type={type} inputMode={inputMode} value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} className="w-full border border-zinc-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#c4956a]/40 focus:border-[#c4956a]" /></div>);
+}
+// Worldwide address autocomplete backed by OpenStreetMap Nominatim (free, no
+// API key). Typing fires a debounced search; picking a suggestion fills the
+// street into `address` and best-effort city/postcode + neighbourhood into the
+// two fields below it. The user can always edit any field by hand afterwards.
+interface AddressPick { address: string; city: string; neighborhood: string }
+interface NominatimResult {
+  display_name: string;
+  address?: Record<string, string>;
+}
+function buildPick(r: NominatimResult): AddressPick {
+  const a = r.address || {};
+  const street = a.road || a.pedestrian || a.footway || a.path || "";
+  const houseNo = a.house_number || "";
+  const line = street ? (houseNo ? `${street}, ${houseNo}` : street) : (r.display_name.split(",")[0] || "");
+  const cityName = a.city || a.town || a.village || a.municipality || a.county || "";
+  const postcode = a.postcode || "";
+  const city = [postcode, cityName].filter(Boolean).join(" ");
+  const neighborhood = a.suburb || a.neighbourhood || a.quarter || a.city_district || a.district || "";
+  return { address: line || r.display_name, city, neighborhood };
+}
+function AddressField({ label, value, placeholder, hint, searching, onChange, onSelect }: {
+  label: string; value: string; placeholder?: string; hint?: string; searching?: string;
+  onChange: (v: string) => void; onSelect: (p: AddressPick) => void;
+}) {
+  const [results, setResults] = useState<NominatimResult[]>([]);
+  const [open, setOpen] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const boxRef = useRef<HTMLDivElement>(null);
+  // Skip the search that would fire right after a suggestion is chosen.
+  const skipRef = useRef(false);
+
+  useEffect(() => {
+    if (skipRef.current) { skipRef.current = false; return; }
+    const term = value.trim();
+    if (term.length < 4) { setResults([]); setOpen(false); return; }
+    const ctrl = new AbortController();
+    const id = setTimeout(async () => {
+      setLoading(true);
+      try {
+        const url = `https://nominatim.openstreetmap.org/search?format=jsonv2&addressdetails=1&limit=6&q=${encodeURIComponent(term)}`;
+        const res = await fetch(url, { signal: ctrl.signal, headers: { "Accept-Language": navigator.language || "en" } });
+        const data: NominatimResult[] = res.ok ? await res.json() : [];
+        setResults(data);
+        setOpen(data.length > 0);
+      } catch { /* aborted or offline — keep typing usable as a plain field */ }
+      finally { setLoading(false); }
+    }, 450);
+    return () => { clearTimeout(id); ctrl.abort(); };
+  }, [value]);
+
+  // Close the suggestion list when clicking outside.
+  useEffect(() => {
+    const onDoc = (e: MouseEvent) => { if (boxRef.current && !boxRef.current.contains(e.target as Node)) setOpen(false); };
+    document.addEventListener("mousedown", onDoc);
+    return () => document.removeEventListener("mousedown", onDoc);
+  }, []);
+
+  const pick = (r: NominatimResult) => {
+    skipRef.current = true;
+    onSelect(buildPick(r));
+    setOpen(false);
+    setResults([]);
+  };
+
+  return (
+    <div ref={boxRef} className="relative">
+      <Lbl>{label}</Lbl>
+      <input
+        type="text" value={value} placeholder={placeholder} autoComplete="off"
+        onChange={(e) => onChange(e.target.value)}
+        onFocus={() => { if (results.length) setOpen(true); }}
+        className="w-full border border-zinc-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#c4956a]/40 focus:border-[#c4956a]"
+      />
+      {hint && <p className="text-[11px] text-black/60 mt-1">{hint}</p>}
+      {(open || loading) && (
+        <div className="absolute z-20 left-0 right-0 mt-1 rounded-lg border border-zinc-300 bg-white shadow-lg overflow-hidden">
+          {loading && results.length === 0 ? (
+            <div className="px-3 py-2 text-xs text-black/60 flex items-center gap-2"><Loader2 className="w-3 h-3 animate-spin" />{searching || "…"}</div>
+          ) : (
+            results.map((r, i) => (
+              <button key={i} type="button" onMouseDown={(e) => { e.preventDefault(); pick(r); }} className="w-full text-left px-3 py-2 text-sm hover:bg-[#c4956a]/10 border-b border-zinc-100 last:border-0">
+                {r.display_name}
+              </button>
+            ))
+          )}
+        </div>
+      )}
+    </div>
+  );
 }
 function NumField({ label, value, onChange, info }: { label: string; value: number; onChange: (v: number) => void; info?: string }) {
   return (<div><Lbl info={info}>{label}</Lbl><input type="number" min={0} value={value} onChange={(e) => onChange(Number(e.target.value))} className="w-full border border-zinc-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#c4956a]/40 focus:border-[#c4956a]" /></div>);
