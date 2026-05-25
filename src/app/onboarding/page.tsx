@@ -262,7 +262,7 @@ export default function OnboardingPage() {
     return (
       <Shell ui={ui} onUi={changeUi} t={t}>
         <h1 className="text-2xl font-bold mb-2">{t.creatingTitle}</h1>
-        <p className="text-sm text-black/70 mb-6">
+        <p className="text-sm text-black mb-6">
           {done?.ok ? t.creatingDone : done && !done.ok ? t.creatingFail : t.creatingBusy}
         </p>
         <div className="rounded-xl border-2 border-[#c4956a] bg-white p-4 space-y-2 max-h-[55vh] overflow-y-auto">
@@ -270,12 +270,12 @@ export default function OnboardingPage() {
             <div key={i} className="flex items-start gap-2 text-sm">
               {p.ok ? <Check className="w-4 h-4 text-emerald-600 mt-0.5 flex-shrink-0" /> : <AlertTriangle className="w-4 h-4 text-red-500 mt-0.5 flex-shrink-0" />}
               <div className="flex-1 min-w-0">
-                <span className="font-bold uppercase text-[11px] tracking-widest text-black/60 mr-2">{p.step}</span>
+                <span className="font-bold uppercase text-[11px] tracking-widest text-black mr-2">{p.step}</span>
                 <span className={p.ok ? "text-black break-words" : "text-red-600 font-medium break-words"}>{p.message}</span>
               </div>
             </div>
           ))}
-          {running && <div className="flex items-center gap-2 text-xs text-black/60 pt-2"><RefreshCw className="w-3 h-3 animate-spin" /> {t.inProgress}</div>}
+          {running && <div className="flex items-center gap-2 text-xs text-black pt-2"><RefreshCw className="w-3 h-3 animate-spin" /> {t.inProgress}</div>}
         </div>
         {done?.ok && (
           <div className="mt-6">
@@ -294,7 +294,7 @@ export default function OnboardingPage() {
   return (
     <Shell ui={ui} onUi={changeUi} t={t}>
       <h1 className="text-2xl font-bold mb-1">{t.title}</h1>
-      <p className="text-sm text-black/70 mb-6">{t.subtitle}</p>
+      <p className="text-sm text-black mb-6">{t.subtitle}</p>
 
       <div className="flex items-center gap-1.5 sm:gap-2 mb-6">
         {[1, 2, 3, 4, 5].map((n) => (<div key={n} className={`flex-1 h-1.5 rounded-full transition-colors ${n <= step ? "bg-[#c4956a]" : "bg-zinc-200"}`} />))}
@@ -323,7 +323,7 @@ export default function OnboardingPage() {
             </div>
             <div className="sm:col-span-2">
               <SelectField label={t.fCrmLang} value={crmLocale} onChange={(v) => changeCrmLocale(v as CrmLang)} options={ASST_LANGS} />
-              <p className="text-[11px] text-black/50 mt-2">{t.fCrmLangHint}</p>
+              <p className="text-[11px] text-black mt-2">{t.fCrmLangHint}</p>
             </div>
           </div>
         </div>
@@ -332,7 +332,7 @@ export default function OnboardingPage() {
       {step === 2 && (
         <div className="space-y-4">
           <h2 className="text-base font-bold flex items-center gap-2"><Clock className="w-4 h-4" /> 2. {t.s2}</h2>
-          <p className="text-xs text-black/60">{t.s2hint}</p>
+          <p className="text-xs text-black">{t.s2hint}</p>
           <div className="space-y-2">
             {t.days.map((label, di) => {
               const idx = String((di + 1) % 7); // map Mon-first labels back to "1".."6","0"
@@ -342,7 +342,7 @@ export default function OnboardingPage() {
                     <h4 className="text-sm font-bold">{label}</h4>
                     <button onClick={() => addHourSlot(idx)} className="text-xs font-semibold text-[#8b6540]">{t.addSlot}</button>
                   </div>
-                  {(hours[idx] || []).length === 0 ? <p className="text-xs text-black/40">{t.closed}</p> : (
+                  {(hours[idx] || []).length === 0 ? <p className="text-xs text-black">{t.closed}</p> : (
                     <div className="space-y-2">
                       {(hours[idx] || []).map((s, i) => (
                         <div key={i} className="flex flex-wrap gap-2 items-center">
@@ -364,7 +364,7 @@ export default function OnboardingPage() {
       {step === 3 && (
         <div className="space-y-4">
           <h2 className="text-base font-bold flex items-center gap-2"><Grid3X3 className="w-4 h-4" /> 3. {t.s3}</h2>
-          <p className="text-xs text-black/60">{t.s3hint}</p>
+          <p className="text-xs text-black">{t.s3hint}</p>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             {[
               { v: "small", lbl: t.tblSmall, desc: t.tblSmallD },
@@ -373,7 +373,7 @@ export default function OnboardingPage() {
             ].map((o) => (
               <button key={o.v} onClick={() => setTableSize(o.v as any)} className={`p-4 rounded-xl border-2 text-left transition-colors ${tableSize === o.v ? "border-[#c4956a] bg-[#c4956a]/10" : "border-zinc-200 bg-white hover:border-[#c4956a]/50"}`}>
                 <div className="font-bold text-sm">{o.lbl}</div>
-                <div className="text-xs text-black/60 mt-0.5">{o.desc}</div>
+                <div className="text-xs text-black mt-0.5">{o.desc}</div>
               </button>
             ))}
           </div>
@@ -383,7 +383,7 @@ export default function OnboardingPage() {
       {step === 4 && (
         <div className="space-y-5">
           <h2 className="text-base font-bold flex items-center gap-2"><ClipboardList className="w-4 h-4" /> 4. {t.s4}</h2>
-          <p className="text-xs text-black/60">{t.s4hint}</p>
+          <p className="text-xs text-black">{t.s4hint}</p>
 
           {/* Card 1 — Reservations & groups */}
           <Card title={t.q4.cardReservations}>
@@ -433,7 +433,7 @@ export default function OnboardingPage() {
             <YesNo label={t.q4.celiac} value={q.celiac_safe} onChange={(v) => setQF("celiac_safe", v)} t={t} info={t.q4.info.celiac} />
             <div className="pt-1 border-t border-zinc-100">
               <Lbl>{t.q4.allergensTitle}</Lbl>
-              <p className="text-[11px] text-black/50 mb-2">{t.q4.allergensHint}</p>
+              <p className="text-[11px] text-black mb-2">{t.q4.allergensHint}</p>
               <div className="flex flex-wrap gap-2">
                 {ALLERGENS(t.q4).map(([k, lbl]) => (
                   <button key={k} type="button" onClick={() => toggleAllergen(k)} className={`px-3 py-1.5 rounded-full text-sm border-2 transition-colors ${q.kitchen_allergens.includes(k) ? "border-[#c4956a] bg-[#c4956a]/15 font-semibold" : "border-zinc-200 bg-white hover:border-[#c4956a]/50"}`}>{lbl}</button>
@@ -458,7 +458,7 @@ export default function OnboardingPage() {
 
           {/* Card 5 — Recommended dishes (optional) */}
           <Card title={t.q4.cardChef}>
-            <p className="text-[11px] text-black/50 -mt-1">{t.q4.chefHint}</p>
+            <p className="text-[11px] text-black -mt-1">{t.q4.chefHint}</p>
             <div className="space-y-2">
               {q.chef_recommendations.map((r, i) => (
                 <div key={i} className="flex gap-2 items-center">
@@ -487,7 +487,7 @@ export default function OnboardingPage() {
               <li>• {t.sumPayments}: {q.payments.length || "—"}</li>
             </ul>
           </div>
-          <p className="text-xs text-black/60">{t.sumFootnote}</p>
+          <p className="text-xs text-black">{t.sumFootnote}</p>
         </div>
       )}
 
@@ -571,7 +571,7 @@ function LangMultiSelect({
             <div
               key={code}
               className={`flex items-center gap-1.5 rounded-xl text-sm border-2 transition-colors overflow-hidden ${
-                on ? "border-[#c4956a] bg-[#c4956a]/15 text-[#5e421f]" : "border-zinc-200 bg-white text-black/70"
+                on ? "border-[#c4956a] bg-[#c4956a]/15 text-[#5e421f]" : "border-zinc-200 bg-white text-black"
               }`}
             >
               <button
@@ -605,7 +605,7 @@ function LangMultiSelect({
           );
         })}
       </div>
-      <p className="text-[11px] text-black/50 mt-2">{hint}</p>
+      <p className="text-[11px] text-black mt-2">{hint}</p>
     </div>
   );
 }
@@ -650,7 +650,7 @@ function InfoTip({ text }: { text: string }) {
 }
 function Lbl({ children, info }: { children: React.ReactNode; info?: string }) {
   return (
-    <label className="flex items-center gap-1 text-xs font-bold uppercase tracking-wider mb-1 text-black/70">
+    <label className="flex items-center gap-1 text-xs font-bold uppercase tracking-wider mb-1 text-black">
       <span>{children}</span>
       {info && <InfoTip text={info} />}
     </label>
@@ -721,7 +721,7 @@ function PresetOrCustomNumber({
             onChange={(e) => onChange(Math.max(0, Number(e.target.value)))}
             className="w-24 border border-zinc-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#c4956a]/40 focus:border-[#c4956a]"
           />
-          <span className="text-sm text-black/60">{unit}</span>
+          <span className="text-sm text-black">{unit}</span>
         </div>
       )}
     </div>
@@ -756,10 +756,10 @@ function Dropdown(props: { label: string; value: string; onChange: (v: string) =
 function YesNo({ label, value, onChange, t, info }: { label: string; value: boolean; onChange: (v: boolean) => void; t: (typeof UI)[UiLang]; info?: string }) {
   return (
     <div className="flex items-center justify-between gap-3">
-      <span className="flex items-center gap-1 text-sm text-black/80">{label}{info && <InfoTip text={info} />}</span>
+      <span className="flex items-center gap-1 text-sm text-black">{label}{info && <InfoTip text={info} />}</span>
       <div className="flex rounded-lg overflow-hidden border-2 border-[#c4956a]/40 flex-shrink-0">
-        <button type="button" onClick={() => onChange(true)} className={`px-3 py-1 text-sm font-semibold transition-colors ${value ? "bg-[#c4956a] text-white" : "bg-white text-black/60"}`}>{t.yes}</button>
-        <button type="button" onClick={() => onChange(false)} className={`px-3 py-1 text-sm font-semibold transition-colors ${!value ? "bg-[#c4956a] text-white" : "bg-white text-black/60"}`}>{t.no}</button>
+        <button type="button" onClick={() => onChange(true)} className={`px-3 py-1 text-sm font-semibold transition-colors ${value ? "bg-[#c4956a] text-white" : "bg-white text-black"}`}>{t.yes}</button>
+        <button type="button" onClick={() => onChange(false)} className={`px-3 py-1 text-sm font-semibold transition-colors ${!value ? "bg-[#c4956a] text-white" : "bg-white text-black"}`}>{t.no}</button>
       </div>
     </div>
   );
