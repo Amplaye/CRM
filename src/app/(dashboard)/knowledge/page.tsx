@@ -8,6 +8,14 @@ import { useTenant } from "@/lib/contexts/TenantContext";
 import { KnowledgeArticle } from "@/lib/types";
 import { useAuth } from "@/lib/contexts/AuthContext";
 
+// The agent's voice prompt is stored as a "VOICE PROMPT" knowledge_articles row
+// (orchestrator.ts) and read back by sync-kb-vapi to build the assistant's
+// system prompt. It must keep working behind the scenes, but the client must
+// never see or edit it — a stray change would break the bot. We hide it from
+// the UI here. Keep this in sync with isPromptArticle() in lib/onboarding/vapi.ts.
+const isVoicePromptArticle = (title: string) =>
+  (title || "").toUpperCase().replace(/[^A-Z]/g, "") === "VOICEPROMPT";
+
 export default function KnowledgePage() {
   const { t } = useLanguage();
   const { activeTenant: tenant } = useTenant();
@@ -55,7 +63,7 @@ export default function KnowledgePage() {
         return;
       }
 
-      const docs = (data || []) as KnowledgeArticle[];
+      const docs = ((data || []) as KnowledgeArticle[]).filter((a) => !isVoicePromptArticle(a.title));
       docs.sort((a, b) => (a.display_order ?? 0) - (b.display_order ?? 0));
       setArticles(docs);
       setLoading(false);
