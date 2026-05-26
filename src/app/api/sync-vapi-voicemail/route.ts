@@ -9,11 +9,23 @@ const VM_BLOCK_END = "<!-- VOICEMAIL_BLOCK_END -->";
 
 interface TimeSlot { open: string; close: string }
 interface VoicemailMessage { es: string; en: string; it: string; de: string }
+type VoicemailMode = "always" | "scheduled" | "off";
 interface VoicemailConfig {
   enabled: boolean;
+  mode?: VoicemailMode;
   schedule: Record<string, TimeSlot[]>;
   forward_phone: string;
   message: VoicemailMessage;
+}
+
+// Resolve the mode from the config. New configs carry an explicit `mode`;
+// legacy ones only have `enabled` + `schedule`, so we derive it: a manual
+// enable means "always", any configured slot means "scheduled", else "off".
+function resolveMode(vm: VoicemailConfig): VoicemailMode {
+  if (vm.mode) return vm.mode;
+  if (vm.enabled) return "always";
+  const hasSlots = Object.values(vm.schedule || {}).some((slots) => (slots?.length || 0) > 0);
+  return hasSlots ? "scheduled" : "off";
 }
 
 function minutes(hhmm: string): number {
@@ -174,9 +186,16 @@ export async function POST(req: NextRequest) {
     }
     const tz = vapiCfg.timezone || settings.timezone || "Atlantic/Canary";
 
-    // Effective state: manual toggle OR currently inside the schedule.
+    // Effective state depends on the mode:
+    //  - always:    on permanently
+    //  - scheduled: on only while inside one of the configured time slots
+    //  - off:       always off (schedule data is kept but ignored)
+    const mode = resolveMode(vm);
     const insideSchedule = isInsideSchedule(vm.schedule || {}, tz);
-    const active = !!vm.enabled || insideSchedule;
+    const active =
+      mode === "always" ? true :
+      mode === "scheduled" ? insideSchedule :
+      false;
 
     // Skip Vapi PATCH if nothing material changed since last sync (cron calls this
     // every 5 min — without this guard each tick would write to Vapi unnecessarily).
@@ -193,6 +212,7 @@ export async function POST(req: NextRequest) {
         skipped: true,
         reason: "fingerprint-unchanged",
         active,
+        mode,
         insideSchedule,
         manualEnabled: !!vm.enabled,
       });
@@ -247,6 +267,8 @@ export async function POST(req: NextRequest) {
       ...settings,
       vapi_voicemail: {
         ...vm,
+        mode,
+        enabled: mode === "always",
         last_synced_at: new Date().toISOString(),
         last_synced_state: active ? "active" : "inactive",
         last_synced_fingerprint: fingerprint,
@@ -257,6 +279,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       ok: true,
       active,
+      mode,
       insideSchedule,
       manualEnabled: !!vm.enabled,
       assistantId: vapiCfg.assistantId,

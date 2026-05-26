@@ -1,6 +1,6 @@
 "use client";
 
-import { Save, Plus, Trash2 } from "lucide-react";
+import { Save, Plus, Trash2, Clock, Power, PowerOff } from "lucide-react";
 import { useLanguage } from "@/lib/contexts/LanguageContext";
 import { useTenant } from "@/lib/contexts/TenantContext";
 import { useEffect, useState } from "react";
@@ -17,8 +17,10 @@ interface VoicemailMessage {
   de: string;
 }
 
+type VoicemailMode = "always" | "scheduled" | "off";
 interface VoicemailConfig {
   enabled: boolean;
+  mode: VoicemailMode;
   schedule: VoicemailSchedule;
   forward_phone: string;
   message: VoicemailMessage;
@@ -69,6 +71,7 @@ const DEFAULT_OPENING_HOURS: OpeningHours = {
 // their own forwarding number and (optionally) personalizes the scripts.
 const DEFAULT_VOICEMAIL: VoicemailConfig = {
   enabled: false,
+  mode: "off",
   schedule: { "0": [], "1": [], "2": [], "3": [], "4": [], "5": [], "6": [] },
   forward_phone: "",
   message: {
@@ -104,7 +107,11 @@ export function GeneralTab() {
   }, []);
 
   const insideScheduleNow = isInsideScheduleNow(voicemail.schedule, timezone || "Atlantic/Canary");
-  const voicemailEffectiveActive = voicemail.enabled || insideScheduleNow;
+  // Mirror of the server's mode logic so the UI can show the real-time effective state.
+  const voicemailEffectiveActive =
+    voicemail.mode === "always" ? true :
+    voicemail.mode === "scheduled" ? insideScheduleNow :
+    false;
 
   // Always re-fetch the active tenant from the DB on mount. The TenantContext
   // caches tenant.settings in sessionStorage, so without this call the page
@@ -135,11 +142,18 @@ export function GeneralTab() {
         setAiVoice(s.ai_enabled_channels.includes("voice"));
       }
       if (s.vapi_voicemail) {
+        const vm = s.vapi_voicemail;
+        const schedule = { ...DEFAULT_VOICEMAIL.schedule, ...(vm.schedule || {}) };
+        // New configs carry an explicit `mode`; legacy ones only have `enabled`
+        // + `schedule`, so derive it: manual enable → always, any slot → scheduled.
+        const hasSlots = Object.values(schedule).some((slots) => (slots as TimeSlot[]).length > 0);
+        const mode: VoicemailMode = vm.mode || (vm.enabled ? "always" : hasSlots ? "scheduled" : "off");
         setVoicemail({
-          enabled: !!s.vapi_voicemail.enabled,
-          schedule: { ...DEFAULT_VOICEMAIL.schedule, ...(s.vapi_voicemail.schedule || {}) },
-          forward_phone: s.vapi_voicemail.forward_phone || DEFAULT_VOICEMAIL.forward_phone,
-          message: { ...DEFAULT_VOICEMAIL.message, ...(s.vapi_voicemail.message || {}) },
+          enabled: mode === "always",
+          mode,
+          schedule,
+          forward_phone: vm.forward_phone || DEFAULT_VOICEMAIL.forward_phone,
+          message: { ...DEFAULT_VOICEMAIL.message, ...(vm.message || {}) },
         });
       }
     }
@@ -440,34 +454,50 @@ export function GeneralTab() {
           <h3 className="text-lg font-bold text-black mb-1">{t("settings_voicemail_title")}</h3>
           <p className="text-xs text-black mb-4">{t("settings_voicemail_desc")}</p>
 
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-5 p-3 rounded-lg border-2" style={{ borderColor: "#c4956a", background: "rgba(252,246,237,0.6)" }}>
-            <div className="flex-1">
-              <label className="text-sm font-bold text-black">{t("settings_voicemail_enabled")}</label>
-              <p className="text-xs text-black/70 mt-0.5">{t("settings_voicemail_enabled_hint")}</p>
-              {voicemailEffectiveActive && !voicemail.enabled && (
-                <p className="text-xs italic text-[#c4956a] font-semibold mt-1">Attiva per programmazione</p>
-              )}
-              {!voicemailEffectiveActive && (
-                <p className="text-xs italic text-black/50 mt-1">Disattivata</p>
-              )}
-              {voicemail.enabled && (
-                <p className="text-xs italic text-[#c4956a] font-semibold mt-1">Attiva manualmente</p>
-              )}
+          <div className="mb-5 p-3 rounded-lg border-2" style={{ borderColor: "#c4956a", background: "rgba(252,246,237,0.6)" }}>
+            <label className="text-sm font-bold text-black">{t("settings_voicemail_mode")}</label>
+            <p className="text-xs text-black/70 mt-0.5 mb-3">{t("settings_voicemail_mode_hint")}</p>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2" role="radiogroup" aria-label={t("settings_voicemail_mode")}>
+              {([
+                { value: "always" as const, icon: Power, label: t("settings_voicemail_mode_always"), desc: t("settings_voicemail_mode_always_desc") },
+                { value: "scheduled" as const, icon: Clock, label: t("settings_voicemail_mode_scheduled"), desc: t("settings_voicemail_mode_scheduled_desc") },
+                { value: "off" as const, icon: PowerOff, label: t("settings_voicemail_mode_off"), desc: t("settings_voicemail_mode_off_desc") },
+              ]).map(({ value, icon: Icon, label, desc }) => {
+                const selected = voicemail.mode === value;
+                return (
+                  <button
+                    key={value}
+                    type="button"
+                    role="radio"
+                    aria-checked={selected}
+                    onClick={() => setVoicemail(prev => ({ ...prev, mode: value, enabled: value === "always" }))}
+                    className="flex flex-col items-start gap-1 p-3 rounded-lg border-2 text-left transition-colors cursor-pointer"
+                    style={{
+                      borderColor: selected ? "#c4956a" : "#e5d9c8",
+                      background: selected ? "#c4956a" : "white",
+                    }}
+                  >
+                    <Icon className="w-4 h-4" style={{ color: selected ? "white" : "#c4956a" }} />
+                    <span className="text-sm font-bold" style={{ color: selected ? "white" : "#1a1a1a" }}>{label}</span>
+                    <span className="text-[11px] leading-tight" style={{ color: selected ? "rgba(255,255,255,0.85)" : "rgba(0,0,0,0.55)" }}>{desc}</span>
+                  </button>
+                );
+              })}
             </div>
-            <button
-              type="button"
-              onClick={() => setVoicemail(prev => ({ ...prev, enabled: !prev.enabled }))}
-              className="relative inline-flex items-center h-7 w-12 rounded-full transition-colors shrink-0 cursor-pointer"
-              style={{ background: voicemailEffectiveActive ? "#c4956a" : "#d4d4d4" }}
-              role="switch"
-              aria-checked={voicemailEffectiveActive}
-              title={insideScheduleNow && !voicemail.enabled ? "Attiva per programmazione (override automatico)" : undefined}
-            >
+
+            {/* Live effective state — matters most in "scheduled" mode so the user
+                can see whether the schedule has it on or off right now. */}
+            <div className="mt-3 flex items-center gap-2 text-xs font-semibold">
               <span
-                className="inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform"
-                style={{ transform: voicemailEffectiveActive ? "translateX(22px)" : "translateX(4px)" }}
+                className="inline-block w-2 h-2 rounded-full"
+                style={{ background: voicemailEffectiveActive ? "#16a34a" : "#9ca3af" }}
               />
-            </button>
+              <span style={{ color: voicemailEffectiveActive ? "#16a34a" : "rgba(0,0,0,0.5)" }}>
+                {voicemailEffectiveActive ? t("settings_voicemail_status_on") : t("settings_voicemail_status_off")}
+                {voicemail.mode === "scheduled" && ` ${t("settings_voicemail_status_by_schedule")}`}
+              </span>
+            </div>
           </div>
 
           <div className="mb-5">
@@ -483,9 +513,15 @@ export function GeneralTab() {
             <p className="mt-1 text-xs text-black/70">{t("settings_voicemail_forward_hint")}</p>
           </div>
 
-          <div className="mb-5">
+          <div
+            className="mb-5 transition-opacity"
+            style={{ opacity: voicemail.mode === "scheduled" ? 1 : 0.45 }}
+          >
             <h4 className="text-sm font-bold text-black mb-1">{t("settings_voicemail_schedule")}</h4>
             <p className="text-xs text-black/70 mb-3">{t("settings_voicemail_schedule_desc")}</p>
+            {voicemail.mode !== "scheduled" && (
+              <p className="text-xs italic text-[#c4956a] font-semibold mb-3">{t("settings_voicemail_schedule_only_in_scheduled")}</p>
+            )}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
               {DAY_LABELS_KEYS.map((dayKey, dayIdx) => {
                 const dayStr = String(dayIdx);
