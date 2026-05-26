@@ -1,19 +1,31 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
+import type { EmailOtpType } from "@supabase/supabase-js";
 
+// Email-confirmation / magic-link callback.
+//
+// Two flows can land here:
+//  • token_hash + type — the PKCE-free verify-OTP flow. It needs NOTHING from
+//    the original browser, so the link works even when opened in Gmail, a
+//    different browser, or another device. This is the path we want.
+//  • code — the legacy PKCE flow. It requires the `code-verifier` cookie that
+//    was set in the browser at sign-up; opening the link anywhere else fails
+//    and the user gets bounced to /login. Kept only for links already in the
+//    wild.
+//
+// In both cases we build the redirect response UP FRONT and write the session
+// cookies onto it: under Next 16 a hand-built NextResponse.redirect does not
+// inherit Set-Cookie from next/headers' cookieStore, so writing to both is
+// what actually persists the session past the redirect.
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const code = searchParams.get("code");
+  const tokenHash = searchParams.get("token_hash");
+  const type = (searchParams.get("type") as EmailOtpType | null) ?? "email";
   const next = searchParams.get("next") ?? "/";
 
-  if (code) {
-    // Build the redirect response UP FRONT so the session cookies set by
-    // exchangeCodeForSession are written onto the response that the browser
-    // actually receives. Writing only to next/headers' cookieStore does NOT
-    // attach Set-Cookie to a hand-built NextResponse.redirect, so the freshly
-    // confirmed session would be lost and middleware would bounce the user to
-    // /login on the next request.
+  if (tokenHash || code) {
     const response = NextResponse.redirect(new URL(next, request.url));
     const cookieStore = await cookies();
     const supabase = createServerClient(
@@ -34,16 +46,17 @@ export async function GET(request: NextRequest) {
       }
     );
 
-    const { error } = await supabase.auth.exchangeCodeForSession(code);
+    const { error } = tokenHash
+      ? await supabase.auth.verifyOtp({ token_hash: tokenHash, type })
+      : await supabase.auth.exchangeCodeForSession(code!);
 
     if (!error) {
       return response;
     }
-    // Surface the reason instead of silently bouncing — a PKCE/verifier
-    // mismatch (e.g. confirmed on a different device) lands here too.
-    console.error("auth/callback exchangeCodeForSession failed:", error.message);
+    // Surface the reason instead of silently bouncing.
+    console.error(`auth/callback ${tokenHash ? "verifyOtp" : "exchangeCodeForSession"} failed:`, error.message);
   }
 
-  // If no code or error, redirect to login
+  // No token/code or verification failed → send to login.
   return NextResponse.redirect(new URL("/login", request.url));
 }
