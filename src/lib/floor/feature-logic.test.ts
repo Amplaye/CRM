@@ -37,13 +37,12 @@ describe("multi_room flag → canAddZones", () => {
     expect(canAddZones(true, 1)).toBe(true);
   });
 
-  it("OFF + single room → cannot create new zones", () => {
+  it("OFF → cannot create new zones, whatever the zone count", () => {
     expect(canAddZones(false, 0)).toBe(false);
     expect(canAddZones(false, 1)).toBe(false);
-  });
-
-  it("OFF but zones already exist → still manageable (never strand existing rooms)", () => {
-    expect(canAddZones(false, 2)).toBe(true);
-    expect(canAddZones(false, 5)).toBe(true);
+    // Even with zones already built: the "+ add zone" button is hidden. Existing
+    // zones stay visible/deletable on the floor screen (not gated here).
+    expect(canAddZones(false, 2)).toBe(false);
+    expect(canAddZones(false, 5)).toBe(false);
   });
 });

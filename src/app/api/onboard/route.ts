@@ -3,6 +3,7 @@ import { createServerSupabaseClient, createServiceRoleClient } from "@/lib/supab
 import { runOnboard, OnboardInput, OnboardProgress } from "@/lib/onboarding/orchestrator";
 import { resolveOwnerProvisionTenant } from "@/lib/onboarding/owner-tenant";
 import { generateKbArticlesMulti, KbQuestionnaire, Lang } from "@/lib/onboarding/kb-generator";
+import { featuresFromQuestionnaire } from "@/lib/types/tenant-settings";
 
 // Owner self-serve provisioning. Same engine as the admin wizard
 // (/api/admin/onboard → runOnboard), but driven by the restaurant owner for
@@ -104,6 +105,9 @@ export async function POST(req: Request) {
       dinner: body.questionnaire.last_dinner_offset_min,
     },
     table_size_preset: body.table_size_preset || "medium",
+    // Feature flags derived from the wizard answers, so Settings → Features
+    // opens already matching what the owner said (e.g. "no terrace" → OFF).
+    features: featuresFromQuestionnaire(body.questionnaire, selected.length),
     kb_articles: kbArticles,
     // voice_prompt intentionally omitted → built from the agency template.
     owner_email: user.email || "",

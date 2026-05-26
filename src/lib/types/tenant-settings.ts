@@ -80,6 +80,44 @@ export function getFeatures(settings: TenantSettings | null | undefined): Tenant
 }
 
 /**
+ * Map the onboarding wizard's fixed-field answers to the feature flags, so a
+ * toggle in Settings → Features starts out matching what the owner said in the
+ * wizard (e.g. "no terrace" → terrace OFF) instead of the generic default.
+ *
+ * Only flags the wizard can ANSWER are derived here; the rest fall back to
+ * DEFAULT_FEATURES. The wizard never asks about separate rooms, so `multi_room`
+ * stays at its default (false) and the owner enables it from Settings when they
+ * build a second zone on the floor map.
+ *
+ * `langCount` is how many assistant languages the owner selected (the wizard
+ * sends them separately from the questionnaire), driving `multi_language`.
+ */
+export function featuresFromQuestionnaire(
+  q: {
+    terrace?: boolean;
+    pets?: boolean;
+    celebrations?: boolean;
+    accepts_large_groups?: boolean;
+    last_lunch_offset_min?: number;
+    last_dinner_offset_min?: number;
+  },
+  langCount: number,
+): TenantFeatures {
+  return {
+    ...DEFAULT_FEATURES,
+    terrace: !!q.terrace,
+    pet_friendly: !!q.pets,
+    // The venue hosts private events / large groups if it welcomes either.
+    events_enabled: !!q.celebrations || !!q.accepts_large_groups,
+    // The bot answers in several languages only if the owner picked more than one.
+    multi_language: langCount > 1,
+    // Double service = both lunch and dinner are actually served. A shift with
+    // offset -1 means "no service" for that shift (see KbQuestionnaire).
+    double_shift: q.last_lunch_offset_min !== -1 && q.last_dinner_offset_min !== -1,
+  };
+}
+
+/**
  * Venue facts the assistant conveys to guests, derived from feature flags.
  *
  * Some flags change CRM screens directly (waitlist → sidebar, multi_room →

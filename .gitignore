@@ -46,3 +46,9 @@ firebase-debug.*.log
 *.tsbuildinfo
 next-env.d.ts
 src/.next
+
+# TTS MCP server (locale, non versionato)
+tts-say-mcp.js
+
+# Local plaintext credentials — never commit
+_creds_tmp.md

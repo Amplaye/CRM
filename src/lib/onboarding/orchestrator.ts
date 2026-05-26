@@ -36,6 +36,11 @@ export interface OnboardInput {
   // shift not served. Persisted to settings.last_reservation_offset.
   last_reservation_offset?: { lunch: number; dinner: number };
   table_size_preset: "small" | "medium" | "large"; // 6/12/20 tables auto-generated
+  // On/off capabilities derived from the wizard answers (terrace, pets, events,
+  // languages, double-shift). Persisted to settings.features so the Settings →
+  // Features toggles open already matching what the owner said in the wizard.
+  // Optional: the admin wizard omits it → defaults apply.
+  features?: import("@/lib/types/tenant-settings").TenantFeatures;
   // Knowledge base
   kb_articles: Array<{ title: string; content: string; category: string }>;
   // Body of the VOICE PROMPT KB article. Optional: when omitted (self-serve),
@@ -192,6 +197,9 @@ export async function runOnboard(
         no_show_baseline_pct: 15,
         ai_enabled_channels: ["whatsapp", "voice"],
         currency: "EUR",
+        // Feature flags from the wizard answers (terrace/pets/events/languages/
+        // double-shift). Read by Settings → Features and the bot's info source.
+        ...(input.features ? { features: input.features } : {}),
       };
 
       if (input.tenant_id) {

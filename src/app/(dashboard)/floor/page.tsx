@@ -384,6 +384,9 @@ export default function FloorPage() {
   }
 
   async function addZone() {
+    // Guard in depth: the "+" button is already hidden when multi_room is off,
+    // but never create a zone for a single-room venue even if invoked otherwise.
+    if (!canManageZones) return;
     const name = prompt(t("floor_zone_name_prompt"));
     if (!name || !name.trim() || !activeTenant) return;
     const trimmed = name.trim();
