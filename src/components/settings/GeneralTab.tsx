@@ -455,48 +455,62 @@ export function GeneralTab() {
           <p className="text-xs text-black mb-4">{t("settings_voicemail_desc")}</p>
 
           <div className="mb-5 p-3 rounded-lg border-2" style={{ borderColor: "#c4956a", background: "rgba(252,246,237,0.6)" }}>
-            <label className="text-sm font-bold text-black">{t("settings_voicemail_mode")}</label>
-            <p className="text-xs text-black/70 mt-0.5 mb-3">{t("settings_voicemail_mode_hint")}</p>
+            {/* Header row: title/hint on the left, the compact mode buttons aligned
+                to the top-right. The selected mode's full description sits below. */}
+            <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-3">
+              <div className="flex-1 min-w-0">
+                <label className="text-sm font-bold text-black">{t("settings_voicemail_mode")}</label>
+                <p className="text-xs text-black/70 mt-0.5">{t("settings_voicemail_mode_hint")}</p>
+              </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2" role="radiogroup" aria-label={t("settings_voicemail_mode")}>
-              {([
-                { value: "always" as const, icon: Power, label: t("settings_voicemail_mode_always"), desc: t("settings_voicemail_mode_always_desc") },
-                { value: "scheduled" as const, icon: Clock, label: t("settings_voicemail_mode_scheduled"), desc: t("settings_voicemail_mode_scheduled_desc") },
-                { value: "off" as const, icon: PowerOff, label: t("settings_voicemail_mode_off"), desc: t("settings_voicemail_mode_off_desc") },
-              ]).map(({ value, icon: Icon, label, desc }) => {
-                const selected = voicemail.mode === value;
-                return (
-                  <button
-                    key={value}
-                    type="button"
-                    role="radio"
-                    aria-checked={selected}
-                    onClick={() => setVoicemail(prev => ({ ...prev, mode: value, enabled: value === "always" }))}
-                    className="flex flex-col items-start gap-1 p-3 rounded-lg border-2 text-left transition-colors cursor-pointer"
-                    style={{
-                      borderColor: selected ? "#c4956a" : "#e5d9c8",
-                      background: selected ? "#c4956a" : "white",
-                    }}
-                  >
-                    <Icon className="w-4 h-4" style={{ color: selected ? "white" : "#c4956a" }} />
-                    <span className="text-sm font-bold" style={{ color: selected ? "white" : "#1a1a1a" }}>{label}</span>
-                    <span className="text-[11px] leading-tight" style={{ color: selected ? "rgba(255,255,255,0.85)" : "rgba(0,0,0,0.55)" }}>{desc}</span>
-                  </button>
-                );
-              })}
+              <div className="flex flex-wrap gap-1.5 shrink-0" role="radiogroup" aria-label={t("settings_voicemail_mode")}>
+                {([
+                  { value: "always" as const, icon: Power, label: t("settings_voicemail_mode_always") },
+                  { value: "scheduled" as const, icon: Clock, label: t("settings_voicemail_mode_scheduled") },
+                  { value: "off" as const, icon: PowerOff, label: t("settings_voicemail_mode_off") },
+                ]).map(({ value, icon: Icon, label }) => {
+                  const selected = voicemail.mode === value;
+                  return (
+                    <button
+                      key={value}
+                      type="button"
+                      role="radio"
+                      aria-checked={selected}
+                      onClick={() => setVoicemail(prev => ({ ...prev, mode: value, enabled: value === "always" }))}
+                      className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border-2 text-xs font-bold transition-colors cursor-pointer whitespace-nowrap"
+                      style={{
+                        borderColor: selected ? "#c4956a" : "#e5d9c8",
+                        background: selected ? "#c4956a" : "white",
+                        color: selected ? "white" : "#1a1a1a",
+                      }}
+                    >
+                      <Icon className="w-3.5 h-3.5" style={{ color: selected ? "white" : "#c4956a" }} />
+                      {label}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
 
-            {/* Live effective state — matters most in "scheduled" mode so the user
-                can see whether the schedule has it on or off right now. */}
-            <div className="mt-3 flex items-center gap-2 text-xs font-semibold">
-              <span
-                className="inline-block w-2 h-2 rounded-full"
-                style={{ background: voicemailEffectiveActive ? "#16a34a" : "#9ca3af" }}
-              />
-              <span style={{ color: voicemailEffectiveActive ? "#16a34a" : "rgba(0,0,0,0.5)" }}>
-                {voicemailEffectiveActive ? t("settings_voicemail_status_on") : t("settings_voicemail_status_off")}
-                {voicemail.mode === "scheduled" && ` ${t("settings_voicemail_status_by_schedule")}`}
-              </span>
+            {/* Description of the currently selected mode + live effective state. */}
+            <div className="mt-3 flex flex-col gap-1.5">
+              <p className="text-xs text-black/70">
+                {voicemail.mode === "always"
+                  ? t("settings_voicemail_mode_always_desc")
+                  : voicemail.mode === "scheduled"
+                  ? t("settings_voicemail_mode_scheduled_desc")
+                  : t("settings_voicemail_mode_off_desc")}
+              </p>
+              <div className="flex items-center gap-2 text-xs font-semibold">
+                <span
+                  className="inline-block w-2 h-2 rounded-full"
+                  style={{ background: voicemailEffectiveActive ? "#16a34a" : "#9ca3af" }}
+                />
+                <span style={{ color: voicemailEffectiveActive ? "#16a34a" : "rgba(0,0,0,0.5)" }}>
+                  {voicemailEffectiveActive ? t("settings_voicemail_status_on") : t("settings_voicemail_status_off")}
+                  {voicemail.mode === "scheduled" && ` ${t("settings_voicemail_status_by_schedule")}`}
+                </span>
+              </div>
             </div>
           </div>
 
