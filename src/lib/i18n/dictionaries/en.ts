@@ -412,7 +412,13 @@ export const en = {
   floor_view_plan: "Plan",
   floor_edit_plan: "Edit plan",
   floor_done_editing: "Done",
-  floor_palette: "Drag a shape to add a table",
+  floor_add_table_title: "Add a table",
+  floor_shape: "Shape",
+  floor_shape_round: "Round",
+  floor_shape_square: "Square",
+  floor_shape_rectangle: "Rectangle",
+  floor_party_size_custom: "Custom number",
+  floor_add_table_btn: "Add table",
   floor_add_zone: "Add zone",
   floor_zone_name_prompt: "Zone name (e.g. Terrace, Inside):",
   floor_delete_table: "Delete table",
@@ -423,7 +429,7 @@ export const en = {
   floor_delete_zone_confirm: "This will permanently remove the zone and all its tables ({count}).",
   floor_delete_zone_last: "You can't delete the only remaining zone.",
   floor_plan_empty: "No tables in this zone yet.",
-  floor_plan_empty_edit: "Use the palette above to add tables, then drag them to position.",
+  floor_plan_empty_edit: "Pick a shape and party size above to add tables, then drag them to position.",
   floor_no_reservations: "No reservations this shift",
 
   // Dashboard - new KPI section

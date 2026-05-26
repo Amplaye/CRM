@@ -415,7 +415,13 @@ export const de: Dictionary = {
   floor_view_plan: "Plan",
   floor_edit_plan: "Plan bearbeiten",
   floor_done_editing: "Fertig",
-  floor_palette: "Form auswählen, um einen Tisch hinzuzufügen",
+  floor_add_table_title: "Tisch hinzufügen",
+  floor_shape: "Form",
+  floor_shape_round: "Rund",
+  floor_shape_square: "Quadratisch",
+  floor_shape_rectangle: "Rechteckig",
+  floor_party_size_custom: "Eigene Anzahl",
+  floor_add_table_btn: "Tisch hinzufügen",
   floor_add_zone: "Zone hinzufügen",
   floor_zone_name_prompt: "Name der Zone (z. B. Terrasse, Innenbereich):",
   floor_delete_table: "Tisch löschen",
@@ -426,7 +432,7 @@ export const de: Dictionary = {
   floor_delete_zone_confirm: "Diese Aktion entfernt die Zone und alle ihre Tische ({count}) dauerhaft.",
   floor_delete_zone_last: "Sie können die einzig verbleibende Zone nicht löschen.",
   floor_plan_empty: "Noch keine Tische in dieser Zone.",
-  floor_plan_empty_edit: "Verwenden Sie die Palette oben, um Tische hinzuzufügen, und ziehen Sie sie zum Platzieren.",
+  floor_plan_empty_edit: "Wählen Sie oben Form und Personenzahl, um Tische hinzuzufügen, und ziehen Sie sie zum Platzieren.",
   floor_no_reservations: "Keine Reservierungen in dieser Schicht",
 
   // Dashboard - new KPI section

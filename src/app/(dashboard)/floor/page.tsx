@@ -23,15 +23,8 @@ interface TableData {
 
 type TableShape = "round" | "square" | "rectangle";
 
-// Palette presets — fixed shape + seat combinations
-const TABLE_PRESETS: { shape: TableShape; seats: number; label: string }[] = [
-  { shape: "round", seats: 2, label: "Round 2p" },
-  { shape: "round", seats: 4, label: "Round 4p" },
-  { shape: "square", seats: 2, label: "Square 2p" },
-  { shape: "square", seats: 4, label: "Square 4p" },
-  { shape: "rectangle", seats: 6, label: "Rect 6p" },
-  { shape: "rectangle", seats: 8, label: "Rect 8p" },
-];
+// Quick party-size buttons in the new-table builder
+const SEAT_QUICK_OPTIONS = [2, 4, 6, 8];
 
 // Visual size in px for each (shape, seats) combination
 function tableDims(shape: TableShape, seats: number): { w: number; h: number } {
@@ -88,6 +81,10 @@ export default function FloorPage() {
   const [viewMode, setViewMode] = useState<"list" | "plan">("list");
   const [editingPlan, setEditingPlan] = useState(false);
   const [activeZone, setActiveZone] = useState<string>("inside");
+
+  // New-table builder (edit mode): pick a shape + party size, then add
+  const [newTableShape, setNewTableShape] = useState<TableShape>("round");
+  const [newTableSeats, setNewTableSeats] = useState(2);
   // Zone filter for the LIST view (separate from plan's activeZone)
   const [listZoneFilter, setListZoneFilter] = useState<string | null>(null);
 
@@ -341,16 +338,17 @@ export default function FloorPage() {
     return n;
   }
 
-  // Add a new table from the palette to the current zone
-  async function addTableFromPreset(preset: { shape: TableShape; seats: number }) {
+  // Add a new table to the current zone using the chosen shape + party size
+  async function addTable(shape: TableShape, seats: number) {
     if (!activeTenant) return;
+    const safeSeats = Math.max(1, Math.min(30, Math.round(seats) || 1));
     const supabase = createClient();
     const nextNum = nextTableNumber();
     await supabase.from("restaurant_tables").insert({
       tenant_id: activeTenant.id,
       name: `T${nextNum}`,
-      seats: preset.seats,
-      shape: preset.shape,
+      seats: safeSeats,
+      shape,
       zone: currentZone,
       status: "active",
       position_x: 60,
@@ -800,33 +798,90 @@ export default function FloorPage() {
               )}
             </div>
 
-            {/* Edit palette */}
+            {/* New-table builder: choose shape + party size, then add */}
             {editingPlan && (
               <div className="mb-3 p-3 rounded-xl border-2" style={{ borderColor: "#c4956a", background: "rgba(252,246,237,0.6)" }}>
-                <p className="text-xs font-semibold text-black mb-2">{t("floor_palette")}</p>
-                <div className="flex flex-wrap gap-2">
-                  {TABLE_PRESETS.map((p) => {
-                    const dims = tableDims(p.shape, p.seats);
-                    return (
-                      <button
-                        key={p.label}
-                        onClick={() => addTableFromPreset(p)}
-                        className="flex flex-col items-center gap-1 px-2 py-2 rounded-lg border-2 hover:bg-[#c4956a]/10 transition-colors"
-                        style={{ borderColor: "#c4956a", background: "rgba(252,246,237,0.85)" }}
-                        title={p.label}
-                      >
-                        <div
-                          style={{
-                            width: dims.w * 0.5,
-                            height: dims.h * 0.5,
-                            background: "#c4956a",
-                            borderRadius: p.shape === "round" ? "50%" : p.shape === "square" ? "8px" : "12px",
-                          }}
-                        />
-                        <span className="text-[10px] font-bold text-black">{p.seats}p</span>
-                      </button>
-                    );
-                  })}
+                <p className="text-xs font-semibold text-black mb-2">{t("floor_add_table_title")}</p>
+                <div className="flex flex-wrap items-end gap-x-6 gap-y-3">
+                  {/* Shape selector */}
+                  <div>
+                    <p className="text-[10px] font-semibold text-black/60 uppercase tracking-wide mb-1">{t("floor_shape")}</p>
+                    <div className="flex gap-2">
+                      {(["round", "square", "rectangle"] as TableShape[]).map((s) => {
+                        const selected = newTableShape === s;
+                        return (
+                          <button
+                            key={s}
+                            onClick={() => setNewTableShape(s)}
+                            aria-pressed={selected}
+                            className="flex items-center justify-center w-11 h-11 rounded-lg border-2 transition-colors"
+                            style={{
+                              borderColor: "#c4956a",
+                              background: selected ? "#c4956a" : "rgba(252,246,237,0.85)",
+                            }}
+                            title={t(`floor_shape_${s}`)}
+                          >
+                            <div
+                              style={{
+                                width: s === "rectangle" ? 26 : 20,
+                                height: s === "rectangle" ? 16 : 20,
+                                background: selected ? "#fff" : "#c4956a",
+                                borderRadius: s === "round" ? "50%" : s === "square" ? "4px" : "5px",
+                              }}
+                            />
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Party-size selector */}
+                  <div>
+                    <p className="text-[10px] font-semibold text-black/60 uppercase tracking-wide mb-1">{t("floor_party_size")}</p>
+                    <div className="flex items-center gap-2">
+                      {SEAT_QUICK_OPTIONS.map((n) => {
+                        const selected = newTableSeats === n;
+                        return (
+                          <button
+                            key={n}
+                            onClick={() => setNewTableSeats(n)}
+                            aria-pressed={selected}
+                            className="w-11 h-11 rounded-lg border-2 text-sm font-bold transition-colors"
+                            style={{
+                              borderColor: "#c4956a",
+                              background: selected ? "#c4956a" : "rgba(252,246,237,0.85)",
+                              color: selected ? "#fff" : "#000",
+                            }}
+                          >
+                            {n}
+                          </button>
+                        );
+                      })}
+                      <input
+                        type="number"
+                        min={1}
+                        max={30}
+                        value={newTableSeats}
+                        onChange={(e) => {
+                          const v = parseInt(e.target.value, 10);
+                          setNewTableSeats(Number.isNaN(v) ? 1 : Math.max(1, Math.min(30, v)));
+                        }}
+                        className="w-16 h-11 rounded-lg border-2 px-2 text-sm font-bold text-black text-center bg-white"
+                        style={{ borderColor: "#c4956a" }}
+                        title={t("floor_party_size_custom")}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Add button */}
+                  <button
+                    onClick={() => addTable(newTableShape, newTableSeats)}
+                    className="flex items-center gap-1.5 h-11 px-4 rounded-lg text-sm font-semibold text-white transition-opacity hover:opacity-90"
+                    style={{ background: "#c4956a" }}
+                  >
+                    <Plus className="w-4 h-4" />
+                    {t("floor_add_table_btn")}
+                  </button>
                 </div>
               </div>
             )}
