@@ -399,6 +399,8 @@ export const en = {
   floor_today: "Today's Reservations",
   floor_guests: "Guests Today",
   floor_tables: "Tables Occupied",
+  floor_capacity: "Total Capacity",
+  floor_capacity_tables: "{count} tables",
   floor_pending: "Pending Requests",
   floor_lunch: "Lunch",
   floor_dinner: "Dinner",

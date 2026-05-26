@@ -402,6 +402,8 @@ export const es: Dictionary = {
   floor_today: "Reservas Hoy",
   floor_guests: "Personas Hoy",
   floor_tables: "Mesas Ocupadas",
+  floor_capacity: "Aforo Total",
+  floor_capacity_tables: "{count} mesas",
   floor_pending: "Solicitudes Pendientes",
   floor_lunch: "Almuerzo",
   floor_dinner: "Cena",

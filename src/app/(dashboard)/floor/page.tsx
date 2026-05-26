@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback, useRef } from "react";
-import { Calendar, Users, LayoutGrid, AlertTriangle, ChevronLeft, ChevronRight, List, LayoutPanelTop, Plus, Pencil, Check, X } from "lucide-react";
+import { Calendar, Users, LayoutGrid, AlertTriangle, ChevronLeft, ChevronRight, List, LayoutPanelTop, Plus, Pencil, Check, X, Armchair } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useLanguage } from "@/lib/contexts/LanguageContext";
 import { useTenant } from "@/lib/contexts/TenantContext";
@@ -312,6 +312,16 @@ export default function FloorPage() {
   const currentZone = zones.includes(activeZone) ? activeZone : zones[0];
   const zoneTables = tables.filter((t) => (t.zone || "Principal") === currentZone);
 
+  // Capacity box: follows the current scope. In list view the user can pick
+  // "all zones" (listZoneFilter === null); the plan view always shows one zone.
+  const capacityTables =
+    viewMode === "list"
+      ? listZoneFilter
+        ? tables.filter((t) => (t.zone || "inside") === listZoneFilter)
+        : tables
+      : zoneTables;
+  const capacitySeats = capacityTables.reduce((s, t) => s + (t.seats || 0), 0);
+
   // multi_room = the venue has separate rooms/areas. When off (single room) the
   // owner can't create new zones; any zones that already exist stay fully
   // visible and editable, so nothing a tenant already built can disappear.
@@ -579,29 +589,40 @@ export default function FloorPage() {
       </div>
 
       {/* Stats Bar */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
         {[
           {
             label: t("floor_today"),
             value: shiftActiveRes.length,
+            sub: null as string | null,
             icon: Calendar,
             href: "/reservations",
           },
           {
             label: t("floor_guests"),
             value: totalGuests,
+            sub: null,
             icon: Users,
             href: "/guests",
           },
           {
             label: t("floor_tables"),
             value: `${occupiedCount}/${tables.length}`,
+            sub: null,
             icon: LayoutGrid,
+            href: null,
+          },
+          {
+            label: t("floor_capacity"),
+            value: capacitySeats,
+            sub: t("floor_capacity_tables").replace("{count}", String(capacityTables.length)),
+            icon: Armchair,
             href: null,
           },
           {
             label: t("floor_pending"),
             value: pendingCount,
+            sub: null,
             icon: AlertTriangle,
             href: "/pending",
           },
@@ -623,6 +644,9 @@ export default function FloorPage() {
                 <p className="text-2xl font-bold text-black mt-1">
                   {stat.value}
                 </p>
+                {stat.sub && (
+                  <p className="text-xs font-medium text-black/60 mt-0.5">{stat.sub}</p>
+                )}
               </div>
               <stat.icon className="h-8 w-8 text-[#c4956a]" />
             </div>
