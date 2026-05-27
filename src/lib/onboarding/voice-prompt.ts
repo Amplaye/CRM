@@ -57,6 +57,8 @@ export interface VoicePromptInput {
   opening_hours: OpeningHours;
   /** Backup phone read to the caller on a technical failure (E.164 or local). */
   restaurant_phone?: string;
+  /** IANA tz shown in the date header, e.g. "Atlantic/Canary". Optional. */
+  timezone?: string;
 }
 
 /**
@@ -66,11 +68,14 @@ export interface VoicePromptInput {
  *   {{DESC}}  short identity description (e.g. "restaurante")
  *   {{PHONE}} backup phone for the technical-failure fallback
  */
-function behaviourBody(name: string, desc: string, phone: string): string {
+function behaviourBody(name: string, desc: string, phone: string, timezone: string): string {
   const phoneSentence = phone
     ? `Problema técnico, ¿llamamos al ${phone} o lo intento de nuevo?`
     : `Problema técnico, ¿lo intento de nuevo?`;
-  return `# Voice Agent — ${name}
+  return `HOY {{current_date}} · HORA {{current_time}}${timezone ? ` ${timezone}` : ""}
+Usa SIEMPRE esta fecha y hora como "hoy" y "ahora". NUNCA inventes ni asumas otra fecha (NUNCA uses fechas de 2023/2024 ni de tu entrenamiento). Para cualquier otro día/fecha relativa (ej. "este viernes", "lunes", "el 5 de mayo"), llama get_current_date PRIMERO y usa lo que devuelve.
+
+# Voice Agent — ${name}
 Voz de ${name} (${desc}). Reservas, modificaciones, cancelaciones, info.
 
 ESTILO
@@ -203,19 +208,23 @@ export interface VoicePromptInputResolved extends VoicePromptInput {
 }
 
 /**
- * Build the full voice prompt body (no FECHA header — added at sync time).
+ * Build the full voice prompt body.
  *
- * The agency's golden-source behavioural rules (identical for every tenant) are
- * filled with the tenant's name, description and backup phone, then the tenant's
- * own opening hours are appended as a "## Horario" section. The published KB
+ * Opens with the "HOY {{current_date}} · HORA {{current_time}}" header that Vapi
+ * fills from variableValues at call time — without it gpt-4o-mini hallucinates
+ * the date (it answered "fecha pasada" for a same-day booking, using 2023).
+ * Then the agency's golden-source behavioural rules (identical for every tenant)
+ * filled with the tenant's name, description and backup phone, followed by the
+ * tenant's own opening hours as a "## Horario" section. The published KB
  * articles are concatenated afterwards by sync-kb-vapi.
  */
 export function buildVoicePrompt(input: VoicePromptInputResolved): string {
   const name = input.restaurant_name || "el restaurante";
   const desc = input.description || "restaurante";
   const phone = (input.restaurant_phone || "").trim();
+  const timezone = (input.timezone || "").trim();
   return [
-    behaviourBody(name, desc, phone),
+    behaviourBody(name, desc, phone, timezone),
     "",
     "## Horario",
     formatSchedule(input.opening_hours),

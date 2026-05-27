@@ -55,9 +55,15 @@ describe("buildVoicePrompt — agency golden-source template, filled with client
     expect(noPhone).not.toContain("llamamos al");
   });
 
-  it("never invents a date header (FECHA is added later at sync time)", () => {
+  it("opens with the date/time header Vapi fills at call time (prevents date hallucination)", () => {
+    const p = buildVoicePrompt({ restaurant_name: "X", language: "es", opening_hours: hours, timezone: "Atlantic/Canary" });
+    expect(p.startsWith("HOY {{current_date}} · HORA {{current_time}}")).toBe(true);
+    expect(p).toContain("Atlantic/Canary");
+    expect(p).toContain("NUNCA inventes ni asumas otra fecha");
+  });
+
+  it("omits the timezone from the header when not provided", () => {
     const p = buildVoicePrompt({ restaurant_name: "X", language: "es", opening_hours: hours });
-    expect(p).not.toContain("HOY {{");
-    expect(p).not.toContain("{{current_date}}");
+    expect(p.startsWith("HOY {{current_date}} · HORA {{current_time}}\n")).toBe(true);
   });
 });

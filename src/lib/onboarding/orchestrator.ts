@@ -177,6 +177,7 @@ export async function runOnboard(
         language: input.language,
         opening_hours: input.opening_hours,
         restaurant_phone: input.restaurant_phone,
+        timezone: input.timezone,
       });
 
   try {
