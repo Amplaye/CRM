@@ -9,11 +9,12 @@ import {
 import { useLanguage } from "@/lib/contexts/LanguageContext";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
-  PieChart, Pie, Cell, Legend, Area, AreaChart,
+  PieChart, Pie, Cell, Legend, Area, AreaChart, LabelList,
 } from "recharts";
 import { ChartFrame } from "@/components/ChartFrame";
 import { createClient } from "@/lib/supabase/client";
 import { useTenant } from "@/lib/contexts/TenantContext";
+import { detectDiets, type DietKey } from "@/lib/analytics/dietary";
 
 /* ─── helpers ─── */
 
@@ -67,6 +68,8 @@ export default function DashboardPage() {
   const [reservations, setReservations] = useState<any[]>([]);
   const [waitlistConverted, setWaitlistConverted] = useState(0);
   const [prevMonthRes, setPrevMonthRes] = useState<any[]>([]);
+  const [conversations, setConversations] = useState<any[]>([]);
+  const [guests, setGuests] = useState<any[]>([]);
 
   // Mounted flag — prevents hydration mismatch from Date()-derived values
   // and ensures Recharts containers measure non-zero dimensions before mount.
@@ -136,9 +139,9 @@ export default function DashboardPage() {
     }
 
     const fetchAll = async () => {
-      const [resMonth, resPrev, waitlistData] = await Promise.all([
+      const [resMonth, resPrev, waitlistData, convData, guestData] = await Promise.all([
         supabase.from("reservations")
-          .select("id, source, from_web, date, time, party_size, status, cancellation_source, noshow_warning_responded, created_at")
+          .select("id, source, from_web, date, time, party_size, status, cancellation_source, noshow_warning_responded, created_at, notes, allergies")
           .eq("tenant_id", tenant.id)
           .gte("date", periodStart).lte("date", periodEnd),
         supabase.from("reservations")
@@ -151,11 +154,25 @@ export default function DashboardPage() {
           .eq("status", "converted_to_booking")
           .gte("created_at", periodStart)
           .lte("created_at", periodEnd + "T23:59:59"),
+        // Dietary box sources: conversations (chat+voice) and guest notes,
+        // scoped to the selected period.
+        supabase.from("conversations")
+          .select("id, summary, transcript, created_at")
+          .eq("tenant_id", tenant.id)
+          .gte("created_at", periodStart + "T00:00:00")
+          .lte("created_at", periodEnd + "T23:59:59"),
+        supabase.from("guests")
+          .select("id, dietary_notes, notes, updated_at")
+          .eq("tenant_id", tenant.id)
+          .gte("updated_at", periodStart + "T00:00:00")
+          .lte("updated_at", periodEnd + "T23:59:59"),
       ]);
 
       setReservations(resMonth.data || []);
       setPrevMonthRes(resPrev.data || []);
       setWaitlistConverted((waitlistData.data || []).length);
+      setConversations(convData.data || []);
+      setGuests(guestData.data || []);
     };
 
     fetchAll();
@@ -332,6 +349,42 @@ export default function DashboardPage() {
       avgParty: Math.round(avgParty * 10) / 10,
     };
   }, [reservations, prevMonthRes, waitlistConverted, tenant, viewMode, selectedDay, selectedMonth, selectedYear]);
+
+  /* ─── Dietary requests — auto-detected from chat, voice & notes ───
+     Scans conversation summaries/transcripts, reservation notes/allergies
+     and guest notes in the selected period. Each source item counts at
+     most once per category. */
+  const dietary = useMemo(() => {
+    const counts: Record<DietKey, number> = { lactose: 0, gluten: 0, vegetarian: 0, vegan: 0 };
+    const tally = (text: string) => { for (const d of detectDiets(text)) counts[d] += 1; };
+
+    conversations.forEach((c: any) => {
+      const parts: string[] = [];
+      if (c.summary) parts.push(c.summary);
+      if (Array.isArray(c.transcript)) for (const m of c.transcript) if (m?.content) parts.push(m.content);
+      tally(parts.join(" \n "));
+    });
+    reservations.forEach((r: any) => {
+      const parts: string[] = [];
+      if (r.notes) parts.push(r.notes);
+      if (Array.isArray(r.allergies)) parts.push(r.allergies.join(" "));
+      tally(parts.join(" \n "));
+    });
+    guests.forEach((g: any) => {
+      const parts: string[] = [];
+      if (g.dietary_notes) parts.push(g.dietary_notes);
+      if (g.notes) parts.push(g.notes);
+      tally(parts.join(" \n "));
+    });
+
+    const rows: { key: DietKey; label: string; count: number; fill: string }[] = [
+      { key: "lactose", label: t("analytics_dietary_lactose"), count: counts.lactose, fill: BRAND_BROWN },
+      { key: "gluten", label: t("analytics_dietary_gluten"), count: counts.gluten, fill: BRAND_TERRACOTTA },
+      { key: "vegetarian", label: t("analytics_dietary_vegetarian"), count: counts.vegetarian, fill: BRAND_SAGE },
+      { key: "vegan", label: t("analytics_dietary_vegan"), count: counts.vegan, fill: BRAND_OLIVE },
+    ];
+    return { rows, total: rows.reduce((a, r) => a + r.count, 0) };
+  }, [conversations, reservations, guests, t]);
 
   /* ─── render ─── */
 
@@ -621,7 +674,7 @@ export default function DashboardPage() {
       {/* ══════════════════════════════════════════════
           SECTION 3 — SECONDARY CHARTS (bar + pie)
           ══════════════════════════════════════════════ */}
-      <section className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
+      <section className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
 
         {/* AI vs Staff bookings over time */}
         <div
@@ -655,6 +708,52 @@ export default function DashboardPage() {
             </ChartFrame>
             )}
           </div>
+        </div>
+
+        {/* Dietary requests — auto-detected from chat, voice & notes */}
+        <div
+          className="p-4 sm:p-6 rounded-xl border-2 transition-all duration-200 hover:-translate-y-0.5"
+          style={{ ...cardStyle, boxShadow: "0 1px 2px rgba(196,149,106,0.08)" }}
+          onMouseEnter={(e) => { e.currentTarget.style.boxShadow = "0 6px 16px rgba(196,149,106,0.18)"; }}
+          onMouseLeave={(e) => { e.currentTarget.style.boxShadow = "0 1px 2px rgba(196,149,106,0.08)"; }}
+        >
+          <h3 className="text-[11px] sm:text-xs font-bold text-black uppercase tracking-[0.18em]">
+            {t("analytics_dietary_title")}
+          </h3>
+          <div className="h-1 w-10 rounded-full my-3" style={{ background: BRAND_BROWN }} />
+          <div className="h-48 sm:h-64">
+            {!mounted ? null : dietary.total === 0 ? (
+              <div className="h-full flex flex-col items-center justify-center gap-2 text-center px-2">
+                <div
+                  className="inline-flex items-center justify-center w-12 h-12 rounded-full"
+                  style={{ background: "rgba(196,149,106,0.12)" }}
+                >
+                  <Bot className="w-6 h-6" style={{ color: BRAND_BROWN }} />
+                </div>
+                <p className="text-xs font-semibold text-black/70">{t("analytics_dietary_none")}</p>
+              </div>
+            ) : (
+              <ChartFrame>
+                <BarChart data={dietary.rows} layout="vertical" margin={{ top: 6, right: 28, left: 8, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="rgba(196,149,106,0.22)" />
+                  <XAxis type="number" axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: "#6b6258" }} allowDecimals={false} />
+                  <YAxis type="category" dataKey="label" axisLine={false} tickLine={false} width={96} tick={{ fontSize: 11, fill: "#000" }} />
+                  <Tooltip
+                    contentStyle={tooltipContentStyle}
+                    labelStyle={tooltipLabelStyle}
+                    itemStyle={tooltipItemStyle}
+                    cursor={{ fill: "rgba(196,149,106,0.08)" }}
+                    formatter={(value) => [`${value} ${t("analytics_dietary_requests_count")}`, ""] as [string, string]}
+                  />
+                  <Bar dataKey="count" radius={[0, 4, 4, 0]} maxBarSize={28}>
+                    {dietary.rows.map((row) => (<Cell key={row.key} fill={row.fill} />))}
+                    <LabelList dataKey="count" position="right" style={{ fill: "#000", fontSize: 11, fontWeight: 600 }} />
+                  </Bar>
+                </BarChart>
+              </ChartFrame>
+            )}
+          </div>
+          <p className="text-[11px] text-center text-black/55 mt-2">{t("analytics_dietary_subtitle")}</p>
         </div>
 
         {/* Channel breakdown pie */}

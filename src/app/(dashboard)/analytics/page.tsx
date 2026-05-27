@@ -15,11 +15,8 @@ import {
   BarChart,
   Bar,
   Legend,
-  Cell,
-  LabelList,
 } from "recharts";
 import { ChartFrame } from "@/components/ChartFrame";
-import { detectDiets, type DietKey } from "@/lib/analytics/dietary";
 import { useLanguage } from "@/lib/contexts/LanguageContext";
 import { useTenant } from "@/lib/contexts/TenantContext";
 import { createClient } from "@/lib/supabase/client";
@@ -119,14 +116,6 @@ function buildBuckets(range: TimeRange, allDates: string[]): string[] {
 const BRAND_BROWN = "#c4956a";
 const BRAND_SAGE = "#7a8560";
 
-// One color per dietary category — kept within the warm brand palette.
-const DIET_COLORS: Record<DietKey, string> = {
-  lactose: "#c4956a", // brown
-  gluten: "#b07d4f",  // deep terracotta
-  vegetarian: "#7a8560", // sage
-  vegan: "#5e6b48",   // dark olive
-};
-
 const tooltipContentStyle = {
   borderRadius: "10px",
   border: `1px solid ${BRAND_BROWN}`,
@@ -150,8 +139,6 @@ type ReservationRow = {
   cancellation_source: string | null;
   noshow_warning_responded: boolean;
   created_at: string;
-  notes: string | null;
-  allergies: string[] | null;
 };
 
 type WaitlistRow = {
@@ -168,8 +155,6 @@ type ConversationRow = {
   sentiment: string;
   escalation_flag: boolean;
   created_at: string;
-  summary: string | null;
-  transcript: Array<{ role: string; content: string }> | null;
 };
 
 type IncidentRow = {
@@ -178,13 +163,6 @@ type IncidentRow = {
   status: string;
   severity: string;
   created_at: string;
-};
-
-type GuestRow = {
-  id: string;
-  dietary_notes: string | null;
-  notes: string | null;
-  updated_at: string;
 };
 
 type TenantSettings = {
@@ -202,7 +180,6 @@ export default function AnalyticsPage() {
   const [waitlist, setWaitlist] = useState<WaitlistRow[]>([]);
   const [conversations, setConversations] = useState<ConversationRow[]>([]);
   const [incidents, setIncidents] = useState<IncidentRow[]>([]);
-  const [guests, setGuests] = useState<GuestRow[]>([]);
   // initialLoading = first paint only; subsequent fetches keep showing old
   // numbers so the page never "flashes" to placeholders while we refresh.
   const [initialLoading, setInitialLoading] = useState(true);
@@ -226,7 +203,7 @@ export default function AnalyticsPage() {
     const fetchAll = async () => {
       let resQ = supabase
         .from("reservations")
-        .select("id, date, time, party_size, status, source, cancellation_source, noshow_warning_responded, created_at, notes, allergies")
+        .select("id, date, time, party_size, status, source, cancellation_source, noshow_warning_responded, created_at")
         .eq("tenant_id", tenantId);
       if (startDate && endDate) resQ = resQ.gte("date", startDate).lte("date", endDate);
 
@@ -240,7 +217,7 @@ export default function AnalyticsPage() {
 
       let convQ = supabase
         .from("conversations")
-        .select("id, channel, status, sentiment, escalation_flag, created_at, summary, transcript")
+        .select("id, channel, status, sentiment, escalation_flag, created_at")
         .eq("tenant_id", tenantId);
       if (startDate && endDate) {
         convQ = convQ.gte("created_at", `${startDate}T00:00:00`).lte("created_at", `${endDate}T23:59:59`);
@@ -254,24 +231,13 @@ export default function AnalyticsPage() {
         incQ = incQ.gte("created_at", `${startDate}T00:00:00`).lte("created_at", `${endDate}T23:59:59`);
       }
 
-      // Guests: dietary/notes are persistent records. We scope them by
-      // updated_at so the box reflects what was recorded/touched in-range.
-      let guestQ = supabase
-        .from("guests")
-        .select("id, dietary_notes, notes, updated_at")
-        .eq("tenant_id", tenantId);
-      if (startDate && endDate) {
-        guestQ = guestQ.gte("updated_at", `${startDate}T00:00:00`).lte("updated_at", `${endDate}T23:59:59`);
-      }
-
-      const [resData, wlData, convData, incData, guestData] = await Promise.all([resQ, wlQ, convQ, incQ, guestQ]);
+      const [resData, wlData, convData, incData] = await Promise.all([resQ, wlQ, convQ, incQ]);
       if (cancelled) return;
 
       setReservations((resData.data as ReservationRow[] | null) || []);
       setWaitlist((wlData.data as WaitlistRow[] | null) || []);
       setConversations((convData.data as ConversationRow[] | null) || []);
       setIncidents((incData.data as IncidentRow[] | null) || []);
-      setGuests((guestData.data as GuestRow[] | null) || []);
       setInitialLoading(false);
     };
 
@@ -400,52 +366,6 @@ export default function AnalyticsPage() {
       avgSpend,
     };
   }, [reservations, waitlist, conversations, incidents, tenant?.settings, range]);
-
-  /* ──────────────────────────────────────────────────────────
-     Dietary requests — counted across every text source in range.
-     Each source item contributes at most 1 per category.
-     ────────────────────────────────────────────────────────── */
-  const dietary = useMemo(() => {
-    const counts: Record<DietKey, number> = { lactose: 0, gluten: 0, vegetarian: 0, vegan: 0 };
-    const tally = (text: string) => {
-      for (const d of detectDiets(text)) counts[d] += 1;
-    };
-
-    // Conversations: summary + every transcript message (chat & voice)
-    conversations.forEach((c) => {
-      const parts: string[] = [];
-      if (c.summary) parts.push(c.summary);
-      if (Array.isArray(c.transcript)) {
-        for (const m of c.transcript) if (m?.content) parts.push(m.content);
-      }
-      tally(parts.join(" \n "));
-    });
-
-    // Reservations: notes + allergies array
-    reservations.forEach((r) => {
-      const parts: string[] = [];
-      if (r.notes) parts.push(r.notes);
-      if (Array.isArray(r.allergies)) parts.push(r.allergies.join(" "));
-      tally(parts.join(" \n "));
-    });
-
-    // Guests: dietary_notes + general notes
-    guests.forEach((g) => {
-      const parts: string[] = [];
-      if (g.dietary_notes) parts.push(g.dietary_notes);
-      if (g.notes) parts.push(g.notes);
-      tally(parts.join(" \n "));
-    });
-
-    const rows: { key: DietKey; label: string; count: number }[] = [
-      { key: "lactose", label: t("analytics_dietary_lactose"), count: counts.lactose },
-      { key: "gluten", label: t("analytics_dietary_gluten"), count: counts.gluten },
-      { key: "vegetarian", label: t("analytics_dietary_vegetarian"), count: counts.vegetarian },
-      { key: "vegan", label: t("analytics_dietary_vegan"), count: counts.vegan },
-    ];
-    const total = rows.reduce((a, r) => a + r.count, 0);
-    return { rows, total };
-  }, [conversations, reservations, guests, t]);
 
   /* ──────────── render ──────────── */
 
@@ -731,77 +651,6 @@ export default function AnalyticsPage() {
               </ChartFrame>
             )}
           </div>
-        </div>
-      </div>
-
-      {/* Dietary requests — auto-detected from chat, voice & notes */}
-      <div
-        className="p-6 rounded-2xl border-2"
-        style={{
-          background: "rgba(252,246,237,0.85)",
-          borderColor: "#c4956a",
-          boxShadow: "0 20px 60px rgba(196,149,106,0.25), 0 8px 24px rgba(196,149,106,0.15)",
-        }}
-      >
-        <div className="flex items-start justify-between mb-2 gap-4">
-          <div>
-            <h3 className="text-[15px] font-semibold text-black">{t("analytics_dietary_title")}</h3>
-            <p className="mt-1 text-xs text-black/55">{t("analytics_dietary_subtitle")}</p>
-          </div>
-          <span className="text-[11px] font-semibold uppercase tracking-wider text-black/55 flex-shrink-0">
-            {rangeLabel(range)}
-          </span>
-        </div>
-        <div className="relative w-full h-72">
-          {!mounted || initialLoading ? (
-            <div className="absolute inset-0 flex items-center justify-center text-sm text-black/60">…</div>
-          ) : dietary.total === 0 ? (
-            <div className="absolute inset-0 flex items-center justify-center text-sm text-black/60 text-center px-4">
-              {t("analytics_dietary_none")}
-            </div>
-          ) : (
-            <ChartFrame>
-              <BarChart
-                data={dietary.rows}
-                layout="vertical"
-                margin={{ top: 8, right: 40, left: 20, bottom: 8 }}
-              >
-                <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="rgba(196,149,106,0.22)" />
-                <XAxis
-                  type="number"
-                  axisLine={false}
-                  tickLine={false}
-                  tick={{ fill: "#6b6258", fontSize: 11 }}
-                  allowDecimals={false}
-                />
-                <YAxis
-                  type="category"
-                  dataKey="label"
-                  axisLine={false}
-                  tickLine={false}
-                  width={120}
-                  tick={{ fill: "#000", fontSize: 12 }}
-                />
-                <Tooltip
-                  cursor={{ fill: "rgba(196,149,106,0.08)" }}
-                  contentStyle={tooltipContentStyle}
-                  labelStyle={tooltipLabelStyle}
-                  itemStyle={tooltipItemStyle}
-                  formatter={(value) => [`${value} ${t("analytics_dietary_requests_count")}`, ""] as [string, string]}
-                />
-                <Bar dataKey="count" radius={[0, 4, 4, 0]} maxBarSize={36}>
-                  {dietary.rows.map((row) => (
-                    <Cell key={row.key} fill={DIET_COLORS[row.key]} />
-                  ))}
-                  <LabelList
-                    dataKey="count"
-                    position="right"
-                    style={{ fill: "#000", fontSize: 12, fontWeight: 600 }}
-                  />
-                </Bar>
-              </BarChart>
-            </ChartFrame>
-          )}
         </div>
       </div>
     </div>
