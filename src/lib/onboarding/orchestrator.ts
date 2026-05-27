@@ -176,6 +176,7 @@ export async function runOnboard(
         restaurant_name: input.restaurant_name,
         language: input.language,
         opening_hours: input.opening_hours,
+        restaurant_phone: input.restaurant_phone,
       });
 
   try {
