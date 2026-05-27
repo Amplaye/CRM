@@ -753,7 +753,7 @@ export default function DashboardPage() {
               </ChartFrame>
             )}
           </div>
-          <p className="text-[11px] text-center text-black/55 mt-2">{t("analytics_dietary_subtitle")}</p>
+          <p className="text-[11px] text-center text-black mt-2">{t("analytics_dietary_subtitle")}</p>
         </div>
 
         {/* Channel breakdown pie */}
