@@ -605,7 +605,7 @@ export default function FloorPage() {
             sub: null,
             icon: Users,
             href: null,
-            decorative: true,
+            decorative: false,
           },
           {
             label: t("floor_tables"),
