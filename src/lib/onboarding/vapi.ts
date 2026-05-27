@@ -120,6 +120,52 @@ function setSystemMessage(model: any, systemPrompt: string): any {
   return { ...model, messages };
 }
 
+// The golden-source template ("PICNIC - Sofía") wires its voice tools to n8n
+// webhooks named `picnic-*` (e.g. /webhook/picnic-book). Those paths resolve to
+// PICNIC's tenant_id, so a verbatim clone would route every new tenant's
+// bookings into Picnic's CRM. Instead we point clones at the shared
+// multi-tenant workflow ([ALL] Voice Agent Webhooks — Multi-Tenant), whose
+// `tenant-voice-*` paths resolve the tenant dynamically from the calling
+// assistant id. The template stays on `picnic-*`; only clones are repointed.
+const VOICE_WEBHOOK_PATH_MAP: Record<string, string> = {
+  "picnic-check-slots": "tenant-voice-check-slots",
+  "picnic-book": "tenant-voice-book",
+  "picnic-modify": "tenant-voice-modify",
+  "picnic-cancel": "tenant-voice-cancel",
+  "picnic-waitlist": "tenant-voice-waitlist",
+  "picnic-update-notes": "tenant-voice-update-notes",
+  "picnic-post-call": "tenant-voice-post-call",
+};
+
+function remapWebhookUrl(url: unknown): unknown {
+  if (typeof url !== "string") return url;
+  for (const [from, to] of Object.entries(VOICE_WEBHOOK_PATH_MAP)) {
+    if (url.endsWith(`/${from}`)) return url.slice(0, -from.length) + to;
+  }
+  return url;
+}
+
+// Repoint a cloned assistant's tool server URLs (and the top-level serverUrl)
+// from the template's `picnic-*` webhooks to the shared `tenant-voice-*` ones.
+// Mutates a shallow-cloned copy; safe to call on the raw template payload.
+export function repointVoiceWebhooks(payload: Record<string, any>): Record<string, any> {
+  const out = { ...payload };
+  if ("serverUrl" in out) out.serverUrl = remapWebhookUrl(out.serverUrl);
+  const model = out.model;
+  if (model && Array.isArray(model.tools)) {
+    out.model = {
+      ...model,
+      tools: model.tools.map((t: any) => {
+        if (t?.server?.url) {
+          return { ...t, server: { ...t.server, url: remapWebhookUrl(t.server.url) } };
+        }
+        return t;
+      }),
+    };
+  }
+  return out;
+}
+
 export interface CloneInput {
   key: string;
   name: string;
@@ -149,11 +195,15 @@ export async function cloneTemplateAssistant({
   }
   const template = await getRes.json();
 
-  const payload: Record<string, any> = { ...template };
+  let payload: Record<string, any> = { ...template };
   for (const f of READ_ONLY_FIELDS) delete payload[f];
   payload.name = name;
   payload.model = setSystemMessage(template.model, systemPrompt);
   if (firstMessage !== undefined) payload.firstMessage = firstMessage;
+  // Route the clone's voice tools to the shared multi-tenant webhooks so its
+  // bookings land in THIS tenant's CRM, not the template's (Picnic). Without
+  // this, a verbatim clone inherits the `picnic-*` URLs and misroutes.
+  payload = repointVoiceWebhooks(payload);
 
   for (let attempt = 0; attempt < 6; attempt++) {
     const res = await fetch(`${VAPI_BASE}/assistant`, {

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { composeVapiSystemPrompt, isPromptArticle, findAssistantByName } from "./vapi";
+import { composeVapiSystemPrompt, isPromptArticle, findAssistantByName, repointVoiceWebhooks } from "./vapi";
 
 const VM_BLOCK_START = "<!-- VOICEMAIL_BLOCK_START -->";
 const VM_BLOCK_END = "<!-- VOICEMAIL_BLOCK_END -->";
@@ -123,5 +123,55 @@ describe("findAssistantByName", () => {
   it("tolerates a non-array body", async () => {
     mockFetch(200, { message: "unexpected" });
     expect(await findAssistantByName("k", "whatever")).toBeNull();
+  });
+});
+
+// A clone must never inherit the template's `picnic-*` webhook URLs, or every
+// new tenant's bookings land in Picnic's CRM (the oraz misrouting incident).
+describe("repointVoiceWebhooks", () => {
+  const base = "https://n8n.example.com/webhook";
+  const template = {
+    serverUrl: `${base}/picnic-post-call`,
+    firstMessage: "Ciao",
+    model: {
+      provider: "openai",
+      model: "gpt-4o-mini",
+      tools: [
+        { type: "function", function: { name: "check_availability" }, server: { url: `${base}/picnic-check-slots` } },
+        { type: "function", function: { name: "book_table" }, server: { url: `${base}/picnic-book` } },
+        { type: "function", function: { name: "get_current_date" }, server: { url: `${base}/get-current-date` } },
+        { type: "endCall", function: { name: "end_call" } },
+      ],
+    },
+  };
+
+  it("repoints picnic-* tool URLs to the shared tenant-voice-* webhooks", () => {
+    const out = repointVoiceWebhooks(template);
+    const urls = out.model.tools.map((t: any) => t.server?.url);
+    expect(urls).toContain(`${base}/tenant-voice-check-slots`);
+    expect(urls).toContain(`${base}/tenant-voice-book`);
+    expect(out.serverUrl).toBe(`${base}/tenant-voice-post-call`);
+  });
+
+  it("leaves shared/tenant-agnostic tools (get-current-date) and toolless entries untouched", () => {
+    const out = repointVoiceWebhooks(template);
+    const byName = (n: string) => out.model.tools.find((t: any) => t.function?.name === n);
+    expect(byName("get_current_date").server.url).toBe(`${base}/get-current-date`);
+    expect(byName("end_call").server).toBeUndefined();
+  });
+
+  it("does not mutate the input payload", () => {
+    const snapshot = JSON.stringify(template);
+    repointVoiceWebhooks(template);
+    expect(JSON.stringify(template)).toBe(snapshot);
+  });
+
+  it("leaves an already-repointed payload unchanged (idempotent)", () => {
+    const once = repointVoiceWebhooks(template);
+    const twice = repointVoiceWebhooks(once);
+    expect(twice.model.tools.map((t: any) => t.server?.url)).toEqual(
+      once.model.tools.map((t: any) => t.server?.url)
+    );
+    expect(twice.serverUrl).toBe(once.serverUrl);
   });
 });
