@@ -5,6 +5,7 @@ import { Reservation, ReservationEvent, ReservationStatus, Guest } from "@/lib/t
 import { revalidatePath } from "next/cache";
 import { matchWaitlistForSlotAction } from "./waitlist";
 import { getShift, getRotationMinutes, calculateEndTime, tablesNeeded } from "@/lib/restaurant-rules";
+import { sendReservationConfirmationWhatsApp } from "@/lib/whatsapp/confirm-on-update";
 
 /**
  * Creates a Reservation.
@@ -278,6 +279,28 @@ export async function updateReservationDetailsAction(params: {
       });
 
     if (eventErr) throw eventErr;
+
+    // Notify the guest by WhatsApp when this update CONFIRMS the booking from a
+    // non-confirmed state (e.g. staff approving an escalated large group). The
+    // voice agent only WhatsApps on the 1-6 auto-confirm path, so without this
+    // a hand-confirmed booking reaches the guest silently. Best-effort: a send
+    // failure (or an unsendable phone) must not fail the reservation update.
+    if (params.data.status === "confirmed" && current.status !== "confirmed") {
+      const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "https://crm.baliflowagency.com";
+      void sendReservationConfirmationWhatsApp({
+        tenantId: params.tenantId,
+        reservation: {
+          guest_id: current.guest_id,
+          date: params.data.date || current.date,
+          time: params.data.time || current.time,
+          party_size: params.data.party_size || current.party_size,
+          notes: params.data.notes ?? current.notes,
+          language: (current as any).language ?? null,
+        },
+        baseUrl,
+        aiSecret: process.env.AI_WEBHOOK_SECRET,
+      });
+    }
 
     // Log a booking-detail modification so the CRM notification bell picks it up
     const dateChanged = params.data.date && params.data.date !== current.date;
