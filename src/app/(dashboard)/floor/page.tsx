@@ -603,7 +603,7 @@ export default function FloorPage() {
             value: totalGuests,
             sub: null,
             icon: Users,
-            href: "/guests",
+            href: null,
           },
           {
             label: t("floor_tables"),
