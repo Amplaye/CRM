@@ -596,7 +596,8 @@ export default function FloorPage() {
             value: shiftActiveRes.length,
             sub: null as string | null,
             icon: Calendar,
-            href: "/reservations",
+            href: "/reservations" as string | null,
+            decorative: false as boolean,
           },
           {
             label: t("floor_guests"),
@@ -604,6 +605,7 @@ export default function FloorPage() {
             sub: null,
             icon: Users,
             href: null,
+            decorative: true,
           },
           {
             label: t("floor_tables"),
@@ -627,12 +629,13 @@ export default function FloorPage() {
             href: "/pending",
           },
         ].map((stat) => {
-          const clickable = !!stat.href && canEditPlan;
+          const navigable = !!stat.href && canEditPlan;
+          const showEffect = navigable || stat.decorative;
           return (
           <div
             key={stat.label}
-            onClick={() => clickable && router.push(stat.href!)}
-            className={`rounded-xl p-4 border-2 transition-all ${clickable ? 'cursor-pointer hover:shadow-lg hover:scale-[1.02]' : ''}`}
+            onClick={() => navigable && router.push(stat.href!)}
+            className={`rounded-xl p-4 border-2 transition-all ${showEffect ? 'cursor-pointer hover:shadow-lg hover:scale-[1.02]' : ''}`}
             style={{
               background: "rgba(252,246,237,0.85)",
               borderColor: "#c4956a",
