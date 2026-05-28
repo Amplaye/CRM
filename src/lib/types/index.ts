@@ -17,6 +17,7 @@ export interface User {
 export interface Tenant {
   id: string;
   name: string;
+  slug: string; // URL-safe identifier for public pages like /m/<slug>
   status: TenantStatus; // lifecycle gate — see ../tenants/status
   created_at: number;
   settings: TenantSettings; // typed in ./tenant-settings (includes `features` flags)

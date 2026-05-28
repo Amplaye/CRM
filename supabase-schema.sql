@@ -22,6 +22,9 @@ create table public.users (
 create table public.tenants (
   id uuid default uuid_generate_v4() primary key,
   name text not null,
+  -- Public URL-safe identifier for hosted pages like /m/<slug> (menu).
+  -- Unique, kebab-case; backfilled from name for legacy rows.
+  slug text not null unique,
   business_type text not null default 'restaurant' check (business_type in ('restaurant', 'ecommerce', 'services', 'other')),
   -- Tenant lifecycle (SaaS gate). Only 'trial'/'active' receive AI traffic;
   -- 'pending' (registered, not yet provisioned), 'suspended' (turned off) and

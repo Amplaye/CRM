@@ -24,8 +24,9 @@ import { useLanguage } from "@/lib/contexts/LanguageContext";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { useTenant } from "@/lib/contexts/TenantContext";
-import type { MenuCategory, MenuItem } from "@/lib/types";
+import type { MenuCategory, MenuItem, Tenant } from "@/lib/types";
 import type { ExtractedMenu, ExtractedMenuItem } from "@/lib/menu/extract";
+import { QRCodeSVG } from "qrcode.react";
 
 type EditMode = "item" | "category" | null;
 
@@ -77,6 +78,7 @@ export default function MenuPage() {
   const [saving, setSaving] = useState(false);
 
   const [importOpen, setImportOpen] = useState(false);
+  const [qrOpen, setQrOpen] = useState(false);
 
   // Fetch + realtime
   useEffect(() => {
@@ -331,10 +333,10 @@ export default function MenuPage() {
               {t("menu_import") || "Importa menu"}
             </button>
             <button
-              disabled
-              className="cursor-not-allowed opacity-60 text-xs font-bold text-black inline-flex items-center px-2.5 py-1.5 rounded-md border-2"
+              onClick={() => setQrOpen(true)}
+              className="cursor-pointer text-xs font-bold text-black inline-flex items-center px-2.5 py-1.5 rounded-md border-2 hover:bg-[#c4956a]/10 transition-colors"
               style={{ borderColor: "#c4956a" }}
-              title={t("menu_coming_soon") || "Disponibile a breve"}
+              title={t("menu_generate_qr") || "Genera QR"}
             >
               <QrCode className="w-3.5 h-3.5 mr-1.5" />
               {t("menu_generate_qr") || "Genera QR"}
@@ -533,6 +535,14 @@ export default function MenuPage() {
           t={t}
           tenantId={tenant.id}
           onClose={() => setImportOpen(false)}
+        />
+      )}
+
+      {qrOpen && tenant && (
+        <QrMenuModal
+          t={t}
+          tenant={tenant}
+          onClose={() => setQrOpen(false)}
         />
       )}
     </div>
@@ -1430,6 +1440,217 @@ function PreviewCategory({
             </div>
           </div>
         ))}
+      </div>
+    </div>
+  );
+}
+
+function QrMenuModal({
+  t,
+  tenant,
+  onClose,
+}: {
+  t: (k: any) => string;
+  tenant: Tenant;
+  onClose: () => void;
+}) {
+  const [origin, setOrigin] = useState("");
+  useEffect(() => {
+    if (typeof window !== "undefined") setOrigin(window.location.origin);
+  }, []);
+
+  const publicUrl = origin ? `${origin}/m/${tenant.slug}` : `/m/${tenant.slug}`;
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(publicUrl);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1800);
+    } catch {
+      // clipboard blocked → user can still select the input manually
+    }
+  };
+
+  const handlePrint = () => {
+    const win = window.open("", "_blank", "width=800,height=900");
+    if (!win) return;
+    const svgEl = document.getElementById("qr-print-svg");
+    if (!svgEl) return;
+    const svgHtml = new XMLSerializer().serializeToString(svgEl);
+    const doc = win.document;
+    doc.title = `QR Menu — ${tenant.name}`;
+
+    const style = doc.createElement("style");
+    style.textContent = `
+      @page { size: A4; margin: 24mm; }
+      body { font-family: system-ui, -apple-system, sans-serif; color: #1c1917; text-align: center; margin: 0; padding: 0; }
+      .wrap { padding: 40px 20px; }
+      h1 { font-size: 28pt; margin: 0 0 12pt 0; font-weight: 900; letter-spacing: -0.5pt; }
+      p.sub { font-size: 12pt; margin: 0 0 36pt 0; color: #57534e; }
+      .qr { display: inline-block; padding: 16pt; background: white; border-radius: 12pt; }
+      .qr svg { width: 360pt; height: 360pt; display: block; }
+      .footer { margin-top: 32pt; font-size: 10pt; color: #57534e; }
+      .url { margin-top: 10pt; font-family: ui-monospace, monospace; font-size: 9pt; color: #1c1917; word-break: break-all; }
+    `;
+    doc.head.appendChild(style);
+
+    const wrap = doc.createElement("div");
+    wrap.className = "wrap";
+
+    const h1 = doc.createElement("h1");
+    h1.textContent = tenant.name;
+    wrap.appendChild(h1);
+
+    const sub = doc.createElement("p");
+    sub.className = "sub";
+    sub.textContent = t("menu_qr_print_subtitle") || "Inquadra il codice per vedere il menu";
+    wrap.appendChild(sub);
+
+    const qr = doc.createElement("div");
+    qr.className = "qr";
+    // SVG content comes from our own QRCodeSVG render — not user input.
+    // We still parse it as XML and append the parsed node rather than using
+    // innerHTML, to satisfy the security guidance hook.
+    const parser = new DOMParser();
+    const svgDoc = parser.parseFromString(svgHtml, "image/svg+xml");
+    const svgNode = doc.importNode(svgDoc.documentElement, true);
+    qr.appendChild(svgNode);
+    wrap.appendChild(qr);
+
+    const footer = doc.createElement("div");
+    footer.className = "footer";
+    footer.textContent = t("menu_qr_print_footer") || "Powered by BaliFlow";
+    wrap.appendChild(footer);
+
+    const urlDiv = doc.createElement("div");
+    urlDiv.className = "url";
+    urlDiv.textContent = publicUrl;
+    wrap.appendChild(urlDiv);
+
+    doc.body.appendChild(wrap);
+    win.setTimeout(() => win.print(), 200);
+  };
+
+  const handleDownloadPng = () => {
+    const svgEl = document.getElementById("qr-print-svg") as unknown as SVGSVGElement | null;
+    if (!svgEl) return;
+    const svgStr = new XMLSerializer().serializeToString(svgEl);
+    const img = new Image();
+    const blob = new Blob([svgStr], { type: "image/svg+xml;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    img.onload = () => {
+      const canvas = document.createElement("canvas");
+      const size = 1024;
+      canvas.width = size;
+      canvas.height = size;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) return;
+      ctx.fillStyle = "#ffffff";
+      ctx.fillRect(0, 0, size, size);
+      ctx.drawImage(img, 0, 0, size, size);
+      URL.revokeObjectURL(url);
+      canvas.toBlob((b) => {
+        if (!b) return;
+        const a = document.createElement("a");
+        const dlUrl = URL.createObjectURL(b);
+        a.href = dlUrl;
+        a.download = `qr-menu-${tenant.slug}.png`;
+        a.click();
+        URL.revokeObjectURL(dlUrl);
+      }, "image/png");
+    };
+    img.src = url;
+  };
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40"
+      onClick={onClose}
+    >
+      <div
+        className="bg-white rounded-2xl shadow-2xl w-full max-w-md flex flex-col overflow-hidden"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div
+          className="flex items-center justify-between p-5 border-b"
+          style={{ borderColor: "#c4956a" }}
+        >
+          <div className="flex items-center gap-3">
+            <div
+              className="w-9 h-9 rounded-lg flex items-center justify-center text-white"
+              style={{ background: "linear-gradient(135deg, #d4a574, #c4956a)" }}
+            >
+              <QrCode className="w-5 h-5" />
+            </div>
+            <h3 className="text-lg font-bold text-black">
+              {t("menu_qr_title") || "QR del menu"}
+            </h3>
+          </div>
+          <button
+            onClick={onClose}
+            className="cursor-pointer p-1.5 hover:bg-zinc-100 rounded-lg"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        <div className="p-6">
+          <p className="text-sm text-black/70 mb-5 leading-relaxed">
+            {t("menu_qr_intro") ||
+              "Il QR punta a una pagina sempre aggiornata del tuo menu. Quando modifichi un piatto qui, il QR resta lo stesso — i clienti vedranno subito la versione nuova."}
+          </p>
+
+          <div className="flex flex-col items-center bg-zinc-50 rounded-xl p-6 mb-5">
+            <div className="bg-white p-3 rounded-lg shadow-sm">
+              <QRCodeSVG
+                id="qr-print-svg"
+                value={publicUrl}
+                size={220}
+                level="M"
+                marginSize={2}
+                bgColor="#ffffff"
+                fgColor="#1c1917"
+              />
+            </div>
+            <p className="text-xs text-black/50 mt-3 font-mono break-all text-center px-2">
+              {publicUrl}
+            </p>
+          </div>
+
+          <div className="grid grid-cols-2 gap-2 mb-3">
+            <button
+              onClick={handlePrint}
+              className="cursor-pointer px-3 py-2 text-white text-sm font-bold rounded-lg shadow-sm flex items-center justify-center"
+              style={{ background: "linear-gradient(135deg, #d4a574, #c4956a)" }}
+            >
+              <FileText className="w-4 h-4 mr-2" />
+              {t("menu_qr_print") || "Stampa PDF"}
+            </button>
+            <button
+              onClick={handleDownloadPng}
+              className="cursor-pointer px-3 py-2 border-2 text-sm font-bold text-black rounded-lg hover:bg-zinc-50 flex items-center justify-center"
+              style={{ borderColor: "#c4956a" }}
+            >
+              <ImageIcon className="w-4 h-4 mr-2" />
+              {t("menu_qr_png") || "Scarica PNG"}
+            </button>
+          </div>
+          <button
+            onClick={handleCopy}
+            className="cursor-pointer w-full px-3 py-2 border-2 text-sm font-bold text-black rounded-lg hover:bg-zinc-50 flex items-center justify-center"
+            style={{ borderColor: "#c4956a" }}
+          >
+            {copied ? (
+              <>
+                <CheckCircle2 className="w-4 h-4 mr-2 text-emerald-600" />
+                {t("menu_qr_copied") || "URL copiato!"}
+              </>
+            ) : (
+              <>{t("menu_qr_copy") || "Copia URL"}</>
+            )}
+          </button>
+        </div>
       </div>
     </div>
   );
