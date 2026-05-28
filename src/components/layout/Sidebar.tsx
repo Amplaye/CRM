@@ -133,7 +133,7 @@ export function Sidebar({ mobileOpen = false, onClose }: SidebarProps) {
 
   const sidebarContent = (
     <>
-      <div className="flex items-center px-3 py-2 border-b gap-2" style={{ borderColor: '#c4956a' }}>
+      <div className="h-14 md:h-16 flex items-center px-3 border-b gap-2 shrink-0" style={{ borderColor: '#c4956a' }}>
         <img src="/logo.png" alt="BaliFlow" className="w-7 h-7 md:w-8 md:h-8 rounded-md flex-shrink-0 shadow-sm object-cover" />
         {isAdmin ? (
           <div className="flex-1 min-w-0">
