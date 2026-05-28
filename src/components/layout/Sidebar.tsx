@@ -225,7 +225,7 @@ export function Sidebar({ mobileOpen = false, onClose }: SidebarProps) {
             </div>
             <button
               onClick={handleSignOut}
-              className="text-xs font-medium px-2.5 py-1 rounded-md border border-red-600 text-red-600 hover:bg-red-600 hover:text-white transition-colors flex-shrink-0"
+              className="text-xs font-medium px-2.5 py-1 rounded-md border border-red-600 text-red-600 hover:bg-red-600 hover:text-white transition-colors flex-shrink-0 cursor-pointer"
             >
               {t("auth_sign_out")}
             </button>
