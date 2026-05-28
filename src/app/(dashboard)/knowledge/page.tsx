@@ -450,7 +450,7 @@ export default function KnowledgePage() {
                <p className="text-black max-w-sm mt-2 leading-relaxed font-medium">{t("know_empty_desc") || "Select an article from the list or create a new one to start training your operational agents."}</p>
                <button
                   onClick={() => handleStartEdit()}
-                  className="mt-8 px-8 py-3 text-white font-bold rounded-2xl transition-all flex items-center group"
+                  className="cursor-pointer mt-8 px-8 py-3 text-white font-bold rounded-2xl transition-all flex items-center group"
                   style={{ background: 'linear-gradient(135deg, #d4a574, #c4956a)' }}
                >
                   <Plus className="w-5 h-5 mr-3 group-hover:rotate-90 transition-transform" />
