@@ -8,6 +8,7 @@ import {
   MessageSquare,
   Users,
   BookOpen,
+  UtensilsCrossed,
   Settings,
   Shield,
   LayoutGrid,
@@ -47,6 +48,7 @@ const navItems: Array<{ name: string; href: string; icon: any; badgeKey?: keyof 
   { name: "Guests", href: "/guests", icon: Users },
   { name: "Analytics", href: "/", icon: BarChart3 },
   { name: "Knowledge Base", href: "/knowledge", icon: BookOpen },
+  { name: "Menu", href: "/menu", icon: UtensilsCrossed },
   { name: "Settings", href: "/settings", icon: Settings },
 ];
 

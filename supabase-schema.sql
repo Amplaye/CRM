@@ -193,6 +193,37 @@ create table public.knowledge_articles (
 );
 
 -- ============================================
+-- 11. MENU (categories + items)
+-- ============================================
+-- Per-tenant menu. Categories are flat (no sub-categories). Items have no
+-- photos. Allergens + tags are arrays so the search bar can filter by
+-- allergene / tag without joins. Public read for /m/<slug> hosted menu page.
+create table public.menu_categories (
+  id uuid default uuid_generate_v4() primary key,
+  tenant_id uuid not null references public.tenants(id) on delete cascade,
+  name text not null,
+  sort_order integer not null default 0,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create table public.menu_items (
+  id uuid default uuid_generate_v4() primary key,
+  tenant_id uuid not null references public.tenants(id) on delete cascade,
+  category_id uuid references public.menu_categories(id) on delete set null,
+  name text not null,
+  description text not null default '',
+  price numeric(10,2),
+  currency text not null default 'EUR',
+  allergens text[] not null default '{}',
+  tags text[] not null default '{}',
+  available boolean not null default true,
+  sort_order integer not null default 0,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+-- ============================================
 -- 12. AUDIT EVENTS
 -- ============================================
 create table public.audit_events (

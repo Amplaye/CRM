@@ -60,6 +60,31 @@ export interface KnowledgeArticle {
   display_order: number;
 }
 
+export interface MenuCategory {
+  id: string;
+  tenant_id: string;
+  name: string;
+  sort_order: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface MenuItem {
+  id: string;
+  tenant_id: string;
+  category_id: string | null;
+  name: string;
+  description: string;
+  price: number | null;
+  currency: string;
+  allergens: string[];
+  tags: string[];
+  available: boolean;
+  sort_order: number;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface Guest {
   id: string;
   tenant_id: string;
