@@ -962,7 +962,9 @@ function ImportMenuModal({
   onClose: () => void;
 }) {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const [tab, setTab] = useState<"file" | "url">("file");
   const [file, setFile] = useState<File | null>(null);
+  const [url, setUrl] = useState("");
   const [stage, setStage] = useState<"idle" | "uploading" | "preview" | "saving" | "done">("idle");
   const [extracted, setExtracted] = useState<ExtractedMenu | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -977,6 +979,30 @@ function ImportMenuModal({
       form.append("tenant_id", tenantId);
       form.append("file", file);
       const res = await fetch("/api/menu/import-file", { method: "POST", body: form });
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data.error || `HTTP ${res.status}`);
+        setStage("idle");
+        return;
+      }
+      setExtracted(data.extracted);
+      setStage("preview");
+    } catch (e: any) {
+      setError(e?.message || "Errore di rete");
+      setStage("idle");
+    }
+  };
+
+  const handleUrlImport = async () => {
+    if (!url.trim()) return;
+    setStage("uploading");
+    setError(null);
+    try {
+      const res = await fetch("/api/menu/import-url", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tenant_id: tenantId, url: url.trim() }),
+      });
       const data = await res.json();
       if (!res.ok) {
         setError(data.error || `HTTP ${res.status}`);
@@ -1082,44 +1108,94 @@ function ImportMenuModal({
                 {t("menu_import_intro") ||
                   "Carica un PDF, una foto o uno screenshot del menu del ristorante. L'AI estrarrà categorie, piatti, prezzi e allergeni — controllerai tutto prima del salvataggio."}
               </p>
-              <div
-                onClick={() => fileInputRef.current?.click()}
-                className="cursor-pointer border-2 border-dashed rounded-xl p-8 text-center hover:bg-zinc-50"
-                style={{ borderColor: "#c4956a" }}
-              >
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept="application/pdf,image/jpeg,image/jpg,image/png,image/webp,image/gif"
-                  onChange={(e) => setFile(e.target.files?.[0] || null)}
-                  className="hidden"
-                />
-                {file ? (
-                  <div className="flex items-center justify-center gap-3">
-                    {file.type.startsWith("image/") ? (
-                      <ImageIcon className="w-8 h-8 text-black" />
-                    ) : (
-                      <FileText className="w-8 h-8 text-black" />
-                    )}
-                    <div className="text-left">
-                      <p className="font-bold text-black text-sm">{file.name}</p>
-                      <p className="text-xs text-black/60">
-                        {(file.size / 1024).toFixed(0)} KB · {file.type}
+
+              <div className="flex gap-2 mb-4 border-b" style={{ borderColor: "#c4956a" }}>
+                <button
+                  onClick={() => setTab("file")}
+                  className={`cursor-pointer px-4 py-2 text-sm font-bold border-b-2 -mb-px transition-colors ${
+                    tab === "file"
+                      ? "text-black"
+                      : "border-transparent text-black/50 hover:text-black"
+                  }`}
+                  style={tab === "file" ? { borderColor: "#c4956a" } : { borderColor: "transparent" }}
+                >
+                  <Upload className="w-4 h-4 inline mr-1.5 -mt-0.5" />
+                  {t("menu_import_tab_file") || "File"}
+                </button>
+                <button
+                  onClick={() => setTab("url")}
+                  className={`cursor-pointer px-4 py-2 text-sm font-bold border-b-2 -mb-px transition-colors ${
+                    tab === "url"
+                      ? "text-black"
+                      : "border-transparent text-black/50 hover:text-black"
+                  }`}
+                  style={tab === "url" ? { borderColor: "#c4956a" } : { borderColor: "transparent" }}
+                >
+                  <QrCode className="w-4 h-4 inline mr-1.5 -mt-0.5" />
+                  {t("menu_import_tab_url") || "URL del QR"}
+                </button>
+              </div>
+
+              {tab === "file" ? (
+                <div
+                  onClick={() => fileInputRef.current?.click()}
+                  className="cursor-pointer border-2 border-dashed rounded-xl p-8 text-center hover:bg-zinc-50"
+                  style={{ borderColor: "#c4956a" }}
+                >
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="application/pdf,image/jpeg,image/jpg,image/png,image/webp,image/gif"
+                    onChange={(e) => setFile(e.target.files?.[0] || null)}
+                    className="hidden"
+                  />
+                  {file ? (
+                    <div className="flex items-center justify-center gap-3">
+                      {file.type.startsWith("image/") ? (
+                        <ImageIcon className="w-8 h-8 text-black" />
+                      ) : (
+                        <FileText className="w-8 h-8 text-black" />
+                      )}
+                      <div className="text-left">
+                        <p className="font-bold text-black text-sm">{file.name}</p>
+                        <p className="text-xs text-black/60">
+                          {(file.size / 1024).toFixed(0)} KB · {file.type}
+                        </p>
+                      </div>
+                    </div>
+                  ) : (
+                    <div>
+                      <Upload className="w-10 h-10 mx-auto mb-3 text-black/40" />
+                      <p className="text-sm font-bold text-black">
+                        {t("menu_import_drop") || "Clicca per scegliere PDF o immagine"}
+                      </p>
+                      <p className="text-xs text-black/60 mt-1">
+                        {t("menu_import_formats") || "PDF, JPEG, PNG, WEBP — max 8 MB"}
                       </p>
                     </div>
-                  </div>
-                ) : (
-                  <div>
-                    <Upload className="w-10 h-10 mx-auto mb-3 text-black/40" />
-                    <p className="text-sm font-bold text-black">
-                      {t("menu_import_drop") || "Clicca per scegliere PDF o immagine"}
-                    </p>
-                    <p className="text-xs text-black/60 mt-1">
-                      {t("menu_import_formats") || "PDF, JPEG, PNG, WEBP — max 8 MB"}
-                    </p>
-                  </div>
-                )}
-              </div>
+                  )}
+                </div>
+              ) : (
+                <div>
+                  <label className="block text-xs uppercase font-bold tracking-widest text-black/60 mb-1.5">
+                    {t("menu_import_url_label") || "URL del menu (es. dal QR del ristorante)"}
+                  </label>
+                  <input
+                    type="url"
+                    inputMode="url"
+                    value={url}
+                    onChange={(e) => setUrl(e.target.value)}
+                    placeholder="https://..."
+                    className="w-full border-2 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-[#c4956a]"
+                    style={{ borderColor: "#c4956a", background: "rgba(252,246,237,0.6)" }}
+                  />
+                  <p className="text-xs text-black/60 mt-2">
+                    {t("menu_import_url_hint") ||
+                      "Scansiona il QR del ristorante con il telefono, copia l'URL che si apre e incollalo qui. Funziona con PDF, immagini o siti web semplici."}
+                  </p>
+                </div>
+              )}
+
               {error && (
                 <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-800">
                   {error}
@@ -1134,8 +1210,8 @@ function ImportMenuModal({
                   {t("cancel") || "Annulla"}
                 </button>
                 <button
-                  onClick={handleUpload}
-                  disabled={!file}
+                  onClick={tab === "file" ? handleUpload : handleUrlImport}
+                  disabled={tab === "file" ? !file : !url.trim()}
                   className="cursor-pointer disabled:cursor-not-allowed disabled:opacity-50 px-6 py-2 text-white text-sm font-bold rounded-lg shadow-sm flex items-center"
                   style={{ background: "linear-gradient(135deg, #d4a574, #c4956a)" }}
                 >
