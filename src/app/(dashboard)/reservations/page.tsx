@@ -689,7 +689,7 @@ export default function ReservationsPage() {
              </div>
              <div className="mx-5 sm:mx-6 py-2 sm:py-4 pb-4 sm:pb-4 border-t" style={{ borderColor: '#c4956a' }}>
                 <button type="submit" disabled={saving}
-                   className="w-full flex items-center justify-center bg-zinc-900 hover:bg-zinc-800 text-white font-medium py-2.5 px-4 rounded-lg transition-colors shadow-sm disabled:opacity-50">
+                   className="cursor-pointer w-full flex items-center justify-center bg-zinc-900 hover:bg-zinc-800 text-white font-medium py-2.5 px-4 rounded-lg transition-colors shadow-sm disabled:opacity-50">
                    <Save className="h-4 w-4 mr-2" /> {saving ? "Saving..." : t("res_edit_save")}
                 </button>
              </div>
