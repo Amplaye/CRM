@@ -1,12 +1,12 @@
-// Menu extraction from PDF/image/HTML text using Claude via Vercel
-// AI Gateway. Returns a structured preview the user reviews before saving
-// to the database.
+// Menu extraction from PDF/image/HTML text using OpenAI gpt-4o via the
+// Responses API. The Responses API accepts PDFs and images natively as
+// `input_file` blocks, so we don't need to rasterize PDFs server-side
+// (which would pull in pdfjs-dist + a native canvas binary).
 //
-// The prompt is deliberately strict: it asks for STRICT JSON only, never
-// invents prices or allergens, and groups items into flat categories
-// (sub-categories are not used per product decision 2026-05-28).
-
-import { anthropicMessages, firstText, type AnthropicContentBlock } from '@/lib/ai/anthropic-gateway';
+// We hit OpenAI directly (not via Vercel AI Gateway), because the Gateway
+// requires a credit card on file even for free credits and does not
+// support `file` input. The OPENAI_API_KEY is already configured on the
+// Vercel project.
 
 export type ExtractedMenuItem = {
   name: string;
@@ -28,8 +28,8 @@ export type ExtractedMenu = {
   raw_notes?: string;
 };
 
-const MODEL = 'anthropic/claude-sonnet-4.6';
-const MAX_TOKENS = 8000;
+const MODEL = 'gpt-4o';
+const MAX_OUTPUT_TOKENS = 8000;
 
 const SYSTEM_PROMPT = `You are a menu-extraction assistant for an Italian restaurant CRM.
 
@@ -70,40 +70,93 @@ object describing it. Follow these rules without exception:
 const USER_PROMPT = `Extract this menu as STRICT JSON following the schema in the system prompt.
 Return ONLY the JSON object — no prose, no markdown, no explanation.`;
 
+type ResponseContentBlock =
+  | { type: 'input_text'; text: string }
+  | { type: 'input_image'; image_url: string }
+  | { type: 'input_file'; filename: string; file_data: string };
+
+type ResponsesPayload = {
+  model: string;
+  max_output_tokens: number;
+  temperature: number;
+  instructions: string;
+  input: Array<{ role: 'user'; content: ResponseContentBlock[] }>;
+};
+
+type ResponsesApiResponse = {
+  output_text?: string;
+  output?: Array<{
+    type?: string;
+    content?: Array<{ type?: string; text?: string }>;
+  }>;
+};
+
+async function callResponses(content: ResponseContentBlock[]): Promise<string> {
+  const key = process.env.OPENAI_API_KEY;
+  if (!key) throw new Error('OPENAI_API_KEY not configured');
+
+  const payload: ResponsesPayload = {
+    model: MODEL,
+    max_output_tokens: MAX_OUTPUT_TOKENS,
+    temperature: 0,
+    instructions: SYSTEM_PROMPT,
+    input: [{ role: 'user', content }],
+  };
+
+  const res = await fetch('https://api.openai.com/v1/responses', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${key}`,
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (!res.ok) {
+    const body = await res.text().catch(() => '');
+    throw new Error(`openai responses ${res.status}: ${body.slice(0, 500)}`);
+  }
+
+  const json = (await res.json()) as ResponsesApiResponse;
+  return responsesText(json);
+}
+
 /**
- * Run extraction on a PDF or image buffer. The MIME type controls whether we
- * send a "document" (PDF) or "image" block to Claude. Both work via Vercel
- * AI Gateway.
+ * Extract the assembled text from a Responses API payload. Prefers the
+ * convenience `output_text` field; falls back to walking the structured
+ * `output[].content[]` tree for compatibility.
+ */
+export function responsesText(res: ResponsesApiResponse): string {
+  if (typeof res.output_text === 'string' && res.output_text.length > 0) {
+    return res.output_text;
+  }
+  const parts: string[] = [];
+  for (const out of res.output || []) {
+    for (const block of out.content || []) {
+      if (typeof block.text === 'string') parts.push(block.text);
+    }
+  }
+  return parts.join('');
+}
+
+/**
+ * Run extraction on a PDF or image buffer. Both PDFs and images are sent
+ * as `input_file` blocks to the Responses API — gpt-4o handles them
+ * natively without any client-side rasterization.
  */
 export async function extractMenuFromFile(opts: {
   base64Data: string;
   mediaType: 'application/pdf' | 'image/jpeg' | 'image/png' | 'image/webp' | 'image/gif';
 }): Promise<ExtractedMenu> {
-  const block: AnthropicContentBlock =
-    opts.mediaType === 'application/pdf'
-      ? {
-          type: 'document',
-          source: { type: 'base64', media_type: 'application/pdf', data: opts.base64Data },
-        }
-      : {
-          type: 'image',
-          source: { type: 'base64', media_type: opts.mediaType, data: opts.base64Data },
-        };
+  const isPdf = opts.mediaType === 'application/pdf';
+  const dataUrl = `data:${opts.mediaType};base64,${opts.base64Data}`;
 
-  const res = await anthropicMessages({
-    model: MODEL,
-    max_tokens: MAX_TOKENS,
-    temperature: 0,
-    system: SYSTEM_PROMPT,
-    messages: [
-      {
-        role: 'user',
-        content: [block, { type: 'text', text: USER_PROMPT }],
-      },
-    ],
-  });
+  const fileBlock: ResponseContentBlock = isPdf
+    ? { type: 'input_file', filename: 'menu.pdf', file_data: dataUrl }
+    : { type: 'input_image', image_url: dataUrl };
 
-  return parseExtraction(firstText(res));
+  const raw = await callResponses([fileBlock, { type: 'input_text', text: USER_PROMPT }]);
+  return parseExtraction(raw);
 }
 
 /**
@@ -112,21 +165,10 @@ export async function extractMenuFromFile(opts: {
  */
 export async function extractMenuFromText(text: string): Promise<ExtractedMenu> {
   const trimmed = text.slice(0, 100_000); // hard cap; menus are never this long
-  const res = await anthropicMessages({
-    model: MODEL,
-    max_tokens: MAX_TOKENS,
-    temperature: 0,
-    system: SYSTEM_PROMPT,
-    messages: [
-      {
-        role: 'user',
-        content: [
-          { type: 'text', text: `${USER_PROMPT}\n\n---MENU TEXT---\n${trimmed}` },
-        ],
-      },
-    ],
-  });
-  return parseExtraction(firstText(res));
+  const raw = await callResponses([
+    { type: 'input_text', text: `${USER_PROMPT}\n\n---MENU TEXT---\n${trimmed}` },
+  ]);
+  return parseExtraction(raw);
 }
 
 /**

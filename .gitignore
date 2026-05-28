@@ -52,3 +52,4 @@ tts-say-mcp.js
 
 # Local plaintext credentials — never commit
 _creds_tmp.md
+.env*.local
