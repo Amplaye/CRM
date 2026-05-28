@@ -323,7 +323,7 @@ export function GeneralTab() {
         <div className="mt-3 sm:mt-0 flex items-center space-x-3">
           {saved && <span className="text-sm font-medium text-green-600">{t("settings_saved")}</span>}
           <button onClick={handleSave} disabled={saving}
-            className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-lg shadow-sm text-white transition-colors disabled:opacity-50"
+            className="cursor-pointer inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-lg shadow-sm text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             style={{ background: "linear-gradient(135deg, #c4956a 0%, #b8845c 100%)" }}>
             <Save className="-ml-1 mr-2 h-5 w-5" />
             {saving ? "Saving..." : t("settings_save")}
