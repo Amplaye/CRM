@@ -15,12 +15,17 @@ import {
   EyeOff,
   Upload,
   QrCode,
+  Loader2,
+  FileText,
+  Image as ImageIcon,
+  CheckCircle2,
 } from "lucide-react";
 import { useLanguage } from "@/lib/contexts/LanguageContext";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { useTenant } from "@/lib/contexts/TenantContext";
 import type { MenuCategory, MenuItem } from "@/lib/types";
+import type { ExtractedMenu, ExtractedMenuItem } from "@/lib/menu/extract";
 
 type EditMode = "item" | "category" | null;
 
@@ -70,6 +75,8 @@ export default function MenuPage() {
   const [editingCategoryId, setEditingCategoryId] = useState<string | null>(null);
 
   const [saving, setSaving] = useState(false);
+
+  const [importOpen, setImportOpen] = useState(false);
 
   // Fetch + realtime
   useEffect(() => {
@@ -315,10 +322,10 @@ export default function MenuPage() {
               {t("menu_new_category") || "Nuova categoria"}
             </button>
             <button
-              disabled
-              className="cursor-not-allowed opacity-60 text-xs font-bold text-black inline-flex items-center px-2.5 py-1.5 rounded-md border-2"
-              style={{ borderColor: "#c4956a" }}
-              title={t("menu_coming_soon") || "Disponibile a breve"}
+              onClick={() => setImportOpen(true)}
+              className="cursor-pointer text-xs font-bold text-white inline-flex items-center px-2.5 py-1.5 rounded-md shadow-sm transition-colors"
+              style={{ background: "linear-gradient(135deg, #d4a574, #c4956a)" }}
+              title={t("menu_import") || "Importa menu"}
             >
               <Upload className="w-3.5 h-3.5 mr-1.5" />
               {t("menu_import") || "Importa menu"}
@@ -520,6 +527,14 @@ export default function MenuPage() {
           </div>
         )}
       </div>
+
+      {importOpen && tenant && (
+        <ImportMenuModal
+          t={t}
+          tenantId={tenant.id}
+          onClose={() => setImportOpen(false)}
+        />
+      )}
     </div>
   );
 }
@@ -933,6 +948,413 @@ function ItemDetailPane({
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+function ImportMenuModal({
+  t,
+  tenantId,
+  onClose,
+}: {
+  t: (k: any) => string;
+  tenantId: string;
+  onClose: () => void;
+}) {
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const [file, setFile] = useState<File | null>(null);
+  const [stage, setStage] = useState<"idle" | "uploading" | "preview" | "saving" | "done">("idle");
+  const [extracted, setExtracted] = useState<ExtractedMenu | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [savedCounts, setSavedCounts] = useState<{ cats: number; items: number } | null>(null);
+
+  const handleUpload = async () => {
+    if (!file) return;
+    setStage("uploading");
+    setError(null);
+    try {
+      const form = new FormData();
+      form.append("tenant_id", tenantId);
+      form.append("file", file);
+      const res = await fetch("/api/menu/import-file", { method: "POST", body: form });
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data.error || `HTTP ${res.status}`);
+        setStage("idle");
+        return;
+      }
+      setExtracted(data.extracted);
+      setStage("preview");
+    } catch (e: any) {
+      setError(e?.message || "Errore di rete");
+      setStage("idle");
+    }
+  };
+
+  const handleConfirm = async () => {
+    if (!extracted) return;
+    setStage("saving");
+    setError(null);
+    try {
+      const res = await fetch("/api/menu/import-confirm", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tenant_id: tenantId, extracted }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data.error || `HTTP ${res.status}`);
+        setStage("preview");
+        return;
+      }
+      setSavedCounts({ cats: data.categories_created, items: data.items_created });
+      setStage("done");
+    } catch (e: any) {
+      setError(e?.message || "Errore di rete");
+      setStage("preview");
+    }
+  };
+
+  const updatePreviewItem = (
+    catIdx: number | "uncat",
+    itemIdx: number,
+    patch: Partial<ExtractedMenuItem>
+  ) => {
+    if (!extracted) return;
+    const next: ExtractedMenu = JSON.parse(JSON.stringify(extracted));
+    if (catIdx === "uncat") {
+      next.uncategorized[itemIdx] = { ...next.uncategorized[itemIdx], ...patch };
+    } else {
+      next.categories[catIdx].items[itemIdx] = {
+        ...next.categories[catIdx].items[itemIdx],
+        ...patch,
+      };
+    }
+    setExtracted(next);
+  };
+
+  const removePreviewItem = (catIdx: number | "uncat", itemIdx: number) => {
+    if (!extracted) return;
+    const next: ExtractedMenu = JSON.parse(JSON.stringify(extracted));
+    if (catIdx === "uncat") {
+      next.uncategorized.splice(itemIdx, 1);
+    } else {
+      next.categories[catIdx].items.splice(itemIdx, 1);
+    }
+    setExtracted(next);
+  };
+
+  const totalItems = extracted
+    ? extracted.categories.reduce((s, c) => s + c.items.length, 0) + extracted.uncategorized.length
+    : 0;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40" onClick={onClose}>
+      <div
+        className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl max-h-[90vh] flex flex-col overflow-hidden"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div
+          className="flex items-center justify-between p-5 border-b"
+          style={{ borderColor: "#c4956a" }}
+        >
+          <div className="flex items-center gap-3">
+            <div
+              className="w-9 h-9 rounded-lg flex items-center justify-center text-white"
+              style={{ background: "linear-gradient(135deg, #d4a574, #c4956a)" }}
+            >
+              <Upload className="w-5 h-5" />
+            </div>
+            <h3 className="text-lg font-bold text-black">{t("menu_import") || "Importa menu"}</h3>
+          </div>
+          <button
+            onClick={onClose}
+            className="cursor-pointer p-1.5 hover:bg-zinc-100 rounded-lg"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto p-6">
+          {stage === "idle" && (
+            <>
+              <p className="text-sm text-black mb-4">
+                {t("menu_import_intro") ||
+                  "Carica un PDF, una foto o uno screenshot del menu del ristorante. L'AI estrarrà categorie, piatti, prezzi e allergeni — controllerai tutto prima del salvataggio."}
+              </p>
+              <div
+                onClick={() => fileInputRef.current?.click()}
+                className="cursor-pointer border-2 border-dashed rounded-xl p-8 text-center hover:bg-zinc-50"
+                style={{ borderColor: "#c4956a" }}
+              >
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="application/pdf,image/jpeg,image/jpg,image/png,image/webp,image/gif"
+                  onChange={(e) => setFile(e.target.files?.[0] || null)}
+                  className="hidden"
+                />
+                {file ? (
+                  <div className="flex items-center justify-center gap-3">
+                    {file.type.startsWith("image/") ? (
+                      <ImageIcon className="w-8 h-8 text-black" />
+                    ) : (
+                      <FileText className="w-8 h-8 text-black" />
+                    )}
+                    <div className="text-left">
+                      <p className="font-bold text-black text-sm">{file.name}</p>
+                      <p className="text-xs text-black/60">
+                        {(file.size / 1024).toFixed(0)} KB · {file.type}
+                      </p>
+                    </div>
+                  </div>
+                ) : (
+                  <div>
+                    <Upload className="w-10 h-10 mx-auto mb-3 text-black/40" />
+                    <p className="text-sm font-bold text-black">
+                      {t("menu_import_drop") || "Clicca per scegliere PDF o immagine"}
+                    </p>
+                    <p className="text-xs text-black/60 mt-1">
+                      {t("menu_import_formats") || "PDF, JPEG, PNG, WEBP — max 8 MB"}
+                    </p>
+                  </div>
+                )}
+              </div>
+              {error && (
+                <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-800">
+                  {error}
+                </div>
+              )}
+              <div className="mt-6 flex justify-end gap-2">
+                <button
+                  onClick={onClose}
+                  className="cursor-pointer px-4 py-2 border-2 rounded-lg text-sm font-bold text-black hover:bg-zinc-50"
+                  style={{ borderColor: "#c4956a" }}
+                >
+                  {t("cancel") || "Annulla"}
+                </button>
+                <button
+                  onClick={handleUpload}
+                  disabled={!file}
+                  className="cursor-pointer disabled:cursor-not-allowed disabled:opacity-50 px-6 py-2 text-white text-sm font-bold rounded-lg shadow-sm flex items-center"
+                  style={{ background: "linear-gradient(135deg, #d4a574, #c4956a)" }}
+                >
+                  <Upload className="w-4 h-4 mr-2" />
+                  {t("menu_import_analyze") || "Analizza menu"}
+                </button>
+              </div>
+            </>
+          )}
+
+          {stage === "uploading" && (
+            <div className="py-12 text-center">
+              <Loader2 className="w-12 h-12 mx-auto mb-4 animate-spin text-[#c4956a]" />
+              <p className="font-bold text-black">
+                {t("menu_import_analyzing") || "Sto leggendo il menu..."}
+              </p>
+              <p className="text-xs text-black/60 mt-1">
+                {t("menu_import_wait") || "Può richiedere fino a 30 secondi."}
+              </p>
+            </div>
+          )}
+
+          {stage === "preview" && extracted && (
+            <>
+              <div className="mb-4 flex items-center justify-between">
+                <div>
+                  <p className="text-xs uppercase font-bold tracking-widest text-black/60">
+                    {t("menu_import_preview") || "Anteprima"}
+                  </p>
+                  <p className="text-sm font-bold text-black">
+                    {extracted.categories.length} {t("menu_categories") || "categorie"} · {totalItems}{" "}
+                    {t("menu_dishes") || "piatti"}
+                  </p>
+                </div>
+                {extracted.raw_notes && (
+                  <p className="text-xs text-black/60 italic max-w-xs text-right">
+                    {extracted.raw_notes}
+                  </p>
+                )}
+              </div>
+
+              {error && (
+                <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-800">
+                  {error}
+                </div>
+              )}
+
+              <div className="space-y-5">
+                {extracted.categories.map((cat, ci) => (
+                  <PreviewCategory
+                    key={ci}
+                    t={t}
+                    name={cat.name}
+                    items={cat.items}
+                    onUpdate={(ii, patch) => updatePreviewItem(ci, ii, patch)}
+                    onRemove={(ii) => removePreviewItem(ci, ii)}
+                  />
+                ))}
+                {extracted.uncategorized.length > 0 && (
+                  <PreviewCategory
+                    t={t}
+                    name={t("menu_uncategorized") || "Senza categoria"}
+                    items={extracted.uncategorized}
+                    onUpdate={(ii, patch) => updatePreviewItem("uncat", ii, patch)}
+                    onRemove={(ii) => removePreviewItem("uncat", ii)}
+                  />
+                )}
+              </div>
+
+              <div className="mt-6 flex justify-end gap-2 sticky bottom-0 bg-white pt-3">
+                <button
+                  onClick={() => {
+                    setExtracted(null);
+                    setFile(null);
+                    setStage("idle");
+                  }}
+                  className="cursor-pointer px-4 py-2 border-2 rounded-lg text-sm font-bold text-black hover:bg-zinc-50"
+                  style={{ borderColor: "#c4956a" }}
+                >
+                  {t("menu_import_restart") || "Carica altro file"}
+                </button>
+                <button
+                  onClick={handleConfirm}
+                  disabled={totalItems === 0}
+                  className="cursor-pointer disabled:cursor-not-allowed disabled:opacity-50 px-6 py-2 text-white text-sm font-bold rounded-lg shadow-sm flex items-center"
+                  style={{ background: "linear-gradient(135deg, #d4a574, #c4956a)" }}
+                >
+                  <Save className="w-4 h-4 mr-2" />
+                  {t("menu_import_save") || "Salva nel menu"}
+                </button>
+              </div>
+            </>
+          )}
+
+          {stage === "saving" && (
+            <div className="py-12 text-center">
+              <Loader2 className="w-12 h-12 mx-auto mb-4 animate-spin text-[#c4956a]" />
+              <p className="font-bold text-black">
+                {t("menu_import_saving") || "Salvataggio nel menu..."}
+              </p>
+            </div>
+          )}
+
+          {stage === "done" && savedCounts && (
+            <div className="py-12 text-center">
+              <CheckCircle2 className="w-14 h-14 mx-auto mb-4 text-emerald-500" />
+              <p className="text-lg font-black text-black">
+                {t("menu_import_done") || "Menu importato!"}
+              </p>
+              <p className="text-sm text-black/70 mt-2">
+                {savedCounts.cats} {t("menu_categories") || "categorie"} · {savedCounts.items}{" "}
+                {t("menu_dishes") || "piatti"}
+              </p>
+              <button
+                onClick={onClose}
+                className="cursor-pointer mt-6 px-6 py-2 text-white text-sm font-bold rounded-lg shadow-sm"
+                style={{ background: "linear-gradient(135deg, #d4a574, #c4956a)" }}
+              >
+                {t("close") || "Chiudi"}
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function PreviewCategory({
+  t,
+  name,
+  items,
+  onUpdate,
+  onRemove,
+}: {
+  t: (k: any) => string;
+  name: string;
+  items: ExtractedMenuItem[];
+  onUpdate: (idx: number, patch: Partial<ExtractedMenuItem>) => void;
+  onRemove: (idx: number) => void;
+}) {
+  return (
+    <div>
+      <h4 className="text-xs uppercase font-black tracking-widest text-black mb-2">{name}</h4>
+      <div className="space-y-2">
+        {items.map((it, idx) => (
+          <div
+            key={idx}
+            className="border-2 rounded-lg p-3 hover:bg-zinc-50/50"
+            style={{ borderColor: "rgba(196,149,106,0.4)" }}
+          >
+            <div className="flex items-start gap-2">
+              <div className="flex-1 min-w-0">
+                <div className="flex gap-2 items-center">
+                  <input
+                    type="text"
+                    value={it.name}
+                    onChange={(e) => onUpdate(idx, { name: e.target.value })}
+                    className="flex-1 font-bold text-black text-sm bg-transparent focus:outline-none focus:bg-white focus:border-b focus:border-[#c4956a] py-0.5"
+                  />
+                  <input
+                    type="text"
+                    inputMode="decimal"
+                    value={it.price != null ? String(it.price) : ""}
+                    onChange={(e) => {
+                      const v = e.target.value;
+                      if (v === "") onUpdate(idx, { price: null });
+                      else {
+                        const n = Number(v.replace(",", "."));
+                        if (!Number.isNaN(n)) onUpdate(idx, { price: n });
+                      }
+                    }}
+                    placeholder="—"
+                    className="w-20 text-right text-sm font-bold text-black bg-transparent focus:outline-none focus:bg-white focus:border-b focus:border-[#c4956a] py-0.5"
+                  />
+                  <span className="text-sm font-bold text-black">
+                    {it.currency === "EUR" ? "€" : it.currency}
+                  </span>
+                </div>
+                {it.description && (
+                  <input
+                    type="text"
+                    value={it.description}
+                    onChange={(e) => onUpdate(idx, { description: e.target.value })}
+                    className="w-full text-xs text-black/70 bg-transparent focus:outline-none focus:bg-white focus:border-b focus:border-[#c4956a] py-0.5 mt-0.5"
+                  />
+                )}
+                {(it.allergens.length > 0 || it.tags.length > 0) && (
+                  <div className="mt-1.5 flex flex-wrap gap-1">
+                    {it.tags.map((tg) => (
+                      <span
+                        key={tg}
+                        className="text-[9px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700"
+                      >
+                        {tg}
+                      </span>
+                    ))}
+                    {it.allergens.map((al) => (
+                      <span
+                        key={al}
+                        className="text-[9px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded bg-orange-50 text-orange-700"
+                      >
+                        {al}
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
+              <button
+                onClick={() => onRemove(idx)}
+                className="cursor-pointer p-1.5 text-red-500 hover:bg-red-50 rounded"
+                title={t("menu_import_skip_item") || "Escludi piatto"}
+              >
+                <Trash2 className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
