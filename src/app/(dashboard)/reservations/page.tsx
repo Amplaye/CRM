@@ -502,14 +502,14 @@ export default function ReservationsPage() {
               <div className="flex p-1 rounded-lg border-2 ml-3" style={{ borderColor: '#c4956a', background: 'rgba(252,246,237,0.6)' }}>
                 <button
                   onClick={() => setViewMode("list")}
-                  className={`px-3 py-1 text-sm font-semibold rounded-md flex items-center transition-colors ${viewMode === 'list' ? 'text-white' : 'text-black'}`}
+                  className={`cursor-pointer px-3 py-1 text-sm font-semibold rounded-md flex items-center transition-colors ${viewMode === 'list' ? 'text-white' : 'text-black'}`}
                   style={{ background: viewMode === 'list' ? '#c4956a' : 'transparent' }}
                 >
                   <Menu className="w-4 h-4 mr-1.5" /> {t("res_list")}
                 </button>
                 <button
                   onClick={() => setViewMode("timeline")}
-                  className={`px-3 py-1 text-sm font-semibold rounded-md flex items-center transition-colors ${viewMode === 'timeline' ? 'text-white' : 'text-black'}`}
+                  className={`cursor-pointer px-3 py-1 text-sm font-semibold rounded-md flex items-center transition-colors ${viewMode === 'timeline' ? 'text-white' : 'text-black'}`}
                   style={{ background: viewMode === 'timeline' ? '#c4956a' : 'transparent' }}
                 >
                   <Clock className="w-4 h-4 mr-1.5" /> {t("res_timeline")}
@@ -521,7 +521,7 @@ export default function ReservationsPage() {
                   <button
                     key={s}
                     onClick={() => setShiftFilter(s)}
-                    className={`px-2 py-1 text-sm font-semibold rounded-md transition-colors whitespace-nowrap ${shiftFilter === s ? 'text-white' : 'text-black'}`}
+                    className={`cursor-pointer px-2 py-1 text-sm font-semibold rounded-md transition-colors whitespace-nowrap ${shiftFilter === s ? 'text-white' : 'text-black'}`}
                     style={{ background: shiftFilter === s ? '#c4956a' : 'transparent' }}
                   >
                     {s === 'all' ? t('res_all_shifts') : s === 'lunch' ? t('floor_lunch') : t('floor_dinner')}
