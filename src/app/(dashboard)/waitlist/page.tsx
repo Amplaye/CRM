@@ -541,7 +541,7 @@ export default function WaitlistPage() {
                       <div className="flex flex-row sm:flex-col gap-2 sm:ml-4">
                         <button
                           onClick={() => startConfirm(entry.id)}
-                          className="flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-3 sm:px-4 py-2 rounded-lg text-sm font-bold text-white transition-all hover:shadow-md"
+                          className="cursor-pointer flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-3 sm:px-4 py-2 rounded-lg text-sm font-bold text-white transition-all hover:shadow-md"
                           style={{ background: 'linear-gradient(135deg, #22c55e 0%, #16a34a 100%)' }}
                         >
                           <Check className="w-4 h-4" />
@@ -550,7 +550,7 @@ export default function WaitlistPage() {
                         {entry.status === 'waiting' && (
                           <button
                             onClick={() => markContacted(entry)}
-                            className="flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-3 sm:px-4 py-2 rounded-lg text-sm font-bold text-black bg-white border border-zinc-200 hover:bg-zinc-50 transition-all"
+                            className="cursor-pointer flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-3 sm:px-4 py-2 rounded-lg text-sm font-bold text-black bg-white border border-zinc-200 hover:bg-zinc-50 transition-all"
                           >
                             <Send className="w-4 h-4" />
                             {t("waitlist_notify")}

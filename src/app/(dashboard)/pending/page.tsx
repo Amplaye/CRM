@@ -440,7 +440,7 @@ export default function PendingPage() {
                       <div className="flex flex-row sm:flex-col gap-2 sm:ml-4">
                         <button
                           onClick={() => startConfirm(req.id)}
-                          className="flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-3 sm:px-4 py-2 rounded-lg text-sm font-bold text-white transition-all hover:shadow-md"
+                          className="cursor-pointer flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-3 sm:px-4 py-2 rounded-lg text-sm font-bold text-white transition-all hover:shadow-md"
                           style={{ background: 'linear-gradient(135deg, #22c55e 0%, #16a34a 100%)' }}
                         >
                           <Check className="w-4 h-4" />
@@ -448,7 +448,7 @@ export default function PendingPage() {
                         </button>
                         <button
                           onClick={() => handleReject(req.id)}
-                          className="flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-3 sm:px-4 py-2 rounded-lg text-sm font-bold text-red-600 bg-red-50 border border-red-200 hover:bg-red-100 transition-all"
+                          className="cursor-pointer flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-3 sm:px-4 py-2 rounded-lg text-sm font-bold text-red-600 bg-red-50 border border-red-200 hover:bg-red-100 transition-all"
                         >
                           <X className="w-4 h-4" />
                           {t("pending_reject_btn")}
