@@ -213,21 +213,23 @@ export function Sidebar({ mobileOpen = false, onClose }: SidebarProps) {
       </div>
 
       <div className="p-3 md:p-4 border-t" style={{ borderColor: '#c4956a', background: 'rgba(252,246,237,0.85)' }}>
-         <div className="flex items-center">
-            <div className="h-8 w-8 rounded-full bg-[#c4956a]/20 flex items-center justify-center text-[#8b6540] font-bold text-xs flex-shrink-0">
-              {avatarChar}
+         <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center min-w-0">
+              <div className="h-8 w-8 rounded-full bg-[#c4956a]/20 flex items-center justify-center text-[#8b6540] font-bold text-xs flex-shrink-0">
+                {avatarChar}
+              </div>
+              <div className="ml-3 overflow-hidden">
+                <p className="text-sm font-medium text-black truncate">{primaryLabel}</p>
+                <p className="text-xs font-medium text-black uppercase tracking-wider mt-0.5">{roleLabel}</p>
+              </div>
             </div>
-            <div className="ml-3 overflow-hidden">
-              <p className="text-sm font-medium text-black truncate">{primaryLabel}</p>
-              <p className="text-xs font-medium text-black uppercase tracking-wider mt-0.5">{roleLabel}</p>
-            </div>
+            <button
+              onClick={handleSignOut}
+              className="text-xs font-medium px-2.5 py-1 rounded-md border border-red-600 text-red-600 hover:bg-red-600 hover:text-white transition-colors flex-shrink-0"
+            >
+              {t("auth_sign_out")}
+            </button>
          </div>
-         <button
-           onClick={handleSignOut}
-           className="mt-3 md:mt-4 w-full text-xs text-black hover:text-black font-medium text-left px-1 transition-colors"
-         >
-           {t("auth_sign_out")}
-         </button>
       </div>
     </>
   );
