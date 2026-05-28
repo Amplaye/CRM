@@ -3,6 +3,7 @@
 import { Bell, Menu, Phone, MessageSquare, ShieldAlert, LogOut } from "lucide-react";
 import { useLanguage } from "@/lib/contexts/LanguageContext";
 import { useTenant } from "@/lib/contexts/TenantContext";
+import { useAuth } from "@/lib/contexts/AuthContext";
 import { useEffect, useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
@@ -25,6 +26,7 @@ interface TopbarProps {
 export function Topbar({ onMenuToggle }: TopbarProps) {
   const { t } = useLanguage();
   const { activeTenant, isImpersonating, switchTenant } = useTenant();
+  const { user, loading: authLoading } = useAuth();
   const router = useRouter();
   const [isClient, setIsClient] = useState(false);
   const [notifications, setNotifications] = useState<Notification[]>([]);
@@ -78,7 +80,7 @@ export function Topbar({ onMenuToggle }: TopbarProps) {
   // isn't enough — fetch recent activity on mount and on tab re-focus to
   // catch up on anything that happened while the tab was idle/closed.
   useEffect(() => {
-    if (!activeTenant?.id) return;
+    if (!activeTenant?.id || authLoading || !user) return;
     const supabase = createClient();
     let cancelled = false;
 
@@ -176,7 +178,7 @@ export function Topbar({ onMenuToggle }: TopbarProps) {
       document.removeEventListener('visibilitychange', onVis);
       window.removeEventListener('focus', onVis);
     };
-  }, [activeTenant?.id, t]);
+  }, [activeTenant?.id, t, user, authLoading]);
 
   // Close dropdown on outside click
   useEffect(() => {

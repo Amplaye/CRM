@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useRef } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { useAuth } from "@/lib/contexts/AuthContext";
 import { getLastSeen, Section } from "./useLastSeen";
 
 export interface NotificationCounts {
@@ -22,6 +23,7 @@ export function useNotificationCounts(tenantId?: string | null): NotificationCou
   const [counts, setCounts] = useState<NotificationCounts>(ZERO);
   const [seenTick, setSeenTick] = useState(0);
   const supabaseRef = useRef(createClient());
+  const { user, loading: authLoading } = useAuth();
 
   // Bump on lastSeen changes so we re-fetch immediately when user opens a section.
   useEffect(() => {
@@ -31,7 +33,7 @@ export function useNotificationCounts(tenantId?: string | null): NotificationCou
   }, []);
 
   useEffect(() => {
-    if (!tenantId) {
+    if (!tenantId || authLoading || !user) {
       setCounts(ZERO);
       return;
     }
@@ -118,7 +120,7 @@ export function useNotificationCounts(tenantId?: string | null): NotificationCou
       clearInterval(id);
       supabase.removeChannel(channel);
     };
-  }, [tenantId, seenTick]);
+  }, [tenantId, seenTick, user, authLoading]);
 
   return counts;
 }

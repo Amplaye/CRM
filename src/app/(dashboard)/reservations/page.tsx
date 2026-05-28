@@ -486,7 +486,7 @@ export default function ReservationsPage() {
         {!isHost && (
         <div className="p-4 flex flex-col sm:flex-row items-center justify-between border-b rounded-t-xl hidden md:flex border-x border-t border-2" style={{ background: 'rgba(252,246,237,0.85)', borderColor: '#c4956a' }}>
            <div className="flex flex-wrap gap-y-2 items-center min-w-0">
-              <button onClick={() => shiftDate(-1)} className="p-1.5 rounded-lg hover:bg-[#c4956a]/10 transition-colors mr-1">
+              <button onClick={() => shiftDate(-1)} className="cursor-pointer p-1.5 rounded-lg hover:bg-[#c4956a]/10 transition-colors mr-1">
                 <ChevronLeft className="w-5 h-5 text-black" />
               </button>
               <input
@@ -496,7 +496,7 @@ export default function ReservationsPage() {
                 className="border-2 rounded-md px-3 py-1.5 text-sm font-medium text-black focus:ring-1 focus:ring-[#c4956a] focus:outline-none shadow-sm"
                 style={{ borderColor: '#c4956a', background: 'rgba(252,246,237,0.6)' }}
               />
-              <button onClick={() => shiftDate(1)} className="p-1.5 rounded-lg hover:bg-[#c4956a]/10 transition-colors ml-1">
+              <button onClick={() => shiftDate(1)} className="cursor-pointer p-1.5 rounded-lg hover:bg-[#c4956a]/10 transition-colors ml-1">
                 <ChevronRight className="w-5 h-5 text-black" />
               </button>
               <div className="flex p-1 rounded-lg border-2 ml-3" style={{ borderColor: '#c4956a', background: 'rgba(252,246,237,0.6)' }}>
