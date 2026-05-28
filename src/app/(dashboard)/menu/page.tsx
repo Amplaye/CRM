@@ -185,7 +185,12 @@ export default function MenuPage() {
 
   const handleDeleteItem = async (id: string) => {
     if (!confirm(t("menu_confirm_delete_item") || "Eliminare questo piatto?")) return;
-    await supabase.from("menu_items").delete().eq("id", id);
+    setItems((prev) => prev.filter((it) => it.id !== id));
+    const { error } = await supabase.from("menu_items").delete().eq("id", id);
+    if (error) {
+      console.error("[menu] delete item failed", error);
+      alert(`Errore eliminazione: ${error.message}`);
+    }
   };
 
   const handleDeleteCategory = async (id: string) => {
@@ -194,7 +199,12 @@ export default function MenuPage() {
       ? `${t("menu_confirm_delete_cat_used") || "Categoria con piatti collegati"} (${used}). ${t("menu_items_become_uncategorized") || "I piatti diventeranno senza categoria."}`
       : t("menu_confirm_delete_cat") || "Eliminare questa categoria?";
     if (!confirm(msg)) return;
-    await supabase.from("menu_categories").delete().eq("id", id);
+    const { error } = await supabase.from("menu_categories").delete().eq("id", id);
+    if (error) {
+      console.error("[menu] delete category failed", error);
+      alert(`Errore eliminazione categoria: ${error.message}`);
+      return;
+    }
     setCategoryModal(null);
   };
 
@@ -202,7 +212,7 @@ export default function MenuPage() {
     <div className="p-0 h-[calc(100dvh-3.5rem)] md:h-[calc(100dvh-4rem)] flex overflow-hidden">
       {/* LEFT PANE: categories sidebar */}
       <aside
-        className="border-r flex flex-col shrink-0 w-full md:w-[280px]"
+        className="border-r flex flex-col shrink-0 w-full md:w-[340px]"
         style={{ background: "rgba(252,246,237,0.85)", borderColor: "#c4956a" }}
       >
         <div className="p-5 border-b shrink-0" style={{ borderColor: "#c4956a" }}>
@@ -259,7 +269,7 @@ export default function MenuPage() {
                       <span className="text-sm font-bold text-black truncate">{c.name}</span>
                       <span
                         className={`text-[10px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded ${
-                          active ? "bg-[#c4956a] text-white" : "bg-zinc-200 text-zinc-600"
+                          active ? "bg-[#c4956a] text-white" : "bg-zinc-100 text-black"
                         }`}
                       >
                         {count}
@@ -278,14 +288,14 @@ export default function MenuPage() {
                         : "hover:bg-white/60"
                     }`}
                   >
-                    <span className="text-sm font-bold italic text-black/70 truncate">
+                    <span className="text-sm font-bold italic text-black truncate">
                       {t("menu_uncategorized") || "Senza categoria"}
                     </span>
                     <span
                       className={`text-[10px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded ${
                         selectedCategoryId === UNCAT_ID
                           ? "bg-[#c4956a] text-white"
-                          : "bg-zinc-200 text-zinc-600"
+                          : "bg-zinc-100 text-black"
                       }`}
                     >
                       {itemsByCat.get(null)?.length || 0}
@@ -355,7 +365,7 @@ export default function MenuPage() {
               style={{ borderColor: "#c4956a", background: "rgba(252,246,237,0.95)" }}
             >
               <div className="min-w-0">
-                <p className="text-[10px] uppercase font-black tracking-widest text-black/50">
+                <p className="text-[10px] uppercase font-black tracking-widest text-black">
                   {t("menu_category") || "Categoria"}
                 </p>
                 <div className="flex items-center gap-2">
@@ -367,14 +377,14 @@ export default function MenuPage() {
                   {activeCategory && (
                     <button
                       onClick={() => setCategoryModal({ mode: "edit", category: activeCategory })}
-                      className="cursor-pointer p-1.5 text-black/50 hover:text-black hover:bg-zinc-100 rounded"
+                      className="cursor-pointer p-1.5 text-black hover:text-black hover:bg-zinc-100 rounded"
                       title={t("menu_edit_category") || "Modifica categoria"}
                     >
                       <Settings2 className="w-4 h-4" />
                     </button>
                   )}
                 </div>
-                <p className="text-xs text-black/60 mt-0.5">
+                <p className="text-xs text-black mt-0.5">
                   {visibleItems.length} {t("menu_dishes") || "piatti"}
                   {search.trim() && (
                     <>
@@ -402,7 +412,7 @@ export default function MenuPage() {
             {/* Table */}
             <div className="flex-1 overflow-auto">
               {visibleItems.length === 0 ? (
-                <div className="p-16 text-center text-black/60">
+                <div className="p-16 text-center text-black">
                   <UtensilsCrossed className="w-12 h-12 mx-auto mb-3 opacity-20" />
                   <p className="text-sm font-bold">
                     {search.trim()
@@ -432,17 +442,14 @@ export default function MenuPage() {
                     style={{ background: "rgba(252,246,237,0.98)" }}
                   >
                     <tr className="border-b" style={{ borderColor: "#c4956a" }}>
-                      <th className="px-5 py-3 text-[10px] uppercase font-black tracking-widest text-black/60 w-[24%]">
+                      <th className="px-5 py-3 text-[10px] uppercase font-black tracking-widest text-black w-[30%]">
                         {t("menu_item_name") || "Nome"}
                       </th>
-                      <th className="px-5 py-3 text-[10px] uppercase font-black tracking-widest text-black/60">
+                      <th className="px-5 py-3 text-[10px] uppercase font-black tracking-widest text-black">
                         {t("menu_item_ingredients") || "Ingredienti"}
                       </th>
-                      <th className="px-5 py-3 text-[10px] uppercase font-black tracking-widest text-black/60 w-[10%] text-right">
+                      <th className="px-5 py-3 text-[10px] uppercase font-black tracking-widest text-black w-[12%] text-right">
                         {t("menu_item_price") || "Prezzo"}
-                      </th>
-                      <th className="px-5 py-3 text-[10px] uppercase font-black tracking-widest text-black/60 w-[24%]">
-                        {t("menu_item_tags") || "Tag"}
                       </th>
                       <th className="px-3 py-3 w-[80px]"></th>
                     </tr>
@@ -468,26 +475,14 @@ export default function MenuPage() {
                           </div>
                         </td>
                         <td
-                          className="px-5 py-3 align-top text-black/70 cursor-pointer"
+                          className="px-5 py-3 align-top text-black cursor-pointer"
                           onClick={() => setItemModal({ mode: "edit", item: it })}
                         >
                           <p className="line-clamp-2 leading-snug">
                             {it.description || (
-                              <span className="text-black/30 italic">—</span>
+                              <span className="text-black italic">—</span>
                             )}
                           </p>
-                          {it.allergens.length > 0 && (
-                            <div className="mt-1.5 flex flex-wrap gap-1">
-                              {it.allergens.map((al) => (
-                                <span
-                                  key={al}
-                                  className="text-[9px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded bg-orange-50 text-orange-700"
-                                >
-                                  {al.replace("_", " ")}
-                                </span>
-                              ))}
-                            </div>
-                          )}
                         </td>
                         <td
                           className="px-5 py-3 align-top text-right font-bold text-black whitespace-nowrap cursor-pointer"
@@ -496,31 +491,12 @@ export default function MenuPage() {
                           {it.price != null ? (
                             <>
                               {it.price.toFixed(2)}{" "}
-                              <span className="text-black/60">
+                              <span className="text-black">
                                 {it.currency === "EUR" ? "€" : it.currency}
                               </span>
                             </>
                           ) : (
-                            <span className="text-black/30 italic">—</span>
-                          )}
-                        </td>
-                        <td
-                          className="px-5 py-3 align-top cursor-pointer"
-                          onClick={() => setItemModal({ mode: "edit", item: it })}
-                        >
-                          {it.tags.length > 0 ? (
-                            <div className="flex flex-wrap gap-1">
-                              {it.tags.map((tg) => (
-                                <span
-                                  key={tg}
-                                  className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-200"
-                                >
-                                  {tg}
-                                </span>
-                              ))}
-                            </div>
-                          ) : (
-                            <span className="text-black/30 italic">—</span>
+                            <span className="text-black italic">—</span>
                           )}
                         </td>
                         <td className="px-3 py-3 align-top text-right whitespace-nowrap">
@@ -529,7 +505,7 @@ export default function MenuPage() {
                               e.stopPropagation();
                               setItemModal({ mode: "edit", item: it });
                             }}
-                            className="cursor-pointer p-1.5 text-black/60 hover:text-black hover:bg-zinc-100 rounded"
+                            className="cursor-pointer p-1.5 text-black hover:bg-zinc-100 rounded"
                             title={t("edit") || "Modifica"}
                           >
                             <Pencil className="w-4 h-4" />
@@ -700,12 +676,25 @@ function ItemEditModal({
       tags,
       available,
     };
+    let error: { message: string } | null = null;
     if (isEditing) {
-      await supabase.from("menu_items").update(payload).eq("id", initial.id);
+      const res = await supabase
+        .from("menu_items")
+        .update(payload)
+        .eq("id", initial.id)
+        .select()
+        .single();
+      error = res.error;
     } else {
-      await supabase.from("menu_items").insert(payload);
+      const res = await supabase.from("menu_items").insert(payload).select().single();
+      error = res.error;
     }
     setSaving(false);
+    if (error) {
+      console.error("[menu] save item failed", error);
+      alert(`Errore salvataggio: ${error.message}`);
+      return;
+    }
     onClose();
   };
 
@@ -790,8 +779,12 @@ function ItemEditModal({
               <select
                 value={categoryId}
                 onChange={(e) => setCategoryId(e.target.value)}
-                className="w-full border-2 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-[#c4956a]"
-                style={{ borderColor: "#c4956a", background: "rgba(252,246,237,0.6)" }}
+                className="w-full border-2 rounded-lg pl-3 pr-10 py-2 text-sm text-black focus:outline-none focus:ring-1 focus:ring-[#c4956a] appearance-none bg-no-repeat"
+                style={{
+                  borderColor: "#c4956a",
+                  background:
+                    "rgba(252,246,237,0.6) url(\"data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E\") no-repeat right 14px center",
+                }}
               >
                 <option value="">{t("menu_uncategorized") || "Senza categoria"}</option>
                 {categories.map((c) => (
@@ -831,11 +824,10 @@ function ItemEditModal({
                     key={al}
                     type="button"
                     onClick={() => setAllergens(toggleArrayValue(allergens, al))}
-                    className={`cursor-pointer text-[11px] uppercase font-bold tracking-wider px-2.5 py-1 rounded border-2 transition-colors ${
-                      active
-                        ? "bg-orange-100 border-orange-300 text-orange-800"
-                        : "border-zinc-200 text-zinc-500 hover:bg-zinc-50"
+                    className={`cursor-pointer text-[11px] uppercase font-bold tracking-wider px-2.5 py-1 rounded border-2 text-black transition-colors ${
+                      active ? "bg-[#c4956a]/20" : "hover:bg-[#c4956a]/10"
                     }`}
+                    style={{ borderColor: "#c4956a" }}
                   >
                     {al.replace("_", " ")}
                   </button>
@@ -856,11 +848,10 @@ function ItemEditModal({
                     key={tg}
                     type="button"
                     onClick={() => setTags(toggleArrayValue(tags, tg))}
-                    className={`cursor-pointer text-[11px] uppercase font-bold tracking-wider px-2.5 py-1 rounded border-2 transition-colors ${
-                      active
-                        ? "bg-emerald-100 border-emerald-300 text-emerald-800"
-                        : "border-zinc-200 text-zinc-500 hover:bg-zinc-50"
+                    className={`cursor-pointer text-[11px] uppercase font-bold tracking-wider px-2.5 py-1 rounded border-2 text-black transition-colors ${
+                      active ? "bg-[#c4956a]/20" : "hover:bg-[#c4956a]/10"
                     }`}
+                    style={{ borderColor: "#c4956a" }}
                   >
                     {tg}
                   </button>
@@ -932,19 +923,33 @@ function CategoryEditModal({
   const handleSave = async () => {
     if (!name.trim()) return;
     setSaving(true);
+    let error: { message: string } | null = null;
     if (isEditing) {
-      await supabase
+      const res = await supabase
         .from("menu_categories")
         .update({ name: name.trim() })
-        .eq("id", initial!.id);
+        .eq("id", initial!.id)
+        .select()
+        .single();
+      error = res.error;
     } else {
-      await supabase.from("menu_categories").insert({
-        tenant_id: tenantId,
-        name: name.trim(),
-        sort_order: existingMaxOrder + 1,
-      });
+      const res = await supabase
+        .from("menu_categories")
+        .insert({
+          tenant_id: tenantId,
+          name: name.trim(),
+          sort_order: existingMaxOrder + 1,
+        })
+        .select()
+        .single();
+      error = res.error;
     }
     setSaving(false);
+    if (error) {
+      console.error("[menu] save category failed", error);
+      alert(`Errore salvataggio categoria: ${error.message}`);
+      return;
+    }
     onClose();
   };
 
@@ -1193,7 +1198,7 @@ function ImportMenuModal({
                   className={`cursor-pointer px-4 py-2 text-sm font-bold border-b-2 -mb-px transition-colors ${
                     tab === "file"
                       ? "text-black"
-                      : "border-transparent text-black/50 hover:text-black"
+                      : "border-transparent text-black hover:text-black"
                   }`}
                   style={tab === "file" ? { borderColor: "#c4956a" } : { borderColor: "transparent" }}
                 >
@@ -1205,7 +1210,7 @@ function ImportMenuModal({
                   className={`cursor-pointer px-4 py-2 text-sm font-bold border-b-2 -mb-px transition-colors ${
                     tab === "url"
                       ? "text-black"
-                      : "border-transparent text-black/50 hover:text-black"
+                      : "border-transparent text-black hover:text-black"
                   }`}
                   style={tab === "url" ? { borderColor: "#c4956a" } : { borderColor: "transparent" }}
                 >
@@ -1236,18 +1241,18 @@ function ImportMenuModal({
                       )}
                       <div className="text-left">
                         <p className="font-bold text-black text-sm">{file.name}</p>
-                        <p className="text-xs text-black/60">
+                        <p className="text-xs text-black">
                           {(file.size / 1024).toFixed(0)} KB · {file.type}
                         </p>
                       </div>
                     </div>
                   ) : (
                     <div>
-                      <Upload className="w-10 h-10 mx-auto mb-3 text-black/40" />
+                      <Upload className="w-10 h-10 mx-auto mb-3 text-black" />
                       <p className="text-sm font-bold text-black">
                         {t("menu_import_drop") || "Clicca per scegliere PDF o immagine"}
                       </p>
-                      <p className="text-xs text-black/60 mt-1">
+                      <p className="text-xs text-black mt-1">
                         {t("menu_import_formats") || "PDF, JPEG, PNG, WEBP — max 8 MB"}
                       </p>
                     </div>
@@ -1255,7 +1260,7 @@ function ImportMenuModal({
                 </div>
               ) : (
                 <div>
-                  <label className="block text-xs uppercase font-bold tracking-widest text-black/60 mb-1.5">
+                  <label className="block text-xs uppercase font-bold tracking-widest text-black mb-1.5">
                     {t("menu_import_url_label") || "URL del menu (es. dal QR del ristorante)"}
                   </label>
                   <input
@@ -1267,7 +1272,7 @@ function ImportMenuModal({
                     className="w-full border-2 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-[#c4956a]"
                     style={{ borderColor: "#c4956a", background: "rgba(252,246,237,0.6)" }}
                   />
-                  <p className="text-xs text-black/60 mt-2">
+                  <p className="text-xs text-black mt-2">
                     {t("menu_import_url_hint") ||
                       "Scansiona il QR del ristorante con il telefono, copia l'URL che si apre e incollalo qui. Funziona con PDF, immagini o siti web semplici."}
                   </p>
@@ -1306,7 +1311,7 @@ function ImportMenuModal({
               <p className="font-bold text-black">
                 {t("menu_import_analyzing") || "Sto leggendo il menu..."}
               </p>
-              <p className="text-xs text-black/60 mt-1">
+              <p className="text-xs text-black mt-1">
                 {t("menu_import_wait") || "Può richiedere fino a 30 secondi."}
               </p>
             </div>
@@ -1316,7 +1321,7 @@ function ImportMenuModal({
             <>
               <div className="mb-4 flex items-center justify-between">
                 <div>
-                  <p className="text-xs uppercase font-bold tracking-widest text-black/60">
+                  <p className="text-xs uppercase font-bold tracking-widest text-black">
                     {t("menu_import_preview") || "Anteprima"}
                   </p>
                   <p className="text-sm font-bold text-black">
@@ -1325,7 +1330,7 @@ function ImportMenuModal({
                   </p>
                 </div>
                 {extracted.raw_notes && (
-                  <p className="text-xs text-black/60 italic max-w-xs text-right">
+                  <p className="text-xs text-black italic max-w-xs text-right">
                     {extracted.raw_notes}
                   </p>
                 )}
@@ -1399,7 +1404,7 @@ function ImportMenuModal({
               <p className="text-lg font-black text-black">
                 {t("menu_import_done") || "Menu importato!"}
               </p>
-              <p className="text-sm text-black/70 mt-2">
+              <p className="text-sm text-black mt-2">
                 {savedCounts.cats} {t("menu_categories") || "categorie"} · {savedCounts.items}{" "}
                 {t("menu_dishes") || "piatti"}
               </p>
@@ -1474,7 +1479,7 @@ function PreviewCategory({
                     type="text"
                     value={it.description}
                     onChange={(e) => onUpdate(idx, { description: e.target.value })}
-                    className="w-full text-xs text-black/70 bg-transparent focus:outline-none focus:bg-white focus:border-b focus:border-[#c4956a] py-0.5 mt-0.5"
+                    className="w-full text-xs text-black bg-transparent focus:outline-none focus:bg-white focus:border-b focus:border-[#c4956a] py-0.5 mt-0.5"
                   />
                 )}
                 {(it.allergens.length > 0 || it.tags.length > 0) && (
@@ -1661,7 +1666,7 @@ function QrMenuModal({
         </div>
 
         <div className="p-6">
-          <p className="text-sm text-black/70 mb-5 leading-relaxed">
+          <p className="text-sm text-black mb-5 leading-relaxed">
             {t("menu_qr_intro") ||
               "Il QR punta a una pagina sempre aggiornata del tuo menu. Quando modifichi un piatto qui, il QR resta lo stesso — i clienti vedranno subito la versione nuova."}
           </p>
@@ -1678,7 +1683,7 @@ function QrMenuModal({
                 fgColor="#1c1917"
               />
             </div>
-            <p className="text-xs text-black/50 mt-3 font-mono break-all text-center px-2">
+            <p className="text-xs text-black mt-3 font-mono break-all text-center px-2">
               {publicUrl}
             </p>
           </div>
