@@ -238,7 +238,7 @@ export default function KnowledgePage() {
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-black" />
                   <input type="text" placeholder={t("know_search_placeholder") || "Search articles..."} className="w-full pl-9 pr-3 py-2 border-2 rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-[#c4956a]" style={{ borderColor: '#c4956a', background: 'rgba(252,246,237,0.6)' }} />
                </div>
-               <button onClick={() => handleStartEdit()} className="p-2 text-white rounded-lg transition-colors shadow-sm" style={{ background: 'linear-gradient(135deg, #d4a574, #c4956a)' }} title="New article">
+               <button onClick={() => handleStartEdit()} className="cursor-pointer p-2 text-white rounded-lg transition-colors shadow-sm" style={{ background: 'linear-gradient(135deg, #d4a574, #c4956a)' }} title="New article">
                   <Plus className="w-5 h-5" />
                </button>
             </div>
