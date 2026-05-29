@@ -56,4 +56,27 @@ describe("createTenant — the single way to create a tenant", () => {
       createTenant(client, { name: "X", settings: {}, status: "active" })
     ).rejects.toThrow(/tenant insert: duplicate key/);
   });
+
+  // Regression guard: `tenants.slug` is NOT NULL with no default. Leaving it
+  // unset is exactly what silently 500'd self-signup (register-tenant → insert
+  // with null slug → fail → owner left with no tenant → wizard skipped). The
+  // helper must ALWAYS write a non-empty slug.
+  it("always writes a non-empty slug derived from the name", async () => {
+    const { client, captured } = fakeClient();
+    await createTenant(client, { name: "Trattoria Rossa", settings: {}, status: "trial" });
+    expect(captured.row?.slug).toBeTruthy();
+    expect(captured.row?.slug).toMatch(/^trattoria-rossa-[a-z0-9]+$/);
+  });
+
+  it("falls back to a usable slug when the name has no slug-able characters", async () => {
+    const { client, captured } = fakeClient();
+    await createTenant(client, { name: "🍕🍕", settings: {}, status: "trial" });
+    expect(captured.row?.slug).toMatch(/^resto-[a-z0-9]+$/);
+  });
+
+  it("honours an explicit slug when the call site supplies one", async () => {
+    const { client, captured } = fakeClient();
+    await createTenant(client, { name: "Whatever", settings: {}, status: "active", slug: "my-slug" });
+    expect(captured.row?.slug).toMatch(/^my-slug-[a-z0-9]+$/);
+  });
 });
