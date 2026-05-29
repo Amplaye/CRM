@@ -77,9 +77,17 @@ export const TenantProvider = ({ children }: { children: ReactNode }) => {
       try {
         setLoading(true);
 
+        // Select tenant columns explicitly (not tenants(*)). The embedded join
+        // otherwise streams every column; naming them keeps the payload tight,
+        // which matters on slow mobile links where the dashboard is gated on
+        // this query (it sat on the spinner and the CRM language — read from the
+        // tenant's crm_locale — stayed on the stale localStorage value).
         const [userRes, membershipsRes] = await Promise.all([
           supabase.from("users").select("global_role").eq("id", user.id).single(),
-          supabase.from("tenant_members").select("tenant_id, role, tenants(*)").eq("user_id", user.id)
+          supabase
+            .from("tenant_members")
+            .select("tenant_id, role, tenants(id, name, slug, status, created_at, settings)")
+            .eq("user_id", user.id)
         ]);
 
         const role = (userRes.data?.global_role || "user") as GlobalRole;

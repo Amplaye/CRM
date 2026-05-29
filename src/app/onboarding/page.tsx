@@ -1,11 +1,11 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import {
   ChevronLeft, ChevronRight, ChevronDown, Check, AlertTriangle, RefreshCw,
-  Building, Clock, Grid3X3, ClipboardList, Loader2, Globe, Star, Info, MessageCircle,
+  Building, Clock, ClipboardList, Loader2, Globe, Star, Info, MessageCircle,
 } from "lucide-react";
 import {
   KbQuestionnaire, PaymentMethod, ParkingKind, Allergen, CancellationNotice, defaultQuestionnaire,
@@ -34,7 +34,7 @@ import { UI, type UiLang, UI_LANGS } from "./i18n";
 // dedicated support line, change only this constant.
 const SUPPORT_WHATSAPP = "34641459479"; // E.164 without "+", for wa.me
 
-type Step = 1 | 2 | 3 | 4 | 5;
+type Step = 1 | 2 | 3 | 4;
 type AsstLang = "es" | "it" | "en" | "de";
 type CrmLang = "es" | "it" | "en" | "de";
 
@@ -135,9 +135,9 @@ export default function OnboardingPage() {
 
   // STEP 2 — hours
   const [hours, setHours] = useState<Hours>(DEFAULT_HOURS);
-  // STEP 3 — tables
-  const [tableSize, setTableSize] = useState<"small" | "medium" | "large">("medium");
-  // STEP 4 — questionnaire (4 cards)
+  // STEP 3 — questionnaire (5 cards). The starter floor plan is generated from
+  // the declared capacity (Card 1 → capacity_seats), so there's no separate
+  // small/medium/large table step any more.
   const [q, setQ] = useState<KbQuestionnaire>(() => defaultQuestionnaire());
 
   const [step, setStep] = useState<Step>(1);
@@ -270,7 +270,6 @@ export default function OnboardingPage() {
           timezone,
           review_url: reviewUrl.trim(),
           opening_hours: hours,
-          table_size_preset: tableSize,
           questionnaire: q,
         }),
       });
@@ -369,9 +368,10 @@ export default function OnboardingPage() {
       <h1 className="text-2xl font-bold mb-1">{t.title}</h1>
       <p className="text-sm text-black mb-6">{t.subtitle}</p>
 
-      <div className="flex items-center gap-1.5 sm:gap-2 mb-6">
-        {[1, 2, 3, 4, 5].map((n) => (<div key={n} className={`flex-1 h-1.5 rounded-full transition-colors ${n <= step ? "bg-[#c4956a]" : "bg-zinc-200"}`} />))}
+      <div className="flex items-center gap-1.5 sm:gap-2 mb-2">
+        {[1, 2, 3, 4].map((n) => (<div key={n} className={`flex-1 h-1.5 rounded-full transition-colors ${n <= step ? "bg-[#c4956a]" : "bg-zinc-200"}`} />))}
       </div>
+      <p className="text-[11px] text-black/60 mb-5">{t.stepCounter.replace("{n}", String(step)).replace("{total}", "4")}</p>
 
       {step === 1 && (
         <div className="space-y-5">
@@ -435,27 +435,8 @@ export default function OnboardingPage() {
       )}
 
       {step === 3 && (
-        <div className="space-y-4">
-          <h2 className="text-base font-bold flex items-center gap-2"><Grid3X3 className="w-4 h-4" /> 3. {t.s3}</h2>
-          <p className="text-xs text-black">{t.s3hint}</p>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            {[
-              { v: "small", lbl: t.tblSmall, desc: t.tblSmallD },
-              { v: "medium", lbl: t.tblMedium, desc: t.tblMediumD },
-              { v: "large", lbl: t.tblLarge, desc: t.tblLargeD },
-            ].map((o) => (
-              <button key={o.v} onClick={() => setTableSize(o.v as any)} className={`p-4 rounded-xl border-2 text-left transition-colors ${tableSize === o.v ? "border-[#c4956a] bg-[#c4956a]/10" : "border-zinc-200 bg-white hover:border-[#c4956a]/50"}`}>
-                <div className="font-bold text-sm">{o.lbl}</div>
-                <div className="text-xs text-black mt-0.5">{o.desc}</div>
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {step === 4 && (
         <div className="space-y-5">
-          <h2 className="text-base font-bold flex items-center gap-2"><ClipboardList className="w-4 h-4" /> 4. {t.s4}</h2>
+          <h2 className="text-base font-bold flex items-center gap-2"><ClipboardList className="w-4 h-4" /> 3. {t.s4}</h2>
           <p className="text-xs text-black">{t.s4hint}</p>
 
           {/* Card 1 — Reservations & groups */}
@@ -562,15 +543,14 @@ export default function OnboardingPage() {
         </div>
       )}
 
-      {step === 5 && (
+      {step === 4 && (
         <div className="space-y-4">
-          <h2 className="text-base font-bold flex items-center gap-2"><Check className="w-4 h-4" /> 5. {t.s5}</h2>
+          <h2 className="text-base font-bold flex items-center gap-2"><Check className="w-4 h-4" /> 4. {t.s5}</h2>
           <div className="rounded-xl border-2 border-amber-200 bg-amber-50 p-4 text-sm">
             <ul className="text-xs space-y-0.5">
               <li>• {t.sumRestaurant}: <b>{restaurantName || "—"}</b></li>
               <li>• {t.sumLanguages}: <b>{languages.map((l) => ASST_LANGS.find(([v]) => v === l)?.[1] || l).join(", ")}</b></li>
               <li>• {t.sumCrmLang}: <b>{ASST_LANGS.find(([v]) => v === crmLocale)?.[1] || crmLocale}</b></li>
-              <li>• {t.sumTables}: {tableSize}</li>
               <li>• {t.sumCapacity}: {q.capacity_seats} · {t.sumAutoConfirm} {q.auto_confirm_max}</li>
               <li>• {t.sumPayments}: {q.payments.length || "—"}</li>
             </ul>
@@ -581,7 +561,7 @@ export default function OnboardingPage() {
 
       <div className="mt-6 flex items-center justify-between gap-3">
         <button onClick={() => setStep((s) => (s - 1) as Step)} disabled={step === 1} className="flex items-center gap-1 px-4 py-2 rounded-lg border-2 border-zinc-200 disabled:opacity-30"><ChevronLeft className="w-4 h-4" /> {t.back}</button>
-        {step < 5 ? (
+        {step < 4 ? (
           <button onClick={() => setStep((s) => (s + 1) as Step)} className="flex items-center gap-1 px-5 py-2.5 rounded-lg bg-[#c4956a] text-white font-bold hover:bg-[#b3855c] transition-colors">{t.next} <ChevronRight className="w-4 h-4" /></button>
         ) : (
           <button onClick={submit} disabled={!restaurantName.trim()} className="flex items-center gap-1 px-5 py-2.5 rounded-lg bg-emerald-600 text-white font-bold disabled:opacity-50"><Check className="w-4 h-4" /> {t.createCrm}</button>
@@ -704,18 +684,50 @@ function LangMultiSelect({
 // can sit next to any label without extra wiring; only needs the help text.
 function InfoTip({ text }: { text: string }) {
   const [open, setOpen] = useState(false);
+  // Resolved on open from the button's on-screen position so the bubble is
+  // clamped inside the viewport — a centred absolute tooltip used to overflow
+  // the right edge on mobile for fields near the screen border.
+  const [pos, setPos] = useState<{ left: number; top: number; arrow: number } | null>(null);
   const ref = useRef<HTMLSpanElement>(null);
+  const btnRef = useRef<HTMLButtonElement>(null);
+
+  // Position the bubble (fixed) above the icon, then nudge it left/right so it
+  // never crosses an 8px margin on either side. The arrow tracks the icon.
+  const place = useCallback(() => {
+    const b = btnRef.current?.getBoundingClientRect();
+    if (!b) return;
+    const M = 8; // viewport margin
+    const W = Math.min(256, window.innerWidth - M * 2); // bubble width (max 16rem)
+    const iconCenter = b.left + b.width / 2;
+    let left = iconCenter - W / 2;
+    left = Math.max(M, Math.min(left, window.innerWidth - M - W));
+    const arrow = Math.max(12, Math.min(W - 12, iconCenter - left)); // arrow x inside bubble
+    setPos({ left, top: b.top - 8, arrow });
+  }, []);
+
   useEffect(() => {
     if (!open) return;
+    place();
     const onDoc = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false); };
     const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setOpen(false); };
+    const onMove = () => place(); // keep aligned on scroll / orientation change
     document.addEventListener("mousedown", onDoc);
     document.addEventListener("keydown", onKey);
-    return () => { document.removeEventListener("mousedown", onDoc); document.removeEventListener("keydown", onKey); };
-  }, [open]);
+    window.addEventListener("scroll", onMove, true);
+    window.addEventListener("resize", onMove);
+    return () => {
+      document.removeEventListener("mousedown", onDoc);
+      document.removeEventListener("keydown", onKey);
+      window.removeEventListener("scroll", onMove, true);
+      window.removeEventListener("resize", onMove);
+    };
+  }, [open, place]);
+
+  const W = typeof window !== "undefined" ? Math.min(256, window.innerWidth - 16) : 256;
   return (
-    <span ref={ref} className="relative inline-flex align-middle group" onMouseEnter={() => setOpen(true)} onMouseLeave={() => setOpen(false)}>
+    <span ref={ref} className="relative inline-flex align-middle" onMouseEnter={() => setOpen(true)} onMouseLeave={() => setOpen(false)}>
       <button
+        ref={btnRef}
         type="button"
         onClick={(e) => { e.preventDefault(); setOpen((o) => !o); }}
         aria-label={text}
@@ -724,13 +736,14 @@ function InfoTip({ text }: { text: string }) {
       >
         <Info className="w-3.5 h-3.5" aria-hidden />
       </button>
-      {open && (
+      {open && pos && (
         <span
           role="tooltip"
-          className="absolute left-1/2 -translate-x-1/2 bottom-full mb-1.5 z-30 w-56 max-w-[min(16rem,70vw)] rounded-lg bg-[#3a2a18] px-3 py-2 text-[11px] font-normal normal-case tracking-normal leading-snug text-white shadow-lg"
+          style={{ position: "fixed", left: pos.left, top: pos.top, width: W, transform: "translateY(-100%)" }}
+          className="z-50 rounded-lg bg-[#3a2a18] px-3 py-2 text-[11px] font-normal normal-case tracking-normal leading-snug text-white shadow-lg"
         >
           {text}
-          <span className="absolute left-1/2 -translate-x-1/2 top-full -mt-px border-4 border-transparent border-t-[#3a2a18]" aria-hidden />
+          <span style={{ left: pos.arrow }} className="absolute top-full -mt-px -translate-x-1/2 border-4 border-transparent border-t-[#3a2a18]" aria-hidden />
         </span>
       )}
     </span>
@@ -805,18 +818,28 @@ function AddressField({ label, value, placeholder, hint, searching, onChange, on
     return () => { clearTimeout(id); ctrl.abort(); };
   }, [value]);
 
-  // Close the suggestion list when clicking outside.
+  // Close the suggestion list when tapping/clicking outside. Listen for touch
+  // too — on mobile only `touchstart` fires, so a mouse-only listener left the
+  // list stuck open (and could swallow the tap on a result).
   useEffect(() => {
-    const onDoc = (e: MouseEvent) => { if (boxRef.current && !boxRef.current.contains(e.target as Node)) setOpen(false); };
+    const onDoc = (e: Event) => { if (boxRef.current && !boxRef.current.contains(e.target as Node)) setOpen(false); };
     document.addEventListener("mousedown", onDoc);
-    return () => document.removeEventListener("mousedown", onDoc);
+    document.addEventListener("touchstart", onDoc);
+    return () => {
+      document.removeEventListener("mousedown", onDoc);
+      document.removeEventListener("touchstart", onDoc);
+    };
   }, []);
 
+  const pickedRef = useRef(false);
   const pick = (r: NominatimResult) => {
+    if (pickedRef.current) return; // guard the touchend→synthetic-mousedown double fire
+    pickedRef.current = true;
     skipRef.current = true;
     onSelect(buildPick(r));
     setOpen(false);
     setResults([]);
+    setTimeout(() => { pickedRef.current = false; }, 400);
   };
 
   return (
@@ -830,12 +853,21 @@ function AddressField({ label, value, placeholder, hint, searching, onChange, on
       />
       {hint && <p className="text-[11px] text-black/60 mt-1">{hint}</p>}
       {(open || loading) && (
-        <div className="absolute z-20 left-0 right-0 mt-1 rounded-lg border border-zinc-300 bg-white shadow-lg overflow-hidden">
+        <div className="absolute z-20 left-0 right-0 mt-1 rounded-lg border border-zinc-300 bg-white shadow-lg overflow-y-auto max-h-64">
           {loading && results.length === 0 ? (
             <div className="px-3 py-2 text-xs text-black/60 flex items-center gap-2"><Loader2 className="w-3 h-3 animate-spin" />{searching || "…"}</div>
           ) : (
             results.map((r, i) => (
-              <button key={i} type="button" onMouseDown={(e) => { e.preventDefault(); pick(r); }} className="w-full text-left px-3 py-2 text-sm hover:bg-[#c4956a]/10 border-b border-zinc-100 last:border-0">
+              // Both handlers: onMouseDown(preventDefault) wins on desktop before
+              // the input blurs; onTouchEnd handles mobile, where mousedown is
+              // unreliable. skipRef in pick() guards the double-fire.
+              <button
+                key={i}
+                type="button"
+                onMouseDown={(e) => { e.preventDefault(); pick(r); }}
+                onTouchEnd={(e) => { e.preventDefault(); pick(r); }}
+                className="w-full text-left px-3 py-2 text-sm hover:bg-[#c4956a]/10 active:bg-[#c4956a]/20 border-b border-zinc-100 last:border-0"
+              >
                 {r.display_name}
               </button>
             ))

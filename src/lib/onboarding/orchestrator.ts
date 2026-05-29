@@ -35,7 +35,11 @@ export interface OnboardInput {
   // availability API derives the actual cut-off per day (close − offset). -1 =
   // shift not served. Persisted to settings.last_reservation_offset.
   last_reservation_offset?: { lunch: number; dinner: number };
-  table_size_preset: "small" | "medium" | "large"; // 6/12/20 tables auto-generated
+  // Total covers (seats) the owner declared in the questionnaire. The starter
+  // floor plan is generated so its seat total matches this exactly, so the
+  // Tables section and the KB never disagree. (The old small/medium/large preset
+  // was removed — it created a fixed table count unrelated to declared capacity.)
+  capacity_seats: number;
   // On/off capabilities derived from the wizard answers (terrace, pets, events,
   // languages, double-shift). Persisted to settings.features so the Settings →
   // Features toggles open already matching what the owner said in the wizard.
@@ -68,12 +72,6 @@ export interface OnboardProgress {
   ok: boolean;
   data?: any;
 }
-
-const DEFAULT_TABLE_SIZE: Record<OnboardInput["table_size_preset"], number> = {
-  small: 6,
-  medium: 12,
-  large: 20,
-};
 
 // The n8n workflows that make up the OFFICIAL RESTAURANT TEMPLATE
 // ("template ristorante v1"). These live workflows are the golden source:
@@ -152,18 +150,44 @@ async function n8n(method: string, path: string, body?: any): Promise<any> {
   }
 }
 
-function buildDefaultTables(tenantId: string, count: number) {
-  // Half inside, half outside for demo realism. Round/square mixed by seat count.
-  const tables: any[] = [];
-  for (let i = 1; i <= count; i++) {
-    const insideCount = Math.ceil(count / 2);
+// Build a realistic table layout whose seat total equals the capacity the owner
+// declared in the questionnaire. We no longer ask for a small/medium/large
+// preset: the declared seat count is the single source of truth, so the Tables
+// section and the KB always agree (they used to drift — the preset made N tables
+// of mixed 2/4/6 seats, unrelated to the declared capacity).
+//
+// Mix: mostly 2- and 4-tops with the occasional 6-top, the bread-and-butter of a
+// real dining room. We lay them out greedily until the running seat total
+// reaches the target, then trim/pad the LAST table so the sum lands EXACTLY on
+// the declared number (clamped to a sane 2..40 range). Half inside, half out.
+function buildTablesForCapacity(tenantId: string, declaredSeats: number) {
+  const target = Math.max(2, Math.min(40, Math.round(declaredSeats) || 12));
+  // Repeating pattern of party sizes; index i picks pattern[i % len].
+  const pattern = [2, 4, 2, 4, 6, 2, 4];
+  const sizes: number[] = [];
+  let sum = 0;
+  for (let i = 0; sum < target; i++) {
+    let s = pattern[i % pattern.length];
+    if (sum + s > target) s = target - sum; // last table absorbs the remainder
+    if (s <= 0) break;
+    sizes.push(s);
+    sum += s;
+  }
+  // A 1-seat remainder reads oddly; merge it into the previous table when possible.
+  if (sizes.length >= 2 && sizes[sizes.length - 1] === 1) {
+    sizes[sizes.length - 2] += 1;
+    sizes.pop();
+  }
+
+  const insideCount = Math.ceil(sizes.length / 2);
+  return sizes.map((seats, idx) => {
+    const i = idx + 1;
     const zone = i <= insideCount ? "inside" : "outside";
-    const seats = i % 4 === 0 ? 6 : i % 3 === 0 ? 4 : 2;
     const shape = seats <= 2 ? "round" : seats >= 6 ? "rectangle" : "square";
     const inZoneIdx = zone === "inside" ? i : i - insideCount;
     const col = (inZoneIdx - 1) % 4;
     const row = Math.floor((inZoneIdx - 1) / 4);
-    tables.push({
+    return {
       tenant_id: tenantId,
       name: `T${i}`,
       seats,
@@ -172,9 +196,8 @@ function buildDefaultTables(tenantId: string, count: number) {
       status: "active",
       position_x: 60 + col * 110,
       position_y: 60 + row * 110,
-    });
-  }
-  return tables;
+    };
+  });
 }
 
 export async function runOnboard(
@@ -265,10 +288,11 @@ export async function runOnboard(
       if (count && count > 0) {
         push({ step: "tables", message: `${count} tables already present — skipped`, ok: true });
       } else {
-        const tables = buildDefaultTables(tenantId, DEFAULT_TABLE_SIZE[input.table_size_preset]);
+        const tables = buildTablesForCapacity(tenantId, input.capacity_seats);
         const { error } = await supabase.from("restaurant_tables").insert(tables);
         if (error) throw new Error(`tables insert: ${error.message}`);
-        push({ step: "tables", message: `${tables.length} default tables created`, ok: true });
+        const seatTotal = tables.reduce((s, tb) => s + tb.seats, 0);
+        push({ step: "tables", message: `${tables.length} tables created (${seatTotal} seats)`, ok: true });
       }
     }
 
