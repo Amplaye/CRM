@@ -60,4 +60,22 @@ describe('fetchUrlContent', () => {
     expect(out.ok).toBe(false);
     if (!out.ok) expect(out.reason).toBe('invalid_url');
   });
+
+  it('rejects the cloud metadata IP (169.254.169.254)', async () => {
+    const out = await fetchUrlContent('http://169.254.169.254/latest/meta-data/');
+    expect(out.ok).toBe(false);
+    if (!out.ok) expect(out.reason).toBe('invalid_url');
+  });
+
+  it('rejects CGNAT space (100.64.0.0/10)', async () => {
+    const out = await fetchUrlContent('http://100.64.0.1/menu');
+    expect(out.ok).toBe(false);
+    if (!out.ok) expect(out.reason).toBe('invalid_url');
+  });
+
+  it('rejects IPv6 loopback', async () => {
+    const out = await fetchUrlContent('http://[::1]/menu');
+    expect(out.ok).toBe(false);
+    if (!out.ok) expect(out.reason).toBe('invalid_url');
+  });
 });

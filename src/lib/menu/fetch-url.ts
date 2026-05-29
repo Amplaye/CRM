@@ -8,8 +8,68 @@
 //      empty until JS runs  → return ok:false with a clear reason, the
 //      UI then tells the user to download as PDF and re-import.
 
+import dns from 'node:dns/promises';
+import net from 'node:net';
+
 const MAX_BYTES = 8 * 1024 * 1024; // 8 MB safety cap
 const FETCH_TIMEOUT_MS = 12_000;
+const MAX_REDIRECTS = 5;
+
+// SSRF guard: reject an IP literal that points at our own infrastructure or a
+// private network. Covers IPv4 loopback/RFC1918/link-local/CGNAT and the cloud
+// metadata address, plus IPv6 loopback/unspecified/ULA/link-local and
+// IPv4-mapped IPv6. We resolve hostnames to IPs and check the *resolved*
+// addresses, so DNS rebinding and a hostname that resolves to 169.254.169.254
+// are both blocked — not just literal private hostnames.
+function isBlockedIp(ip: string): boolean {
+  const v = net.isIP(ip);
+  if (v === 4) {
+    const p = ip.split('.').map(Number);
+    if (p.some((n) => Number.isNaN(n) || n < 0 || n > 255)) return true;
+    const [a, b] = p;
+    if (a === 0 || a === 127) return true; // unspecified / loopback
+    if (a === 10) return true; // RFC1918
+    if (a === 172 && b >= 16 && b <= 31) return true; // RFC1918
+    if (a === 192 && b === 168) return true; // RFC1918
+    if (a === 169 && b === 254) return true; // link-local incl. 169.254.169.254 metadata
+    if (a === 100 && b >= 64 && b <= 127) return true; // CGNAT 100.64.0.0/10
+    if (a >= 224) return true; // multicast / reserved
+    return false;
+  }
+  if (v === 6) {
+    const lower = ip.toLowerCase();
+    if (lower === '::1' || lower === '::') return true; // loopback / unspecified
+    if (lower.startsWith('fe80')) return true; // link-local
+    if (lower.startsWith('fc') || lower.startsWith('fd')) return true; // ULA
+    if (lower.startsWith('ff')) return true; // multicast
+    // IPv4-mapped (::ffff:a.b.c.d) — re-check the embedded IPv4.
+    const mapped = lower.match(/::ffff:(\d+\.\d+\.\d+\.\d+)$/);
+    if (mapped) return isBlockedIp(mapped[1]);
+    return false;
+  }
+  return true; // not a valid IP literal → treat as blocked
+}
+
+// Resolve a hostname (or accept an IP literal) and reject if ANY resolved
+// address is blocked. Returns the safe set of addresses to pin the connection.
+async function assertHostAllowed(host: string): Promise<{ ok: true; addrs: string[] } | { ok: false }> {
+  if (net.isIP(host)) {
+    return isBlockedIp(host) ? { ok: false } : { ok: true, addrs: [host] };
+  }
+  const h = host.toLowerCase();
+  if (h === 'localhost' || h.endsWith('.local') || h.endsWith('.internal')) {
+    return { ok: false };
+  }
+  let addrs: string[];
+  try {
+    const records = await dns.lookup(host, { all: true });
+    addrs = records.map((r) => r.address);
+  } catch {
+    return { ok: false };
+  }
+  if (addrs.length === 0 || addrs.some(isBlockedIp)) return { ok: false };
+  return { ok: true, addrs };
+}
 
 export type FetchResult =
   | { ok: true; kind: 'binary'; mediaType: 'application/pdf' | 'image/jpeg' | 'image/png' | 'image/webp' | 'image/gif'; base64: string }
@@ -36,34 +96,53 @@ export async function fetchUrlContent(rawUrl: string): Promise<FetchResult> {
     return { ok: false, reason: 'invalid_url' };
   }
 
-  // Block private networks (SSRF guard). Avoids leaking to localhost / RFC1918.
-  const host = url.hostname.toLowerCase();
-  if (
-    host === 'localhost' ||
-    host.endsWith('.local') ||
-    /^127\./.test(host) ||
-    /^10\./.test(host) ||
-    /^192\.168\./.test(host) ||
-    /^172\.(1[6-9]|2\d|3[01])\./.test(host) ||
-    host === '::1' ||
-    host.startsWith('fc') ||
-    host.startsWith('fd')
-  ) {
-    return { ok: false, reason: 'invalid_url', details: 'private network not allowed' };
-  }
-
+  // SSRF guard: validate the host of EVERY hop (initial + each redirect) by
+  // resolving it to IPs and rejecting private/loopback/link-local/CGNAT/
+  // metadata addresses. redirect:'manual' so a public URL cannot 30x us into
+  // an internal address without re-validation.
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), FETCH_TIMEOUT_MS);
   let res: Response;
   try {
-    res = await fetch(url.toString(), {
-      signal: ctrl.signal,
-      redirect: 'follow',
-      headers: {
-        'User-Agent': 'BaliFlowCRM-MenuImport/1.0',
-        Accept: 'application/pdf,image/*,text/html,*/*',
-      },
-    });
+    let current = url;
+    let hops = 0;
+    for (;;) {
+      const allowed = await assertHostAllowed(current.hostname);
+      if (!allowed.ok) {
+        clearTimeout(timer);
+        return { ok: false, reason: 'invalid_url', details: 'private network not allowed' };
+      }
+      const hop = await fetch(current.toString(), {
+        signal: ctrl.signal,
+        redirect: 'manual',
+        headers: {
+          'User-Agent': 'BaliFlowCRM-MenuImport/1.0',
+          Accept: 'application/pdf,image/*,text/html,*/*',
+        },
+      });
+      // 3xx with a Location → validate the next hop ourselves.
+      if (hop.status >= 300 && hop.status < 400 && hop.headers.get('location')) {
+        if (++hops > MAX_REDIRECTS) {
+          clearTimeout(timer);
+          return { ok: false, reason: 'unreachable', details: 'too many redirects' };
+        }
+        let next: URL;
+        try {
+          next = new URL(hop.headers.get('location')!, current);
+        } catch {
+          clearTimeout(timer);
+          return { ok: false, reason: 'invalid_url', details: 'bad redirect target' };
+        }
+        if (next.protocol !== 'http:' && next.protocol !== 'https:') {
+          clearTimeout(timer);
+          return { ok: false, reason: 'invalid_url', details: 'non-http redirect' };
+        }
+        current = next;
+        continue;
+      }
+      res = hop;
+      break;
+    }
   } catch (e: any) {
     clearTimeout(timer);
     return { ok: false, reason: 'unreachable', details: e?.message };
