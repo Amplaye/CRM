@@ -20,64 +20,69 @@ import { createTenant } from "@/lib/tenants/create-tenant";
 // never create a second one. The tenant id is resolved from the SESSION, never
 // trusted from the body.
 export async function POST(req: Request) {
-  const authClient = await createServerSupabaseClient();
-  const { data: { user } } = await authClient.auth.getUser();
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  try {
+    // Read the optional body hint first; a missing/invalid body must not throw.
+    let bodyName = "";
+    try { bodyName = ((await req.json()) as any)?.businessName?.trim?.() || ""; } catch {}
 
-  const svc = createServiceRoleClient();
+    const authClient = await createServerSupabaseClient();
+    const { data: { user } } = await authClient.auth.getUser();
+    if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  // Already a member of any tenant? Then there is nothing to create. Prefer an
-  // owner row; otherwise just report the existing membership so the wizard can
-  // route correctly without ever minting a duplicate tenant.
-  const { data: memberships, error: memErr } = await svc
-    .from("tenant_members")
-    .select("tenant_id, role")
-    .eq("user_id", user.id);
-  if (memErr) return NextResponse.json({ error: memErr.message }, { status: 500 });
+    const svc = createServiceRoleClient();
 
-  const existingOwner = (memberships || []).find((m: { role: string }) => m.role === "owner");
-  if (existingOwner) {
-    return NextResponse.json({ status: "exists", tenantId: existingOwner.tenant_id, role: "owner" });
+    // Already a member of any tenant? Then there is nothing to create. Prefer an
+    // owner row; otherwise just report the existing membership so the wizard can
+    // route correctly without ever minting a duplicate tenant.
+    const { data: memberships, error: memErr } = await svc
+      .from("tenant_members")
+      .select("tenant_id, role")
+      .eq("user_id", user.id);
+    if (memErr) return NextResponse.json({ error: memErr.message }, { status: 500 });
+
+    const existingOwner = (memberships || []).find((m: { role: string }) => m.role === "owner");
+    if (existingOwner) {
+      return NextResponse.json({ status: "exists", tenantId: existingOwner.tenant_id, role: "owner" });
+    }
+    if ((memberships || []).length > 0) {
+      // Belongs to a tenant as staff/manager — not an owner self-signup case.
+      return NextResponse.json({ status: "exists", tenantId: memberships![0].tenant_id, role: memberships![0].role });
+    }
+
+    // No membership at all → repair: create the trial tenant the same way
+    // register-tenant would have. Prefer the name the owner typed at sign-up
+    // (stashed on the auth user), then any body hint, then a sensible
+    // placeholder they can edit in wizard step 1.
+    let businessName = bodyName;
+    if (!businessName) {
+      const meta = (user.user_metadata as any) || {};
+      businessName =
+        meta.business_name?.trim?.() ||
+        meta.name?.trim?.() ||
+        user.email?.split("@")[0] ||
+        "Mi restaurante";
+    }
+
+    const tenant = await createTenant(svc, {
+      name: businessName,
+      status: "trial",
+      settings: {
+        timezone: "Europe/Rome",
+        currency: "EUR",
+        ai_enabled_channels: [],
+        onboarding: { completed: false },
+      },
+    });
+
+    const { error: insertErr } = await svc
+      .from("tenant_members")
+      .insert({ tenant_id: tenant.id, user_id: user.id, role: "owner" });
+    if (insertErr) {
+      return NextResponse.json({ error: insertErr.message }, { status: 500 });
+    }
+
+    return NextResponse.json({ status: "created", tenantId: tenant.id, role: "owner" });
+  } catch (err: any) {
+    return NextResponse.json({ error: err?.message || "ensure-tenant failed" }, { status: 500 });
   }
-  if ((memberships || []).length > 0) {
-    // Belongs to a tenant as staff/manager — not an owner self-signup case.
-    return NextResponse.json({ status: "exists", tenantId: memberships![0].tenant_id, role: memberships![0].role });
-  }
-
-  // No membership at all → repair: create the trial tenant the same way
-  // register-tenant would have. The business name isn't stored on the auth user,
-  // so fall back to a sensible placeholder the owner edits in step 1 of the
-  // wizard (the wizard already pre-fills the name field from the tenant).
-  let businessName = "";
-  try { businessName = ((await req.json()) as any)?.businessName?.trim?.() || ""; } catch {}
-  // Prefer the name the owner typed at sign-up (stashed on the auth user), then
-  // any body hint, then a sensible placeholder they can edit in wizard step 1.
-  if (!businessName) {
-    const meta = (user.user_metadata as any) || {};
-    businessName =
-      meta.business_name?.trim?.() ||
-      meta.name?.trim?.() ||
-      user.email?.split("@")[0] ||
-      "Mi restaurante";
-  }
-
-  const tenant = await createTenant(svc, {
-    name: businessName,
-    status: "trial",
-    settings: {
-      timezone: "Europe/Rome",
-      currency: "EUR",
-      ai_enabled_channels: [],
-      onboarding: { completed: false },
-    },
-  });
-
-  const { error: insertErr } = await svc
-    .from("tenant_members")
-    .insert({ tenant_id: tenant.id, user_id: user.id, role: "owner" });
-  if (insertErr) {
-    return NextResponse.json({ error: insertErr.message }, { status: 500 });
-  }
-
-  return NextResponse.json({ status: "created", tenantId: tenant.id, role: "owner" });
 }
