@@ -31,14 +31,17 @@ export default function RegisterPage() {
     setLoading(true);
 
     try {
-      // 1. Sign up the user
+      // 1. Sign up the user. Stash the business name on the auth user too, so the
+      // /onboarding self-heal can recreate the tenant with the right name if the
+      // register-tenant call below never lands (flaky mobile network, tab closed,
+      // email confirmed on another device).
       const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
         email,
         password,
         options: {
-          data: { name },
+          data: { name, business_name: businessName },
           // New owners land in the self-serve onboarding wizard, not an empty CRM.
-          emailRedirectTo: `${window.location.origin}/auth/callback?next=/onboarding`
+          emailRedirectTo: `${window.location.origin}/auth/confirm?next=/onboarding`
         }
       });
       if (signUpError) throw signUpError;

@@ -155,15 +155,30 @@ export default function OnboardingPage() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!active) return;
       if (!user) { setBootState("anon"); router.replace("/login"); return; }
-      const { data: rows } = await supabase
-        .from("tenant_members")
-        .select("tenant_id, role, tenants(id, name, settings)")
-        .eq("user_id", user.id);
-      const owner = (rows || []).find((r: any) => r.role === "owner");
+      const load = async () =>
+        (await supabase
+          .from("tenant_members")
+          .select("tenant_id, role, tenants(id, name, settings)")
+          .eq("user_id", user.id)).data || [];
+      let rows = await load();
+      let owner = rows.find((r: any) => r.role === "owner");
+      // Self-heal: an owner can reach the wizard with NO tenant if the
+      // tenant-creation fetch at sign-up never completed (flaky network, tab
+      // closed, email confirmed on another device). Rather than bounce them to
+      // an empty dashboard, create the trial tenant now and continue. Only the
+      // genuine "no membership at all" case triggers repair; staff/manager rows
+      // are left to fall through to the dashboard.
+      if (!owner && rows.length === 0) {
+        try {
+          await fetch("/api/ensure-tenant", { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" });
+          rows = await load();
+          owner = rows.find((r: any) => r.role === "owner");
+        } catch { /* fall through to the bounce below */ }
+      }
+      if (!active) return;
       const tn = owner?.tenants as any;
       if (!owner || !tn) { router.replace("/"); return; }
       if (tn.settings?.onboarding?.completed) { router.replace("/"); return; }
-      if (!active) return;
       setUserId(user.id);
       setTenantId(tn.id);
       if (tn.name) setRestaurantName(tn.name);
