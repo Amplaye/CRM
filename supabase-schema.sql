@@ -382,8 +382,40 @@ create policy "Users can read own profile" on public.users for select using (id 
 create policy "Tenant members can read each other profiles" on public.users for select using (
   private.shares_tenant_with(id)
 );
-create policy "Users can update own profile" on public.users for update using (id = auth.uid());
+create policy "Users can update own profile" on public.users for update using (id = auth.uid()) with check (id = auth.uid());
 create policy "Users can insert own profile" on public.users for insert with check (id = auth.uid());
+
+-- C1 hardening: a self-row UPDATE/INSERT must not be able to grant global_role.
+-- The RLS WITH CHECK above only verifies the row identity (id), not which columns
+-- changed, so we lock global_role at two extra layers:
+--   1. revoke the column privilege from client roles (PostgREST honours this);
+--   2. a SECURITY DEFINER trigger that rejects any global_role change unless the
+--      caller is service_role / postgres (defense in depth if a grant returns).
+-- handle_new_user() (SECURITY DEFINER, owned by postgres) inserts with the default
+-- global_role 'user', so the normal signup path is unaffected.
+revoke update (global_role) on public.users from authenticated, anon;
+revoke insert (global_role) on public.users from authenticated, anon;
+
+create or replace function public.prevent_global_role_change()
+returns trigger language plpgsql security definer set search_path = public as $$
+begin
+  if tg_op = 'UPDATE' and new.global_role is distinct from old.global_role then
+    if current_setting('role', true) <> 'service_role' and current_user <> 'postgres' then
+      raise exception 'global_role can only be changed by service_role';
+    end if;
+  end if;
+  if tg_op = 'INSERT' and new.global_role is distinct from 'user' then
+    if current_setting('role', true) <> 'service_role' and current_user <> 'postgres' then
+      raise exception 'global_role can only be set by service_role';
+    end if;
+  end if;
+  return new;
+end;$$;
+
+drop trigger if exists trg_prevent_global_role_change on public.users;
+create trigger trg_prevent_global_role_change
+  before insert or update on public.users
+  for each row execute function public.prevent_global_role_change();
 
 -- TENANTS policies
 create policy "Tenant members can read tenants" on public.tenants for select using (private.is_tenant_member(id) or private.is_platform_admin());
