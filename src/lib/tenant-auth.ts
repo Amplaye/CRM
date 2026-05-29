@@ -8,13 +8,15 @@ export function hashApiKey(apiKey: string): string {
 /**
  * Resolve a `Bearer ...` API key to the owning tenant_id via tenant_api_keys.
  *
- * The supabase schema seeds one row per tenant with key_hash = sha256(tenant_id)
- * and label 'legacy-bearer-tenant-id', so callers that still pass
- * `Bearer {tenant_id}` keep working until they switch to a real api-key
- * (revoke the legacy row via /api/admin/tenant/[id]/api-keys/[keyId] to
- * cut them off).
+ * Only high-entropy keys (crypto.randomBytes(32), issued by the api-keys route)
+ * are accepted. The old `Bearer {tenant_id}` scheme — where key_hash was just
+ * sha256(tenant_id) — is rejected: tenant_id is a non-secret UUID, so anyone
+ * who learned one could authenticate as that tenant. Those legacy rows have
+ * been revoked; this also refuses any key whose value is the tenant UUID, as
+ * defense in depth against a re-seed.
  *
- * Returns null when the key isn't registered (or has been revoked).
+ * Returns null when the key isn't registered, is revoked, or is a legacy
+ * self-hash key.
  */
 export async function resolveTenantFromApiKey(apiKey: string): Promise<string | null> {
   if (!apiKey || typeof apiKey !== 'string') return null;
@@ -29,6 +31,12 @@ export async function resolveTenantFromApiKey(apiKey: string): Promise<string | 
     .maybeSingle();
 
   if (!row?.tenant_id) return null;
+
+  // Reject the legacy `Bearer <tenant_id>` scheme: a key equal to the tenant
+  // UUID hashes to sha256(tenant_id) and must never authenticate.
+  if (apiKey === row.tenant_id || keyHash === hashApiKey(String(row.tenant_id))) {
+    return null;
+  }
 
   // Best-effort last_used_at refresh; never block the request on it.
   void supabase
