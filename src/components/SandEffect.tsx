@@ -11,6 +11,11 @@ export function SandEffect() {
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
+    // Respect the user's reduced-motion preference: skip the animation entirely
+    // (no canvas paints, no rAF loop). Owners who set this — and the OS sets it
+    // under low-power mode — get a calm, static background instead of jank.
+    if (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) return;
+
     let animationId: number;
     let particles: Array<{
       x: number;
@@ -22,17 +27,15 @@ export function SandEffect() {
       color: string;
     }> = [];
 
-    const resize = () => {
-      canvas.width = window.innerWidth;
-      canvas.height = window.innerHeight;
-    };
-    resize();
-    window.addEventListener("resize", resize);
+    // Lighter particle load on phones: a full-screen rAF canvas of 100 particles
+    // makes the long onboarding form stutter while scrolling on mid/low-end
+    // devices. Halve it on small viewports.
+    const particleCount = window.innerWidth < 768 ? 40 : 100;
 
-    // Create 300 sand particles
+    // Create the sand particles
     const createParticles = () => {
       particles = [];
-      for (let i = 0; i < 100; i++) {
+      for (let i = 0; i < particleCount; i++) {
         const r = 160 + Math.random() * 50;
         const g = 120 + Math.random() * 50;
         const b = 70 + Math.random() * 50;
@@ -47,7 +50,17 @@ export function SandEffect() {
         });
       }
     };
-    createParticles();
+
+    const resize = () => {
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+      // Re-seed: resizing (orientation change, mobile keyboard show/hide) clears
+      // the canvas geometry, so without this the field would thin out or sit
+      // half-empty after the first resize.
+      createParticles();
+    };
+    resize();
+    window.addEventListener("resize", resize);
 
     const animate = () => {
       ctx.clearRect(0, 0, canvas.width, canvas.height);

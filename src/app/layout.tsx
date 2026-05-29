@@ -22,11 +22,13 @@ export const metadata: Metadata = {
   description: "BaliFlow CRM - Business Operations Dashboard",
 };
 
+// Do NOT disable zoom. Owners (often non-technical) fill this on their phone
+// and must be able to pinch-zoom the dense onboarding form; blocking it is also
+// a WCAG failure. Auto-zoom-on-input-focus is already prevented by the
+// `font-size:16px` rule in globals.css, so capping the scale is unnecessary.
 export const viewport = {
   width: "device-width",
   initialScale: 1,
-  maximumScale: 1,
-  userScalable: false,
 };
 
 export default function RootLayout({

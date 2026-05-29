@@ -13,6 +13,23 @@
 
 const VAPI_BASE = "https://api.vapi.ai";
 
+// Hard timeout on every Vapi call. A hung request here would otherwise keep the
+// onboarding SSE stream open forever, leaving the wizard stuck on the loading
+// screen (the "loaded to infinity" report). On timeout we surface a labelled
+// error so the run fails cleanly with a visible reason instead of hanging.
+async function vfetch(url: string, init: RequestInit = {}, ms = 30_000): Promise<Response> {
+  const ctrl = new AbortController();
+  const id = setTimeout(() => ctrl.abort(), ms);
+  try {
+    return await fetch(url, { ...init, signal: ctrl.signal });
+  } catch (e: any) {
+    if (e?.name === "AbortError") throw new Error(`Vapi request timed out after ${ms / 1000}s: ${url}`);
+    throw e;
+  } finally {
+    clearTimeout(id);
+  }
+}
+
 // The golden-source template assistant cloned for every tenant. Overridable for
 // testing via VAPI_TEMPLATE_ASSISTANT_ID; defaults to the live "PICNIC - Sofía".
 export const TEMPLATE_VAPI_ASSISTANT_ID =
@@ -189,7 +206,7 @@ export async function cloneTemplateAssistant({
 }: CloneInput): Promise<{ assistantId: string }> {
   const id = templateId || TEMPLATE_VAPI_ASSISTANT_ID;
 
-  const getRes = await fetch(`${VAPI_BASE}/assistant/${id}`, { headers: authHeaders(key) });
+  const getRes = await vfetch(`${VAPI_BASE}/assistant/${id}`, { headers: authHeaders(key) });
   if (!getRes.ok) {
     throw new Error(`Vapi GET template ${id} -> ${getRes.status}: ${(await getRes.text()).slice(0, 300)}`);
   }
@@ -206,7 +223,7 @@ export async function cloneTemplateAssistant({
   payload = repointVoiceWebhooks(payload);
 
   for (let attempt = 0; attempt < 6; attempt++) {
-    const res = await fetch(`${VAPI_BASE}/assistant`, {
+    const res = await vfetch(`${VAPI_BASE}/assistant`, {
       method: "POST",
       headers: authHeaders(key, true),
       body: JSON.stringify(payload),
@@ -238,7 +255,7 @@ export async function findAssistantByName(
   key: string,
   name: string
 ): Promise<string | null> {
-  const res = await fetch(`${VAPI_BASE}/assistant?limit=100`, { headers: authHeaders(key) });
+  const res = await vfetch(`${VAPI_BASE}/assistant?limit=100`, { headers: authHeaders(key) });
   if (!res.ok) return null; // best-effort: a failed lookup must not block provisioning
   let list: any;
   try { list = await res.json(); } catch { return null; }
@@ -267,7 +284,7 @@ export async function syncAssistantPrompt({
   voicePromptBody,
   kbArticles,
 }: SyncPromptInput): Promise<{ changed: boolean; promptChars: number }> {
-  const getRes = await fetch(`${VAPI_BASE}/assistant/${assistantId}`, { headers: authHeaders(key) });
+  const getRes = await vfetch(`${VAPI_BASE}/assistant/${assistantId}`, { headers: authHeaders(key) });
   if (!getRes.ok) {
     throw new Error(`Vapi GET assistant ${assistantId} -> ${getRes.status}: ${(await getRes.text()).slice(0, 300)}`);
   }
@@ -280,7 +297,7 @@ export async function syncAssistantPrompt({
   const newPrompt = composeVapiSystemPrompt({ voicePromptBody, kbArticles, existingPrompt });
   if (newPrompt === existingPrompt) return { changed: false, promptChars: newPrompt.length };
 
-  const patchRes = await fetch(`${VAPI_BASE}/assistant/${assistantId}`, {
+  const patchRes = await vfetch(`${VAPI_BASE}/assistant/${assistantId}`, {
     method: "PATCH",
     headers: authHeaders(key, true),
     body: JSON.stringify({ model: setSystemMessage(assistant.model, newPrompt) }),
