@@ -769,3 +769,42 @@ alter publication supabase_realtime add table public.tenant_members;
 -- membership-guard filter `user_id=eq.<me>` actually matches and signs out
 -- staff in real time when an Admin removes them.
 alter table public.tenant_members replica identity full;
+
+-- =====================================================================
+-- SECURITY HARDENING (2026-05-29) — applied to the live DB via the
+-- Management API and codified here. See SECURITY_REVIEW_2026-05-29.md.
+-- =====================================================================
+
+-- L5 — provider secrets must not be readable by ordinary tenant members.
+-- tenants.settings (JSONB) is selectable by every member (see the "Tenant
+-- members can read tenants" policy), and it used to embed live provider
+-- secrets under settings.bot_config (meta_access_token, twilio_auth_token,
+-- twilio_account_sid). Those now live in a dedicated `secrets` column whose
+-- SELECT/UPDATE/INSERT privileges are revoked from the client roles — only
+-- service_role (server-side / n8n) can read them. Postgres has no per-JSONB-key
+-- RLS, so we enforce this with column-level GRANTs: the table-wide grants are
+-- dropped and every column EXCEPT `secrets` is re-granted explicitly.
+alter table public.tenants add column if not exists secrets jsonb not null default '{}'::jsonb;
+
+revoke select, insert, update on public.tenants from authenticated;
+revoke select, insert, update on public.tenants from anon;
+
+grant select (id, name, business_type, created_at, settings, status, archived_at, purge_after, slug)
+  on public.tenants to authenticated;
+grant select (id, name, business_type, created_at, settings, status, archived_at, purge_after, slug)
+  on public.tenants to anon;
+grant update (name, business_type, settings, status, archived_at, purge_after, slug)
+  on public.tenants to authenticated;
+grant insert (id, name, business_type, settings, status, slug)
+  on public.tenants to authenticated;
+-- service_role keeps full access (default), so server reads of `secrets` work.
+-- FOLLOW-UP (not yet done — needs an n8n read-path change first): strip the
+-- secret keys from settings.bot_config so the member-readable copy is gone too.
+-- The data has already been mirrored into tenants.secrets.
+
+-- L6 — RLS-enabled tables with NO policy are intentional deny-all for the
+-- anon/authenticated roles: bot_sessions, bot_messages, trello_synced_audits,
+-- tenant_api_keys, rate_limit_buckets. They are backend-only and accessed
+-- exclusively via service_role (which bypasses RLS). RLS-enabled + zero
+-- policies = deny-all by default for client roles, which is the desired state.
+-- Documented here so the repo reflects the live DB (these were "deferred").
