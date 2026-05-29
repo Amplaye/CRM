@@ -62,7 +62,14 @@ export async function POST(req: Request) {
   const { data: tenant } = await svc
     .from("tenants").select("id, settings").eq("id", tenantId).single();
   if (!tenant) return NextResponse.json({ error: "tenant_not_found" }, { status: 404 });
-  if ((tenant.settings as any)?.vapi?.assistantId) {
+  // Block re-provisioning ONLY when onboarding actually COMPLETED. Keying this on
+  // the mere presence of a Vapi assistant id was wrong: a run that died after the
+  // assistant was created (e.g. the connection dropped during the n8n clone) left
+  // an assistantId behind, so every retry was rejected with 409 and the owner
+  // could never finish — they'd be stuck. The orchestrator is fully idempotent
+  // (it reuses the existing assistant / tables / KB / workflows), so a retry on an
+  // incomplete tenant is safe and is exactly what recovers a truncated run.
+  if ((tenant.settings as any)?.onboarding?.completed) {
     return NextResponse.json({ error: "already_provisioned" }, { status: 409 });
   }
 
@@ -122,11 +129,23 @@ export async function POST(req: Request) {
   const stream = new ReadableStream({
     async start(controller) {
       const enc = new TextEncoder();
-      const emit = (p: OnboardProgress) =>
-        controller.enqueue(enc.encode(`data: ${JSON.stringify(p)}\n\n`));
-      const result = await runOnboard(input, emit);
-      controller.enqueue(enc.encode(`data: ${JSON.stringify({ step: "result", message: "final", ok: result.ok, data: result })}\n\n`));
-      controller.close();
+      const emit = (p: OnboardProgress) => {
+        try { controller.enqueue(enc.encode(`data: ${JSON.stringify(p)}\n\n`)); } catch { /* client gone */ }
+      };
+      // The stream MUST always emit a terminal `result` event and close, on every
+      // path. If it doesn't, the wizard's read loop never sees the end and sits on
+      // the loading screen forever (the "loaded to infinity" bug). runOnboard
+      // already catches its own errors, but we guard here too so even an unexpected
+      // throw can't leave the stream — and thus the UI — hanging open.
+      try {
+        const result = await runOnboard(input, emit);
+        emit({ step: "result", message: "final", ok: result.ok, data: result } as OnboardProgress);
+      } catch (e: any) {
+        emit({ step: "error", message: e?.message || String(e), ok: false });
+        emit({ step: "result", message: "final", ok: false } as OnboardProgress);
+      } finally {
+        try { controller.close(); } catch { /* already closed */ }
+      }
     },
   });
 

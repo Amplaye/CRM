@@ -115,15 +115,34 @@ export const TEMPLATE_RESTAURANT_WORKFLOW_IDS = [
   // stale template id can never again break the whole provisioning.
 ];
 
+// Every outbound call in provisioning gets a hard timeout. Without one, a single
+// hung n8n/Vapi/KB request leaves the whole SSE stream open forever and the
+// wizard sits on the loading screen indefinitely (the exact "loaded to infinity"
+// bug an owner hit on her phone). On timeout we throw a labelled error so the
+// step log shows WHICH call stalled, and the run fails cleanly instead of
+// hanging — the owner then sees the retry / contact-support actions.
+async function fetchWithTimeout(url: string, init: RequestInit, ms: number): Promise<Response> {
+  const ctrl = new AbortController();
+  const id = setTimeout(() => ctrl.abort(), ms);
+  try {
+    return await fetch(url, { ...init, signal: ctrl.signal });
+  } catch (e: any) {
+    if (e?.name === "AbortError") throw new Error(`request timed out after ${ms / 1000}s: ${url}`);
+    throw e;
+  } finally {
+    clearTimeout(id);
+  }
+}
+
 async function n8n(method: string, path: string, body?: any): Promise<any> {
   const apiKey = process.env.N8N_API_KEY;
   const baseUrl = process.env.N8N_BASE_URL || "https://n8n.srv1468837.hstgr.cloud";
   if (!apiKey) throw new Error("N8N_API_KEY not configured");
-  const res = await fetch(`${baseUrl}/api/v1${path}`, {
+  const res = await fetchWithTimeout(`${baseUrl}/api/v1${path}`, {
     method,
     headers: { "X-N8N-API-KEY": apiKey, "Content-Type": "application/json" },
     body: body ? JSON.stringify(body) : undefined,
-  });
+  }, 30_000);
   const text = await res.text();
   if (!res.ok) throw new Error(`n8n ${method} ${path} → ${res.status}: ${text.slice(0, 300)}`);
   try {
@@ -341,11 +360,11 @@ export async function runOnboard(
     {
       const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "https://crm.baliflowagency.com";
       const sec = process.env.AI_WEBHOOK_SECRET || "";
-      const r = await fetch(`${baseUrl}/api/sync-kb-vapi`, {
+      const r = await fetchWithTimeout(`${baseUrl}/api/sync-kb-vapi`, {
         method: "POST",
         headers: { "Content-Type": "application/json", "x-ai-secret": sec },
         body: JSON.stringify({ tenant_id: tenantId }),
-      });
+      }, 45_000);
       if (!r.ok) {
         const t = await r.text();
         throw new Error(`sync-kb-vapi: ${r.status} ${t.slice(0, 200)}`);

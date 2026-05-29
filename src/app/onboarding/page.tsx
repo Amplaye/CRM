@@ -243,9 +243,20 @@ export default function OnboardingPage() {
 
   async function submit() {
     setRunning(true); setProgress([]); setDone(null);
+    // Watchdog: provisioning is bounded server-side (maxDuration 120s + per-call
+    // timeouts), but if the connection drops mid-stream — flaky mobile network,
+    // Vercel killing the function, a proxy cutting an idle keep-alive — the
+    // reader can hang and the wizard would sit on the loading screen forever
+    // (the exact bug an owner hit on her phone). This aborts the fetch and shows
+    // the retry / contact-support actions instead of an endless spinner. It's
+    // cleared as soon as the stream ends normally.
+    const ctrl = new AbortController();
+    const watchdog = setTimeout(() => ctrl.abort(), 150_000);
+    let sawResult = false;
     try {
       const res = await fetch("/api/onboard", {
         method: "POST",
+        signal: ctrl.signal,
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           tenant_id: tenantId,
@@ -263,7 +274,7 @@ export default function OnboardingPage() {
           questionnaire: q,
         }),
       });
-      if (!res.body) throw new Error("no stream");
+      if (!res.ok || !res.body) throw new Error(res.ok ? "no stream" : `HTTP ${res.status}`);
       const reader = res.body.getReader();
       const dec = new TextDecoder();
       let buf = "";
@@ -278,15 +289,24 @@ export default function OnboardingPage() {
           const json = line.slice(5).trim(); if (!json) continue;
           try {
             const ev = JSON.parse(json);
-            if (ev.step === "result") setDone({ ok: ev.ok });
+            if (ev.step === "result") { sawResult = true; setDone({ ok: ev.ok }); }
             else setProgress((p) => [...p, { step: ev.step, message: ev.message, ok: ev.ok }]);
           } catch {}
         }
       }
+      // Stream ended without a terminal result event (truncated function, dropped
+      // connection). Don't leave the user hanging — fail explicitly so the retry
+      // and contact-support buttons appear.
+      if (!sawResult) {
+        setProgress((p) => [...p, { step: "error", message: t.connectionLost, ok: false }]);
+        setDone({ ok: false });
+      }
     } catch (e: any) {
-      setProgress((p) => [...p, { step: "error", message: e.message, ok: false }]);
+      const msg = e?.name === "AbortError" ? t.connectionLost : (e?.message || String(e));
+      setProgress((p) => [...p, { step: "error", message: msg, ok: false }]);
       setDone({ ok: false });
     } finally {
+      clearTimeout(watchdog);
       setRunning(false);
     }
   }

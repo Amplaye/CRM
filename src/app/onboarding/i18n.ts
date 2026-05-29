@@ -82,6 +82,7 @@ interface UiStrings {
   // provisioning screen
   creatingTitle: string; creatingDone: string; creatingFail: string; creatingBusy: string;
   inProgress: string; goToPanel: string; retry: string; contactSupport: string;
+  connectionLost: string;
 }
 
 export const UI: Record<UiLang, UiStrings> = {
@@ -167,6 +168,7 @@ export const UI: Record<UiLang, UiStrings> = {
     creatingBusy: "Configurando tu restaurante, la base de conocimiento y el asistente…",
     inProgress: "en curso…", goToPanel: "Ir a mi panel →", retry: "Reintentar",
     contactSupport: "Contactar soporte por WhatsApp",
+    connectionLost: "Se perdió la conexión durante la configuración. Pulsa Reintentar — no se duplicará nada.",
   },
   it: {
     uiLangLabel: "Lingua dell'interfaccia",
@@ -250,6 +252,7 @@ export const UI: Record<UiLang, UiStrings> = {
     creatingBusy: "Stiamo configurando il tuo ristorante, la base di conoscenza e l'assistente…",
     inProgress: "in corso…", goToPanel: "Vai al mio pannello →", retry: "Riprova",
     contactSupport: "Contatta il supporto su WhatsApp",
+    connectionLost: "Connessione persa durante la configurazione. Premi Riprova — non verrà duplicato nulla.",
   },
   en: {
     uiLangLabel: "Interface language",
@@ -333,6 +336,7 @@ export const UI: Record<UiLang, UiStrings> = {
     creatingBusy: "Setting up your restaurant, the knowledge base and the assistant…",
     inProgress: "in progress…", goToPanel: "Go to my panel →", retry: "Retry",
     contactSupport: "Contact support on WhatsApp",
+    connectionLost: "The connection dropped during setup. Tap Retry — nothing will be duplicated.",
   },
   de: {
     uiLangLabel: "Sprache der Oberfläche",
@@ -416,5 +420,6 @@ export const UI: Record<UiLang, UiStrings> = {
     creatingBusy: "Wir richten dein Restaurant, die Wissensdatenbank und den Assistenten ein…",
     inProgress: "läuft…", goToPanel: "Zu meinem Panel →", retry: "Erneut versuchen",
     contactSupport: "Support per WhatsApp kontaktieren",
+    connectionLost: "Die Verbindung wurde während der Einrichtung unterbrochen. Tippe auf Erneut versuchen — es wird nichts dupliziert.",
   },
 };
