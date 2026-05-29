@@ -81,7 +81,7 @@ interface UiStrings {
   back: string; next: string; createCrm: string; yes: string; no: string;
   // provisioning screen
   creatingTitle: string; creatingDone: string; creatingFail: string; creatingBusy: string;
-  inProgress: string; goToPanel: string; retry: string;
+  inProgress: string; goToPanel: string; retry: string; contactSupport: string;
 }
 
 export const UI: Record<UiLang, UiStrings> = {
@@ -166,6 +166,7 @@ export const UI: Record<UiLang, UiStrings> = {
     creatingFail: "❌ Algo falló. Revisa los pasos y vuelve a intentar.",
     creatingBusy: "Configurando tu restaurante, la base de conocimiento y el asistente…",
     inProgress: "en curso…", goToPanel: "Ir a mi panel →", retry: "Reintentar",
+    contactSupport: "Contactar soporte por WhatsApp",
   },
   it: {
     uiLangLabel: "Lingua dell'interfaccia",
@@ -248,6 +249,7 @@ export const UI: Record<UiLang, UiStrings> = {
     creatingFail: "❌ Qualcosa è andato storto. Controlla i passaggi e riprova.",
     creatingBusy: "Stiamo configurando il tuo ristorante, la base di conoscenza e l'assistente…",
     inProgress: "in corso…", goToPanel: "Vai al mio pannello →", retry: "Riprova",
+    contactSupport: "Contatta il supporto su WhatsApp",
   },
   en: {
     uiLangLabel: "Interface language",
@@ -330,6 +332,7 @@ export const UI: Record<UiLang, UiStrings> = {
     creatingFail: "❌ Something failed. Review the steps and try again.",
     creatingBusy: "Setting up your restaurant, the knowledge base and the assistant…",
     inProgress: "in progress…", goToPanel: "Go to my panel →", retry: "Retry",
+    contactSupport: "Contact support on WhatsApp",
   },
   de: {
     uiLangLabel: "Sprache der Oberfläche",
@@ -412,5 +415,6 @@ export const UI: Record<UiLang, UiStrings> = {
     creatingFail: "❌ Etwas ist fehlgeschlagen. Überprüfe die Schritte und versuche es erneut.",
     creatingBusy: "Wir richten dein Restaurant, die Wissensdatenbank und den Assistenten ein…",
     inProgress: "läuft…", goToPanel: "Zu meinem Panel →", retry: "Erneut versuchen",
+    contactSupport: "Support per WhatsApp kontaktieren",
   },
 };

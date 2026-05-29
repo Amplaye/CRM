@@ -106,7 +106,13 @@ export const TEMPLATE_RESTAURANT_WORKFLOW_IDS = [
   "ZiEQ8iUpt8LnAYp5", // Vapi Voicemail Scheduler — per-tenant (tenant_id)
   "w2J411dX5JcOZZsJ", // Nightly Conversation Audit — per-tenant (tenant_id + picnic-audit-run webhook)
   "fenoM2b2Q9MMa0Kd", // Deflector Post-Call — per-tenant (picnic-deflector-postcall webhook)
-  "y0HusBGSBVW7u9rm", // Warmup — keep infra warm — per-tenant (pings the tenant's own Vapi assistant)
+  // NOTE: the Warmup (keep infra warm) template, formerly id y0HusBGSBVW7u9rm,
+  // was REMOVED 2026-05-29 — the source workflow no longer exists on n8n (404),
+  // so every self-serve onboard aborted at step 6 on its GET. PICNIC (the gold
+  // standard) has no Warmup workflow either; the only live one is the oraz
+  // clone, an orphan. It is a 4-min cron ping, non-essential; dropped rather
+  // than rebuilt. The loop below also tolerates 404s defensively so a single
+  // stale template id can never again break the whole provisioning.
 ];
 
 async function n8n(method: string, path: string, body?: any): Promise<any> {
@@ -376,8 +382,18 @@ export async function runOnboard(
           newVapiAssistantId: vapiAssistantId,
         };
 
+        const skipped: string[] = [];
         for (const wid of TEMPLATE_RESTAURANT_WORKFLOW_IDS) {
-          const original = await n8n("GET", `/workflows/${wid}`);
+          let original: any;
+          try {
+            original = await n8n("GET", `/workflows/${wid}`);
+          } catch (e: any) {
+            // A template id that no longer exists on n8n (404) must NOT abort the
+            // whole onboarding — that's the bug that broke every self-serve run.
+            // Skip the stale template, record it, and keep provisioning the rest.
+            if (/→ 404:/.test(e?.message || "")) { skipped.push(wid); continue; }
+            throw e;
+          }
           const originalText = JSON.stringify(original);
           const rewritten = JSON.parse(substituteTenantTokens(originalText, sub));
           // Template workflow names are prefixed "[Picnic]" → swap for the tenant.
@@ -388,7 +404,8 @@ export async function runOnboard(
           // Activate immediately so cron triggers + webhooks fire without manual action.
           try { await n8n("POST", `/workflows/${created.id}/activate`); } catch { /* tolerate */ }
         }
-        push({ step: "n8n", message: `${createdWorkflowIds.length} workflows cloned & activated`, ok: true, data: { workflow_ids: createdWorkflowIds } });
+        const skipNote = skipped.length ? ` (${skipped.length} stale template${skipped.length > 1 ? "s" : ""} skipped)` : "";
+        push({ step: "n8n", message: `${createdWorkflowIds.length} workflows cloned & activated${skipNote}`, ok: true, data: { workflow_ids: createdWorkflowIds, skipped } });
       }
 
       // Persist the workflow ids NOW, right after creation — not only in the

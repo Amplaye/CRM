@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import {
   ChevronLeft, ChevronRight, ChevronDown, Check, AlertTriangle, RefreshCw,
-  Building, Clock, Grid3X3, ClipboardList, Loader2, Globe, Star, Info,
+  Building, Clock, Grid3X3, ClipboardList, Loader2, Globe, Star, Info, MessageCircle,
 } from "lucide-react";
 import {
   KbQuestionnaire, PaymentMethod, ParkingKind, Allergen, CancellationNotice, defaultQuestionnaire,
@@ -27,6 +27,12 @@ import { UI, type UiLang, UI_LANGS } from "./i18n";
 //   • CRM language — the single language the owner's dashboard will be in after
 //     onboarding (single-select in step 1). Saved on the tenant; the CRM is
 //     then fixed to it (no in-app switcher). Independent of the two above.
+
+// Bali Flow agency support number (Sofía's official WhatsApp — Meta WhatsApp,
+// not the old Twilio sandbox). The "Contact support" button on the provisioning
+// screen deep-links here so a stuck owner reaches us in one tap. When we get a
+// dedicated support line, change only this constant.
+const SUPPORT_WHATSAPP = "34641459479"; // E.164 without "+", for wa.me
 
 type Step = 1 | 2 | 3 | 4 | 5;
 type AsstLang = "es" | "it" | "en" | "de";
@@ -318,8 +324,20 @@ export default function OnboardingPage() {
           </div>
         )}
         {done && !done.ok && (
-          <div className="mt-6">
+          <div className="mt-6 flex flex-wrap items-center gap-3">
             <button onClick={() => { setRunning(false); setDone(null); setProgress([]); }} className="px-4 py-2 rounded-lg border-2 border-[#c4956a] bg-white">{t.retry}</button>
+            <a
+              href={`https://wa.me/${SUPPORT_WHATSAPP}?text=${encodeURIComponent(
+                `Hola, soy ${restaurantName || "un restaurante"} y tuve un error creando mi CRM.` +
+                (tenantId ? ` (ID: ${tenantId})` : "") +
+                (progress.find((p) => !p.ok)?.message ? `\nError: ${progress.find((p) => !p.ok)!.message}` : "")
+              )}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-[#25D366] text-white font-bold"
+            >
+              <MessageCircle className="w-4 h-4" /> {t.contactSupport}
+            </a>
           </div>
         )}
       </Shell>
