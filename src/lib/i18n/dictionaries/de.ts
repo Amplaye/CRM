@@ -621,6 +621,7 @@ export const de: Dictionary = {
   auth_check_email: "Prüfen Sie Ihr E-Mail-Postfach",
   auth_reset_sent: "Wir haben einen Link zum Zurücksetzen des Passworts gesendet an",
   auth_confirm_sent: "Wir haben einen Bestätigungslink gesendet an",
+  auth_confirmed_signin: "Dein Konto ist bereits bestätigt. Melde dich mit E-Mail und Passwort an, um fortzufahren.",
   auth_your_name: "Ihr Name",
   auth_name_placeholder: "Max Mustermann",
   auth_business_name: "Name des Unternehmens",

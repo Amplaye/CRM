@@ -28,9 +28,21 @@ export default function LoginPage() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  // Set when a user lands here after their confirmation token was already
+  // consumed (typically a mobile mail-app prefetch). Their account is in fact
+  // confirmed — we just tell them to sign in instead of leaving a bare form
+  // that looks like the email button failed. Read from the URL in an effect to
+  // avoid a hydration mismatch (the server has no window).
+  const [confirmedNotice, setConfirmedNotice] = useState(false);
   const router = useRouter();
   const supabase = createClient();
   const { setLanguage, t } = useLanguage();
+
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get("confirmed") === "1") {
+      setConfirmedNotice(true);
+    }
+  }, []);
 
   // The login page is shown before any tenant is known, so there's no
   // crm_locale to honour yet. Auto-detect the browser language for a first-time
@@ -91,6 +103,11 @@ export default function LoginPage() {
           boxShadow: '0 20px 60px rgba(196,149,106,0.25), 0 8px 24px rgba(196,149,106,0.15)',
         }}>
           <form className="space-y-4 sm:space-y-5" onSubmit={handleLogin}>
+            {confirmedNotice && !error && (
+              <div className="bg-emerald-50/80 text-emerald-800 p-3 rounded-md text-sm border border-emerald-200/60">
+                {t("auth_confirmed_signin")}
+              </div>
+            )}
             {error && (
               <div className="bg-red-50/80 text-red-700 p-3 rounded-md text-sm border border-red-200/50">
                 {error}

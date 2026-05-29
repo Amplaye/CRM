@@ -55,8 +55,14 @@ export async function GET(request: NextRequest) {
     }
     // Surface the reason instead of silently bouncing.
     console.error(`auth/callback ${tokenHash ? "verifyOtp" : "exchangeCodeForSession"} failed:`, error.message);
+    // A failed verify almost always means the one-time token was already used —
+    // typically a mobile mail-app prefetch consumed it (which also CONFIRMS the
+    // account). So the user's account is fine; they just need to sign in. Send
+    // them to /login with a flag so we can explain that, instead of dropping
+    // them on a bare login screen that looks like the button "didn't work".
+    return NextResponse.redirect(new URL("/login?confirmed=1", request.url));
   }
 
-  // No token/code or verification failed → send to login.
+  // No token/code at all → send to login.
   return NextResponse.redirect(new URL("/login", request.url));
 }

@@ -621,6 +621,7 @@ export const es: Dictionary = {
   auth_check_email: "Revisa tu correo",
   auth_reset_sent: "Enviamos un enlace para restablecer tu contraseña a",
   auth_confirm_sent: "Enviamos un enlace de confirmación a",
+  auth_confirmed_signin: "Tu cuenta ya está confirmada. Inicia sesión con tu correo y contraseña para continuar.",
   auth_your_name: "Tu nombre",
   auth_name_placeholder: "Juan García",
   auth_business_name: "Nombre del negocio",

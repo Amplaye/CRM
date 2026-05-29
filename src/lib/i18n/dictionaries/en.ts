@@ -618,6 +618,7 @@ export const en = {
   auth_check_email: "Check your email",
   auth_reset_sent: "We sent a password reset link to",
   auth_confirm_sent: "We sent a confirmation link to",
+  auth_confirmed_signin: "Your account is already confirmed. Sign in with your email and password to continue.",
   auth_your_name: "Your name",
   auth_name_placeholder: "John Doe",
   auth_business_name: "Business name",
