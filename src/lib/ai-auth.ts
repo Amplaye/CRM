@@ -3,11 +3,11 @@ import crypto from 'crypto';
 
 /**
  * Guards AI-webhook routes (n8n / Vapi / Twilio integrations) with a
- * shared secret header. Designed for safe rollout:
+ * shared secret header. Fail-closed:
  *
- *   - If AI_WEBHOOK_SECRET env var is NOT set, logs a warning and allows
- *     the request through. This lets production keep working while the
- *     secret is being rolled out on Vercel.
+ *   - If AI_WEBHOOK_SECRET env var is NOT set, every request is rejected
+ *     (503). The secret is set on Vercel for all environments; an unset
+ *     secret means a misconfiguration, not an open door.
  *   - If the env var IS set, requires a matching `x-ai-secret` header.
  *     Uses timing-safe comparison to prevent timing attacks.
  *
@@ -23,8 +23,8 @@ export function assertAiSecret(request: Request): NextResponse | null {
   const expected = process.env.AI_WEBHOOK_SECRET;
 
   if (!expected) {
-    console.warn('[SECURITY] AI_WEBHOOK_SECRET not set — /api/ai/* accepting all requests');
-    return null;
+    console.error('[SECURITY] AI_WEBHOOK_SECRET not set — refusing all /api/ai/* requests');
+    return NextResponse.json({ error: 'Service misconfigured' }, { status: 503 });
   }
 
   const provided = request.headers.get('x-ai-secret') || '';
