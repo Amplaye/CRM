@@ -148,7 +148,11 @@ export default function OnboardPage() {
           language,
           review_url: reviewUrl.trim(),
           opening_hours: hours,
-          table_size_preset: tableSize,
+          // The orchestrator now seats the starter floor plan from a declared
+          // capacity (the self-serve wizard reads it from the questionnaire).
+          // This admin tool still offers the small/medium/large picker, so map it
+          // to a representative seat count here.
+          capacity_seats: tableSize === "small" ? 12 : tableSize === "large" ? 60 : 30,
           kb_articles: kbArticles.filter((a) => a.title.trim() && a.content.trim()),
           voice_prompt: voicePrompt,
           owner_email: ownerEmail.trim().toLowerCase(),

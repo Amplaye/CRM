@@ -56,6 +56,7 @@ interface UiStrings {
   uiLangLabel: string;
   title: string;
   subtitle: string;
+  stepCounter: string; // "Step {n} of {total}"
   // step headers
   s1: string; s2: string; s3: string; s4: string; s5: string;
   s2hint: string; s3hint: string; s4hint: string;
@@ -89,7 +90,8 @@ export const UI: Record<UiLang, UiStrings> = {
   es: {
     uiLangLabel: "Idioma de la interfaz",
     title: "Configura tu restaurante",
-    subtitle: "5 pasos rápidos. Al terminar, tu asistente queda listo automáticamente.",
+    subtitle: "4 pasos rápidos. Al terminar, tu asistente queda listo automáticamente.",
+    stepCounter: "Paso {n} de {total}",
     s1: "Datos del restaurante", s2: "Horario de apertura", s3: "Mesas (distribución inicial)",
     s4: "Cuestionario", s5: "Resumen",
     s2hint: "Deja un día vacío si cierras. Varios tramos = comida + cena.",
@@ -129,7 +131,7 @@ export const UI: Record<UiLang, UiStrings> = {
       lactoseFree: "¿Opciones sin lactosa?", celiac: "¿Protocolo para celíacos (preparación separada)?",
       allergensTitle: "Alérgenos presentes en cocina",
       allergensHint: "Marca los que se manipulan: el asistente avisará del riesgo de contaminación cruzada.",
-      cannotGuarantee: "¿No podéis garantizar ausencia total de trazas?",
+      cannotGuarantee: "¿Puede haber trazas de otros alérgenos en la cocina?",
       severeAllergy: "¿Alergia severa → consultar cocina / responsable?",
       allergenSheet: "¿Hoja de alérgenos disponible bajo petición?",
       alGluten: "Gluten / trigo", alDairy: "Lácteos", alEgg: "Huevo", alNuts: "Frutos secos", alPeanuts: "Cacahuetes",
@@ -152,7 +154,7 @@ export const UI: Record<UiLang, UiStrings> = {
         noShowRelease: "Si el cliente no aparece y no avisa, cuánto tiempo esperáis antes de liberar la mesa y darla a otro.",
         lastReservation: "Cuánto antes de la hora de cierre aceptáis la última reserva de ese servicio. El asistente lo calcula solo a partir del cierre de cada día (p. ej. cierre 22:30 + «1 h antes» = última reserva 21:30) y no ofrecerá horas posteriores.",
         celiac: "No es lo mismo que «sin gluten». Marca SÍ solo si preparáis el plato aparte, con utensilios y zona limpios, apto para un celíaco real.",
-        cannotGuarantee: "Marca SÍ si en tu cocina no podéis asegurar la ausencia total de trazas. El asistente lo advertirá a quien pregunte por alergias.",
+        cannotGuarantee: "Marca SÍ si en tu cocina puede haber trazas de otros alérgenos (no podéis asegurar su ausencia total). El asistente lo advertirá a quien pregunte por alergias.",
         severeAllergy: "Ante una alergia grave, ¿prefieres que el asistente no decida y lo derive a cocina o a un responsable? Marca SÍ para mayor seguridad.",
         allergenSheet: "Si tenéis la lista oficial de alérgenos para enseñar al cliente que la pida.",
       },
@@ -173,7 +175,8 @@ export const UI: Record<UiLang, UiStrings> = {
   it: {
     uiLangLabel: "Lingua dell'interfaccia",
     title: "Configura il tuo ristorante",
-    subtitle: "5 passaggi rapidi. Al termine, il tuo assistente è pronto automaticamente.",
+    subtitle: "4 passaggi rapidi. Al termine, il tuo assistente è pronto automaticamente.",
+    stepCounter: "Passo {n} di {total}",
     s1: "Dati del ristorante", s2: "Orari di apertura", s3: "Tavoli (disposizione iniziale)",
     s4: "Questionario", s5: "Riepilogo",
     s2hint: "Lascia vuoto un giorno se chiudi. Più fasce = pranzo + cena.",
@@ -213,7 +216,7 @@ export const UI: Record<UiLang, UiStrings> = {
       lactoseFree: "Opzioni senza lattosio?", celiac: "Protocollo per celiaci (preparazione separata)?",
       allergensTitle: "Allergeni presenti in cucina",
       allergensHint: "Seleziona quelli che vengono manipolati: l'assistente avviserà del rischio di contaminazione crociata.",
-      cannotGuarantee: "Non potete garantire l'assenza totale di tracce?",
+      cannotGuarantee: "Possono esserci tracce di altri allergeni in cucina?",
       severeAllergy: "Allergia grave → consultare cucina / responsabile?",
       allergenSheet: "Scheda allergeni disponibile su richiesta?",
       alGluten: "Glutine / frumento", alDairy: "Latticini", alEgg: "Uova", alNuts: "Frutta a guscio", alPeanuts: "Arachidi",
@@ -236,7 +239,7 @@ export const UI: Record<UiLang, UiStrings> = {
         noShowRelease: "Se il cliente non si presenta e non avvisa, quanto aspettate prima di liberare il tavolo e darlo ad altri.",
         lastReservation: "Quanto prima dell'orario di chiusura accettate l'ultima prenotazione di quel servizio. L'assistente la calcola da solo dalla chiusura di ogni giorno (es. chiusura 22:30 + «1 h prima» = ultima prenotazione 21:30) e non proporrà orari successivi.",
         celiac: "Non è come «senza glutine». Metti SÌ solo se preparate il piatto a parte, con utensili e zona puliti, adatto a un vero celiaco.",
-        cannotGuarantee: "Metti SÌ se in cucina non potete garantire l'assenza totale di tracce. L'assistente avviserà chi chiede per allergie.",
+        cannotGuarantee: "Metti SÌ se in cucina possono esserci tracce di altri allergeni (non potete garantirne l'assenza totale). L'assistente avviserà chi chiede per allergie.",
         severeAllergy: "Davanti a un'allergia grave, preferisci che l'assistente non decida e passi la palla alla cucina o a un responsabile? Metti SÌ per maggiore sicurezza.",
         allergenSheet: "Se avete la lista ufficiale degli allergeni da mostrare al cliente che la chiede.",
       },
@@ -257,7 +260,8 @@ export const UI: Record<UiLang, UiStrings> = {
   en: {
     uiLangLabel: "Interface language",
     title: "Set up your restaurant",
-    subtitle: "5 quick steps. When you finish, your assistant is ready automatically.",
+    subtitle: "4 quick steps. When you finish, your assistant is ready automatically.",
+    stepCounter: "Step {n} of {total}",
     s1: "Restaurant details", s2: "Opening hours", s3: "Tables (initial layout)",
     s4: "Questionnaire", s5: "Summary",
     s2hint: "Leave a day empty if you're closed. Multiple slots = lunch + dinner.",
@@ -297,7 +301,7 @@ export const UI: Record<UiLang, UiStrings> = {
       lactoseFree: "Lactose-free options?", celiac: "Coeliac protocol (separate preparation)?",
       allergensTitle: "Allergens present in the kitchen",
       allergensHint: "Tick the ones you handle: the assistant will warn about the cross-contamination risk.",
-      cannotGuarantee: "Can't you guarantee the total absence of traces?",
+      cannotGuarantee: "Could there be traces of other allergens in the kitchen?",
       severeAllergy: "Severe allergy → check with kitchen / manager?",
       allergenSheet: "Allergen sheet available on request?",
       alGluten: "Gluten / wheat", alDairy: "Dairy", alEgg: "Egg", alNuts: "Tree nuts", alPeanuts: "Peanuts",
@@ -320,7 +324,7 @@ export const UI: Record<UiLang, UiStrings> = {
         noShowRelease: "If a guest doesn't show up and didn't warn you, how long you wait before releasing the table to someone else.",
         lastReservation: "How long before closing you accept the last booking for that service. The assistant works the time out per day from each closing (e.g. closing 22:30 + “1 h before” = last booking 21:30) and won't offer times after it.",
         celiac: "Not the same as “gluten-free”. Tick YES only if you prepare the dish separately, with clean tools and area, safe for a real coeliac.",
-        cannotGuarantee: "Tick YES if your kitchen can't guarantee the total absence of traces. The assistant will warn anyone asking about allergies.",
+        cannotGuarantee: "Tick YES if there could be traces of other allergens in your kitchen (you can't guarantee their total absence). The assistant will warn anyone asking about allergies.",
         severeAllergy: "For a severe allergy, would you rather the assistant not decide and hand it to the kitchen or a manager? Tick YES to be safe.",
         allergenSheet: "Whether you have the official allergen list to show a guest who asks for it.",
       },
@@ -341,7 +345,8 @@ export const UI: Record<UiLang, UiStrings> = {
   de: {
     uiLangLabel: "Sprache der Oberfläche",
     title: "Richte dein Restaurant ein",
-    subtitle: "5 schnelle Schritte. Am Ende ist dein Assistent automatisch bereit.",
+    subtitle: "4 schnelle Schritte. Am Ende ist dein Assistent automatisch bereit.",
+    stepCounter: "Schritt {n} von {total}",
     s1: "Restaurantdaten", s2: "Öffnungszeiten", s3: "Tische (anfängliche Anordnung)",
     s4: "Fragebogen", s5: "Zusammenfassung",
     s2hint: "Lass einen Tag leer, wenn geschlossen ist. Mehrere Zeitfenster = Mittag + Abend.",
@@ -381,7 +386,7 @@ export const UI: Record<UiLang, UiStrings> = {
       lactoseFree: "Laktosefreie Optionen?", celiac: "Zöliakie-Protokoll (separate Zubereitung)?",
       allergensTitle: "In der Küche vorhandene Allergene",
       allergensHint: "Markiere die, die verarbeitet werden: der Assistent warnt vor dem Risiko der Kreuzkontamination.",
-      cannotGuarantee: "Könnt ihr die völlige Spurenfreiheit nicht garantieren?",
+      cannotGuarantee: "Kann es in der Küche Spuren anderer Allergene geben?",
       severeAllergy: "Schwere Allergie → Küche / Leitung fragen?",
       allergenSheet: "Allergenliste auf Anfrage verfügbar?",
       alGluten: "Gluten / Weizen", alDairy: "Milchprodukte", alEgg: "Ei", alNuts: "Schalenfrüchte", alPeanuts: "Erdnüsse",
@@ -404,7 +409,7 @@ export const UI: Record<UiLang, UiStrings> = {
         noShowRelease: "Wenn ein Gast nicht erscheint und nicht Bescheid gibt, wie lange ihr wartet, bevor ihr den Tisch freigebt.",
         lastReservation: "Wie lange vor Schließung ihr die letzte Reservierung für diesen Service annehmt. Der Assistent berechnet die Zeit pro Tag aus der jeweiligen Schließzeit (z. B. Schließung 22:30 + „1 Std. vorher“ = letzte Reservierung 21:30) und bietet keine späteren Zeiten an.",
         celiac: "Nicht dasselbe wie „glutenfrei“. Wähle JA nur, wenn ihr das Gericht separat zubereitet, mit sauberem Werkzeug und Bereich, sicher für einen echten Zöliakie-Betroffenen.",
-        cannotGuarantee: "Wähle JA, wenn eure Küche die völlige Spurenfreiheit nicht garantieren kann. Der Assistent warnt jeden, der nach Allergien fragt.",
+        cannotGuarantee: "Wähle JA, wenn es in eurer Küche Spuren anderer Allergene geben kann (ihr könnt die völlige Abwesenheit nicht garantieren). Der Assistent warnt jeden, der nach Allergien fragt.",
         severeAllergy: "Soll der Assistent bei einer schweren Allergie lieber nicht entscheiden und an die Küche oder Leitung übergeben? Wähle JA für mehr Sicherheit.",
         allergenSheet: "Ob ihr die offizielle Allergenliste habt, um sie einem Gast auf Anfrage zu zeigen.",
       },

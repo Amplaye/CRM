@@ -28,7 +28,6 @@ interface SelfServeBody {
   timezone: string;
   review_url?: string;
   opening_hours: Record<string, Array<{ open: string; close: string }>>;
-  table_size_preset: "small" | "medium" | "large";
   questionnaire: KbQuestionnaire;
   tenant_id?: string; // optional hint; the resolver still proves ownership
 }
@@ -111,7 +110,8 @@ export async function POST(req: Request) {
       lunch: body.questionnaire.last_lunch_offset_min,
       dinner: body.questionnaire.last_dinner_offset_min,
     },
-    table_size_preset: body.table_size_preset || "medium",
+    // Seat the starter floor plan from the declared capacity so Tables == KB.
+    capacity_seats: body.questionnaire?.capacity_seats || 12,
     // Feature flags derived from the wizard answers, so Settings → Features
     // opens already matching what the owner said (e.g. "no terrace" → OFF).
     features: featuresFromQuestionnaire(body.questionnaire, selected.length),
