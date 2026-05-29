@@ -798,9 +798,10 @@ grant update (name, business_type, settings, status, archived_at, purge_after, s
 grant insert (id, name, business_type, settings, status, slug)
   on public.tenants to authenticated;
 -- service_role keeps full access (default), so server reads of `secrets` work.
--- FOLLOW-UP (not yet done — needs an n8n read-path change first): strip the
--- secret keys from settings.bot_config so the member-readable copy is gone too.
--- The data has already been mirrored into tenants.secrets.
+-- DONE: the n8n chatbot loaders now read tenants.secrets (merged into
+-- bot_config) and the secret keys were stripped from settings.bot_config for
+-- every tenant, so the member-readable copy is gone. Verified end-to-end with a
+-- live WhatsApp send before stripping.
 
 -- L6 — RLS-enabled tables with NO policy are intentional deny-all for the
 -- anon/authenticated roles: bot_sessions, bot_messages, trello_synced_audits,
