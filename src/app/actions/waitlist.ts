@@ -1,7 +1,8 @@
 "use server";
 
-import { createServerSupabaseClient, createServiceRoleClient } from "@/lib/supabase/server";
+import { createServiceRoleClient } from "@/lib/supabase/server";
 import { WaitlistEntry, WaitlistStatus, Guest, Reservation, ReservationEvent } from "@/lib/types";
+import { verifyTenantMembership } from "@/lib/tenant-membership";
 
 /**
  * Creates a Waitlist Entry, calculating priority score dynamically.
@@ -19,10 +20,9 @@ export async function createWaitlistEntryAction(params: {
   contactPreference: "whatsapp" | "sms" | "call";
   notes: string;
 }) {
-  // Authenticate via Supabase session
-  const supabaseAuth = await createServerSupabaseClient();
-  const { data: { user } } = await supabaseAuth.auth.getUser();
-  if (!user) return { success: false, error: "Authentication failed" };
+  // C7: authenticate AND verify the user is a member of params.tenantId.
+  const member = await verifyTenantMembership(params.tenantId);
+  if (!member) return { success: false, error: "Authentication failed" };
 
   const supabase = createServiceRoleClient();
 
@@ -191,10 +191,9 @@ export async function updateWaitlistStatusAction(params: {
   newStatus: WaitlistStatus;
   notes?: string;
 }) {
-  // Authenticate via Supabase session
-  const supabaseAuth = await createServerSupabaseClient();
-  const { data: { user } } = await supabaseAuth.auth.getUser();
-  if (!user) return { success: false, error: "Authentication failed" };
+  // C7: authenticate AND verify the user is a member of params.tenantId.
+  const member = await verifyTenantMembership(params.tenantId);
+  if (!member) return { success: false, error: "Authentication failed" };
 
   const supabase = createServiceRoleClient();
 

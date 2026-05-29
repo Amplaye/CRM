@@ -1,11 +1,12 @@
 "use server";
 
-import { createServerSupabaseClient, createServiceRoleClient } from "@/lib/supabase/server";
+import { createServiceRoleClient } from "@/lib/supabase/server";
 import { Reservation, ReservationEvent, ReservationStatus, Guest } from "@/lib/types";
 import { revalidatePath } from "next/cache";
 import { matchWaitlistForSlotAction } from "./waitlist";
 import { getShift, getRotationMinutes, calculateEndTime, tablesNeeded } from "@/lib/restaurant-rules";
 import { sendReservationConfirmationWhatsApp } from "@/lib/whatsapp/confirm-on-update";
+import { verifyTenantMembership } from "@/lib/tenant-membership";
 
 /**
  * Creates a Reservation.
@@ -28,19 +29,15 @@ export async function createReservationAction(params: {
 }) {
   let operatorId = "system";
 
-  // If called from a server action context (user-initiated), get user from session
+  // If called from a server action context (user-initiated), get user from
+  // session AND verify they belong to params.tenantId (C7) — having a session
+  // is not enough to write another tenant's data via the service-role client.
   if (!params.adminTenantId) {
-    try {
-      const supabaseAuth = await createServerSupabaseClient();
-      const { data: { user } } = await supabaseAuth.auth.getUser();
-      if (user) {
-        operatorId = user.id;
-      } else {
-        return { success: false, error: "Authentication failed" };
-      }
-    } catch {
+    const member = await verifyTenantMembership(params.tenantId);
+    if (!member) {
       return { success: false, error: "Authentication failed" };
     }
+    operatorId = member.userId;
   } else if (params.adminTenantId !== params.tenantId) {
     return { success: false, error: "Unauthorized webhook bypass" };
   } else {
@@ -209,17 +206,12 @@ export async function updateReservationDetailsAction(params: {
   let operatorId = "system";
 
   if (!params.adminTenantId) {
-    try {
-      const supabaseAuth = await createServerSupabaseClient();
-      const { data: { user } } = await supabaseAuth.auth.getUser();
-      if (user) {
-        operatorId = user.id;
-      } else {
-        return { success: false, error: "Authentication failed" };
-      }
-    } catch {
+    // C7: verify the session user is a member of params.tenantId.
+    const member = await verifyTenantMembership(params.tenantId);
+    if (!member) {
       return { success: false, error: "Authentication failed" };
     }
+    operatorId = member.userId;
   } else if (params.adminTenantId !== params.tenantId) {
     return { success: false, error: "Unauthorized webhook bypass" };
   } else {
