@@ -1,44 +1,36 @@
-# Prompt prossima sessione — Migrazione Twilio→Meta WhatsApp (SECONDA METÀ: n8n + cutover)
+# Prompt prossima sessione — Migrazione Twilio→Meta WhatsApp (RESIDUO: solo cleanup sicurezza)
 
 > Copia-incolla il blocco qui sotto come primo messaggio della prossima sessione.
 
 ---
 
-Riprendiamo la migrazione di **BaliFlow CRM da Twilio WhatsApp → Meta WhatsApp Cloud API**. **La prima metà (backend CRM Next.js) è FATTA, verificata e pushata** (commit `0fa4b48` su `main`). Ora tocca la **seconda metà: i workflow n8n + il cutover finale**.
+La migrazione **BaliFlow CRM da Twilio WhatsApp → Meta WhatsApp Cloud API** è **funzionalmente COMPLETA**. Resta solo un cleanup di sicurezza, che l'utente ha deciso di fare **dopo, con un plugin di security**. NON rifare la migrazione: è fatta.
 
-**Leggi per primi**, in quest'ordine:
-1. `/Users/amplaye/.claude/plans/temporal-bouncing-rainbow.md` — piano completo + audit + appendice dei 38 workflow con credenziali Twilio hardcoded.
-2. Memoria: `project_baliflow_meta_migration.md` (3 decisioni confermate + endpoint Meta + baseline) e `_index_baliflow_crm.md`.
-3. Credenziali Meta: sezione "Meta WhatsApp Cloud API" in `credentials.md` (token system-user che NON scade, phone_number_id, verify token).
+**Leggi per primi:** memorie `project_baliflow_meta_migration.md`, `feature_baliflow_meta_picnic_already_sending.md`, `_index_baliflow_crm.md`, sezione "Meta WhatsApp Cloud API" + "Twilio" in `credentials.md`.
 
-## ✅ Già fatto (prima metà — NON rifare)
-- **Decisioni architetturali (confermate a voce):** UN numero Meta condiviso `1095078260361095` adesso (per-tenant in futuro, tieni tutto config-driven); UN token Meta centrale `META_ACCESS_TOKEN`; Twilio scollegato da WhatsApp ma `TWILIO_ACCOUNT_SID/AUTH_TOKEN` TENUTI per la voce futura.
-- **Token Meta verificato:** SYSTEM_USER, `expires_at:0` (non scade), scope whatsapp_business_*. Webhook Meta oggi puntano a `n8n.../webhook/meta-whatsapp-router` (phone) e `.../oraz-2b21-whatsapp` (application).
-- **Env Vercel (prod+preview+dev) + `.env.local`:** `META_ACCESS_TOKEN`, `META_WHATSAPP_PHONE_NUMBER_ID=1095078260361095`, `META_GRAPH_VERSION=v21.0`, `META_WEBHOOK_VERIFY_TOKEN=baliflow-meta-42a50e05e86af14b25865171a2323990`.
-- **Backup n8n:** tutti i **97** workflow in `CRM/N8N/backups/2026-05-29_pre_meta/` (gitignored: contengono i secret). Conteggio riconciliato: 97, non 96.
-- **Backend CRM migrato (commit `0fa4b48`):** nuovo helper unico `src/lib/whatsapp/meta.ts` (`sendWhatsAppMeta`), `src/lib/meta-signature.ts` (HMAC-SHA256 + GET handshake), `from.ts` ora ritorna un Meta phone_number_id, 4 send-route migrate (`send-whatsapp`, `admin/bali/send`, `ai/waitlist-process`, `ai/waitlist-reassurance`), `incoming-message` (dedup `wam_id` + GET verify), nuova route `whatsapp-delivery`, vecchia `twilio/delivery-callback` deprecata (tenuta per non dare 404 durante il cutover), testo UI onboard aggiornato. Invarianti+test aggiornati. **tsc 0 · vitest 226/226 · build 0 · zero `api.twilio.com` send in `src`.**
+## ✅ Stato reale (verificato dal vivo 2026-05-29)
+- **Backend CRM Next.js**: migrato e pushato, commit `0fa4b48` (helper `src/lib/whatsapp/meta.ts`, `meta-signature.ts`, 4 send-route, incoming-message dedup wam_id, 226/226 test, build 0).
+- **Picnic + oraz INVIANO E RICEVONO GIÀ via Meta.** `tenants.settings.bot_config` ha le creds Meta (token = `META_ACCESS_TOKEN` centrale, phone `1095078260361095`). Ricezione via **Meta Router `zuYx8raoBVz88Erj`** (ATTIVO, success). Webhook Meta phone→`meta-whatsapp-router`.
+- **Router consolidati**: 1 solo attivo (Meta `zuYx8raoBVz88Erj`). Eliminato il doppione stale `Zjjv2YVvDrm4Y9w0`. Twilio Router `mI2jXmQZPrA60xUX` DISATTIVATO (non eliminato, reversibile).
+- **Sub-workflow** `[ALL] Send WhatsApp (Meta)` = `a00dkoe6lwKi6Dv7` (Meta-only, no secret) — pronto se si vorrà centralizzare l'invio.
+- **`META_APP_SECRET`** = `m6XFrj3x34nXe5EP7tEVbxoNJsI` (in credentials.md + `.env.local` + Vercel prod+dev). Firma webhook resta OFF finché non si setta `FACEBOOK_VERIFY_SIGNATURE=1`.
+- **SCOPE**: SOLO Picnic + oraz (numero Meta condiviso). I bot **cliniche (Dental/DC Clinic/Patricia/Casanova) e MojoSurf** sono progetti separati su numeri Twilio propri → **lasciati su Twilio, IGNORATI** per decisione utente ("erano solo test"). Resteranno su Twilio finché non avranno ognuno il proprio numero Meta.
 
-## 🔴 Da fare (seconda metà) — ordine confermato PICNIC-first
+## 🔴 Unico residuo — cleanup sicurezza (GATED, l'utente lo fa col plugin Check Security)
+Dentro i 30 workflow Picnic+oraz ci sono **secret in chiaro**:
+- **Supabase service-role JWT** `eyJ...pBBJAeq7...` — **334 occorrenze**, accesso TOTALE al DB. Il più grave. → **da RUOTARE** (Supabase dashboard → API → rotate service_role).
+- **Twilio SID/token** (`AC169253...` / `405c7358...`, 37+37) — fallback Twilio ormai morto.
+- **Meta token** hardcoded (22) nei cron proattivi (Reminders/Daily Summary/ecc.).
 
-**⚠️ Prima cosa, da chiedere all'utente A VOCE (istruzioni globali, italiano semplice):**
-1. **`META_APP_SECRET`** — è l'unico env Meta mancante. Serve SOLO per verificare la firma dei webhook in arrivo (sicurezza anti-spoofing). Si prende da developers.facebook.com → app **`1259805589309723`** ("BALI Flow") → Settings → Basic → App Secret. Chiedigli se può recuperarlo; intanto la verifica firma resta OFF (default skip) e l'invio funziona lo stesso.
-2. **Template Meta** — i messaggi proattivi (reminder, daily summary, no-show, follow-up, post-call, menu del día) fuori dalla finestra 24h richiedono **template approvati da Meta** (review lenta). Chiedi conferma che vuole procedere e spiegagli che vanno sottomessi presto perché Meta li approva con calma. Senza, i cron proattivi non partono.
+**⚠️ NON fare un find/replace cieco verso `process.env.*`**: l'host n8n (hstgr.cloud) **non espone in modo verificabile** quelle env (il probe webhook non si registra via API), e i cron usano `process.env.X || '<hardcoded>'` → togliere il fallback senza prima settare l'env sull'host **rompe gli invii proattivi**. Sequenza corretta: (1) settare le env sull'host n8n, (2) verificare che gli invii usino l'env, (3) solo allora togliere i fallback hardcoded, (4) ruotare i secret esposti.
 
-**Poi, fase per fase (chiedi conferma sui passi LIVE):**
-- **Fase 2 — PICNIC pilota (gold standard):** bonifica i workflow `[Picnic]*` (Chatbot `166QnQsGHqXDpBxa`, Reminders, No-Show, Pre-Turno, Daily Summary `2t5TL552kz3HL0By`, Follow-up, Menu, Nightly Audit `w2J411dX5JcOZZsJ`, Deflector `fenoM2b2Q9MMa0Kd`, Voice Webhooks `31yGmF9OJ9EFFHO7` solo il recap WA). Rimuovi ramo Twilio + token hardcoded. **Estrai un sub-workflow n8n unico `[ALL] Send WhatsApp (Meta)`** (gemello di `sendWhatsAppMeta`) per non duplicare il nodo Graph in decine di posti. **Valida ricezione+invio reali su Picnic PRIMA di propagare.**
-- **Fase 3 — Router:** quando i tenant ricevono via Meta, attiva `[Meta Router] WhatsApp` (`Zjjv2YVvDrm4Y9w0`, oggi OFF), dismetti `[Router] WhatsApp` Twilio (`mI2jXmQZPrA60xUX`, oggi attivo), consolida (ci sono DUE Meta Router + un Router Twilio).
-- **Fase 4 — Replica per tenant:** oraz → BALI Rest → BALI → Dental → DC Clinic → Casanova → Patricia → MojoSurf. I chatbot **solo-Twilio** (Dental `pbYCi3JKztHLbf2b`, DC Clinic `aGwrIpB7QGQfSqhm`, Patricia `XZ8i1xxN34LAsObY`, Casanova `mom9Fymb9dLkDm9P`) sono i più pesanti (anche la **ricezione** da migrare, usano la Twilio Messages.json come storico). `[oraz] Chatbot` (`JxCRqloFjJI65U39`) ha pure il **JWT Supabase hardcoded** da ruotare. Aggiorna `src/lib/onboarding/orchestrator.ts` + i workflow `[Picnic]*` sorgente-template così i cloni futuri nascono Meta-only; deprecа il flag `sandbox_routable`.
-  - **⚠️ Numeri LIVE +34641459479 (traffico BALI reale, testare con cautela, chiedere conferma):** `QHgTiaeJge2JWAEN` Inbound, `yuLvZr2N1QvHJ47v` Post-Call (ContentSid→template Meta), `ES5E1p5bGKlVkPbT` ChatBot Webhooks (template), `3qZvS8UBJieQfdRx` Tool Book Appointment (template).
-  - **⚠️ Fallback "LIVE mascherati da morti"** (`lUfUipdtPX94qWlJ`, `z1Akph5impMRh28Y`, `zoLhECgUOjeTeIzq`): il ramo Twilio è attivo perché i default hardcoded sono non-vuoti.
-- **Fase 5 — Cutover & cleanup (passi distruttivi → conferma esplicita):** spegni i webhook Twilio; **REVOCA/rigenera il token Twilio** sul portale (38 workflow lo contengono in chiaro — vedi appendice del piano) + **ruota il JWT Supabase di oraz** + ruota `TWILIO_AUTH_TOKEN` su Vercel; rimuovi gli env Twilio-WhatsApp (`TWILIO_WHATSAPP_FROM`, `BALI_WHATSAPP_FROM`, `TWILIO_VERIFY_SIGNATURE`) — ma **NON** `TWILIO_ACCOUNT_SID/AUTH_TOKEN` (servono alla voce); rimuovi la route `twilio/delivery-callback` + `twilio-signature.ts` quando nessun numero invia più WhatsApp; bonifica i testi UI residui (`admin/tenant/health` "sandbox"→"Meta test mode", `admin/page.tsx`).
-
-## Verifica finale (end-to-end)
-1. Repo: `npx tsc --noEmit` (0) · `npx vitest run` (verde) · `npm run build` (0).
-2. Scan anti-Twilio su **tutti i workflow n8n via API** (`grep` del SID `AC169253...`, token `405c7358...`, JWT Supabase oraz → **0**) oltre che su `src`.
-3. **Live n8n:** WhatsApp reale al numero Meta → Meta Router instrada → il bot risponde via `graph.facebook.com` (nei log NON deve comparire `api.twilio.com`). Tenant nuovo post-Fase 4 → nasce Meta-only. Cleanup dati test.
-4. Notifiche proattive (Reminder/Daily Summary/Post-Call) → inviate via template Meta approvato.
+## Da fare quando si riprende (tutto GATED su conferma utente)
+1. Ruotare il **JWT Supabase service-role** + il **token Twilio** + Vercel `TWILIO_AUTH_TOKEN`.
+2. Rimuovere gli env Twilio-WhatsApp da Vercel (`TWILIO_WHATSAPP_FROM`, `BALI_WHATSAPP_FROM`, `TWILIO_VERIFY_SIGNATURE`) — **TENERE** `TWILIO_ACCOUNT_SID/AUTH_TOKEN` per la voce.
+3. Repo: rimuovere `twilio/delivery-callback` + `twilio-signature.ts` quando nessuno invia più WhatsApp via Twilio; bonificare i testi UI "sandbox".
+4. (Opzionale) cablare i 30 workflow al sub-workflow `a00dkoe6lwKi6Dv7` per togliere i secret duplicati in un punto solo.
 
 ## Note operative
-- Lavoro su `main` (no branch), commit+push automatico a fine task. Le chiamate n8n/Supabase/Meta/Vercel via `curl` richiedono `dangerouslyDisableSandbox`.
-- n8n REST: header `X-N8N-API-KEY`, base `N8N_BASE_URL` (in `.env.local` e credentials.md). Endpoint workflow: `GET/PUT $N8N_BASE_URL/api/v1/workflows[/{id}]`.
-- Le domande all'utente SEMPRE a voce: `/Users/amplaye/.claude/voice/ask_voice.sh "<domanda in italiano semplice>"` (l'utente non è tecnico — spiega pro/contro in parole povere e consiglia tu).
+- Lavoro su `main` (no branch), commit+push automatico. curl n8n/Supabase/Meta/Vercel → `dangerouslyDisableSandbox`.
+- n8n REST: `X-N8N-API-KEY`, base `N8N_BASE_URL`. Workflow: `GET/PUT/DELETE /api/v1/workflows[/{id}]`, attiva/disattiva `POST /api/v1/workflows/{id}/{activate|deactivate}`. **Non c'è** endpoint pubblico per "run" (405) — serve un webhook trigger.
+- Domande all'utente SEMPRE a voce: `/Users/amplaye/.claude/voice/ask_voice.sh "<domanda in italiano semplice>"` (l'utente non è tecnico — spiega in parole povere e consiglia tu).
