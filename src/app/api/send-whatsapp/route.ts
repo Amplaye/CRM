@@ -4,13 +4,15 @@ import { assertAiSecret } from "@/lib/ai-auth";
 import { createServerSupabaseClient, createServiceRoleClient } from "@/lib/supabase/server";
 import { tenantWhatsAppFrom } from "@/lib/whatsapp/from";
 import { sendWhatsAppMeta } from "@/lib/whatsapp/meta";
+import { verifyTenantMembership } from "@/lib/tenant-membership";
 
 export async function POST(req: NextRequest) {
   // Accept either: (a) valid x-ai-secret (n8n/Vapi) or (b) a signed-in dashboard session.
   // This lets /pending and other dashboard pages call this endpoint from the browser
   // (same-origin cookies) without embedding the shared secret in the JS bundle.
   const unauth = assertAiSecret(req);
-  if (unauth) {
+  const viaSecret = !unauth;
+  if (!viaSecret) {
     try {
       const supabase = await createServerSupabaseClient();
       const { data: { user } } = await supabase.auth.getUser();
@@ -24,6 +26,16 @@ export async function POST(req: NextRequest) {
 
     if (!to || !message) {
       return NextResponse.json({ error: "Missing 'to' or 'message'" }, { status: 400 });
+    }
+
+    // Session callers may only send on behalf of a tenant they belong to;
+    // otherwise a logged-in host of one tenant could send WhatsApp as another.
+    // Secret callers (n8n/Vapi) are trusted to pass the right tenant_id.
+    if (!viaSecret && tenant_id) {
+      const member = await verifyTenantMembership(tenant_id);
+      if (!member) {
+        return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+      }
     }
 
     // Send FROM the tenant's own Meta number when the caller names a tenant;

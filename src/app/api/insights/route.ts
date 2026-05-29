@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServiceRoleClient } from "@/lib/supabase/server";
+import { verifyTenantMembership } from "@/lib/tenant-membership";
 
 interface Insight {
   type: "revenue_opportunity" | "performance_drop" | "ai_optimization" | "loss_prevention" | "hidden_value";
@@ -34,6 +35,13 @@ export async function GET(req: NextRequest) {
     const tenantId = req.nextUrl.searchParams.get("tenant_id");
     if (!tenantId) {
       return NextResponse.json({ error: "Missing tenant_id" }, { status: 400 });
+    }
+
+    // This is a dashboard endpoint exposing a tenant's revenue/PII insights.
+    // Require a session that is a member of tenantId (or a platform admin).
+    const member = await verifyTenantMembership(tenantId);
+    if (!member) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
     const supabase = createServiceRoleClient();

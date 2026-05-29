@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createServiceRoleClient, createServerSupabaseClient } from "@/lib/supabase/server";
 import { assertAiSecret } from "@/lib/ai-auth";
 import { isPromptArticle, syncAssistantPrompt, VapiKbArticle } from "@/lib/onboarding/vapi";
+import { verifyTenantMembership } from "@/lib/tenant-membership";
 
 // Sync a tenant's published KB into its Vapi assistant. On Vapi there is no
 // separate knowledge base: the published articles are concatenated into the
@@ -20,7 +21,8 @@ export async function POST(req: NextRequest) {
   // dashboard session. The /knowledge and Settings pages call this from the
   // browser without the shared secret.
   const unauth = assertAiSecret(req);
-  if (unauth) {
+  const viaSecret = !unauth;
+  if (!viaSecret) {
     try {
       const supabase = await createServerSupabaseClient();
       const { data: { user } } = await supabase.auth.getUser();
@@ -33,6 +35,13 @@ export async function POST(req: NextRequest) {
   try {
     const { tenant_id } = await req.json();
     if (!tenant_id) return NextResponse.json({ error: "Missing tenant_id" }, { status: 400 });
+
+    // Session callers may only sync a tenant's voice assistant if they are an
+    // owner/manager of it (this rewrites the live Vapi system prompt + KB).
+    if (!viaSecret) {
+      const member = await verifyTenantMembership(tenant_id, ["owner", "manager"]);
+      if (!member) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
 
     const VAPI_KEY = process.env.VAPI_PRIVATE_KEY;
     if (!VAPI_KEY) {

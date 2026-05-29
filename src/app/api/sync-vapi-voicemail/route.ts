@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServiceRoleClient, createServerSupabaseClient } from "@/lib/supabase/server";
 import { assertAiSecret } from "@/lib/ai-auth";
+import { verifyTenantMembership } from "@/lib/tenant-membership";
 
 const VAPI_BASE = "https://api.vapi.ai";
 
@@ -177,7 +178,8 @@ function withTransferCall(existing: any[] | undefined, phone: string): any[] {
 export async function POST(req: NextRequest) {
   // Accept either: (a) valid x-ai-secret (cron/n8n) or (b) a signed-in dashboard session.
   const unauth = assertAiSecret(req);
-  if (unauth) {
+  const viaSecret = !unauth;
+  if (!viaSecret) {
     try {
       const supabase = await createServerSupabaseClient();
       const { data: { user } } = await supabase.auth.getUser();
@@ -190,6 +192,13 @@ export async function POST(req: NextRequest) {
   try {
     const { tenant_id } = await req.json();
     if (!tenant_id) return NextResponse.json({ error: "Missing tenant_id" }, { status: 400 });
+
+    // Session callers may only modify a tenant's voicemail config if they are
+    // an owner/manager (this rewrites the live Vapi assistant prompt).
+    if (!viaSecret) {
+      const member = await verifyTenantMembership(tenant_id, ["owner", "manager"]);
+      if (!member) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
 
     const VAPI_KEY = process.env.VAPI_PRIVATE_KEY;
     if (!VAPI_KEY) {
