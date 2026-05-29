@@ -1,22 +1,49 @@
 import { createClient } from "@supabase/supabase-js";
+import crypto from "node:crypto";
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "https://azhlnybiqlkbhbboyvud.supabase.co";
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || "";
 
+// Safety: this script creates a platform_admin auth user. Refuse to run unless
+// SEED_ALLOW=1 is explicitly set, so it can never accidentally seed a known
+// account (with a known password) into a shared/production database. Intended
+// for local/dev only.
+if (process.env.SEED_ALLOW !== "1") {
+  console.error(
+    "Refusing to seed: set SEED_ALLOW=1 to confirm this is a disposable local/dev database."
+  );
+  process.exit(1);
+}
+if (!supabaseUrl || !supabaseServiceKey) {
+  console.error("NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY must be set.");
+  process.exit(1);
+}
+
 const supabase = createClient(supabaseUrl, supabaseServiceKey);
+
+// Generate a strong random password per user, printed once so a developer can
+// log in. Never a static/shared password — especially not for the admin.
+function randomPassword(): string {
+  return crypto.randomBytes(18).toString("base64url");
+}
 
 async function seed() {
   console.log("Starting Supabase seeding...");
 
   // 1. Create auth users via Supabase Admin API
   const usersToCreate = [
-    { email: "admin@baliflow.com", password: "password123", name: "Platform Admin", global_role: "platform_admin" },
-    { email: "owner@picnic.com", password: "password123", name: "Sarah Owner", global_role: "user" },
-    { email: "manager@trattoria.com", password: "password123", name: "Marco Manager", global_role: "user" },
-    { email: "host@picnic.com", password: "password123", name: "Host Team", global_role: "user" }
+    { email: "admin@baliflow.com", password: randomPassword(), name: "Platform Admin", global_role: "platform_admin" },
+    { email: "owner@picnic.com", password: randomPassword(), name: "Sarah Owner", global_role: "user" },
+    { email: "manager@trattoria.com", password: randomPassword(), name: "Marco Manager", global_role: "user" },
+    { email: "host@picnic.com", password: randomPassword(), name: "Host Team", global_role: "user" }
   ];
 
   const createdUsers: Record<string, string> = {};
+  console.log("\n=== Seeded credentials (shown once) ===");
+  for (const u of usersToCreate) {
+    console.log(`  ${u.email}  ${u.password}`);
+  }
+  console.log("=======================================\n");
 
   for (const u of usersToCreate) {
     const { data, error } = await supabase.auth.admin.createUser({
