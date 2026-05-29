@@ -1,8 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServiceRoleClient } from "@/lib/supabase/server";
 import { sendWhatsAppMeta } from "@/lib/whatsapp/meta";
+import { assertPlatformAdmin } from "@/lib/admin-auth";
 
 export async function POST(req: NextRequest) {
+  const auth = await assertPlatformAdmin();
+  if (!auth.ok) return auth.res;
   try {
     const { conversation_id, body } = await req.json();
     if (!conversation_id || !body || typeof body !== "string") {

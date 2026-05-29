@@ -1,7 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServiceRoleClient } from "@/lib/supabase/server";
+import { assertPlatformAdmin } from "@/lib/admin-auth";
 
 export async function GET(req: NextRequest) {
+  const auth = await assertPlatformAdmin();
+  if (!auth.ok) return auth.res;
   try {
     const tenantId = req.nextUrl.searchParams.get("tenant_id");
     const supabase = createServiceRoleClient();
@@ -23,6 +26,8 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
+  const auth = await assertPlatformAdmin();
+  if (!auth.ok) return auth.res;
   try {
     const { tenant_id, content, author } = await req.json();
     if (!tenant_id || !content) {
@@ -43,6 +48,8 @@ export async function POST(req: NextRequest) {
 }
 
 export async function DELETE(req: NextRequest) {
+  const auth = await assertPlatformAdmin();
+  if (!auth.ok) return auth.res;
   try {
     const { id } = await req.json();
     if (!id) return NextResponse.json({ error: "Missing id" }, { status: 400 });

@@ -1,7 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServiceRoleClient } from "@/lib/supabase/server";
+import { assertPlatformAdmin } from "@/lib/admin-auth";
 
 export async function PATCH(req: NextRequest) {
+  const auth = await assertPlatformAdmin();
+  if (!auth.ok) return auth.res;
   try {
     const { conversation_id, human_takeover } = await req.json();
     if (!conversation_id || typeof human_takeover !== "boolean") {

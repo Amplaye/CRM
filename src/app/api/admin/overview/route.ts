@@ -1,22 +1,15 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { createServiceRoleClient } from "@/lib/supabase/server";
+import { assertPlatformAdmin } from "@/lib/admin-auth";
 
-export async function GET(req: NextRequest) {
+export async function GET() {
+  // Previously the caller asserted its own identity via an x-user-id header,
+  // and the check was skipped entirely when the header was absent — i.e. no
+  // auth at all. Gate on the real session instead.
+  const auth = await assertPlatformAdmin();
+  if (!auth.ok) return auth.res;
   try {
     const supabase = createServiceRoleClient();
-
-    // Verify caller is platform_admin
-    const authHeader = req.headers.get("x-user-id");
-    if (authHeader) {
-      const { data: user } = await supabase
-        .from("users")
-        .select("global_role")
-        .eq("id", authHeader)
-        .single();
-      if (user?.global_role !== "platform_admin") {
-        return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
-      }
-    }
 
     // Get all tenants (archived ones disappear from the CRM immediately —
     // recoverable via the Archived section on the admin page).

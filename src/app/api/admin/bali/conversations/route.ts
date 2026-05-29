@@ -1,7 +1,10 @@
 import { NextResponse } from "next/server";
 import { createServiceRoleClient } from "@/lib/supabase/server";
+import { assertPlatformAdmin } from "@/lib/admin-auth";
 
 export async function GET() {
+  const auth = await assertPlatformAdmin();
+  if (!auth.ok) return auth.res;
   try {
     const supabase = createServiceRoleClient();
     const { data, error } = await supabase

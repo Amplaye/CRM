@@ -1,7 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServiceRoleClient } from "@/lib/supabase/server";
+import { assertPlatformAdmin } from "@/lib/admin-auth";
 
 export async function GET(req: NextRequest) {
+  const auth = await assertPlatformAdmin();
+  if (!auth.ok) return auth.res;
   try {
     const supabase = createServiceRoleClient();
     const status = req.nextUrl.searchParams.get("status") || "open";
@@ -33,6 +36,8 @@ export async function GET(req: NextRequest) {
 }
 
 export async function PATCH(req: NextRequest) {
+  const auth = await assertPlatformAdmin();
+  if (!auth.ok) return auth.res;
   try {
     const { id, status } = await req.json();
     if (!id || !status) {

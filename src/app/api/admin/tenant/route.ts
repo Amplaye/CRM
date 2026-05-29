@@ -4,6 +4,8 @@ import { assertPlatformAdmin } from "@/lib/admin-auth";
 import { isAdminSettableStatus } from "@/lib/tenants/status";
 
 export async function GET(req: NextRequest) {
+  const auth = await assertPlatformAdmin();
+  if (!auth.ok) return auth.res;
   try {
     const tenantId = req.nextUrl.searchParams.get("id");
     if (!tenantId) {
