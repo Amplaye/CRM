@@ -124,10 +124,14 @@ export async function POST(req: NextRequest) {
         case "voice.ingest":
            // Append transcript entry to the conversation
            // Supabase: use array_append via RPC or fetch-then-update
+           // Scope by tenant_id: the API key resolves to one tenant, so a
+           // caller must not be able to append to another tenant's conversation
+           // by passing its conversation_id.
            const { data: convo, error: convoFetchErr } = await supabase
              .from("conversations")
              .select("transcript")
              .eq("id", payload.conversation_id)
+             .eq("tenant_id", tenantId)
              .single();
 
            if (convoFetchErr) throw convoFetchErr;
@@ -147,7 +151,8 @@ export async function POST(req: NextRequest) {
                transcript: updatedTranscript,
                updated_at: new Date().toISOString()
              })
-             .eq("id", payload.conversation_id);
+             .eq("id", payload.conversation_id)
+             .eq("tenant_id", tenantId);
 
            if (convoUpdateErr) throw convoUpdateErr;
            break;

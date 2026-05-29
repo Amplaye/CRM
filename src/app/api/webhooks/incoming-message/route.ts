@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server';
 import { createServiceRoleClient } from '@/lib/supabase/server';
 import { logAuditEvent } from '@/lib/audit';
 import { handleMetaWebhookVerification } from '@/lib/meta-signature';
+import { assertAiSecret } from '@/lib/ai-auth';
+import { tenantReceivesTraffic, type TenantStatus } from '@/lib/tenants/status';
 
 // Meta webhook verification handshake. When this route is registered as a Meta
 // WhatsApp webhook (directly, without n8n in front), Meta calls GET once with
@@ -15,6 +17,13 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
+  // C5: this route writes guest PII + conversation transcript with the
+  // service-role client and feeds transcripts into a privileged LLM, so it
+  // must be authenticated. n8n (the only legitimate caller) sends the shared
+  // x-ai-secret header; reject anything without it (fail-closed).
+  const unauth = assertAiSecret(request);
+  if (unauth) return unauth;
+
   try {
     const payload = await request.json();
 
@@ -23,6 +32,20 @@ export async function POST(request: Request) {
     }
 
     const supabase = createServiceRoleClient();
+
+    // C5: authorize the body-supplied tenant_id instead of trusting it blindly.
+    // It must reference a real tenant that is allowed to receive traffic.
+    const { data: tenantRow } = await supabase
+      .from('tenants')
+      .select('id, status')
+      .eq('id', payload.tenant_id)
+      .single();
+    if (!tenantReceivesTraffic(tenantRow?.status as TenantStatus)) {
+      return NextResponse.json(
+        { error: `Unknown or inactive tenant` },
+        { status: 403 }
+      );
+    }
 
     // Idempotency / dedup: when the caller (n8n) provides a per-message id —
     // `wam_id` (Meta WhatsApp, wamid....), `message_sid` (legacy Twilio) or a
