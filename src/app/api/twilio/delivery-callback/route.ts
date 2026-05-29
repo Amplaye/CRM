@@ -38,7 +38,13 @@ export async function POST(request: Request) {
   const params: Record<string, string> = {};
   for (const [k, v] of new URLSearchParams(raw)) params[k] = v;
 
-  if (isTwilioVerificationEnabled()) {
+  // M2: fail-closed. WhatsApp delivery now comes from Meta; this Twilio route
+  // is deprecated. Without signature verification configured, anyone could
+  // forge audit_events for any tenant — so reject unless we can verify.
+  if (!isTwilioVerificationEnabled()) {
+    return NextResponse.json({ error: 'Signature verification not configured' }, { status: 403 });
+  }
+  {
     const signature = request.headers.get('x-twilio-signature');
     const proto = request.headers.get('x-forwarded-proto') || 'https';
     const host = request.headers.get('x-forwarded-host') || request.headers.get('host') || '';

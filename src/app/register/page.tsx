@@ -31,10 +31,11 @@ export default function RegisterPage() {
     setLoading(true);
 
     try {
-      // 1. Sign up the user. Stash the business name on the auth user too, so the
-      // /onboarding self-heal can recreate the tenant with the right name if the
-      // register-tenant call below never lands (flaky mobile network, tab closed,
-      // email confirmed on another device).
+      // 1. Sign up the user. Stash the business name on the auth user so the
+      // /onboarding step can create the tenant with the right name once the
+      // user is authenticated (after email confirmation). We deliberately do
+      // NOT create the tenant pre-confirmation: tenant creation requires a
+      // session (see /api/register-tenant + /api/ensure-tenant).
       const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
         email,
         password,
@@ -53,18 +54,11 @@ export default function RegisterPage() {
         return;
       }
 
-      // If email is not confirmed yet (confirmation enabled), show message
+      // If email is not confirmed yet (confirmation enabled), just ask the user
+      // to confirm. The tenant is created afterwards, when they land on
+      // /onboarding with a real session (ensure-tenant uses the stashed
+      // business_name). No tenant is minted before confirmation.
       if (signUpData?.user && !signUpData.session) {
-        // Create tenant immediately (user exists even before confirmation)
-        await fetch("/api/register-tenant", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            userId: signUpData.user.id,
-            businessName,
-            businessType: BUSINESS_TYPE
-          })
-        });
         setStep(2); // Show confirmation message
         setLoading(false);
         return;

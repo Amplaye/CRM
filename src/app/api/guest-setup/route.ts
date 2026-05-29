@@ -1,11 +1,14 @@
-import { NextRequest, NextResponse } from "next/server";
-import { createServiceRoleClient } from "@/lib/supabase/server";
+import { NextResponse } from "next/server";
+import { createServiceRoleClient, createServerSupabaseClient } from "@/lib/supabase/server";
 import { createTenant } from "@/lib/tenants/create-tenant";
 
-export async function POST(req: NextRequest) {
+export async function POST() {
   try {
-    const { userId, email } = await req.json();
-    if (!userId) return NextResponse.json({ error: "Missing userId" }, { status: 400 });
+    // M4: derive the user from the session, never from a body-supplied userId.
+    const authClient = await createServerSupabaseClient();
+    const { data: { user } } = await authClient.auth.getUser();
+    if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const userId = user.id;
 
     const supabase = createServiceRoleClient();
 

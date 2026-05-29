@@ -3,22 +3,19 @@ import { NextResponse } from 'next/server';
 import { createServiceRoleClient } from '@/lib/supabase/server';
 import { renderConversationMarkdown, type ConversationForMarkdown } from '@/lib/conversation-md';
 import { assertAiSecret } from '@/lib/ai-auth';
+import { verifyTenantMembership } from '@/lib/tenant-membership';
 
 // GET /api/conversations/[id]/markdown
-// Accepts either an authenticated dashboard session (via the existing
-// supabase ssr cookie middleware) OR an `x-ai-secret` header for
-// server-side callers (cron exporters / Storage backfill).
-// Returns the conversation as text/markdown with content-disposition set
-// so curl downloads "conversation-<id>.md" cleanly.
+// Accepts either an `x-ai-secret` header for server-side callers (cron
+// exporters / Storage backfill) OR an authenticated dashboard session that is
+// a member of the conversation's tenant. Returns the conversation as
+// text/markdown with content-disposition set so curl downloads cleanly.
 export async function GET(
   req: NextRequest,
   ctx: { params: Promise<{ id: string }> }
 ) {
   const { id } = await ctx.params;
-  const ai = assertAiSecret(req);
-  // assertAiSecret returns NextResponse for failure OR null for ok. When
-  // AI_WEBHOOK_SECRET isn't set in env it returns null (open). That's the
-  // expected fallback for dashboard same-origin requests.
+  const viaSecret = !assertAiSecret(req);
 
   const supabase = createServiceRoleClient();
   const { data, error } = await supabase
@@ -32,9 +29,13 @@ export async function GET(
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   if (!data) return NextResponse.json({ error: 'not found' }, { status: 404 });
 
-  // When the secret IS set but didn't match, reject (don't reveal
-  // conversation content).
-  if (ai && ai.status === 401) return ai;
+  // M3: a session caller must be a member of this conversation's tenant.
+  // Secret callers (cron) are trusted. Without either, reject — don't leak
+  // the transcript/PII to anyone who knows a conversation id.
+  if (!viaSecret) {
+    const member = await verifyTenantMembership(data.tenant_id as string);
+    if (!member) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
 
   const guest = Array.isArray(data.guest) ? data.guest[0] : data.guest;
   const conv: ConversationForMarkdown = { ...data, guest };
