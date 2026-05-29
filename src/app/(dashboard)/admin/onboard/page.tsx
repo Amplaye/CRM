@@ -242,10 +242,8 @@ export default function OnboardPage() {
               Login owner: <b>{ownerEmail}</b> · password: <b>{ownerPassword}</b>
             </p>
             <p className="text-xs text-emerald-700/80 mt-3">
-              ⚠️ Per ricevere i messaggi WhatsApp Sandbox sul nuovo bot, vai su Twilio Console e cambia
-              il webhook del numero <b>+14155238886</b> da
-              <code className="mx-1 bg-white/70 px-1 py-0.5 rounded">picnic-whatsapp</code>
-              a <code className="mx-1 bg-white/70 px-1 py-0.5 rounded">{slug}-whatsapp</code>.
+              ℹ️ WhatsApp è su <b>Meta Cloud API</b> con un numero condiviso: il router Meta smista
+              automaticamente i messaggi di questo nuovo ristorante. Nessun webhook da cambiare a mano.
             </p>
             <div className="flex gap-2 pt-2">
               <Link href="/admin" className="text-sm font-semibold text-emerald-800 underline">← Torna al pannello admin</Link>

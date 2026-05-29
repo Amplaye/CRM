@@ -1,47 +1,49 @@
 import { describe, it, expect, afterEach } from "vitest";
-import { resolveWhatsAppFrom, tenantWhatsAppFrom, TWILIO_SANDBOX_FROM } from "./from";
+import { resolveWhatsAppFrom, tenantWhatsAppFrom } from "./from";
 
 // Mossa 5 (PIANO_SAAS): the WhatsApp sending number is per-tenant CONFIG, not
-// code. These lock the resolution order tenant → platform env → sandbox so a
-// future edit can't quietly re-hardcode one number for everyone.
-describe("resolveWhatsAppFrom — sending number is per-tenant config [Mossa 5]", () => {
-  const original = process.env.TWILIO_WHATSAPP_FROM;
+// code. After the Meta migration (2026-05-29) the sender is a Meta
+// phone_number_id (bare digits), resolved tenant → platform env → empty.
+// These lock that order so a future edit can't quietly re-hardcode one number.
+describe("resolveWhatsAppFrom — sending number (Meta phone_number_id) is per-tenant config [Mossa 5]", () => {
+  const original = process.env.META_WHATSAPP_PHONE_NUMBER_ID;
   afterEach(() => {
-    if (original === undefined) delete process.env.TWILIO_WHATSAPP_FROM;
-    else process.env.TWILIO_WHATSAPP_FROM = original;
+    if (original === undefined) delete process.env.META_WHATSAPP_PHONE_NUMBER_ID;
+    else process.env.META_WHATSAPP_PHONE_NUMBER_ID = original;
   });
 
-  it("uses the tenant's own number when set (the SaaS path)", () => {
-    process.env.TWILIO_WHATSAPP_FROM = "whatsapp:+10000000000";
-    expect(resolveWhatsAppFrom("whatsapp:+34999888777")).toBe("whatsapp:+34999888777");
+  it("uses the tenant's own phone_number_id when set (the SaaS path)", () => {
+    process.env.META_WHATSAPP_PHONE_NUMBER_ID = "1000000000000";
+    expect(resolveWhatsAppFrom("2222222222222")).toBe("2222222222222");
   });
 
-  it("adds the whatsapp: prefix to a bare tenant number", () => {
-    expect(resolveWhatsAppFrom("+34999888777")).toBe("whatsapp:+34999888777");
+  it("strips any stray whatsapp: prefix or '+' to a bare phone_number_id", () => {
+    expect(resolveWhatsAppFrom("whatsapp:+1095078260361095")).toBe("1095078260361095");
+    expect(resolveWhatsAppFrom("+1095078260361095")).toBe("1095078260361095");
   });
 
   it("falls back to the platform env number when the tenant has none", () => {
-    process.env.TWILIO_WHATSAPP_FROM = "whatsapp:+10000000000";
-    expect(resolveWhatsAppFrom(undefined)).toBe("whatsapp:+10000000000");
-    expect(resolveWhatsAppFrom("")).toBe("whatsapp:+10000000000");
-    expect(resolveWhatsAppFrom("   ")).toBe("whatsapp:+10000000000");
+    process.env.META_WHATSAPP_PHONE_NUMBER_ID = "1000000000000";
+    expect(resolveWhatsAppFrom(undefined)).toBe("1000000000000");
+    expect(resolveWhatsAppFrom("")).toBe("1000000000000");
+    expect(resolveWhatsAppFrom("   ")).toBe("1000000000000");
   });
 
-  it("falls back to the Twilio sandbox when neither tenant nor env is set", () => {
-    delete process.env.TWILIO_WHATSAPP_FROM;
-    expect(resolveWhatsAppFrom(undefined)).toBe(TWILIO_SANDBOX_FROM);
+  it("returns empty string when neither tenant nor env is set", () => {
+    delete process.env.META_WHATSAPP_PHONE_NUMBER_ID;
+    expect(resolveWhatsAppFrom(undefined)).toBe("");
   });
 
   it("a tenant's number never leaks to a neighbour (resolution is per-call)", () => {
-    process.env.TWILIO_WHATSAPP_FROM = "whatsapp:+10000000000";
-    expect(resolveWhatsAppFrom("whatsapp:+34111111111")).toBe("whatsapp:+34111111111");
-    expect(resolveWhatsAppFrom(undefined)).toBe("whatsapp:+10000000000");
+    process.env.META_WHATSAPP_PHONE_NUMBER_ID = "1000000000000";
+    expect(resolveWhatsAppFrom("3333333333333")).toBe("3333333333333");
+    expect(resolveWhatsAppFrom(undefined)).toBe("1000000000000");
   });
 });
 
 describe("tenantWhatsAppFrom — reads settings.whatsapp.from safely", () => {
   it("returns the configured number", () => {
-    expect(tenantWhatsAppFrom({ whatsapp: { from: "whatsapp:+34000111222" } })).toBe("whatsapp:+34000111222");
+    expect(tenantWhatsAppFrom({ whatsapp: { from: "1095078260361095" } })).toBe("1095078260361095");
   });
 
   it("returns undefined when unset, wrong shape, or blank", () => {

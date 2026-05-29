@@ -2,7 +2,8 @@ import { NextResponse } from 'next/server';
 import { createServiceRoleClient } from '@/lib/supabase/server';
 import { assertAiSecret } from '@/lib/ai-auth';
 import { logSystemEvent, resolveSystemEvents } from '@/lib/system-log';
-import { resolveWhatsAppFrom, tenantWhatsAppFrom } from '@/lib/whatsapp/from';
+import { tenantWhatsAppFrom } from '@/lib/whatsapp/from';
+import { sendWhatsAppMeta } from '@/lib/whatsapp/meta';
 
 // Called by the n8n cron every few minutes. For each active waitlist entry
 // older than 30 minutes that hasn't been reassured yet, sends an honest
@@ -14,10 +15,8 @@ export async function POST(request: Request) {
   const unauth = assertAiSecret(request);
   if (unauth) return unauth;
 
-  const TWILIO_SID = process.env.TWILIO_ACCOUNT_SID;
-  const TWILIO_TOKEN = process.env.TWILIO_AUTH_TOKEN;
-  if (!TWILIO_SID || !TWILIO_TOKEN) {
-    return NextResponse.json({ ok: false, error: 'Twilio credentials not configured' }, { status: 500 });
+  if (!process.env.META_ACCESS_TOKEN) {
+    return NextResponse.json({ ok: false, error: 'Meta credentials not configured' }, { status: 500 });
   }
 
   try {
@@ -83,12 +82,6 @@ export async function POST(request: Request) {
           .eq('id', e.id);
         continue;
       }
-      const to = phone.startsWith('whatsapp:')
-        ? phone
-        : phone.startsWith('+')
-        ? 'whatsapp:' + phone
-        : 'whatsapp:+' + phone;
-
       const lang = await resolveLang(e.tenant_id, e.guest_id);
       const M = {
         es:
@@ -106,35 +99,16 @@ export async function POST(request: Request) {
       };
       const body = M[lang];
 
-      const form = new URLSearchParams();
-      form.set('From', resolveWhatsAppFrom(fromByTenant.get(e.tenant_id)));
-      form.set('To', to);
-      form.set('Body', body);
-
-      try {
-        const resp = await fetch(
-          `https://api.twilio.com/2010-04-01/Accounts/${TWILIO_SID}/Messages.json`,
-          {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/x-www-form-urlencoded',
-              Authorization: 'Basic ' + Buffer.from(`${TWILIO_SID}:${TWILIO_TOKEN}`).toString('base64'),
-            },
-            body: form.toString(),
-          }
-        );
-        if (!resp.ok) {
-          failures.push(`${e.id}: twilio ${resp.status}`);
-          continue;
-        }
-        await supabase
-          .from('waitlist_entries')
-          .update({ reassurance_sent_at: new Date().toISOString() })
-          .eq('id', e.id);
-        sent++;
-      } catch (err: any) {
-        failures.push(`${e.id}: ${err.message}`);
+      const result = await sendWhatsAppMeta(phone, body, fromByTenant.get(e.tenant_id));
+      if (!result.ok) {
+        failures.push(`${e.id}: meta ${result.status} ${result.errorMessage || ''}`.trim());
+        continue;
       }
+      await supabase
+        .from('waitlist_entries')
+        .update({ reassurance_sent_at: new Date().toISOString() })
+        .eq('id', e.id);
+      sent++;
     }
 
     if (failures.length > 0) {

@@ -8,7 +8,8 @@ import {
   tablesNeeded,
 } from '@/lib/restaurant-rules';
 import { getFeatures } from '@/lib/types/tenant-settings';
-import { resolveWhatsAppFrom, tenantWhatsAppFrom } from '@/lib/whatsapp/from';
+import { tenantWhatsAppFrom } from '@/lib/whatsapp/from';
+import { sendWhatsAppMeta } from '@/lib/whatsapp/meta';
 
 function timeToMinutes(time: string): number {
   const [h, m] = time.split(':').map(Number);
@@ -432,18 +433,6 @@ async function notifyClient(
   timeLimit: string | null,
   from?: string
 ) {
-  const TWILIO_SID = process.env.TWILIO_ACCOUNT_SID;
-  const TWILIO_TOKEN = process.env.TWILIO_AUTH_TOKEN;
-  const TWILIO_FROM = resolveWhatsAppFrom(from);
-
-  if (!TWILIO_SID || !TWILIO_TOKEN) return;
-
-  let whatsappTo = phone;
-  if (!whatsappTo.startsWith('whatsapp:')) {
-    if (!whatsappTo.startsWith('+')) whatsappTo = '+' + whatsappTo;
-    whatsappTo = 'whatsapp:' + whatsappTo;
-  }
-
   let msg = `🎉 *¡Buenas noticias, ${name}!*\nSe ha liberado una mesa para tu lista de espera:\n\n📅 Fecha: ${date}\n⏰ Hora: ${time}\n👥 Personas: ${partySize}`;
 
   if (timeLimit) {
@@ -452,16 +441,7 @@ async function notifyClient(
 
   msg += `\n\n👉 Responde *CONFIRMO* en los próximos ${OFFER_TTL_MINUTES} minutos para reservar esta mesa.\nResponde *CANCELAR* si ya no la necesitas.\n\nSi no contestas a tiempo, la ofreceremos al siguiente de la lista.`;
 
-  const body = new URLSearchParams({ From: TWILIO_FROM, To: whatsappTo, Body: msg });
-
-  await fetch(`https://api.twilio.com/2010-04-01/Accounts/${TWILIO_SID}/Messages.json`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/x-www-form-urlencoded',
-      Authorization: 'Basic ' + Buffer.from(`${TWILIO_SID}:${TWILIO_TOKEN}`).toString('base64'),
-    },
-    body: body.toString(),
-  });
+  await sendWhatsAppMeta(phone, msg, from);
 }
 
 /**
@@ -479,27 +459,11 @@ async function notifyOwner(
   endTime?: string,
   from?: string
 ) {
-  const TWILIO_SID = process.env.TWILIO_ACCOUNT_SID;
-  const TWILIO_TOKEN = process.env.TWILIO_AUTH_TOKEN;
-  const TWILIO_FROM = resolveWhatsAppFrom(from);
-  const OWNER_PHONE = ownerPhone;
-
-  if (!TWILIO_SID || !TWILIO_TOKEN) return;
-
   let msg = `🔄 RESERVA DESDE LISTA DE ESPERA\n\n${guestName}\n${date} ${time}`;
   if (isTimeLimited && endTime) {
     msg += ` (hasta ${endTime} ⚠️ TIEMPO LIMITADO)`;
   }
   msg += `\n${partySize} personas\n${tableNames.join(', ')}\nTel: ${guestPhone}`;
 
-  const body = new URLSearchParams({ From: TWILIO_FROM, To: OWNER_PHONE, Body: msg });
-
-  await fetch(`https://api.twilio.com/2010-04-01/Accounts/${TWILIO_SID}/Messages.json`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/x-www-form-urlencoded',
-      Authorization: 'Basic ' + Buffer.from(`${TWILIO_SID}:${TWILIO_TOKEN}`).toString('base64'),
-    },
-    body: body.toString(),
-  });
+  await sendWhatsAppMeta(ownerPhone, msg, from);
 }

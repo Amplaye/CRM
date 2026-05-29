@@ -1,6 +1,18 @@
 import { NextResponse } from 'next/server';
 import { createServiceRoleClient } from '@/lib/supabase/server';
 import { logAuditEvent } from '@/lib/audit';
+import { handleMetaWebhookVerification } from '@/lib/meta-signature';
+
+// Meta webhook verification handshake. When this route is registered as a Meta
+// WhatsApp webhook (directly, without n8n in front), Meta calls GET once with
+// ?hub.mode=subscribe&hub.verify_token=...&hub.challenge=... — echo the
+// challenge back when the token matches META_WEBHOOK_VERIFY_TOKEN. Harmless if
+// n8n stays the webhook target (this GET just won't be called).
+export async function GET(request: Request) {
+  const verification = handleMetaWebhookVerification(request);
+  if (verification) return verification;
+  return NextResponse.json({ ok: true });
+}
 
 export async function POST(request: Request) {
   try {
@@ -12,13 +24,13 @@ export async function POST(request: Request) {
 
     const supabase = createServiceRoleClient();
 
-    // Idempotency / dedup: when the caller (n8n) provides `message_sid`
-    // (Twilio) or `idempotency_key`, drop duplicate deliveries — Twilio
-    // retries the same MessageSid up to 4 times on 5xx, and removing the
-    // 7-second debounce on 2026-04-29 meant duplicates could append the
-    // same turn twice. Backward-compatible: payloads without a key bypass
-    // the check (same behaviour as before).
-    const dedupKey: string | undefined = payload.message_sid || payload.idempotency_key;
+    // Idempotency / dedup: when the caller (n8n) provides a per-message id —
+    // `wam_id` (Meta WhatsApp, wamid....), `message_sid` (legacy Twilio) or a
+    // generic `idempotency_key` — drop duplicate deliveries. Providers retry
+    // the same message id on 5xx, and removing the 7-second debounce on
+    // 2026-04-29 meant duplicates could append the same turn twice.
+    // Backward-compatible: payloads without a key bypass the check.
+    const dedupKey: string | undefined = payload.wam_id || payload.message_sid || payload.idempotency_key;
     if (dedupKey) {
       const { data: prior } = await supabase
         .from('audit_events')

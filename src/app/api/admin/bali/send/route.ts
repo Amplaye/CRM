@@ -1,19 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServiceRoleClient } from "@/lib/supabase/server";
-
-const TWILIO_FROM = process.env.BALI_WHATSAPP_FROM || "whatsapp:+34641459479";
+import { sendWhatsAppMeta } from "@/lib/whatsapp/meta";
 
 export async function POST(req: NextRequest) {
   try {
-    const TWILIO_SID = process.env.TWILIO_ACCOUNT_SID;
-    const TWILIO_TOKEN = process.env.TWILIO_AUTH_TOKEN;
-    if (!TWILIO_SID || !TWILIO_TOKEN) {
-      return NextResponse.json(
-        { error: "Twilio credentials not configured" },
-        { status: 500 }
-      );
-    }
-
     const { conversation_id, body } = await req.json();
     if (!conversation_id || !body || typeof body !== "string") {
       return NextResponse.json({ error: "Missing conversation_id or body" }, { status: 400 });
@@ -32,34 +22,13 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Conversation not found" }, { status: 404 });
     }
 
-    const to = convo.guest_phone.startsWith("+")
-      ? "whatsapp:" + convo.guest_phone
-      : "whatsapp:+" + convo.guest_phone;
+    // Send via Meta Cloud API from the shared platform number (resolved inside
+    // sendWhatsAppMeta). No number hardcoded here — the old BALI live-number
+    // fallback is gone; a tenant's own number is config (settings.whatsapp.from).
+    const result = await sendWhatsAppMeta(convo.guest_phone, body);
 
-    // Send via Twilio
-    const twilioBody = new URLSearchParams({
-      From: TWILIO_FROM,
-      To: to,
-      Body: body,
-    }).toString();
-
-    const auth = "Basic " + Buffer.from(`${TWILIO_SID}:${TWILIO_TOKEN}`).toString("base64");
-
-    const twilioRes = await fetch(
-      `https://api.twilio.com/2010-04-01/Accounts/${TWILIO_SID}/Messages.json`,
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/x-www-form-urlencoded",
-          Authorization: auth,
-        },
-        body: twilioBody,
-      }
-    );
-
-    if (!twilioRes.ok) {
-      const errText = await twilioRes.text();
-      return NextResponse.json({ error: `Twilio: ${errText}` }, { status: 502 });
+    if (!result.ok) {
+      return NextResponse.json({ error: `Meta: ${result.errorMessage}` }, { status: result.status || 502 });
     }
 
     // Save the human reply to the bali_messages table

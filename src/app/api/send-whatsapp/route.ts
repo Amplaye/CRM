@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { logSystemEvent, resolveSystemEvents } from "@/lib/system-log";
 import { assertAiSecret } from "@/lib/ai-auth";
 import { createServerSupabaseClient, createServiceRoleClient } from "@/lib/supabase/server";
-import { resolveWhatsAppFrom, tenantWhatsAppFrom } from "@/lib/whatsapp/from";
+import { tenantWhatsAppFrom } from "@/lib/whatsapp/from";
+import { sendWhatsAppMeta } from "@/lib/whatsapp/meta";
 
 export async function POST(req: NextRequest) {
   // Accept either: (a) valid x-ai-secret (n8n/Vapi) or (b) a signed-in dashboard session.
@@ -25,17 +26,11 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Missing 'to' or 'message'" }, { status: 400 });
     }
 
-    const TWILIO_SID = process.env.TWILIO_ACCOUNT_SID;
-    const TWILIO_TOKEN = process.env.TWILIO_AUTH_TOKEN;
-
-    if (!TWILIO_SID || !TWILIO_TOKEN) {
-      return NextResponse.json({ error: "Twilio credentials not configured" }, { status: 500 });
-    }
-
-    // Send FROM the tenant's own number when the caller names a tenant; otherwise
-    // the platform default. One source of truth (resolveWhatsAppFrom) — no number
-    // hardcoded here. Today every tenant resolves to the same sandbox/env number,
-    // so this is byte-identical until a customer sets settings.whatsapp.from.
+    // Send FROM the tenant's own Meta number when the caller names a tenant;
+    // otherwise the platform default. One source of truth (resolveWhatsAppFrom,
+    // inside sendWhatsAppMeta) — no number hardcoded here. Today every tenant
+    // resolves to the same shared Meta number until a customer sets
+    // settings.whatsapp.from to its own phone_number_id.
     let tenantFrom: string | undefined;
     if (tenant_id) {
       const { data: tenantRow } = await createServiceRoleClient()
@@ -45,63 +40,40 @@ export async function POST(req: NextRequest) {
         .maybeSingle();
       tenantFrom = tenantWhatsAppFrom(tenantRow?.settings);
     }
-    const TWILIO_FROM = resolveWhatsAppFrom(tenantFrom);
 
-    // Format phone number for WhatsApp
-    let whatsappTo = to;
-    if (!whatsappTo.startsWith("whatsapp:")) {
-      if (!whatsappTo.startsWith("+")) whatsappTo = "+" + whatsappTo;
-      whatsappTo = "whatsapp:" + whatsappTo;
-    }
-
-    const body = new URLSearchParams({
-      From: TWILIO_FROM,
-      To: whatsappTo,
-      Body: message,
-    });
-
-    const res = await fetch(
-      `https://api.twilio.com/2010-04-01/Accounts/${TWILIO_SID}/Messages.json`,
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/x-www-form-urlencoded",
-          Authorization: "Basic " + Buffer.from(`${TWILIO_SID}:${TWILIO_TOKEN}`).toString("base64"),
-        },
-        body: body.toString(),
-      }
-    );
-
-    const data = await res.json();
+    const result = await sendWhatsAppMeta(to, message, tenantFrom);
 
     const normalizedTo = to.replace(/^whatsapp:/, "").trim();
-    const errorKey = `twilio:whatsapp:${normalizedTo}`;
+    const errorKey = `meta:whatsapp:${normalizedTo}`;
 
-    if (!res.ok) {
+    if (!result.ok) {
       logSystemEvent({
         category: "message_failure",
         severity: "high",
         title: `WhatsApp send failed to ${to}`,
-        description: data.message || "Twilio error",
-        metadata: { to, twilioError: data },
+        description: result.errorMessage || "Meta error",
+        metadata: { to, metaError: result.error },
         error_key: errorKey,
       });
-      return NextResponse.json({ error: data.message || "Twilio error", details: data }, { status: res.status });
+      return NextResponse.json(
+        { error: result.errorMessage || "Meta error", details: result.error },
+        { status: result.status || 502 }
+      );
     }
 
-    // Recovery: questa chiamata Twilio ha funzionato → chiudi gli open per stesso destinatario
-    // e per "twilio service down" globale.
+    // Recovery: questa chiamata Meta ha funzionato → chiudi gli open per stesso
+    // destinatario e per "whatsapp service down" globale.
     void resolveSystemEvents({ error_key: errorKey });
-    void resolveSystemEvents({ error_key: "twilio:service" });
+    void resolveSystemEvents({ error_key: "meta:service" });
 
-    return NextResponse.json({ success: true, sid: data.sid });
+    return NextResponse.json({ success: true, message_id: result.messageId });
   } catch (err: any) {
     logSystemEvent({
       category: "message_failure",
       severity: "critical",
       title: "WhatsApp send crashed",
       description: err.message,
-      error_key: "twilio:service",
+      error_key: "meta:service",
     });
     return NextResponse.json({ error: err.message }, { status: 500 });
   }

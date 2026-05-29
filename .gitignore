@@ -53,3 +53,7 @@ tts-say-mcp.js
 # Local plaintext credentials — never commit
 _creds_tmp.md
 .env*.local
+
+# n8n workflow backups — kept locally for rollback; contain hardcoded
+# Twilio tokens + a Supabase JWT, so they must NEVER enter git history.
+N8N/

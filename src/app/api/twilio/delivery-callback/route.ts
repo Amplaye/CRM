@@ -2,6 +2,12 @@ import { NextResponse } from 'next/server';
 import { logAuditEvent } from '@/lib/audit';
 import { verifyTwilioSignature, isTwilioVerificationEnabled } from '@/lib/twilio-signature';
 
+// ⚠️ DEPRECATED (2026-05-29 Meta migration): WhatsApp delivery status now comes
+// from Meta at /api/webhooks/whatsapp-delivery. This Twilio callback is kept
+// only so any status callback still configured in the Twilio Console during the
+// transition does not 404. Remove once no Twilio number sends WhatsApp
+// (Phase 5 cutover) — Twilio stays only as the future voice trunk.
+//
 // Twilio status callbacks for outbound WhatsApp messages (queued → sent →
 // delivered → read, or failed/undelivered). When enabled in the Twilio
 // Console under "Status Callback URL", this gives us delivery tracking

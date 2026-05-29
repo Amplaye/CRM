@@ -58,15 +58,23 @@ describe("SaaS pillar — no cross-tenant (Picnic) fallback in runtime routes [M
 describe("SaaS pillar — WhatsApp sender is config, resolved in one place [Mossa 5]", () => {
   const files = sourceFiles(API_DIR);
 
-  // The Twilio sandbox sender. It must live ONLY in src/lib/whatsapp/from.ts; a
-  // route that re-hardcodes it is the "one number for everyone" agency smell —
-  // the sending number is per-tenant config (settings.whatsapp.from) resolved by
-  // resolveWhatsAppFrom().
-  const SANDBOX_FROM = "14155238886";
+  // The shared platform sender lives ONLY as config (env
+  // META_WHATSAPP_PHONE_NUMBER_ID, resolved by resolveWhatsAppFrom in
+  // src/lib/whatsapp/from.ts). A route that re-hardcodes ANY of these numbers is
+  // the "one number for everyone" agency smell — the sending number is
+  // per-tenant config (settings.whatsapp.from), never a literal in a route.
+  //   - 1095078260361095 : the shared Meta phone_number_id (post-migration)
+  //   - 14155238886       : the old Twilio sandbox (must not resurface)
+  //   - 34641459479       : the LIVE BALI number once hardcoded in admin/bali/send
+  const BANNED_SENDERS = ["1095078260361095", "14155238886", "34641459479"];
 
-  it("no API route hardcodes the WhatsApp sandbox sender — use resolveWhatsAppFrom()", () => {
-    const offenders = files.filter((f) => readFileSync(f, "utf8").includes(SANDBOX_FROM));
-    expect(offenders, `sandbox sender hardcoded in routes:\n${offenders.join("\n")}`).toEqual([]);
+  it("no API route hardcodes a WhatsApp sender number — use resolveWhatsAppFrom()", () => {
+    const offenders: string[] = [];
+    for (const f of files) {
+      const txt = readFileSync(f, "utf8");
+      for (const n of BANNED_SENDERS) if (txt.includes(n)) offenders.push(`${f} → ${n}`);
+    }
+    expect(offenders, `sender number hardcoded in routes:\n${offenders.join("\n")}`).toEqual([]);
   });
 });
 
