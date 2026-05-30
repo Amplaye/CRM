@@ -70,6 +70,33 @@ describe("generateKbArticles — questionnaire → formatted KB", () => {
     expect(res.content).not.toContain("No-show");
   });
 
+  it("last reservation reflects each day's closing time, incl. past-midnight, with the chosen margin", () => {
+    // Real reporter case: lunch closes 15:30 daily; dinner varies 22:30 / 23:30 /
+    // 00:30 (after midnight), and the owner picked 30 min before closing.
+    const HRS: OpeningHours = {
+      "0": [{ open: "12:30", close: "15:30" }, { open: "19:30", close: "23:30" }],
+      "2": [{ open: "19:30", close: "22:30" }],
+      "5": [{ open: "12:30", close: "15:30" }, { open: "19:30", close: "00:30" }],
+    };
+    const q = { ...defaultQuestionnaire(), last_lunch_offset_min: 30, last_dinner_offset_min: 30 };
+    const res = byTitle(generateKbArticles(q, { ...ctx, opening_hours: HRS }), "Política de reservas")!;
+    // Lunch shares one close → single time, 30 min before.
+    expect(res.content).toContain("Última reserva almuerzo: 15:00 (30 min antes del cierre)");
+    // Dinner differs per day → all three cut-offs listed (00:30 close not dropped).
+    expect(res.content).toContain("Última reserva cena: 30 min antes del cierre");
+    expect(res.content).toContain("22:00");
+    expect(res.content).toContain("23:00");
+    expect(res.content).toContain("00:00"); // 00:30 − 30 min, the previously-lost past-midnight slot
+  });
+
+  it("last reservation at closing time (offset 0) and disabled shift (-1)", () => {
+    const HRS: OpeningHours = { "2": [{ open: "19:30", close: "22:30" }] }; // dinner only
+    const q = { ...defaultQuestionnaire(), last_lunch_offset_min: -1, last_dinner_offset_min: 0 };
+    const res = byTitle(generateKbArticles(q, { ...ctx, opening_hours: HRS }), "Política de reservas")!;
+    expect(res.content).toContain("Última reserva cena: 22:30 (hasta la hora de cierre)");
+    expect(res.content).toContain("Última reserva almuerzo: sin servicio"); // -1 → not served
+  });
+
   it("services article maps payments, kids menu, delivery (with platform) and takeaway wait", () => {
     const q: KbQuestionnaire = {
       ...defaultQuestionnaire(), payments: ["cash", "bizum"], pets: true, terrace: false,

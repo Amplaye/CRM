@@ -57,24 +57,34 @@ export function Topbar({ onMenuToggle }: TopbarProps) {
     }, 2700);
   };
 
-  // Load notifications from localStorage on mount
+  // Persisted notifications are scoped PER TENANT. A single global key leaked
+  // one account's notifications into another when the same browser switched
+  // tenants (the realtime channels are already tenant-filtered; only this
+  // stored copy wasn't). Re-load — and reset in-memory state — whenever the
+  // active tenant changes so account A's items never show under account B.
+  const notifKey = activeTenant?.id ? `crm_notifications_${activeTenant.id}` : null;
   useEffect(() => {
     setIsClient(true);
-    const saved = safeLocal.get("crm_notifications");
+    seenIdsRef.current = new Set();
+    safeLocal.remove("crm_notifications"); // purge the old un-scoped key (cross-tenant leak)
+    if (!notifKey) { setNotifications([]); return; }
+    const saved = safeLocal.get(notifKey);
     if (saved) {
       try {
         const parsed: Notification[] = JSON.parse(saved);
         parsed.forEach(n => seenIdsRef.current.add(n.id));
         setNotifications(parsed);
+        return;
       } catch(e) {}
     }
-  }, []);
+    setNotifications([]);
+  }, [notifKey]);
 
-  // Save notifications to localStorage on change
+  // Save notifications to the tenant-scoped key on change.
   useEffect(() => {
-    if (!isClient) return;
-    safeLocal.set("crm_notifications", JSON.stringify(notifications));
-  }, [notifications, isClient]);
+    if (!isClient || !notifKey) return;
+    safeLocal.set(notifKey, JSON.stringify(notifications));
+  }, [notifications, isClient, notifKey]);
 
   // Safari suspends background tabs and kills WebSockets, so realtime alone
   // isn't enough — fetch recent activity on mount and on tab re-focus to

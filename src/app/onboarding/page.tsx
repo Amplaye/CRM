@@ -460,7 +460,6 @@ export default function OnboardingPage() {
             <YesNo label={t.q4.pets} value={q.pets} onChange={(v) => setQF("pets", v)} t={t} />
             <YesNo label={t.q4.accessible} value={q.accessible} onChange={(v) => setQF("accessible", v)} t={t} />
             <YesNo label={t.q4.wifi} value={q.wifi} onChange={(v) => setQF("wifi", v)} t={t} />
-            <YesNo label={t.q4.ownParking} value={q.parking_lot} onChange={(v) => setQF("parking_lot", v)} t={t} />
             <YesNo label={t.q4.terrace} value={q.terrace} onChange={(v) => setQF("terrace", v)} t={t} />
             <YesNo label={t.q4.takeaway} value={q.takeaway} onChange={(v) => setQF("takeaway", v)} t={t} />
             {q.takeaway && <Field label={t.q4.takeawayWait} value={q.takeaway_wait} onChange={(v) => setQF("takeaway_wait", v)} placeholder="20-30 min" />}
@@ -807,7 +806,9 @@ function AddressField({ label, value, placeholder, hint, searching, onChange, on
     const id = setTimeout(async () => {
       setLoading(true);
       try {
-        const url = `https://nominatim.openstreetmap.org/search?format=jsonv2&addressdetails=1&limit=6&q=${encodeURIComponent(term)}`;
+        // Proxy through our own API: Nominatim returns 403 to browser-origin
+        // requests, so calling it directly from here returned nothing.
+        const url = `/api/geocode?q=${encodeURIComponent(term)}`;
         const res = await fetch(url, { signal: ctrl.signal, headers: { "Accept-Language": navigator.language || "en" } });
         const data: NominatimResult[] = res.ok ? await res.json() : [];
         setResults(data);

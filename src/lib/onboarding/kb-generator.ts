@@ -57,7 +57,6 @@ export interface KbQuestionnaire {
   accessible: boolean;
   payments: PaymentMethod[]; // multi-select
   wifi: boolean;
-  parking_lot: boolean; // own parking on site
   terrace: boolean;
   takeaway: boolean;
   takeaway_wait: string; // short field, e.g. "20-30 min" ("" = omit)
@@ -135,6 +134,9 @@ interface Labels {
   lateGrace: string; // appended phrase when grace-if-notified
   lastLunch: string;
   lastDinner: string;
+  lastResAtClose: string; // "up to closing time" (offset 0)
+  lastResBefore: string; // "{n} min before closing"
+  lastResVaries: string; // "e.g. {n} depending on the day" — {n} = comma list of times
   noService: string;
   deposit: string;
   depositYes: string;
@@ -206,6 +208,8 @@ const DICT: Record<Lang, Labels> = {
     largeGroupsNo: "No se aceptan grupos de más de {n} personas",
     lateTolerance: "Tolerancia de retraso", lateGrace: "más margen si el cliente avisa con antelación",
     lastLunch: "Última reserva almuerzo", lastDinner: "Última reserva cena",
+    lastResAtClose: "hasta la hora de cierre", lastResBefore: "{n} min antes del cierre",
+    lastResVaries: "p. ej. {n} según el día",
     noService: "sin servicio", deposit: "Depósito",
     depositYes: "se solicita depósito para grupos grandes", depositNo: "no se solicita depósito",
     cancellation: "Cancelación",
@@ -251,6 +255,8 @@ const DICT: Record<Lang, Labels> = {
     largeGroupsNo: "Non si accettano gruppi di più di {n} persone",
     lateTolerance: "Tolleranza ritardo", lateGrace: "più margine se il cliente avvisa in anticipo",
     lastLunch: "Ultima prenotazione pranzo", lastDinner: "Ultima prenotazione cena",
+    lastResAtClose: "fino all'orario di chiusura", lastResBefore: "{n} min prima della chiusura",
+    lastResVaries: "es. {n} a seconda del giorno",
     noService: "nessun servizio", deposit: "Caparra",
     depositYes: "è richiesta una caparra per i gruppi numerosi", depositNo: "nessuna caparra richiesta",
     cancellation: "Cancellazione",
@@ -296,6 +302,8 @@ const DICT: Record<Lang, Labels> = {
     largeGroupsNo: "Groups larger than {n} are not accepted",
     lateTolerance: "Late arrival tolerance", lateGrace: "more leeway if the guest lets us know in advance",
     lastLunch: "Last lunch reservation", lastDinner: "Last dinner reservation",
+    lastResAtClose: "up to closing time", lastResBefore: "{n} min before closing",
+    lastResVaries: "e.g. {n} depending on the day",
     noService: "no service", deposit: "Deposit",
     depositYes: "a deposit is required for large groups", depositNo: "no deposit required",
     cancellation: "Cancellation",
@@ -341,6 +349,8 @@ const DICT: Record<Lang, Labels> = {
     largeGroupsNo: "Gruppen größer als {n} werden nicht angenommen",
     lateTolerance: "Verspätungstoleranz", lateGrace: "mehr Spielraum, wenn der Gast vorher Bescheid gibt",
     lastLunch: "Letzte Mittagsreservierung", lastDinner: "Letzte Abendreservierung",
+    lastResAtClose: "bis zur Schließzeit", lastResBefore: "{n} Min. vor Schließung",
+    lastResVaries: "z. B. {n} je nach Tag",
     noService: "kein Service", deposit: "Anzahlung",
     depositYes: "für große Gruppen ist eine Anzahlung erforderlich", depositNo: "keine Anzahlung erforderlich",
     cancellation: "Stornierung",
@@ -392,30 +402,66 @@ function slotPeriod(L: Labels, open: string): string {
   return Number.isFinite(h) && h < 17 ? L.lunch : L.dinner;
 }
 
-// Latest reservation time for a shift = (closing time of that shift) − offset.
-// Picks the widest closing across days that have the shift, so the KB states a
-// single representative cut-off. Returns null when no day serves that shift.
-function lastReservationFromHours(
+const hhmm = (min: number) => {
+  // Wrap past-midnight cut-offs back onto the clock (e.g. 24:05 → 00:05).
+  const m = ((min % 1440) + 1440) % 1440;
+  return `${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`;
+};
+
+// Latest reservation time(s) for a shift = (closing time of that shift) − offset.
+// Returns the DISTINCT cut-offs across every day that serves the shift, so a
+// venue that closes at different times on different days gets a correct answer
+// for each (rather than one representative time that's wrong for the others).
+// A close earlier than its open means the shift runs past midnight (e.g.
+// 19:30–00:30) and is counted as +24h so it sorts and subtracts correctly.
+// Returns null when no day serves that shift or the shift is switched off (-1).
+function lastReservationCutoffs(
   hours: OpeningHours | undefined,
   shift: "lunch" | "dinner",
   offsetMin: number,
-): string | null {
+): string[] | null {
   if (!hours || offsetMin < 0) return null;
-  let bestCloseMin: number | null = null;
+  const closeMins = new Set<number>();
   for (const slots of Object.values(hours)) {
     for (const s of slots) {
       if (!s.open || !s.close) continue;
       const startH = parseInt(s.open.slice(0, 2), 10);
       const isLunch = Number.isFinite(startH) && startH < 17;
       if ((shift === "lunch") !== isLunch) continue;
+      const [oh, om] = s.open.split(":").map(Number);
       const [ch, cm] = s.close.split(":").map(Number);
-      const closeMin = ch * 60 + cm;
-      if (bestCloseMin === null || closeMin > bestCloseMin) bestCloseMin = closeMin;
+      let closeMin = ch * 60 + cm;
+      if (closeMin <= oh * 60 + om) closeMin += 1440; // closes after midnight
+      closeMins.add(closeMin);
     }
   }
-  if (bestCloseMin === null) return null;
-  const cut = bestCloseMin - offsetMin;
-  return `${String(Math.floor(cut / 60)).padStart(2, "0")}:${String(cut % 60).padStart(2, "0")}`;
+  if (closeMins.size === 0) return null;
+  // Distinct cut-offs, ordered the way the schedule reads (a past-midnight
+  // 00:00 belongs after 23:00, so sort by the raw minute value before wrapping).
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const c of [...closeMins].sort((a, b) => a - b)) {
+    const t = hhmm(c - offsetMin);
+    if (!seen.has(t)) { seen.add(t); out.push(t); }
+  }
+  return out;
+}
+
+// One human line for a shift's last-reservation policy. Uses the schedule's
+// per-day closings: a single cut-off renders as "HH:MM (N min before closing)";
+// several render as "N min before closing (e.g. A, B, C depending on the day)";
+// offset 0 renders as "up to closing time". null cut-offs → "no service".
+function lastReservationLine(L: Labels, label: string, cutoffs: string[] | null, offsetMin: number): string {
+  if (!cutoffs || cutoffs.length === 0) return `${label}: ${L.noService}`;
+  if (offsetMin === 0) {
+    return cutoffs.length === 1
+      ? `${label}: ${cutoffs[0]} (${L.lastResAtClose})`
+      : `${label}: ${L.lastResAtClose} (${fill(L.lastResVaries, cutoffs.join(", "))})`;
+  }
+  const margin = fill(L.lastResBefore, offsetMin);
+  return cutoffs.length === 1
+    ? `${label}: ${cutoffs[0]} (${margin})`
+    : `${label}: ${margin} (${fill(L.lastResVaries, cutoffs.join(", "))})`;
 }
 
 /** Schedule lines (Mon→Sun). Returns [] when no day is open. */
@@ -466,10 +512,10 @@ export function generateKbArticles(q: KbQuestionnaire, ctx: KbContext): Generate
   reservationLines.push(tolerance);
   reservationLines.push(`${L.cancellation}: ${L.cancellations[q.cancellation_notice]}`);
   if (q.noshow_release_min > 0) reservationLines.push(fill(L.noShow, q.noshow_release_min));
-  const lastLunch = lastReservationFromHours(ctx.opening_hours, "lunch", q.last_lunch_offset_min);
-  const lastDinner = lastReservationFromHours(ctx.opening_hours, "dinner", q.last_dinner_offset_min);
-  reservationLines.push(`${L.lastLunch}: ${lastLunch || L.noService}`);
-  reservationLines.push(`${L.lastDinner}: ${lastDinner || L.noService}`);
+  const lastLunch = lastReservationCutoffs(ctx.opening_hours, "lunch", q.last_lunch_offset_min);
+  const lastDinner = lastReservationCutoffs(ctx.opening_hours, "dinner", q.last_dinner_offset_min);
+  reservationLines.push(lastReservationLine(L, L.lastLunch, lastLunch, q.last_lunch_offset_min));
+  reservationLines.push(lastReservationLine(L, L.lastDinner, lastDinner, q.last_dinner_offset_min));
   if (q.accepts_large_groups) reservationLines.push(`${L.deposit}: ${q.deposit_required ? L.depositYes : L.depositNo}`);
   if (q.terrace) reservationLines.push(L.terraceNotGuaranteed);
   articles.push({ title: L.tReservations, category: "policies", content: reservationLines.join("\n") });
@@ -505,7 +551,7 @@ export function generateKbArticles(q: KbQuestionnaire, ctx: KbContext): Generate
   const pay = q.payments.length ? q.payments.map((p) => paymentLabel(L, p)).join(", ") : L.notAvailable;
   serviceLines.push(`${L.payments}: ${pay}`);
   serviceLines.push(`${L.wifi}: ${yn(L, q.wifi)}`);
-  serviceLines.push(`${L.parking}: ${yn(L, q.parking_lot)}`);
+  // Parking is covered once, with detail, in the Location article (parking_info).
   serviceLines.push(`${L.terrace}: ${yn(L, q.terrace)}`);
   const takeawayLine = `${L.takeaway}: ${q.takeaway ? L.yes : L.no}` +
     (q.takeaway && q.takeaway_wait.trim() ? ` (${L.takeawayWait}: ${q.takeaway_wait.trim()})` : "");
@@ -603,7 +649,6 @@ export function defaultQuestionnaire(): KbQuestionnaire {
     accessible: true,
     payments: ["cash", "card", "contactless"],
     wifi: true,
-    parking_lot: false,
     terrace: true,
     takeaway: false,
     takeaway_wait: "",
