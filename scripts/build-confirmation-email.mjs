@@ -81,7 +81,7 @@ const LINK = "{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=email
 function block(c) {
   const link = LINK + c.lang;
   return `
-  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#F7EEE0; background-image:linear-gradient(to bottom, #FCF6ED, #F4E4CD);">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#ffffff;">
     <tr>
       <td align="center" style="padding:40px 16px;">
         <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:520px; width:100%; background-color:#ffffff; border-radius:18px; overflow:hidden; box-shadow:0 8px 28px rgba(122,34,17,0.08);">
@@ -125,21 +125,19 @@ function block(c) {
             </td>
           </tr>
           <tr>
-            <td align="center" style="padding:14px 40px 36px 40px;">
+            <td align="center" style="padding:14px 40px 0 40px;">
               <p style="margin:0; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; font-size:12px; line-height:1.6; color:#95a881;">
                 ${c.fallback}<br>
                 <a href="${link}" target="_blank" style="color:#be2e0b; word-break:break-all; text-decoration:underline;">${link}</a>
               </p>
             </td>
           </tr>
-        </table>
-        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:520px; width:100%;">
           <tr>
-            <td align="center" style="padding:24px 40px 0 40px;">
-              <p style="margin:0; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; font-size:12px; line-height:1.6; color:#b8c6a9;">
+            <td align="center" style="padding:24px 40px 36px 40px;">
+              <p style="margin:0; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; font-size:12px; line-height:1.6; color:#000000;">
                 ${c.ignore}
               </p>
-              <p style="margin:10px 0 0 0; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; font-size:12px; color:#b8c6a9;">
+              <p style="margin:10px 0 0 0; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; font-size:12px; color:#000000;">
                 &copy; Bali Flow
               </p>
             </td>
@@ -159,7 +157,7 @@ const html = `<!DOCTYPE html>
 <meta name="x-apple-disable-message-reformatting">
 <title>{{ if eq .Data.locale "es" }}${L.es.title}{{ else if eq .Data.locale "en" }}${L.en.title}{{ else if eq .Data.locale "de" }}${L.de.title}{{ else }}${L.it.title}{{ end }}</title>
 </head>
-<body style="margin:0; padding:0; background-color:#F7EEE0; -webkit-text-size-adjust:100%; -ms-text-size-adjust:100%;">
+<body style="margin:0; padding:0; background-color:#ffffff; -webkit-text-size-adjust:100%; -ms-text-size-adjust:100%;">
   <div style="display:none; max-height:0; overflow:hidden; opacity:0; mso-hide:all;">
     {{ if eq .Data.locale "es" }}${L.es.preheader}{{ else if eq .Data.locale "en" }}${L.en.preheader}{{ else if eq .Data.locale "de" }}${L.de.preheader}{{ else }}${L.it.preheader}{{ end }}
   </div>
