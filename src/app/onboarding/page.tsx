@@ -559,7 +559,7 @@ export default function OnboardingPage() {
       )}
 
       <div className="mt-6 flex items-center justify-between gap-3">
-        <button onClick={() => setStep((s) => (s - 1) as Step)} disabled={step === 1} className="flex items-center gap-1 px-4 py-2 rounded-lg border-2 border-zinc-200 disabled:opacity-30"><ChevronLeft className="w-4 h-4" /> {t.back}</button>
+        <button onClick={() => setStep((s) => (s - 1) as Step)} disabled={step === 1} className="flex items-center gap-1 px-4 py-2 rounded-lg border-2 border-[#c4956a] text-[#c4956a] disabled:opacity-30"><ChevronLeft className="w-4 h-4" /> {t.back}</button>
         {step < 4 ? (
           <button onClick={() => setStep((s) => (s + 1) as Step)} className="flex items-center gap-1 px-5 py-2.5 rounded-lg bg-[#c4956a] text-white font-bold hover:bg-[#b3855c] transition-colors">{t.next} <ChevronRight className="w-4 h-4" /></button>
         ) : (
