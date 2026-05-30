@@ -70,12 +70,8 @@ const ALLERGENS = (q4: Q4): Array<[Allergen, string]> => [
 const CANCELLATIONS = (q4: Q4): Array<[CancellationNotice, string]> => [
   ["none", q4.cxNone], ["same_day", q4.cxSameDay], ["2h", q4.cx2h], ["24h", q4.cx24h],
 ];
-// No-show release shares the same minute options as late tolerance (10/15/20/30)
-// — they're different policies but the owner thinks in the same increments. "0"
-// ("don't specify") stays so we never invent a release time the venue didn't set.
-const NOSHOW_OPTS = (q4: Q4): Array<[string, string]> => [
-  ["0", q4.nsNone], ["10", "10 min"], ["15", "15 min"], ["20", "20 min"], ["30", "30 min"],
-];
+// NOSHOW_OPTS removed: the no-show window is now the Late tolerance value itself
+// (a guest who doesn't warn IS the no-show), so a separate dropdown is redundant.
 // Last-reservation cut-off = minutes BEFORE each shift's closing time. The actual
 // time is computed per day from opening_hours; the owner only picks the margin.
 // -1 = that shift isn't served at all.
