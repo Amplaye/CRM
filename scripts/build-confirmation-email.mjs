@@ -31,7 +31,7 @@ const L = {
     preheader: "Conferma la tua email per attivare il tuo account Bali Flow.",
     h1: "Conferma il tuo account",
     body: "Benvenuto! Sei a un passo dall'attivare il tuo account. Premi il pulsante per confermare la tua email e iniziare.",
-    button: "Conferma la mia email",
+    button: "Conferma Email",
     valid: "Questo link è valido per 24 ore. Se scade, te ne invieremo automaticamente uno nuovo.",
     fallback: "Se il pulsante non funziona, copia e incolla questo link nel tuo browser:",
     ignore: "Se non hai creato alcun account, puoi ignorare questa email in tutta sicurezza.",
