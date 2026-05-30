@@ -91,18 +91,16 @@ export async function GET(req: NextRequest) {
         : tenant.status,
   });
 
-  // 2. Onboarding marker — what the dashboard guard reads to stop redirecting.
-  // NOT blocking: legacy tenants (provisioned by hand before the wizard existed,
-  // e.g. PICNIC) never wrote this marker yet work perfectly. Its absence is only
-  // a warning; the authoritative "does the bot work" signals are the live Vapi
-  // assistant and the active n8n workflows below.
-  const completed = s?.onboarding?.completed === true;
-  checks.push({
+  // The onboarding-marker check is built LAST (see below) because its verdict
+  // depends on whether the bot is demonstrably live (Vapi + n8n), which we only
+  // know after probing them. We still want it to render right after "status",
+  // so reserve its slot here and fill it in at the end.
+  const onboardingSlot = checks.push({
     key: "onboarding",
     label: "Onboarding completato",
-    state: completed ? "ok" : "warn",
-    detail: completed ? "sì" : "marker mancante (tenant legacy o wizard interrotto)",
-  });
+    state: "warn",
+    detail: "",
+  }) - 1;
 
   // 3. Vapi assistant — recorded AND actually existing on Vapi.
   const assistantId: string | undefined = s?.vapi?.assistantId;
@@ -140,6 +138,44 @@ export async function GET(req: NextRequest) {
     n8nDetail = `${activeCount}/${N8N_TEMPLATE_COUNT} workflow attivi (incompleto)`;
   }
   checks.push({ key: "n8n", label: "Automazioni (n8n)", state: n8nState, detail: n8nDetail });
+
+  // 2 (filled last). Onboarding marker — what the dashboard guard reads to stop
+  // redirecting the OWNER into the wizard. It says nothing about whether the bot
+  // works; that's proven by the live Vapi assistant + active n8n workflows above.
+  //
+  // The dashboard guard itself only bounces on the EXPLICIT marker `false`
+  // (DashboardLayout.tsx) — a *missing* marker never traps anyone. So this card
+  // shouldn't flag a missing marker as a problem when the bot is demonstrably
+  // live: that's just a legacy tenant (provisioned by hand before the wizard,
+  // e.g. PICNIC), and "warn" there is noise that hides the WhatsApp warning.
+  //
+  //   marker === true           → ok  (wizard finished, marker written)
+  //   marker absent + bot live  → ok  (legacy tenant, marker simply unnecessary)
+  //   marker absent + bot NOT live → warn (looks like a genuinely stalled wizard)
+  //   marker === false          → warn (register-tenant wrote it; never provisioned)
+  const onboardingMarker = s?.onboarding?.completed;
+  const botIsLive = vapiState === "ok" && n8nState === "ok";
+  let onboardingState: CheckState;
+  let onboardingDetail: string;
+  if (onboardingMarker === true) {
+    onboardingState = "ok";
+    onboardingDetail = "sì";
+  } else if (onboardingMarker === false) {
+    onboardingState = "warn";
+    onboardingDetail = "wizard non completato";
+  } else if (botIsLive) {
+    onboardingState = "ok";
+    onboardingDetail = "tenant legacy — bot operativo, marker non necessario";
+  } else {
+    onboardingState = "warn";
+    onboardingDetail = "marker mancante (tenant legacy o wizard interrotto)";
+  }
+  checks[onboardingSlot] = {
+    key: "onboarding",
+    label: "Onboarding completato",
+    state: onboardingState,
+    detail: onboardingDetail,
+  };
 
   // 5. WhatsApp number — informational: sandbox vs own number. Not a failure.
   const waAttached = s?.provisioning?.whatsapp_attached === true;
