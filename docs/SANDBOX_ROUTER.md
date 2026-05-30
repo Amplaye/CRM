@@ -64,9 +64,32 @@ new restaurant is in the menu — **no edit to the router, no manual step.** (No
 the router caches the tenant list in `staticData` for 5 min, so a brand-new tenant
 can take up to 5 min to appear.)
 
-> Two tenants predate this and were back-filled once by hand:
-> Picnic `{ slug: "picnic", sandbox_routable: true }`, and
-> BALI Rest `{ slug: "bali-rest-6978", sandbox_routable: true }` (2026-05-30).
+### Born on Meta, not Twilio
+
+Each tenant's chatbot is cloned from the Picnic template, which sends via **Meta
+when `meta_phone_number_id` + `meta_access_token` are both present** (`META_ON`) and
+otherwise falls back to the Twilio sandbox. The clone carries the *logic* but not
+the *creds* (creds are tenant data, not workflow data), so the orchestrator writes
+them into **`tenants.secrets`** (member-readable `bot_config` is deliberately
+avoided — the chatbot reads the token from `bot_config ∪ secrets`):
+
+```jsonc
+tenants.secrets = {
+  meta_phone_number_id: process.env.META_WHATSAPP_PHONE_NUMBER_ID, // shared sandbox no.
+  meta_access_token:    process.env.META_ACCESS_TOKEN,             // shared system-user token
+  meta_waba_id:         process.env.META_WABA_ID,                  // optional (not used to send)
+}
+```
+
+The env vars are the single source of truth — rotate them and new tenants follow.
+If they're unset at onboarding time, the step logs a warning and the bot falls back
+to Twilio (so a missing env never aborts onboarding). Only `meta_phone_number_id` +
+`meta_access_token` are required to send.
+
+> Two tenants predate this and were back-filled by hand (menu only):
+> Picnic `{ slug: "picnic", sandbox_routable: true }` (already on Meta), and
+> BALI Rest `{ slug: "bali-rest-6978", sandbox_routable: true }` (2026-05-30) — BALI
+> Rest still has no Meta creds, so it sends via Twilio fallback until back-filled.
 
 ## What about real customers? (the important distinction)
 

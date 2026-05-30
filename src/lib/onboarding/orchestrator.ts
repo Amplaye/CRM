@@ -536,6 +536,33 @@ export async function runOnboard(
           merged.provisioning.self_serve = true;
           merged.provisioning.completed_at = new Date().toISOString();
         }
+
+        // Meta WhatsApp creds → tenants.secrets (NOT settings.bot_config, which is
+        // member-readable; matches how Picnic stores them after the L5 security
+        // hardening). The cloned chatbot reads the token from {bot_config ∪ secrets}
+        // and sends via Meta when meta_phone_number_id + meta_access_token are both
+        // present (META_ON). Without this, a freshly-cloned bot has no Meta creds and
+        // silently falls back to the Twilio sandbox — we want every new tenant to be
+        // born on Meta. During the demo phase all tenants share the one sandbox number
+        // (META_WHATSAPP_PHONE_NUMBER_ID); a real customer gets their own number later.
+        // Sourced from env (single source of truth — rotate the env, new tenants follow).
+        const metaToken = process.env.META_ACCESS_TOKEN || "";
+        const metaPhoneId = process.env.META_WHATSAPP_PHONE_NUMBER_ID || "";
+        const metaSecrets = await (async () => {
+          if (!metaToken || !metaPhoneId) return { wrote: false as const };
+          const { data: curSec } = await supabase
+            .from("tenants").select("secrets").eq("id", tenantId).single();
+          const mergedSecrets = {
+            ...((curSec?.secrets as any) || {}),
+            meta_phone_number_id: metaPhoneId,
+            meta_access_token: metaToken,
+            ...(process.env.META_WABA_ID ? { meta_waba_id: process.env.META_WABA_ID } : {}),
+          };
+          const { error: secErr } = await supabase
+            .from("tenants").update({ secrets: mergedSecrets }).eq("id", tenantId);
+          return { wrote: !secErr, error: secErr?.message };
+        })();
+
         // Re-assert active here too (not only in step 1): the markers and the
         // status now land together, so a tenant is never "active but unmarked"
         // nor "marked but trial".
@@ -543,6 +570,15 @@ export async function runOnboard(
           .from("tenants")
           .update({ status: "active", settings: merged })
           .eq("id", tenantId);
+        if (!error) {
+          if (metaSecrets.wrote) {
+            push({ step: "meta", message: `Meta WhatsApp creds written (shared sandbox number ${metaPhoneId})`, ok: true });
+          } else if (!metaToken || !metaPhoneId) {
+            push({ step: "meta", message: `Meta creds NOT set (env META_ACCESS_TOKEN / META_WHATSAPP_PHONE_NUMBER_ID missing) — bot will fall back to Twilio`, ok: false });
+          } else {
+            push({ step: "meta", message: `Meta creds write failed: ${metaSecrets.error}`, ok: false });
+          }
+        }
         return error;
       };
 
