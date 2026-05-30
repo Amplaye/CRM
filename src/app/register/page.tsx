@@ -23,7 +23,7 @@ export default function RegisterPage() {
   const [step, setStep] = useState(1);
   const router = useRouter();
   const supabase = createClient();
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
 
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -40,9 +40,16 @@ export default function RegisterPage() {
         email,
         password,
         options: {
-          data: { name, business_name: businessName },
+          // `locale` is the language the user is registering in (auto-detected
+          // from the browser on the login/register pages). Supabase exposes it
+          // to the email templates as {{ .Data.locale }}, so the confirmation
+          // email is rendered in the user's own language. Keep it in sync with
+          // the resend path (/api/auth/resend-confirmation).
+          data: { name, business_name: businessName, locale: language },
           // New owners land in the self-serve onboarding wizard, not an empty CRM.
-          emailRedirectTo: `${window.location.origin}/auth/confirm?next=/onboarding`
+          // We also carry the locale on the redirect so the interstitial
+          // confirm page and any resend can stay in the same language.
+          emailRedirectTo: `${window.location.origin}/auth/confirm?next=/onboarding&lang=${language}`
         }
       });
       if (signUpError) throw signUpError;

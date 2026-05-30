@@ -24,6 +24,10 @@ export async function GET(request: NextRequest) {
   const tokenHash = searchParams.get("token_hash");
   const type = (searchParams.get("type") as EmailOtpType | null) ?? "email";
   const next = searchParams.get("next") ?? "/";
+  // Carried through from the email link so a failed (expired/used) verify can
+  // route the user straight to a fresh-link resend in their own language.
+  const lang = searchParams.get("lang") ?? "";
+  const email = searchParams.get("email") ?? "";
 
   if (tokenHash || code) {
     const response = NextResponse.redirect(new URL(next, request.url));
@@ -55,12 +59,21 @@ export async function GET(request: NextRequest) {
     }
     // Surface the reason instead of silently bouncing.
     console.error(`auth/callback ${tokenHash ? "verifyOtp" : "exchangeCodeForSession"} failed:`, error.message);
-    // A failed verify almost always means the one-time token was already used —
-    // typically a mobile mail-app prefetch consumed it (which also CONFIRMS the
-    // account). So the user's account is fine; they just need to sign in. Send
-    // them to /login with a flag so we can explain that, instead of dropping
-    // them on a bare login screen that looks like the button "didn't work".
-    return NextResponse.redirect(new URL("/login?confirmed=1", request.url));
+    // A failed verify means the one-time token is dead: either a mobile mail-app
+    // prefetch already consumed it, OR it simply expired (links live 24h). We do
+    // NOT know which from here, and the two cases need opposite messaging — a
+    // prefetch-consumed token DID confirm the account (just sign in), but an
+    // expired token did NOT (the account is still unconfirmed, so claiming
+    // "already confirmed" would be a lie that strands the user at login).
+    // Resolve it honestly: send them to the interstitial /auth/confirm with
+    // ?expired=1 (+ their email & language), where the page auto-requests a
+    // fresh confirmation link. The resend endpoint is a no-op for an
+    // already-confirmed account, so the prefetch case degrades gracefully too.
+    const u = new URLSearchParams({ expired: "1" });
+    if (email) u.set("email", email);
+    if (lang) u.set("lang", lang);
+    if (next) u.set("next", next);
+    return NextResponse.redirect(new URL(`/auth/confirm?${u.toString()}`, request.url));
   }
 
   // No token/code at all → send to login.
