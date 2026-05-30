@@ -515,26 +515,26 @@ export async function runOnboard(
           ...prev,
           n8n: { workflow_ids: createdWorkflowIds },
         };
+        // sandbox_routable:true → while no real WA number is attached, this tenant
+        // shares the single Meta sandbox number with the other test tenants. The
+        // [Meta Router] WhatsApp n8n workflow lists every active tenant carrying
+        // this flag in its "which restaurant?" menu and forwards to the chatbot at
+        // "<slug>-whatsapp", so a freshly-provisioned CRM is reachable for testing
+        // with ZERO manual steps. Written for BOTH paths (admin wizard + self-serve)
+        // because during the demo phase every tenant we create must show up in the
+        // shared menu. A real customer (own number) gets sandbox_routable cleared at
+        // number-attach time and so drops out of the shared test menu. See
+        // docs/SANDBOX_ROUTER.md.
+        merged.provisioning = {
+          ...(prev.provisioning || {}),
+          whatsapp_attached: false,
+          sandbox_routable: true,
+          slug: input.slug,
+        };
         if (input.self_serve) {
           merged.onboarding = { ...(prev.onboarding || {}), completed: true, completed_at: new Date().toISOString() };
-          // whatsapp_attached:false → surfaced in the admin panel as "attach the
-          // number" (the one manual step left). Doesn't block the client.
-          //
-          // sandbox_routable:true → while no real WA number is attached, this tenant
-          // shares the Twilio sandbox with the other test tenants. The [Router]
-          // WhatsApp n8n workflow lists every active+routable tenant in its "which
-          // restaurant?" menu, so a freshly-onboarded CRM is reachable for testing
-          // with zero manual steps. A real customer (own number) won't carry this
-          // flag and so won't appear in the shared test menu. See
-          // docs/SANDBOX_ROUTER.md.
-          merged.provisioning = {
-            ...(prev.provisioning || {}),
-            self_serve: true,
-            completed_at: new Date().toISOString(),
-            whatsapp_attached: false,
-            sandbox_routable: true,
-            slug: input.slug,
-          };
+          merged.provisioning.self_serve = true;
+          merged.provisioning.completed_at = new Date().toISOString();
         }
         // Re-assert active here too (not only in step 1): the markers and the
         // status now land together, so a tenant is never "active but unmarked"
