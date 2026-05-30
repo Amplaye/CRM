@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   generateKbArticles, generateKbArticlesMulti, defaultQuestionnaire, KbQuestionnaire, KbContext, OpeningHours,
+  mapsLink, venueFromQuestionnaire, bookingVenueLines,
 } from "./kb-generator";
 
 const ctx: KbContext = { restaurant_name: "Trattoria Rossa", restaurant_phone: "+34 928 123 456", language: "es" };
@@ -63,6 +64,16 @@ describe("generateKbArticles — questionnaire → formatted KB", () => {
     const noGroups = byTitle(generateKbArticles({ ...q, accepts_large_groups: false }, ctx), "Política de reservas")!;
     expect(noGroups.content).toContain("No se aceptan grupos");
     expect(noGroups.content).not.toContain("Depósito");
+
+    // Deposit amount (free text) is appended to the deposit line when set.
+    const withDeposit = byTitle(generateKbArticles(
+      { ...q, deposit_required: true, deposit_amount: "20€ por persona" }, ctx), "Política de reservas")!;
+    expect(withDeposit.content).toContain("Depósito: se solicita depósito para grupos grandes (20€ por persona)");
+    // …and omitted cleanly (no empty parens) when the amount is blank.
+    const depositNoAmount = byTitle(generateKbArticles(
+      { ...q, deposit_required: true, deposit_amount: "" }, ctx), "Política de reservas")!;
+    expect(depositNoAmount.content).toContain("Depósito: se solicita depósito para grupos grandes");
+    expect(depositNoAmount.content).not.toContain("()");
   });
 
   it("no-show line is omitted when set to 0 (don't invent a policy)", () => {
@@ -114,6 +125,20 @@ describe("generateKbArticles — questionnaire → formatted KB", () => {
     expect(svc.content).toContain("Tarta propia");
   });
 
+  it("practical services are stated yes/no even when off (so the bot can answer 'no')", () => {
+    const q: KbQuestionnaire = {
+      ...defaultQuestionnaire(), high_chairs: false, kids_menu: false, accessible: false,
+      celebrations: false, outside_cake: false,
+    };
+    const svc = byTitle(generateKbArticles(q, ctx), "Servicios adicionales")!;
+    // Each fact the guest may ask about is present with an explicit "no", not omitted.
+    expect(svc.content).toContain("Familias: tronas no disponible");
+    expect(svc.content).toContain("Menú infantil: No");
+    expect(svc.content).toContain("Accesibilidad: No");
+    expect(svc.content).toContain("Celebraciones: No");
+    expect(svc.content).toContain("Tarta propia: No");
+  });
+
   it("delivery without a platform falls back to a generic yes; takeaway wait suppressed when no takeaway", () => {
     const q: KbQuestionnaire = { ...defaultQuestionnaire(), delivery: true, delivery_platform: "", takeaway: false, takeaway_wait: "20 min" };
     const svc = byTitle(generateKbArticles(q, ctx), "Servicios adicionales")!;
@@ -137,7 +162,11 @@ describe("generateKbArticles — questionnaire → formatted KB", () => {
     expect(diet.content).toContain("- gluten / harina de trigo");
     expect(diet.content).toContain("- frutos secos");
     expect(diet.content).toContain("No se puede garantizar la ausencia total de trazas");
-    expect(diet.content).toContain("Alergia severa");
+    // Severe-allergy line now carries an explicit recognition criterion + action
+    // (so the bot knows WHAT counts as severe and to defer to kitchen/manager).
+    expect(diet.content).toContain("ALERGIA SEVERA =");
+    expect(diet.content).toContain("EpiPen");
+    expect(diet.content).toContain("cocina o el responsable");
     expect(diet.content).toContain("disponible bajo petición");
   });
 
@@ -175,6 +204,9 @@ describe("generateKbArticles — questionnaire → formatted KB", () => {
     expect(loc.content).toContain("+34 928 123 456");
     expect(loc.content).toContain("parking propio");
     expect(loc.content).toContain("Playa de Las Canteras");
+    // Clickable Google Maps link built from address + city.
+    expect(loc.content).toContain("Mapa / Cómo llegar: https://www.google.com/maps/search/?api=1&query=");
+    expect(loc.content).toContain(encodeURIComponent("Avenida Rafael Cabrera, 7, 35002 Las Palmas"));
   });
 
   it("optional short fields are omitted cleanly when empty (no dangling labels)", () => {
@@ -185,6 +217,8 @@ describe("generateKbArticles — questionnaire → formatted KB", () => {
     expect(loc.content).not.toContain("Zona:");
     expect(loc.content).not.toContain("Referencia:");
     expect(loc.content).not.toContain("Teléfono:");
+    expect(loc.content).not.toContain("Mapa"); // no address → no maps link
+    expect(loc.content).not.toContain("maps.google");
     // Header is just the bare restaurant name when no cuisine type.
     expect(loc.content.split("\n")[0]).toBe("Trattoria Rossa");
   });
@@ -250,5 +284,53 @@ describe("generateKbArticlesMulti — assistant speaks several languages", () =>
     const triple = generateKbArticlesMulti(defaultQuestionnaire(), { ...mctx, opening_hours: HOURS }, ["es", "it", "en"]);
     expect(triple.length).toBe(single.length); // merged by topic, not concatenated
     expect(triple.map((a) => a.title)).toEqual(single.map((a) => a.title)); // primary titles
+  });
+});
+
+describe("mapsLink", () => {
+  it("builds a Google Maps search URL from address + city, URL-encoded", () => {
+    expect(mapsLink("Avenida Rafael Cabrera, 7", "35002 Las Palmas")).toBe(
+      "https://www.google.com/maps/search/?api=1&query=" +
+        encodeURIComponent("Avenida Rafael Cabrera, 7, 35002 Las Palmas"));
+  });
+  it("returns '' when there is no address (don't link to nothing)", () => {
+    expect(mapsLink("", "")).toBe("");
+    expect(mapsLink("   ")).toBe("");
+  });
+});
+
+describe("bookingVenueLines — confirmation recap from persisted venue", () => {
+  const base = venueFromQuestionnaire({
+    ...defaultQuestionnaire(), address: "Calle Mayor 1", city: "35001 Las Palmas",
+    parking_info: ["own"], deposit_required: true, deposit_amount: "20€ por persona",
+    cancellation_notice: "24h",
+  });
+
+  it("localizes every recap line in the guest's booking language", () => {
+    const it = bookingVenueLines(base, "it");
+    expect(it.mapsUrl).toContain("https://www.google.com/maps/search/");
+    expect(it.address).toBe("Calle Mayor 1, 35001 Las Palmas");
+    expect(it.parking).toBe("parcheggio proprio");
+    expect(it.deposit).toBe("è richiesta una caparra per i gruppi numerosi (20€ por persona)");
+    expect(it.cancellation).toBe("avvisare almeno 24 h prima");
+  });
+
+  it("omits (empty string) what there is nothing to say", () => {
+    const v = venueFromQuestionnaire({
+      ...defaultQuestionnaire(), address: "", city: "", parking_info: ["none"],
+      deposit_required: false, deposit_amount: "", cancellation_notice: "none",
+    });
+    const out = bookingVenueLines(v, "es");
+    expect(out.mapsUrl).toBe("");
+    expect(out.address).toBe("");
+    expect(out.parking).toBe("");
+    expect(out.deposit).toBe("");
+    expect(out.cancellation).toBe("");
+  });
+
+  it("deposit without an amount drops the parens", () => {
+    const v = venueFromQuestionnaire({ ...defaultQuestionnaire(), deposit_required: true, deposit_amount: "" });
+    expect(bookingVenueLines(v, "es").deposit).toBe("se solicita depósito para grupos grandes");
+    expect(bookingVenueLines(v, "es").deposit).not.toContain("(");
   });
 });

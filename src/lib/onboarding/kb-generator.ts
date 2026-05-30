@@ -40,6 +40,7 @@ export interface KbQuestionnaire {
   auto_confirm_max: number; // dropdown: party size auto-confirmed (e.g. 6)
   accepts_large_groups: boolean; // yes/no — groups above the threshold at all
   deposit_required: boolean; // yes/no — deposit for large groups
+  deposit_amount: string; // short free-text, e.g. "20€ a persona" ("" = unspecified)
   late_tolerance_min: number; // dropdown: 10/15/20/30
   late_grace_if_notified: boolean; // yes/no — more margin if the guest warns ahead
   // Minutes BEFORE closing time that the last reservation is accepted, chosen
@@ -94,6 +95,64 @@ export interface KbContext {
   restaurant_phone: string;
   language: Lang;
   opening_hours?: OpeningHours; // when provided, a Schedule article is generated
+}
+
+// The booking-relevant subset of the questionnaire, persisted on the tenant
+// (settings.venue) so the WhatsApp/voice booking confirmation can repeat it
+// without re-parsing the KB prose. Built once at onboarding (venueFromQuestionnaire).
+export interface VenueInfo {
+  address: string;
+  city: string;
+  parking: ParkingKind[];
+  deposit_required: boolean;
+  deposit_amount: string;
+  cancellation_notice: CancellationNotice;
+}
+
+/** Pull the booking-confirmation venue subset out of a full questionnaire. */
+export function venueFromQuestionnaire(q: KbQuestionnaire): VenueInfo {
+  return {
+    address: q.address,
+    city: q.city,
+    parking: q.parking_info,
+    deposit_required: q.deposit_required,
+    deposit_amount: q.deposit_amount,
+    cancellation_notice: q.cancellation_notice,
+  };
+}
+
+/**
+ * Localized lines for the booking confirmation recap (WhatsApp + voice), built
+ * from the persisted VenueInfo in the GUEST's booking language. Reuses the same
+ * DICT as the KB so wording never drifts. Every field is optional in the output:
+ * a line is "" when there's nothing to say (no address, no deposit, notice=none),
+ * so the caller appends only the non-empty ones.
+ */
+export function bookingVenueLines(venue: VenueInfo, language: Lang): {
+  mapsUrl: string;
+  address: string;
+  parking: string;
+  deposit: string;
+  cancellation: string;
+} {
+  const L = DICT[language] || DICT.es;
+  const addr = [venue.address, venue.city].map((s) => (s || "").trim()).filter(Boolean).join(", ");
+  const parkChosen = (venue.parking || []).filter((k) => k !== "none");
+  const parkKind = parkChosen.length
+    ? parkChosen.map((k) => (k === "own" ? L.parkOwn : k === "public" ? L.parkPublic : L.parkStreet)).join(", ")
+    : "";
+  const depositOn = venue.deposit_required;
+  return {
+    mapsUrl: mapsLink(venue.address, venue.city),
+    address: addr,
+    parking: parkKind,
+    deposit: depositOn
+      ? L.depositYes + (venue.deposit_amount.trim() ? ` (${venue.deposit_amount.trim()})` : "")
+      : "",
+    cancellation: venue.cancellation_notice && venue.cancellation_notice !== "none"
+      ? L.cancellations[venue.cancellation_notice]
+      : "",
+  };
 }
 
 export interface GeneratedArticle {
@@ -151,9 +210,12 @@ interface Labels {
   kidsMenu: string;
   pets: string;
   petsYes: string;
-  accessible: string; // full enriched line
-  celebrations: string;
-  outsideCake: string;
+  accessible: string; // full enriched line (yes case)
+  accessibleLabel: string; // short noun for the "no" case
+  celebrations: string; // full enriched line (yes case)
+  celebrationsLabel: string; // short noun for the "no" case
+  outsideCake: string; // full enriched line (yes case)
+  outsideCakeLabel: string; // short noun for the "no" case
   payments: string;
   wifi: string;
   parking: string; // on-site parking line label
@@ -178,6 +240,7 @@ interface Labels {
   noneDeclared: string;
   // location
   address: string;
+  mapsLabel: string; // "Mapa / Cómo llegar" — label before the maps link
   city: string;
   neighborhood: string;
   parkingInfo: string;
@@ -221,9 +284,9 @@ const DICT: Record<Lang, Labels> = {
     terraceNotGuaranteed: "Terraza: sujeta a disponibilidad, no se garantiza",
     minutes: "min",
     highChairs: "Familias: tronas", kidsMenu: "Menú infantil", pets: "Mascotas", petsYes: "sí, avisar al reservar",
-    accessible: "Accesibilidad: entrada accesible, mesa cómoda con aviso previo",
-    celebrations: "Celebraciones (cumpleaños, aniversarios): bienvenidas, avisar al reservar",
-    outsideCake: "Tarta propia: se permite traerla (avisar al reservar)",
+    accessible: "Accesibilidad: entrada accesible, mesa cómoda con aviso previo", accessibleLabel: "Accesibilidad",
+    celebrations: "Celebraciones (cumpleaños, aniversarios): bienvenidas, avisar al reservar", celebrationsLabel: "Celebraciones",
+    outsideCake: "Tarta propia: se permite traerla (avisar al reservar)", outsideCakeLabel: "Tarta propia",
     payments: "Pagos", wifi: "WiFi", parking: "Parking propio", terrace: "Terraza",
     takeaway: "Comida para llevar", takeawayWait: "tiempo de espera", delivery: "Delivery",
     deliveryYes: "sí", deliveryVia: "sí, a través de {p}",
@@ -235,10 +298,10 @@ const DICT: Record<Lang, Labels> = {
       egg: "huevo", fish: "pescado", shellfish: "marisco / crustáceos", soy: "soja", sesame: "sésamo",
     },
     cannotGuarantee: "No se puede garantizar la ausencia total de trazas.",
-    severeAllergy: "Alergia severa: máxima transparencia, consultar con cocina o derivar al responsable.",
+    severeAllergy: "ALERGIA SEVERA = el cliente dice \"alergia grave/severa\", \"shock anafiláctico\", \"EpiPen\", \"me puede matar\", o nombra como ALERGIA (no simple preferencia) un alérgeno presente en cocina. En ese caso: NO garantices la seguridad del plato, advierte del riesgo de contaminación cruzada y propón confirmarlo con cocina o el responsable antes de reservar.",
     allergenInfo: "Información de alérgenos", allergenInfoYes: "disponible bajo petición",
     noneDeclared: "Sin opciones especiales declaradas — consultar al reservar",
-    address: "Dirección", city: "Población", neighborhood: "Zona", parkingInfo: "Aparcamiento",
+    address: "Dirección", mapsLabel: "Mapa / Cómo llegar", city: "Población", neighborhood: "Zona", parkingInfo: "Aparcamiento",
     parkOwn: "parking propio", parkPublic: "parking público cercano", parkStreet: "aparcamiento en la calle", parkNone: "sin aparcamiento propio",
     publicTransport: "Transporte público", landmark: "Referencia", phone: "Teléfono",
     payCash: "efectivo", payCard: "tarjeta", payContactless: "contactless", payBizum: "Bizum",
@@ -268,9 +331,9 @@ const DICT: Record<Lang, Labels> = {
     terraceNotGuaranteed: "Terrazza: soggetta a disponibilità, non garantita",
     minutes: "min",
     highChairs: "Famiglie: seggioloni", kidsMenu: "Menù bambini", pets: "Animali", petsYes: "sì, avvisare alla prenotazione",
-    accessible: "Accessibilità: ingresso accessibile, tavolo comodo con preavviso",
-    celebrations: "Celebrazioni (compleanni, anniversari): benvenute, avvisare alla prenotazione",
-    outsideCake: "Torta propria: è consentito portarla (avvisare alla prenotazione)",
+    accessible: "Accessibilità: ingresso accessibile, tavolo comodo con preavviso", accessibleLabel: "Accessibilità",
+    celebrations: "Celebrazioni (compleanni, anniversari): benvenute, avvisare alla prenotazione", celebrationsLabel: "Celebrazioni",
+    outsideCake: "Torta propria: è consentito portarla (avvisare alla prenotazione)", outsideCakeLabel: "Torta propria",
     payments: "Pagamenti", wifi: "WiFi", parking: "Parcheggio proprio", terrace: "Terrazza",
     takeaway: "Cibo da asporto", takeawayWait: "tempo di attesa", delivery: "Delivery",
     deliveryYes: "sì", deliveryVia: "sì, tramite {p}",
@@ -282,10 +345,10 @@ const DICT: Record<Lang, Labels> = {
       egg: "uova", fish: "pesce", shellfish: "crostacei / molluschi", soy: "soia", sesame: "sesamo",
     },
     cannotGuarantee: "Non è possibile garantire l'assenza totale di tracce.",
-    severeAllergy: "Allergia grave: massima trasparenza, consultare la cucina o rivolgersi al responsabile.",
+    severeAllergy: "ALLERGIA GRAVE = il cliente dice \"allergia grave/severa\", \"shock anafilattico\", \"EpiPen\", \"rischio la vita\", o nomina come ALLERGIA (non semplice preferenza) un allergene presente in cucina. In quel caso: NON garantire la sicurezza del piatto, avvisa del rischio di contaminazione crociata e proponi di farlo confermare dalla cucina o dal responsabile prima di prenotare.",
     allergenInfo: "Informazioni sugli allergeni", allergenInfoYes: "disponibili su richiesta",
     noneDeclared: "Nessuna opzione speciale dichiarata — chiedere alla prenotazione",
-    address: "Indirizzo", city: "Città", neighborhood: "Zona", parkingInfo: "Parcheggio",
+    address: "Indirizzo", mapsLabel: "Mappa / Come arrivare", city: "Città", neighborhood: "Zona", parkingInfo: "Parcheggio",
     parkOwn: "parcheggio proprio", parkPublic: "parcheggio pubblico vicino", parkStreet: "parcheggio su strada", parkNone: "nessun parcheggio proprio",
     publicTransport: "Trasporto pubblico", landmark: "Riferimento", phone: "Telefono",
     payCash: "contanti", payCard: "carta", payContactless: "contactless", payBizum: "Bizum",
@@ -315,9 +378,9 @@ const DICT: Record<Lang, Labels> = {
     terraceNotGuaranteed: "Terrace: subject to availability, not guaranteed",
     minutes: "min",
     highChairs: "Families: high chairs", kidsMenu: "Kids' menu", pets: "Pets", petsYes: "yes, please mention when booking",
-    accessible: "Accessibility: accessible entrance, comfortable table with prior notice",
-    celebrations: "Celebrations (birthdays, anniversaries): welcome, please mention when booking",
-    outsideCake: "Own cake: you may bring your own (please mention when booking)",
+    accessible: "Accessibility: accessible entrance, comfortable table with prior notice", accessibleLabel: "Accessibility",
+    celebrations: "Celebrations (birthdays, anniversaries): welcome, please mention when booking", celebrationsLabel: "Celebrations",
+    outsideCake: "Own cake: you may bring your own (please mention when booking)", outsideCakeLabel: "Own cake",
     payments: "Payments", wifi: "WiFi", parking: "Private parking", terrace: "Terrace",
     takeaway: "Takeaway", takeawayWait: "wait time", delivery: "Delivery",
     deliveryYes: "yes", deliveryVia: "yes, via {p}",
@@ -329,10 +392,10 @@ const DICT: Record<Lang, Labels> = {
       egg: "egg", fish: "fish", shellfish: "shellfish / crustaceans", soy: "soy", sesame: "sesame",
     },
     cannotGuarantee: "We cannot guarantee the total absence of traces.",
-    severeAllergy: "Severe allergy: full transparency, check with the kitchen or refer to the manager.",
+    severeAllergy: "SEVERE ALLERGY = the guest says \"severe/serious allergy\", \"anaphylactic shock\", \"EpiPen\", \"life-threatening\", or names an allergen present in the kitchen as an ALLERGY (not a mere preference). In that case: do NOT guarantee the dish is safe, warn about the cross-contamination risk, and offer to confirm with the kitchen or the manager before booking.",
     allergenInfo: "Allergen information", allergenInfoYes: "available on request",
     noneDeclared: "No special options declared — please ask when booking",
-    address: "Address", city: "City", neighborhood: "Area", parkingInfo: "Parking",
+    address: "Address", mapsLabel: "Map / Directions", city: "City", neighborhood: "Area", parkingInfo: "Parking",
     parkOwn: "private car park", parkPublic: "public car park nearby", parkStreet: "street parking", parkNone: "no private parking",
     publicTransport: "Public transport", landmark: "Landmark", phone: "Phone",
     payCash: "cash", payCard: "card", payContactless: "contactless", payBizum: "Bizum",
@@ -362,9 +425,9 @@ const DICT: Record<Lang, Labels> = {
     terraceNotGuaranteed: "Terrasse: je nach Verfügbarkeit, nicht garantiert",
     minutes: "Min.",
     highChairs: "Familien: Hochstühle", kidsMenu: "Kindermenü", pets: "Haustiere", petsYes: "ja, bitte bei der Buchung angeben",
-    accessible: "Barrierefreiheit: barrierefreier Eingang, bequemer Tisch mit Voranmeldung",
-    celebrations: "Feiern (Geburtstage, Jubiläen): willkommen, bitte bei der Buchung angeben",
-    outsideCake: "Eigene Torte: darf mitgebracht werden (bitte bei der Buchung angeben)",
+    accessible: "Barrierefreiheit: barrierefreier Eingang, bequemer Tisch mit Voranmeldung", accessibleLabel: "Barrierefreiheit",
+    celebrations: "Feiern (Geburtstage, Jubiläen): willkommen, bitte bei der Buchung angeben", celebrationsLabel: "Feiern",
+    outsideCake: "Eigene Torte: darf mitgebracht werden (bitte bei der Buchung angeben)", outsideCakeLabel: "Eigene Torte",
     payments: "Zahlung", wifi: "WLAN", parking: "Eigener Parkplatz", terrace: "Terrasse",
     takeaway: "Essen zum Mitnehmen", takeawayWait: "Wartezeit", delivery: "Lieferung",
     deliveryYes: "ja", deliveryVia: "ja, über {p}",
@@ -376,10 +439,10 @@ const DICT: Record<Lang, Labels> = {
       egg: "Ei", fish: "Fisch", shellfish: "Schalentiere / Krebstiere", soy: "Soja", sesame: "Sesam",
     },
     cannotGuarantee: "Eine vollständige Spurenfreiheit kann nicht garantiert werden.",
-    severeAllergy: "Schwere Allergie: volle Transparenz, Rücksprache mit der Küche oder an die Leitung verweisen.",
+    severeAllergy: "SCHWERE ALLERGIE = der Gast sagt \"schwere/starke Allergie\", \"anaphylaktischer Schock\", \"EpiPen\", \"lebensbedrohlich\", oder nennt ein in der Küche vorhandenes Allergen als ALLERGIE (keine bloße Vorliebe). In diesem Fall: Sicherheit des Gerichts NICHT garantieren, auf das Risiko der Kreuzkontamination hinweisen und anbieten, es vor der Buchung mit der Küche oder der Leitung abzuklären.",
     allergenInfo: "Allergeninformationen", allergenInfoYes: "auf Anfrage verfügbar",
     noneDeclared: "Keine besonderen Optionen angegeben — bitte bei der Buchung erfragen",
-    address: "Adresse", city: "Stadt", neighborhood: "Gegend", parkingInfo: "Parken",
+    address: "Adresse", mapsLabel: "Karte / Anfahrt", city: "Stadt", neighborhood: "Gegend", parkingInfo: "Parken",
     parkOwn: "eigener Parkplatz", parkPublic: "öffentlicher Parkplatz in der Nähe", parkStreet: "Parken auf der Straße", parkNone: "kein eigener Parkplatz",
     publicTransport: "Öffentliche Verkehrsmittel", landmark: "Orientierungspunkt", phone: "Telefon",
     payCash: "Bargeld", payCard: "Karte", payContactless: "kontaktlos", payBizum: "Bizum",
@@ -387,6 +450,14 @@ const DICT: Record<Lang, Labels> = {
 };
 
 const fill = (s: string, n: number | string) => s.replace("{n}", String(n)).replace("{p}", String(n));
+
+// Build a clickable Google Maps link from the free-text address (+ city). Used
+// both in the Location KB article and, at booking time, in the WhatsApp recap
+// (the book route reuses this so the two never drift). Returns "" if no address.
+export function mapsLink(address: string, city?: string): string {
+  const q = [address, city].map((s) => (s || "").trim()).filter(Boolean).join(", ");
+  return q ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(q)}` : "";
+}
 
 function paymentLabel(L: Labels, m: PaymentMethod): string {
   return m === "cash" ? L.payCash : m === "card" ? L.payCard : m === "contactless" ? L.payContactless : L.payBizum;
@@ -516,7 +587,12 @@ export function generateKbArticles(q: KbQuestionnaire, ctx: KbContext): Generate
   const lastDinner = lastReservationCutoffs(ctx.opening_hours, "dinner", q.last_dinner_offset_min);
   reservationLines.push(lastReservationLine(L, L.lastLunch, lastLunch, q.last_lunch_offset_min));
   reservationLines.push(lastReservationLine(L, L.lastDinner, lastDinner, q.last_dinner_offset_min));
-  if (q.accepts_large_groups) reservationLines.push(`${L.deposit}: ${q.deposit_required ? L.depositYes : L.depositNo}`);
+  if (q.accepts_large_groups) {
+    const depositValue = q.deposit_required
+      ? L.depositYes + (q.deposit_amount.trim() ? ` (${q.deposit_amount.trim()})` : "")
+      : L.depositNo;
+    reservationLines.push(`${L.deposit}: ${depositValue}`);
+  }
   if (q.terrace) reservationLines.push(L.terraceNotGuaranteed);
   articles.push({ title: L.tReservations, category: "policies", content: reservationLines.join("\n") });
 
@@ -541,13 +617,17 @@ export function generateKbArticles(q: KbQuestionnaire, ctx: KbContext): Generate
   articles.push({ title: L.tDiets, category: "policies", content: dietLines.join("\n") });
 
   // --- Additional services ---
+  // Every practical service is stated yes/no (not omitted-when-false): a fact
+  // the guest may ask about directly ("is it accessible?", "kids' menu?"). If we
+  // dropped the false ones the bot would have no answer and improvise; with an
+  // explicit "no" it answers correctly. (Diets stay opt-in — see the diet block.)
   const serviceLines: string[] = [];
   serviceLines.push(`${L.highChairs} ${q.high_chairs ? L.available : L.notAvailable}`);
-  if (q.kids_menu) serviceLines.push(`${L.kidsMenu}: ${L.available}`);
+  serviceLines.push(`${L.kidsMenu}: ${yn(L, q.kids_menu)}`);
   serviceLines.push(`${L.pets}: ${q.pets ? L.petsYes : L.no}`);
-  if (q.accessible) serviceLines.push(L.accessible);
-  if (q.celebrations) serviceLines.push(L.celebrations);
-  if (q.outside_cake) serviceLines.push(L.outsideCake);
+  serviceLines.push(q.accessible ? L.accessible : `${L.accessibleLabel}: ${L.no}`);
+  serviceLines.push(q.celebrations ? L.celebrations : `${L.celebrationsLabel}: ${L.no}`);
+  serviceLines.push(q.outside_cake ? L.outsideCake : `${L.outsideCakeLabel}: ${L.no}`);
   const pay = q.payments.length ? q.payments.map((p) => paymentLabel(L, p)).join(", ") : L.notAvailable;
   serviceLines.push(`${L.payments}: ${pay}`);
   serviceLines.push(`${L.wifi}: ${yn(L, q.wifi)}`);
@@ -575,6 +655,8 @@ export function generateKbArticles(q: KbQuestionnaire, ctx: KbContext): Generate
   const locationLines: string[] = [header];
   if (q.address.trim()) locationLines.push(`${L.address}: ${q.address.trim()}`);
   if (q.city.trim()) locationLines.push(`${L.city}: ${q.city.trim()}`);
+  const maps = mapsLink(q.address, q.city);
+  if (maps) locationLines.push(`${L.mapsLabel}: ${maps}`);
   if (q.neighborhood.trim()) locationLines.push(`${L.neighborhood}: ${q.neighborhood.trim()}`);
   locationLines.push(`${L.parkingInfo}: ${parkKind}`);
   locationLines.push(`${L.publicTransport}: ${yn(L, q.public_transport)}`);
@@ -637,6 +719,7 @@ export function defaultQuestionnaire(): KbQuestionnaire {
     auto_confirm_max: 6,
     accepts_large_groups: true,
     deposit_required: false,
+    deposit_amount: "",
     late_tolerance_min: 15,
     late_grace_if_notified: true,
     last_lunch_offset_min: 45,

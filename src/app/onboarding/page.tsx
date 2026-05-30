@@ -70,16 +70,22 @@ const ALLERGENS = (q4: Q4): Array<[Allergen, string]> => [
 const CANCELLATIONS = (q4: Q4): Array<[CancellationNotice, string]> => [
   ["none", q4.cxNone], ["same_day", q4.cxSameDay], ["2h", q4.cx2h], ["24h", q4.cx24h],
 ];
+// No-show release shares the same minute options as late tolerance (10/15/20/30)
+// — they're different policies but the owner thinks in the same increments. "0"
+// ("don't specify") stays so we never invent a release time the venue didn't set.
 const NOSHOW_OPTS = (q4: Q4): Array<[string, string]> => [
-  ["0", q4.nsNone], ["15", "15 min"], ["30", "30 min"], ["45", "45 min"], ["60", "60 min"],
+  ["0", q4.nsNone], ["10", "10 min"], ["15", "15 min"], ["20", "20 min"], ["30", "30 min"],
 ];
 // Last-reservation cut-off = minutes BEFORE each shift's closing time. The actual
 // time is computed per day from opening_hours; the owner only picks the margin.
 // -1 = that shift isn't served at all.
+// No "-1 / no service" option on purpose: a shift the venue doesn't serve is
+// already derived from the opening hours (a shift with no slots → the KB writes
+// "no service" by itself), so a manual toggle here would be redundant and could
+// contradict the schedule.
 const LAST_RESERVATION_OPTS = (q4: Q4): Array<[string, string]> => [
   ["0", q4.lrAtClose], ["15", `15 min ${q4.lrBeforeClose}`], ["30", `30 min ${q4.lrBeforeClose}`],
   ["45", `45 min ${q4.lrBeforeClose}`], ["60", `1 h ${q4.lrBeforeClose}`], ["90", `1 h 30 ${q4.lrBeforeClose}`],
-  ["-1", q4.lrNoService],
 ];
 
 // Quick-pick party sizes for auto-confirmation; "Other…" lets the owner type any
@@ -445,6 +451,7 @@ export default function OnboardingPage() {
             <PresetOrCustomNumber label={t.q4.autoConfirmUpTo} value={q.auto_confirm_max} onChange={(v) => setQF("auto_confirm_max", v)} presets={AUTO_CONFIRM_PRESETS} unit={t.q4.personsUnit} otherLabel={t.q4.optOther} optLabel={t.q4.optPersons} info={t.q4.info.autoConfirm} />
             <YesNo label={t.q4.largeGroups} value={q.accepts_large_groups} onChange={(v) => setQF("accepts_large_groups", v)} t={t} info={t.q4.info.largeGroups} />
             {q.accepts_large_groups && <YesNo label={t.q4.deposit} value={q.deposit_required} onChange={(v) => setQF("deposit_required", v)} t={t} info={t.q4.info.deposit} />}
+            {q.accepts_large_groups && q.deposit_required && <Field label={t.q4.depositAmount} value={q.deposit_amount} onChange={(v) => setQF("deposit_amount", v)} placeholder={t.q4.depositAmountPlaceholder} />}
             <Dropdown label={t.q4.lateTolerance} value={String(q.late_tolerance_min)} onChange={(v) => setQF("late_tolerance_min", Number(v))} options={[["10", "10 min"], ["15", "15 min"], ["20", "20 min"], ["30", "30 min"]]} info={t.q4.info.lateTolerance} />
             <YesNo label={t.q4.lateGrace} value={q.late_grace_if_notified} onChange={(v) => setQF("late_grace_if_notified", v)} t={t} info={t.q4.info.lateGrace} />
             <Dropdown label={t.q4.cancellationNotice} value={q.cancellation_notice} onChange={(v) => setQF("cancellation_notice", v as CancellationNotice)} options={CANCELLATIONS(t.q4)} info={t.q4.info.cancellationNotice} />

@@ -23,6 +23,7 @@ import {
 } from '@/lib/booking-validation';
 import { assertRateLimit } from '@/lib/rate-limit';
 import { getFeatures } from '@/lib/types/tenant-settings';
+import { bookingVenueLines, type VenueInfo, type Lang } from '@/lib/onboarding/kb-generator';
 
 export async function POST(request: Request) {
   const unauth = assertAiSecret(request);
@@ -694,6 +695,17 @@ export async function POST(request: Request) {
       tenant_id: payload.tenant_id,
     });
 
+    // Venue recap for the confirmation message (WhatsApp/voice): address +
+    // clickable Google Maps link, parking, deposit (large groups) and the
+    // cancellation notice — in the guest's booking language. Sourced from the
+    // structured settings.venue (set at onboarding), NOT re-parsed from the KB.
+    // n8n appends the non-empty lines to the recap card. Absent for legacy
+    // tenants with no settings.venue → fields are simply omitted.
+    const venue = ((tenantRes.data?.settings as { venue?: VenueInfo } | null) || {}).venue;
+    const venueLines = venue
+      ? bookingVenueLines(venue, (payload.language || 'es') as Lang)
+      : null;
+
     return NextResponse.json({
        success: true,
        reservation_id: newRes.id,
@@ -702,7 +714,15 @@ export async function POST(request: Request) {
        end_time: endTime,
        tables_assigned: atomicResult.tables_assigned,
        zone_assigned: assignedZone,
-       message: "Reservation successfully created."
+       message: "Reservation successfully created.",
+       // Extra fields for the booking confirmation recap (empty string = omit).
+       restaurant_address: venueLines?.address || "",
+       maps_url: venueLines?.mapsUrl || "",
+       parking: venueLines?.parking || "",
+       // Deposit only matters for large groups (manual confirmation path); the
+       // recap shows it only when both a deposit is required AND it's a big party.
+       deposit_note: venueLines?.deposit || "",
+       cancellation_note: venueLines?.cancellation || "",
     });
 
   } catch (error: any) {

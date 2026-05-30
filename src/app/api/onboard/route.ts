@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { createServerSupabaseClient, createServiceRoleClient } from "@/lib/supabase/server";
 import { runOnboard, OnboardInput, OnboardProgress } from "@/lib/onboarding/orchestrator";
 import { resolveOwnerProvisionTenant } from "@/lib/onboarding/owner-tenant";
-import { generateKbArticlesMulti, KbQuestionnaire, Lang } from "@/lib/onboarding/kb-generator";
+import { generateKbArticlesMulti, venueFromQuestionnaire, KbQuestionnaire, Lang } from "@/lib/onboarding/kb-generator";
 import { featuresFromQuestionnaire } from "@/lib/types/tenant-settings";
 
 // Owner self-serve provisioning. Same engine as the admin wizard
@@ -115,6 +115,9 @@ export async function POST(req: Request) {
     // Feature flags derived from the wizard answers, so Settings → Features
     // opens already matching what the owner said (e.g. "no terrace" → OFF).
     features: featuresFromQuestionnaire(body.questionnaire, selected.length),
+    // Booking-confirmation venue subset (address/parking/deposit/cancellation),
+    // persisted on the tenant so /api/ai/book can echo it in the recap.
+    venue: venueFromQuestionnaire(body.questionnaire),
     kb_articles: kbArticles,
     // voice_prompt intentionally omitted → built from the agency template.
     owner_email: user.email || "",

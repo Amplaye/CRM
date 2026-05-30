@@ -45,6 +45,10 @@ export interface OnboardInput {
   // Features toggles open already matching what the owner said in the wizard.
   // Optional: the admin wizard omits it → defaults apply.
   features?: import("@/lib/types/tenant-settings").TenantFeatures;
+  // Booking-confirmation venue subset (address/parking/deposit/cancellation),
+  // persisted to settings.venue so the bot can repeat it in the WhatsApp/voice
+  // recap. Optional: the admin wizard omits it. See venueFromQuestionnaire.
+  venue?: import("./kb-generator").VenueInfo;
   // Knowledge base
   kb_articles: Array<{ title: string; content: string; category: string }>;
   // Body of the VOICE PROMPT KB article. Optional: when omitted (self-serve),
@@ -159,9 +163,11 @@ async function n8n(method: string, path: string, body?: any): Promise<any> {
 // Mix: mostly 2- and 4-tops with the occasional 6-top, the bread-and-butter of a
 // real dining room. We lay them out greedily until the running seat total
 // reaches the target, then trim/pad the LAST table so the sum lands EXACTLY on
-// the declared number (clamped to a sane 2..40 range). Half inside, half out.
+// the declared number (clamped to a sane 2..300 range). Half inside, half out.
+// The upper bound is just a runaway guard (a typo of 99999 shouldn't mint
+// thousands of tables); a real 51-seat venue must NOT be silently truncated.
 function buildTablesForCapacity(tenantId: string, declaredSeats: number) {
-  const target = Math.max(2, Math.min(40, Math.round(declaredSeats) || 12));
+  const target = Math.max(2, Math.min(300, Math.round(declaredSeats) || 12));
   // Repeating pattern of party sizes; index i picks pattern[i % len].
   const pattern = [2, 4, 2, 4, 6, 2, 4];
   const sizes: number[] = [];
@@ -250,6 +256,9 @@ export async function runOnboard(
         // Feature flags from the wizard answers (terrace/pets/events/languages/
         // double-shift). Read by Settings → Features and the bot's info source.
         ...(input.features ? { features: input.features } : {}),
+        // Booking-confirmation venue subset, read by /api/ai/book to repeat the
+        // address (+ maps link), parking, deposit and cancellation in the recap.
+        ...(input.venue ? { venue: input.venue } : {}),
       };
 
       if (input.tenant_id) {
