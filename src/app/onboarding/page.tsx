@@ -455,7 +455,7 @@ export default function OnboardingPage() {
             <Dropdown label={t.q4.lateTolerance} value={String(q.late_tolerance_min)} onChange={(v) => setQF("late_tolerance_min", Number(v))} options={[["10", "10 min"], ["15", "15 min"], ["20", "20 min"], ["30", "30 min"]]} info={t.q4.info.lateTolerance} />
             <YesNo label={t.q4.lateGrace} value={q.late_grace_if_notified} onChange={(v) => setQF("late_grace_if_notified", v)} t={t} info={t.q4.info.lateGrace} />
             <Dropdown label={t.q4.cancellationNotice} value={q.cancellation_notice} onChange={(v) => setQF("cancellation_notice", v as CancellationNotice)} options={CANCELLATIONS(t.q4)} info={t.q4.info.cancellationNotice} />
-            <Dropdown label={t.q4.noShowRelease} value={String(q.noshow_release_min)} onChange={(v) => setQF("noshow_release_min", Number(v))} options={NOSHOW_OPTS(t.q4)} info={t.q4.info.noShowRelease} />
+            {/* No-show release merged into Late tolerance: the tolerance IS the no-show window for guests who don't warn. A guest who reports a delay gets their time shifted (bot calls Modify with retraso_minutos); silence = no-show. */}
             <Dropdown label={t.q4.lastLunch} value={String(q.last_lunch_offset_min)} onChange={(v) => setQF("last_lunch_offset_min", Number(v))} options={LAST_RESERVATION_OPTS(t.q4)} info={t.q4.info.lastReservation} />
             <Dropdown label={t.q4.lastDinner} value={String(q.last_dinner_offset_min)} onChange={(v) => setQF("last_dinner_offset_min", Number(v))} options={LAST_RESERVATION_OPTS(t.q4)} info={t.q4.info.lastReservation} />
           </Card>
