@@ -246,7 +246,10 @@ export default function MenuPage() {
             </div>
           ) : categories.length === 0 && !hasUncategorized ? (
             <div className="p-6 text-center text-black">
-              <UtensilsCrossed className="w-10 h-10 mx-auto mb-3 opacity-10" />
+              <UtensilsCrossed
+                className="w-10 h-10 mx-auto mb-3"
+                style={{ color: "#c4956a" }}
+              />
               <p className="text-xs font-bold">
                 {t("menu_empty_list") || "Nessuna categoria"}
               </p>
@@ -561,6 +564,20 @@ export default function MenuPage() {
           existingMaxOrder={categories.reduce((m, c) => Math.max(m, c.sort_order), 0)}
           initial={categoryModal.mode === "edit" ? categoryModal.category : null}
           onClose={() => setCategoryModal(null)}
+          onSaved={(cat) => {
+            setCategories((prev) => {
+              const exists = prev.some((c) => c.id === cat.id);
+              const next = exists
+                ? prev.map((c) => (c.id === cat.id ? cat : c))
+                : [...prev, cat];
+              return next.sort(
+                (a, b) =>
+                  a.sort_order - b.sort_order ||
+                  a.created_at.localeCompare(b.created_at)
+              );
+            });
+            setSelectedCategoryId(cat.id);
+          }}
           onDelete={
             categoryModal.mode === "edit"
               ? () => handleDeleteCategory(categoryModal.category.id)
@@ -593,8 +610,11 @@ function EmptyState({
 }) {
   return (
     <div className="flex-1 flex flex-col items-center justify-center p-12 text-center">
-      <div className="h-24 w-24 bg-zinc-50 rounded-full flex items-center justify-center mb-6">
-        <UtensilsCrossed className="w-10 h-10 text-zinc-200" />
+      <div
+        className="h-24 w-24 bg-zinc-50 rounded-full flex items-center justify-center mb-6 border-2"
+        style={{ borderColor: "#c4956a" }}
+      >
+        <UtensilsCrossed className="w-10 h-10" style={{ color: "#c4956a" }} />
       </div>
       <h2 className="text-2xl font-black text-black tracking-tight">
         {t("menu_title") || "Menu"}
@@ -906,6 +926,7 @@ function CategoryEditModal({
   existingMaxOrder,
   initial,
   onClose,
+  onSaved,
   onDelete,
 }: {
   t: (k: any) => string;
@@ -913,6 +934,7 @@ function CategoryEditModal({
   existingMaxOrder: number;
   initial: MenuCategory | null;
   onClose: () => void;
+  onSaved: (cat: MenuCategory) => void;
   onDelete?: () => void;
 }) {
   const supabase = createClient();
@@ -924,6 +946,7 @@ function CategoryEditModal({
     if (!name.trim()) return;
     setSaving(true);
     let error: { message: string } | null = null;
+    let saved: MenuCategory | null = null;
     if (isEditing) {
       const res = await supabase
         .from("menu_categories")
@@ -932,6 +955,7 @@ function CategoryEditModal({
         .select()
         .single();
       error = res.error;
+      saved = (res.data as MenuCategory) || null;
     } else {
       const res = await supabase
         .from("menu_categories")
@@ -943,6 +967,7 @@ function CategoryEditModal({
         .select()
         .single();
       error = res.error;
+      saved = (res.data as MenuCategory) || null;
     }
     setSaving(false);
     if (error) {
@@ -950,6 +975,7 @@ function CategoryEditModal({
       alert(`Errore salvataggio categoria: ${error.message}`);
       return;
     }
+    if (saved) onSaved(saved);
     onClose();
   };
 
