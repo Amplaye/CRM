@@ -7,7 +7,6 @@ import {
   Save,
   X,
   Trash2,
-  Settings2,
   FolderPlus,
   Eye,
   EyeOff,
@@ -199,13 +198,24 @@ export default function MenuPage() {
       ? `${t("menu_confirm_delete_cat_used") || "Categoria con piatti collegati"} (${used}). ${t("menu_items_become_uncategorized") || "I piatti diventeranno senza categoria."}`
       : t("menu_confirm_delete_cat") || "Eliminare questa categoria?";
     if (!confirm(msg)) return;
+    // Ottimistico: rimuovi subito dalla UI (il realtime farebbe lo stesso ma
+    // potrebbe non essere abilitato / avere latenza). Snapshot per rollback.
+    const prevCats = categories;
+    const prevItems = items;
+    setCategories((cs) => cs.filter((c) => c.id !== id));
+    // Il DB fa ON DELETE SET NULL: i piatti collegati diventano "senza categoria".
+    setItems((its) =>
+      its.map((it) => (it.category_id === id ? { ...it, category_id: null } : it))
+    );
+    setCategoryModal(null);
     const { error } = await supabase.from("menu_categories").delete().eq("id", id);
     if (error) {
       console.error("[menu] delete category failed", error);
+      // Rollback
+      setCategories(prevCats);
+      setItems(prevItems);
       alert(`Errore eliminazione categoria: ${error.message}`);
-      return;
     }
-    setCategoryModal(null);
   };
 
   return (
@@ -380,10 +390,11 @@ export default function MenuPage() {
                   {activeCategory && (
                     <button
                       onClick={() => setCategoryModal({ mode: "edit", category: activeCategory })}
-                      className="cursor-pointer p-1.5 text-black hover:text-black hover:bg-zinc-100 rounded"
+                      className="cursor-pointer p-1.5 text-black hover:bg-zinc-100 rounded-lg border-2"
+                      style={{ borderColor: "#c4956a" }}
                       title={t("menu_edit_category") || "Modifica categoria"}
                     >
-                      <Settings2 className="w-4 h-4" />
+                      <Pencil className="w-4 h-4" />
                     </button>
                   )}
                 </div>
