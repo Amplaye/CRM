@@ -195,7 +195,13 @@ export async function GET(request: Request) {
       'the','a','an','of','how','much','do','you','have','is','are','price','cost','with','without','some','any',
       'piatto','piatti','plato','platos','dish','dishes','menu','menú','carta','comida','cibo',
     ]);
-    const sigTokens = q.split(/\s+/).filter((t) => t.length >= 3 && !STOPWORDS.has(t));
+    // Strip punctuation glued to tokens ("ortolana?" → "ortolana", "ortolana." )
+    // so a token still matches the bare dish name. norm() folds case/accents but
+    // leaves punctuation, so a question mark would otherwise break name matching.
+    const sigTokens = q
+      .split(/\s+/)
+      .map((t) => t.replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/gu, ''))
+      .filter((t) => t.length >= 3 && !STOPWORDS.has(t));
 
     const catMatch = (cn: string, tok: string) =>
       cn === tok || (tok.length >= 4 && (cn.startsWith(tok.slice(0, -1)) || tok.startsWith(cn.slice(0, -1))));
