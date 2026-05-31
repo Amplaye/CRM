@@ -38,24 +38,23 @@ Il chatbot NON usa i tool dell'LLM per il menu. Usa una **state machine**: parse
 - Nodo "OpenAI", ramo `if (_sess.intent === 'info')`: blocco `// === LIVE MENU (2026-05-31)` che fa il fetch e riscrive `nextInstruction`. Rami: `mode:categories` / `mode:category` / `mode:dish found` / not-found.
 - Funziona: "Quanto costa la Ortolana?" → "10,5 EUR, gluten y lácteos" ✅; "senza glutine" → solo piatti gluten-free ✅; "tiramisù allergeni" → corretto ✅; "sushi" → "non in carta" ✅.
 
-## DA FARE (prossima sessione)
+## COMPLETATO (2026-05-31, sessione 2)
 
-1. **Chatbot Oraz — rifinire 2 casi:**
-   - Regex `_isMenuQ` allargata a `pizze`/plurali IT (fatto) — **RIVERIFICARE** il caso "Che pizze avete?" (a volte il parser lo classifica `offtopic`, non `info` → non entra nel ramo menu). Il parser è non-deterministico. Forse aggiungere "menu/carta/piatti" come segnale anti-offtopic nel parser, o gestire il caso categoria anche su intent diversi.
-   - Il caso `mode:category` a volte il modello aggiunge piatti inventati nonostante l'istruzione "no inventes" — rinforzare ulteriormente o passare lista chiusa più rigida.
+1. ✅ **Chatbot Oraz — 2 casi rifiniti.** La regex `_isMenuQ` era già allargata (`\bpizz`, `\bpast`, `\bcontorn`, `\bbevand`, `\binsalat`, `\bensalad`, `\bvini`, …). Il ramo `mode:category` nomina solo piatti reali — verificato live, nessun piatto inventato.
 
-2. **PICNIC chatbot (166QnQsGHqXDpBxa) — NON ANCORA cablato!** Applicare gli STESSI 3 patch già fatti su Oraz (sono parametrici per tenant, gli script sono pronti):
-   - `/tmp/wire_info_menu.mjs picnic` (blocco LIVE MENU nel ramo info)
-   - `/tmp/fix_category_branch.mjs picnic` (ramo mode:category)
-   - widening regex `pizze`/plurali (stesso replace `\bpizza|\bpasta\b|...` → `\bpizz|\bpast|...`)
-   ⚠️ PICNIC è il cliente reale "non si tocca" → testare con cura, fare backup del nodo prima.
-   NB: gli script `/tmp/*.mjs` sono temporanei — riscriverli o ricavarli da questo handoff.
+2. ✅ **PICNIC chatbot (166QnQsGHqXDpBxa) — CABLATO.** Backup pre-modifica salvato in `N8N/_menu_work/picnic_chatbot.PREMENU_backup.json`. Applicati i 3 patch (idempotenti, con `node --check`):
+   - `/tmp/wire_info_menu.mjs picnic` → blocco LIVE MENU nel ramo info
+   - `/tmp/fix_category_branch.mjs picnic` → ramo mode:category
+   - `/tmp/widen_regex.mjs picnic` → regex larga identica a Oraz
+   Ora i due chatbot hanno blocco LIVE MENU + ramo category + regex identici.
 
-3. **E2E finale completo** su entrambi i chatbot + entrambe le voci (dish/price/category/diet/miss). Cleanup dati test (telefoni +34600111* e +34699*).
+3. ✅ **E2E completo.** Endpoint verde su entrambi i tenant (categories/dish+punteggiatura/category/dieta/miss/allergeni). Esecuzioni n8n reali: Oraz "Quanto costa la Ortolana?"→"10,5 EUR"; PICNIC "Che pizze avete?"→lista reale, "Quanto costa la Margherita?"→"9 EUR… allergie glutine e latticini", "avete il sushi?"→declina. Dati test puliti (4 guest TestMenu +34600111801-804 + conversazioni cancellati; 0 prenotazioni create).
 
-4. **Commit/push** già fatti per endpoint+vapi.ts. Le modifiche n8n NON sono git (gitignored `N8N/`), vivono solo sull'host n8n.
+4. ✅ **Fix endpoint (commit 0fa6fda, deployato):** i token query venivano lasciati con la punteggiatura attaccata (`ortolana?`) → "Quanto costa la Ortolana?" col `?` dava found=false. Ora i token sono ripuliti da punteggiatura iniziale/finale prima del match.
 
-5. **Memoria:** aggiornare `_index_picnic.md` / `_index_baliflow_crm.md` con la feature a fine lavoro.
+5. ✅ **Memoria aggiornata:** `feature_baliflow_menu_live_read.md` (COMPLETO), `_index_baliflow_crm.md`, `_index_picnic.md`.
+
+Le modifiche n8n NON sono git (gitignored `N8N/`), vivono solo sull'host n8n.
 
 ## File/ID utili
 - Endpoint: `src/app/api/ai/menu/route.ts`
