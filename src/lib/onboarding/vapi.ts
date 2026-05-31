@@ -152,6 +152,7 @@ const VOICE_WEBHOOK_PATH_MAP: Record<string, string> = {
   "picnic-waitlist": "tenant-voice-waitlist",
   "picnic-update-notes": "tenant-voice-update-notes",
   "picnic-post-call": "tenant-voice-post-call",
+  "picnic-menu": "tenant-voice-menu",
 };
 
 function remapWebhookUrl(url: unknown): unknown {

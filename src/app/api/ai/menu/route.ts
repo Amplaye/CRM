@@ -185,13 +185,38 @@ export async function GET(request: Request) {
     // ---- Mode 3: dish lookup (the main path) --------------------------------
     const q = norm(dishRaw);
 
-    // If `dish` actually names a category ("pizze", "dolci", "bevande"), treat
-    // it as a category request — robust to the agent picking the wrong param,
-    // and to "¿qué pizzas tenéis?" arriving as dish=pizzas. Singular/plural
-    // tolerant via mutual prefix (pizza↔pizze, dolce↔dolci).
-    const asCat = cats.find((c) => {
+    // Drop filler words so a whole sentence ("¿cuánto cuesta la pizza ortolana?")
+    // narrows to the meaningful tokens ("pizza", "ortolana"). The chatbot passes
+    // the raw question here, so this is what makes phrase queries work.
+    const STOPWORDS = new Set([
+      'el','la','los','las','un','una','unos','unas','de','del','al','y','o','con','sin','para','por','que','qué',
+      'cuanto','cuánto','cuesta','cuestan','precio','precios','vale','valen','tiene','tienen','teneis','tenéis','hay','me','mi','su',
+      'il','lo','gli','le','dei','degli','delle','e','con','senza','quanto','costa','costano','prezzo','avete','avete','che','mi','un',
+      'the','a','an','of','how','much','do','you','have','is','are','price','cost','with','without','some','any',
+      'piatto','piatti','plato','platos','dish','dishes','menu','menú','carta','comida','cibo',
+    ]);
+    const sigTokens = q.split(/\s+/).filter((t) => t.length >= 3 && !STOPWORDS.has(t));
+
+    const catMatch = (cn: string, tok: string) =>
+      cn === tok || (tok.length >= 4 && (cn.startsWith(tok.slice(0, -1)) || tok.startsWith(cn.slice(0, -1))));
+
+    // Does a meaningful token point at a SPECIFIC dish by name? ("ortolana",
+    // "tiramisu"). If so, that wins over a category coercion — "cuánto cuesta la
+    // pizza ortolana" should return the Ortolana dish, not the whole Pizze list.
+    // We ignore tokens that merely equal a category name for this check.
+    const catTokens = new Set(cats.flatMap((c) => norm(c.name).split(/\s+/)));
+    const dishNameHit = items.some((it) => {
+      const n = norm(it.name);
+      return sigTokens.some((t) => !catTokens.has(t) && (n === t || n.split(/\s+/).includes(t)));
+    });
+
+    // If a meaningful token names a category ("pizze", "dolci", "bevande") AND no
+    // specific dish was named, treat it as a category request. Singular/plural
+    // tolerant via mutual prefix.
+    const asCat = dishNameHit ? undefined : cats.find((c) => {
       const n = norm(c.name);
-      return n === q || (q.length >= 4 && (n.startsWith(q.slice(0, -1)) || q.startsWith(n.slice(0, -1))));
+      if (catMatch(n, q)) return true;
+      return sigTokens.some((t) => catMatch(n, t));
     });
     if (asCat) {
       const inCat = items.filter((it) => it.category_id === asCat.id).map((it) => shapeItem(it, asCat.name));
@@ -219,20 +244,27 @@ export async function GET(request: Request) {
       const tag = syn.tag;
       matches = items.filter((it) => (it.tags || []).map(norm).includes(tag));
     } else {
-      // Token-based partial match against name + description + allergens + tags.
-      const tokens = q.split(/\s+/).filter((t) => t.length >= 2);
+      // Match meaningful tokens against name + description + allergens + tags.
+      // Prefer items containing ALL tokens; if none, fall back to ANY token and
+      // rank by how many matched — so "pizza ortolana" still finds "Ortolana"
+      // even though no item contains the filler-laden full phrase.
       const hay = (it: ItemRow) =>
         norm(it.name) + ' ' + norm(it.description) + ' ' + (it.allergens || []).map(norm).join(' ') + ' ' + (it.tags || []).map(norm).join(' ');
-      matches = items.filter((it) => {
+      const score = (it: ItemRow) => {
         const h = hay(it);
-        if (h.includes(q)) return true; // whole-phrase hit
-        return tokens.length > 0 && tokens.every((t) => h.includes(t));
-      });
-      // Rank exact-name matches first, then by menu order.
+        if (sigTokens.length === 0) return 0;
+        return sigTokens.reduce((n, t) => n + (h.includes(t) ? 1 : 0), 0);
+      };
+      const all = items.filter((it) => sigTokens.length > 0 && sigTokens.every((t) => hay(it).includes(t)));
+      const any = items.filter((it) => score(it) > 0);
+      matches = all.length > 0 ? all : any;
+      // Rank: exact name first, then name-substring, then token coverage, then menu order.
       matches.sort((a, b) => {
-        const ax = norm(a.name) === q ? 0 : norm(a.name).includes(q) ? 1 : 2;
-        const bx = norm(b.name) === q ? 0 : norm(b.name).includes(q) ? 1 : 2;
-        return ax - bx;
+        const nameRank = (it: ItemRow) =>
+          norm(it.name) === q ? 0 : sigTokens.some((t) => norm(it.name) === t) ? 1 : norm(it.name).includes(q) ? 2 : 3;
+        const ar = nameRank(a), br = nameRank(b);
+        if (ar !== br) return ar - br;
+        return score(b) - score(a);
       });
     }
 
