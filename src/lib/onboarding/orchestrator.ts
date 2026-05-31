@@ -163,10 +163,15 @@ async function n8n(method: string, path: string, body?: any): Promise<any> {
 // Mix: mostly 2- and 4-tops with the occasional 6-top, the bread-and-butter of a
 // real dining room. We lay them out greedily until the running seat total
 // reaches the target, then trim/pad the LAST table so the sum lands EXACTLY on
-// the declared number (clamped to a sane 2..300 range). Half inside, half out.
+// the declared number (clamped to a sane 2..300 range).
 // The upper bound is just a runaway guard (a typo of 99999 shouldn't mint
 // thousands of tables); a real 51-seat venue must NOT be silently truncated.
-function buildTablesForCapacity(tenantId: string, declaredSeats: number) {
+//
+// Zones: ONLY split half-inside/half-out when the owner declared a terrace in the
+// wizard (settings.features.terrace). Without a terrace every table is "inside" —
+// otherwise a venue that said "no terrace" was still born with an outside room
+// ("sala esterna"), contradicting the toggle.
+export function buildTablesForCapacity(tenantId: string, declaredSeats: number, hasTerrace: boolean) {
   const target = Math.max(2, Math.min(300, Math.round(declaredSeats) || 12));
   // Repeating pattern of party sizes; index i picks pattern[i % len].
   const pattern = [2, 4, 2, 4, 6, 2, 4];
@@ -185,7 +190,8 @@ function buildTablesForCapacity(tenantId: string, declaredSeats: number) {
     sizes.pop();
   }
 
-  const insideCount = Math.ceil(sizes.length / 2);
+  // No terrace → everything inside (insideCount = all). With a terrace, half out.
+  const insideCount = hasTerrace ? Math.ceil(sizes.length / 2) : sizes.length;
   return sizes.map((seats, idx) => {
     const i = idx + 1;
     const zone = i <= insideCount ? "inside" : "outside";
@@ -297,7 +303,11 @@ export async function runOnboard(
       if (count && count > 0) {
         push({ step: "tables", message: `${count} tables already present — skipped`, ok: true });
       } else {
-        const tables = buildTablesForCapacity(tenantId, input.capacity_seats);
+        const tables = buildTablesForCapacity(
+          tenantId,
+          input.capacity_seats,
+          input.features?.terrace ?? false,
+        );
         const { error } = await supabase.from("restaurant_tables").insert(tables);
         if (error) throw new Error(`tables insert: ${error.message}`);
         const seatTotal = tables.reduce((s, tb) => s + tb.seats, 0);
