@@ -200,6 +200,16 @@ export async function GET(request: Request) {
     const catMatch = (cn: string, tok: string) =>
       cn === tok || (tok.length >= 4 && (cn.startsWith(tok.slice(0, -1)) || tok.startsWith(cn.slice(0, -1))));
 
+    // Diet/allergen synonyms: match as a SUBSTRING of the question, not just an
+    // exact query. "avete piatti senza glutine" must trigger the gluten-free
+    // path, not a token match that (wrongly) returns dishes that DO contain
+    // gluten. Longest key first so "sin lactosa" beats a partial "sin". This is
+    // resolved BEFORE category coercion so "pizzas sin gluten" filters by diet.
+    const synKey = Object.keys(QUERY_SYNONYMS)
+      .sort((a, b) => b.length - a.length)
+      .find((k) => q.includes(k));
+    const syn = synKey ? QUERY_SYNONYMS[synKey] : undefined;
+
     // Does a meaningful token point at a SPECIFIC dish by name? ("ortolana",
     // "tiramisu"). If so, that wins over a category coercion — "cuánto cuesta la
     // pizza ortolana" should return the Ortolana dish, not the whole Pizze list.
@@ -211,9 +221,8 @@ export async function GET(request: Request) {
     });
 
     // If a meaningful token names a category ("pizze", "dolci", "bevande") AND no
-    // specific dish was named, treat it as a category request. Singular/plural
-    // tolerant via mutual prefix.
-    const asCat = dishNameHit ? undefined : cats.find((c) => {
+    // specific dish or diet filter was named, treat it as a category request.
+    const asCat = (dishNameHit || syn) ? undefined : cats.find((c) => {
       const n = norm(c.name);
       if (catMatch(n, q)) return true;
       return sigTokens.some((t) => catMatch(n, t));
@@ -232,8 +241,6 @@ export async function GET(request: Request) {
         });
       }
     }
-
-    const syn = QUERY_SYNONYMS[q];
 
     let matches: ItemRow[];
     if (syn?.allergenAbsent) {
