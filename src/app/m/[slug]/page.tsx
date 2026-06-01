@@ -7,6 +7,7 @@ import {
   type MenuLocale,
   type CollectionKind,
 } from "@/lib/menu/labels";
+import MenuView, { type MenuViewSection } from "./MenuView";
 
 // Public hosted menu page. No auth, no cookies, no JS framework needed for
 // the content path. The CRM owner shares /m/<slug> as a QR target so the
@@ -142,103 +143,63 @@ export default async function PublicMenuPage({ params }: { params: Promise<Param
     list.sort((a, b) => a.sort_order - b.sort_order || a.name.localeCompare(b.name));
   }
 
-  // Unified, ordered section list: collections first, then categories, then the
-  // uncategorized bucket. A `prefix` keeps React keys unique when a dish renders
-  // in both a collection and its category.
-  type Section = { key: string; prefix: string; title: string; items: ItemRow[] };
-  const collectionSections: Section[] = colls
+  // Unified, ordered section list: collections (the chef's picks) first, then
+  // categories, then the uncategorized bucket. A `prefix` keeps React keys
+  // unique when a dish renders in both a collection and its category. Labels
+  // are localized here on the server so the client view stays a pure renderer.
+  const toViewItem = (it: ItemRow) => ({
+    id: it.id,
+    name: it.name,
+    description: it.description,
+    price: it.price,
+    currency: it.currency,
+    tags: it.tags,
+    allergens: it.allergens,
+    tagLabels: it.tags.map((tg) => tagLabel(tg, locale)),
+    allergenLabels: it.allergens.map((al) => allergenLabel(al, locale)),
+  });
+
+  const collectionSections: MenuViewSection[] = colls
     .map((c) => ({
       key: `col-${c.id}`,
       prefix: `col-${c.id}`,
       title: collectionLabel(c.kind, c.name, locale),
-      items: itemsByColl.get(c.id) || [],
+      featured: true,
+      items: (itemsByColl.get(c.id) || []).map(toViewItem),
     }))
     .filter((s) => s.items.length > 0);
 
-  const categorySections: Section[] = cats
-    .map((c) => ({ key: `cat-${c.id}`, prefix: `cat-${c.id}`, title: c.name, items: byCat.get(c.id) || [] }))
+  const categorySections: MenuViewSection[] = cats
+    .map((c) => ({
+      key: `cat-${c.id}`,
+      prefix: `cat-${c.id}`,
+      title: c.name,
+      featured: false,
+      items: (byCat.get(c.id) || []).map(toViewItem),
+    }))
     .concat(
       byCat.has(null)
-        ? [{ key: "uncat", prefix: "uncat", title: ui.other, items: byCat.get(null) || [] }]
+        ? [
+            {
+              key: "uncat",
+              prefix: "uncat",
+              title: ui.other,
+              featured: false,
+              items: (byCat.get(null) || []).map(toViewItem),
+            },
+          ]
         : []
     )
     .filter((s) => s.items.length > 0);
 
   const sections = [...collectionSections, ...categorySections];
-  const isEmpty = sections.length === 0;
 
   return (
-    <div style={{ background: "#fff8ef", minHeight: "100vh" }} className="font-sans text-black">
-      <header
-        className="px-5 py-8 text-center"
-        style={{ background: "linear-gradient(135deg, #d4a574, #c4956a)", color: "white" }}
-      >
-        <h1 className="text-3xl md:text-4xl font-black tracking-tight">{tenant.name}</h1>
-        <p className="text-xs uppercase tracking-widest opacity-90 mt-2">{ui.menu}</p>
-      </header>
-
-      <main className="max-w-2xl mx-auto px-5 py-8">
-        {isEmpty ? (
-          <div className="text-center py-16">
-            <p className="text-sm text-black/60">{ui.updating}</p>
-          </div>
-        ) : (
-          <div className="space-y-10">
-            {sections.map((s) => (
-              <section key={s.key}>
-                <h2
-                  className="text-lg font-black uppercase tracking-widest mb-4 pb-2 border-b-2"
-                  style={{ borderColor: "#c4956a" }}
-                >
-                  {s.title}
-                </h2>
-                <ul className="space-y-4">
-                  {s.items.map((it) => (
-                    <li key={`${s.prefix}:${it.id}`}>
-                      <div className="flex justify-between items-baseline gap-4">
-                        <h3 className="font-bold text-base">{it.name}</h3>
-                        {it.price != null && (
-                          <span className="text-sm font-bold whitespace-nowrap">
-                            {it.price.toFixed(2)} {it.currency === "EUR" ? "€" : it.currency}
-                          </span>
-                        )}
-                      </div>
-                      {it.description && (
-                        <p className="text-sm text-black/70 leading-relaxed mt-1">{it.description}</p>
-                      )}
-                      {(it.tags.length > 0 || it.allergens.length > 0) && (
-                        <div className="mt-1.5 flex flex-wrap gap-1">
-                          {it.tags.map((tg) => (
-                            <span
-                              key={`${s.prefix}:${it.id}:tag:${tg}`}
-                              className="text-[10px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800"
-                            >
-                              {tagLabel(tg, locale)}
-                            </span>
-                          ))}
-                          {it.allergens.map((al) => (
-                            <span
-                              key={`${s.prefix}:${it.id}:al:${al}`}
-                              className="text-[10px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded bg-orange-100 text-orange-800"
-                            >
-                              {allergenLabel(al, locale)}
-                            </span>
-                          ))}
-                        </div>
-                      )}
-                    </li>
-                  ))}
-                </ul>
-              </section>
-            ))}
-          </div>
-        )}
-      </main>
-
-      <footer className="text-center text-xs text-black/40 py-6">
-        Powered by <span className="font-bold">BaliFlow</span>
-      </footer>
-    </div>
+    <MenuView
+      restaurantName={tenant.name}
+      menuLabel={sections.length === 0 ? ui.updating : ui.menu}
+      sections={sections}
+    />
   );
 }
 
