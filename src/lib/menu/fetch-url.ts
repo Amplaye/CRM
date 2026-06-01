@@ -10,8 +10,9 @@
 
 import dns from 'node:dns/promises';
 import net from 'node:net';
+import { MAX_UPLOAD_BYTES } from './limits';
 
-const MAX_BYTES = 8 * 1024 * 1024; // 8 MB safety cap
+const MAX_BYTES = MAX_UPLOAD_BYTES; // shared 25 MB cap (see limits.ts)
 const FETCH_TIMEOUT_MS = 12_000;
 const MAX_REDIRECTS = 5;
 

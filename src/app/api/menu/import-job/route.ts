@@ -1,7 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerSupabaseClient, createServiceRoleClient } from '@/lib/supabase/server';
 import { tryExtractPdfText } from '@/lib/menu/pdf-text';
+import { tryExtractDocText, resolveDocKind } from '@/lib/menu/doc-text';
+import { maybeSplitPdf } from '@/lib/menu/pdf-split';
 import { fetchUrlContent } from '@/lib/menu/fetch-url';
+import { MAX_UPLOAD_BYTES, MAX_UPLOAD_MB, VISION_MIME, type VisionMediaType } from '@/lib/menu/limits';
 
 // Create an async menu-extraction job. Replaces the slow, synchronous
 // /api/menu/import-file: instead of blocking on the OpenAI call (which on a
@@ -22,27 +25,21 @@ import { fetchUrlContent } from '@/lib/menu/fetch-url';
 // store anything.
 
 export const runtime = 'nodejs';
-// Only needs to read the upload (up to ~8MB) or fetch the URL, then insert a
+// Only needs to read the upload (up to ~25MB) or fetch the URL, then insert a
 // row and fire-and-forget the worker. Returns in ~1-2s (a URL fetch adds the
 // download time, still well under the cap); 60 is just headroom.
 export const maxDuration = 60;
 
-const MAX_BYTES = 8 * 1024 * 1024; // 8 MB
-const ALLOWED: Record<string, 'application/pdf' | 'image/jpeg' | 'image/png' | 'image/webp' | 'image/gif'> = {
-  'application/pdf': 'application/pdf',
-  'image/jpeg': 'image/jpeg',
-  'image/jpg': 'image/jpeg',
-  'image/png': 'image/png',
-  'image/webp': 'image/webp',
-  'image/gif': 'image/gif',
-};
-
 // The shape we insert into menu_import_jobs (status/created_by added by the
-// caller). Either a 'text' job (source_text) or a 'file' job (file_base64 +
-// media_type) — the Edge Function branches on `source`.
+// caller). The Edge Function branches on `source`:
+//   - 'text'  → source_text
+//   - 'file'  → a single file_base64 + media_type (image / small PDF), OR
+//               file_chunks[] for a large multi-page image PDF that was split
+//               into page-chunks so each fits one vision call.
 type JobPayload =
-  | { source: 'text'; source_text: string; file_base64: null; media_type: null }
-  | { source: 'file'; source_text: null; file_base64: string; media_type: string };
+  | { source: 'text'; source_text: string; file_base64: null; media_type: null; file_chunks: null }
+  | { source: 'file'; source_text: null; file_base64: string; media_type: string; file_chunks: null }
+  | { source: 'file'; source_text: null; file_base64: null; media_type: 'application/pdf'; file_chunks: string[] };
 
 export async function POST(req: NextRequest) {
   const supabase = await createServerSupabaseClient();
@@ -122,9 +119,10 @@ export async function POST(req: NextRequest) {
 }
 
 // Multipart file upload → JobPayload. Reads the upload, validates type/size,
-// and (for PDFs) takes the hybrid fast path: if there's a real text layer we
-// send TEXT to OpenAI (fast + cheap); otherwise we fall back to vision on the
-// raw bytes.
+// then routes by kind:
+//   - .docx / .csv  → extract text here → 'text' job
+//   - PDF with a real text layer → extract text here → 'text' job (fast path)
+//   - image-only PDF / images → 'file' job (worker runs vision)
 async function resolveFileJob(
   req: NextRequest
 ): Promise<{ tenantId: string; payload: JobPayload } | NextResponse> {
@@ -139,19 +137,36 @@ async function resolveFileJob(
   if (!(file instanceof File)) {
     return NextResponse.json({ error: 'Missing file' }, { status: 400 });
   }
-  if (file.size > MAX_BYTES) {
-    return NextResponse.json({ error: `File too large (max ${MAX_BYTES / 1024 / 1024} MB)` }, { status: 413 });
-  }
-
-  const mediaType = ALLOWED[file.type.toLowerCase()];
-  if (!mediaType) {
-    return NextResponse.json(
-      { error: `Unsupported file type "${file.type}". Use PDF, JPEG, PNG, WEBP or GIF.` },
-      { status: 415 }
-    );
+  if (file.size > MAX_UPLOAD_BYTES) {
+    return NextResponse.json({ error: `File too large (max ${MAX_UPLOAD_MB} MB)` }, { status: 413 });
   }
 
   const bytes = new Uint8Array(await file.arrayBuffer());
+
+  // Office/data docs (.docx, .csv): convert to text and take the fast text
+  // path. Checked first since their MIME types are distinct from PDF/images.
+  const docKind = resolveDocKind(file.type, file.name);
+  if (docKind) {
+    const docText = await tryExtractDocText(bytes, docKind);
+    if (!docText) {
+      return NextResponse.json(
+        { error: 'Could not read any menu text from this document. Try a PDF or an image instead.' },
+        { status: 422 }
+      );
+    }
+    return {
+      tenantId,
+      payload: { source: 'text', source_text: docText, file_base64: null, media_type: null, file_chunks: null },
+    };
+  }
+
+  const mediaType = VISION_MIME[file.type.toLowerCase()];
+  if (!mediaType) {
+    return NextResponse.json(
+      { error: `Unsupported file type "${file.type}". Use PDF, an image (JPEG/PNG/WEBP/GIF), Word (.docx) or CSV.` },
+      { status: 415 }
+    );
+  }
 
   // Snapshot the upload as base64 NOW, before anything can touch `bytes`.
   // tryExtractPdfText() runs the bytes through pdf.js (via unpdf), which
@@ -173,13 +188,31 @@ async function resolveFileJob(
   if (pdfText) {
     return {
       tenantId,
-      payload: { source: 'text', source_text: pdfText.text, file_base64: null, media_type: null },
+      payload: { source: 'text', source_text: pdfText.text, file_base64: null, media_type: null, file_chunks: null },
     };
   }
+
   return {
     tenantId,
-    payload: { source: 'file', source_text: null, file_base64: fileBase64, media_type: mediaType },
+    payload: await buildVisionPayload(fileBase64, mediaType),
   };
+}
+
+// Build the vision-path payload from a base64 blob. For a multi-page image-only
+// PDF, split it into page-chunks so the worker reads a huge menu in several
+// bounded vision calls instead of one that would time out / truncate. Images
+// and small PDFs go through whole as a single file_base64.
+async function buildVisionPayload(
+  fileBase64: string,
+  mediaType: VisionMediaType
+): Promise<JobPayload> {
+  if (mediaType === 'application/pdf') {
+    const split = await maybeSplitPdf(Buffer.from(fileBase64, 'base64'));
+    if (split.chunked) {
+      return { source: 'file', source_text: null, file_base64: null, media_type: 'application/pdf', file_chunks: split.chunks };
+    }
+  }
+  return { source: 'file', source_text: null, file_base64: fileBase64, media_type: mediaType, file_chunks: null };
 }
 
 // JSON `{ tenant_id, url }` → JobPayload. Fetches the URL (SSRF-guarded), then
@@ -200,7 +233,7 @@ async function resolveUrlJob(
     const msgMap: Record<string, string> = {
       invalid_url: 'Invalid URL.',
       unreachable: 'Could not reach the URL.',
-      too_large: 'File at this URL is too large (max 8 MB).',
+      too_large: `File at this URL is too large (max ${MAX_UPLOAD_MB} MB).`,
       unsupported_type: 'Unsupported content type at this URL.',
       spa_no_content:
         'This URL is a dynamic web page (TheFork, Flipdish, etc.). Please download the menu as PDF and upload it instead.',
@@ -215,11 +248,11 @@ async function resolveUrlJob(
   if (fetched.kind === 'binary') {
     return {
       tenantId: body.tenant_id,
-      payload: { source: 'file', source_text: null, file_base64: fetched.base64, media_type: fetched.mediaType },
+      payload: await buildVisionPayload(fetched.base64, fetched.mediaType),
     };
   }
   return {
     tenantId: body.tenant_id,
-    payload: { source: 'text', source_text: fetched.text, file_base64: null, media_type: null },
+    payload: { source: 'text', source_text: fetched.text, file_base64: null, media_type: null, file_chunks: null },
   };
 }

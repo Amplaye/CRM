@@ -52,7 +52,7 @@ export async function GET(
       const admin = createServiceRoleClient();
       await admin
         .from('menu_import_jobs')
-        .update({ status: 'error', error: deadMsg, file_base64: null, updated_at: new Date().toISOString() })
+        .update({ status: 'error', error: deadMsg, file_base64: null, file_chunks: null, updated_at: new Date().toISOString() })
         .eq('id', id)
         .in('status', ['pending', 'processing']);
     } catch {

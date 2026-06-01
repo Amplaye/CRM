@@ -181,12 +181,12 @@ function responsesText(res: {
   return parts.join("");
 }
 
-async function extractMenuFromFile(opts: {
-  base64Data: string;
-  mediaType: string;
-}): Promise<ExtractedMenu> {
-  const isPdf = opts.mediaType === "application/pdf";
-  const dataUrl = `data:${opts.mediaType};base64,${opts.base64Data}`;
+// One vision call on a single base64 blob → parsed menu, WITHOUT enrichment.
+// Enrichment is a separate text pass we run ONCE at the end (after merging
+// chunks), so it isn't repeated per chunk.
+async function visionExtractRaw(base64Data: string, mediaType: string): Promise<ExtractedMenu> {
+  const isPdf = mediaType === "application/pdf";
+  const dataUrl = `data:${mediaType};base64,${base64Data}`;
   const fileBlock: ResponseContentBlock = isPdf
     ? { type: "input_file", filename: "menu.pdf", file_data: dataUrl }
     : { type: "input_image", image_url: dataUrl };
@@ -194,7 +194,78 @@ async function extractMenuFromFile(opts: {
     fileBlock,
     { type: "input_text", text: USER_PROMPT },
   ]);
-  return await enrichAllergensAndTags(parseExtraction(raw));
+  return parseExtraction(raw);
+}
+
+async function extractMenuFromFile(opts: {
+  base64Data: string;
+  mediaType: string;
+}): Promise<ExtractedMenu> {
+  return await enrichAllergensAndTags(await visionExtractRaw(opts.base64Data, opts.mediaType));
+}
+
+// Merge several extracted menus (one per PDF page-chunk) into one, preserving
+// page order. Categories with the same (case-insensitive, trimmed) name are
+// combined so a section split across a chunk boundary doesn't appear twice.
+function mergeMenus(parts: ExtractedMenu[]): ExtractedMenu {
+  const categories: ExtractedMenuCategory[] = [];
+  const byName = new Map<string, ExtractedMenuCategory>();
+  const uncategorized: ExtractedMenuItem[] = [];
+  const notes: string[] = [];
+
+  for (const part of parts) {
+    for (const cat of part.categories || []) {
+      const key = (cat.name || "").trim().toLowerCase();
+      const existing = key ? byName.get(key) : undefined;
+      if (existing) {
+        existing.items.push(...(cat.items || []));
+      } else {
+        const fresh: ExtractedMenuCategory = { name: cat.name, items: [...(cat.items || [])] };
+        categories.push(fresh);
+        if (key) byName.set(key, fresh);
+      }
+    }
+    if (Array.isArray(part.uncategorized)) uncategorized.push(...part.uncategorized);
+    if (part.raw_notes) notes.push(part.raw_notes);
+  }
+
+  return {
+    categories,
+    uncategorized,
+    raw_notes: notes.length ? notes.join("\n") : undefined,
+  };
+}
+
+// Cap concurrent OpenAI calls so a many-chunk menu doesn't trip rate limits or
+// spike memory, while still finishing within the worker's 150s wall-clock.
+// Running chunks in PARALLEL (not sequentially) is what lets a big menu fit:
+// 8 chunks × ~30s sequential = 240s (over the limit), but in 2 waves of 4 ≈ 60s.
+const CHUNK_CONCURRENCY = 4;
+
+// Large multi-page image PDF: read page-chunks in bounded-concurrency waves
+// (each chunk its own vision call → bounded time + output tokens), preserving
+// page order, merge, then enrich ONCE. A chunk that fails is skipped rather
+// than failing the whole menu — partial is better than none.
+async function extractMenuFromChunks(chunks: string[]): Promise<ExtractedMenu> {
+  const parts: ExtractedMenu[] = new Array(chunks.length);
+  for (let base = 0; base < chunks.length; base += CHUNK_CONCURRENCY) {
+    const wave = chunks.slice(base, base + CHUNK_CONCURRENCY);
+    const settled = await Promise.allSettled(
+      wave.map((c) => visionExtractRaw(c, "application/pdf"))
+    );
+    settled.forEach((s, k) => {
+      if (s.status === "fulfilled") {
+        parts[base + k] = s.value;
+      } else {
+        console.error(`[menu-extract] chunk ${base + k + 1}/${chunks.length} failed:`, s.reason?.message);
+      }
+    });
+  }
+  const ok = parts.filter(Boolean);
+  if (ok.length === 0) {
+    throw new Error("All page-chunks failed to extract");
+  }
+  return await enrichAllergensAndTags(mergeMenus(ok));
 }
 
 async function extractMenuFromText(text: string): Promise<ExtractedMenu> {
@@ -480,6 +551,9 @@ Deno.serve(async (req) => {
     let result: ExtractedMenu;
     if (job.source === "text" && typeof job.source_text === "string") {
       result = await extractMenuFromText(job.source_text);
+    } else if (Array.isArray(job.file_chunks) && job.file_chunks.length > 0) {
+      // Large multi-page image PDF, pre-split into page-chunks by the Node route.
+      result = await extractMenuFromChunks(job.file_chunks as string[]);
     } else if (job.file_base64 && job.media_type) {
       result = await extractMenuFromFile({
         base64Data: job.file_base64,
@@ -495,8 +569,9 @@ Deno.serve(async (req) => {
         status: "done",
         result,
         error: null,
-        // Drop the blob now that we're done so rows don't accumulate megabytes.
+        // Drop the blobs now that we're done so rows don't accumulate megabytes.
         file_base64: null,
+        file_chunks: null,
         updated_at: new Date().toISOString(),
       })
       .eq("id", jobId);
@@ -513,6 +588,7 @@ Deno.serve(async (req) => {
         status: "error",
         error: message.slice(0, 1000),
         file_base64: null,
+        file_chunks: null,
         updated_at: new Date().toISOString(),
       })
       .eq("id", jobId);

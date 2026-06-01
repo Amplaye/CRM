@@ -26,6 +26,7 @@ import { createClient } from "@/lib/supabase/client";
 import { useTenant } from "@/lib/contexts/TenantContext";
 import type { MenuCategory, MenuItem, Tenant } from "@/lib/types";
 import type { ExtractedMenu, ExtractedMenuItem } from "@/lib/menu/extract";
+import { MAX_UPLOAD_BYTES, MAX_UPLOAD_MB, ACCEPTED_EXTENSIONS, VISION_MIME } from "@/lib/menu/limits";
 import { QRCodeSVG } from "qrcode.react";
 
 const COMMON_ALLERGENS = [
@@ -1200,20 +1201,12 @@ function ImportMenuModal({
     };
   }, [stage, jobId, t]);
 
-  // Keep in sync with the server allow-list in /api/menu/import-file and the
-  // input's accept attribute. Some browsers report an empty file.type for
-  // PDFs dragged from certain apps, so we also accept by .pdf extension.
-  const MAX_FILE_BYTES = 8 * 1024 * 1024;
-  const ACCEPTED_TYPES = [
-    "application/pdf",
-    "image/jpeg",
-    "image/jpg",
-    "image/png",
-    "image/webp",
-    "image/gif",
-  ];
+  // Accept by MIME type OR by extension (browsers report a blank/generic type
+  // for files dragged from some apps). Mirrors the server: PDF, images, .docx,
+  // .csv. Limits live in @/lib/menu/limits so client + server can't drift.
   const isAcceptedFile = (f: File) =>
-    ACCEPTED_TYPES.includes(f.type.toLowerCase()) || /\.pdf$/i.test(f.name);
+    !!VISION_MIME[f.type.toLowerCase()] ||
+    ACCEPTED_EXTENSIONS.some((ext) => f.name.toLowerCase().endsWith(ext));
 
   // Single entry point for a chosen file (picker OR drag-drop): validate type
   // and size up front and surface a clear error instead of failing later in
@@ -1225,8 +1218,10 @@ function ImportMenuModal({
       setFile(null);
       return;
     }
-    if (f.size > MAX_FILE_BYTES) {
-      setError(t("menu_import_too_big") || "File too large (max 8 MB).");
+    if (f.size > MAX_UPLOAD_BYTES) {
+      setError(
+        t("menu_import_too_big") || `File too large (max ${MAX_UPLOAD_MB} MB).`
+      );
       setFile(null);
       return;
     }
@@ -1448,7 +1443,7 @@ function ImportMenuModal({
                   <input
                     ref={fileInputRef}
                     type="file"
-                    accept="application/pdf,image/jpeg,image/jpg,image/png,image/webp,image/gif"
+                    accept="application/pdf,image/jpeg,image/jpg,image/png,image/webp,image/gif,.docx,text/csv,.csv"
                     onChange={(e) => {
                       acceptFile(e.target.files?.[0]);
                       // Reset so picking the same file again re-fires onChange.
@@ -1481,10 +1476,10 @@ function ImportMenuModal({
                     <div>
                       <Upload className="w-10 h-10 mx-auto mb-3 text-black" />
                       <p className="text-sm font-bold text-black">
-                        {t("menu_import_drop") || "Clicca o trascina qui un PDF o un'immagine"}
+                        {t("menu_import_drop") || "Clicca o trascina qui un PDF, un'immagine, un Word o un CSV"}
                       </p>
                       <p className="text-xs text-black mt-1">
-                        {t("menu_import_formats") || "PDF, JPEG, PNG, WEBP — max 8 MB"}
+                        {t("menu_import_formats") || `PDF, JPEG, PNG, WEBP, Word, CSV — max ${MAX_UPLOAD_MB} MB`}
                       </p>
                     </div>
                   )}
