@@ -4,6 +4,7 @@ import { sendWhatsAppTemplate } from "@/lib/whatsapp/meta";
 import { tenantWhatsAppFrom } from "@/lib/whatsapp/from";
 import { getFeatures, type TenantSettings } from "@/lib/types/tenant-settings";
 import { logSystemEvent } from "@/lib/system-log";
+import { formatDateFull } from "@/lib/format-date";
 
 // Daily-window booking reminder cron.
 //
@@ -27,19 +28,6 @@ type Lang = "es" | "it" | "en" | "de";
 function asLang(v: unknown): Lang {
   const c = String(v || "").slice(0, 2).toLowerCase();
   return (["es", "it", "en", "de"] as const).includes(c as Lang) ? (c as Lang) : "es";
-}
-
-// "2026-06-06" → localized short date for the template body.
-function formatDate(dateStr: string, lang: Lang): string {
-  const months: Record<Lang, string[]> = {
-    es: ["enero","febrero","marzo","abril","mayo","junio","julio","agosto","septiembre","octubre","noviembre","diciembre"],
-    it: ["gennaio","febbraio","marzo","aprile","maggio","giugno","luglio","agosto","settembre","ottobre","novembre","dicembre"],
-    en: ["January","February","March","April","May","June","July","August","September","October","November","December"],
-    de: ["Januar","Februar","März","April","Mai","Juni","Juli","August","September","Oktober","November","Dezember"],
-  };
-  const [, m, d] = dateStr.split("-").map(Number);
-  const month = months[lang][(m - 1) % 12];
-  return lang === "en" ? `${month} ${d}` : `${d} ${lang === "de" ? "." : "de"} ${month}`.replace(" . ", ". ");
 }
 
 export async function GET(req: NextRequest) {
@@ -109,7 +97,7 @@ export async function GET(req: NextRequest) {
       phone,
       "booking_reminder",
       lang,
-      [guestName, formatDate(r.date, lang), r.time, String(r.party_size), restaurant],
+      [guestName, formatDateFull(r.date, lang), r.time, String(r.party_size), restaurant],
       from
     );
 

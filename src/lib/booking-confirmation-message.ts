@@ -1,4 +1,4 @@
-import { formatDateLong } from "@/lib/format-date";
+import { formatDateFull } from "@/lib/format-date";
 
 type Lang = 'es' | 'it' | 'en' | 'de';
 
@@ -33,7 +33,7 @@ export function buildBookingConfirmationMessage(params: {
     : '';
   const tablesLine = params.tableNames ? `\n🪑 ${T.tablesLbl}: ${params.tableNames}` : '';
   const notesLine = params.notes && params.notes.trim() ? `\n🗒️ ${T.notesLbl}: ${params.notes.trim()}` : '';
-  return `${T.title}\n📅 ${T.date}: ${formatDateLong(params.date, lang)}\n⏰ ${T.time}: ${params.time}\n👥 ${T.people}: ${params.partySize}${zoneLine}\n📝 ${T.name}: ${params.guestName || ''}${tablesLine}${notesLine}\n\n${T.footer}`;
+  return `${T.title}\n📅 ${T.date}: ${formatDateFull(params.date, lang)}\n⏰ ${T.time}: ${params.time}\n👥 ${T.people}: ${params.partySize}${zoneLine}\n📝 ${T.name}: ${params.guestName || ''}${tablesLine}${notesLine}\n\n${T.footer}`;
 }
 
 export function buildOwnerNewBookingMessage(params: {
@@ -49,5 +49,5 @@ export function buildOwnerNewBookingMessage(params: {
   const zoneLine = params.zone ? `\n📍 ${params.zone === 'inside' ? 'Interior' : 'Exterior'}` : '';
   const tablesLine = params.tableNames ? `\n🪑 ${params.tableNames}` : '';
   const notesLine = params.notes && params.notes.trim() ? `\n🗒️ ${params.notes.trim()}` : '';
-  return `📅 NUEVA RESERVA (manual)\n\n${params.guestName || ''}\n${formatDateLong(params.date, 'es')} ${params.time}\n${params.partySize} personas${tablesLine}${zoneLine}${notesLine}\nTel: ${params.guestPhone || '—'}`;
+  return `📅 NUEVA RESERVA (manual)\n\n${params.guestName || ''}\n${formatDateFull(params.date, 'es')} ${params.time}\n${params.partySize} personas${tablesLine}${zoneLine}${notesLine}\nTel: ${params.guestPhone || '—'}`;
 }

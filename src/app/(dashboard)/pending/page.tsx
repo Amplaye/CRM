@@ -9,7 +9,7 @@ import Link from "next/link";
 import { zoneLabel } from "@/lib/restaurant-rules";
 import { TranslateNoteButton } from "@/components/ui/TranslateNoteButton";
 import { useSeenSnapshotAndMark } from "@/lib/hooks/useLastSeen";
-import { formatDateLong } from "@/lib/format-date";
+import { formatDateFull } from "@/lib/format-date";
 
 interface PendingReservation {
   id: string;
@@ -244,7 +244,7 @@ export default function PendingPage() {
             de: { title: '✅ *Reservierung bestätigt*', date: 'Datum', time: 'Uhrzeit', people: 'Personen', zone: 'Bereich', name: 'Name', tablesLbl: 'Tische', interior: 'Innenbereich', exterior: 'Außenbereich', footer: 'Zum Ändern schreibe *ÄNDERN*.\nZum Stornieren schreibe *STORNIEREN*.' },
           }[lang];
           const zoneLineL = zone ? `\n📍 ${T.zone}: ${zone === 'inside' ? T.interior : T.exterior}` : '';
-          const confirmMsg = `${T.title}\n📅 ${T.date}: ${formatDateLong(req.date, lang)}\n⏰ ${T.time}: ${req.time}\n👥 ${T.people}: ${req.party_size}${zoneLineL}\n📝 ${T.name}: ${req.guests?.name || ''}${assignedTableNames ? '\n🪑 ' + T.tablesLbl + ': ' + assignedTableNames : ''}\n\n${T.footer}`;
+          const confirmMsg = `${T.title}\n📅 ${T.date}: ${formatDateFull(req.date, lang)}\n⏰ ${T.time}: ${req.time}\n👥 ${T.people}: ${req.party_size}${zoneLineL}\n📝 ${T.name}: ${req.guests?.name || ''}${assignedTableNames ? '\n🪑 ' + T.tablesLbl + ': ' + assignedTableNames : ''}\n\n${T.footer}`;
           fetch("/api/send-whatsapp", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -256,7 +256,7 @@ export default function PendingPage() {
         // configured owner phone. If it's missing we skip (no Picnic fallback).
         const ownerPhone = (tenant as any)?.settings?.owner_phone as string | undefined;
         if (ownerPhone) {
-          const ownerMsg = `📅 NUEVA RESERVA (confirmada manualmente)\n\n${req.guests?.name || ''}\n${formatDateLong(req.date, 'es')} ${req.time}\n${req.party_size} personas${assignedTableNames ? '\n🪑 ' + assignedTableNames : ''}${zoneLine}\nTel: ${guestPhone || '—'}`;
+          const ownerMsg = `📅 NUEVA RESERVA (confirmada manualmente)\n\n${req.guests?.name || ''}\n${formatDateFull(req.date, 'es')} ${req.time}\n${req.party_size} personas${assignedTableNames ? '\n🪑 ' + assignedTableNames : ''}${zoneLine}\nTel: ${guestPhone || '—'}`;
           fetch("/api/send-whatsapp", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -306,7 +306,7 @@ export default function PendingPage() {
             : 'es';
           const restaurantPhone = (tenant as any)?.settings?.restaurant_phone as string | undefined;
           const callPart = restaurantPhone ? ` Si quieres, puedes llamarnos al ${restaurantPhone} para buscar otra fecha.` : '';
-          const rejectMsg = `Hola${rejectedReq.guests?.name ? ' ' + rejectedReq.guests.name : ''}, lamentablemente no podemos aceptar tu solicitud de reserva para el ${formatDateLong(rejectedReq.date, rejectLang)} a las ${rejectedReq.time} (${rejectedReq.party_size} personas).${callPart} ¡Gracias!`;
+          const rejectMsg = `Hola${rejectedReq.guests?.name ? ' ' + rejectedReq.guests.name : ''}, lamentablemente no podemos aceptar tu solicitud de reserva para el ${formatDateFull(rejectedReq.date, rejectLang)} a las ${rejectedReq.time} (${rejectedReq.party_size} personas).${callPart} ¡Gracias!`;
           fetch("/api/send-whatsapp", {
             method: "POST",
             headers: { "Content-Type": "application/json" },

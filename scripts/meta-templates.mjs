@@ -52,7 +52,7 @@ const TEMPLATES = [
       en: "Hi {{1}} 👋 A quick reminder of your booking at {{5}}:\n📅 {{2}} at {{3}}\n👥 {{4}} people\n\nSee you there? Reply *YES* to confirm or *NO* if you can't make it.",
       de: "Hallo {{1}} 👋 Wir erinnern dich an deine Reservierung bei {{5}}:\n📅 {{2}} um {{3}}\n👥 {{4}} Personen\n\nSehen wir uns? Antworte *JA* zum Bestätigen oder *NEIN*, falls du nicht kommen kannst.",
     },
-    examples: ["María", "viernes 6 de junio", "21:00", "4", "Picnic"],
+    examples: ["María", "sábado 6 de junio de 2026", "21:00", "4", "Picnic"],
     buttons: {
       es: ["SÍ", "NO"],
       it: ["SÌ", "NO"],
@@ -83,7 +83,7 @@ const TEMPLATES = [
       en: "Good news, {{1}}! 🎉 A table just opened up at {{2}}:\n📅 {{3}} at {{4}}\n👥 {{5}} people\n\nWant it? Reply *YES* within the next 15 min and it's yours. 😊",
       de: "Gute Nachrichten, {{1}}! 🎉 Bei {{2}} ist ein Tisch frei geworden:\n📅 {{3}} um {{4}}\n👥 {{5}} Personen\n\nMöchtest du ihn? Antworte in den nächsten 15 Min mit *JA* und er gehört dir. 😊",
     },
-    examples: ["María", "Picnic", "viernes 6 de junio", "21:00", "4"],
+    examples: ["María", "Picnic", "sábado 6 de junio de 2026", "21:00", "4"],
     buttons: {
       es: ["SÍ"],
       it: ["SÌ"],

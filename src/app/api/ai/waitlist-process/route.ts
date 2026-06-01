@@ -10,6 +10,7 @@ import {
 import { getFeatures } from '@/lib/types/tenant-settings';
 import { tenantWhatsAppFrom } from '@/lib/whatsapp/from';
 import { sendWhatsAppMeta, sendWhatsAppTemplate } from '@/lib/whatsapp/meta';
+import { formatDateFull } from '@/lib/format-date';
 
 function timeToMinutes(time: string): number {
   const [h, m] = time.split(':').map(Number);
@@ -446,7 +447,7 @@ async function notifyClient(
   lang: 'es' | 'it' | 'en' | 'de' = 'es',
   restaurant = ''
 ) {
-  let msg = `🎉 *¡Buenas noticias, ${name}!*\nSe ha liberado una mesa para tu lista de espera:\n\n📅 Fecha: ${date}\n⏰ Hora: ${time}\n👥 Personas: ${partySize}`;
+  let msg = `🎉 *¡Buenas noticias, ${name}!*\nSe ha liberado una mesa para tu lista de espera:\n\n📅 Fecha: ${formatDateFull(date, lang)}\n⏰ Hora: ${time}\n👥 Personas: ${partySize}`;
 
   if (timeLimit) {
     msg += `\n\n⚠️ *Importante:* La mesa estaría disponible hasta las ${timeLimit} ya que hay otra reserva después.`;
@@ -464,7 +465,7 @@ async function notifyClient(
       phone,
       'waitlist_table_available',
       lang,
-      [name, restaurant, date, time, String(partySize)],
+      [name, restaurant, formatDateFull(date, lang), time, String(partySize)],
       from
     );
   }
@@ -485,7 +486,7 @@ async function notifyOwner(
   endTime?: string,
   from?: string
 ) {
-  let msg = `🔄 RESERVA DESDE LISTA DE ESPERA\n\n${guestName}\n${date} ${time}`;
+  let msg = `🔄 RESERVA DESDE LISTA DE ESPERA\n\n${guestName}\n${formatDateFull(date, 'es')} ${time}`;
   if (isTimeLimited && endTime) {
     msg += ` (hasta ${endTime} ⚠️ TIEMPO LIMITADO)`;
   }
