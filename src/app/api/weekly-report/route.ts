@@ -1,9 +1,105 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServiceRoleClient } from "@/lib/supabase/server";
 import { assertAiSecret } from "@/lib/ai-auth";
+import { ownerLangFromSettings, type OwnerLang } from "@/lib/owner-locale";
 
 interface TimeSlot { open: string; close: string }
 type OpeningHours = Record<string, TimeSlot[]>;
+
+// Owner-facing copy per language. The owner reads the weekly value report in the
+// tenant's primary language (Oraz → Italian, etc.), not Spanish. `n(v)` plural
+// helper picks singular/plural; `cur` is the number locale for thousands.
+const REPORT_I18N: Record<OwnerLang, {
+  cur: string;
+  header: (v: string) => string;
+  perPerson: (s: number) => string;
+  breakdown: string;
+  outOfHours: (v: string) => string;
+  voice: (v: string) => string;
+  waitlist: (v: string) => string;
+  chat: (v: string) => string;
+  prevented: (n: number, v: string) => string;
+  notPrevented: (n: number) => string;
+  handled: (pct: number) => string;
+  staffSaved: (h: number) => string;
+  moreBookings: (pct: number) => string;
+  fewerBookings: (pct: number) => string;
+  insight: (d: string) => string;
+  footer: string;
+}> = {
+  es: {
+    cur: "es-ES",
+    header: (v) => `💰 Esta semana, tu IA generó €${v}\n`,
+    perPerson: (s) => `_Calculado con €${s} por persona (ajustable en Configuración → Gasto medio por cubierto)._\n`,
+    breakdown: `\nAquí el desglose:\n`,
+    outOfHours: (v) => `\n🌙 €${v} de reservas fuera de horario`,
+    voice: (v) => `\n📞 €${v} de llamadas gestionadas por IA`,
+    waitlist: (v) => `\n🔁 €${v} de lista de espera recuperada`,
+    chat: (v) => `\n💬 €${v} de reservas por WhatsApp`,
+    prevented: (n, v) => `\n\n🛡️ ${n} no-show${n > 1 ? "s" : ""} evitado${n > 1 ? "s" : ""} (€${v} recuperados)`,
+    notPrevented: (n) => `\n⚠️ ${n} no-show${n > 1 ? "s" : ""} no evitado${n > 1 ? "s" : ""} esta semana`,
+    handled: (pct) => `\n\n⚙️ La IA gestionó el ${pct}% de tus reservas`,
+    staffSaved: (h) => `\n👩‍🍳 ~${h}h de tiempo de staff ahorrado`,
+    moreBookings: (pct) => `\n\n📈 +${pct}% más reservas que la semana pasada`,
+    fewerBookings: (pct) => `\n\n📉 ${pct}% reservas vs semana pasada`,
+    insight: (d) => `\n\n💡 ${d}`,
+    footer: `\n\n👉 Ver detalles en Analítica`,
+  },
+  it: {
+    cur: "it-IT",
+    header: (v) => `💰 Questa settimana la tua IA ha generato €${v}\n`,
+    perPerson: (s) => `_Calcolato con €${s} a persona (modificabile in Impostazioni → Spesa media per coperto)._\n`,
+    breakdown: `\nEcco il dettaglio:\n`,
+    outOfHours: (v) => `\n🌙 €${v} da prenotazioni fuori orario`,
+    voice: (v) => `\n📞 €${v} da chiamate gestite dall'IA`,
+    waitlist: (v) => `\n🔁 €${v} recuperati dalla lista d'attesa`,
+    chat: (v) => `\n💬 €${v} da prenotazioni via WhatsApp`,
+    prevented: (n, v) => `\n\n🛡️ ${n} no-show evitat${n > 1 ? "i" : "o"} (€${v} recuperati)`,
+    notPrevented: (n) => `\n⚠️ ${n} no-show non evitat${n > 1 ? "i" : "o"} questa settimana`,
+    handled: (pct) => `\n\n⚙️ L'IA ha gestito il ${pct}% delle tue prenotazioni`,
+    staffSaved: (h) => `\n👩‍🍳 ~${h}h di tempo dello staff risparmiate`,
+    moreBookings: (pct) => `\n\n📈 +${pct}% prenotazioni rispetto alla settimana scorsa`,
+    fewerBookings: (pct) => `\n\n📉 ${pct}% prenotazioni rispetto alla settimana scorsa`,
+    insight: (d) => `\n\n💡 ${d}`,
+    footer: `\n\n👉 Vedi i dettagli in Analisi`,
+  },
+  en: {
+    cur: "en-GB",
+    header: (v) => `💰 This week your AI generated €${v}\n`,
+    perPerson: (s) => `_Calculated at €${s} per person (adjustable in Settings → Average spend per cover)._\n`,
+    breakdown: `\nHere's the breakdown:\n`,
+    outOfHours: (v) => `\n🌙 €${v} from out-of-hours bookings`,
+    voice: (v) => `\n📞 €${v} from AI-handled calls`,
+    waitlist: (v) => `\n🔁 €${v} recovered from the waitlist`,
+    chat: (v) => `\n💬 €${v} from WhatsApp bookings`,
+    prevented: (n, v) => `\n\n🛡️ ${n} no-show${n > 1 ? "s" : ""} prevented (€${v} recovered)`,
+    notPrevented: (n) => `\n⚠️ ${n} no-show${n > 1 ? "s" : ""} not prevented this week`,
+    handled: (pct) => `\n\n⚙️ The AI handled ${pct}% of your bookings`,
+    staffSaved: (h) => `\n👩‍🍳 ~${h}h of staff time saved`,
+    moreBookings: (pct) => `\n\n📈 +${pct}% more bookings than last week`,
+    fewerBookings: (pct) => `\n\n📉 ${pct}% bookings vs last week`,
+    insight: (d) => `\n\n💡 ${d}`,
+    footer: `\n\n👉 See details in Analytics`,
+  },
+  de: {
+    cur: "de-DE",
+    header: (v) => `💰 Diese Woche hat deine KI €${v} generiert\n`,
+    perPerson: (s) => `_Berechnet mit €${s} pro Person (anpassbar unter Einstellungen → Durchschnittsausgabe pro Gedeck)._\n`,
+    breakdown: `\nHier die Aufschlüsselung:\n`,
+    outOfHours: (v) => `\n🌙 €${v} aus Buchungen außerhalb der Öffnungszeiten`,
+    voice: (v) => `\n📞 €${v} aus KI-bearbeiteten Anrufen`,
+    waitlist: (v) => `\n🔁 €${v} aus der Warteliste zurückgewonnen`,
+    chat: (v) => `\n💬 €${v} aus WhatsApp-Buchungen`,
+    prevented: (n, v) => `\n\n🛡️ ${n} No-Show${n > 1 ? "s" : ""} verhindert (€${v} zurückgewonnen)`,
+    notPrevented: (n) => `\n⚠️ ${n} No-Show${n > 1 ? "s" : ""} diese Woche nicht verhindert`,
+    handled: (pct) => `\n\n⚙️ Die KI hat ${pct}% deiner Buchungen bearbeitet`,
+    staffSaved: (h) => `\n👩‍🍳 ~${h}h Personalzeit gespart`,
+    moreBookings: (pct) => `\n\n📈 +${pct}% mehr Buchungen als letzte Woche`,
+    fewerBookings: (pct) => `\n\n📉 ${pct}% Buchungen ggü. letzter Woche`,
+    insight: (d) => `\n\n💡 ${d}`,
+    footer: `\n\n👉 Details in Analyse ansehen`,
+  },
+};
 
 function isOutOfHours(createdAt: string, openingHours: OpeningHours, timezone: string): boolean {
   if (!openingHours || Object.keys(openingHours).length === 0) return false;
@@ -140,42 +236,26 @@ export async function POST(req: NextRequest) {
     const prevAiRevenue = prevAiRes.reduce((sum: number, r: any) => sum + r.party_size * avgSpend, 0);
     const bookingChange = prevTotal > 0 ? Math.round(((total - prevTotal) / prevTotal) * 100) : (total > 0 ? 100 : 0);
 
-    // Build message
-    let msg = `💰 Esta semana, tu IA generó €${totalValue.toLocaleString("es-ES")}\n`;
-    msg += `_Calculado con €${avgSpend} por persona (ajustable en Configuración → Gasto medio por cubierto)._\n`;
-    msg += `\nAquí el desglose:\n`;
+    // Build message in the OWNER's language (Oraz → Italian, etc.), not Spanish.
+    const T = REPORT_I18N[ownerLangFromSettings(tenant.settings)];
+    const money = (v: number) => v.toLocaleString(T.cur);
+    let msg = T.header(money(totalValue));
+    msg += T.perPerson(avgSpend);
+    msg += T.breakdown;
 
-    if (outOfHoursRevenue > 0) {
-      msg += `\n🌙 €${outOfHoursRevenue.toLocaleString("es-ES")} de reservas fuera de horario`;
-    }
-    if (voiceRevenue > 0) {
-      msg += `\n📞 €${voiceRevenue.toLocaleString("es-ES")} de llamadas gestionadas por IA`;
-    }
-    if (waitlistRevenue > 0) {
-      msg += `\n🔁 €${waitlistRevenue.toLocaleString("es-ES")} de lista de espera recuperada`;
-    }
-    if (chatRevenue > 0) {
-      msg += `\n💬 €${chatRevenue.toLocaleString("es-ES")} de reservas por WhatsApp`;
-    }
+    if (outOfHoursRevenue > 0) msg += T.outOfHours(money(outOfHoursRevenue));
+    if (voiceRevenue > 0) msg += T.voice(money(voiceRevenue));
+    if (waitlistRevenue > 0) msg += T.waitlist(money(waitlistRevenue));
+    if (chatRevenue > 0) msg += T.chat(money(chatRevenue));
 
-    if (noShowsPrevented > 0) {
-      msg += `\n\n🛡️ ${noShowsPrevented} no-show${noShowsPrevented > 1 ? "s" : ""} evitado${noShowsPrevented > 1 ? "s" : ""} (€${noShowValue.toLocaleString("es-ES")} recuperados)`;
-    }
-    if (noShows > 0) {
-      msg += `\n⚠️ ${noShows} no-show${noShows > 1 ? "s" : ""} no evitado${noShows > 1 ? "s" : ""} esta semana`;
-    }
+    if (noShowsPrevented > 0) msg += T.prevented(noShowsPrevented, money(noShowValue));
+    if (noShows > 0) msg += T.notPrevented(noShows);
 
-    msg += `\n\n⚙️ La IA gestionó el ${aiHandledPct}% de tus reservas`;
-    if (staffHoursSaved > 0) {
-      msg += `\n👩‍🍳 ~${staffHoursSaved}h de tiempo de staff ahorrado`;
-    }
+    msg += T.handled(aiHandledPct);
+    if (staffHoursSaved > 0) msg += T.staffSaved(staffHoursSaved);
 
     if (bookingChange !== 0 && prevTotal > 0) {
-      if (bookingChange > 0) {
-        msg += `\n\n📈 +${bookingChange}% más reservas que la semana pasada`;
-      } else {
-        msg += `\n\n📉 ${bookingChange}% reservas vs semana pasada`;
-      }
+      msg += bookingChange > 0 ? T.moreBookings(bookingChange) : T.fewerBookings(bookingChange);
     }
 
     // Fetch top insight
@@ -187,11 +267,11 @@ export async function POST(req: NextRequest) {
       const insightData = await insightRes.json();
       const topInsight = (insightData.insights || [])[0];
       if (topInsight && topInsight.estimated_value > 0) {
-        msg += `\n\n💡 ${topInsight.description}`;
+        msg += T.insight(topInsight.description);
       }
     } catch { /* insights are optional */ }
 
-    msg += `\n\n👉 Ver detalles en Analítica`;
+    msg += T.footer;
 
     return NextResponse.json({
       success: true,
