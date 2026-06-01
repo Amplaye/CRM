@@ -151,7 +151,7 @@ export function FeaturesTab() {
               ))}
               <option value="__other__">{t("settings_autoconfirm_other")}</option>
             </select>
-            <ChevronDown className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#8b6540]" aria-hidden />
+            <ChevronDown className="pointer-events-none absolute right-3 inset-y-0 my-auto w-4 h-4 text-[#8b6540]" aria-hidden />
           </div>
           {customMax && (
             <div className="mt-2 flex items-center gap-2 justify-end">
