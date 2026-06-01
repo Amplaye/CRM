@@ -423,7 +423,7 @@ export default function KnowledgePage() {
                </div>
 
                <div className="flex-1 prose prose-zinc max-w-none">
-                  <div className="whitespace-pre-wrap text-black leading-relaxed text-lg bg-zinc-50/50 p-8 rounded-3xl border-2" style={{ borderColor: '#c4956a' }}>
+                  <div className="whitespace-pre-wrap break-words text-black leading-relaxed text-lg bg-zinc-50/50 p-8 rounded-3xl border-2" style={{ borderColor: '#c4956a' }}>
                      {selectedArticle.content}
                   </div>
                </div>
