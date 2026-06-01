@@ -367,9 +367,19 @@ export default function MenuPage() {
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder={t("menu_search_placeholder") || "Cerca piatto..."}
-              className="w-full pl-9 pr-3 py-2 border-2 rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-[#c4956a]"
+              className="w-full pl-9 pr-9 py-2 border-2 rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-[#c4956a]"
               style={{ borderColor: "#c4956a", background: "rgba(252,246,237,0.6)" }}
             />
+            {search && (
+              <button
+                type="button"
+                onClick={() => setSearch("")}
+                className="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded-full text-black/50 hover:text-black hover:bg-black/5"
+                aria-label="Cancella ricerca"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            )}
           </div>
         </div>
 
