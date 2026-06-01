@@ -77,12 +77,6 @@ export async function POST(request: Request) {
       }
     }
 
-    // Check party size rules — 7+ always goes to manual review (escalated), never reject
-    const action = getBookingAction(payload.party_size);
-    if (action === 'reject' || action === 'manual_review') {
-      // Force manual review path for any group 7+
-    }
-
     const supabase = createServiceRoleClient();
 
     // 0–2. Three independent reads up front — tenant settings (for opening
@@ -114,6 +108,19 @@ export async function POST(request: Request) {
     // settings we already fetched. When off, the three "full → waitlist" fallbacks
     // below decline honestly instead of silently queuing the guest.
     const waitlistEnabled = getFeatures(tenantRes.data?.settings).waitlist_enabled;
+
+    // Party-size rules are PER TENANT — the owner sets the auto-confirm limit in
+    // Settings (settings.bot_config). A group at/above party_size_threshold_large
+    // needs manual review (escalated); at/above party_size_block_threshold it can't
+    // auto-book. Falls back to 7/13 when no policy is set (legacy tenants), matching
+    // the previous hardcoded behaviour. The n8n bot delegates the final write here,
+    // so this must honour the same threshold the bot used — otherwise a high limit
+    // (e.g. 18) gets wrongly rejected by the old hardcoded ceiling.
+    const _botCfg = ((tenantRes.data?.settings as { bot_config?: Record<string, unknown> } | null) || {}).bot_config || {};
+    const action = getBookingAction(payload.party_size, {
+      largeThreshold: Number(_botCfg.party_size_threshold_large) || 7,
+      blockThreshold: Number(_botCfg.party_size_block_threshold) || 13,
+    });
 
     // 0. Opening-hours guard — reject bookings on closed days or outside opening slots.
     // Same source of truth as /api/ai/availability: tenants.settings.opening_hours.
@@ -287,7 +294,7 @@ export async function POST(request: Request) {
       }
     }
 
-    // 5. Handle manual review (7-12 people) - check capacity first
+    // 5. Handle manual review (large groups, per tenant policy) - check capacity first
     if (action === 'manual_review' || action === 'reject') {
       const freeTables = (activeTables || []).filter((t: any) => !occupiedTableIds.has(t.id));
       // Per-zone capacity so the bot can honour the client's zone preference
@@ -440,7 +447,7 @@ export async function POST(request: Request) {
       });
     }
 
-    // 6. Normal booking (1-6 people) - create reservation then atomically assign tables
+    // 6. Normal booking (within auto-confirm limit) - create reservation then atomically assign tables
     const bookingLang = payload.language;
     const reservation: Record<string, any> = {
        tenant_id: payload.tenant_id,

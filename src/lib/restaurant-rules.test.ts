@@ -70,15 +70,31 @@ describe('tablesNeeded', () => {
 });
 
 describe('getBookingAction', () => {
-  it('1–6 auto-confirm', () => {
+  // Defaults (no policy) reproduce the old hardcoded 7/13 behaviour.
+  it('1–6 auto-confirm (default)', () => {
     for (let n = 1; n <= 6; n++) expect(getBookingAction(n)).toBe('auto_confirm');
   });
-  it('7–12 manual review', () => {
+  it('7–12 manual review (default)', () => {
     for (let n = 7; n <= 12; n++) expect(getBookingAction(n)).toBe('manual_review');
   });
-  it('13+ rejected', () => {
+  it('13+ rejected (default)', () => {
     expect(getBookingAction(13)).toBe('reject');
     expect(getBookingAction(50)).toBe('reject');
+  });
+
+  // Per-tenant policy: an owner who auto-confirms up to 18 (large=19, block=25).
+  it('honours a high per-tenant threshold (large=19, block=25)', () => {
+    const opts = { largeThreshold: 19, blockThreshold: 25 };
+    expect(getBookingAction(18, opts)).toBe('auto_confirm'); // at the limit → auto
+    expect(getBookingAction(19, opts)).toBe('manual_review'); // first size that escalates
+    expect(getBookingAction(24, opts)).toBe('manual_review');
+    expect(getBookingAction(25, opts)).toBe('reject'); // block ceiling
+  });
+
+  // Boundary: the threshold IS the first size that needs review (strict <).
+  it('threshold boundary is exclusive (large=7 → 6 auto, 7 review)', () => {
+    expect(getBookingAction(6, { largeThreshold: 7, blockThreshold: 13 })).toBe('auto_confirm');
+    expect(getBookingAction(7, { largeThreshold: 7, blockThreshold: 13 })).toBe('manual_review');
   });
 });
 

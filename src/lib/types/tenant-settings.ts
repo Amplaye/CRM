@@ -70,6 +70,16 @@ export interface TenantSettings {
   retell_kb?: { id?: string };
   /** Cloned n8n workflow ids (present for tenants provisioned via the orchestrator). */
   n8n?: { workflow_ids?: string[] };
+  /** Booking-policy thresholds the n8n bot (and /api/ai/book) read to decide
+   * auto-confirm vs manual review vs refuse. Written at onboarding from the wizard
+   * and editable in Settings → Features. `party_size_threshold_large` is the first
+   * party size that needs manual confirmation (= owner's "auto-confirm up to N" + 1). */
+  bot_config?: {
+    party_size_threshold_large?: number;
+    party_size_block_threshold?: number;
+    closing_time_offset_min?: number;
+    [key: string]: any;
+  };
   [key: string]: any;
 }
 

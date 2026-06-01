@@ -131,18 +131,22 @@ export interface BookingPolicy {
  *  - closing offset = the stricter (larger) of the lunch/dinner margins the owner
  *    picked; the bot uses ONE offset for its last-reservation gate. A shift the
  *    venue doesn't serve (-1) is ignored so it can't drag the offset to a negative. */
+/** Derive the hard-block threshold from the large threshold.
+ *  There is no explicit "hard block" question. If large groups are accepted, keep
+ *  ample headroom (matches the bot's old 13 default relative to a 6-cap Picnic);
+ *  if not, refuse anything past the large threshold. Shared by onboarding and the
+ *  Settings auto-confirm control so both compute it identically. */
+export function largeToBlock(largeThreshold: number, acceptsLargeGroups: boolean): number {
+  return acceptsLargeGroups ? Math.max(largeThreshold + 6, 13) : largeThreshold;
+}
+
 export function botConfigFromQuestionnaire(q: KbQuestionnaire): BookingPolicy {
   const largeThreshold = Math.max(1, (q.auto_confirm_max || 0) + 1);
   const offsets = [q.last_lunch_offset_min, q.last_dinner_offset_min].filter((n) => n >= 0);
   const closingOffset = offsets.length ? Math.max(...offsets) : 45;
   return {
     party_size_threshold_large: largeThreshold,
-    // No explicit "hard block" question in the wizard. If large groups are
-    // accepted, keep ample headroom (matches the bot's old 13 default relative to
-    // a 6-cap Picnic). If not accepted, refuse anything past the large threshold.
-    party_size_block_threshold: q.accepts_large_groups
-      ? Math.max(largeThreshold + 6, 13)
-      : largeThreshold,
+    party_size_block_threshold: largeToBlock(largeThreshold, q.accepts_large_groups),
     closing_time_offset_min: closingOffset,
   };
 }

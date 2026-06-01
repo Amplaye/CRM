@@ -50,9 +50,21 @@ export function isOpen(dayOfWeek: number, shift: 'lunch' | 'dinner', openingHour
   });
 }
 
-export function getBookingAction(partySize: number): 'auto_confirm' | 'manual_review' | 'reject' {
-  if (partySize <= 6) return 'auto_confirm';
-  if (partySize <= 12) return 'manual_review';
+// Decide what happens to a booking of `partySize`, given the tenant's policy.
+// - largeThreshold = first party size that needs manual confirmation (escalated)
+// - blockThreshold = first party size refused outright
+// These map 1:1 to settings.bot_config.party_size_threshold_large /
+// party_size_block_threshold (see BookingPolicy in onboarding/kb-generator.ts).
+// The defaults (7 / 13) reproduce the old hardcoded "<=6 auto / <=12 review / >12
+// reject" behaviour for callers/tenants that don't supply a policy.
+export function getBookingAction(
+  partySize: number,
+  opts?: { largeThreshold?: number; blockThreshold?: number },
+): 'auto_confirm' | 'manual_review' | 'reject' {
+  const large = opts?.largeThreshold ?? 7;
+  const block = opts?.blockThreshold ?? 13;
+  if (partySize < large) return 'auto_confirm';
+  if (partySize < block) return 'manual_review';
   return 'reject';
 }
 
