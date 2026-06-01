@@ -69,6 +69,16 @@ export async function POST(req: NextRequest) {
 
   const bytes = new Uint8Array(await file.arrayBuffer());
 
+  // Snapshot the upload as base64 NOW, before anything can touch `bytes`.
+  // tryExtractPdfText() runs the bytes through pdf.js (via unpdf), which
+  // TRANSFERS/neuters the underlying ArrayBuffer — after it returns, `bytes`
+  // is detached (length 0). If we computed base64 *after* that call, an
+  // image-only PDF (no text layer → vision fallback) would be stored with an
+  // empty file_base64, and the worker would fail with "Job has no
+  // file_base64/source_text to extract". Computing it up front is immune to
+  // the detach regardless of pdf.js internals.
+  const fileBase64 = Buffer.from(bytes).toString('base64');
+
   // HYBRID FAST PATH: if this is a PDF with a real embedded text layer (most
   // menus exported from Word/Canva/InDesign), extract the text here and send it
   // to OpenAI as TEXT — far faster + cheaper than vision, and crucially it
@@ -101,7 +111,7 @@ export async function POST(req: NextRequest) {
       tenant_id: tenantId,
       status: 'pending',
       source: 'file',
-      file_base64: Buffer.from(bytes).toString('base64'),
+      file_base64: fileBase64,
       media_type: mediaType,
       source_text: null,
       created_by: user.id,

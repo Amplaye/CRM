@@ -73,7 +73,12 @@ export async function tryExtractPdfText(
   bytes: Uint8Array
 ): Promise<PdfTextResult | null> {
   try {
-    const pdf = await getDocumentProxy(bytes);
+    // pdf.js (via unpdf) TRANSFERS/neuters the ArrayBuffer it's handed, leaving
+    // the caller's `bytes` detached (length 0). Hand it a fresh copy so the
+    // caller's buffer survives for any fallback path (e.g. re-encoding the
+    // upload as base64 for the vision worker when there's no text layer).
+    const copy = bytes.slice();
+    const pdf = await getDocumentProxy(copy);
     const { text, totalPages } = await extractText(pdf, { mergePages: true });
     const merged = Array.isArray(text) ? text.join('\n') : text;
     const tidy = tidyPdfText(merged);
