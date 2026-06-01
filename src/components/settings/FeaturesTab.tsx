@@ -127,7 +127,7 @@ export function FeaturesTab() {
           <p className="text-xs text-black/70 mt-0.5">{t("settings_autoconfirm_hint")}</p>
         </div>
         <div className="shrink-0">
-          <div className="relative">
+          <div className="relative w-36">
             <select
               value={customMax ? "__other__" : String(autoConfirmMax)}
               onChange={(e) => {
@@ -141,7 +141,7 @@ export function FeaturesTab() {
                   setAutoConfirmMax(Number(e.target.value));
                 }
               }}
-              className="appearance-none bg-white border rounded-lg pl-3 pr-9 py-2 text-sm cursor-pointer focus:outline-none focus:ring-2 focus:ring-[#c4956a]/40 focus:border-[#c4956a]"
+              className="appearance-none w-full bg-white border rounded-lg pl-3 pr-9 py-2 text-sm cursor-pointer focus:outline-none focus:ring-2 focus:ring-[#c4956a]/40 focus:border-[#c4956a]"
               style={{ borderColor: "#c4956a" }}
             >
               {AUTO_CONFIRM_PRESETS.map((n) => (
