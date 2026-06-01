@@ -547,6 +547,19 @@ export default function MenuPage() {
             <QrCode className="w-3.5 h-3.5 mr-1.5" />
             {t("menu_generate_qr_short") || "QR"}
           </button>
+          {tenant?.slug && (
+            <a
+              href={`/m/${tenant.slug}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="cursor-pointer text-xs font-bold text-black inline-flex items-center justify-center px-2.5 py-2 rounded-md border-2 hover:bg-[#c4956a]/10 transition-colors"
+              style={{ borderColor: "#c4956a" }}
+              title="Anteprima menù pubblico"
+            >
+              <Eye className="w-3.5 h-3.5 mr-1.5" />
+              Anteprima
+            </a>
+          )}
         </div>
       </aside>
 

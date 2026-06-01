@@ -1,5 +1,5 @@
 import { notFound } from "next/navigation";
-import { Playfair_Display } from "next/font/google";
+import { Fraunces, Manrope } from "next/font/google";
 import { createServiceRoleClient } from "@/lib/supabase/server";
 import {
   allergenLabel,
@@ -10,13 +10,22 @@ import {
 } from "@/lib/menu/labels";
 import MenuView, { type MenuViewSection } from "./MenuView";
 
-// Elegant small-caps serif for the menu wordmark + section headers, loaded only
-// on this public route (next/font works in any server component, not just a
-// layout). MenuView reads it via the `--font-playfair` CSS variable.
-const playfair = Playfair_Display({
-  variable: "--font-playfair",
+// The public menu has its own premium typographic voice, loaded only on this
+// route (next/font works in any server component). Fraunces — a high-contrast,
+// optically-sized display serif with real character — carries the wordmark,
+// course numbers and dish names; Manrope is the clean grotesque for body copy.
+// MenuView reads both via CSS variables.
+const fraunces = Fraunces({
+  variable: "--font-display",
   subsets: ["latin"],
-  weight: ["500", "600", "700"],
+  weight: ["400", "500", "600", "700", "900"],
+  style: ["normal", "italic"],
+  display: "swap",
+});
+const manrope = Manrope({
+  variable: "--font-body",
+  subsets: ["latin"],
+  weight: ["400", "500", "600", "700"],
   display: "swap",
 });
 
@@ -209,7 +218,7 @@ export default async function PublicMenuPage({ params }: { params: Promise<Param
   const sections = [...collectionSections, ...categorySections];
 
   return (
-    <div className={playfair.variable}>
+    <div className={`${fraunces.variable} ${manrope.variable}`}>
       <MenuView
         restaurantName={tenant.name}
         menuLabel={ui.menu}
