@@ -17,6 +17,7 @@ import {
   isTime,
   isE164,
   normalizeZone,
+  normalizeBookingSource,
   nowInCanary,
   checkPast,
   checkOpeningHours,
@@ -389,7 +390,7 @@ export async function POST(request: Request) {
         time: payload.time,
         party_size: payload.party_size,
         status: 'escalated',
-        source: payload.source || 'ai_voice',
+        source: normalizeBookingSource(payload.source),
         from_web: payload.from_web === true,
         created_by_type: 'ai',
         notes: zoneNote
@@ -456,7 +457,7 @@ export async function POST(request: Request) {
        time: payload.time,
        party_size: payload.party_size,
        status: payload.status || 'confirmed',
-       source: payload.source || 'ai_voice',
+       source: normalizeBookingSource(payload.source),
        from_web: payload.from_web === true,
        created_by_type: 'ai',
        // Don't auto-add "Prefiere X" here — the assigned tables already

@@ -5,6 +5,7 @@ import { Reservation, ReservationEvent, ReservationStatus, Guest } from "@/lib/t
 import { revalidatePath } from "next/cache";
 import { matchWaitlistForSlotAction } from "./waitlist";
 import { getShift, getRotationMinutes, calculateEndTime, tablesNeeded } from "@/lib/restaurant-rules";
+import { normalizeBookingSource } from "@/lib/booking-validation";
 import { sendReservationConfirmationWhatsApp } from "@/lib/whatsapp/confirm-on-update";
 import { verifyTenantMembership } from "@/lib/tenant-membership";
 
@@ -114,7 +115,7 @@ export async function createReservationAction(params: {
         time: params.time,
         party_size: params.partySize,
         status: "confirmed",
-        source: params.source,
+        source: normalizeBookingSource(params.source, "staff"),
         created_by_type: params.source.startsWith("ai_") ? "ai" : "staff",
         notes: params.notes || "",
         shift: computedShift,

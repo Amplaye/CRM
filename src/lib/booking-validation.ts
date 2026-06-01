@@ -68,6 +68,33 @@ export function normalizeZone(z: unknown): 'inside' | 'outside' | null {
 }
 
 /**
+ * The exact set allowed by the DB check constraint `reservations_source_check`.
+ * Keep this in sync with the migration if the constraint ever changes.
+ */
+export type BookingSource = 'ai_chat' | 'ai_voice' | 'staff' | 'web' | 'walk_in';
+
+/**
+ * Map any caller-supplied `source` to a value the `reservations_source_check`
+ * constraint accepts. n8n/Vapi bypass our TypeScript types and have sent values
+ * the DB rejects (e.g. the voice workflow posts `voice_spontaneous`), which made
+ * the INSERT fail with `reservations_source_check` and surfaced as a critical
+ * `booking:service` error. Normalising here — at the API boundary — fixes the
+ * present bug and inoculates against any future caller that invents a label.
+ */
+export function normalizeBookingSource(s: unknown, fallback: BookingSource = 'ai_voice'): BookingSource {
+  if (typeof s !== 'string') return fallback;
+  const v = s.toLowerCase().trim();
+  if (v === 'ai_chat' || v === 'ai_voice' || v === 'staff' || v === 'web' || v === 'walk_in') return v;
+  // Synonyms / legacy labels from external callers. Order matters: match the
+  // walk-in spellings before the looser chat/voice substring checks.
+  if (v === 'walk-in' || v === 'walkin') return 'walk_in';
+  if (v === 'online') return 'web';
+  if (v.includes('voice') || v === 'phone' || v === 'ai_agent') return 'ai_voice';
+  if (v.includes('chat') || v.includes('whatsapp')) return 'ai_chat';
+  return fallback;
+}
+
+/**
  * Returns YYYY-MM-DD + a clock-time HH:MM for the Atlantic/Canary timezone.
  * Pulled out so tests can substitute a fixed Date.
  */

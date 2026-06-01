@@ -6,10 +6,45 @@ import {
   timeToMinutes,
   findNextOpenDay,
   normalizeZone,
+  normalizeBookingSource,
   checkPast,
   checkOpeningHours,
 } from './booking-validation';
 import type { OpeningHours } from './restaurant-rules';
+
+describe('normalizeBookingSource', () => {
+  // The DB check constraint reservations_source_check only allows these.
+  it('passes through the 5 allowed values verbatim', () => {
+    for (const s of ['ai_chat', 'ai_voice', 'staff', 'web', 'walk_in']) {
+      expect(normalizeBookingSource(s)).toBe(s);
+    }
+  });
+  it('maps the voice workflow label `voice_spontaneous` to ai_voice (the actual production bug)', () => {
+    expect(normalizeBookingSource('voice_spontaneous')).toBe('ai_voice');
+  });
+  it('maps voice/phone synonyms to ai_voice', () => {
+    expect(normalizeBookingSource('voice')).toBe('ai_voice');
+    expect(normalizeBookingSource('phone')).toBe('ai_voice');
+    expect(normalizeBookingSource('ai_agent')).toBe('ai_voice');
+  });
+  it('maps chat/whatsapp synonyms to ai_chat', () => {
+    expect(normalizeBookingSource('chat_spontaneous')).toBe('ai_chat');
+    expect(normalizeBookingSource('whatsapp')).toBe('ai_chat');
+  });
+  it('maps online to web and walk-in (hyphen) to walk_in', () => {
+    expect(normalizeBookingSource('online')).toBe('web');
+    expect(normalizeBookingSource('walk-in')).toBe('walk_in');
+  });
+  it('is case/space insensitive', () => {
+    expect(normalizeBookingSource('  AI_CHAT ')).toBe('ai_chat');
+  });
+  it('falls back to ai_voice by default and honours an explicit fallback', () => {
+    expect(normalizeBookingSource(undefined)).toBe('ai_voice');
+    expect(normalizeBookingSource(null)).toBe('ai_voice');
+    expect(normalizeBookingSource('garbage')).toBe('ai_voice');
+    expect(normalizeBookingSource('garbage', 'staff')).toBe('staff');
+  });
+});
 
 describe('isDate', () => {
   it('accepts YYYY-MM-DD', () => {
