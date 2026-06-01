@@ -11,8 +11,8 @@
 //   Reservas y grupos               → "Política de reservas"      (policies)
 //   Dietas y alergias               → "Dietas y alergias"         (policies)
 //   Servicios prácticos             → "Servicios adicionales"     (general)
-//   Platos recomendados (optional)  → "Recomendaciones del chef"  (menu)
 //   Cómo llegar                     → "Ubicación y cómo llegar"   (general)
+// (Recommended dishes are no longer a wizard step — see chef_recommendations.)
 //
 // Articles are written in the restaurant's primary `language` because they are
 // consumed by the AI agent (WhatsApp + voice) which speaks that language.
@@ -86,8 +86,11 @@ export interface KbQuestionnaire {
   public_transport: boolean; // yes/no
   landmark: string; // short field — reference point ("" = none)
 
-  // Card 5 — Platos recomendados (chef's picks, 0-6 short lines, optional)
-  chef_recommendations: string[]; // e.g. ["Mortazza — la más pedida", "Marinara — vegana"]
+  // DEPRECATED (2026-06-01): recommended dishes are no longer collected in the
+  // wizard — the owner curates them as a Menu category (e.g. "Platos recomendados")
+  // that the bot reads live via /api/ai/menu. Kept (defaults to []) only so old
+  // payloads/rows don't break; no KB article is generated from it any more.
+  chef_recommendations: string[];
 }
 
 export interface KbContext {
@@ -693,11 +696,9 @@ export function generateKbArticles(q: KbQuestionnaire, ctx: KbContext): Generate
   serviceLines.push(`${L.delivery}: ${deliveryValue}`);
   articles.push({ title: L.tServices, category: "general", content: serviceLines.join("\n") });
 
-  // --- Chef recommendations (optional) ---
-  const recs = q.chef_recommendations.map((r) => r.trim()).filter(Boolean);
-  if (recs.length) {
-    articles.push({ title: L.tChef, category: "menu", content: recs.map((r) => `- ${r}`).join("\n") });
-  }
+  // Recommended dishes are intentionally NOT generated here any more: the owner
+  // curates them as a Menu category the bot reads live (see chef_recommendations
+  // deprecation note). No "Recomendaciones del chef" KB article is produced.
 
   // --- Location ---
   const parkLabel = (k: ParkingKind) =>

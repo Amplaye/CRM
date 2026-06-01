@@ -221,13 +221,6 @@ export default function OnboardingPage() {
         parking_info: without.includes(p) ? without.filter((x) => x !== p) : [...without, p],
       };
     });
-  const setRec = (i: number, v: string) =>
-    setQ((prev) => { const next = [...prev.chef_recommendations]; next[i] = v; return { ...prev, chef_recommendations: next }; });
-  const addRec = () =>
-    setQ((prev) => (prev.chef_recommendations.length >= 6 ? prev : { ...prev, chef_recommendations: [...prev.chef_recommendations, ""] }));
-  const removeRec = (i: number) =>
-    setQ((prev) => ({ ...prev, chef_recommendations: prev.chef_recommendations.filter((_, idx) => idx !== i) }));
-
   function setHourSlot(day: string, idx: number, field: "open" | "close", value: string) {
     setHours((h) => { const next = { ...h, [day]: [...(h[day] || [])] }; next[day][idx] = { ...next[day][idx], [field]: value }; return next; });
   }
@@ -527,21 +520,9 @@ export default function OnboardingPage() {
             <Field label={t.q4.landmark} value={q.landmark} onChange={(v) => setQF("landmark", v)} placeholder="Junto a la playa de Las Canteras" />
           </Card>
 
-          {/* Card 5 — Recommended dishes (optional) */}
-          <Card title={t.q4.cardChef}>
-            <p className="text-[11px] text-black -mt-1">{t.q4.chefHint}</p>
-            <div className="space-y-2">
-              {q.chef_recommendations.map((r, i) => (
-                <div key={i} className="flex gap-2 items-center">
-                  <input value={r} onChange={(e) => setRec(i, e.target.value)} placeholder="Mortazza — la más pedida" className="flex-1 min-w-0 border border-zinc-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#c4956a]/40" />
-                  <button type="button" onClick={() => removeRec(i)} className="text-xs text-red-500 px-1 flex-shrink-0">{t.remove}</button>
-                </div>
-              ))}
-              {q.chef_recommendations.length < 6 && (
-                <button type="button" onClick={addRec} className="text-xs font-semibold text-[#8b6540]">{t.addDish}</button>
-              )}
-            </div>
-          </Card>
+          {/* Recommended dishes are no longer a wizard step: the owner curates
+              them as a Menu category (e.g. "Platos recomendados") that the bot
+              reads live. See chef_recommendations deprecation in kb-generator. */}
         </div>
       )}
 

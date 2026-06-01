@@ -181,14 +181,12 @@ describe("generateKbArticles — questionnaire → formatted KB", () => {
     expect(byTitle(none, "Dietas y alergias")!.content).toContain("Sin opciones especiales");
   });
 
-  it("emits a Chef recommendations article only when dishes are listed (empties trimmed)", () => {
-    const empty = generateKbArticles({ ...defaultQuestionnaire(), chef_recommendations: ["", "   "] }, ctx);
-    expect(byTitle(empty, "Recomendaciones del chef")).toBeUndefined();
-
-    const arts = generateKbArticles({ ...defaultQuestionnaire(), chef_recommendations: ["Mortazza — la más pedida", "Marinara — vegana", ""] }, ctx);
-    const chef = byTitle(arts, "Recomendaciones del chef")!;
-    expect(chef.category).toBe("menu");
-    expect(chef.content).toBe("- Mortazza — la más pedida\n- Marinara — vegana");
+  it("never emits a Chef recommendations article (recommended dishes are a Menu category now)", () => {
+    // Even when the deprecated field carries values, no KB article is produced —
+    // the owner curates recommendations as a Menu category the bot reads live.
+    const arts = generateKbArticles({ ...defaultQuestionnaire(), chef_recommendations: ["Mortazza — la más pedida", "Marinara — vegana"] }, ctx);
+    expect(byTitle(arts, "Recomendaciones del chef")).toBeUndefined();
+    expect(byTitle(arts, "Consigli dello chef")).toBeUndefined();
   });
 
   it("location article includes cuisine type in the header, address, city, neighborhood, parking and phone", () => {
@@ -269,14 +267,11 @@ describe("generateKbArticlesMulti — assistant speaks several languages", () =>
     expect(resv.content.indexOf("[Italiano]")).toBeLessThan(resv.content.indexOf("[English]"));
   });
 
-  it("conditional articles (schedule, chef picks) appear once with all languages", () => {
-    const q = { ...defaultQuestionnaire(), chef_recommendations: ["Mortazza"] };
-    const arts = generateKbArticlesMulti(q, { ...mctx, opening_hours: HOURS }, ["es", "de"]);
+  it("the conditional schedule article appears once with all languages", () => {
+    const arts = generateKbArticlesMulti(defaultQuestionnaire(), { ...mctx, opening_hours: HOURS }, ["es", "de"]);
     const sched = byTitle(arts, "Horario del restaurante")!; // Spanish primary title
     expect(sched.content).toContain("[Español]");
     expect(sched.content).toContain("[Deutsch]");
-    const chef = byTitle(arts, "Recomendaciones del chef")!;
-    expect(chef.content.match(/Mortazza/g)?.length).toBe(2); // once per language
   });
 
   it("article count is stable regardless of how many languages (one per topic)", () => {
