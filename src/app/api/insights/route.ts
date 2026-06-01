@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServiceRoleClient } from "@/lib/supabase/server";
 import { verifyTenantMembership } from "@/lib/tenant-membership";
+import { ownerLangFromSettings, type OwnerLang } from "@/lib/owner-locale";
 
 interface Insight {
   type: "revenue_opportunity" | "performance_drop" | "ai_optimization" | "loss_prevention" | "hidden_value";
@@ -12,6 +13,52 @@ interface Insight {
 
 interface TimeSlot { open: string; close: string }
 type OpeningHours = Record<string, TimeSlot[]>;
+
+// Insight copy per language. Both consumers — the analytics dashboard (fixed to
+// the tenant's crm_locale) and the weekly report (owner language) — want the
+// tenant's primary language, not hardcoded English. Each entry returns
+// {title, description} from the computed values.
+const INSIGHT_I18N: Record<OwnerLang, {
+  waitlist: (cancellations: number, recovered: number, value: number) => { title: string; description: string };
+  aiDrop: (pct7: number, pct14: number, drop: number, value: number) => { title: string; description: string };
+  lowConv: (rate: number, extra: number, value: number) => { title: string; description: string };
+  noShow: (pct: number, baseline: number, value: number) => { title: string; description: string };
+  outOfHours: (pct: number, revenue: number) => { title: string; description: string };
+  convUp: (prev: number, now: number) => { title: string; description: string };
+}> = {
+  es: {
+    waitlist: (c, r, v) => ({ title: "Oportunidad de lista de espera", description: `${c} cancelaciones el mes pasado pero solo ${r} recuperadas de la lista de espera. Mejorar su uso podría recuperar ~€${v}/mes.` }),
+    aiDrop: (p7, p14, d, v) => ({ title: "Bajó la tasa de reservas por IA", description: `La IA gestionó el ${p7}% de las reservas esta semana frente al ${p14}% la semana pasada (−${d}%). Podría suponer ~€${v} de ingresos perdidos gestionados por IA.` }),
+    lowConv: (rate, e, v) => ({ title: "Baja conversión de conversación a reserva", description: `La IA convierte solo el ${rate}% de las conversaciones en reservas. Mejorar los prompts podría añadir ~${e} reservas/mes (~€${v}).` }),
+    noShow: (pct, b, v) => ({ title: "No-shows por encima de lo normal", description: `La tasa de no-show es del ${pct}% (referencia: ${b}%). Confirmaciones más fuertes o depósitos podrían ahorrar ~€${v}/mes.` }),
+    outOfHours: (pct, rev) => ({ title: "Mucha actividad fuera de horario", description: `El ${pct}% de las reservas por IA ocurren fuera del horario (€${rev} este mes). Promocionar la disponibilidad 24/7 podría hacerlo crecer.` }),
+    convUp: (prev, now) => ({ title: "La conversión por IA está mejorando", description: `La conversión a reserva mejoró del ${prev}% al ${now}%. Mantén la estrategia de prompts actual — está funcionando.` }),
+  },
+  it: {
+    waitlist: (c, r, v) => ({ title: "Opportunità lista d'attesa", description: `${c} cancellazioni il mese scorso ma solo ${r} recuperate dalla lista d'attesa. Usarla meglio potrebbe recuperare ~€${v}/mese.` }),
+    aiDrop: (p7, p14, d, v) => ({ title: "Calata la quota di prenotazioni via IA", description: `L'IA ha gestito il ${p7}% delle prenotazioni questa settimana contro il ${p14}% la scorsa (−${d}%). Potrebbe significare ~€${v} di ricavi persi gestiti dall'IA.` }),
+    lowConv: (rate, e, v) => ({ title: "Bassa conversione conversazione → prenotazione", description: `L'IA converte solo il ${rate}% delle conversazioni in prenotazioni. Migliorare i prompt potrebbe aggiungere ~${e} prenotazioni/mese (~€${v}).` }),
+    noShow: (pct, b, v) => ({ title: "No-show sopra la norma", description: `Il tasso di no-show è del ${pct}% (riferimento: ${b}%). Conferme più decise o caparre potrebbero far risparmiare ~€${v}/mese.` }),
+    outOfHours: (pct, rev) => ({ title: "Molta attività fuori orario", description: `Il ${pct}% delle prenotazioni via IA avviene fuori orario (€${rev} questo mese). Promuovere la disponibilità 24/7 potrebbe farla crescere.` }),
+    convUp: (prev, now) => ({ title: "La conversione via IA sta migliorando", description: `La conversione in prenotazione è salita dal ${prev}% al ${now}%. Mantieni l'attuale strategia di prompt — funziona.` }),
+  },
+  en: {
+    waitlist: (c, r, v) => ({ title: "Waitlist recovery opportunity", description: `${c} cancellations last month but only ${r} recovered from waitlist. Improving waitlist usage could recover ~€${v}/month.` }),
+    aiDrop: (p7, p14, d, v) => ({ title: "AI booking rate dropped", description: `AI handled ${p7}% of bookings this week vs ${p14}% last week (−${d}%). This could mean ~€${v} in lost AI-handled revenue.` }),
+    lowConv: (rate, e, v) => ({ title: "Low AI conversation-to-booking rate", description: `AI converts only ${rate}% of conversations into bookings. Improving prompts could add ~${e} bookings/month (~€${v}).` }),
+    noShow: (pct, b, v) => ({ title: "No-show rate above baseline", description: `No-show rate is ${pct}% (baseline: ${b}%). Stronger confirmations or deposits could save ~€${v}/month.` }),
+    outOfHours: (pct, rev) => ({ title: "High out-of-hours booking activity", description: `${pct}% of AI bookings happen outside opening hours (€${rev} this month). Promoting 24/7 availability could grow this further.` }),
+    convUp: (prev, now) => ({ title: "AI conversion rate improving", description: `Booking conversion improved from ${prev}% to ${now}%. Keep current prompt strategy — it's working.` }),
+  },
+  de: {
+    waitlist: (c, r, v) => ({ title: "Chance bei der Warteliste", description: `${c} Stornierungen letzten Monat, aber nur ${r} über die Warteliste zurückgewonnen. Bessere Nutzung könnte ~€${v}/Monat zurückholen.` }),
+    aiDrop: (p7, p14, d, v) => ({ title: "KI-Buchungsquote gesunken", description: `Die KI hat diese Woche ${p7}% der Buchungen bearbeitet, letzte Woche ${p14}% (−${d}%). Das könnte ~€${v} entgangenen KI-Umsatz bedeuten.` }),
+    lowConv: (rate, e, v) => ({ title: "Niedrige Konversation-zu-Buchung-Rate", description: `Die KI wandelt nur ${rate}% der Konversationen in Buchungen um. Bessere Prompts könnten ~${e} Buchungen/Monat bringen (~€${v}).` }),
+    noShow: (pct, b, v) => ({ title: "No-Show-Rate über dem Normalwert", description: `Die No-Show-Rate liegt bei ${pct}% (Referenz: ${b}%). Stärkere Bestätigungen oder Anzahlungen könnten ~€${v}/Monat sparen.` }),
+    outOfHours: (pct, rev) => ({ title: "Viel Buchungsaktivität außerhalb der Öffnungszeiten", description: `${pct}% der KI-Buchungen erfolgen außerhalb der Öffnungszeiten (€${rev} diesen Monat). Werbung für 24/7-Verfügbarkeit könnte das steigern.` }),
+    convUp: (prev, now) => ({ title: "KI-Konversionsrate verbessert sich", description: `Die Buchungskonversion stieg von ${prev}% auf ${now}%. Behalte die aktuelle Prompt-Strategie bei — sie funktioniert.` }),
+  },
+};
 
 function isOutOfHours(createdAt: string, openingHours: OpeningHours, timezone: string): boolean {
   if (!openingHours || Object.keys(openingHours).length === 0) return false;
@@ -79,6 +126,7 @@ export async function GET(req: NextRequest) {
     ]);
 
     const s = ((tenantRes.data?.settings || {}) as any);
+    const I = INSIGHT_I18N[ownerLangFromSettings(s)];
     const avgSpend = s.avg_spend || 50;
     const noShowBaseline = s.no_show_baseline_pct || 15;
     const openingHours: OpeningHours = s.opening_hours || {};
@@ -126,8 +174,7 @@ export async function GET(req: NextRequest) {
       if (value > 0) {
         insights.push({
           type: "revenue_opportunity",
-          title: "Waitlist recovery opportunity",
-          description: `${cancellations30} cancellations last month but only ${wlRecovered} recovered from waitlist. Improving waitlist usage could recover ~€${value}/month.`,
+          ...I.waitlist(cancellations30, wlRecovered, value),
           estimated_value: value,
           confidence: cancellations30 >= 5 ? "high" : "medium",
         });
@@ -142,8 +189,7 @@ export async function GET(req: NextRequest) {
       if (value > 0) {
         insights.push({
           type: "performance_drop",
-          title: "AI booking rate dropped",
-          description: `AI handled ${Math.round(aiPct7)}% of bookings this week vs ${Math.round(aiPct14)}% last week (−${dropPct}%). This could mean ~€${value} in lost AI-handled revenue.`,
+          ...I.aiDrop(Math.round(aiPct7), Math.round(aiPct14), dropPct, value),
           estimated_value: value,
           confidence: "medium",
         });
@@ -157,8 +203,7 @@ export async function GET(req: NextRequest) {
       if (value > 0) {
         insights.push({
           type: "ai_optimization",
-          title: "Low AI conversation-to-booking rate",
-          description: `AI converts only ${Math.round(convRate)}% of conversations into bookings. Improving prompts could add ~${potentialExtra} bookings/month (~€${value}).`,
+          ...I.lowConv(Math.round(convRate), potentialExtra, value),
           estimated_value: value,
           confidence: conv30.length >= 20 ? "high" : "medium",
         });
@@ -172,8 +217,7 @@ export async function GET(req: NextRequest) {
       if (value > 0) {
         insights.push({
           type: "loss_prevention",
-          title: "No-show rate above baseline",
-          description: `No-show rate is ${Math.round(noShowPct)}% (baseline: ${noShowBaseline}%). Stronger confirmations or deposits could save ~€${value}/month.`,
+          ...I.noShow(Math.round(noShowPct), noShowBaseline, value),
           estimated_value: value,
           confidence: total30 >= 20 ? "high" : "medium",
         });
@@ -185,8 +229,7 @@ export async function GET(req: NextRequest) {
       const oohRevenue = oohBookings.reduce((s: number, r: any) => s + r.party_size * avgSpend, 0);
       insights.push({
         type: "hidden_value",
-        title: "High out-of-hours booking activity",
-        description: `${oohPct}% of AI bookings happen outside opening hours (€${oohRevenue} this month). Promoting 24/7 availability could grow this further.`,
+        ...I.outOfHours(oohPct, oohRevenue),
         estimated_value: Math.round(oohRevenue * 0.2), // 20% growth potential
         confidence: oohBookings.length >= 8 ? "high" : "medium",
       });
@@ -196,8 +239,7 @@ export async function GET(req: NextRequest) {
     if (conv30.length >= 5 && conv60.length >= 5 && convRate > prevConvRate + 10) {
       insights.push({
         type: "ai_optimization",
-        title: "AI conversion rate improving",
-        description: `Booking conversion improved from ${Math.round(prevConvRate)}% to ${Math.round(convRate)}%. Keep current prompt strategy — it's working.`,
+        ...I.convUp(Math.round(prevConvRate), Math.round(convRate)),
         estimated_value: 0,
         confidence: "high",
       });
