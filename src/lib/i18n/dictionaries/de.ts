@@ -277,6 +277,7 @@ export const de: Dictionary = {
   menu_title: "Menü",
   menu_subtitle: "Gerichte, Kategorien, Allergene.",
   menu_search_placeholder: "Suche Gericht, Allergen, Kategorie...",
+  menu_search_results: "Suchergebnisse",
   menu_new_item: "Neues Gericht",
   menu_new_category: "Neue Kategorie",
   menu_edit_category: "Kategorie bearbeiten",
@@ -326,7 +327,7 @@ export const de: Dictionary = {
   menu_import_replace_warning: "Dies ersetzt das aktuelle Menü",
   menu_import_replace_warning_hint:
     "Die vorhandenen Gerichte werden gelöscht und durch die obigen ersetzt.",
-  menu_import_verify_title: "Prüfe das Menü, bevor du es veröffentlichst",
+  menu_import_verify_title: "Prüfe das Menü",
   menu_import_verify_body:
     "Die automatische Extraktion kann ein Gericht übersehen oder einen Preis, ein Allergen oder ein Tag falsch erfassen. Sieh die Liste durch und korrigiere, was nicht stimmt.",
   menu_import_verify_cta: "Verstanden, ich prüfe das Menü",

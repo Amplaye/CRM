@@ -274,6 +274,7 @@ export const en = {
   menu_title: "Menu",
   menu_subtitle: "Dishes, categories, allergens.",
   menu_search_placeholder: "Search dish, allergen, category...",
+  menu_search_results: "Search results",
   menu_new_item: "New dish",
   menu_new_category: "New category",
   menu_edit_category: "Edit category",
@@ -323,7 +324,7 @@ export const en = {
   menu_import_replace_warning: "This will replace the current menu",
   menu_import_replace_warning_hint:
     "The existing dishes will be deleted and replaced with the ones above.",
-  menu_import_verify_title: "Check the menu before publishing it",
+  menu_import_verify_title: "Check the menu",
   menu_import_verify_body:
     "Automatic extraction can miss a dish or get a price, allergen or tag wrong. Look over the list and fix anything that's off.",
   menu_import_verify_cta: "Got it, I'll check the menu",

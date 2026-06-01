@@ -277,6 +277,7 @@ export const es: Dictionary = {
   menu_title: "Menú",
   menu_subtitle: "Platos, categorías, alérgenos.",
   menu_search_placeholder: "Buscar plato, alérgeno, categoría...",
+  menu_search_results: "Resultados de búsqueda",
   menu_new_item: "Nuevo plato",
   menu_new_category: "Nueva categoría",
   menu_edit_category: "Editar categoría",
@@ -326,7 +327,7 @@ export const es: Dictionary = {
   menu_import_replace_warning: "Esto reemplazará el menú actual",
   menu_import_replace_warning_hint:
     "Los platos existentes se eliminarán y se sustituirán por los de arriba.",
-  menu_import_verify_title: "Revisa el menú antes de publicarlo",
+  menu_import_verify_title: "Revisa el menú",
   menu_import_verify_body:
     "La extracción automática puede saltarse algún plato o equivocarse en un precio, un alérgeno o una etiqueta. Echa un vistazo a la lista y corrige lo que haga falta.",
   menu_import_verify_cta: "Entendido, reviso el menú",

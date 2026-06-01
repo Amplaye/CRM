@@ -246,11 +246,24 @@ export default function MenuPage() {
     setSelectedCollectionId(id);
   };
 
+  // Map a dish's category_id → name. Used for the muted sub-label under a dish
+  // when its home category isn't the one in view (collection or global search),
+  // and to let the search box match on category name.
+  const categoryNameById = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const c of categories) m.set(c.id, c.name);
+    return m;
+  }, [categories]);
+
   // Items to display in the table for the active view (collection > category),
   // filtered by search.
   const visibleItems = useMemo(() => {
+    // While searching, the box is GLOBAL: it looks across the whole menu (every
+    // category + uncategorized), not just the open category/collection. Without
+    // a query we show exactly the active view for normal browsing.
     let list: MenuItem[] = [];
-    if (selectedCollectionId) list = collectionMembers.get(selectedCollectionId) || [];
+    if (search.trim()) list = items;
+    else if (selectedCollectionId) list = collectionMembers.get(selectedCollectionId) || [];
     else if (selectedCategoryId === UNCAT_ID) list = itemsByCat.get(null) || [];
     else if (selectedCategoryId) list = itemsByCat.get(selectedCategoryId) || [];
     if (!search.trim()) return list;
@@ -258,11 +271,17 @@ export default function MenuPage() {
     return list.filter((it) => {
       if (it.name.toLowerCase().includes(q)) return true;
       if (it.description.toLowerCase().includes(q)) return true;
-      if (it.allergens.some((a) => a.toLowerCase().includes(q))) return true;
-      if (it.tags.some((tg) => tg.toLowerCase().includes(q))) return true;
+      // Match BOTH the stored token ("gluten") and the localized label the user
+      // actually sees in the UI ("Glutine") — otherwise typing what's on screen
+      // finds nothing, which is what the "Cerca ... allergene" box promises.
+      if (it.allergens.some((a) => a.toLowerCase().includes(q) || allergenLabel(a, language).toLowerCase().includes(q))) return true;
+      if (it.tags.some((tg) => tg.toLowerCase().includes(q) || tagLabel(tg, language).toLowerCase().includes(q))) return true;
+      // The placeholder also promises searching by category name.
+      const catName = it.category_id ? categoryNameById.get(it.category_id) : null;
+      if (catName && catName.toLowerCase().includes(q)) return true;
       return false;
     });
-  }, [itemsByCat, collectionMembers, selectedCollectionId, selectedCategoryId, search]);
+  }, [items, itemsByCat, collectionMembers, categoryNameById, selectedCollectionId, selectedCategoryId, search, language]);
 
   const isCollectionView = !!selectedCollectionId;
   const activeCategory =
@@ -270,14 +289,6 @@ export default function MenuPage() {
       ? categories.find((c) => c.id === selectedCategoryId) || null
       : null;
   const isUncatView = !selectedCollectionId && selectedCategoryId === UNCAT_ID;
-
-  // Map a dish's category_id → name, for the muted sub-label in a collection view
-  // (its dishes come from many categories).
-  const categoryNameById = useMemo(() => {
-    const m = new Map<string, string>();
-    for (const c of categories) m.set(c.id, c.name);
-    return m;
-  }, [categories]);
 
   const handleDeleteItem = async (id: string) => {
     if (!confirm(t("menu_confirm_delete_item") || "Eliminare questo piatto?")) return;
@@ -553,22 +564,26 @@ export default function MenuPage() {
             >
               <div className="min-w-0">
                 <p className="text-[10px] uppercase font-black tracking-widest text-black">
-                  {isCollectionView
+                  {search.trim()
+                    ? t("menu_search_results") || "Risultati ricerca"
+                    : isCollectionView
                     ? t("menu_collection") || "Raccolta"
                     : t("menu_category") || "Categoria"}
                 </p>
                 <div className="flex items-center gap-2">
                   <h2 className="text-2xl font-black text-black tracking-tight truncate flex items-center gap-2">
-                    {isCollectionView && (
+                    {!search.trim() && isCollectionView && (
                       <Star className="w-5 h-5 shrink-0" style={{ color: "#c4956a" }} fill="#c4956a" />
                     )}
-                    {isCollectionView
+                    {search.trim()
+                      ? `"${search.trim()}"`
+                      : isCollectionView
                       ? collectionLabel(activeCollection!.kind, activeCollection!.name, language)
                       : isUncatView
                       ? t("menu_uncategorized") || "Senza categoria"
                       : activeCategory!.name}
                   </h2>
-                  {activeCategory && (
+                  {!search.trim() && activeCategory && (
                     <button
                       onClick={() => setCategoryModal({ mode: "edit", category: activeCategory })}
                       className="cursor-pointer p-1.5 text-black hover:bg-zinc-100 rounded-lg border-2"
@@ -578,7 +593,7 @@ export default function MenuPage() {
                       <Pencil className="w-4 h-4" />
                     </button>
                   )}
-                  {isCollectionView && (
+                  {!search.trim() && isCollectionView && (
                     <button
                       onClick={() => setCollectionModal({ mode: "edit", collection: activeCollection! })}
                       className="cursor-pointer p-1.5 text-black hover:bg-zinc-100 rounded-lg border-2"
@@ -703,9 +718,10 @@ export default function MenuPage() {
                               </span>
                             )}
                           </div>
-                          {/* In a collection the dishes come from many categories;
-                              show each dish's home category for context. */}
-                          {isCollectionView && it.category_id && (
+                          {/* In a collection — or in a global search — the dishes
+                              come from many categories; show each dish's home
+                              category for context. */}
+                          {(isCollectionView || search.trim()) && it.category_id && (
                             <span className="text-[10px] text-black/50 font-medium">
                               {categoryNameById.get(it.category_id) || ""}
                             </span>
@@ -1398,8 +1414,14 @@ function ImportMenuModal({
   const [dragging, setDragging] = useState(false);
   const [savedCounts, setSavedCounts] = useState<{ cats: number; items: number } | null>(null);
   const [jobId, setJobId] = useState<string | null>(null);
-  // Cosmetic, time-based progress (the OpenAI call gives no real progress feed).
+  // Progress bar. For multi-page menus the Edge Function reports real
+  // processed/total page-chunks; for single-shot jobs (one OpenAI call, no
+  // progress feed) we fall back to a decelerating time-based estimate. Either
+  // way the bar is kept monotonic via progressRef so it never jumps backward,
+  // and never freezes (the estimate keeps inching toward — but never reaching —
+  // the cap, so it can't look "stuck at 92%").
   const [progressPct, setProgressPct] = useState(0);
+  const progressRef = useRef(0);
 
   // Poll the job status while extraction runs on the Supabase Edge Function.
   // Large PDFs take 60-120s, well past Vercel's 60s cap, so the work is async.
@@ -1424,50 +1446,75 @@ function ImportMenuModal({
       setStage("idle");
     };
 
+    // Only ever move the bar forward. A "done" passes force=true to snap to 100.
+    const setPct = (next: number, force = false) => {
+      const clamped = Math.max(0, Math.min(100, Math.round(next)));
+      if (force || clamped > progressRef.current) {
+        progressRef.current = clamped;
+        setProgressPct(clamped);
+      }
+    };
+
+    // Fallback estimate when there's no real per-chunk signal (single OpenAI
+    // call). Decelerating curve that approaches — but never reaches — 95%, so
+    // the bar always keeps inching and never looks frozen.
+    const estimate = (elapsed: number) => 95 * (1 - Math.exp(-elapsed / 28_000));
+
     const tick = async () => {
       const elapsed = Date.now() - startedAt;
-      // Ease the bar toward ~92% over a typical run (~40s); a real "done" snaps
-      // it to 100. Caps at 92 so it never looks "stuck at 100" while waiting.
-      setProgressPct(Math.min(92, Math.round((elapsed / 40_000) * 92)));
 
-      if (elapsed > DEAD_AFTER_MS) {
-        // One last status read in case it JUST finished, else fail fast.
-        try {
-          const res = await fetch(`/api/menu/import-job/${jobId}`);
-          const data = await res.json();
-          if (!cancelled && res.ok && data.status === "done") {
-            setExtracted(data.result);
-            setProgressPct(100);
-            setStage("preview");
-            return;
-          }
-        } catch {
-          /* ignore — about to fail anyway */
+      let data: {
+        status?: string;
+        result?: ExtractedMenu;
+        error?: string;
+        totalChunks?: number | null;
+        processedChunks?: number;
+      } | null = null;
+      try {
+        const res = await fetch(`/api/menu/import-job/${jobId}`);
+        if (res.ok) data = await res.json();
+        else if (res.status !== 404) {
+          // 5xx — keep trying; transient.
         }
-        failNow();
+        // 404 → row not visible yet; fall through to the time estimate.
+      } catch {
+        // network blip — keep polling, advance the estimate below.
+      }
+      if (cancelled) return;
+
+      if (data?.status === "done") {
+        setExtracted(data.result as ExtractedMenu);
+        setPct(100, true);
+        setStage("preview");
+        return;
+      }
+      if (data?.status === "error") {
+        // Server already marked it failed — surface immediately, no waiting.
+        setError(data.error || t("menu_import_failed") || "Estrazione fallita.");
+        setStage("idle");
         return;
       }
 
-      try {
-        const res = await fetch(`/api/menu/import-job/${jobId}`);
-        const data = await res.json();
-        if (cancelled) return;
-        if (!res.ok) {
-          // 404/500 — keep trying a bit; the row may not be visible yet.
-          return;
-        }
-        if (data.status === "done") {
-          setExtracted(data.result);
-          setProgressPct(100);
-          setStage("preview");
-        } else if (data.status === "error") {
-          // Server already marked it failed — surface immediately, no waiting.
-          setError(data.error || t("menu_import_failed") || "Estrazione fallita.");
-          setStage("idle");
-        }
-        // pending/processing → keep polling
-      } catch {
-        // network blip — keep polling
+      // Still pending/processing → advance the bar.
+      const total = data?.totalChunks ?? null;
+      if (total && total > 1) {
+        // REAL progress for a multi-page menu. Map finished page-chunks into an
+        // 8→88% band; the top is reserved for the final enrichment pass (runs
+        // after the last chunk). A gentle time-based creep rides on top so the
+        // bar still moves between waves and during enrichment — never frozen.
+        const done = Math.min(data?.processedChunks ?? 0, total);
+        const base = 8 + (done / total) * 80; // 8% .. 88%
+        const creep = Math.min(7, (elapsed / 1000) * 0.15); // up to +7% over time
+        setPct(base + creep);
+      } else {
+        // Single-shot job (text or one file): no real feed → decelerating estimate.
+        setPct(estimate(elapsed));
+      }
+
+      if (elapsed > DEAD_AFTER_MS) {
+        // We already read status above; if it wasn't done/error by now the
+        // worker is dead. Fail fast instead of spinning forever.
+        failNow();
       }
     };
 
@@ -1537,6 +1584,7 @@ function ImportMenuModal({
     if (!file) return;
     setStage("uploading");
     setError(null);
+    progressRef.current = 0;
     setProgressPct(0);
     try {
       const form = new FormData();
@@ -1563,6 +1611,7 @@ function ImportMenuModal({
     if (!url.trim()) return;
     setStage("uploading");
     setError(null);
+    progressRef.current = 0;
     setProgressPct(0);
     try {
       // Same async job as file upload: the heavy OpenAI extraction runs on the
@@ -1940,13 +1989,14 @@ function ImportMenuModal({
               </p>
 
               {/* The AI reads the menu automatically and can miss a dish or an
-                  allergen/tag. Tell the user plainly to give it a once-over. */}
-              <div className="mt-5 mx-auto max-w-md p-4 bg-amber-50 border border-amber-300 rounded-xl text-left flex items-start gap-3">
-                <AlertTriangle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
+                  allergen/tag. Tell the user plainly to give it a once-over.
+                  Icon + text are centered as a vertical stack to match the rest
+                  of this confirmation panel. */}
+              <div className="mt-5 mx-auto max-w-md p-4 bg-amber-50 border border-amber-300 rounded-xl text-center flex flex-col items-center gap-2">
+                <AlertTriangle className="w-5 h-5 text-amber-600 flex-shrink-0" />
                 <div>
                   <p className="text-sm font-bold text-amber-900">
-                    {(t("menu_import_verify_title") as string) ||
-                      "Controlla il menu prima di pubblicarlo"}
+                    {(t("menu_import_verify_title") as string) || "Controlla il menu"}
                   </p>
                   <p className="text-sm text-amber-900 mt-1">
                     {(t("menu_import_verify_body") as string) ||

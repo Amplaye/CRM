@@ -248,7 +248,12 @@ const CHUNK_CONCURRENCY = 4;
 // (each chunk its own vision call → bounded time + output tokens), preserving
 // page order, merge, then enrich ONCE. A chunk that fails is skipped rather
 // than failing the whole menu — partial is better than none.
-async function extractMenuFromChunks(chunks: string[]): Promise<ExtractedMenu> {
+async function extractMenuFromChunks(
+  chunks: string[],
+  // Called after each wave with how many page-chunks have finished, so the
+  // caller can persist real progress for the dashboard's loading bar.
+  onProgress?: (processed: number) => Promise<void>,
+): Promise<ExtractedMenu> {
   const parts: ExtractedMenu[] = new Array(chunks.length);
   for (let base = 0; base < chunks.length; base += CHUNK_CONCURRENCY) {
     const wave = chunks.slice(base, base + CHUNK_CONCURRENCY);
@@ -262,6 +267,11 @@ async function extractMenuFromChunks(chunks: string[]): Promise<ExtractedMenu> {
         console.error(`[menu-extract] chunk ${base + k + 1}/${chunks.length} failed:`, s.reason?.message);
       }
     });
+    if (onProgress) {
+      // Page extraction is done up to this wave; enrichment (one final pass)
+      // runs after the loop, so we cap progress writes at chunks.length.
+      await onProgress(Math.min(base + wave.length, chunks.length));
+    }
   }
   const ok = parts.filter(Boolean);
   if (ok.length === 0) {
@@ -555,7 +565,19 @@ Deno.serve(async (req) => {
       result = await extractMenuFromText(job.source_text);
     } else if (Array.isArray(job.file_chunks) && job.file_chunks.length > 0) {
       // Large multi-page image PDF, pre-split into page-chunks by the Node route.
-      result = await extractMenuFromChunks(job.file_chunks as string[]);
+      // Record the chunk count up front and bump processed_chunks after each
+      // wave so the dashboard can show a REAL progress bar instead of a guess.
+      const chunkList = job.file_chunks as string[];
+      await supabase
+        .from("menu_import_jobs")
+        .update({ total_chunks: chunkList.length, processed_chunks: 0 })
+        .eq("id", jobId);
+      result = await extractMenuFromChunks(chunkList, async (processed) => {
+        await supabase
+          .from("menu_import_jobs")
+          .update({ processed_chunks: processed, updated_at: new Date().toISOString() })
+          .eq("id", jobId);
+      });
     } else if (job.file_base64 && job.media_type) {
       result = await extractMenuFromFile({
         base64Data: job.file_base64,

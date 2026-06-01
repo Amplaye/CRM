@@ -24,7 +24,7 @@ export async function GET(
 
   const { data: job, error } = await supabase
     .from('menu_import_jobs')
-    .select('id, status, result, error, created_at')
+    .select('id, status, result, error, created_at, total_chunks, processed_chunks')
     .eq('id', id)
     .maybeSingle();
 
@@ -65,5 +65,8 @@ export async function GET(
     status: job.status,
     result: job.status === 'done' ? job.result : undefined,
     error: job.status === 'error' ? job.error : undefined,
+    // Real progress for multi-page (chunked) menus; absent for single-shot jobs.
+    totalChunks: job.total_chunks ?? null,
+    processedChunks: job.processed_chunks ?? 0,
   });
 }
