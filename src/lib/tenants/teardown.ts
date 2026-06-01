@@ -5,7 +5,7 @@
 // the part that, if wrong, would touch the wrong tenant. The thin network
 // wrappers below it are integration-tested live (see the offboarding plan run).
 import type { TenantSettings } from "@/lib/types/tenant-settings";
-import { deleteAssistant } from "@/lib/onboarding/vapi";
+import { deleteAssistant, TEMPLATE_VAPI_ASSISTANT_ID } from "@/lib/onboarding/vapi";
 
 // --- Pure selection helpers ----------------------------------------------------
 
@@ -31,10 +31,19 @@ export interface VoiceTeardownPlan {
   retellKbId?: string;
 }
 
-/** Detect which voice provider a tenant uses and what to delete. */
+/** Detect which voice provider a tenant uses and what to delete.
+ *
+ * SAFETY: never plan to delete the shared GOLDEN TEMPLATE assistant. PICNIC (the
+ * legacy template tenant) carries the template's own id in settings.vapi —
+ * deleting it on teardown would wipe the assistant every new tenant is cloned
+ * from. If a tenant's vapi.assistantId IS the template, treat its Vapi side as
+ * "nothing to delete" (fall through to Retell / none). A real clone always has
+ * its own unique id, so this only ever spares the template. */
 export function voiceTeardownPlan(settings: TenantSettings | null | undefined): VoiceTeardownPlan {
   const s = (settings || {}) as any;
-  if (s.vapi?.assistantId) return { provider: "vapi", vapiAssistantId: s.vapi.assistantId };
+  if (s.vapi?.assistantId && s.vapi.assistantId !== TEMPLATE_VAPI_ASSISTANT_ID) {
+    return { provider: "vapi", vapiAssistantId: s.vapi.assistantId };
+  }
   if (s.retell?.agentId) {
     return {
       provider: "retell",

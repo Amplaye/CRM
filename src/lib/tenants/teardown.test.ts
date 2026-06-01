@@ -5,6 +5,7 @@ import {
   classifyStaffForTeardown,
   botSessionPhonesToClean,
 } from "./teardown";
+import { TEMPLATE_VAPI_ASSISTANT_ID } from "@/lib/onboarding/vapi";
 
 describe("n8nWorkflowIdsToRemove", () => {
   const all = [
@@ -38,6 +39,17 @@ describe("voiceTeardownPlan", () => {
   it("returns none when no voice config", () => {
     expect(voiceTeardownPlan({}).provider).toBe("none");
     expect(voiceTeardownPlan(null).provider).toBe("none");
+  });
+  it("NEVER plans to delete the shared golden template (PICNIC carries its id)", () => {
+    // PICNIC's settings.vapi points at the template every tenant is cloned from;
+    // tearing it down must not wipe the template.
+    expect(voiceTeardownPlan({ vapi: { assistantId: TEMPLATE_VAPI_ASSISTANT_ID } }).provider).toBe("none");
+  });
+  it("still tears down a real clone whose id is not the template", () => {
+    expect(voiceTeardownPlan({ vapi: { assistantId: "9a1174e4-real-clone" } })).toEqual({
+      provider: "vapi",
+      vapiAssistantId: "9a1174e4-real-clone",
+    });
   });
 });
 
