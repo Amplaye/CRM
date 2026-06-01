@@ -722,7 +722,7 @@ export default function MenuPage() {
                               come from many categories; show each dish's home
                               category for context. */}
                           {(isCollectionView || search.trim()) && it.category_id && (
-                            <span className="text-[10px] text-black/50 font-medium">
+                            <span className="text-[10px] text-black font-medium">
                               {categoryNameById.get(it.category_id) || ""}
                             </span>
                           )}
