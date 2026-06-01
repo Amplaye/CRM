@@ -20,7 +20,7 @@ import {
   ChevronRight,
 } from "lucide-react";
 import { useLanguage } from "@/lib/contexts/LanguageContext";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type DragEvent } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { useTenant } from "@/lib/contexts/TenantContext";
 import type { MenuCategory, MenuItem, Tenant } from "@/lib/types";
@@ -1088,7 +1088,68 @@ function ImportMenuModal({
   const [stage, setStage] = useState<"idle" | "uploading" | "preview" | "saving" | "done">("idle");
   const [extracted, setExtracted] = useState<ExtractedMenu | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [dragging, setDragging] = useState(false);
   const [savedCounts, setSavedCounts] = useState<{ cats: number; items: number } | null>(null);
+
+  // Keep in sync with the server allow-list in /api/menu/import-file and the
+  // input's accept attribute. Some browsers report an empty file.type for
+  // PDFs dragged from certain apps, so we also accept by .pdf extension.
+  const MAX_FILE_BYTES = 8 * 1024 * 1024;
+  const ACCEPTED_TYPES = [
+    "application/pdf",
+    "image/jpeg",
+    "image/jpg",
+    "image/png",
+    "image/webp",
+    "image/gif",
+  ];
+  const isAcceptedFile = (f: File) =>
+    ACCEPTED_TYPES.includes(f.type.toLowerCase()) || /\.pdf$/i.test(f.name);
+
+  // Single entry point for a chosen file (picker OR drag-drop): validate type
+  // and size up front and surface a clear error instead of failing later in
+  // the upload with an opaque 4xx.
+  const acceptFile = (f: File | null | undefined) => {
+    if (!f) return;
+    if (!isAcceptedFile(f)) {
+      setError(t("menu_import_bad_type") || "Unsupported file type.");
+      setFile(null);
+      return;
+    }
+    if (f.size > MAX_FILE_BYTES) {
+      setError(t("menu_import_too_big") || "File too large (max 8 MB).");
+      setFile(null);
+      return;
+    }
+    setError(null);
+    setFile(f);
+  };
+
+  // Drag-and-drop. preventDefault on dragOver AND drop is what stops the
+  // browser from navigating away and opening the dropped PDF in the tab
+  // (the previous behaviour, which read to the user as "drag-drop is broken").
+  const onDragOver = (e: DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!dragging) setDragging(true);
+  };
+  const onDragLeave = (e: DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragging(false);
+  };
+  const onDrop = (e: DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragging(false);
+    setTab("file");
+    acceptFile(e.dataTransfer?.files?.[0]);
+  };
+
+  const switchTab = (next: "file" | "url") => {
+    setTab(next);
+    setError(null);
+  };
 
   const handleUpload = async () => {
     if (!file) return;
@@ -1199,6 +1260,9 @@ function ImportMenuModal({
       <div
         className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl max-h-[90vh] flex flex-col overflow-hidden"
         onClick={(e) => e.stopPropagation()}
+        onDragOver={stage === "idle" ? onDragOver : undefined}
+        onDragLeave={stage === "idle" ? onDragLeave : undefined}
+        onDrop={stage === "idle" ? onDrop : undefined}
       >
         <div
           className="flex items-center justify-between p-5 border-b"
@@ -1231,7 +1295,7 @@ function ImportMenuModal({
 
               <div className="flex gap-2 mb-4 border-b" style={{ borderColor: "#c4956a" }}>
                 <button
-                  onClick={() => setTab("file")}
+                  onClick={() => switchTab("file")}
                   className={`cursor-pointer px-4 py-2 text-sm font-bold border-b-2 -mb-px transition-colors ${
                     tab === "file"
                       ? "text-black"
@@ -1243,7 +1307,7 @@ function ImportMenuModal({
                   {t("menu_import_tab_file") || "File"}
                 </button>
                 <button
-                  onClick={() => setTab("url")}
+                  onClick={() => switchTab("url")}
                   className={`cursor-pointer px-4 py-2 text-sm font-bold border-b-2 -mb-px transition-colors ${
                     tab === "url"
                       ? "text-black"
@@ -1259,17 +1323,30 @@ function ImportMenuModal({
               {tab === "file" ? (
                 <div
                   onClick={() => fileInputRef.current?.click()}
-                  className="cursor-pointer border-2 border-dashed rounded-xl p-8 text-center hover:bg-zinc-50"
-                  style={{ borderColor: "#c4956a" }}
+                  className={`cursor-pointer border-2 border-dashed rounded-xl p-8 text-center transition-colors ${
+                    dragging ? "bg-[#fcf6ed]" : "hover:bg-zinc-50"
+                  }`}
+                  style={{ borderColor: dragging ? "#a87642" : "#c4956a" }}
                 >
                   <input
                     ref={fileInputRef}
                     type="file"
                     accept="application/pdf,image/jpeg,image/jpg,image/png,image/webp,image/gif"
-                    onChange={(e) => setFile(e.target.files?.[0] || null)}
+                    onChange={(e) => {
+                      acceptFile(e.target.files?.[0]);
+                      // Reset so picking the same file again re-fires onChange.
+                      e.target.value = "";
+                    }}
                     className="hidden"
                   />
-                  {file ? (
+                  {dragging ? (
+                    <div>
+                      <Upload className="w-10 h-10 mx-auto mb-3 text-[#a87642]" />
+                      <p className="text-sm font-bold text-[#a87642]">
+                        {t("menu_import_drop_active") || "Rilascia qui il file"}
+                      </p>
+                    </div>
+                  ) : file ? (
                     <div className="flex items-center justify-center gap-3">
                       {file.type.startsWith("image/") ? (
                         <ImageIcon className="w-8 h-8 text-black" />
@@ -1279,7 +1356,7 @@ function ImportMenuModal({
                       <div className="text-left">
                         <p className="font-bold text-black text-sm">{file.name}</p>
                         <p className="text-xs text-black">
-                          {(file.size / 1024).toFixed(0)} KB · {file.type}
+                          {(file.size / 1024).toFixed(0)} KB · {file.type || "PDF"}
                         </p>
                       </div>
                     </div>
@@ -1287,7 +1364,7 @@ function ImportMenuModal({
                     <div>
                       <Upload className="w-10 h-10 mx-auto mb-3 text-black" />
                       <p className="text-sm font-bold text-black">
-                        {t("menu_import_drop") || "Clicca per scegliere PDF o immagine"}
+                        {t("menu_import_drop") || "Clicca o trascina qui un PDF o un'immagine"}
                       </p>
                       <p className="text-xs text-black mt-1">
                         {t("menu_import_formats") || "PDF, JPEG, PNG, WEBP — max 8 MB"}
