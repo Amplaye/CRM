@@ -67,7 +67,7 @@ interface UiStrings {
   primary: string; makePrimaryHint: string;
   // step 2
   days: string[]; // Monday-first
-  addSlot: string; closed: string; remove: string;
+  addSlot: string; closed: string; remove: string; openLabel: string; closeLabel: string;
   // step 3
   tblSmall: string; tblSmallD: string;
   tblMedium: string; tblMediumD: string;
@@ -105,7 +105,7 @@ export const UI: Record<UiLang, UiStrings> = {
     fCrmLangHint: "El idioma en el que verás tu panel. Se fija ahora y no se puede cambiar después. Es independiente de los idiomas del asistente.",
     primary: "Principal", makePrimaryHint: "Marcar como principal",
     days: ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo"],
-    addSlot: "+ tramo", closed: "Cerrado", remove: "quitar",
+    addSlot: "+ tramo", closed: "Cerrado", remove: "quitar", openLabel: "apertura", closeLabel: "cierre",
     tblSmall: "Pequeño (6)", tblSmallD: "<30 comensales",
     tblMedium: "Mediano (12)", tblMediumD: "30-60 comensales",
     tblLarge: "Grande (20)", tblLargeD: ">60 comensales",
@@ -191,7 +191,7 @@ export const UI: Record<UiLang, UiStrings> = {
     fCrmLangHint: "La lingua in cui vedrai il tuo pannello. Si imposta ora e non si può cambiare dopo. È indipendente dalle lingue dell'assistente.",
     primary: "Principale", makePrimaryHint: "Imposta come principale",
     days: ["Lunedì", "Martedì", "Mercoledì", "Giovedì", "Venerdì", "Sabato", "Domenica"],
-    addSlot: "+ fascia", closed: "Chiuso", remove: "rimuovi",
+    addSlot: "+ fascia", closed: "Chiuso", remove: "rimuovi", openLabel: "apertura", closeLabel: "chiusura",
     tblSmall: "Piccolo (6)", tblSmallD: "<30 coperti",
     tblMedium: "Medio (12)", tblMediumD: "30-60 coperti",
     tblLarge: "Grande (20)", tblLargeD: ">60 coperti",
@@ -277,7 +277,7 @@ export const UI: Record<UiLang, UiStrings> = {
     fCrmLangHint: "The language your dashboard will be in. Set now and can't be changed later. Independent from the assistant languages.",
     primary: "Primary", makePrimaryHint: "Set as primary",
     days: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"],
-    addSlot: "+ slot", closed: "Closed", remove: "remove",
+    addSlot: "+ slot", closed: "Closed", remove: "remove", openLabel: "opening", closeLabel: "closing",
     tblSmall: "Small (6)", tblSmallD: "<30 covers",
     tblMedium: "Medium (12)", tblMediumD: "30-60 covers",
     tblLarge: "Large (20)", tblLargeD: ">60 covers",
@@ -363,7 +363,7 @@ export const UI: Record<UiLang, UiStrings> = {
     fCrmLangHint: "Die Sprache deines Dashboards. Wird jetzt festgelegt und kann später nicht geändert werden. Unabhängig von den Sprachen des Assistenten.",
     primary: "Primär", makePrimaryHint: "Als primär festlegen",
     days: ["Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag", "Sonntag"],
-    addSlot: "+ Zeitfenster", closed: "Geschlossen", remove: "entfernen",
+    addSlot: "+ Zeitfenster", closed: "Geschlossen", remove: "entfernen", openLabel: "Öffnung", closeLabel: "Schließung",
     tblSmall: "Klein (6)", tblSmallD: "<30 Gäste",
     tblMedium: "Mittel (12)", tblMediumD: "30-60 Gäste",
     tblLarge: "Groß (20)", tblLargeD: ">60 Gäste",

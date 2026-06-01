@@ -1,11 +1,11 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import {
   ChevronLeft, ChevronRight, ChevronDown, Check, AlertTriangle, RefreshCw,
-  Building, Clock, ClipboardList, Loader2, Globe, Star, Info, MessageCircle,
+  Building, Clock, ClipboardList, Loader2, Star, Info, MessageCircle,
 } from "lucide-react";
 import {
   KbQuestionnaire, PaymentMethod, ParkingKind, Allergen, CancellationNotice, defaultQuestionnaire,
@@ -414,9 +414,9 @@ export default function OnboardingPage() {
                     <div className="space-y-2">
                       {(hours[idx] || []).map((s, i) => (
                         <div key={i} className="flex flex-wrap gap-2 items-center">
-                          <input type="time" value={s.open} onChange={(e) => setHourSlot(idx, i, "open", e.target.value)} className="border border-zinc-200 rounded px-2 py-1 text-sm" />
+                          <input id={`hours-${idx}-${i}-open`} name={`hours-${idx}-${i}-open`} aria-label={`${label} — ${t.openLabel}`} type="time" value={s.open} onChange={(e) => setHourSlot(idx, i, "open", e.target.value)} className="border border-zinc-200 rounded px-2 py-1 text-sm" />
                           <span className="text-xs">→</span>
-                          <input type="time" value={s.close} onChange={(e) => setHourSlot(idx, i, "close", e.target.value)} className="border border-zinc-200 rounded px-2 py-1 text-sm" />
+                          <input id={`hours-${idx}-${i}-close`} name={`hours-${idx}-${i}-close`} aria-label={`${label} — ${t.closeLabel}`} type="time" value={s.close} onChange={(e) => setHourSlot(idx, i, "close", e.target.value)} className="border border-zinc-200 rounded px-2 py-1 text-sm" />
                           <button onClick={() => removeHourSlot(idx, i)} className="text-xs text-red-500">{t.remove}</button>
                         </div>
                       ))}
@@ -543,11 +543,11 @@ export default function OnboardingPage() {
       )}
 
       <div className="mt-6 flex items-center justify-between gap-3">
-        <button onClick={() => setStep((s) => (s - 1) as Step)} disabled={step === 1} className="flex items-center gap-1 px-4 py-2 rounded-lg border-2 border-[#c4956a] text-[#c4956a] disabled:opacity-30"><ChevronLeft className="w-4 h-4" /> {t.back}</button>
+        <button onClick={() => setStep((s) => (s - 1) as Step)} disabled={step === 1} className="flex items-center gap-1 px-4 py-2 rounded-lg border-2 border-[#c4956a] text-[#c4956a] cursor-pointer disabled:cursor-not-allowed disabled:opacity-30"><ChevronLeft className="w-4 h-4" /> {t.back}</button>
         {step < 4 ? (
-          <button onClick={() => setStep((s) => (s + 1) as Step)} className="flex items-center gap-1 px-5 py-2.5 rounded-lg bg-[#c4956a] text-white font-bold hover:bg-[#b3855c] transition-colors">{t.next} <ChevronRight className="w-4 h-4" /></button>
+          <button onClick={() => setStep((s) => (s + 1) as Step)} className="flex items-center gap-1 px-5 py-2.5 rounded-lg bg-[#c4956a] text-white font-bold cursor-pointer hover:bg-[#b3855c] transition-colors">{t.next} <ChevronRight className="w-4 h-4" /></button>
         ) : (
-          <button onClick={submit} disabled={!restaurantName.trim()} className="flex items-center gap-1 px-5 py-2.5 rounded-lg bg-emerald-600 text-white font-bold disabled:opacity-50"><Check className="w-4 h-4" /> {t.createCrm}</button>
+          <button onClick={submit} disabled={!restaurantName.trim()} className="flex items-center gap-1 px-5 py-2.5 rounded-lg bg-emerald-600 text-white font-bold cursor-pointer disabled:cursor-not-allowed disabled:opacity-50"><Check className="w-4 h-4" /> {t.createCrm}</button>
         )}
       </div>
     </Shell>
@@ -577,7 +577,6 @@ function LangSwitcher({ value, onChange, label }: { value: UiLang; onChange: (l:
   ];
   return (
     <div className="flex items-center gap-1.5" role="group" aria-label={label}>
-      <Globe className="w-3.5 h-3.5 text-[#8b6540] flex-shrink-0" aria-hidden />
       <div className="flex items-center rounded-full border-2 border-[#c4956a]/40 bg-white/70 p-0.5">
         {items.map(([code, short, full]) => (
           <button
@@ -732,9 +731,18 @@ function InfoTip({ text }: { text: string }) {
     </span>
   );
 }
-function Lbl({ children, info }: { children: React.ReactNode; info?: string }) {
+// Derive a stable HTML `name` from a label string (kebab-case, ascii). Helps
+// browser autofill and gives each field a name attribute. Non-string labels
+// fall back to undefined (caller passes an explicit name if needed).
+function nameFromLabel(label: React.ReactNode): string | undefined {
+  if (typeof label !== "string") return undefined;
+  const slug = label.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "")
+    .replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+  return slug || undefined;
+}
+function Lbl({ children, info, htmlFor }: { children: React.ReactNode; info?: string; htmlFor?: string }) {
   return (
-    <label className="flex items-center gap-1 text-xs font-bold uppercase tracking-wider mb-1 text-black">
+    <label htmlFor={htmlFor} className="flex items-center gap-1 text-xs font-bold uppercase tracking-wider mb-1 text-black">
       <span>{children}</span>
       {info && <InfoTip text={info} />}
     </label>
@@ -749,7 +757,8 @@ function Card({ title, children }: { title: string; children: React.ReactNode })
   );
 }
 function Field({ label, value, onChange, placeholder, type = "text", inputMode, info }: { label: string; value: string; onChange: (v: string) => void; placeholder?: string; type?: string; inputMode?: React.HTMLAttributes<HTMLInputElement>["inputMode"]; info?: string }) {
-  return (<div><Lbl info={info}>{label}</Lbl><input type={type} inputMode={inputMode} value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} className="w-full border border-zinc-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#c4956a]/40 focus:border-[#c4956a]" /></div>);
+  const id = useId();
+  return (<div><Lbl htmlFor={id} info={info}>{label}</Lbl><input id={id} name={nameFromLabel(label)} type={type} inputMode={inputMode} value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} className="w-full border border-zinc-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#c4956a]/40 focus:border-[#c4956a]" /></div>);
 }
 // Worldwide address autocomplete backed by OpenStreetMap Nominatim (free, no
 // API key). Typing fires a debounced search; picking a suggestion fills the
@@ -779,6 +788,7 @@ function AddressField({ label, value, placeholder, hint, searching, onChange, on
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const boxRef = useRef<HTMLDivElement>(null);
+  const addrId = useId();
   // Skip the search that would fire right after a suggestion is chosen.
   const skipRef = useRef(false);
 
@@ -829,8 +839,9 @@ function AddressField({ label, value, placeholder, hint, searching, onChange, on
 
   return (
     <div ref={boxRef} className="relative">
-      <Lbl>{label}</Lbl>
+      <Lbl htmlFor={addrId}>{label}</Lbl>
       <input
+        id={addrId} name={nameFromLabel(label) || "address"}
         type="text" value={value} placeholder={placeholder} autoComplete="off"
         onChange={(e) => onChange(e.target.value)}
         onFocus={() => { if (results.length) setOpen(true); }}
@@ -863,7 +874,8 @@ function AddressField({ label, value, placeholder, hint, searching, onChange, on
   );
 }
 function NumField({ label, value, onChange, info }: { label: string; value: number; onChange: (v: number) => void; info?: string }) {
-  return (<div><Lbl info={info}>{label}</Lbl><input type="number" min={0} value={value} onChange={(e) => onChange(Number(e.target.value))} className="w-full border border-zinc-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#c4956a]/40 focus:border-[#c4956a]" /></div>);
+  const id = useId();
+  return (<div><Lbl htmlFor={id} info={info}>{label}</Lbl><input id={id} name={nameFromLabel(label)} type="number" min={0} value={value} onChange={(e) => onChange(Number(e.target.value))} className="w-full border border-zinc-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#c4956a]/40 focus:border-[#c4956a]" /></div>);
 }
 // Number field with quick presets plus a free-entry escape hatch. The select
 // offers the presets and an "Other…" option; choosing it reveals a numeric
@@ -884,11 +896,14 @@ function PresetOrCustomNumber({
   useEffect(() => { setCustom(!presets.includes(value)); }, [value, presets]);
 
   const OTHER = "__other__";
+  const id = useId();
+  const nm = nameFromLabel(label);
   return (
     <div>
-      <Lbl info={info}>{label}</Lbl>
+      <Lbl htmlFor={id} info={info}>{label}</Lbl>
       <div className="relative">
         <select
+          id={id} name={nm}
           value={custom ? OTHER : String(value)}
           onChange={(e) => {
             if (e.target.value === OTHER) {
@@ -911,6 +926,7 @@ function PresetOrCustomNumber({
       {custom && (
         <div className="mt-2 flex items-center gap-2">
           <input
+            id={`${id}-custom`} name={nm ? `${nm}-custom` : undefined}
             type="number" min={1} autoFocus
             value={value || ""}
             onChange={(e) => onChange(Math.max(0, Number(e.target.value)))}
@@ -926,11 +942,13 @@ function PresetOrCustomNumber({
 // (appearance-none) and replaced by a lucide chevron positioned with right
 // padding, so it never crowds the input border.
 function SelectField({ label, value, onChange, options, info }: { label: string; value: string; onChange: (v: string) => void; options: Array<[string, string]>; info?: string }) {
+  const id = useId();
   return (
     <div>
-      <Lbl info={info}>{label}</Lbl>
+      <Lbl htmlFor={id} info={info}>{label}</Lbl>
       <div className="relative">
         <select
+          id={id} name={nameFromLabel(label)}
           value={value}
           onChange={(e) => onChange(e.target.value)}
           className="w-full appearance-none border border-zinc-300 rounded-lg pl-3 pr-9 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#c4956a]/40 focus:border-[#c4956a] cursor-pointer"
