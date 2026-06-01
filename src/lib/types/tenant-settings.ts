@@ -15,11 +15,15 @@ export interface TenantFeatures {
   events_enabled: boolean;   // special nights / private events / large groups
   terrace: boolean;          // outdoor seating
   pet_friendly: boolean;     // pets allowed
+  reminders_enabled: boolean; // send the day-before booking reminder (WhatsApp template)
+  followup_enabled: boolean;  // send the post-visit thank-you / review request (WhatsApp template)
 }
 
 /** Sensible defaults for an average restaurant. Chosen so existing tenants keep
  * today's behaviour: waitlist/double-shift/multi-language stay ON, the rest OFF
- * until an owner opts in. */
+ * until an owner opts in. Reminders default ON (cheap UTILITY template, expected
+ * by guests); the post-visit follow-up defaults OFF (it's a MARKETING template —
+ * opt-in only, so we never message promotionally without the owner's choice). */
 export const DEFAULT_FEATURES: TenantFeatures = {
   waitlist_enabled: true,
   multi_room: false,
@@ -28,6 +32,8 @@ export const DEFAULT_FEATURES: TenantFeatures = {
   events_enabled: false,
   terrace: false,
   pet_friendly: false,
+  reminders_enabled: true,
+  followup_enabled: false,
 };
 
 /** Ordered list driving the Settings → Features UI (label/hint via i18n keys). */
@@ -39,6 +45,8 @@ export const FEATURE_FLAGS: ReadonlyArray<{ key: keyof TenantFeatures; labelKey:
   { key: "events_enabled", labelKey: "settings_feature_events", hintKey: "settings_feature_events_hint" },
   { key: "terrace", labelKey: "settings_feature_terrace", hintKey: "settings_feature_terrace_hint" },
   { key: "pet_friendly", labelKey: "settings_feature_pet_friendly", hintKey: "settings_feature_pet_friendly_hint" },
+  { key: "reminders_enabled", labelKey: "settings_feature_reminders", hintKey: "settings_feature_reminders_hint" },
+  { key: "followup_enabled", labelKey: "settings_feature_followup", hintKey: "settings_feature_followup_hint" },
 ];
 
 /**

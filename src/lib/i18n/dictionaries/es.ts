@@ -445,6 +445,10 @@ export const es: Dictionary = {
   settings_feature_terrace_hint: "El local tiene mesas al aire libre.",
   settings_feature_pet_friendly: "Admite mascotas",
   settings_feature_pet_friendly_hint: "Los clientes pueden traer mascotas.",
+  settings_feature_reminders: "Recordatorios de reserva",
+  settings_feature_reminders_hint: "Envía un recordatorio por WhatsApp el día antes de la reserva.",
+  settings_feature_followup: "Seguimiento tras la visita",
+  settings_feature_followup_hint: "Envía un mensaje de agradecimiento y pide una reseña tras la visita.",
   res_mark_arrived: "Marcar como llegado",
   res_mark_noshow: "No se presentó",
 

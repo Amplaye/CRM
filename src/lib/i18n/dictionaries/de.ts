@@ -445,6 +445,10 @@ export const de: Dictionary = {
   settings_feature_terrace_hint: "Das Lokal hat Außenplätze.",
   settings_feature_pet_friendly: "Haustiere erlaubt",
   settings_feature_pet_friendly_hint: "Gäste dürfen Haustiere mitbringen.",
+  settings_feature_reminders: "Reservierungs-Erinnerungen",
+  settings_feature_reminders_hint: "Sendet am Tag vor der Reservierung eine WhatsApp-Erinnerung.",
+  settings_feature_followup: "Nachfassen nach dem Besuch",
+  settings_feature_followup_hint: "Sendet eine Dankesnachricht und bittet nach dem Besuch um eine Bewertung.",
   res_mark_arrived: "Als angekommen markieren",
   res_mark_noshow: "Nicht erschienen",
 

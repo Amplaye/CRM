@@ -9,7 +9,7 @@ import {
 } from '@/lib/restaurant-rules';
 import { getFeatures } from '@/lib/types/tenant-settings';
 import { tenantWhatsAppFrom } from '@/lib/whatsapp/from';
-import { sendWhatsAppMeta } from '@/lib/whatsapp/meta';
+import { sendWhatsAppMeta, sendWhatsAppTemplate } from '@/lib/whatsapp/meta';
 
 function timeToMinutes(time: string): number {
   const [h, m] = time.split(':').map(Number);
@@ -45,9 +45,10 @@ export async function POST(request: Request) {
     // onboarded, so we error out instead of messaging another restaurant's owner.
     const { data: tenantRow } = await supabase
       .from('tenants')
-      .select('settings')
+      .select('name, settings')
       .eq('id', tenant_id)
       .maybeSingle();
+    const restaurantName = (tenantRow as { name?: string } | null)?.name || '';
     // SaaS gate (Mossa 3): a tenant with waitlists off has nothing to process —
     // never offer freed tables from a list it doesn't run. Same source of truth
     // (settings) we already fetched, so no extra query.
@@ -142,7 +143,7 @@ export async function POST(request: Request) {
       // tables are already held by a pending_confirmation reservation)
       const { data: waitingEntries } = await supabase
         .from('waitlist_entries')
-        .select('*, guests(name, phone)')
+        .select('*, guests(name, phone, language)')
         .eq('tenant_id', tenant_id)
         .eq('date', date)
         .eq('status', 'waiting')
@@ -167,6 +168,9 @@ export async function POST(request: Request) {
         const needed = tablesNeeded(entry.party_size);
         const guestPhone = entry.guests?.phone || '';
         const guestName = entry.guests?.name || 'Cliente';
+        const guestLangRaw = String(entry.guests?.language || '').slice(0, 2).toLowerCase();
+        const guestLang: 'es' | 'it' | 'en' | 'de' =
+          guestLangRaw === 'it' || guestLangRaw === 'en' || guestLangRaw === 'de' ? guestLangRaw : 'es';
 
         // OPTION 1: Free tables available (full shift)
         if (freeTables.length >= needed) {
@@ -219,7 +223,7 @@ export async function POST(request: Request) {
 
           // Notify client via WhatsApp — ask for explicit CONFIRMO
           if (guestPhone) {
-            await notifyClient(guestPhone, guestName, date, entry.target_time, endTime, entry.party_size, assignedTables.map((t: any) => t.name), null, tenantFrom);
+            await notifyClient(guestPhone, guestName, date, entry.target_time, endTime, entry.party_size, assignedTables.map((t: any) => t.name), null, tenantFrom, guestLang, restaurantName);
           }
 
           // Notify owner
@@ -283,7 +287,7 @@ export async function POST(request: Request) {
 
               // Notify client with time limit — ask for explicit CONFIRMO
               if (guestPhone) {
-                await notifyClient(guestPhone, guestName, date, entry.target_time, limitedEndTime, entry.party_size, tableNames, limitedEndTime, tenantFrom);
+                await notifyClient(guestPhone, guestName, date, entry.target_time, limitedEndTime, entry.party_size, tableNames, limitedEndTime, tenantFrom, guestLang, restaurantName);
               }
 
               await notifyOwner(ownerPhone, guestName, date, entry.target_time, entry.party_size, tableNames, guestPhone, true, limitedEndTime, tenantFrom);
@@ -421,6 +425,13 @@ function findGapTables(
 
 /**
  * Send WhatsApp notification to client about their waitlist booking.
+ *
+ * The rich free-text message (with table/time detail + CONFIRMO/CANCELAR
+ * instructions) only delivers WITHIN the 24h customer-service window. If the
+ * guest hasn't messaged in >24h Meta rejects it, so we fall back to the
+ * approved `waitlist_table_available` template. We try free text first because
+ * a waitlisted guest has usually just interacted — staying in-window is both
+ * richer and cheaper (no template conversation fee).
  */
 async function notifyClient(
   phone: string,
@@ -431,7 +442,9 @@ async function notifyClient(
   partySize: number,
   tableNames: string[],
   timeLimit: string | null,
-  from?: string
+  from?: string,
+  lang: 'es' | 'it' | 'en' | 'de' = 'es',
+  restaurant = ''
 ) {
   let msg = `🎉 *¡Buenas noticias, ${name}!*\nSe ha liberado una mesa para tu lista de espera:\n\n📅 Fecha: ${date}\n⏰ Hora: ${time}\n👥 Personas: ${partySize}`;
 
@@ -441,7 +454,20 @@ async function notifyClient(
 
   msg += `\n\n👉 Responde *CONFIRMO* en los próximos ${OFFER_TTL_MINUTES} minutos para reservar esta mesa.\nResponde *CANCELAR* si ya no la necesitas.\n\nSi no contestas a tiempo, la ofreceremos al siguiente de la lista.`;
 
-  await sendWhatsAppMeta(phone, msg, from);
+  const res = await sendWhatsAppMeta(phone, msg, from);
+
+  // Outside the 24h window Meta returns a 4xx (e.g. 131047 / "re-engagement
+  // message"). Fall back to the approved template, which is always deliverable.
+  if (!res.ok && res.status >= 400 && res.status < 500) {
+    // waitlist_table_available vars: {{1}}=name {{2}}=restaurant {{3}}=date {{4}}=time {{5}}=party
+    await sendWhatsAppTemplate(
+      phone,
+      'waitlist_table_available',
+      lang,
+      [name, restaurant, date, time, String(partySize)],
+      from
+    );
+  }
 }
 
 /**

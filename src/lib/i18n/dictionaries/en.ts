@@ -442,6 +442,10 @@ export const en = {
   settings_feature_terrace_hint: "The venue has outdoor seating.",
   settings_feature_pet_friendly: "Pet friendly",
   settings_feature_pet_friendly_hint: "Guests may bring pets.",
+  settings_feature_reminders: "Booking reminders",
+  settings_feature_reminders_hint: "Send a WhatsApp reminder the day before the booking.",
+  settings_feature_followup: "Post-visit follow-up",
+  settings_feature_followup_hint: "Send a thank-you message and ask for a review after the visit.",
   res_mark_arrived: "Mark as arrived",
   res_mark_noshow: "Mark as no-show",
 
