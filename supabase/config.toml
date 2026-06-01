@@ -1,0 +1,6 @@
+project_id = "azhlnybiqlkbhbboyvud"
+
+# The menu-extract worker is called server-to-server from the Next.js API with
+# the service-role key; it does its own auth, so skip the gateway JWT check.
+[functions.menu-extract]
+verify_jwt = false

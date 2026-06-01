@@ -1105,11 +1105,68 @@ function ImportMenuModal({
   const [tab, setTab] = useState<"file" | "url">("file");
   const [file, setFile] = useState<File | null>(null);
   const [url, setUrl] = useState("");
-  const [stage, setStage] = useState<"idle" | "uploading" | "preview" | "saving" | "done">("idle");
+  const [stage, setStage] = useState<"idle" | "uploading" | "processing" | "preview" | "saving" | "done">("idle");
   const [extracted, setExtracted] = useState<ExtractedMenu | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [dragging, setDragging] = useState(false);
   const [savedCounts, setSavedCounts] = useState<{ cats: number; items: number } | null>(null);
+  const [jobId, setJobId] = useState<string | null>(null);
+  // Cosmetic, time-based progress (the OpenAI call gives no real progress feed).
+  const [progressPct, setProgressPct] = useState(0);
+
+  // Poll the job status while extraction runs on the Supabase Edge Function.
+  // Large PDFs take 60-120s, well past Vercel's 60s cap, so the work is async.
+  useEffect(() => {
+    if (stage !== "processing" || !jobId) return;
+    let cancelled = false;
+    const startedAt = Date.now();
+    const HARD_TIMEOUT_MS = 180_000; // safety net: never hang forever on the spinner
+
+    const tick = async () => {
+      // Ease the bar toward ~92% over ~2min; the real "done" snaps it to 100.
+      const elapsed = Date.now() - startedAt;
+      setProgressPct(Math.min(92, Math.round((elapsed / 120_000) * 92)));
+
+      if (elapsed > HARD_TIMEOUT_MS) {
+        if (!cancelled) {
+          setError(
+            t("menu_import_timeout") ||
+              "L'estrazione sta impiegando troppo. Riprova con un menu più piccolo o diviso in più file."
+          );
+          setStage("idle");
+        }
+        return;
+      }
+
+      try {
+        const res = await fetch(`/api/menu/import-job/${jobId}`);
+        const data = await res.json();
+        if (cancelled) return;
+        if (!res.ok) {
+          // 404/500 — keep trying a bit; the row may not be visible yet.
+          return;
+        }
+        if (data.status === "done") {
+          setExtracted(data.result);
+          setProgressPct(100);
+          setStage("preview");
+        } else if (data.status === "error") {
+          setError(data.error || t("menu_import_failed") || "Estrazione fallita.");
+          setStage("idle");
+        }
+        // pending/processing → keep polling
+      } catch {
+        // network blip — keep polling
+      }
+    };
+
+    void tick();
+    const iv = setInterval(tick, 2500);
+    return () => {
+      cancelled = true;
+      clearInterval(iv);
+    };
+  }, [stage, jobId, t]);
 
   // Keep in sync with the server allow-list in /api/menu/import-file and the
   // input's accept attribute. Some browsers report an empty file.type for
@@ -1175,19 +1232,22 @@ function ImportMenuModal({
     if (!file) return;
     setStage("uploading");
     setError(null);
+    setProgressPct(0);
     try {
       const form = new FormData();
       form.append("tenant_id", tenantId);
       form.append("file", file);
-      const res = await fetch("/api/menu/import-file", { method: "POST", body: form });
+      // Create an async job; the heavy OpenAI extraction runs on the Supabase
+      // Edge Function (150s) so it survives Vercel's 60s cap. We then poll.
+      const res = await fetch("/api/menu/import-job", { method: "POST", body: form });
       const data = await res.json();
       if (!res.ok) {
         setError(data.error || `HTTP ${res.status}`);
         setStage("idle");
         return;
       }
-      setExtracted(data.extracted);
-      setStage("preview");
+      setJobId(data.jobId);
+      setStage("processing");
     } catch (e: any) {
       setError(e?.message || "Errore di rete");
       setStage("idle");
@@ -1439,15 +1499,26 @@ function ImportMenuModal({
             </>
           )}
 
-          {stage === "uploading" && (
+          {(stage === "uploading" || stage === "processing") && (
             <div className="py-12 text-center">
               <Loader2 className="w-12 h-12 mx-auto mb-4 animate-spin text-[#c4956a]" />
               <p className="font-bold text-black">
                 {t("menu_import_analyzing") || "Sto leggendo il menu..."}
               </p>
               <p className="text-xs text-black mt-1">
-                {t("menu_import_wait") || "Può richiedere fino a 30 secondi."}
+                {t("menu_import_wait") || "Può richiedere fino a 2 minuti per menu grandi."}
               </p>
+              {stage === "processing" && (
+                <div className="mt-5 max-w-xs mx-auto">
+                  <div className="h-2 w-full rounded-full bg-zinc-200 overflow-hidden">
+                    <div
+                      className="h-full rounded-full bg-[#c4956a] transition-all duration-700 ease-out"
+                      style={{ width: `${progressPct}%` }}
+                    />
+                  </div>
+                  <p className="text-[11px] text-black mt-1.5 tabular-nums">{progressPct}%</p>
+                </div>
+              )}
             </div>
           )}
 
