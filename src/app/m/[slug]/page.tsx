@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation";
+import { Playfair_Display } from "next/font/google";
 import { createServiceRoleClient } from "@/lib/supabase/server";
 import {
   allergenLabel,
@@ -8,6 +9,16 @@ import {
   type CollectionKind,
 } from "@/lib/menu/labels";
 import MenuView, { type MenuViewSection } from "./MenuView";
+
+// Elegant small-caps serif for the menu wordmark + section headers, loaded only
+// on this public route (next/font works in any server component, not just a
+// layout). MenuView reads it via the `--font-playfair` CSS variable.
+const playfair = Playfair_Display({
+  variable: "--font-playfair",
+  subsets: ["latin"],
+  weight: ["500", "600", "700"],
+  display: "swap",
+});
 
 // Public hosted menu page. No auth, no cookies, no JS framework needed for
 // the content path. The CRM owner shares /m/<slug> as a QR target so the
@@ -195,11 +206,14 @@ export default async function PublicMenuPage({ params }: { params: Promise<Param
   const sections = [...collectionSections, ...categorySections];
 
   return (
-    <MenuView
-      restaurantName={tenant.name}
-      menuLabel={sections.length === 0 ? ui.updating : ui.menu}
-      sections={sections}
-    />
+    <div className={playfair.variable}>
+      <MenuView
+        restaurantName={tenant.name}
+        menuLabel={ui.menu}
+        emptyLabel={ui.updating}
+        sections={sections}
+      />
+    </div>
   );
 }
 
