@@ -276,6 +276,11 @@ export async function runOnboard(
         no_show_baseline_pct: 15,
         ai_enabled_channels: ["whatsapp", "voice"],
         currency: "EUR",
+        // Voice tier: every new tenant is born on the BASE provider (Vapi). The
+        // orchestrator already clones a Vapi assistant below, so this flag and the
+        // provisioned infra agree. A premium upgrade (Retell) flips voice.provider
+        // later via the admin switch — see src/lib/tenants/voice-provider.ts.
+        voice: { provider: "vapi" as const },
         // Feature flags from the wizard answers (terrace/pets/events/languages/
         // double-shift). Read by Settings → Features and the bot's info source.
         ...(input.features ? { features: input.features } : {}),

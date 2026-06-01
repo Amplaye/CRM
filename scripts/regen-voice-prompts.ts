@@ -1,17 +1,25 @@
-// One-off: regenerate the VOICE PROMPT article for oraz + Sofía AI from the
-// current buildVoicePrompt() golden template (hour-required + phone-prefix
-// rules) and sync each assistant. Does NOT touch Picnic (_VOICE_PROMPT_ is
-// hand-made). Run with: npx tsx scripts/regen-voice-prompts.ts
+// Regenerate the VOICE PROMPT KB article for the live voice tenants from the
+// current buildVoicePrompt() golden template, then sync each tenant's Vapi
+// assistant so the spoken prompt matches the source. Re-run any time the
+// template changes (e.g. the date header). Idempotent: sync-kb-vapi only PATCHes
+// Vapi when the composed prompt actually changed.
+//
+// Scope = the REAL voice clients only (Oraz, BALI Rest). PICNIC is excluded on
+// purpose: it is the legacy GOLDEN TEMPLATE we clone from, not a customer with
+// its own voice agent (its assistant IS the shared template). The template's own
+// prompt is updated separately (see scripts/update-template-prompt.ts).
+//
+// Run with: SB_SERVICE_KEY=… AI_WEBHOOK_SECRET=… npx tsx scripts/regen-voice-prompts.ts
 import { buildVoicePrompt, type VoicePromptInputResolved } from "../src/lib/onboarding/voice-prompt";
 
-const SB_URL = "https://azhlnybiqlkbhbboyvud.supabase.co";
+const SB_URL = process.env.SB_URL || "https://azhlnybiqlkbhbboyvud.supabase.co";
 const SB_KEY = process.env.SB_SERVICE_KEY!;
 const CRM_BASE = process.env.CRM_BASE || "https://crm.baliflowagency.com";
 const AI_SECRET = process.env.AI_WEBHOOK_SECRET || "";
 
 const TENANTS = [
-  { id: "2b2116fc-ce75-4d9c-979c-bfd867d667e8", name: "oraz", lang: "it" as const },
-  { id: "579d9521-474f-4187-8eca-68b8cfdfc5c5", name: "Sofía AI", lang: "es" as const },
+  { id: "93eebe9c-8af5-4ca5-a315-3376ef4976e5", name: "Oraz", lang: "it" as const },
+  { id: "a085e5bb-11f3-47f9-96da-c6cfdbff2ea0", name: "BALI Rest", lang: "es" as const },
 ];
 
 async function sb(path: string, init?: RequestInit) {
@@ -25,14 +33,15 @@ async function sb(path: string, init?: RequestInit) {
 
 async function main() {
   for (const t of TENANTS) {
-    const rows = await sb(`tenants?id=eq.${t.id}&select=settings`);
+    const rows = await sb(`tenants?id=eq.${t.id}&select=name,settings`);
     const settings = rows[0]?.settings || {};
+    const lang = (settings.bot_config?.primary_language || t.lang) as VoicePromptInputResolved["language"];
     const input: VoicePromptInputResolved = {
-      restaurant_name: settings.restaurant_name || t.name,
-      language: t.lang,
+      restaurant_name: rows[0]?.name || t.name,
+      language: lang,
       opening_hours: settings.opening_hours || {},
       restaurant_phone: settings.bot_config?.restaurant_phone || settings.restaurant_phone,
-      timezone: settings.bot_config?.timezone || settings.timezone,
+      timezone: settings.timezone || settings.bot_config?.timezone,
       description: settings.description || "restaurante",
     };
     const prompt = buildVoicePrompt(input);
@@ -50,7 +59,7 @@ async function main() {
       headers: { "Content-Type": "application/json", "x-ai-secret": AI_SECRET },
       body: JSON.stringify({ tenant_id: t.id }),
     });
-    console.log(`${t.name}: sync-kb-vapi -> ${r.status} ${(await r.text()).slice(0, 160)}`);
+    console.log(`${t.name}: sync-kb-vapi -> ${r.status} ${(await r.text()).slice(0, 200)}`);
   }
 }
 

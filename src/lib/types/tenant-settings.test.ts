@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { getFeatures, DEFAULT_FEATURES, FEATURE_FLAGS, restaurantFacts, featuresFromQuestionnaire } from './tenant-settings';
+import { getFeatures, DEFAULT_FEATURES, FEATURE_FLAGS, restaurantFacts, featuresFromQuestionnaire, getVoiceProvider } from './tenant-settings';
 
 describe('getFeatures', () => {
   it('returns defaults when settings has no features', () => {
@@ -22,6 +22,28 @@ describe('getFeatures', () => {
   it('ignores unknown keys and never mutates the defaults', () => {
     getFeatures({ features: { waitlist_enabled: false } });
     expect(DEFAULT_FEATURES.waitlist_enabled).toBe(true);
+  });
+});
+
+describe('getVoiceProvider (tiering: vapi base / retell premium)', () => {
+  it('defaults to vapi (base) when nothing is set', () => {
+    expect(getVoiceProvider(null)).toBe('vapi');
+    expect(getVoiceProvider(undefined)).toBe('vapi');
+    expect(getVoiceProvider({})).toBe('vapi');
+  });
+
+  it('honours the explicit flag over any stored ids', () => {
+    // Premium tenant keeps its Vapi clone for an instant downgrade; the flag wins.
+    expect(getVoiceProvider({ voice: { provider: 'retell' }, vapi: { assistantId: 'a' } })).toBe('retell');
+    expect(getVoiceProvider({ voice: { provider: 'vapi' }, retell: { agentId: 'r' } })).toBe('vapi');
+  });
+
+  it('compat: a legacy Retell tenant with no flag is read as premium', () => {
+    expect(getVoiceProvider({ retell: { agentId: 'agent_x' } })).toBe('retell');
+  });
+
+  it('compat: a Vapi-only tenant with no flag is base', () => {
+    expect(getVoiceProvider({ vapi: { assistantId: 'asst_x' } })).toBe('vapi');
   });
 });
 

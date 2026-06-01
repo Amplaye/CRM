@@ -72,8 +72,8 @@ function behaviourBody(name: string, desc: string, phone: string, timezone: stri
   const phoneSentence = phone
     ? `Problema técnico, ¿llamamos al ${phone} o lo intento de nuevo?`
     : `Problema técnico, ¿lo intento de nuevo?`;
-  return `HOY {{current_date}} · HORA {{current_time}}${timezone ? ` ${timezone}` : ""}
-Usa SIEMPRE esta fecha y hora como "hoy" y "ahora". NUNCA inventes ni asumas otra fecha (NUNCA uses fechas de 2023/2024 ni de tu entrenamiento). Para cualquier otro día/fecha relativa (ej. "este viernes", "lunes", "el 5 de mayo"), llama get_current_date PRIMERO y usa lo que devuelve.
+  return `HOY {{current_date}} · MAÑANA {{tomorrow_date}} · HORA {{current_time}}${timezone ? ` ${timezone}` : ""}
+{{current_date}} y {{tomorrow_date}} ya vienen escritas POR ENTERO con su día de la semana (ej. "lunes 1 de junio de 2026"). Dílas TAL CUAL — NUNCA las conviertas a números ni a formato ISO (PROHIBIDO "2026-06-01"). Usa SIEMPRE estas fechas como "hoy" y "mañana". NUNCA inventes ni asumas otra fecha (NUNCA uses fechas de 2023/2024 ni de tu entrenamiento). Para cualquier otro día/fecha relativa (ej. "este viernes", "lunes", "el 5 de mayo"), llama get_current_date PRIMERO y di el día completo.
 
 # Voice Agent — ${name}
 Voz de ${name} (${desc}). Reservas, modificaciones, cancelaciones, info.
@@ -89,7 +89,8 @@ IDIOMAS (ES/IT/EN/DE)
 
 FECHAS Y DÍAS
 - "hoy/oggi/today/heute", "esta tarde/stasera/tonight/heute Abend", "mañana/domani/tomorrow/morgen" → usa HOY/MAÑANA del header, NO tool call.
-- "este viernes/il lunedì/el 5 de mayo/diesen Freitag/am 5. Mai" → get_current_date UNA vez, luego sigue.
+- Cuando NOMBRES una fecha al cliente, dila SIEMPRE por entero con el día de la semana, en su idioma: ES "lunes 1 de junio" · IT "lunedì 1 giugno" · EN "Monday June 1st" · DE "Montag, 1. Juni". HOY y MAÑANA ya te llegan así en el header: úsalas tal cual. NUNCA digas una fecha en cifras/ISO (PROHIBIDO "uno cero seis" o "2026-06-01").
+- "este viernes/il lunedì/el 5 de mayo/diesen Freitag/am 5. Mai" → get_current_date UNA vez, luego di el día completo.
 - NUNCA calcules tú el día de la semana.
 - "HORA YA PASADA" — comprueba SIEMPRE contra HORA del header antes de decirlo. Una hora SOLO está pasada si la reserva es para HOY **y** la hora pedida es ANTERIOR a {{current_time}}. Reglas: (a) si la reserva NO es para hoy (mañana, otro día) → NUNCA está pasada, sigue con el flujo; (b) compara en 24h reales: si {{current_time}} es 11:15 y el cliente pide las 15:00, NO ha pasado (15:00 > 11:15) → sigue; (c) mañana=tarde NO significa pasado (las 15:00 de hoy a las 11:15 aún no han llegado). En caso de duda, NUNCA digas que pasó: trátala como válida y sigue. PROHIBIDO decir "ya ha pasado" y luego rectificar — verifica ANTES de hablar.
 - Solo cuando es CIERTO (hoy y anterior a {{current_time}}): "a las {hora} ya ha pasado, ¿qué otro horario?" · IT "le {hora} sono già passate, che altro orario?" · EN "{hora} has already passed, what other time?" · DE "{hora} ist schon vorbei, welche andere Uhrzeit?".
@@ -230,9 +231,13 @@ export interface VoicePromptInputResolved extends VoicePromptInput {
 /**
  * Build the full voice prompt body.
  *
- * Opens with the "HOY {{current_date}} · HORA {{current_time}}" header that Vapi
- * fills from variableValues at call time — without it gpt-4o-mini hallucinates
- * the date (it answered "fecha pasada" for a same-day booking, using 2023).
+ * Opens with the "HOY {{current_date}} · MAÑANA {{tomorrow_date}} · HORA
+ * {{current_time}}" header that BOTH providers fill at call time — Vapi from
+ * variableValues, Retell from retell_llm_dynamic_variables (same {{var}} syntax).
+ * The Web Call Token workflow injects current_date/tomorrow_date already spelled
+ * out in full (e.g. "lunes 1 de junio de 2026"), so the agent reads them verbatim
+ * and never converts to ISO. Without this header gpt-4o-mini hallucinates the
+ * date (it answered "fecha pasada" for a same-day booking, using 2023).
  * Then the agency's golden-source behavioural rules (identical for every tenant)
  * filled with the tenant's name, description and backup phone, followed by the
  * tenant's own opening hours as a "## Horario" section. The published KB

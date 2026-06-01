@@ -6,6 +6,9 @@ import type { TenantStatus } from "@/lib/tenants/status";
 // adding ONE flag to this template; every future tenant then has it for free.
 // The matching "is this variant finite?" log lives in docs/REGISTRO_VARIANTI.md.
 
+/** Voice tier. `vapi` = base (default, every tenant); `retell` = premium upgrade. */
+export type VoiceProviderTier = "vapi" | "retell";
+
 /** On/off capabilities a single restaurant can have. Plain, owner-answerable. */
 export interface TenantFeatures {
   waitlist_enabled: boolean; // collect guests when full, notify on free table
@@ -72,7 +75,16 @@ export interface TenantSettings {
   whatsapp?: { from?: string };
   /** Offboarding bookkeeping, written by the archive flow (src/lib/tenants/delete-tenant.ts). */
   archive?: { prev_status: TenantStatus; export_path?: string };
-  /** Voice provider config — exactly one is present per tenant. */
+  /** Which voice platform serves this tenant's calls. Vapi is the BASE tier
+   * (default for every tenant); Retell is the PREMIUM paid upgrade. Switching
+   * tiers flips this flag — both providers run the SAME prompt (built from
+   * voice-prompt.ts), so the switch is a routing change, not a rebuild. When the
+   * flag is absent (legacy tenants written before tiering), getVoiceProvider
+   * falls back to deducing it from which provider id is stored. */
+  voice?: { provider?: VoiceProviderTier };
+  /** Voice provider ids — both may be present (a premium tenant keeps its Vapi
+   * clone so a downgrade back to base is instant). `voice.provider` decides which
+   * one actually serves calls. */
   vapi?: { assistantId?: string };
   retell?: { agentId?: string; llmId?: string };
   retell_kb?: { id?: string };
@@ -95,6 +107,23 @@ export interface TenantSettings {
  * Single source of truth — the app and (future) engine both read flags via this. */
 export function getFeatures(settings: TenantSettings | null | undefined): TenantFeatures {
   return { ...DEFAULT_FEATURES, ...(settings?.features || {}) };
+}
+
+/**
+ * Which voice provider actually serves this tenant's calls.
+ *
+ * Tiering rule: Vapi is the BASE service everyone gets; Retell is the PREMIUM
+ * paid upgrade. The explicit `settings.voice.provider` flag is the source of
+ * truth. For legacy tenants written before the flag existed, fall back to the
+ * same deduction teardown.ts uses — a Retell agent id without the flag means a
+ * legacy Retell tenant; otherwise base (Vapi). Default for anything new/unset is
+ * always `vapi`. */
+export function getVoiceProvider(settings: TenantSettings | null | undefined): VoiceProviderTier {
+  const explicit = settings?.voice?.provider;
+  if (explicit === "vapi" || explicit === "retell") return explicit;
+  // Compat: no flag → deduce. A stored Retell agent (and no flag) = legacy premium.
+  if (settings?.retell?.agentId) return "retell";
+  return "vapi";
 }
 
 /**
