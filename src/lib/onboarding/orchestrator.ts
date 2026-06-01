@@ -264,6 +264,11 @@ export async function runOnboard(
         // The app reads this at boot to fix the UI language.
         crm_locale: input.crm_locale || input.language,
         opening_hours: input.opening_hours,
+        // The WhatsApp number the owner typed in the wizard. Read by the CRM
+        // (pending/reservations/waitlist) as settings.owner_phone to notify the
+        // RIGHT owner. Without this it was dropped and every tenant fell back to
+        // the bot's hardcoded Picnic number — owners got each other's bookings.
+        owner_phone: input.owner_phone.startsWith("+") ? input.owner_phone : `+${input.owner_phone}`,
         last_reservation_offset: input.last_reservation_offset || { lunch: 45, dinner: 60 },
         avg_spend: 25,
         avg_cost: 10,
@@ -289,7 +294,15 @@ export async function runOnboard(
       // reply language). Without this it fell back to 'es' for every tenant regardless
       // of the star — e.g. an owner picking Italian still got a Spanish-defaulting bot.
       const mergeBotConfig = (existing: Record<string, any> | undefined) => {
-        const merged = { ...(existing || {}), primary_language: input.language };
+        const merged = {
+          ...(existing || {}),
+          primary_language: input.language,
+          // The n8n bot reads bot_config.responsible_phone to decide WHO gets the
+          // "NUEVA RESERVA"/"GRUPO GRANDE" owner alerts. Without it the bot fell
+          // back to a hardcoded Picnic number, so every tenant's owner alerts went
+          // to Picnic's owner. Persist the wizard number so each tenant alerts ITS owner.
+          responsible_phone: input.owner_phone.startsWith("+") ? input.owner_phone : `+${input.owner_phone}`,
+        };
         if (input.booking_policy) Object.assign(merged, input.booking_policy);
         return merged;
       };

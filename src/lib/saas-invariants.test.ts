@@ -94,6 +94,29 @@ describe("SaaS pillar — config-not-code: a flag changes one tenant only [Mossa
   });
 });
 
+describe("SaaS pillar — the wizard owner phone is persisted, never dropped [owner-alert routing]", () => {
+  // The number the owner types in the wizard MUST be saved on the tenant, in BOTH
+  // places that decide who gets booking alerts:
+  //   - settings.owner_phone        → read by the CRM (pending/reservations/waitlist)
+  //   - bot_config.responsible_phone → read by the cloned n8n bot
+  // When it was dropped, every tenant's "NUEVA RESERVA"/"GRUPO GRANDE" alerts fell
+  // back to the bot's hardcoded Picnic number, so owners got each other's bookings.
+  // We read the orchestrator SOURCE (its module pulls server-only supabase deps).
+  const src = readFileSync(join(process.cwd(), "src", "lib", "onboarding", "orchestrator.ts"), "utf8");
+  const provBlock = src.match(/const provisioningSettings\s*=\s*\{([\s\S]*?)\n {6}\};/);
+  const botBlock = src.match(/const mergeBotConfig\s*=[\s\S]*?const merged\s*=\s*\{([\s\S]*?)\};/);
+
+  it("provisioningSettings persists owner_phone (read by the CRM as settings.owner_phone)", () => {
+    expect(provBlock, "provisioningSettings block not found").not.toBeNull();
+    expect(provBlock![1]).toMatch(/owner_phone:\s*input\.owner_phone/);
+  });
+
+  it("mergeBotConfig persists responsible_phone (read by the n8n bot)", () => {
+    expect(botBlock, "mergeBotConfig block not found").not.toBeNull();
+    expect(botBlock![1]).toMatch(/responsible_phone:\s*input\.owner_phone/);
+  });
+});
+
 describe("SaaS pillar — every new tenant clones PICNIC's full workflow set [gold standard]", () => {
   // PICNIC is the maintenance-free legacy tenant. The onboarding template must
   // clone exactly its per-tenant workflows so a new client is born complete.

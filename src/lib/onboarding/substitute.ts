@@ -46,6 +46,20 @@ function replaceAll(haystack: string, needle: string, replacement: string): stri
   return haystack.split(needle).join(replacement);
 }
 
+// The national part of a phone number — its digits with the country code dropped.
+// The template's BARE/DIGITS tokens are national-only ("828 712 623"), so a full
+// E.164 number must be reduced the same way before substitution, or a "+34"
+// literal already in the template doubles the prefix ("+3434684109244").
+//
+// We strip a known leading country code (default "34" — every tenant so far is
+// Spanish, matching the template's own +34). If the number doesn't start with it
+// (a future non-ES tenant), we leave the digits as-is rather than guessing — the
+// worst case is a longer-but-correct number, never a doubled prefix.
+function nationalDigits(phone: string, countryCode = "34"): string {
+  const digits = (phone || "").replace(/\D/g, "");
+  return digits.startsWith(countryCode) ? digits.slice(countryCode.length) : digits;
+}
+
 // Substitute every tenant-specific token inside a workflow JSON string.
 // Operates on the whole JSON text (not just jsCode) because some values
 // appear in node parameters, webhook paths, settings, etc.
@@ -55,8 +69,15 @@ export function substituteTenantTokens(workflowJsonText: string, sub: OnboardSub
   text = replaceAll(text, TEMPLATE_RESTAURANT_TENANT_ID, sub.newTenantId);
   text = replaceAll(text, TEMPLATE_RESTAURANT_OWNER_PHONE, sub.newOwnerPhone);
   text = replaceAll(text, TEMPLATE_RESTAURANT_PHONE, sub.newRestaurantPhone);
-  text = replaceAll(text, TEMPLATE_RESTAURANT_PHONE_BARE, sub.newRestaurantPhone.replace(/^\+?\d+\s/, ""));
-  text = replaceAll(text, TEMPLATE_RESTAURANT_PHONE_DIGITS, sub.newRestaurantPhone.replace(/\D/g, ""));
+  // The BARE/DIGITS template tokens are the NATIONAL part only (no "34" country
+  // code, e.g. "828 712 623"). The full number must be stripped of its country
+  // code before substituting them, or a token sitting after a literal "+34" in
+  // the template yields a doubled prefix (e.g. "+34" + "34684109244" =
+  // "+3434684109244"). nationalDigits() drops the leading country code robustly,
+  // independent of spacing. See the regression test in substitute.test.ts.
+  const newPhoneNational = nationalDigits(sub.newRestaurantPhone);
+  text = replaceAll(text, TEMPLATE_RESTAURANT_PHONE_BARE, newPhoneNational);
+  text = replaceAll(text, TEMPLATE_RESTAURANT_PHONE_DIGITS, newPhoneNational);
 
   // Google review URL: replace the cid fragment OR the full URL if present
   if (sub.newReviewUrl) {
