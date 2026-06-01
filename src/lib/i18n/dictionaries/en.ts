@@ -512,6 +512,7 @@ export const en = {
   floor_delete_zone_last: "You can't delete the only remaining zone.",
   floor_plan_empty: "No tables in this zone yet.",
   floor_plan_empty_edit: "Pick a shape and party size above to add tables, then drag them to position.",
+  floor_rotate_table: "Rotate table",
   floor_no_reservations: "No reservations this shift",
 
   // Dashboard - new KPI section

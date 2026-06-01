@@ -515,6 +515,7 @@ export const de: Dictionary = {
   floor_delete_zone_last: "Sie können die einzig verbleibende Zone nicht löschen.",
   floor_plan_empty: "Noch keine Tische in dieser Zone.",
   floor_plan_empty_edit: "Wählen Sie oben Form und Personenzahl, um Tische hinzuzufügen, und ziehen Sie sie zum Platzieren.",
+  floor_rotate_table: "Tisch drehen",
   floor_no_reservations: "Keine Reservierungen in dieser Schicht",
 
   // Dashboard - new KPI section

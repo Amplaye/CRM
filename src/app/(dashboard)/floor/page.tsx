@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback, useRef } from "react";
-import { Calendar, Users, LayoutGrid, AlertTriangle, ChevronLeft, ChevronRight, List, LayoutPanelTop, Plus, Pencil, Check, X, Armchair } from "lucide-react";
+import { Calendar, Users, LayoutGrid, AlertTriangle, ChevronLeft, ChevronRight, List, LayoutPanelTop, Plus, Pencil, Check, X, Armchair, RotateCw } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useLanguage } from "@/lib/contexts/LanguageContext";
 import { useTenant } from "@/lib/contexts/TenantContext";
@@ -19,6 +19,7 @@ interface TableData {
   zone: string;
   position_x: number | null;
   position_y: number | null;
+  rotation: number | null;
 }
 
 type TableShape = "round" | "square" | "rectangle";
@@ -105,7 +106,7 @@ export default function FloorPage() {
     const [tablesRes, reservationsRes] = await Promise.all([
       supabase
         .from("restaurant_tables")
-        .select("id, name, seats, status, shape, zone, position_x, position_y")
+        .select("id, name, seats, status, shape, zone, position_x, position_y, rotation")
         .eq("tenant_id", activeTenant.id)
         .eq("status", "active")
         .order("name"),
@@ -334,6 +335,21 @@ export default function FloorPage() {
       .from("restaurant_tables")
       .update({ position_x: Math.round(x), position_y: Math.round(y) })
       .eq("id", tableId);
+  }, []);
+
+  // Turn a long table 90° (0 = horizontal, 90 = vertical). Optimistic so the
+  // canvas flips instantly; realtime refetch will confirm.
+  const rotateTable = useCallback(async (tableId: string) => {
+    let nextRotation = 0;
+    setTables((prev) =>
+      prev.map((tbl) => {
+        if (tbl.id !== tableId) return tbl;
+        nextRotation = (tbl.rotation || 0) === 0 ? 90 : 0;
+        return { ...tbl, rotation: nextRotation };
+      })
+    );
+    const supabase = createClient();
+    await supabase.from("restaurant_tables").update({ rotation: nextRotation }).eq("id", tableId);
   }, []);
 
   // Find the lowest unused table number (fills gaps from deletions)
@@ -922,6 +938,7 @@ export default function FloorPage() {
               activeStatuses={activeStatuses}
               editing={editingPlan}
               onTableMove={persistTablePosition}
+              onTableRotate={rotateTable}
               onTableClick={(table) => {
                 if (editingPlan) {
                   setDeleteTableModal(table);
@@ -1235,11 +1252,12 @@ interface PlanCanvasProps {
   activeStatuses: string[];
   editing: boolean;
   onTableMove: (id: string, x: number, y: number) => void;
+  onTableRotate: (id: string) => void;
   onTableClick: (table: TableData) => void;
   t: (key: any) => string;
 }
 
-function PlanCanvas({ tables, resTableLinks, shiftReservations, activeStatuses, editing, onTableMove, onTableClick, t }: PlanCanvasProps) {
+function PlanCanvas({ tables, resTableLinks, shiftReservations, activeStatuses, editing, onTableMove, onTableRotate, onTableClick, t }: PlanCanvasProps) {
   // Local optimistic positions during drag
   const [localPositions, setLocalPositions] = useState<Record<string, { x: number; y: number }>>({});
   const [draggingId, setDraggingId] = useState<string | null>(null);
@@ -1392,7 +1410,13 @@ function PlanCanvas({ tables, resTableLinks, shiftReservations, activeStatuses, 
           const local = localPositions[tbl.id];
           const x = local?.x ?? tbl.position_x ?? 60;
           const y = local?.y ?? tbl.position_y ?? 60;
-          tableRects[tbl.id] = { x, y, w: dims.w, h: dims.h, cx: x + dims.w / 2, cy: y + dims.h / 2 };
+          // A rotated long table keeps its centre but swaps width/height, so the
+          // obstacle footprint the connection curve must clear swaps too.
+          const turned = tbl.shape === "rectangle" && (tbl.rotation || 0) === 90;
+          const w = turned ? dims.h : dims.w;
+          const h = turned ? dims.w : dims.h;
+          const cx = x + dims.w / 2, cy = y + dims.h / 2;
+          tableRects[tbl.id] = { x: cx - w / 2, y: cy - h / 2, w, h, cx, cy };
         }
 
         const groups: Record<string, { table: TableData; cx: number; cy: number }[]> = {};
@@ -1501,9 +1525,20 @@ function PlanCanvas({ tables, resTableLinks, shiftReservations, activeStatuses, 
         const borderColor = !occupied ? "#22c55e" : isSeated ? "#3b82f6" : "#ef4444";
         const bg = !occupied ? "rgba(220,252,231,0.95)" : isSeated ? "rgba(219,234,254,0.95)" : "rgba(254,226,226,0.95)";
 
+        // Only long (rectangular) tables can be turned. 90° = vertical.
+        // CSS rotation keeps the box centred on (x,y)+dims/2, so all the
+        // position/merge-line math (which uses the un-rotated rect) stays valid.
+        const canRotate = table.shape === "rectangle";
+        const rotated = canRotate && (table.rotation || 0) === 90;
+        const showRotate = editing && canRotate;
+        // Place the gira button just outside whichever long side faces right
+        // after rotation, so it always sits beside the table, never on it.
+        const btnLeft = rotated ? x + dims.h / 2 + 6 : x + dims.w + 6;
+        const btnTop = rotated ? y + dims.w / 2 - 12 : y + dims.h / 2 - 12;
+
         return (
+          <div key={table.id} className="contents">
           <div
-            key={table.id}
             onMouseDown={(e) => handleMouseDown(e, table)}
             onTouchStart={(e) => handleTouchStart(e, table)}
             onClick={(e) => {
@@ -1520,19 +1555,51 @@ function PlanCanvas({ tables, resTableLinks, shiftReservations, activeStatuses, 
               borderRadius: table.shape === "round" ? "50%" : table.shape === "square" ? "10px" : "14px",
               border: `3px solid ${borderColor}`,
               background: bg,
+              transform: rotated ? "rotate(90deg)" : undefined,
               zIndex: draggingId === table.id ? 20 : 10,
             }}
           >
-            <span className="text-[11px] font-bold text-black leading-none">{table.name}</span>
-            <span className="text-[9px] text-black leading-tight">{table.seats}p</span>
-            {guestName && (
-              <span className="text-[8px] text-black truncate max-w-[90%] mt-0.5">{guestName}</span>
-            )}
+            {/* Counter-rotate the labels so text stays upright on a turned table */}
+            <div className="flex flex-col items-center justify-center text-center" style={{ transform: rotated ? "rotate(-90deg)" : undefined }}>
+              <span className="text-[11px] font-bold text-black leading-none">{table.name}</span>
+              <span className="text-[9px] text-black leading-tight">{table.seats}p</span>
+              {guestName && (
+                <span className="text-[8px] text-black truncate max-w-[90%] mt-0.5">{guestName}</span>
+              )}
+            </div>
             {isMerged && (
-              <span className="absolute -top-2 -right-2 px-1 py-0.5 text-[8px] font-bold text-white rounded-full" style={{ background: "#c4956a" }}>
+              <span className="absolute -top-2 -right-2 px-1 py-0.5 text-[8px] font-bold text-white rounded-full" style={{ background: "#c4956a", transform: rotated ? "rotate(-90deg)" : undefined }}>
                 ×{resTablesCount}
               </span>
             )}
+          </div>
+          {showRotate && (
+            <button
+              type="button"
+              aria-label={t("floor_rotate_table")}
+              title={t("floor_rotate_table")}
+              onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); }}
+              onTouchStart={(e) => e.stopPropagation()}
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                onTableRotate(table.id);
+              }}
+              className="absolute flex items-center justify-center rounded-full shadow-md hover:brightness-95 active:scale-95 transition"
+              style={{
+                left: btnLeft,
+                top: btnTop,
+                width: 24,
+                height: 24,
+                background: "#fff",
+                border: "2px solid #c4956a",
+                color: "#c4956a",
+                zIndex: 30,
+              }}
+            >
+              <RotateCw size={13} strokeWidth={2.5} />
+            </button>
+          )}
           </div>
         );
       })}
