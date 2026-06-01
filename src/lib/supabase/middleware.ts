@@ -34,6 +34,9 @@ export async function updateSession(request: NextRequest) {
     !request.nextUrl.pathname.startsWith('/auth/callback') &&
     !request.nextUrl.pathname.startsWith('/auth/confirm') &&
     !request.nextUrl.pathname.startsWith('/qr-login') &&
+    // /m/<slug> is the public hosted menu (the QR target diners scan) — it must
+    // be reachable without auth, same as /api.
+    !request.nextUrl.pathname.startsWith('/m/') &&
     !request.nextUrl.pathname.startsWith('/api')
   ) {
     const url = request.nextUrl.clone()

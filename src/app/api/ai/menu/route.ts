@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import { createServiceRoleClient } from '@/lib/supabase/server';
 import { assertAiSecret } from '@/lib/ai-auth';
+import { matchCollectionKind, KIND_TO_TAG } from '@/lib/menu/collection-match';
+import type { CollectionKind } from '@/lib/types';
 
 // Live menu lookup for the AI agents (WhatsApp bot + voice). Reads the
 // `menu_categories` / `menu_items` tables directly — NOT the knowledge base.
@@ -89,6 +91,7 @@ export async function GET(request: Request) {
     const tenantId = searchParams.get('tenant_id');
     const dishRaw = (searchParams.get('dish') || searchParams.get('q') || '').trim();
     const categoryRaw = (searchParams.get('category') || '').trim();
+    const collectionRaw = (searchParams.get('collection') || '').trim();
 
     if (!tenantId) {
       return NextResponse.json({ success: false, error: 'Missing tenant_id' }, { status: 400 });
@@ -105,7 +108,12 @@ export async function GET(request: Request) {
 
     const menuUrl = tenantRow?.slug ? `${PUBLIC_BASE}/m/${tenantRow.slug}` : null;
 
-    const [{ data: catsRaw }, { data: itemsRaw, error: itemsErr }] = await Promise.all([
+    const [
+      { data: catsRaw },
+      { data: itemsRaw, error: itemsErr },
+      { data: collsRaw },
+      { data: linksRaw },
+    ] = await Promise.all([
       supabase
         .from('menu_categories')
         .select('id,name,sort_order')
@@ -121,14 +129,62 @@ export async function GET(request: Request) {
         .eq('available', true)
         .order('sort_order', { ascending: true })
         .order('created_at', { ascending: true }),
+      supabase
+        .from('menu_collections')
+        .select('id,name,kind,sort_order')
+        .eq('tenant_id', tenantId)
+        .order('sort_order', { ascending: true }),
+      supabase
+        .from('menu_collection_items')
+        .select('collection_id,item_id')
+        .eq('tenant_id', tenantId),
     ]);
 
     if (itemsErr) throw itemsErr;
 
     const cats = (catsRaw || []) as CategoryRow[];
     const items = (itemsRaw || []) as ItemRow[];
+    const colls = (collsRaw || []) as { id: string; name: string; kind: CollectionKind | null; sort_order: number }[];
+    const links = (linksRaw || []) as { collection_id: string; item_id: string }[];
     const catName = new Map<string, string>();
     for (const c of cats) catName.set(c.id, c.name);
+
+    // collectionId → available dishes (links resolved against the available set).
+    const itemsById = new Map(items.map((it) => [it.id, it]));
+    const itemsByColl = new Map<string, ItemRow[]>();
+    for (const l of links) {
+      const dish = itemsById.get(l.item_id);
+      if (!dish) continue;
+      const list = itemsByColl.get(l.collection_id);
+      if (list) list.push(dish);
+      else itemsByColl.set(l.collection_id, [dish]);
+    }
+
+    // Resolve a target collection from an explicit `collection=` param or a
+    // natural-language query. Returns the dishes (or null if no collection
+    // matched here). Shared by the explicit branch and the dish-path coercion.
+    const resolveCollection = (raw: string): { kind: CollectionKind | null; name: string; items: ItemRow[] } | null => {
+      const wantKind = matchCollectionKind(raw);
+      let col = wantKind ? colls.find((c) => c.kind === wantKind) : undefined;
+      if (!col) {
+        // custom collection asked by name (forgiving match like the category path)
+        const w = norm(raw);
+        col = colls.find((c) => norm(c.name) === w) || colls.find((c) => norm(c.name).includes(w) || w.includes(norm(c.name)));
+      }
+      if (col) return { kind: col.kind, name: col.name, items: itemsByColl.get(col.id) || [] };
+      // No collection row, but the ask maps to a kind that has a tag analogue:
+      // fall back to dishes carrying that badge (owner tagged but built no
+      // collection). menu_del_giorno has no tag → no fallback.
+      if (wantKind) {
+        const tag = KIND_TO_TAG[wantKind];
+        if (tag) {
+          const tagged = items.filter((it) => (it.tags || []).map(norm).includes(tag));
+          if (tagged.length > 0) return { kind: wantKind, name: tag, items: tagged };
+        }
+        return { kind: wantKind, name: raw, items: [] }; // matched intent, nothing to show
+      }
+      return null;
+    };
 
     // No menu at all for this tenant.
     if (items.length === 0 && cats.length === 0) {
@@ -145,7 +201,7 @@ export async function GET(request: Request) {
     // Bare call, or an explicit request for the category list. The agent gets
     // ONLY the category names + the link; it must invite the customer to pick a
     // category or ask about a dish, never list every item.
-    if (!dishRaw && !categoryRaw) {
+    if (!dishRaw && !categoryRaw && !collectionRaw) {
       return NextResponse.json({
         success: true,
         mode: 'categories',
@@ -179,6 +235,46 @@ export async function GET(request: Request) {
         category: cat.name,
         items: inCat,
         menu_url: menuUrl,
+      });
+    }
+
+    // Shapes a collection-mode response (its dishes, with each dish's category).
+    const collectionResponse = (
+      resolved: { kind: CollectionKind | null; name: string; items: ItemRow[] },
+      query?: string
+    ) => {
+      const LIMIT = 8;
+      const shaped = resolved.items
+        .slice(0, LIMIT)
+        .map((it) => shapeItem(it, it.category_id ? catName.get(it.category_id) || null : null));
+      return NextResponse.json({
+        success: true,
+        mode: 'collection',
+        ...(query ? { query } : {}),
+        collection_kind: resolved.kind,
+        found: shaped.length > 0,
+        items: shaped,
+        truncated: resolved.items.length > LIMIT,
+        // When nothing matched, give the agent the categories to offer instead.
+        ...(shaped.length === 0
+          ? { categories: cats.map((c) => c.name), message: 'No tengo platos en esa selección ahora mismo.' }
+          : {}),
+        menu_url: menuUrl,
+      });
+    };
+
+    // ---- Mode 2.5: explicit collection ("collection=consigliati") -----------
+    if (collectionRaw && !dishRaw) {
+      const resolved = resolveCollection(collectionRaw);
+      if (resolved) return collectionResponse(resolved);
+      // Unknown collection name → offer categories.
+      return NextResponse.json({
+        success: true,
+        mode: 'collection',
+        found: false,
+        categories: cats.map((c) => c.name),
+        menu_url: menuUrl,
+        message: 'No encuentro esa selección del menú.',
       });
     }
 
@@ -225,6 +321,19 @@ export async function GET(request: Request) {
       const n = norm(it.name);
       return sigTokens.some((t) => !catTokens.has(t) && (n === t || n.split(/\s+/).includes(t)));
     });
+
+    // Collection intent ("quali piatti consigliate?", "menu del giorno",
+    // "novedades"). Resolved AFTER a specific dish name and a diet filter (so
+    // "tiramisù" or "sin gluten" still win) but BEFORE category coercion (so
+    // "consigliati" isn't mistaken for a category). Falls back to tagged dishes
+    // when the owner tagged but built no collection.
+    if (!dishNameHit && !syn) {
+      const wantKind = matchCollectionKind(dishRaw);
+      if (wantKind) {
+        const resolved = resolveCollection(dishRaw);
+        if (resolved) return collectionResponse(resolved, dishRaw);
+      }
+    }
 
     // If a meaningful token names a category ("pizze", "dolci", "bevande") AND no
     // specific dish or diet filter was named, treat it as a category request.

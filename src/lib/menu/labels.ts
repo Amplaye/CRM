@@ -37,6 +37,26 @@ const TAG_LABELS: Record<string, Record<MenuLocale, string>> = {
   vegetariano: { it: "Vegetariano", es: "Vegetariano", en: "Vegetarian", de: "Vegetarisch" },
   piccante: { it: "Piccante", es: "Picante", en: "Spicy", de: "Scharf" },
   consigliato: { it: "Consigliato", es: "Recomendado", en: "Recommended", de: "Empfohlen" },
+  novita: { it: "Novità", es: "Novedad", en: "New", de: "Neu" },
+  specialita: { it: "Specialità", es: "Especialidad", en: "House special", de: "Spezialität" },
+};
+
+// Localized display names for the "classic" collections, keyed by `kind`. A
+// custom collection (kind = null) is shown with its user-given name instead.
+// Self-contained union (mirrors CollectionKind in types/index.ts) so this module
+// stays dependency-free, same as MenuLocale.
+export type CollectionKind = "consigliati" | "menu_del_giorno" | "specialita" | "novita";
+
+const COLLECTION_LABELS: Record<CollectionKind, Record<MenuLocale, string>> = {
+  consigliati: { it: "Consigliati", es: "Recomendados", en: "Recommended", de: "Empfehlungen" },
+  menu_del_giorno: { it: "Menu del giorno", es: "Menú del día", en: "Menu of the day", de: "Tagesmenü" },
+  specialita: {
+    it: "Specialità della casa",
+    es: "Especialidades de la casa",
+    en: "House specials",
+    de: "Spezialitäten des Hauses",
+  },
+  novita: { it: "Novità", es: "Novedades", en: "New", de: "Neuheiten" },
 };
 
 // Prettify an unknown token so an off-list value still reads cleanly
@@ -54,3 +74,24 @@ export function allergenLabel(token: string, locale: MenuLocale): string {
 export function tagLabel(token: string, locale: MenuLocale): string {
   return TAG_LABELS[token]?.[locale] ?? prettify(token);
 }
+
+/**
+ * Display name for a collection. Classic collections (a known `kind`) get the
+ * localized name; custom collections (kind = null) show their user-given name.
+ */
+export function collectionLabel(
+  kind: CollectionKind | null,
+  customName: string,
+  locale: MenuLocale
+): string {
+  if (kind && COLLECTION_LABELS[kind]) return COLLECTION_LABELS[kind][locale];
+  return customName;
+}
+
+/** The classic collection kinds, in the order they should be offered/displayed. */
+export const CLASSIC_COLLECTION_KINDS: CollectionKind[] = [
+  "consigliati",
+  "menu_del_giorno",
+  "specialita",
+  "novita",
+];

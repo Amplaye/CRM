@@ -4,8 +4,19 @@ import {
   normalizeExtraction,
   repairTruncatedJson,
   enrichAllergensAndTags,
+  ENRICH_PROMPT,
   type ExtractedMenu,
 } from './extract';
+
+describe('ENRICH_PROMPT', () => {
+  it('tells the AI never to auto-apply novita (human-only badge)', () => {
+    expect(ENRICH_PROMPT).toContain('novita');
+    expect(ENRICH_PROMPT).toMatch(/NON applicarlo MAI in automatico/);
+  });
+  it('lists novita and specialita in the closed tag set', () => {
+    expect(ENRICH_PROMPT).toContain('specialita');
+  });
+});
 
 describe('repairTruncatedJson', () => {
   it('repairs JSON truncated mid-array', () => {
@@ -102,6 +113,22 @@ describe('normalizeExtraction', () => {
     const item = out.categories[0].items[0];
     expect(item.allergens.sort()).toEqual(['glutine', 'uova']);
     expect(item.tags).toEqual(['piccante']);
+  });
+
+  it('keeps the novita and specialita tags (in the allow-list) but drops off-list ones', () => {
+    const out = normalizeExtraction({
+      categories: [
+        {
+          name: 'X',
+          items: [{ name: 'A', tags: ['novita', 'specialita', 'bestseller', 'consigliato'] }],
+        },
+      ],
+    });
+    expect(out.categories[0].items[0].tags.sort()).toEqual([
+      'consigliato',
+      'novita',
+      'specialita',
+    ]);
   });
 
   it('defaults currency to EUR when missing or invalid', () => {

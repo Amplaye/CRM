@@ -19,15 +19,35 @@ import {
   Pencil,
   ChevronRight,
   AlertTriangle,
+  Star,
+  MinusCircle,
 } from "lucide-react";
 import { useLanguage } from "@/lib/contexts/LanguageContext";
 import { useEffect, useMemo, useRef, useState, type DragEvent } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { useTenant } from "@/lib/contexts/TenantContext";
-import type { MenuCategory, MenuItem, Tenant } from "@/lib/types";
+import type {
+  MenuCategory,
+  MenuItem,
+  MenuCollection,
+  MenuCollectionItem,
+  CollectionKind,
+  Tenant,
+} from "@/lib/types";
 import type { ExtractedMenu, ExtractedMenuItem } from "@/lib/menu/extract";
 import { MAX_UPLOAD_BYTES, MAX_UPLOAD_MB, ACCEPTED_EXTENSIONS, VISION_MIME } from "@/lib/menu/limits";
-import { allergenLabel, tagLabel, type MenuLocale } from "@/lib/menu/labels";
+import {
+  allergenLabel,
+  tagLabel,
+  collectionLabel,
+  CLASSIC_COLLECTION_KINDS,
+  type MenuLocale,
+} from "@/lib/menu/labels";
+import {
+  collectionMembersMap,
+  itemIdsInCollection,
+  membershipDiff,
+} from "@/lib/menu/collections";
 import { QRCodeSVG } from "qrcode.react";
 
 const COMMON_ALLERGENS = [
@@ -47,7 +67,7 @@ const COMMON_ALLERGENS = [
   "molluschi",
 ];
 
-const COMMON_TAGS = ["vegano", "vegetariano", "piccante", "consigliato"];
+const COMMON_TAGS = ["vegano", "vegetariano", "piccante", "consigliato", "specialita", "novita"];
 
 // Sentinel for the synthetic "uncategorized" sidebar entry.
 const UNCAT_ID = "__uncategorized__";
@@ -59,10 +79,15 @@ export default function MenuPage() {
 
   const [categories, setCategories] = useState<MenuCategory[]>([]);
   const [items, setItems] = useState<MenuItem[]>([]);
+  const [collections, setCollections] = useState<MenuCollection[]>([]);
+  const [collectionLinks, setCollectionLinks] = useState<MenuCollectionItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
 
+  // Sidebar selection. A collection, when selected, takes precedence over the
+  // category selection (so the two never fight); selecting a category clears it.
   const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null);
+  const [selectedCollectionId, setSelectedCollectionId] = useState<string | null>(null);
 
   // Modal state — replaces the right-pane editor from the old layout.
   // We open a centered modal for new/edit, so the table view stays put.
@@ -76,6 +101,11 @@ export default function MenuPage() {
     | { mode: "edit"; category: MenuCategory }
     | null
   >(null);
+  const [collectionModal, setCollectionModal] = useState<
+    | { mode: "new" }
+    | { mode: "edit"; collection: MenuCollection }
+    | null
+  >(null);
 
   const [importOpen, setImportOpen] = useState(false);
   const [qrOpen, setQrOpen] = useState(false);
@@ -85,22 +115,35 @@ export default function MenuPage() {
     if (!tenant) return;
 
     const fetchAll = async () => {
-      const [{ data: cats }, { data: its }] = await Promise.all([
-        supabase
-          .from("menu_categories")
-          .select("*")
-          .eq("tenant_id", tenant.id)
-          .order("sort_order", { ascending: true })
-          .order("created_at", { ascending: true }),
-        supabase
-          .from("menu_items")
-          .select("*")
-          .eq("tenant_id", tenant.id)
-          .order("sort_order", { ascending: true })
-          .order("created_at", { ascending: true }),
-      ]);
+      const [{ data: cats }, { data: its }, { data: colls }, { data: links }] =
+        await Promise.all([
+          supabase
+            .from("menu_categories")
+            .select("*")
+            .eq("tenant_id", tenant.id)
+            .order("sort_order", { ascending: true })
+            .order("created_at", { ascending: true }),
+          supabase
+            .from("menu_items")
+            .select("*")
+            .eq("tenant_id", tenant.id)
+            .order("sort_order", { ascending: true })
+            .order("created_at", { ascending: true }),
+          supabase
+            .from("menu_collections")
+            .select("*")
+            .eq("tenant_id", tenant.id)
+            .order("sort_order", { ascending: true })
+            .order("created_at", { ascending: true }),
+          supabase
+            .from("menu_collection_items")
+            .select("*")
+            .eq("tenant_id", tenant.id),
+        ]);
       setCategories((cats || []) as MenuCategory[]);
       setItems((its || []) as MenuItem[]);
+      setCollections((colls || []) as MenuCollection[]);
+      setCollectionLinks((links || []) as MenuCollectionItem[]);
       setLoading(false);
     };
 
@@ -124,6 +167,16 @@ export default function MenuPage() {
         { event: "*", schema: "public", table: "menu_items", filter: `tenant_id=eq.${tenant.id}` },
         debounced
       )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "menu_collections", filter: `tenant_id=eq.${tenant.id}` },
+        debounced
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "menu_collection_items", filter: `tenant_id=eq.${tenant.id}` },
+        debounced
+      )
       .subscribe();
 
     return () => {
@@ -145,6 +198,26 @@ export default function MenuPage() {
 
   const hasUncategorized = (itemsByCat.get(null)?.length || 0) > 0;
 
+  // Derived: collectionId → its dishes (looked up from the live items list, so a
+  // dish edited anywhere updates inside its collection automatically).
+  const collectionMembers = useMemo(
+    () => collectionMembersMap(collectionLinks, items),
+    [collectionLinks, items]
+  );
+
+  const activeCollection = selectedCollectionId
+    ? collections.find((c) => c.id === selectedCollectionId) || null
+    : null;
+
+  // If the selected collection got deleted (e.g. via realtime from another tab),
+  // drop back to the category view.
+  useEffect(() => {
+    if (loading) return;
+    if (selectedCollectionId && !collections.find((c) => c.id === selectedCollectionId)) {
+      setSelectedCollectionId(null);
+    }
+  }, [loading, collections, selectedCollectionId]);
+
   // Auto-select first category once data loads
   useEffect(() => {
     if (loading) return;
@@ -163,10 +236,22 @@ export default function MenuPage() {
     else if (hasUncategorized) setSelectedCategoryId(UNCAT_ID);
   }, [loading, categories, hasUncategorized, selectedCategoryId]);
 
-  // Items to display in the table for the active category, filtered by search
+  // Selecting a category clears the collection selection, and vice-versa, so the
+  // right pane always reflects exactly one chosen thing.
+  const selectCategory = (id: string) => {
+    setSelectedCollectionId(null);
+    setSelectedCategoryId(id);
+  };
+  const selectCollection = (id: string) => {
+    setSelectedCollectionId(id);
+  };
+
+  // Items to display in the table for the active view (collection > category),
+  // filtered by search.
   const visibleItems = useMemo(() => {
     let list: MenuItem[] = [];
-    if (selectedCategoryId === UNCAT_ID) list = itemsByCat.get(null) || [];
+    if (selectedCollectionId) list = collectionMembers.get(selectedCollectionId) || [];
+    else if (selectedCategoryId === UNCAT_ID) list = itemsByCat.get(null) || [];
     else if (selectedCategoryId) list = itemsByCat.get(selectedCategoryId) || [];
     if (!search.trim()) return list;
     const q = search.toLowerCase();
@@ -177,13 +262,22 @@ export default function MenuPage() {
       if (it.tags.some((tg) => tg.toLowerCase().includes(q))) return true;
       return false;
     });
-  }, [itemsByCat, selectedCategoryId, search]);
+  }, [itemsByCat, collectionMembers, selectedCollectionId, selectedCategoryId, search]);
 
+  const isCollectionView = !!selectedCollectionId;
   const activeCategory =
-    selectedCategoryId && selectedCategoryId !== UNCAT_ID
+    !selectedCollectionId && selectedCategoryId && selectedCategoryId !== UNCAT_ID
       ? categories.find((c) => c.id === selectedCategoryId) || null
       : null;
-  const isUncatView = selectedCategoryId === UNCAT_ID;
+  const isUncatView = !selectedCollectionId && selectedCategoryId === UNCAT_ID;
+
+  // Map a dish's category_id → name, for the muted sub-label in a collection view
+  // (its dishes come from many categories).
+  const categoryNameById = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const c of categories) m.set(c.id, c.name);
+    return m;
+  }, [categories]);
 
   const handleDeleteItem = async (id: string) => {
     if (!confirm(t("menu_confirm_delete_item") || "Eliminare questo piatto?")) return;
@@ -192,6 +286,25 @@ export default function MenuPage() {
     if (error) {
       console.error("[menu] delete item failed", error);
       alert(`Errore eliminazione: ${error.message}`);
+    }
+  };
+
+  // Remove a dish from the active collection (does NOT delete the dish itself).
+  const handleRemoveFromCollection = async (itemId: string) => {
+    if (!selectedCollectionId) return;
+    const prev = collectionLinks;
+    setCollectionLinks((ls) =>
+      ls.filter((l) => !(l.collection_id === selectedCollectionId && l.item_id === itemId))
+    );
+    const { error } = await supabase
+      .from("menu_collection_items")
+      .delete()
+      .eq("collection_id", selectedCollectionId)
+      .eq("item_id", itemId);
+    if (error) {
+      console.error("[menu] remove from collection failed", error);
+      setCollectionLinks(prev);
+      alert(`Errore: ${error.message}`);
     }
   };
 
@@ -257,7 +370,7 @@ export default function MenuPage() {
                 <div key={i} className="h-10 bg-zinc-200 rounded-lg" />
               ))}
             </div>
-          ) : categories.length === 0 && !hasUncategorized ? (
+          ) : categories.length === 0 && !hasUncategorized && collections.length === 0 ? (
             <div className="p-6 text-center text-black">
               <UtensilsCrossed
                 className="w-10 h-10 mx-auto mb-3"
@@ -269,13 +382,62 @@ export default function MenuPage() {
             </div>
           ) : (
             <ul className="space-y-1">
+              {/* Collections first — curated groupings of existing dishes. */}
+              {collections.length > 0 && (
+                <li className="px-3 pt-1 pb-1.5">
+                  <span className="text-[10px] uppercase font-black tracking-widest text-[#a87642]">
+                    {t("menu_collections") || "Raccolte"}
+                  </span>
+                </li>
+              )}
+              {collections.map((col) => {
+                const count = collectionMembers.get(col.id)?.length || 0;
+                const active = selectedCollectionId === col.id;
+                return (
+                  <li key={`col-${col.id}`}>
+                    <button
+                      onClick={() => selectCollection(col.id)}
+                      className={`cursor-pointer w-full text-left px-3 py-2 rounded-lg flex items-center justify-between gap-2 transition-all ${
+                        active
+                          ? "bg-white shadow-sm ring-1 ring-[#c4956a]"
+                          : "hover:bg-white/60"
+                      }`}
+                    >
+                      <span className="flex items-center gap-1.5 min-w-0">
+                        <Star
+                          className="w-3.5 h-3.5 shrink-0"
+                          style={{ color: "#c4956a" }}
+                          fill={active ? "#c4956a" : "none"}
+                        />
+                        <span className="text-sm font-bold text-black truncate">
+                          {collectionLabel(col.kind, col.name, language)}
+                        </span>
+                      </span>
+                      <span
+                        className={`text-[10px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded ${
+                          active ? "bg-[#c4956a] text-white" : "bg-zinc-100 text-black"
+                        }`}
+                      >
+                        {count}
+                      </span>
+                    </button>
+                  </li>
+                );
+              })}
+              {collections.length > 0 && (categories.length > 0 || hasUncategorized) && (
+                <li className="px-3 pt-2 pb-1.5">
+                  <span className="text-[10px] uppercase font-black tracking-widest text-[#a87642]">
+                    {t("menu_categories") || "Categorie"}
+                  </span>
+                </li>
+              )}
               {categories.map((c) => {
                 const count = itemsByCat.get(c.id)?.length || 0;
-                const active = selectedCategoryId === c.id;
+                const active = !selectedCollectionId && selectedCategoryId === c.id;
                 return (
                   <li key={c.id}>
                     <button
-                      onClick={() => setSelectedCategoryId(c.id)}
+                      onClick={() => selectCategory(c.id)}
                       className={`cursor-pointer w-full text-left px-3 py-2 rounded-lg flex items-center justify-between gap-2 transition-all ${
                         active
                           ? "bg-white shadow-sm ring-1 ring-[#c4956a]"
@@ -297,9 +459,9 @@ export default function MenuPage() {
               {hasUncategorized && (
                 <li>
                   <button
-                    onClick={() => setSelectedCategoryId(UNCAT_ID)}
+                    onClick={() => selectCategory(UNCAT_ID)}
                     className={`cursor-pointer w-full text-left px-3 py-2 rounded-lg flex items-center justify-between gap-2 transition-all ${
-                      selectedCategoryId === UNCAT_ID
+                      !selectedCollectionId && selectedCategoryId === UNCAT_ID
                         ? "bg-white shadow-sm ring-1 ring-[#c4956a]"
                         : "hover:bg-white/60"
                     }`}
@@ -309,7 +471,7 @@ export default function MenuPage() {
                     </span>
                     <span
                       className={`text-[10px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded ${
-                        selectedCategoryId === UNCAT_ID
+                        !selectedCollectionId && selectedCategoryId === UNCAT_ID
                           ? "bg-[#c4956a] text-white"
                           : "bg-zinc-100 text-black"
                       }`}
@@ -338,6 +500,15 @@ export default function MenuPage() {
             {t("menu_new_category") || "Categoria"}
           </button>
           <button
+            onClick={() => setCollectionModal({ mode: "new" })}
+            className="cursor-pointer text-xs font-bold text-black inline-flex items-center justify-center px-2.5 py-2 rounded-md border-2 hover:bg-[#c4956a]/10 transition-colors"
+            style={{ borderColor: "#c4956a" }}
+            title={t("menu_new_collection") || "Nuova raccolta"}
+          >
+            <Star className="w-3.5 h-3.5 mr-1.5" />
+            {t("menu_collection") || "Raccolta"}
+          </button>
+          <button
             onClick={() => setImportOpen(true)}
             className="cursor-pointer text-xs font-bold text-white inline-flex items-center justify-center px-2.5 py-2 rounded-md shadow-sm transition-colors"
             style={{ background: "linear-gradient(135deg, #d4a574, #c4956a)" }}
@@ -348,12 +519,12 @@ export default function MenuPage() {
           </button>
           <button
             onClick={() => setQrOpen(true)}
-            className="cursor-pointer text-xs font-bold text-black inline-flex items-center justify-center px-2.5 py-2 rounded-md border-2 hover:bg-[#c4956a]/10 transition-colors col-span-2"
+            className="cursor-pointer text-xs font-bold text-black inline-flex items-center justify-center px-2.5 py-2 rounded-md border-2 hover:bg-[#c4956a]/10 transition-colors"
             style={{ borderColor: "#c4956a" }}
             title={t("menu_generate_qr") || "Genera QR"}
           >
             <QrCode className="w-3.5 h-3.5 mr-1.5" />
-            {t("menu_generate_qr") || "Genera QR del menu"}
+            {t("menu_generate_qr_short") || "QR"}
           </button>
         </div>
       </aside>
@@ -367,7 +538,7 @@ export default function MenuPage() {
           <div className="flex-1 flex items-center justify-center">
             <Loader2 className="w-8 h-8 animate-spin text-[#c4956a]" />
           </div>
-        ) : !activeCategory && !isUncatView ? (
+        ) : !activeCategory && !isUncatView && !isCollectionView ? (
           <EmptyState
             t={t}
             onCreateCategory={() => setCategoryModal({ mode: "new" })}
@@ -382,11 +553,18 @@ export default function MenuPage() {
             >
               <div className="min-w-0">
                 <p className="text-[10px] uppercase font-black tracking-widest text-black">
-                  {t("menu_category") || "Categoria"}
+                  {isCollectionView
+                    ? t("menu_collection") || "Raccolta"
+                    : t("menu_category") || "Categoria"}
                 </p>
                 <div className="flex items-center gap-2">
-                  <h2 className="text-2xl font-black text-black tracking-tight truncate">
-                    {isUncatView
+                  <h2 className="text-2xl font-black text-black tracking-tight truncate flex items-center gap-2">
+                    {isCollectionView && (
+                      <Star className="w-5 h-5 shrink-0" style={{ color: "#c4956a" }} fill="#c4956a" />
+                    )}
+                    {isCollectionView
+                      ? collectionLabel(activeCollection!.kind, activeCollection!.name, language)
+                      : isUncatView
                       ? t("menu_uncategorized") || "Senza categoria"
                       : activeCategory!.name}
                   </h2>
@@ -396,6 +574,16 @@ export default function MenuPage() {
                       className="cursor-pointer p-1.5 text-black hover:bg-zinc-100 rounded-lg border-2"
                       style={{ borderColor: "#c4956a" }}
                       title={t("menu_edit_category") || "Modifica categoria"}
+                    >
+                      <Pencil className="w-4 h-4" />
+                    </button>
+                  )}
+                  {isCollectionView && (
+                    <button
+                      onClick={() => setCollectionModal({ mode: "edit", collection: activeCollection! })}
+                      className="cursor-pointer p-1.5 text-black hover:bg-zinc-100 rounded-lg border-2"
+                      style={{ borderColor: "#c4956a" }}
+                      title={t("menu_edit_collection") || "Modifica raccolta"}
                     >
                       <Pencil className="w-4 h-4" />
                     </button>
@@ -411,19 +599,30 @@ export default function MenuPage() {
                   )}
                 </p>
               </div>
-              <button
-                onClick={() =>
-                  setItemModal({
-                    mode: "new",
-                    categoryId: isUncatView ? null : activeCategory?.id || null,
-                  })
-                }
-                className="cursor-pointer px-4 py-2 text-white text-sm font-bold rounded-lg shadow-sm flex items-center"
-                style={{ background: "linear-gradient(135deg, #d4a574, #c4956a)" }}
-              >
-                <Plus className="w-4 h-4 mr-2" />
-                {t("menu_new_item") || "Nuovo piatto"}
-              </button>
+              {isCollectionView ? (
+                <button
+                  onClick={() => setCollectionModal({ mode: "edit", collection: activeCollection! })}
+                  className="cursor-pointer px-4 py-2 text-white text-sm font-bold rounded-lg shadow-sm flex items-center"
+                  style={{ background: "linear-gradient(135deg, #d4a574, #c4956a)" }}
+                >
+                  <Plus className="w-4 h-4 mr-2" />
+                  {t("menu_collection_choose_dishes") || "Scegli piatti"}
+                </button>
+              ) : (
+                <button
+                  onClick={() =>
+                    setItemModal({
+                      mode: "new",
+                      categoryId: isUncatView ? null : activeCategory?.id || null,
+                    })
+                  }
+                  className="cursor-pointer px-4 py-2 text-white text-sm font-bold rounded-lg shadow-sm flex items-center"
+                  style={{ background: "linear-gradient(135deg, #d4a574, #c4956a)" }}
+                >
+                  <Plus className="w-4 h-4 mr-2" />
+                  {t("menu_new_item") || "Nuovo piatto"}
+                </button>
+              )}
             </div>
 
             {/* Table */}
@@ -434,23 +633,37 @@ export default function MenuPage() {
                   <p className="text-sm font-bold">
                     {search.trim()
                       ? t("menu_no_results") || "Nessun risultato"
+                      : isCollectionView
+                      ? t("menu_collection_empty") || "Raccolta vuota — scegli i piatti da aggiungere"
                       : t("menu_empty_category") || "Nessun piatto in questa categoria"}
                   </p>
-                  {!search.trim() && (
-                    <button
-                      onClick={() =>
-                        setItemModal({
-                          mode: "new",
-                          categoryId: isUncatView ? null : activeCategory?.id || null,
-                        })
-                      }
-                      className="cursor-pointer mt-4 px-4 py-2 text-white text-sm font-bold rounded-lg shadow-sm inline-flex items-center"
-                      style={{ background: "linear-gradient(135deg, #d4a574, #c4956a)" }}
-                    >
-                      <Plus className="w-4 h-4 mr-2" />
-                      {t("menu_new_item") || "Aggiungi piatto"}
-                    </button>
-                  )}
+                  {!search.trim() &&
+                    (isCollectionView ? (
+                      <button
+                        onClick={() =>
+                          setCollectionModal({ mode: "edit", collection: activeCollection! })
+                        }
+                        className="cursor-pointer mt-4 px-4 py-2 text-white text-sm font-bold rounded-lg shadow-sm inline-flex items-center"
+                        style={{ background: "linear-gradient(135deg, #d4a574, #c4956a)" }}
+                      >
+                        <Plus className="w-4 h-4 mr-2" />
+                        {t("menu_collection_choose_dishes") || "Scegli piatti"}
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() =>
+                          setItemModal({
+                            mode: "new",
+                            categoryId: isUncatView ? null : activeCategory?.id || null,
+                          })
+                        }
+                        className="cursor-pointer mt-4 px-4 py-2 text-white text-sm font-bold rounded-lg shadow-sm inline-flex items-center"
+                        style={{ background: "linear-gradient(135deg, #d4a574, #c4956a)" }}
+                      >
+                        <Plus className="w-4 h-4 mr-2" />
+                        {t("menu_new_item") || "Aggiungi piatto"}
+                      </button>
+                    ))}
                 </div>
               ) : (
                 <table className="w-full text-sm">
@@ -490,6 +703,13 @@ export default function MenuPage() {
                               </span>
                             )}
                           </div>
+                          {/* In a collection the dishes come from many categories;
+                              show each dish's home category for context. */}
+                          {isCollectionView && it.category_id && (
+                            <span className="text-[10px] text-black/50 font-medium">
+                              {categoryNameById.get(it.category_id) || ""}
+                            </span>
+                          )}
                         </td>
                         <td
                           className="px-5 py-3 align-top text-black cursor-pointer"
@@ -547,16 +767,29 @@ export default function MenuPage() {
                           >
                             <Pencil className="w-4 h-4" />
                           </button>
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleDeleteItem(it.id);
-                            }}
-                            className="cursor-pointer p-1.5 text-red-500 hover:bg-red-50 rounded"
-                            title={t("delete") || "Elimina"}
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
+                          {isCollectionView ? (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleRemoveFromCollection(it.id);
+                              }}
+                              className="cursor-pointer p-1.5 text-orange-600 hover:bg-orange-50 rounded"
+                              title={t("menu_collection_remove_item") || "Togli dalla raccolta"}
+                            >
+                              <MinusCircle className="w-4 h-4" />
+                            </button>
+                          ) : (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleDeleteItem(it.id);
+                              }}
+                              className="cursor-pointer p-1.5 text-red-500 hover:bg-red-50 rounded"
+                              title={t("delete") || "Elimina"}
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          )}
                         </td>
                       </tr>
                     ))}
@@ -618,6 +851,44 @@ export default function MenuPage() {
               ? () => handleDeleteCategory(categoryModal.category.id)
               : undefined
           }
+        />
+      )}
+
+      {collectionModal && tenant && (
+        <CollectionEditModal
+          t={t}
+          language={language}
+          tenantId={tenant.id}
+          items={items}
+          categories={categories}
+          existingCollections={collections}
+          existingLinks={collectionLinks}
+          existingMaxOrder={collections.reduce((m, c) => Math.max(m, c.sort_order), 0)}
+          initial={collectionModal.mode === "edit" ? collectionModal.collection : null}
+          onClose={() => setCollectionModal(null)}
+          onSaved={(col, links) => {
+            setCollections((prev) => {
+              const exists = prev.some((c) => c.id === col.id);
+              const next = exists
+                ? prev.map((c) => (c.id === col.id ? col : c))
+                : [...prev, col];
+              return next.sort(
+                (a, b) =>
+                  a.sort_order - b.sort_order || a.created_at.localeCompare(b.created_at)
+              );
+            });
+            // Replace this collection's links with the freshly-saved set.
+            setCollectionLinks((prev) =>
+              prev.filter((l) => l.collection_id !== col.id).concat(links)
+            );
+            setSelectedCollectionId(col.id);
+          }}
+          onDeleted={(colId) => {
+            setCollections((prev) => prev.filter((c) => c.id !== colId));
+            setCollectionLinks((prev) => prev.filter((l) => l.collection_id !== colId));
+            if (selectedCollectionId === colId) setSelectedCollectionId(null);
+            setCollectionModal(null);
+          }}
         />
       )}
 
@@ -1998,6 +2269,395 @@ function QrMenuModal({
               <>{t("menu_qr_copy") || "Copia URL"}</>
             )}
           </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Create / edit a collection: name (classic quick-pick or custom) + a
+// multi-select of EXISTING dishes (grouped by category, searchable). A dish
+// stays in its home category; this only adds/removes its membership links.
+function CollectionEditModal({
+  t,
+  language,
+  tenantId,
+  items,
+  categories,
+  existingCollections,
+  existingLinks,
+  existingMaxOrder,
+  initial,
+  onClose,
+  onSaved,
+  onDeleted,
+}: {
+  t: (k: any) => string;
+  language: MenuLocale;
+  tenantId: string;
+  items: MenuItem[];
+  categories: MenuCategory[];
+  existingCollections: MenuCollection[];
+  existingLinks: MenuCollectionItem[];
+  existingMaxOrder: number;
+  initial: MenuCollection | null;
+  onClose: () => void;
+  onSaved: (col: MenuCollection, links: MenuCollectionItem[]) => void;
+  onDeleted: (collectionId: string) => void;
+}) {
+  const supabase = createClient();
+  const isEditing = !!initial;
+
+  const [kind, setKind] = useState<CollectionKind | null>(initial?.kind ?? null);
+  const [name, setName] = useState(initial?.name ?? "");
+  const [search, setSearch] = useState("");
+  const [saving, setSaving] = useState(false);
+  // Item ids currently checked into this collection.
+  const [selected, setSelected] = useState<Set<string>>(() =>
+    initial ? itemIdsInCollection(existingLinks, initial.id) : new Set()
+  );
+
+  // Which classic kinds are already used by another collection (so we disable
+  // them — one collection per classic kind keeps the bot mapping unambiguous).
+  const usedKinds = useMemo(() => {
+    const s = new Set<CollectionKind>();
+    for (const c of existingCollections) {
+      if (c.kind && c.id !== initial?.id) s.add(c.kind);
+    }
+    return s;
+  }, [existingCollections, initial]);
+
+  const pickClassic = (k: CollectionKind) => {
+    setKind(k);
+    // Prefill the (still-editable) name with the localized classic name.
+    setName(collectionLabel(k, "", language));
+  };
+  const useCustom = () => {
+    setKind(null);
+    setName("");
+  };
+
+  const toggleItem = (id: string) =>
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+
+  // Dishes grouped by category for the picker, honoring the search box.
+  const groupedItems = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    const match = (it: MenuItem) =>
+      !q || it.name.toLowerCase().includes(q) || it.description.toLowerCase().includes(q);
+    const byCat = new Map<string | null, MenuItem[]>();
+    for (const it of items) {
+      if (!match(it)) continue;
+      const k = it.category_id;
+      if (!byCat.has(k)) byCat.set(k, []);
+      byCat.get(k)!.push(it);
+    }
+    // Order: categories in their sort order, then uncategorized last.
+    const groups: { id: string | null; name: string; items: MenuItem[] }[] = [];
+    for (const c of categories) {
+      const list = byCat.get(c.id);
+      if (list && list.length) groups.push({ id: c.id, name: c.name, items: list });
+    }
+    const uncat = byCat.get(null);
+    if (uncat && uncat.length)
+      groups.push({ id: null, name: t("menu_uncategorized") || "Senza categoria", items: uncat });
+    return groups;
+  }, [items, categories, search, t]);
+
+  const canSave = name.trim().length > 0 && !saving;
+
+  const handleSave = async () => {
+    if (!name.trim()) return;
+    setSaving(true);
+
+    let collectionId = initial?.id ?? null;
+    let savedCol: MenuCollection | null = initial ?? null;
+
+    // 1) upsert the collection row
+    if (isEditing) {
+      const res = await supabase
+        .from("menu_collections")
+        .update({ name: name.trim(), kind })
+        .eq("id", initial!.id)
+        .select()
+        .single();
+      if (res.error) {
+        setSaving(false);
+        alert(`Errore salvataggio raccolta: ${res.error.message}`);
+        return;
+      }
+      savedCol = res.data as MenuCollection;
+      collectionId = savedCol.id;
+    } else {
+      const res = await supabase
+        .from("menu_collections")
+        .insert({
+          tenant_id: tenantId,
+          name: name.trim(),
+          kind,
+          sort_order: existingMaxOrder + 1,
+        })
+        .select()
+        .single();
+      if (res.error) {
+        setSaving(false);
+        alert(`Errore salvataggio raccolta: ${res.error.message}`);
+        return;
+      }
+      savedCol = res.data as MenuCollection;
+      collectionId = savedCol.id;
+    }
+
+    // 2) diff membership and apply only the changes (avoids churn / transient
+    //    empty state flashing to other tabs).
+    const previous = isEditing ? itemIdsInCollection(existingLinks, initial!.id) : new Set<string>();
+    const { toAdd, toRemove } = membershipDiff(previous, selected);
+
+    if (toRemove.length > 0) {
+      const del = await supabase
+        .from("menu_collection_items")
+        .delete()
+        .eq("collection_id", collectionId!)
+        .in("item_id", toRemove);
+      if (del.error) {
+        setSaving(false);
+        alert(`Errore aggiornamento piatti: ${del.error.message}`);
+        return;
+      }
+    }
+    let insertedRows: MenuCollectionItem[] = [];
+    if (toAdd.length > 0) {
+      const ins = await supabase
+        .from("menu_collection_items")
+        .insert(toAdd.map((item_id) => ({ tenant_id: tenantId, collection_id: collectionId!, item_id })))
+        .select();
+      if (ins.error) {
+        setSaving(false);
+        alert(`Errore aggiunta piatti: ${ins.error.message}`);
+        return;
+      }
+      insertedRows = (ins.data || []) as MenuCollectionItem[];
+    }
+
+    // Build the final link set for this collection (kept rows + inserted rows).
+    const keptRows = existingLinks.filter(
+      (l) => l.collection_id === collectionId && !toRemove.includes(l.item_id)
+    );
+    const finalLinks = [...keptRows, ...insertedRows];
+
+    setSaving(false);
+    if (savedCol) onSaved(savedCol, finalLinks);
+    onClose();
+  };
+
+  const handleDelete = async () => {
+    if (!initial) return;
+    if (
+      !confirm(
+        t("menu_confirm_delete_collection") ||
+          "Eliminare questa raccolta? I piatti resteranno nel menu."
+      )
+    )
+      return;
+    const { error } = await supabase.from("menu_collections").delete().eq("id", initial.id);
+    if (error) {
+      console.error("[menu] delete collection failed", error);
+      alert(`Errore eliminazione raccolta: ${error.message}`);
+      return;
+    }
+    onDeleted(initial.id);
+  };
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40"
+      onClick={onClose}
+    >
+      <div
+        className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between p-5 border-b shrink-0" style={{ borderColor: "#c4956a" }}>
+          <div className="flex items-center gap-2">
+            <Star className="w-5 h-5" style={{ color: "#c4956a" }} fill="#c4956a" />
+            <h2 className="text-lg font-bold text-black">
+              {isEditing
+                ? t("menu_edit_collection") || "Modifica raccolta"
+                : t("menu_new_collection") || "Nuova raccolta"}
+            </h2>
+          </div>
+          <button onClick={onClose} className="cursor-pointer p-1.5 hover:bg-zinc-100 rounded-lg">
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto p-6 space-y-5">
+          {/* Classic quick-picks (only prominent when creating) */}
+          {!isEditing && (
+            <div>
+              <label className="block text-xs font-bold text-black uppercase tracking-widest mb-1.5">
+                {t("menu_collection_pick_classic") || "Raccolte pronte"}
+              </label>
+              <div className="flex flex-wrap gap-1.5">
+                {CLASSIC_COLLECTION_KINDS.map((k) => {
+                  const used = usedKinds.has(k);
+                  const active = kind === k;
+                  return (
+                    <button
+                      key={k}
+                      type="button"
+                      disabled={used}
+                      onClick={() => pickClassic(k)}
+                      className={`cursor-pointer disabled:cursor-not-allowed disabled:opacity-40 text-[11px] font-bold tracking-wider px-2.5 py-1.5 rounded border-2 text-black transition-colors ${
+                        active ? "bg-[#c4956a]/20" : "hover:bg-[#c4956a]/10"
+                      }`}
+                      style={{ borderColor: "#c4956a" }}
+                      title={used ? t("menu_collection_already_exists") || "Già creata" : undefined}
+                    >
+                      {collectionLabel(k, "", language)}
+                    </button>
+                  );
+                })}
+                <button
+                  type="button"
+                  onClick={useCustom}
+                  className={`cursor-pointer text-[11px] font-bold tracking-wider px-2.5 py-1.5 rounded border-2 text-black transition-colors ${
+                    kind === null ? "bg-[#c4956a]/20" : "hover:bg-[#c4956a]/10"
+                  }`}
+                  style={{ borderColor: "#c4956a" }}
+                >
+                  {t("menu_collection_custom") || "Personalizzata"}
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Name */}
+          <div>
+            <label className="block text-xs font-bold text-black uppercase tracking-widest mb-1.5">
+              {t("menu_collection_name") || "Nome raccolta"}
+            </label>
+            <input
+              type="text"
+              value={name}
+              onChange={(e) => {
+                setName(e.target.value);
+                // Typing a name by hand on a fresh modal means "custom".
+                if (!isEditing && kind !== null) setKind(kind);
+              }}
+              placeholder={t("menu_collection_name_placeholder") || "Es. Menu del giorno, Consigliati..."}
+              className="w-full border-2 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-[#c4956a]"
+              style={{ borderColor: "#c4956a", background: "rgba(252,246,237,0.6)" }}
+            />
+          </div>
+
+          {/* Multi-select dishes */}
+          <div>
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="block text-xs font-bold text-black uppercase tracking-widest">
+                {t("menu_collection_select_dishes") || "Scegli i piatti"}
+              </label>
+              <span className="text-[11px] font-bold text-[#a87642]">
+                {selected.size} {t("menu_collection_selected") || "selezionati"}
+              </span>
+            </div>
+            <div className="relative mb-2">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-black" />
+              <input
+                type="text"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder={t("menu_search_placeholder") || "Cerca piatto..."}
+                className="w-full pl-9 pr-3 py-2 border-2 rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-[#c4956a]"
+                style={{ borderColor: "#c4956a", background: "rgba(252,246,237,0.6)" }}
+              />
+            </div>
+
+            {items.length === 0 ? (
+              <p className="text-sm text-black/60 italic py-4 text-center">
+                {t("menu_collection_no_items") || "Non ci sono ancora piatti nel menu da aggiungere."}
+              </p>
+            ) : groupedItems.length === 0 ? (
+              <p className="text-sm text-black/60 italic py-4 text-center">
+                {t("menu_no_results") || "Nessun risultato"}
+              </p>
+            ) : (
+              <div
+                className="border-2 rounded-lg max-h-[34vh] overflow-y-auto divide-y"
+                style={{ borderColor: "rgba(196,149,106,0.4)" }}
+              >
+                {groupedItems.map((g) => (
+                  <div key={g.id ?? "uncat"}>
+                    <div
+                      className="px-3 py-1.5 text-[10px] uppercase font-black tracking-widest text-[#a87642] sticky top-0"
+                      style={{ background: "rgba(252,246,237,0.98)" }}
+                    >
+                      {g.name}
+                    </div>
+                    {g.items.map((it) => {
+                      const checked = selected.has(it.id);
+                      return (
+                        <label
+                          key={it.id}
+                          className="flex items-center gap-3 px-3 py-2 cursor-pointer hover:bg-[#fcf6ed]"
+                        >
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            onChange={() => toggleItem(it.id)}
+                            className="w-4 h-4 cursor-pointer accent-[#c4956a]"
+                          />
+                          <span className="flex-1 text-sm font-bold text-black truncate">{it.name}</span>
+                          {it.price != null && (
+                            <span className="text-xs text-black/60 whitespace-nowrap">
+                              {it.price.toFixed(2)} {it.currency === "EUR" ? "€" : it.currency}
+                            </span>
+                          )}
+                        </label>
+                      );
+                    })}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div className="flex items-center justify-between p-4 border-t shrink-0" style={{ borderColor: "#c4956a" }}>
+          <div>
+            {isEditing && (
+              <button
+                onClick={handleDelete}
+                className="cursor-pointer px-4 py-2 text-red-500 hover:text-red-600 hover:bg-red-50 rounded-lg border-2 border-red-300 hover:border-red-400 inline-flex items-center text-sm font-bold"
+              >
+                <Trash2 className="w-4 h-4 mr-1.5" />
+                {t("delete") || "Elimina"}
+              </button>
+            )}
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={onClose}
+              className="cursor-pointer px-4 py-2 border-2 rounded-lg text-sm font-bold text-black hover:bg-zinc-50"
+              style={{ borderColor: "#c4956a" }}
+            >
+              {t("cancel") || "Annulla"}
+            </button>
+            <button
+              onClick={handleSave}
+              disabled={!canSave}
+              className="cursor-pointer disabled:cursor-not-allowed disabled:opacity-50 px-6 py-2 text-white text-sm font-bold rounded-lg shadow-sm flex items-center"
+              style={{ background: "linear-gradient(135deg, #d4a574, #c4956a)" }}
+            >
+              <Save className="w-4 h-4 mr-2" />
+              {saving ? t("saving") || "Salvataggio..." : t("save") || "Salva"}
+            </button>
+          </div>
         </div>
       </div>
     </div>

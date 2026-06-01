@@ -1,6 +1,12 @@
 import { notFound } from "next/navigation";
 import { createServiceRoleClient } from "@/lib/supabase/server";
-import { allergenLabel, tagLabel, type MenuLocale } from "@/lib/menu/labels";
+import {
+  allergenLabel,
+  tagLabel,
+  collectionLabel,
+  type MenuLocale,
+  type CollectionKind,
+} from "@/lib/menu/labels";
 
 // Public hosted menu page. No auth, no cookies, no JS framework needed for
 // the content path. The CRM owner shares /m/<slug> as a QR target so the
@@ -41,6 +47,13 @@ const PUBLIC_STRINGS: Record<MenuLocale, { menu: string; updating: string; other
 
 type CategoryRow = { id: string; name: string; sort_order: number };
 
+type CollectionRow = {
+  id: string;
+  name: string;
+  kind: CollectionKind | null;
+  sort_order: number;
+};
+
 type ItemRow = {
   id: string;
   category_id: string | null;
@@ -71,26 +84,39 @@ export default async function PublicMenuPage({ params }: { params: Promise<Param
   const locale = resolveLocale(tenant.settings?.crm_locale);
   const ui = PUBLIC_STRINGS[locale];
 
-  const [{ data: catsRaw }, { data: itemsRaw }] = await Promise.all([
-    sb
-      .from("menu_categories")
-      .select("id,name,sort_order")
-      .eq("tenant_id", tenant.id)
-      .order("sort_order", { ascending: true })
-      .order("created_at", { ascending: true }),
-    sb
-      .from("menu_items")
-      .select(
-        "id,category_id,name,description,price,currency,allergens,tags,available,sort_order"
-      )
-      .eq("tenant_id", tenant.id)
-      .eq("available", true)
-      .order("sort_order", { ascending: true })
-      .order("created_at", { ascending: true }),
-  ]);
+  const [{ data: catsRaw }, { data: itemsRaw }, { data: collsRaw }, { data: linksRaw }] =
+    await Promise.all([
+      sb
+        .from("menu_categories")
+        .select("id,name,sort_order")
+        .eq("tenant_id", tenant.id)
+        .order("sort_order", { ascending: true })
+        .order("created_at", { ascending: true }),
+      sb
+        .from("menu_items")
+        .select(
+          "id,category_id,name,description,price,currency,allergens,tags,available,sort_order"
+        )
+        .eq("tenant_id", tenant.id)
+        .eq("available", true)
+        .order("sort_order", { ascending: true })
+        .order("created_at", { ascending: true }),
+      sb
+        .from("menu_collections")
+        .select("id,name,kind,sort_order")
+        .eq("tenant_id", tenant.id)
+        .order("sort_order", { ascending: true })
+        .order("created_at", { ascending: true }),
+      sb
+        .from("menu_collection_items")
+        .select("collection_id,item_id")
+        .eq("tenant_id", tenant.id),
+    ]);
 
   const cats = (catsRaw || []) as CategoryRow[];
   const items = (itemsRaw || []) as ItemRow[];
+  const colls = (collsRaw || []) as CollectionRow[];
+  const links = (linksRaw || []) as { collection_id: string; item_id: string }[];
 
   const byCat = new Map<string | null, ItemRow[]>();
   for (const it of items) {
@@ -99,12 +125,47 @@ export default async function PublicMenuPage({ params }: { params: Promise<Param
     byCat.get(k)!.push(it);
   }
 
-  const groups = cats
-    .map((c) => ({ category: c, items: byCat.get(c.id) || [] }))
-    .concat(byCat.has(null) ? [{ category: null as unknown as CategoryRow, items: byCat.get(null) || [] }] : [])
-    .filter((g) => g.items.length > 0);
+  // Collection sections: resolve each collection's links to the available items
+  // (an esaurito dish silently drops, same as categories). A dish legitimately
+  // appears both in its collection section and in its home category — that
+  // duplication is intended (e.g. Tiramisù under "Consigliati" AND "Dolci").
+  const availableById = new Map<string, ItemRow>(items.map((it) => [it.id, it]));
+  const itemsByColl = new Map<string, ItemRow[]>();
+  for (const l of links) {
+    const dish = availableById.get(l.item_id);
+    if (!dish) continue;
+    const list = itemsByColl.get(l.collection_id);
+    if (list) list.push(dish);
+    else itemsByColl.set(l.collection_id, [dish]);
+  }
+  for (const list of itemsByColl.values()) {
+    list.sort((a, b) => a.sort_order - b.sort_order || a.name.localeCompare(b.name));
+  }
 
-  const isEmpty = groups.length === 0;
+  // Unified, ordered section list: collections first, then categories, then the
+  // uncategorized bucket. A `prefix` keeps React keys unique when a dish renders
+  // in both a collection and its category.
+  type Section = { key: string; prefix: string; title: string; items: ItemRow[] };
+  const collectionSections: Section[] = colls
+    .map((c) => ({
+      key: `col-${c.id}`,
+      prefix: `col-${c.id}`,
+      title: collectionLabel(c.kind, c.name, locale),
+      items: itemsByColl.get(c.id) || [],
+    }))
+    .filter((s) => s.items.length > 0);
+
+  const categorySections: Section[] = cats
+    .map((c) => ({ key: `cat-${c.id}`, prefix: `cat-${c.id}`, title: c.name, items: byCat.get(c.id) || [] }))
+    .concat(
+      byCat.has(null)
+        ? [{ key: "uncat", prefix: "uncat", title: ui.other, items: byCat.get(null) || [] }]
+        : []
+    )
+    .filter((s) => s.items.length > 0);
+
+  const sections = [...collectionSections, ...categorySections];
+  const isEmpty = sections.length === 0;
 
   return (
     <div style={{ background: "#fff8ef", minHeight: "100vh" }} className="font-sans text-black">
@@ -123,17 +184,17 @@ export default async function PublicMenuPage({ params }: { params: Promise<Param
           </div>
         ) : (
           <div className="space-y-10">
-            {groups.map((g) => (
-              <section key={g.category?.id || "uncat"}>
+            {sections.map((s) => (
+              <section key={s.key}>
                 <h2
                   className="text-lg font-black uppercase tracking-widest mb-4 pb-2 border-b-2"
                   style={{ borderColor: "#c4956a" }}
                 >
-                  {g.category?.name || ui.other}
+                  {s.title}
                 </h2>
                 <ul className="space-y-4">
-                  {g.items.map((it) => (
-                    <li key={it.id}>
+                  {s.items.map((it) => (
+                    <li key={`${s.prefix}:${it.id}`}>
                       <div className="flex justify-between items-baseline gap-4">
                         <h3 className="font-bold text-base">{it.name}</h3>
                         {it.price != null && (
@@ -149,7 +210,7 @@ export default async function PublicMenuPage({ params }: { params: Promise<Param
                         <div className="mt-1.5 flex flex-wrap gap-1">
                           {it.tags.map((tg) => (
                             <span
-                              key={tg}
+                              key={`${s.prefix}:${it.id}:tag:${tg}`}
                               className="text-[10px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800"
                             >
                               {tagLabel(tg, locale)}
@@ -157,7 +218,7 @@ export default async function PublicMenuPage({ params }: { params: Promise<Param
                           ))}
                           {it.allergens.map((al) => (
                             <span
-                              key={al}
+                              key={`${s.prefix}:${it.id}:al:${al}`}
                               className="text-[10px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded bg-orange-100 text-orange-800"
                             >
                               {allergenLabel(al, locale)}

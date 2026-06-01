@@ -53,7 +53,7 @@ object describing it. Follow these rules without exception:
              "allergens": string[],  // lowercase tokens from this fixed list ONLY:
                                      // glutine, latticini, uova, pesce, crostacei, frutta_secca,
                                      // arachidi, soia, sedano, senape, sesamo, solfiti, lupini, molluschi
-             "tags": string[]        // ONLY from this fixed list: vegano, vegetariano, piccante, consigliato
+             "tags": string[]        // ONLY from this fixed list: vegano, vegetariano, piccante, consigliato, specialita, novita
            }
          ]
        }
@@ -95,11 +95,13 @@ Deduzioni tipiche (non esaustivo):
 - sésamo/gomasio/aceite de sésamo/olio di sesamo → sesamo
 - nueces/almendras/anacardos/noci/mandorle → frutta_secca
 
-TAG — lista chiusa (usa SOLO questi): vegano, vegetariano, piccante, consigliato
+TAG — lista chiusa (usa SOLO questi): vegano, vegetariano, piccante, consigliato, specialita, novita
 - "piccante": picante, spicy, kimchi, chili, peperoncino, "toque picante", wasabi
 - "vegetariano": NON contiene carne, pesce, molluschi o crostacei
 - "vegano": vegetariano E senza uova, latticini o miele
 - "consigliato": SOLO se il menù lo marca esplicitamente (especial/recomendado/del chef/stella)
+- "specialita": SOLO se il menù lo marca esplicitamente (especialidad de la casa/specialità della casa/signature/della casa). NON dedurlo dal nome.
+- "novita": NON applicarlo MAI in automatico. "Novità/nuovo" è una decisione del ristoratore, non deducibile dal nome o dalla descrizione.
 
 Per piatti senza descrizione, deduci dal nome (es. "Tarta de queso"/cheesecake → latticini, glutine, uova). È RICHIESTO dedurre gli allergeni ovvi; non inventare allergeni non plausibili.
 
@@ -441,7 +443,11 @@ const ALLOWED_ALLERGENS = new Set([
   'molluschi',
 ]);
 
-const ALLOWED_TAGS = new Set(['vegano', 'vegetariano', 'piccante', 'consigliato']);
+// novita/specialita are mostly human-applied badges (the ENRICH_PROMPT tells the
+// AI never to auto-add 'novita' and to add 'specialita' only on an explicit menu
+// cue), but they MUST be in the allow-list so a hand-applied tag survives the
+// normalize step used by import-confirm and the enrich pass.
+const ALLOWED_TAGS = new Set(['vegano', 'vegetariano', 'piccante', 'consigliato', 'specialita', 'novita']);
 
 function normalizeCategory(raw: unknown): ExtractedMenuCategory {
   const obj = (raw || {}) as Record<string, unknown>;

@@ -86,6 +86,31 @@ export interface MenuItem {
   updated_at: string;
 }
 
+// "Classic" collections have a known kind (drives icon + localized name + bot
+// synonyms). Custom collections have kind = null and a user-given name.
+export type CollectionKind = "consigliati" | "menu_del_giorno" | "specialita" | "novita";
+
+// A curated grouping that references existing dishes (many-to-many via
+// menu_collection_items). A dish keeps its single category_id and can appear in
+// any number of collections. See 2026-06-01-menu-collections.sql.
+export interface MenuCollection {
+  id: string;
+  tenant_id: string;
+  name: string;
+  kind: CollectionKind | null;
+  sort_order: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface MenuCollectionItem {
+  id: string;
+  tenant_id: string;
+  collection_id: string;
+  item_id: string;
+  created_at: string;
+}
+
 export interface Guest {
   id: string;
   tenant_id: string;
