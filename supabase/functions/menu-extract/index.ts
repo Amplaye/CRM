@@ -39,7 +39,9 @@ type ExtractedMenu = {
 };
 
 const MODEL = "gpt-4o";
-const MAX_OUTPUT_TOKENS = 8000;
+// gpt-4o allows up to 16384 output tokens. Big multi-page menus can produce a
+// lot of JSON; 8000 was truncating them mid-array (parse failure). Use the max.
+const MAX_OUTPUT_TOKENS = 16000;
 // Bound the OpenAI call so a hung request can't burn the whole 150s window and
 // leave the job stuck on 'processing'. Leaves headroom for the status write.
 const OPENAI_TIMEOUT_MS = 140_000;
@@ -184,10 +186,48 @@ function parseExtraction(raw: string): ExtractedMenu {
   let parsed: unknown;
   try {
     parsed = JSON.parse(cleaned);
-  } catch (err) {
-    throw new Error(`Menu extraction returned non-JSON: ${String(err).slice(0, 200)}`);
+  } catch {
+    // The model can hit the output-token cap and return JSON truncated
+    // mid-array. Salvage everything that did come through.
+    const repaired = repairTruncatedJson(cleaned);
+    if (repaired) {
+      parsed = repaired;
+    } else {
+      throw new Error("Menu extraction returned non-JSON (and could not be repaired)");
+    }
   }
   return normalizeExtraction(parsed);
+}
+
+function repairTruncatedJson(s: string): unknown | null {
+  let end = s.length;
+  while (end > 0 && !/[}\]"\d]/.test(s[end - 1])) end--;
+  let work = s.slice(0, end);
+  const stack: string[] = [];
+  let inStr = false;
+  let esc = false;
+  for (let i = 0; i < work.length; i++) {
+    const c = work[i];
+    if (inStr) {
+      if (esc) esc = false;
+      else if (c === "\\") esc = true;
+      else if (c === '"') inStr = false;
+      continue;
+    }
+    if (c === '"') inStr = true;
+    else if (c === "{" || c === "[") stack.push(c);
+    else if (c === "}" || c === "]") stack.pop();
+  }
+  if (inStr) work += '"';
+  work = work.replace(/,\s*$/, "");
+  for (let i = stack.length - 1; i >= 0; i--) {
+    work += stack[i] === "{" ? "}" : "]";
+  }
+  try {
+    return JSON.parse(work);
+  } catch {
+    return null;
+  }
 }
 
 const ALLOWED_ALLERGENS = new Set([

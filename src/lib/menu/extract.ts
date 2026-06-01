@@ -29,7 +29,9 @@ export type ExtractedMenu = {
 };
 
 const MODEL = 'gpt-4o';
-const MAX_OUTPUT_TOKENS = 8000;
+// gpt-4o allows up to 16384 output tokens. Big multi-page menus can produce a
+// lot of JSON; 8000 was truncating them mid-array (parse failure). Use the max.
+const MAX_OUTPUT_TOKENS = 16000;
 
 const SYSTEM_PROMPT = `You are a menu-extraction assistant for an Italian restaurant CRM.
 
@@ -190,11 +192,64 @@ export function parseExtraction(raw: string): ExtractedMenu {
   let parsed: unknown;
   try {
     parsed = JSON.parse(cleaned);
-  } catch (err) {
-    throw new Error(`Menu extraction returned non-JSON: ${String(err).slice(0, 200)}`);
+  } catch {
+    // The model can hit the output-token cap and return JSON truncated
+    // mid-array. Rather than lose the whole menu, salvage everything that did
+    // come through by repairing the cut-off structure.
+    const repaired = repairTruncatedJson(cleaned);
+    if (repaired) {
+      parsed = repaired;
+    } else {
+      throw new Error('Menu extraction returned non-JSON (and could not be repaired)');
+    }
   }
 
   return normalizeExtraction(parsed);
+}
+
+/**
+ * Best-effort repair of JSON that was truncated mid-output (e.g. the model ran
+ * out of tokens). Walks the string tracking string/escape state, drops any
+ * trailing partial token, and closes the still-open `{`/`[` in order. Returns
+ * the parsed object on success, or null if it still can't parse.
+ */
+export function repairTruncatedJson(s: string): unknown | null {
+  // Trim to the last "safe" boundary: the last char that closes a value
+  // (`}`, `]`, `"`) or is a digit — i.e. drop a dangling partial key/value.
+  let end = s.length;
+  while (end > 0 && !/[}\]"\d]/.test(s[end - 1])) end--;
+  let work = s.slice(0, end);
+
+  // Track structure to know what to close.
+  const stack: string[] = [];
+  let inStr = false;
+  let esc = false;
+  for (let i = 0; i < work.length; i++) {
+    const c = work[i];
+    if (inStr) {
+      if (esc) esc = false;
+      else if (c === '\\') esc = true;
+      else if (c === '"') inStr = false;
+      continue;
+    }
+    if (c === '"') inStr = true;
+    else if (c === '{' || c === '[') stack.push(c);
+    else if (c === '}' || c === ']') stack.pop();
+  }
+  // If we ended inside a string, close it.
+  if (inStr) work += '"';
+  // Drop a trailing comma (would make the closed array/object invalid).
+  work = work.replace(/,\s*$/, '');
+  // Close open structures in reverse order.
+  for (let i = stack.length - 1; i >= 0; i--) {
+    work += stack[i] === '{' ? '}' : ']';
+  }
+
+  try {
+    return JSON.parse(work);
+  } catch {
+    return null;
+  }
 }
 
 /**

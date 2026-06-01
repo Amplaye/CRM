@@ -316,7 +316,7 @@ export const es: Dictionary = {
   menu_import_analyze: "Analizar menú",
   menu_import_analyzing: "Leyendo menú...",
   menu_import_wait: "Puede tardar hasta 2 minutos para menús grandes.",
-  menu_import_timeout: "La extracción está tardando demasiado. Inténtalo con un menú más pequeño o dividido en varios archivos.",
+  menu_import_timeout: "El menú es demasiado grande para leerse dentro del límite de tiempo. Prueba a comprimirlo o dividirlo en varios archivos.",
   menu_import_failed: "Extracción fallida. Inténtalo de nuevo.",
   menu_import_preview: "Vista previa",
   menu_import_save: "Guardar en el menú",

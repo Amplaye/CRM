@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerSupabaseClient, createServiceRoleClient } from '@/lib/supabase/server';
+import { tryExtractPdfText } from '@/lib/menu/pdf-text';
 
 // Create an async menu-extraction job. Replaces the slow, synchronous
 // /api/menu/import-file: instead of blocking on the OpenAI call (which on a
@@ -67,21 +68,52 @@ export async function POST(req: NextRequest) {
   }
 
   const bytes = new Uint8Array(await file.arrayBuffer());
-  const base64Data = Buffer.from(bytes).toString('base64');
+
+  // HYBRID FAST PATH: if this is a PDF with a real embedded text layer (most
+  // menus exported from Word/Canva/InDesign), extract the text here and send it
+  // to OpenAI as TEXT — far faster + cheaper than vision, and crucially it
+  // finishes well within the 60s platform cap that was killing large image
+  // PDFs. Scanned/image-only PDFs yield no text → fall back to the file/vision
+  // path unchanged. Images (jpg/png/...) always go the file path.
+  let jobRow: {
+    tenant_id: string;
+    status: 'pending';
+    source: 'file' | 'text';
+    file_base64: string | null;
+    media_type: string | null;
+    source_text: string | null;
+    created_by: string;
+  };
+
+  const pdfText = mediaType === 'application/pdf' ? await tryExtractPdfText(bytes) : null;
+  if (pdfText) {
+    jobRow = {
+      tenant_id: tenantId,
+      status: 'pending',
+      source: 'text',
+      file_base64: null,
+      media_type: null,
+      source_text: pdfText.text,
+      created_by: user.id,
+    };
+  } else {
+    jobRow = {
+      tenant_id: tenantId,
+      status: 'pending',
+      source: 'file',
+      file_base64: Buffer.from(bytes).toString('base64'),
+      media_type: mediaType,
+      source_text: null,
+      created_by: user.id,
+    };
+  }
 
   // Insert the pending job via the service role (table writes are service-role
   // only by design — see the migration).
   const admin = createServiceRoleClient();
   const { data: job, error: insErr } = await admin
     .from('menu_import_jobs')
-    .insert({
-      tenant_id: tenantId,
-      status: 'pending',
-      source: 'file',
-      file_base64: base64Data,
-      media_type: mediaType,
-      created_by: user.id,
-    })
+    .insert(jobRow)
     .select('id')
     .single();
 

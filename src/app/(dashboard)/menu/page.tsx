@@ -1120,21 +1120,44 @@ function ImportMenuModal({
     if (stage !== "processing" || !jobId) return;
     let cancelled = false;
     const startedAt = Date.now();
-    const HARD_TIMEOUT_MS = 180_000; // safety net: never hang forever on the spinner
+    // The Edge Function runs the OpenAI call in the background with its own
+    // ~140s internal timeout (the 60s figure is only the synchronous HTTP
+    // connection cap — fire-and-forget compute runs well past it; a real
+    // 18-page menu completed at ~87s). So we give the worker until ~150s before
+    // declaring it dead, instead of spinning forever. Most menus (text-layer
+    // PDFs) finish in well under 30s.
+    const DEAD_AFTER_MS = 150_000;
+
+    const failNow = () => {
+      if (cancelled) return;
+      setError(
+        t("menu_import_timeout") ||
+          "Il menu è troppo grande per essere letto entro il limite di tempo. Prova a comprimerlo o a dividerlo in più file."
+      );
+      setStage("idle");
+    };
 
     const tick = async () => {
-      // Ease the bar toward ~92% over ~2min; the real "done" snaps it to 100.
       const elapsed = Date.now() - startedAt;
-      setProgressPct(Math.min(92, Math.round((elapsed / 120_000) * 92)));
+      // Ease the bar toward ~92% over a typical run (~40s); a real "done" snaps
+      // it to 100. Caps at 92 so it never looks "stuck at 100" while waiting.
+      setProgressPct(Math.min(92, Math.round((elapsed / 40_000) * 92)));
 
-      if (elapsed > HARD_TIMEOUT_MS) {
-        if (!cancelled) {
-          setError(
-            t("menu_import_timeout") ||
-              "L'estrazione sta impiegando troppo. Riprova con un menu più piccolo o diviso in più file."
-          );
-          setStage("idle");
+      if (elapsed > DEAD_AFTER_MS) {
+        // One last status read in case it JUST finished, else fail fast.
+        try {
+          const res = await fetch(`/api/menu/import-job/${jobId}`);
+          const data = await res.json();
+          if (!cancelled && res.ok && data.status === "done") {
+            setExtracted(data.result);
+            setProgressPct(100);
+            setStage("preview");
+            return;
+          }
+        } catch {
+          /* ignore — about to fail anyway */
         }
+        failNow();
         return;
       }
 
@@ -1151,6 +1174,7 @@ function ImportMenuModal({
           setProgressPct(100);
           setStage("preview");
         } else if (data.status === "error") {
+          // Server already marked it failed — surface immediately, no waiting.
           setError(data.error || t("menu_import_failed") || "Estrazione fallita.");
           setStage("idle");
         }
@@ -1161,7 +1185,7 @@ function ImportMenuModal({
     };
 
     void tick();
-    const iv = setInterval(tick, 2500);
+    const iv = setInterval(tick, 2000);
     return () => {
       cancelled = true;
       clearInterval(iv);

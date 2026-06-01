@@ -313,7 +313,7 @@ export const en = {
   menu_import_analyze: "Analyze menu",
   menu_import_analyzing: "Reading menu...",
   menu_import_wait: "Can take up to 2 minutes for large menus.",
-  menu_import_timeout: "Extraction is taking too long. Try a smaller menu or split it into several files.",
+  menu_import_timeout: "The menu is too large to read within the time limit. Try compressing it or splitting it into several files.",
   menu_import_failed: "Extraction failed. Please try again.",
   menu_import_preview: "Preview",
   menu_import_save: "Save to menu",

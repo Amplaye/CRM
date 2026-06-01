@@ -1,5 +1,36 @@
 import { describe, it, expect } from 'vitest';
-import { parseExtraction, normalizeExtraction } from './extract';
+import { parseExtraction, normalizeExtraction, repairTruncatedJson } from './extract';
+
+describe('repairTruncatedJson', () => {
+  it('repairs JSON truncated mid-array', () => {
+    // A menu cut off mid-item (ran out of output tokens).
+    const truncated =
+      '{"categories":[{"name":"Primi","items":[{"name":"Carbonara","price":12},{"name":"Amatri';
+    const repaired = repairTruncatedJson(truncated) as any;
+    expect(repaired).not.toBeNull();
+    expect(repaired.categories[0].name).toBe('Primi');
+    // The complete item survives; the partial one is dropped.
+    expect(repaired.categories[0].items[0].name).toBe('Carbonara');
+  });
+
+  it('repairs JSON truncated inside a string value', () => {
+    const truncated = '{"categories":[{"name":"Dolci","items":[{"name":"Tiramis';
+    const repaired = repairTruncatedJson(truncated) as any;
+    expect(repaired).not.toBeNull();
+    expect(repaired.categories[0].name).toBe('Dolci');
+  });
+
+  it('returns null for unsalvageable garbage', () => {
+    expect(repairTruncatedJson('not json at all <<<')).toBeNull();
+  });
+
+  it('parseExtraction salvages a truncated menu instead of throwing', () => {
+    const truncated =
+      '{"categories":[{"name":"Antipasti","items":[{"name":"Bruschetta","description":"","price":6,"currency":"EUR","allergens":["glutine"],"tags":[]},{"name":"Carpacc';
+    const menu = parseExtraction(truncated);
+    expect(menu.categories[0].items[0].name).toBe('Bruschetta');
+  });
+});
 
 describe('parseExtraction', () => {
   it('parses a clean JSON response', () => {
