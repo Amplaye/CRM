@@ -497,6 +497,26 @@ export default function MenuPage() {
                               <span className="text-black italic">—</span>
                             )}
                           </p>
+                          {(it.allergens.length > 0 || it.tags.length > 0) && (
+                            <div className="mt-1.5 flex flex-wrap gap-1">
+                              {it.tags.map((tg) => (
+                                <span
+                                  key={tg}
+                                  className="text-[9px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700"
+                                >
+                                  {tg}
+                                </span>
+                              ))}
+                              {it.allergens.map((al) => (
+                                <span
+                                  key={al}
+                                  className="text-[9px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded bg-orange-50 text-orange-700"
+                                >
+                                  {al}
+                                </span>
+                              ))}
+                            </div>
+                          )}
                         </td>
                         <td
                           className="px-5 py-3 align-top text-right font-bold text-black whitespace-nowrap cursor-pointer"
