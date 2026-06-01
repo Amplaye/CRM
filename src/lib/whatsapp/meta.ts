@@ -102,3 +102,91 @@ export async function sendWhatsAppMeta(
     return { ok: false, status: 0, errorMessage: msg };
   }
 }
+
+/**
+ * Send an APPROVED WhatsApp template (HSM) through Meta Cloud API.
+ *
+ * WHY a separate primitive: Meta forbids free-text business-initiated messages
+ * outside the 24h customer-service window. Reminders, follow-ups and waitlist
+ * offers usually fall outside it, so they MUST go out as a pre-approved
+ * template (see scripts/meta-templates.mjs for the registered templates).
+ * sendWhatsAppMeta() (type:"text") still covers replies WITHIN the 24h window.
+ *
+ * @param to        Recipient phone in any shape (normalised internally).
+ * @param template  Approved template name (e.g. "booking_reminder").
+ * @param language  Meta language code matching the approved template ("es","it","en","de").
+ * @param bodyParams Ordered values for the body's {{1}},{{2}}… placeholders.
+ *                   Order MUST match the template's variable map.
+ * @param fromId    Optional sender phone_number_id (defaults via resolveWhatsAppFrom).
+ * @param token     Optional access token (defaults to META_ACCESS_TOKEN).
+ *
+ * Never throws — returns a MetaSendResult, same contract as sendWhatsAppMeta().
+ */
+export async function sendWhatsAppTemplate(
+  to: string,
+  template: string,
+  language: string,
+  bodyParams: string[] = [],
+  fromId?: string | null,
+  token: string | undefined = process.env.META_ACCESS_TOKEN
+): Promise<MetaSendResult> {
+  if (!token) {
+    return { ok: false, status: 0, errorMessage: "META_ACCESS_TOKEN not configured" };
+  }
+
+  const phoneNumberId = resolveWhatsAppFrom(fromId);
+  const recipient = toMetaRecipient(to);
+  if (!recipient) {
+    return { ok: false, status: 0, errorMessage: `Invalid recipient: "${to}"` };
+  }
+
+  // Only attach a BODY component when the template actually has variables —
+  // a parameter-less template rejects an empty parameters array.
+  const components =
+    bodyParams.length > 0
+      ? [
+          {
+            type: "body",
+            parameters: bodyParams.map((text) => ({ type: "text", text: String(text) })),
+          },
+        ]
+      : undefined;
+
+  try {
+    const res = await fetch(
+      `https://graph.facebook.com/${GRAPH_VERSION}/${phoneNumberId}/messages`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          messaging_product: "whatsapp",
+          to: recipient,
+          type: "template",
+          template: {
+            name: template,
+            language: { code: language },
+            ...(components ? { components } : {}),
+          },
+        }),
+      }
+    );
+
+    const data = await res.json().catch(() => ({}));
+
+    if (!res.ok) {
+      const msg =
+        (data as { error?: { message?: string } })?.error?.message ||
+        `Meta error ${res.status}`;
+      return { ok: false, status: res.status, error: data, errorMessage: msg };
+    }
+
+    const messageId = (data as { messages?: Array<{ id?: string }> })?.messages?.[0]?.id;
+    return { ok: true, status: res.status, messageId };
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    return { ok: false, status: 0, errorMessage: msg };
+  }
+}
