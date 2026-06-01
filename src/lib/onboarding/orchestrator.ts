@@ -49,6 +49,18 @@ export interface OnboardInput {
   // persisted to settings.venue so the bot can repeat it in the WhatsApp/voice
   // recap. Optional: the admin wizard omits it. See venueFromQuestionnaire.
   venue?: import("./kb-generator").VenueInfo;
+  // Booking-policy thresholds the CLONED n8n bot reads from settings.bot_config
+  // (NOT from last_reservation_offset/auto_confirm — those drive the KB prose and
+  // the CRM availability API, but the bot's own gatekeeping reads these keys).
+  // Without them every clone fell back to the bot's hardcoded Picnic defaults
+  // (large=7, block=13, closing offset=45), so a wizard that said "groups 10+"
+  // or "30 min before close" was silently ignored. See botConfigFromQuestionnaire.
+  // Optional: the admin wizard omits it → the bot keeps its built-in defaults.
+  booking_policy?: {
+    party_size_threshold_large: number; // party size at/above which it's a pending request
+    party_size_block_threshold: number; // party size above which it's refused outright
+    closing_time_offset_min: number; // minutes before close the last reservation is taken
+  };
   // Knowledge base
   kb_articles: Array<{ title: string; content: string; category: string }>;
   // Body of the VOICE PROMPT KB article. Optional: when omitted (self-serve),
@@ -266,6 +278,14 @@ export async function runOnboard(
         // address (+ maps link), parking, deposit and cancellation in the recap.
         ...(input.venue ? { venue: input.venue } : {}),
       };
+      // Booking-policy thresholds the cloned n8n bot reads from settings.bot_config.
+      // Merged (not replaced) onto whatever bot_config the tenant already had, so a
+      // new tenant enforces ITS OWN thresholds instead of the bot's hardcoded Picnic
+      // defaults — without clobbering any other bot_config a prior step wrote.
+      const mergeBotConfig = (existing: Record<string, any> | undefined) =>
+        input.booking_policy
+          ? { ...(existing || {}), ...input.booking_policy }
+          : existing;
 
       if (input.tenant_id) {
         // Self-serve: the owner's trial tenant already exists. Merge the
@@ -274,7 +294,10 @@ export async function runOnboard(
         const { data: cur, error: getErr } = await supabase
           .from("tenants").select("settings").eq("id", input.tenant_id).single();
         if (getErr || !cur) throw new Error(`tenant ${input.tenant_id} not found`);
-        const mergedSettings = { ...((cur.settings as any) || {}), ...provisioningSettings };
+        const prevSettings = (cur.settings as any) || {};
+        const mergedSettings = { ...prevSettings, ...provisioningSettings };
+        const mergedBotCfg = mergeBotConfig(prevSettings.bot_config);
+        if (mergedBotCfg) mergedSettings.bot_config = mergedBotCfg;
         const { error: updErr } = await supabase
           .from("tenants")
           .update({ name: input.restaurant_name, status: "active", settings: mergedSettings })
@@ -284,10 +307,13 @@ export async function runOnboard(
         push({ step: "tenant", message: `Tenant upgraded (${tenantId})`, ok: true, data: { tenant_id: tenantId } });
       } else {
         // Admin wizard provisions the full bot → born "active" (ready for traffic).
+        const createBotCfg = mergeBotConfig(undefined);
         const created = await createTenant(supabase, {
           name: input.restaurant_name,
           status: "active",
-          settings: provisioningSettings,
+          settings: createBotCfg
+            ? { ...provisioningSettings, bot_config: createBotCfg }
+            : provisioningSettings,
         });
         tenantId = created.id;
         push({ step: "tenant", message: `Tenant created (${tenantId})`, ok: true, data: { tenant_id: tenantId } });

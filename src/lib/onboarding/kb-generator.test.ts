@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   generateKbArticles, generateKbArticlesMulti, defaultQuestionnaire, KbQuestionnaire, KbContext, OpeningHours,
-  mapsLink, venueFromQuestionnaire, bookingVenueLines,
+  mapsLink, venueFromQuestionnaire, bookingVenueLines, formatDepositAmount, botConfigFromQuestionnaire,
 } from "./kb-generator";
 
 const ctx: KbContext = { restaurant_name: "Trattoria Rossa", restaurant_phone: "+34 928 123 456", language: "es" };
@@ -332,5 +332,45 @@ describe("bookingVenueLines — confirmation recap from persisted venue", () => 
     const v = venueFromQuestionnaire({ ...defaultQuestionnaire(), deposit_required: true, deposit_amount: "" });
     expect(bookingVenueLines(v, "es").deposit).toBe("se solicita depósito para grupos grandes");
     expect(bookingVenueLines(v, "es").deposit).not.toContain("(");
+  });
+
+  it("appends the currency to a bare numeric deposit (the '70' confusion)", () => {
+    const v = venueFromQuestionnaire({ ...defaultQuestionnaire(), deposit_required: true, deposit_amount: "70" });
+    expect(bookingVenueLines(v, "es").deposit).toBe("se solicita depósito para grupos grandes (70 €)");
+  });
+});
+
+describe("formatDepositAmount — bare number gets a currency, prose is left alone", () => {
+  it("adds € to a plain integer", () => expect(formatDepositAmount("70")).toBe("70 €"));
+  it("adds € to a decimal", () => expect(formatDepositAmount("20,5")).toBe("20,5 €"));
+  it("adds € to a thousands-grouped number", () => expect(formatDepositAmount("1.000")).toBe("1.000 €"));
+  it("leaves prose untouched", () => expect(formatDepositAmount("10 a persona")).toBe("10 a persona"));
+  it("leaves an existing symbol untouched", () => expect(formatDepositAmount("20€")).toBe("20€"));
+  it("leaves a foreign symbol untouched", () => expect(formatDepositAmount("$15")).toBe("$15"));
+  it("returns empty for empty/whitespace", () => { expect(formatDepositAmount("")).toBe(""); expect(formatDepositAmount("  ")).toBe(""); });
+  it("honours a non-EUR currency", () => expect(formatDepositAmount("15", "USD")).toBe("15 $"));
+});
+
+describe("botConfigFromQuestionnaire — wizard → bot thresholds (no more Picnic clone)", () => {
+  it("large threshold = auto_confirm_max + 1", () => {
+    const p = botConfigFromQuestionnaire({ ...defaultQuestionnaire(), auto_confirm_max: 9 });
+    expect(p.party_size_threshold_large).toBe(10); // owner who said "groups 10+ pending"
+  });
+  it("closing offset = the stricter (larger) of lunch/dinner margins", () => {
+    const p = botConfigFromQuestionnaire({ ...defaultQuestionnaire(), last_lunch_offset_min: 30, last_dinner_offset_min: 60 });
+    expect(p.closing_time_offset_min).toBe(60);
+  });
+  it("ignores a switched-off shift (-1) when picking the offset", () => {
+    const p = botConfigFromQuestionnaire({ ...defaultQuestionnaire(), last_lunch_offset_min: -1, last_dinner_offset_min: 30 });
+    expect(p.closing_time_offset_min).toBe(30);
+  });
+  it("no large groups → block threshold collapses onto the large threshold", () => {
+    const p = botConfigFromQuestionnaire({ ...defaultQuestionnaire(), auto_confirm_max: 6, accepts_large_groups: false });
+    expect(p.party_size_threshold_large).toBe(7);
+    expect(p.party_size_block_threshold).toBe(7);
+  });
+  it("accepts large groups → keeps headroom above the large threshold", () => {
+    const p = botConfigFromQuestionnaire({ ...defaultQuestionnaire(), auto_confirm_max: 6, accepts_large_groups: true });
+    expect(p.party_size_block_threshold).toBeGreaterThan(p.party_size_threshold_large);
   });
 });

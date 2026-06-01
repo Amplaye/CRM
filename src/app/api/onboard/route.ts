@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { createServerSupabaseClient, createServiceRoleClient } from "@/lib/supabase/server";
 import { runOnboard, OnboardInput, OnboardProgress } from "@/lib/onboarding/orchestrator";
 import { resolveOwnerProvisionTenant } from "@/lib/onboarding/owner-tenant";
-import { generateKbArticlesMulti, venueFromQuestionnaire, KbQuestionnaire, Lang } from "@/lib/onboarding/kb-generator";
+import { generateKbArticlesMulti, venueFromQuestionnaire, botConfigFromQuestionnaire, KbQuestionnaire, Lang } from "@/lib/onboarding/kb-generator";
 import { featuresFromQuestionnaire } from "@/lib/types/tenant-settings";
 
 // Owner self-serve provisioning. Same engine as the admin wizard
@@ -118,6 +118,10 @@ export async function POST(req: Request) {
     // Booking-confirmation venue subset (address/parking/deposit/cancellation),
     // persisted on the tenant so /api/ai/book can echo it in the recap.
     venue: venueFromQuestionnaire(body.questionnaire),
+    // Booking-policy thresholds the cloned n8n bot reads from settings.bot_config
+    // (large-group / block sizes + last-reservation offset). Without these the bot
+    // fell back to its hardcoded Picnic defaults and ignored the wizard answers.
+    booking_policy: botConfigFromQuestionnaire(body.questionnaire),
     kb_articles: kbArticles,
     // voice_prompt intentionally omitted → built from the agency template.
     owner_email: user.email || "",

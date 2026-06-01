@@ -109,6 +109,41 @@ export interface VenueInfo {
   cancellation_notice: CancellationNotice;
 }
 
+/** The booking-policy thresholds the cloned n8n bot reads from settings.bot_config.
+ *  Derived from the wizard so the bot enforces the OWNER's policy instead of its
+ *  hardcoded Picnic fallbacks (large=7, block=13, closing offset=45). */
+export interface BookingPolicy {
+  party_size_threshold_large: number;
+  party_size_block_threshold: number;
+  closing_time_offset_min: number;
+}
+
+/** Map the questionnaire to the bot's booking-policy keys.
+ *  - large threshold = first party size that needs manual confirmation = auto_confirm_max + 1
+ *    (the KB prose says the same — see generateKbArticles' `threshold`).
+ *  - block threshold = the size above which we refuse outright. When the owner
+ *    accepts large groups there is no hard block, so we leave the bot's generous
+ *    default headroom; when they DON'T, the block IS the large threshold (anything
+ *    needing manual review is simply refused).
+ *  - closing offset = the stricter (larger) of the lunch/dinner margins the owner
+ *    picked; the bot uses ONE offset for its last-reservation gate. A shift the
+ *    venue doesn't serve (-1) is ignored so it can't drag the offset to a negative. */
+export function botConfigFromQuestionnaire(q: KbQuestionnaire): BookingPolicy {
+  const largeThreshold = Math.max(1, (q.auto_confirm_max || 0) + 1);
+  const offsets = [q.last_lunch_offset_min, q.last_dinner_offset_min].filter((n) => n >= 0);
+  const closingOffset = offsets.length ? Math.max(...offsets) : 45;
+  return {
+    party_size_threshold_large: largeThreshold,
+    // No explicit "hard block" question in the wizard. If large groups are
+    // accepted, keep ample headroom (matches the bot's old 13 default relative to
+    // a 6-cap Picnic). If not accepted, refuse anything past the large threshold.
+    party_size_block_threshold: q.accepts_large_groups
+      ? Math.max(largeThreshold + 6, 13)
+      : largeThreshold,
+    closing_time_offset_min: closingOffset,
+  };
+}
+
 /** Pull the booking-confirmation venue subset out of a full questionnaire. */
 export function venueFromQuestionnaire(q: KbQuestionnaire): VenueInfo {
   return {
@@ -147,7 +182,7 @@ export function bookingVenueLines(venue: VenueInfo, language: Lang): {
     address: addr,
     parking: parkKind,
     deposit: depositOn
-      ? L.depositYes + (venue.deposit_amount.trim() ? ` (${venue.deposit_amount.trim()})` : "")
+      ? L.depositYes + (formatDepositAmount(venue.deposit_amount) ? ` (${formatDepositAmount(venue.deposit_amount)})` : "")
       : "",
     cancellation: venue.cancellation_notice && venue.cancellation_notice !== "none"
       ? L.cancellations[venue.cancellation_notice]
@@ -451,6 +486,23 @@ const DICT: Record<Lang, Labels> = {
 
 const fill = (s: string, n: number | string) => s.replace("{n}", String(n)).replace("{p}", String(n));
 
+// Owners type the deposit as free text. A bare number ("70", "20.5", "1.000")
+// reads as a naked figure in the KB and the WhatsApp recap ("Depósito: ... (70)"),
+// which an owner reported as confusing. When the value is JUST a number we append
+// the currency symbol ("70 €"); anything with words or an existing symbol
+// ("10 a persona", "20€", "$15") is left exactly as written. EUR is the only
+// currency the wizard offers, so € is the default; pass another symbol if needed.
+const CURRENCY_SYMBOL: Record<string, string> = { EUR: "€", USD: "$", GBP: "£" };
+export function formatDepositAmount(raw: string, currency = "EUR"): string {
+  const v = (raw || "").trim();
+  if (!v) return "";
+  // Bare amount = digits with optional thousands/decimal separators, nothing else.
+  if (/^\d{1,3}([.,]\d{3})*([.,]\d{1,2})?$|^\d+([.,]\d{1,2})?$/.test(v)) {
+    return `${v} ${CURRENCY_SYMBOL[currency] || currency}`;
+  }
+  return v;
+}
+
 // Build a clickable Google Maps link from the free-text address (+ city). Used
 // both in the Location KB article and, at booking time, in the WhatsApp recap
 // (the book route reuses this so the two never drift). Returns "" if no address.
@@ -588,8 +640,9 @@ export function generateKbArticles(q: KbQuestionnaire, ctx: KbContext): Generate
   reservationLines.push(lastReservationLine(L, L.lastLunch, lastLunch, q.last_lunch_offset_min));
   reservationLines.push(lastReservationLine(L, L.lastDinner, lastDinner, q.last_dinner_offset_min));
   if (q.accepts_large_groups) {
+    const depAmt = formatDepositAmount(q.deposit_amount);
     const depositValue = q.deposit_required
-      ? L.depositYes + (q.deposit_amount.trim() ? ` (${q.deposit_amount.trim()})` : "")
+      ? L.depositYes + (depAmt ? ` (${depAmt})` : "")
       : L.depositNo;
     reservationLines.push(`${L.deposit}: ${depositValue}`);
   }
