@@ -278,14 +278,21 @@ export async function runOnboard(
         // address (+ maps link), parking, deposit and cancellation in the recap.
         ...(input.venue ? { venue: input.venue } : {}),
       };
-      // Booking-policy thresholds the cloned n8n bot reads from settings.bot_config.
-      // Merged (not replaced) onto whatever bot_config the tenant already had, so a
-      // new tenant enforces ITS OWN thresholds instead of the bot's hardcoded Picnic
-      // defaults — without clobbering any other bot_config a prior step wrote.
-      const mergeBotConfig = (existing: Record<string, any> | undefined) =>
-        input.booking_policy
-          ? { ...(existing || {}), ...input.booking_policy }
-          : existing;
+      // Booking-policy thresholds + primary language the cloned n8n bot reads from
+      // settings.bot_config. Merged (not replaced) onto whatever bot_config the tenant
+      // already had, so a new tenant enforces ITS OWN thresholds/default-language
+      // instead of the bot's hardcoded Picnic defaults — without clobbering any other
+      // bot_config a prior step wrote.
+      //
+      // primary_language is the wizard's "star" (languages[0]). The n8n bot reads
+      // settings.bot_config.primary_language for PRIMARY_LANG_CFG (the default/fallback
+      // reply language). Without this it fell back to 'es' for every tenant regardless
+      // of the star — e.g. an owner picking Italian still got a Spanish-defaulting bot.
+      const mergeBotConfig = (existing: Record<string, any> | undefined) => {
+        const merged = { ...(existing || {}), primary_language: input.language };
+        if (input.booking_policy) Object.assign(merged, input.booking_policy);
+        return merged;
+      };
 
       if (input.tenant_id) {
         // Self-serve: the owner's trial tenant already exists. Merge the
