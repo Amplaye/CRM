@@ -199,4 +199,29 @@ describe('checkOpeningHours', () => {
   it('lunch boundary inclusive: 16:00 is OK', () => {
     expect(checkOpeningHours('2026-05-17', '16:00', HOURS_FULL_WEEK).ok).toBe(true);
   });
+
+  // Regression (2026-06-02): a dinner shift that closes after midnight (00:30)
+  // must NOT reject valid evening times. Before the fix, "00:30" parsed to 30 min
+  // and every time > 00:30 (e.g. 22:30) was wrongly returned as outside_hours.
+  describe('after-midnight close (Fri/Sat dinner until 00:30)', () => {
+    const HOURS_AFTER_MIDNIGHT: OpeningHours = {
+      '5': [{ open: '12:30', close: '15:30' }, { open: '19:30', close: '00:30' }], // Fri
+    };
+    it('OK at 22:30 on a Friday closing at 00:30', () => {
+      expect(checkOpeningHours('2026-06-05', '22:30', HOURS_AFTER_MIDNIGHT)).toEqual({ ok: true });
+    });
+    it('OK right at the open 19:30', () => {
+      expect(checkOpeningHours('2026-06-05', '19:30', HOURS_AFTER_MIDNIGHT)).toEqual({ ok: true });
+    });
+    it('OK in the after-midnight tail 00:15', () => {
+      expect(checkOpeningHours('2026-06-05', '00:15', HOURS_AFTER_MIDNIGHT)).toEqual({ ok: true });
+    });
+    it('OK exactly at the 00:30 close', () => {
+      expect(checkOpeningHours('2026-06-05', '00:30', HOURS_AFTER_MIDNIGHT)).toEqual({ ok: true });
+    });
+    it('outside_hours at 17:00 (between lunch and dinner)', () => {
+      const r = checkOpeningHours('2026-06-05', '17:00', HOURS_AFTER_MIDNIGHT);
+      expect(r.ok).toBe(false);
+    });
+  });
 });

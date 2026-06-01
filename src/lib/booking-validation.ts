@@ -154,7 +154,15 @@ export function checkOpeningHours(
   const inAnySlot = hoursToday.some((s) => {
     const [oh, om] = s.open.split(':').map(Number);
     const [ch, cm] = s.close.split(':').map(Number);
-    return reqMin >= oh * 60 + om && reqMin <= ch * 60 + cm;
+    const openMin = oh * 60 + om;
+    let closeMin = ch * 60 + cm;
+    // A close at/before the open belongs to the next day (e.g. open 19:30, close
+    // 00:30). Without this, 00:30 parses to 30 min and every valid evening time
+    // (22:30 > 30) is wrongly rejected as outside_hours. Shift the request into the
+    // after-midnight tail when it falls before the open of a midnight-crossing slot.
+    if (closeMin <= openMin) closeMin += 24 * 60;
+    const rq = reqMin < openMin && closeMin > 24 * 60 ? reqMin + 24 * 60 : reqMin;
+    return rq >= openMin && rq <= closeMin;
   });
   if (inAnySlot) return { ok: true };
   return {
