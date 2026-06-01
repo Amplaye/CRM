@@ -280,6 +280,43 @@ describe("generateKbArticlesMulti — assistant speaks several languages", () =>
     expect(triple.length).toBe(single.length); // merged by topic, not concatenated
     expect(triple.map((a) => a.title)).toEqual(single.map((a) => a.title)); // primary titles
   });
+
+  it("free-text overrides render the landmark/cuisine in each language block; primary keeps the original", () => {
+    const q: KbQuestionnaire = {
+      ...defaultQuestionnaire(),
+      cuisine_type: "Japonesa", landmark: "Al lado de la Alameda de Colón",
+      address: "Calle Terrero 8A", city: "35002 Las Palmas", neighborhood: "Triana",
+    };
+    // es is primary (owner's wording); it/de get translated overrides.
+    const arts = generateKbArticlesMulti(q, mctx, ["es", "it", "de"], {
+      it: { landmark: "Accanto all'Alameda de Colón", cuisine_type: "Giapponese" },
+      de: { landmark: "Neben der Alameda de Colón", cuisine_type: "Japanisch" },
+    });
+    const loc = byTitle(arts, "Ubicación y cómo llegar")!; // Spanish primary title
+    // Each block reads the field in its own language.
+    expect(loc.content).toContain("Referencia: Al lado de la Alameda de Colón"); // es original
+    expect(loc.content).toContain("Riferimento: Accanto all'Alameda de Colón"); // it override
+    expect(loc.content).toContain("Orientierungspunkt: Neben der Alameda de Colón"); // de override
+    // Cuisine in each header.
+    expect(loc.content).toContain("- Japonesa");
+    expect(loc.content).toContain("- Giapponese");
+    expect(loc.content).toContain("- Japanisch");
+    // Proper nouns are NOT translated — address/city identical across blocks.
+    expect(loc.content.match(/Calle Terrero 8A/g)?.length).toBe(3);
+  });
+
+  it("missing override for a field falls back to the questionnaire's original text", () => {
+    const q: KbQuestionnaire = {
+      ...defaultQuestionnaire(), cuisine_type: "Japonesa", landmark: "Frente al mercado",
+    };
+    // de override translates only the cuisine; landmark must fall back to es text.
+    const arts = generateKbArticlesMulti(q, mctx, ["es", "de"], {
+      de: { cuisine_type: "Japanisch" },
+    });
+    const loc = byTitle(arts, "Ubicación y cómo llegar")!;
+    expect(loc.content).toContain("- Japanisch"); // translated cuisine
+    expect(loc.content).toContain("Orientierungspunkt: Frente al mercado"); // fallback landmark
+  });
 });
 
 describe("mapsLink", () => {

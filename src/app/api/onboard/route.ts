@@ -4,6 +4,7 @@ import { runOnboard, OnboardInput, OnboardProgress } from "@/lib/onboarding/orch
 import { resolveOwnerProvisionTenant } from "@/lib/onboarding/owner-tenant";
 import { generateKbArticlesMulti, venueFromQuestionnaire, botConfigFromQuestionnaire, KbQuestionnaire, Lang } from "@/lib/onboarding/kb-generator";
 import { featuresFromQuestionnaire } from "@/lib/types/tenant-settings";
+import { chatCompletion } from "@/lib/openai-base-url";
 
 // Owner self-serve provisioning. Same engine as the admin wizard
 // (/api/admin/onboard → runOnboard), but driven by the restaurant owner for
@@ -16,6 +17,71 @@ const localeFor = (l: Lang) =>
 function slugify(name: string): string {
   return name.toLowerCase().normalize("NFD").replace(/\p{Diacritic}/gu, "")
     .replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 24);
+}
+
+const LANG_NAMES: Record<Lang, string> = {
+  es: "Spanish (es-ES)", it: "Italian (it-IT)", en: "English (en-GB)", de: "German (de-DE)",
+};
+
+// Translate one short free-text phrase into `target`. The owner writes the
+// landmark / cuisine type once in the primary language; for a multilingual KB
+// each language block must read them in ITS language. Proper nouns (address,
+// city, neighborhood) are intentionally NOT translated — only these descriptive
+// prose fields. Best-effort: any failure returns the original so a translation
+// hiccup never blocks onboarding (the owner gets the source text, not nothing).
+async function translatePhrase(text: string, target: Lang): Promise<string> {
+  const trimmed = (text || "").trim();
+  if (!trimmed) return "";
+  try {
+    const res = await chatCompletion({
+      model: "gpt-4.1-mini",
+      temperature: 0.1,
+      messages: [
+        {
+          role: "system",
+          content:
+            `You are a professional translator for short restaurant info snippets ` +
+            `(a landmark/reference point or a cuisine type). ALWAYS translate the input ` +
+            `into ${LANG_NAMES[target]}, producing the most idiomatic rendering — never ` +
+            `return the source unchanged when it is in another language. Keep proper ` +
+            `nouns (street names, place names, monuments) as they are. Output ONLY the ` +
+            `translation: no quotes, no labels, no explanation.`,
+        },
+        { role: "user", content: `Translate to ${LANG_NAMES[target]}: ${trimmed}` },
+      ],
+    });
+    if (!res.ok) return trimmed;
+    const data = await res.json();
+    return data?.choices?.[0]?.message?.content?.trim() || trimmed;
+  } catch {
+    return trimmed;
+  }
+}
+
+// Build per-language translations of the free-text prose fields (landmark,
+// cuisine_type). `primary` is the language the owner typed them in, so it keeps
+// the original text verbatim; every other selected language gets a translation.
+async function freeTextTranslations(
+  q: KbQuestionnaire,
+  selected: Lang[],
+  primary: Lang,
+): Promise<Partial<Record<Lang, { landmark?: string; cuisine_type?: string }>>> {
+  const landmark = (q.landmark || "").trim();
+  const cuisine = (q.cuisine_type || "").trim();
+  if (!landmark && !cuisine) return {};
+  const out: Partial<Record<Lang, { landmark?: string; cuisine_type?: string }>> = {};
+  const others = selected.filter((l) => l !== primary);
+  // Each language's two fields in parallel; languages also resolve concurrently.
+  await Promise.all(
+    others.map(async (lang) => {
+      const [lm, cz] = await Promise.all([
+        translatePhrase(landmark, lang),
+        translatePhrase(cuisine, lang),
+      ]);
+      out[lang] = { landmark: lm, cuisine_type: cz };
+    }),
+  );
+  return out;
 }
 
 interface SelfServeBody {
@@ -86,11 +152,15 @@ export async function POST(req: Request) {
   // CRM dashboard language — a single locale, independent of the assistant
   // languages. Falls back to the primary assistant language if not provided.
   const crmLocale: Lang = ALL.includes(body.crm_locale as Lang) ? (body.crm_locale as Lang) : lang;
+  // Translate the free-text prose fields (landmark, cuisine type) into every
+  // selected language so each KB language block reads them in its own language
+  // instead of repeating the owner's original wording. Best-effort.
+  const freeTextByLang = await freeTextTranslations(body.questionnaire, selected, lang);
   const kbArticles = generateKbArticlesMulti(body.questionnaire, {
     restaurant_name: body.restaurant_name,
     restaurant_phone: body.restaurant_phone || "",
     opening_hours: body.opening_hours || {},
-  }, selected);
+  }, selected, freeTextByLang);
   // Slug carries a tenant-id suffix so two restaurants with the same name never
   // collide on n8n webhook paths.
   const slug = `${slugify(body.restaurant_name) || "resto"}-${tenantId.slice(0, 4)}`;

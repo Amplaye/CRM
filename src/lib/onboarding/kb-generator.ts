@@ -98,6 +98,13 @@ export interface KbContext {
   restaurant_phone: string;
   language: Lang;
   opening_hours?: OpeningHours; // when provided, a Schedule article is generated
+  // Per-language translations of the FREE-TEXT prose fields. The owner types
+  // these once (in one language); for a multilingual KB each block must read them
+  // in ITS language, so the caller translates them up front and passes the
+  // already-translated values here. Only descriptive prose is translated
+  // (landmark, cuisine_type) — NOT proper nouns like address/city/neighborhood.
+  // Absent/empty fields fall back to the questionnaire's original text.
+  freeTextOverrides?: { landmark?: string; cuisine_type?: string };
 }
 
 // The booking-relevant subset of the questionnaire, persisted on the tenant
@@ -709,7 +716,12 @@ export function generateKbArticles(q: KbQuestionnaire, ctx: KbContext): Generate
     k === "own" ? L.parkOwn : k === "public" ? L.parkPublic : k === "street" ? L.parkStreet : L.parkNone;
   const parkChosen = q.parking_info.filter((k) => k !== "none");
   const parkKind = parkChosen.length ? parkChosen.map(parkLabel).join(", ") : L.parkNone;
-  const header = q.cuisine_type.trim() ? `${ctx.restaurant_name} - ${q.cuisine_type.trim()}` : ctx.restaurant_name;
+  // Free-text prose reads in this block's language when a translation was supplied
+  // (multilingual KB); otherwise the owner's original text. Proper nouns
+  // (address/city/neighborhood) are never translated.
+  const cuisine = (ctx.freeTextOverrides?.cuisine_type || q.cuisine_type).trim();
+  const landmark = (ctx.freeTextOverrides?.landmark || q.landmark).trim();
+  const header = cuisine ? `${ctx.restaurant_name} - ${cuisine}` : ctx.restaurant_name;
   const locationLines: string[] = [header];
   if (q.address.trim()) locationLines.push(`${L.address}: ${q.address.trim()}`);
   if (q.city.trim()) locationLines.push(`${L.city}: ${q.city.trim()}`);
@@ -718,7 +730,7 @@ export function generateKbArticles(q: KbQuestionnaire, ctx: KbContext): Generate
   if (q.neighborhood.trim()) locationLines.push(`${L.neighborhood}: ${q.neighborhood.trim()}`);
   locationLines.push(`${L.parkingInfo}: ${parkKind}`);
   locationLines.push(`${L.publicTransport}: ${yn(L, q.public_transport)}`);
-  if (q.landmark.trim()) locationLines.push(`${L.landmark}: ${q.landmark.trim()}`);
+  if (landmark) locationLines.push(`${L.landmark}: ${landmark}`);
   if (ctx.restaurant_phone.trim()) locationLines.push(`${L.phone}: ${ctx.restaurant_phone.trim()}`);
   articles.push({ title: L.tLocation, category: "general", content: locationLines.join("\n") });
 
@@ -747,16 +759,24 @@ const LANG_NAME: Record<Lang, string> = {
  */
 export function generateKbArticlesMulti(
   q: KbQuestionnaire,
-  ctx: Omit<KbContext, "language">,
+  ctx: Omit<KbContext, "language" | "freeTextOverrides">,
   languages: Lang[],
+  // Translations of the free-text prose fields, keyed by language. The owner
+  // types landmark/cuisine_type once; the caller (route.ts) translates them into
+  // every selected language up front and passes them here so each language block
+  // reads them in its own language. A missing language/field falls back to the
+  // questionnaire's original text. Proper nouns are never translated.
+  freeTextByLang?: Partial<Record<Lang, { landmark?: string; cuisine_type?: string }>>,
 ): GeneratedArticle[] {
   const langs = languages.length ? languages : (["es"] as Lang[]);
+  const ctxFor = (lang: Lang): KbContext =>
+    ({ ...ctx, language: lang, freeTextOverrides: freeTextByLang?.[lang] });
   if (langs.length === 1) {
-    return generateKbArticles(q, { ...ctx, language: langs[0] });
+    return generateKbArticles(q, ctxFor(langs[0]));
   }
 
   // Per-language article lists, all the same length & topic order (see docblock).
-  const perLang = langs.map((lang) => ({ lang, arts: generateKbArticles(q, { ...ctx, language: lang }) }));
+  const perLang = langs.map((lang) => ({ lang, arts: generateKbArticles(q, ctxFor(lang)) }));
   const primary = perLang[0].arts; // titles/categories come from the primary language
 
   return primary.map((art, i) => {
