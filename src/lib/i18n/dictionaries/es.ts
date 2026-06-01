@@ -323,6 +323,13 @@ export const es: Dictionary = {
   menu_import_restart: "Subir otro archivo",
   menu_import_saving: "Guardando en el menú...",
   menu_import_done: "¡Menú importado!",
+  menu_import_replace_warning: "Esto reemplazará el menú actual",
+  menu_import_replace_warning_hint:
+    "Los platos existentes se eliminarán y se sustituirán por los de arriba.",
+  menu_import_verify_title: "Revisa el menú antes de publicarlo",
+  menu_import_verify_body:
+    "La extracción automática puede saltarse algún plato o equivocarse en un precio, un alérgeno o una etiqueta. Echa un vistazo a la lista y corrige lo que haga falta.",
+  menu_import_verify_cta: "Entendido, reviso el menú",
   menu_import_skip_item: "Excluir plato",
   menu_import_tab_file: "Archivo",
   menu_import_tab_url: "URL del QR",

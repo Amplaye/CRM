@@ -18,6 +18,7 @@ import {
   CheckCircle2,
   Pencil,
   ChevronRight,
+  AlertTriangle,
 } from "lucide-react";
 import { useLanguage } from "@/lib/contexts/LanguageContext";
 import { useEffect, useMemo, useRef, useState, type DragEvent } from "react";
@@ -618,7 +619,12 @@ export default function MenuPage() {
       )}
 
       {importOpen && tenant && (
-        <ImportMenuModal t={t} tenantId={tenant.id} onClose={() => setImportOpen(false)} />
+        <ImportMenuModal
+          t={t}
+          tenantId={tenant.id}
+          existingItemsCount={items.length}
+          onClose={() => setImportOpen(false)}
+        />
       )}
 
       {qrOpen && tenant && (
@@ -1095,10 +1101,12 @@ function CategoryEditModal({
 function ImportMenuModal({
   t,
   tenantId,
+  existingItemsCount,
   onClose,
 }: {
   t: (k: any) => string;
   tenantId: string;
+  existingItemsCount: number;
   onClose: () => void;
 }) {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -1310,7 +1318,8 @@ function ImportMenuModal({
       const res = await fetch("/api/menu/import-confirm", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ tenant_id: tenantId, extracted }),
+        // Replace the current menu (a re-upload means "this is the menu now").
+        body: JSON.stringify({ tenant_id: tenantId, extracted, mode: "replace" }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -1593,6 +1602,19 @@ function ImportMenuModal({
                 )}
               </div>
 
+              {existingItemsCount > 0 && (
+                <div className="mt-5 p-3 bg-amber-50 border border-amber-300 rounded-lg flex items-start gap-2">
+                  <AlertTriangle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
+                  <p className="text-sm text-amber-900">
+                    {(t("menu_import_replace_warning") as string) ||
+                      "Questo sostituirà il menu attuale"}{" "}
+                    ({existingItemsCount} {t("menu_dishes") || "piatti"}).{" "}
+                    {(t("menu_import_replace_warning_hint") as string) ||
+                      "I piatti esistenti verranno eliminati e sostituiti con quelli qui sopra."}
+                  </p>
+                </div>
+              )}
+
               <div className="mt-6 flex justify-end gap-2 sticky bottom-0 bg-white pt-3">
                 <button
                   onClick={() => {
@@ -1628,7 +1650,7 @@ function ImportMenuModal({
           )}
 
           {stage === "done" && savedCounts && (
-            <div className="py-12 text-center">
+            <div className="py-10 text-center">
               <CheckCircle2 className="w-14 h-14 mx-auto mb-4 text-emerald-500" />
               <p className="text-lg font-black text-black">
                 {t("menu_import_done") || "Menu importato!"}
@@ -1637,12 +1659,29 @@ function ImportMenuModal({
                 {savedCounts.cats} {t("menu_categories") || "categorie"} · {savedCounts.items}{" "}
                 {t("menu_dishes") || "piatti"}
               </p>
+
+              {/* The AI reads the menu automatically and can miss a dish or an
+                  allergen/tag. Tell the user plainly to give it a once-over. */}
+              <div className="mt-5 mx-auto max-w-md p-4 bg-amber-50 border border-amber-300 rounded-xl text-left flex items-start gap-3">
+                <AlertTriangle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
+                <div>
+                  <p className="text-sm font-bold text-amber-900">
+                    {(t("menu_import_verify_title") as string) ||
+                      "Controlla il menu prima di pubblicarlo"}
+                  </p>
+                  <p className="text-sm text-amber-900 mt-1">
+                    {(t("menu_import_verify_body") as string) ||
+                      "L'estrazione automatica può saltare qualche piatto o sbagliare un prezzo, un allergene o un tag. Dai un'occhiata alla lista e correggi quello che serve."}
+                  </p>
+                </div>
+              </div>
+
               <button
                 onClick={onClose}
                 className="cursor-pointer mt-6 px-6 py-2 text-white text-sm font-bold rounded-lg shadow-sm"
                 style={{ background: "linear-gradient(135deg, #d4a574, #c4956a)" }}
               >
-                {t("close") || "Chiudi"}
+                {(t("menu_import_verify_cta") as string) || "Ho capito, controllo il menu"}
               </button>
             </div>
           )}

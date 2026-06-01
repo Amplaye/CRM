@@ -57,3 +57,4 @@ _creds_tmp.md
 # n8n workflow backups — kept locally for rollback; contain hardcoded
 # Twilio tokens + a Supabase JWT, so they must NEVER enter git history.
 N8N/
+supabase/.temp/

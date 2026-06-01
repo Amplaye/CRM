@@ -72,6 +72,39 @@ object describing it. Follow these rules without exception:
 const USER_PROMPT = `Extract this menu as STRICT JSON following the schema in the system prompt.
 Return ONLY the JSON object — no prose, no markdown, no explanation.`;
 
+// Second-pass prompt. The first pass (especially on image/PDF via vision) is
+// great at reading dish NAMES + DESCRIPTIONS but routinely leaves allergens and
+// tags empty — gpt-4o reading a rendered page doesn't reliably reason about
+// ingredients. This pass runs on the structured result as TEXT (where the model
+// is strong) and DEDUCES allergens + tags from each dish's name/description.
+// Measured on the Fuji menu: 0% → ~85% allergens, ~38% tags. Mirrored verbatim
+// in supabase/functions/menu-extract/index.ts — keep both in sync.
+export const ENRICH_PROMPT = `Sei un esperto di sicurezza alimentare e cucina. Ricevi un menù già strutturato in JSON (nomi e descrizioni dei piatti) in cui "allergens" e "tags" possono essere vuoti o incompleti.
+
+Il tuo UNICO compito: per OGNI piatto, compilare "allergens" e "tags" deducendoli dal nome e dalla descrizione con la conoscenza culinaria standard. NON modificare name/description/price/currency. NON aggiungere, togliere o riordinare i piatti. Mantieni ESATTAMENTE la stessa struttura (stesse categorie, stessi piatti, nello stesso ordine).
+
+ALLERGENI — lista chiusa, lowercase (usa SOLO questi): glutine, latticini, uova, pesce, crostacei, frutta_secca, arachidi, soia, sedano, senape, sesamo, solfiti, lupini, molluschi
+Deduzioni tipiche (non esaustivo):
+- tempura/tempurizado/rebozado/empanado/panato/gyoza/tallarines/pasta/pane/soba(grano)/salsa di soia/teriyaki/katsu/kabayaki → glutine
+- salsa di soia/teriyaki/miso/tofu/soia/edamame → soia
+- langostino/gambas/ebi/gambero → crostacei
+- pulpo/calamar/zamburiñas/vieiras/mejillones/almejas/seppia/polpo/calamaro/capesante → molluschi
+- atún/salmón/pescado/anguila/surimi/sashimi/maguro/dashi/tonno/salmone/anguilla → pesce
+- queso/crema/nata/yogur/helado(non sorbetto)/queso crema/formaggio/panna → latticini
+- mayonesa/mahonesa/tortilla/dashimaki/tamago/huevo/uovo → uova
+- sésamo/gomasio/aceite de sésamo/olio di sesamo → sesamo
+- nueces/almendras/anacardos/noci/mandorle → frutta_secca
+
+TAG — lista chiusa (usa SOLO questi): vegano, vegetariano, piccante, consigliato
+- "piccante": picante, spicy, kimchi, chili, peperoncino, "toque picante", wasabi
+- "vegetariano": NON contiene carne, pesce, molluschi o crostacei
+- "vegano": vegetariano E senza uova, latticini o miele
+- "consigliato": SOLO se il menù lo marca esplicitamente (especial/recomendado/del chef/stella)
+
+Per piatti senza descrizione, deduci dal nome (es. "Tarta de queso"/cheesecake → latticini, glutine, uova). È RICHIESTO dedurre gli allergeni ovvi; non inventare allergeni non plausibili.
+
+Restituisci lo STESSO oggetto JSON, identica struttura, con allergens/tags compilati. Solo JSON valido, nessun commento, nessun markdown.`;
+
 type ResponseContentBlock =
   | { type: 'input_text'; text: string }
   | { type: 'input_image'; image_url: string }
@@ -93,7 +126,10 @@ type ResponsesApiResponse = {
   }>;
 };
 
-async function callResponses(content: ResponseContentBlock[]): Promise<string> {
+async function callResponses(
+  content: ResponseContentBlock[],
+  instructions: string = SYSTEM_PROMPT
+): Promise<string> {
   const key = process.env.OPENAI_API_KEY;
   if (!key) throw new Error('OPENAI_API_KEY not configured');
 
@@ -101,7 +137,7 @@ async function callResponses(content: ResponseContentBlock[]): Promise<string> {
     model: MODEL,
     max_output_tokens: MAX_OUTPUT_TOKENS,
     temperature: 0,
-    instructions: SYSTEM_PROMPT,
+    instructions,
     input: [{ role: 'user', content }],
   };
 
@@ -158,7 +194,7 @@ export async function extractMenuFromFile(opts: {
     : { type: 'input_image', image_url: dataUrl };
 
   const raw = await callResponses([fileBlock, { type: 'input_text', text: USER_PROMPT }]);
-  return parseExtraction(raw);
+  return enrichAllergensAndTags(parseExtraction(raw));
 }
 
 /**
@@ -170,7 +206,126 @@ export async function extractMenuFromText(text: string): Promise<ExtractedMenu> 
   const raw = await callResponses([
     { type: 'input_text', text: `${USER_PROMPT}\n\n---MENU TEXT---\n${trimmed}` },
   ]);
-  return parseExtraction(raw);
+  return enrichAllergensAndTags(parseExtraction(raw));
+}
+
+// Compact name/description-only view of the menu, with stable [c,i] coordinates,
+// so the enrichment pass gets the minimum it needs (cheap tokens) and we can
+// merge results back by position without trusting the model to preserve names.
+type EnrichSlot = { c: number; i: number; name: string; description: string };
+
+function collectEnrichSlots(menu: ExtractedMenu): EnrichSlot[] {
+  const slots: EnrichSlot[] = [];
+  menu.categories.forEach((cat, c) =>
+    cat.items.forEach((it, i) => slots.push({ c, i, name: it.name, description: it.description }))
+  );
+  menu.uncategorized.forEach((it, i) =>
+    slots.push({ c: -1, i, name: it.name, description: it.description })
+  );
+  return slots;
+}
+
+/**
+ * Second pass: deduce allergens + tags for every dish from its name/description.
+ * The first extraction (vision in particular) often returns these empty; this
+ * fills them in, which is the real value for restaurant staff.
+ *
+ * Defensive by design: on ANY failure (no API key, parse error, shape
+ * mismatch, empty menu) it returns the input menu unchanged — enrichment is a
+ * best-effort enhancement, never a way to lose an extracted menu.
+ *
+ * `call` is injected so this is unit-testable without hitting OpenAI.
+ */
+export async function enrichAllergensAndTags(
+  menu: ExtractedMenu,
+  call: (content: ResponseContentBlock[]) => Promise<string> = (content) =>
+    callResponses(content, ENRICH_PROMPT)
+): Promise<ExtractedMenu> {
+  const slots = collectEnrichSlots(menu);
+  if (slots.length === 0) return menu;
+
+  try {
+    const payload = JSON.stringify({
+      items: slots.map((s) => ({ c: s.c, i: s.i, name: s.name, description: s.description })),
+    });
+    const raw = await call([
+      {
+        type: 'input_text',
+        text:
+          `Per ogni item qui sotto restituisci un oggetto JSON ` +
+          `{"items":[{"c":number,"i":number,"allergens":string[],"tags":string[]}]} ` +
+          `con gli STESSI c,i. Solo JSON.\n\n${payload}`,
+      },
+    ]);
+
+    let cleaned = raw.trim();
+    if (cleaned.startsWith('```')) {
+      cleaned = cleaned.replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/i, '');
+    }
+    const fb = cleaned.indexOf('{');
+    const lb = cleaned.lastIndexOf('}');
+    if (fb >= 0 && lb > fb) cleaned = cleaned.slice(fb, lb + 1);
+
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(cleaned);
+    } catch {
+      const repaired = repairTruncatedJson(cleaned);
+      if (!repaired) return menu;
+      parsed = repaired;
+    }
+
+    const out = (parsed || {}) as { items?: unknown };
+    const enriched = Array.isArray(out.items) ? out.items : [];
+    if (enriched.length === 0) return menu;
+
+    // Index the model's answers by coordinate so order/count drift can't corrupt
+    // the merge (we only ever overwrite allergens/tags of the matching dish).
+    const byKey = new Map<string, { allergens: string[]; tags: string[] }>();
+    for (const e of enriched) {
+      const o = (e || {}) as Record<string, unknown>;
+      if (typeof o.c !== 'number' || typeof o.i !== 'number') continue;
+      byKey.set(`${o.c}:${o.i}`, {
+        allergens: cleanList(o.allergens, ALLOWED_ALLERGENS),
+        tags: cleanList(o.tags, ALLOWED_TAGS),
+      });
+    }
+
+    const applyTo = (it: ExtractedMenuItem, c: number, i: number): ExtractedMenuItem => {
+      const hit = byKey.get(`${c}:${i}`);
+      if (!hit) return it;
+      // Union with anything the first pass already found — never drop a real
+      // allergen the original extraction caught.
+      return {
+        ...it,
+        allergens: Array.from(new Set([...it.allergens, ...hit.allergens])),
+        tags: Array.from(new Set([...it.tags, ...hit.tags])),
+      };
+    };
+
+    return {
+      categories: menu.categories.map((cat, c) => ({
+        ...cat,
+        items: cat.items.map((it, i) => applyTo(it, c, i)),
+      })),
+      uncategorized: menu.uncategorized.map((it, i) => applyTo(it, -1, i)),
+      raw_notes: menu.raw_notes,
+    };
+  } catch {
+    return menu;
+  }
+}
+
+function cleanList(raw: unknown, allowed: Set<string>): string[] {
+  if (!Array.isArray(raw)) return [];
+  return Array.from(
+    new Set(
+      raw
+        .filter((x): x is string => typeof x === 'string')
+        .map((x) => x.toLowerCase().trim())
+        .filter((x) => allowed.has(x))
+    )
+  );
 }
 
 /**

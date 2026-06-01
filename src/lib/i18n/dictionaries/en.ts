@@ -320,6 +320,13 @@ export const en = {
   menu_import_restart: "Upload another file",
   menu_import_saving: "Saving to menu...",
   menu_import_done: "Menu imported!",
+  menu_import_replace_warning: "This will replace the current menu",
+  menu_import_replace_warning_hint:
+    "The existing dishes will be deleted and replaced with the ones above.",
+  menu_import_verify_title: "Check the menu before publishing it",
+  menu_import_verify_body:
+    "Automatic extraction can miss a dish or get a price, allergen or tag wrong. Look over the list and fix anything that's off.",
+  menu_import_verify_cta: "Got it, I'll check the menu",
   menu_import_skip_item: "Skip dish",
   menu_import_tab_file: "File",
   menu_import_tab_url: "QR URL",
