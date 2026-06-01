@@ -50,11 +50,14 @@ function resolveLocale(raw: unknown): MenuLocale {
 
 // The handful of static strings on this page, localized alongside the chips so
 // the whole public menu speaks one language.
-const PUBLIC_STRINGS: Record<MenuLocale, { menu: string; updating: string; other: string }> = {
-  it: { menu: "Menu", updating: "Menù in aggiornamento.", other: "Altro" },
-  es: { menu: "Carta", updating: "Carta en actualización.", other: "Otros" },
-  en: { menu: "Menu", updating: "Menu being updated.", other: "Other" },
-  de: { menu: "Speisekarte", updating: "Speisekarte wird aktualisiert.", other: "Sonstiges" },
+const PUBLIC_STRINGS: Record<
+  MenuLocale,
+  { menu: string; updating: string; other: string; featured: string }
+> = {
+  it: { menu: "Menu", updating: "Menù in aggiornamento.", other: "Altro", featured: "Selezione" },
+  es: { menu: "Carta", updating: "Carta en actualización.", other: "Otros", featured: "Selección" },
+  en: { menu: "Menu", updating: "Menu being updated.", other: "Other", featured: "Selection" },
+  de: { menu: "Speisekarte", updating: "Speisekarte wird aktualisiert.", other: "Sonstiges", featured: "Auswahl" },
 };
 
 type CategoryRow = { id: string; name: string; sort_order: number };
@@ -211,6 +214,7 @@ export default async function PublicMenuPage({ params }: { params: Promise<Param
         restaurantName={tenant.name}
         menuLabel={ui.menu}
         emptyLabel={ui.updating}
+        featuredLabel={ui.featured}
         sections={sections}
       />
     </div>
