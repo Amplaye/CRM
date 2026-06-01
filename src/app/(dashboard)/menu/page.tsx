@@ -27,6 +27,7 @@ import { useTenant } from "@/lib/contexts/TenantContext";
 import type { MenuCategory, MenuItem, Tenant } from "@/lib/types";
 import type { ExtractedMenu, ExtractedMenuItem } from "@/lib/menu/extract";
 import { MAX_UPLOAD_BYTES, MAX_UPLOAD_MB, ACCEPTED_EXTENSIONS, VISION_MIME } from "@/lib/menu/limits";
+import { allergenLabel, tagLabel, type MenuLocale } from "@/lib/menu/labels";
 import { QRCodeSVG } from "qrcode.react";
 
 const COMMON_ALLERGENS = [
@@ -52,7 +53,7 @@ const COMMON_TAGS = ["vegano", "vegetariano", "piccante", "consigliato"];
 const UNCAT_ID = "__uncategorized__";
 
 export default function MenuPage() {
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
   const { activeTenant: tenant } = useTenant();
   const supabase = createClient();
 
@@ -506,7 +507,7 @@ export default function MenuPage() {
                                   key={tg}
                                   className="text-[9px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700"
                                 >
-                                  {tg}
+                                  {tagLabel(tg, language)}
                                 </span>
                               ))}
                               {it.allergens.map((al) => (
@@ -514,7 +515,7 @@ export default function MenuPage() {
                                   key={al}
                                   className="text-[9px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded bg-orange-50 text-orange-700"
                                 >
-                                  {al}
+                                  {allergenLabel(al, language)}
                                 </span>
                               ))}
                             </div>
@@ -571,6 +572,7 @@ export default function MenuPage() {
       {itemModal && tenant && (
         <ItemEditModal
           t={t}
+          language={language}
           tenantId={tenant.id}
           categories={categories}
           initial={
@@ -622,6 +624,7 @@ export default function MenuPage() {
       {importOpen && tenant && (
         <ImportMenuModal
           t={t}
+          language={language}
           tenantId={tenant.id}
           existingItemsCount={items.length}
           onClose={() => setImportOpen(false)}
@@ -685,6 +688,7 @@ function EmptyState({
 
 function ItemEditModal({
   t,
+  language,
   tenantId,
   categories,
   initial,
@@ -692,6 +696,7 @@ function ItemEditModal({
   onDelete,
 }: {
   t: (k: any) => string;
+  language: MenuLocale;
   tenantId: string;
   categories: MenuCategory[];
   initial: MenuItem | { categoryId: string | null };
@@ -887,7 +892,7 @@ function ItemEditModal({
                     }`}
                     style={{ borderColor: "#c4956a" }}
                   >
-                    {al.replace("_", " ")}
+                    {allergenLabel(al, language)}
                   </button>
                 );
               })}
@@ -911,7 +916,7 @@ function ItemEditModal({
                     }`}
                     style={{ borderColor: "#c4956a" }}
                   >
-                    {tg}
+                    {tagLabel(tg, language)}
                   </button>
                 );
               })}
@@ -1101,11 +1106,13 @@ function CategoryEditModal({
 
 function ImportMenuModal({
   t,
+  language,
   tenantId,
   existingItemsCount,
   onClose,
 }: {
   t: (k: any) => string;
+  language: MenuLocale;
   tenantId: string;
   existingItemsCount: number;
   onClose: () => void;
@@ -1584,6 +1591,7 @@ function ImportMenuModal({
                   <PreviewCategory
                     key={ci}
                     t={t}
+                    language={language}
                     name={cat.name}
                     items={cat.items}
                     onUpdate={(ii, patch) => updatePreviewItem(ci, ii, patch)}
@@ -1593,6 +1601,7 @@ function ImportMenuModal({
                 {extracted.uncategorized.length > 0 && (
                   <PreviewCategory
                     t={t}
+                    language={language}
                     name={t("menu_uncategorized") || "Senza categoria"}
                     items={extracted.uncategorized}
                     onUpdate={(ii, patch) => updatePreviewItem("uncat", ii, patch)}
@@ -1692,12 +1701,14 @@ function ImportMenuModal({
 
 function PreviewCategory({
   t,
+  language,
   name,
   items,
   onUpdate,
   onRemove,
 }: {
   t: (k: any) => string;
+  language: MenuLocale;
   name: string;
   items: ExtractedMenuItem[];
   onUpdate: (idx: number, patch: Partial<ExtractedMenuItem>) => void;
@@ -1756,7 +1767,7 @@ function PreviewCategory({
                         key={tg}
                         className="text-[9px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700"
                       >
-                        {tg}
+                        {tagLabel(tg, language)}
                       </span>
                     ))}
                     {it.allergens.map((al) => (
@@ -1764,7 +1775,7 @@ function PreviewCategory({
                         key={al}
                         className="text-[9px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded bg-orange-50 text-orange-700"
                       >
-                        {al}
+                        {allergenLabel(al, language)}
                       </span>
                     ))}
                   </div>

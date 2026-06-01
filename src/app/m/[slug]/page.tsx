@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import { createServiceRoleClient } from "@/lib/supabase/server";
+import { allergenLabel, tagLabel, type MenuLocale } from "@/lib/menu/labels";
 
 // Public hosted menu page. No auth, no cookies, no JS framework needed for
 // the content path. The CRM owner shares /m/<slug> as a QR target so the
@@ -18,7 +19,24 @@ type TenantRow = {
   name: string;
   slug: string;
   status: string;
-  settings: { timezone?: string; currency?: string };
+  settings: { timezone?: string; currency?: string; crm_locale?: string };
+};
+
+// The public menu shows the language the restaurant operates in (its CRM locale),
+// chosen once at onboarding. There's no per-visitor switcher here — a sticker QR
+// points at one menu. Falls back to Italian to match the stored token vocabulary.
+const VALID_LOCALES: MenuLocale[] = ["it", "es", "en", "de"];
+function resolveLocale(raw: unknown): MenuLocale {
+  return VALID_LOCALES.includes(raw as MenuLocale) ? (raw as MenuLocale) : "it";
+}
+
+// The handful of static strings on this page, localized alongside the chips so
+// the whole public menu speaks one language.
+const PUBLIC_STRINGS: Record<MenuLocale, { menu: string; updating: string; other: string }> = {
+  it: { menu: "Menu", updating: "Menù in aggiornamento.", other: "Altro" },
+  es: { menu: "Carta", updating: "Carta en actualización.", other: "Otros" },
+  en: { menu: "Menu", updating: "Menu being updated.", other: "Other" },
+  de: { menu: "Speisekarte", updating: "Speisekarte wird aktualisiert.", other: "Sonstiges" },
 };
 
 type CategoryRow = { id: string; name: string; sort_order: number };
@@ -49,6 +67,9 @@ export default async function PublicMenuPage({ params }: { params: Promise<Param
   if (!tenant || (tenant.status !== "trial" && tenant.status !== "active")) {
     notFound();
   }
+
+  const locale = resolveLocale(tenant.settings?.crm_locale);
+  const ui = PUBLIC_STRINGS[locale];
 
   const [{ data: catsRaw }, { data: itemsRaw }] = await Promise.all([
     sb
@@ -92,13 +113,13 @@ export default async function PublicMenuPage({ params }: { params: Promise<Param
         style={{ background: "linear-gradient(135deg, #d4a574, #c4956a)", color: "white" }}
       >
         <h1 className="text-3xl md:text-4xl font-black tracking-tight">{tenant.name}</h1>
-        <p className="text-xs uppercase tracking-widest opacity-90 mt-2">Menu</p>
+        <p className="text-xs uppercase tracking-widest opacity-90 mt-2">{ui.menu}</p>
       </header>
 
       <main className="max-w-2xl mx-auto px-5 py-8">
         {isEmpty ? (
           <div className="text-center py-16">
-            <p className="text-sm text-black/60">Menù in aggiornamento.</p>
+            <p className="text-sm text-black/60">{ui.updating}</p>
           </div>
         ) : (
           <div className="space-y-10">
@@ -108,7 +129,7 @@ export default async function PublicMenuPage({ params }: { params: Promise<Param
                   className="text-lg font-black uppercase tracking-widest mb-4 pb-2 border-b-2"
                   style={{ borderColor: "#c4956a" }}
                 >
-                  {g.category?.name || "Altro"}
+                  {g.category?.name || ui.other}
                 </h2>
                 <ul className="space-y-4">
                   {g.items.map((it) => (
@@ -131,7 +152,7 @@ export default async function PublicMenuPage({ params }: { params: Promise<Param
                               key={tg}
                               className="text-[10px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800"
                             >
-                              {tg}
+                              {tagLabel(tg, locale)}
                             </span>
                           ))}
                           {it.allergens.map((al) => (
@@ -139,7 +160,7 @@ export default async function PublicMenuPage({ params }: { params: Promise<Param
                               key={al}
                               className="text-[10px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded bg-orange-100 text-orange-800"
                             >
-                              {al.replace("_", " ")}
+                              {allergenLabel(al, locale)}
                             </span>
                           ))}
                         </div>
