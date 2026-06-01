@@ -4,6 +4,7 @@ import { CreateBookingRequest } from '@/lib/types';
 import { logAuditEvent } from '@/lib/audit';
 import { logSystemEvent, resolveSystemEvents } from '@/lib/system-log';
 import { assertAiSecret } from '@/lib/ai-auth';
+import { formatDateFull } from '@/lib/format-date';
 import {
   getShift,
   getRotationMinutes,
@@ -56,7 +57,7 @@ export async function POST(request: Request) {
       return NextResponse.json({
         success: false,
         reason: 'past_date',
-        message: `No se puede reservar para una fecha pasada (${payload.date}). ¿Para qué día quieres reservar?`,
+        message: `No se puede reservar para una fecha pasada (${formatDateFull(payload.date, 'es')}). ¿Para qué día quieres reservar?`,
       }, { status: 409 });
     }
     if (_pastKind === 'past_time') {
@@ -136,7 +137,7 @@ export async function POST(request: Request) {
           reason: 'closed_day',
           // Top-level fields so non-Spanish callers (e.g. WhatsApp bot) can localize.
           nextOpen: ohResult.nextOpen ?? null,
-          message: `El restaurante está cerrado el ${payload.date}.${nextLabel} ¿Quieres reservar para otro día?`,
+          message: `El restaurante está cerrado el ${formatDateFull(payload.date, 'es')}.${nextLabel} ¿Quieres reservar para otro día?`,
         }, { status: 409 });
       }
       if (!ohResult.ok && ohResult.reason === 'outside_hours') {
