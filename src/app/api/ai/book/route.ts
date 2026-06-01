@@ -134,6 +134,8 @@ export async function POST(request: Request) {
         return NextResponse.json({
           success: false,
           reason: 'closed_day',
+          // Top-level fields so non-Spanish callers (e.g. WhatsApp bot) can localize.
+          nextOpen: ohResult.nextOpen ?? null,
           message: `El restaurante está cerrado el ${payload.date}.${nextLabel} ¿Quieres reservar para otro día?`,
         }, { status: 409 });
       }
@@ -141,6 +143,8 @@ export async function POST(request: Request) {
         return NextResponse.json({
           success: false,
           reason: 'outside_hours',
+          // Top-level field so non-Spanish callers can show today's hours in their language.
+          hoursToday: ohResult.hoursToday ?? null,
           message: `A las ${payload.time} el restaurante está cerrado. Ese día abrimos: ${ohResult.hoursToday}. ¿Quieres cambiar la hora?`,
         }, { status: 409 });
       }
