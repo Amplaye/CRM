@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerSupabaseClient, createServiceRoleClient } from '@/lib/supabase/server';
 import { tryExtractPdfText } from '@/lib/menu/pdf-text';
+import { fetchUrlContent } from '@/lib/menu/fetch-url';
 
 // Create an async menu-extraction job. Replaces the slow, synchronous
 // /api/menu/import-file: instead of blocking on the OpenAI call (which on a
@@ -9,12 +10,21 @@ import { tryExtractPdfText } from '@/lib/menu/pdf-text';
 // Supabase Edge Function `menu-extract` (150s window), then return a jobId
 // immediately. The client polls GET /api/menu/import-job/[id].
 //
+// Accepts EITHER:
+//   - multipart/form-data with `tenant_id` + `file` (a PDF/image upload), or
+//   - application/json with `{ tenant_id, url }` (the restaurant's existing QR
+//     target). The URL path runs through the SAME async worker so an image-only
+//     PDF behind a URL (e.g. the Fuji carta, ~90s in vision) no longer dies on
+//     Vercel's 60s cap with an HTML error page — the bug that surfaced client
+//     side as `Unexpected token 'A', "An error o"... is not valid JSON`.
+//
 // Auth: signed-in dashboard user only. RLS-checked tenant membership before we
 // store anything.
 
 export const runtime = 'nodejs';
-// Only needs to read the multipart upload (up to ~8MB) and insert a row, then
-// fire-and-forget the worker. Returns in ~1-2s; 60 is just headroom.
+// Only needs to read the upload (up to ~8MB) or fetch the URL, then insert a
+// row and fire-and-forget the worker. Returns in ~1-2s (a URL fetch adds the
+// download time, still well under the cap); 60 is just headroom.
 export const maxDuration = 60;
 
 const MAX_BYTES = 8 * 1024 * 1024; // 8 MB
@@ -27,32 +37,36 @@ const ALLOWED: Record<string, 'application/pdf' | 'image/jpeg' | 'image/png' | '
   'image/gif': 'image/gif',
 };
 
+// The shape we insert into menu_import_jobs (status/created_by added by the
+// caller). Either a 'text' job (source_text) or a 'file' job (file_base64 +
+// media_type) — the Edge Function branches on `source`.
+type JobPayload =
+  | { source: 'text'; source_text: string; file_base64: null; media_type: null }
+  | { source: 'file'; source_text: null; file_base64: string; media_type: string };
+
 export async function POST(req: NextRequest) {
   const supabase = await createServerSupabaseClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-  const form = await req.formData().catch(() => null);
-  if (!form) return NextResponse.json({ error: 'Invalid multipart body' }, { status: 400 });
+  const contentType = (req.headers.get('content-type') || '').toLowerCase();
 
-  const tenantId = form.get('tenant_id');
-  const file = form.get('file');
-  if (typeof tenantId !== 'string' || !tenantId) {
-    return NextResponse.json({ error: 'Missing tenant_id' }, { status: 400 });
-  }
-  if (!(file instanceof File)) {
-    return NextResponse.json({ error: 'Missing file' }, { status: 400 });
-  }
-  if (file.size > MAX_BYTES) {
-    return NextResponse.json({ error: `File too large (max ${MAX_BYTES / 1024 / 1024} MB)` }, { status: 413 });
-  }
+  // Resolve the request into (tenantId, JobPayload) regardless of whether it's
+  // a file upload (multipart) or a URL (JSON). On a client error we return a
+  // NextResponse directly.
+  let tenantId: string;
+  let payload: JobPayload;
 
-  const mediaType = ALLOWED[file.type.toLowerCase()];
-  if (!mediaType) {
-    return NextResponse.json(
-      { error: `Unsupported file type "${file.type}". Use PDF, JPEG, PNG, WEBP or GIF.` },
-      { status: 415 }
-    );
+  if (contentType.includes('application/json')) {
+    const resolved = await resolveUrlJob(req);
+    if (resolved instanceof NextResponse) return resolved;
+    tenantId = resolved.tenantId;
+    payload = resolved.payload;
+  } else {
+    const resolved = await resolveFileJob(req);
+    if (resolved instanceof NextResponse) return resolved;
+    tenantId = resolved.tenantId;
+    payload = resolved.payload;
   }
 
   // RLS sanity-check: confirm the user can access the tenant before we store a
@@ -67,63 +81,12 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Tenant not accessible' }, { status: 403 });
   }
 
-  const bytes = new Uint8Array(await file.arrayBuffer());
-
-  // Snapshot the upload as base64 NOW, before anything can touch `bytes`.
-  // tryExtractPdfText() runs the bytes through pdf.js (via unpdf), which
-  // TRANSFERS/neuters the underlying ArrayBuffer — after it returns, `bytes`
-  // is detached (length 0). If we computed base64 *after* that call, an
-  // image-only PDF (no text layer → vision fallback) would be stored with an
-  // empty file_base64, and the worker would fail with "Job has no
-  // file_base64/source_text to extract". Computing it up front is immune to
-  // the detach regardless of pdf.js internals.
-  const fileBase64 = Buffer.from(bytes).toString('base64');
-
-  // HYBRID FAST PATH: if this is a PDF with a real embedded text layer (most
-  // menus exported from Word/Canva/InDesign), extract the text here and send it
-  // to OpenAI as TEXT — far faster + cheaper than vision, and crucially it
-  // finishes well within the 60s platform cap that was killing large image
-  // PDFs. Scanned/image-only PDFs yield no text → fall back to the file/vision
-  // path unchanged. Images (jpg/png/...) always go the file path.
-  let jobRow: {
-    tenant_id: string;
-    status: 'pending';
-    source: 'file' | 'text';
-    file_base64: string | null;
-    media_type: string | null;
-    source_text: string | null;
-    created_by: string;
-  };
-
-  const pdfText = mediaType === 'application/pdf' ? await tryExtractPdfText(bytes) : null;
-  if (pdfText) {
-    jobRow = {
-      tenant_id: tenantId,
-      status: 'pending',
-      source: 'text',
-      file_base64: null,
-      media_type: null,
-      source_text: pdfText.text,
-      created_by: user.id,
-    };
-  } else {
-    jobRow = {
-      tenant_id: tenantId,
-      status: 'pending',
-      source: 'file',
-      file_base64: fileBase64,
-      media_type: mediaType,
-      source_text: null,
-      created_by: user.id,
-    };
-  }
-
   // Insert the pending job via the service role (table writes are service-role
   // only by design — see the migration).
   const admin = createServiceRoleClient();
   const { data: job, error: insErr } = await admin
     .from('menu_import_jobs')
-    .insert(jobRow)
+    .insert({ tenant_id: tenantId, status: 'pending', created_by: user.id, ...payload })
     .select('id')
     .single();
 
@@ -156,4 +119,107 @@ export async function POST(req: NextRequest) {
   }
 
   return NextResponse.json({ ok: true, jobId: job.id }, { status: 202 });
+}
+
+// Multipart file upload → JobPayload. Reads the upload, validates type/size,
+// and (for PDFs) takes the hybrid fast path: if there's a real text layer we
+// send TEXT to OpenAI (fast + cheap); otherwise we fall back to vision on the
+// raw bytes.
+async function resolveFileJob(
+  req: NextRequest
+): Promise<{ tenantId: string; payload: JobPayload } | NextResponse> {
+  const form = await req.formData().catch(() => null);
+  if (!form) return NextResponse.json({ error: 'Invalid multipart body' }, { status: 400 });
+
+  const tenantId = form.get('tenant_id');
+  const file = form.get('file');
+  if (typeof tenantId !== 'string' || !tenantId) {
+    return NextResponse.json({ error: 'Missing tenant_id' }, { status: 400 });
+  }
+  if (!(file instanceof File)) {
+    return NextResponse.json({ error: 'Missing file' }, { status: 400 });
+  }
+  if (file.size > MAX_BYTES) {
+    return NextResponse.json({ error: `File too large (max ${MAX_BYTES / 1024 / 1024} MB)` }, { status: 413 });
+  }
+
+  const mediaType = ALLOWED[file.type.toLowerCase()];
+  if (!mediaType) {
+    return NextResponse.json(
+      { error: `Unsupported file type "${file.type}". Use PDF, JPEG, PNG, WEBP or GIF.` },
+      { status: 415 }
+    );
+  }
+
+  const bytes = new Uint8Array(await file.arrayBuffer());
+
+  // Snapshot the upload as base64 NOW, before anything can touch `bytes`.
+  // tryExtractPdfText() runs the bytes through pdf.js (via unpdf), which
+  // TRANSFERS/neuters the underlying ArrayBuffer — after it returns, `bytes`
+  // is detached (length 0). If we computed base64 *after* that call, an
+  // image-only PDF (no text layer → vision fallback) would be stored with an
+  // empty file_base64, and the worker would fail with "Job has no
+  // file_base64/source_text to extract". Computing it up front is immune to
+  // the detach regardless of pdf.js internals.
+  const fileBase64 = Buffer.from(bytes).toString('base64');
+
+  // HYBRID FAST PATH: if this is a PDF with a real embedded text layer (most
+  // menus exported from Word/Canva/InDesign), extract the text here and send it
+  // to OpenAI as TEXT — far faster + cheaper than vision, and crucially it
+  // finishes well within the 60s platform cap that was killing large image
+  // PDFs. Scanned/image-only PDFs yield no text → fall back to the file/vision
+  // path unchanged. Images (jpg/png/...) always go the file path.
+  const pdfText = mediaType === 'application/pdf' ? await tryExtractPdfText(bytes) : null;
+  if (pdfText) {
+    return {
+      tenantId,
+      payload: { source: 'text', source_text: pdfText.text, file_base64: null, media_type: null },
+    };
+  }
+  return {
+    tenantId,
+    payload: { source: 'file', source_text: null, file_base64: fileBase64, media_type: mediaType },
+  };
+}
+
+// JSON `{ tenant_id, url }` → JobPayload. Fetches the URL (SSRF-guarded), then
+// maps the result onto the same job shape: a binary PDF/image becomes a 'file'
+// job (worker uses vision), cleaned HTML text becomes a 'text' job. The slow
+// OpenAI call happens later in the worker, so a vision-only menu (e.g. the Fuji
+// PDF, ~90s) no longer times out this request.
+async function resolveUrlJob(
+  req: NextRequest
+): Promise<{ tenantId: string; payload: JobPayload } | NextResponse> {
+  const body = (await req.json().catch(() => null)) as { tenant_id?: string; url?: string } | null;
+  if (!body || typeof body.tenant_id !== 'string' || !body.tenant_id || typeof body.url !== 'string') {
+    return NextResponse.json({ error: 'Invalid body' }, { status: 400 });
+  }
+
+  const fetched = await fetchUrlContent(body.url);
+  if (!fetched.ok) {
+    const msgMap: Record<string, string> = {
+      invalid_url: 'Invalid URL.',
+      unreachable: 'Could not reach the URL.',
+      too_large: 'File at this URL is too large (max 8 MB).',
+      unsupported_type: 'Unsupported content type at this URL.',
+      spa_no_content:
+        'This URL is a dynamic web page (TheFork, Flipdish, etc.). Please download the menu as PDF and upload it instead.',
+      empty: 'No menu content found at this URL.',
+    };
+    return NextResponse.json(
+      { error: msgMap[fetched.reason] || fetched.reason, reason: fetched.reason, details: fetched.details },
+      { status: 422 }
+    );
+  }
+
+  if (fetched.kind === 'binary') {
+    return {
+      tenantId: body.tenant_id,
+      payload: { source: 'file', source_text: null, file_base64: fetched.base64, media_type: fetched.mediaType },
+    };
+  }
+  return {
+    tenantId: body.tenant_id,
+    payload: { source: 'text', source_text: fetched.text, file_base64: null, media_type: null },
+  };
 }

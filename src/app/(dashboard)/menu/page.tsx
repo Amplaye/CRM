@@ -1290,8 +1290,12 @@ function ImportMenuModal({
     if (!url.trim()) return;
     setStage("uploading");
     setError(null);
+    setProgressPct(0);
     try {
-      const res = await fetch("/api/menu/import-url", {
+      // Same async job as file upload: the heavy OpenAI extraction runs on the
+      // Supabase Edge Function (150s) so a vision-only menu behind a URL (e.g.
+      // an image-only PDF) survives Vercel's 60s cap. We then poll.
+      const res = await fetch("/api/menu/import-job", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ tenant_id: tenantId, url: url.trim() }),
@@ -1302,8 +1306,8 @@ function ImportMenuModal({
         setStage("idle");
         return;
       }
-      setExtracted(data.extracted);
-      setStage("preview");
+      setJobId(data.jobId);
+      setStage("processing");
     } catch (e: any) {
       setError(e?.message || "Errore di rete");
       setStage("idle");
