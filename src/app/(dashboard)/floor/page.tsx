@@ -337,19 +337,12 @@ export default function FloorPage() {
       .eq("id", tableId);
   }, []);
 
-  // Turn a long table 90° (0 = horizontal, 90 = vertical). Optimistic so the
-  // canvas flips instantly; realtime refetch will confirm.
-  const rotateTable = useCallback(async (tableId: string) => {
-    let nextRotation = 0;
-    setTables((prev) =>
-      prev.map((tbl) => {
-        if (tbl.id !== tableId) return tbl;
-        nextRotation = (tbl.rotation || 0) === 0 ? 90 : 0;
-        return { ...tbl, rotation: nextRotation };
-      })
-    );
+  // Persist a long table's rotation (0 = horizontal, 90 = vertical). The canvas
+  // owns the optimistic flip; here we mirror it into parent state and persist.
+  const rotateTable = useCallback(async (tableId: string, rotation: number) => {
+    setTables((prev) => prev.map((tbl) => (tbl.id === tableId ? { ...tbl, rotation } : tbl)));
     const supabase = createClient();
-    await supabase.from("restaurant_tables").update({ rotation: nextRotation }).eq("id", tableId);
+    await supabase.from("restaurant_tables").update({ rotation }).eq("id", tableId);
   }, []);
 
   // Find the lowest unused table number (fills gaps from deletions)
@@ -1252,7 +1245,7 @@ interface PlanCanvasProps {
   activeStatuses: string[];
   editing: boolean;
   onTableMove: (id: string, x: number, y: number) => void;
-  onTableRotate: (id: string) => void;
+  onTableRotate: (id: string, rotation: number) => void;
   onTableClick: (table: TableData) => void;
   t: (key: any) => string;
 }
@@ -1260,6 +1253,10 @@ interface PlanCanvasProps {
 function PlanCanvas({ tables, resTableLinks, shiftReservations, activeStatuses, editing, onTableMove, onTableRotate, onTableClick, t }: PlanCanvasProps) {
   // Local optimistic positions during drag
   const [localPositions, setLocalPositions] = useState<Record<string, { x: number; y: number }>>({});
+  // Local optimistic rotation after the gira button — survives the realtime
+  // refetch (which can briefly read the pre-write value on the free tier and
+  // otherwise snap the table back to its old angle).
+  const [localRotations, setLocalRotations] = useState<Record<string, number>>({});
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const dragOffsetRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
   // Track if the pointer actually moved during the press — distinguishes
@@ -1273,6 +1270,29 @@ function PlanCanvas({ tables, resTableLinks, shiftReservations, activeStatuses, 
   useEffect(() => {
     setLocalPositions({});
   }, [tablesKey]);
+
+  // Drop an optimistic rotation only once the server actually reports that
+  // angle — so a stale refetch (rotation still 0) can't revert the flip.
+  const rotationsKey = tables.map((t) => t.id + ":" + (t.rotation || 0)).join("|");
+  useEffect(() => {
+    setLocalRotations((prev) => {
+      const next: Record<string, number> = {};
+      for (const tbl of tables) {
+        const local = prev[tbl.id];
+        if (local !== undefined && local !== (tbl.rotation || 0)) next[tbl.id] = local;
+      }
+      return next;
+    });
+  }, [rotationsKey]);
+
+  // Toggle a long table 0°↔90°: keep the new angle locally and ask the parent
+  // to persist it.
+  function toggleRotation(table: TableData) {
+    const current = localRotations[table.id] ?? (table.rotation || 0);
+    const next = current === 0 ? 90 : 0;
+    setLocalRotations((prev) => ({ ...prev, [table.id]: next }));
+    onTableRotate(table.id, next);
+  }
 
   // Map a tableId → its current reservation (if any) using same logic as FloorPage
   function getResForTable(tableId: string): ReservationWithGuest | null {
@@ -1412,7 +1432,7 @@ function PlanCanvas({ tables, resTableLinks, shiftReservations, activeStatuses, 
           const y = local?.y ?? tbl.position_y ?? 60;
           // A rotated long table keeps its centre but swaps width/height, so the
           // obstacle footprint the connection curve must clear swaps too.
-          const turned = tbl.shape === "rectangle" && (tbl.rotation || 0) === 90;
+          const turned = tbl.shape === "rectangle" && (localRotations[tbl.id] ?? (tbl.rotation || 0)) === 90;
           const w = turned ? dims.h : dims.w;
           const h = turned ? dims.w : dims.h;
           const cx = x + dims.w / 2, cy = y + dims.h / 2;
@@ -1529,12 +1549,17 @@ function PlanCanvas({ tables, resTableLinks, shiftReservations, activeStatuses, 
         // CSS rotation keeps the box centred on (x,y)+dims/2, so all the
         // position/merge-line math (which uses the un-rotated rect) stays valid.
         const canRotate = table.shape === "rectangle";
-        const rotated = canRotate && (table.rotation || 0) === 90;
+        const effRotation = localRotations[table.id] ?? (table.rotation || 0);
+        const rotated = canRotate && effRotation === 90;
         const showRotate = editing && canRotate;
-        // Place the gira button just outside whichever long side faces right
-        // after rotation, so it always sits beside the table, never on it.
-        const btnLeft = rotated ? x + dims.h / 2 + 6 : x + dims.w + 6;
-        const btnTop = rotated ? y + dims.w / 2 - 12 : y + dims.h / 2 - 12;
+        // Place the gira button just past the table's RIGHT visual edge,
+        // vertically centred, so it sits beside the table in both orientations
+        // and follows it during drag (uses the same x/y).
+        const cx = x + dims.w / 2;
+        const cy = y + dims.h / 2;
+        const halfVisW = rotated ? dims.h / 2 : dims.w / 2;
+        const btnLeft = cx + halfVisW + 8;
+        const btnTop = cy - 12;
 
         return (
           <div key={table.id} className="contents">
@@ -1583,7 +1608,7 @@ function PlanCanvas({ tables, resTableLinks, shiftReservations, activeStatuses, 
               onClick={(e) => {
                 e.preventDefault();
                 e.stopPropagation();
-                onTableRotate(table.id);
+                toggleRotation(table);
               }}
               className="absolute flex items-center justify-center rounded-full shadow-md hover:brightness-95 active:scale-95 transition"
               style={{
