@@ -154,7 +154,11 @@ export default function KnowledgePage() {
   const handleDelete = async (id: string) => {
      if (!confirm(t("know_delete_confirm"))) return;
      try {
-        await supabase.from("knowledge_articles").delete().eq("id", id);
+        const { error: delErr } = await supabase.from("knowledge_articles").delete().eq("id", id);
+        if (delErr) { console.error("KB delete error:", delErr); alert("Error: " + delErr.message); return; }
+        // Remove from local state immediately — the table isn't in the realtime
+        // publication, so no DELETE event arrives to trigger a refetch.
+        setArticles(prev => prev.filter(a => a.id !== id));
         if (selectedArticleId === id) setSelectedArticleId(null);
         syncVapiKB();
      } catch (err) { console.error(err); }
