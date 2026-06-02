@@ -490,7 +490,7 @@ const styles = `
   position: absolute; inset: 0;
   background-size: cover; background-position: center;
   transform: scale(1.08);
-  animation: imKen 22s ease-in-out infinite alternate;
+  animation: imKen 12s ease-in-out infinite alternate;
 }
 .im-fallback {
   position: absolute; inset: 0;

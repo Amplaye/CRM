@@ -82,30 +82,12 @@ export default function MenuEditorial({
 }: Props) {
   const empty = sections.length === 0;
   const [activeKey, setActiveKey] = useState<string>(sections[0]?.key ?? "");
+  const [swapKey, setSwapKey] = useState(0);
   const indexRef = useRef<HTMLDivElement | null>(null);
   const chipRefs = useRef<Map<string, HTMLAnchorElement>>(new Map());
-  const sectionRefs = useRef<Map<string, HTMLElement>>(new Map());
 
-  // Scroll-spy: light up the chapter whose heading is nearest the top.
-  useEffect(() => {
-    if (empty) return;
-    const els = Array.from(sectionRefs.current.values());
-    if (els.length === 0) return;
-    const obs = new IntersectionObserver(
-      (entries) => {
-        const visible = entries
-          .filter((e) => e.isIntersecting)
-          .sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top);
-        if (visible[0]) {
-          const key = (visible[0].target as HTMLElement).dataset.key;
-          if (key) setActiveKey(key);
-        }
-      },
-      { rootMargin: "-18% 0px -72% 0px", threshold: 0 },
-    );
-    els.forEach((el) => obs.observe(el));
-    return () => obs.disconnect();
-  }, [empty, sections.length]);
+  const activeIdx = Math.max(0, sections.findIndex((s) => s.key === activeKey));
+  const active = sections[activeIdx] ?? sections[0];
 
   // Keep the active chapter chip centered in its scroller without moving the page.
   useEffect(() => {
@@ -118,16 +100,20 @@ export default function MenuEditorial({
     });
   }, [activeKey]);
 
-  const jumpTo = useCallback((key: string, e: React.MouseEvent) => {
-    e.preventDefault();
-    const el = sectionRefs.current.get(key);
-    if (!el) return;
-    setActiveKey(key);
-    const reduce =
-      typeof window !== "undefined" &&
-      window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    el.scrollIntoView({ behavior: reduce ? "auto" : "smooth", block: "start" });
-  }, []);
+  // Chapters FILTER in place (like the other templates): tapping one swaps the
+  // visible course with a crossfade + staggered reveal. Only one chapter is
+  // mounted at a time — so we render ~one course of photos, not all 88, which
+  // also keeps scrolling smooth.
+  const jumpTo = useCallback(
+    (key: string, e: React.MouseEvent) => {
+      e.preventDefault();
+      if (key === activeKey) return;
+      setActiveKey(key);
+      setSwapKey((n) => n + 1);
+      window.scrollTo({ top: 0, behavior: "auto" });
+    },
+    [activeKey],
+  );
 
   return (
     <div className="ed-root">
@@ -187,17 +173,16 @@ export default function MenuEditorial({
             </div>
           </nav>
 
-          {/* ── Chapters ───────────────────────────────────────────────────── */}
+          {/* ── Active chapter (filtered in place) ─────────────────────────── */}
           <main className="ed-main">
-            {sections.map((section, si) => (
+            {(() => {
+              const section = active;
+              const si = activeIdx;
+              return (
               <section
-                key={section.key}
+                key={swapKey}
                 id={`ch-${section.key}`}
                 data-key={section.key}
-                ref={(el) => {
-                  if (el) sectionRefs.current.set(section.key, el);
-                  else sectionRefs.current.delete(section.key);
-                }}
                 className="ed-chapter"
                 aria-labelledby={`ch-h-${section.key}`}
               >
@@ -291,7 +276,8 @@ export default function MenuEditorial({
                   })}
                 </div>
               </section>
-            ))}
+              );
+            })()}
           </main>
         </>
       )}
@@ -529,20 +515,19 @@ const styles = `
 .ed-foot-rule { width: 1.8rem; height: 1px; background: rgba(124,82,38,0.35); }
 .ed-foot-brand { font-weight: 700; color: var(--bronze); }
 
-/* ── Reveal on scroll ──────────────────────────────────────────────────────*/
-@keyframes edReveal { from { opacity: 0; transform: translateY(18px); } to { opacity: 1; transform: none; } }
+/* ── Reveal on chapter swap ────────────────────────────────────────────────*/
+/* Chapters filter in place (one mounted at a time): a quick crossfade on the
+   chapter + a staggered rise on its cards. Time-based (no scroll-driven
+   animation-timeline) so it stays buttery on mobile even with many photos. */
+@keyframes edReveal { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: none; } }
 @keyframes edHead { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+@keyframes edFade { from { opacity: 0; } to { opacity: 1; } }
+.ed-chapter { animation: edFade 260ms ease both; }
 @media (prefers-reduced-motion: no-preference) {
-  .ed-card { animation: edReveal 720ms cubic-bezier(0.16,1,0.3,1) both; animation-delay: calc(var(--i) * 60ms); animation-timeline: view(); animation-range: entry 0% cover 26%; }
-  .ed-chap-head { animation: edHead 700ms cubic-bezier(0.16,1,0.3,1) both; animation-timeline: view(); animation-range: entry 0% cover 22%; }
+  .ed-card { animation: edReveal 560ms cubic-bezier(0.16,1,0.3,1) both; animation-delay: calc(var(--i) * 45ms + 60ms); }
+  .ed-chap-head { animation: edHead 520ms cubic-bezier(0.16,1,0.3,1) both; }
   .ed-title, .ed-dek { animation: edReveal 820ms cubic-bezier(0.16,1,0.3,1) both; }
   .ed-dek { animation-delay: 120ms; }
-}
-/* Fallback for engines without scroll-driven animations: just reveal once. */
-@supports not (animation-timeline: view()) {
-  @media (prefers-reduced-motion: no-preference) {
-    .ed-card, .ed-chap-head { animation: edReveal 640ms cubic-bezier(0.16,1,0.3,1) both; animation-timeline: auto; animation-delay: calc(var(--i,0) * 40ms); }
-  }
 }
 
 /* ── Tablet ────────────────────────────────────────────────────────────────*/
@@ -569,7 +554,7 @@ const styles = `
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .ed-card, .ed-chap-head, .ed-title, .ed-dek { animation: none !important; }
+  .ed-card, .ed-chap-head, .ed-title, .ed-dek, .ed-chapter { animation: none !important; }
   .ed-photo, .ed-photo-scrim { transition: none !important; }
   .ed-toc { scroll-behavior: auto; }
 }

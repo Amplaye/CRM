@@ -208,7 +208,6 @@ export default function MenuClassic({
                     >
                       <div className="menu-dish-row">
                         <h3 className="menu-dish-name">{it.name}</h3>
-                        <span className="menu-leader" aria-hidden />
                         {price && <span className="menu-price">{price}</span>}
                       </div>
 
@@ -392,15 +391,13 @@ const styles = `
 
 /* Dishes */
 .menu-dishes { list-style: none; margin: 0; padding: 0; }
-.menu-dish { padding: clamp(1rem, 3.5vw, 1.35rem) 0; border-top: 1px solid rgba(28,21,13,0.09); }
-.menu-dish:first-child { border-top: 0; padding-top: 0; }
-.menu-dish-row { display: flex; align-items: baseline; gap: 0.6rem; }
+.menu-dish { padding: clamp(1rem, 3.5vw, 1.35rem) 0; }
+.menu-dish:first-child { padding-top: 0; }
+.menu-dish-row { display: flex; align-items: baseline; justify-content: space-between; gap: 0.9rem; }
 .menu-dish-name {
   font-family: var(--font-display), Georgia, serif; font-weight: 600;
   font-size: clamp(1.08rem, 4.6vw, 1.3rem); line-height: 1.2; letter-spacing: -0.01em; margin: 0;
 }
-.menu-leader { flex: 1; align-self: flex-end; margin-bottom: 0.34em; height: 0;
-  border-bottom: 1.5px dotted rgba(124,82,38,0.4); }
 .menu-price {
   flex: 0 0 auto; font-family: var(--font-display), serif;
   font-weight: 600; font-size: clamp(1rem, 4vw, 1.18rem); font-variant-numeric: tabular-nums;

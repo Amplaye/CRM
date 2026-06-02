@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useLayoutEffect, useEffect } from "react";
+import { useState, useRef, useLayoutEffect } from "react";
 
 // ── Design 3 — "CINEMATIC / Dark Materic Glass" ─────────────────────────────
 // A nocturnal chef's-table register: a near-black, hand-finished canvas with
@@ -55,17 +55,6 @@ function courseNo(n: number): string {
   return String(n + 1).padStart(2, "0");
 }
 
-// A deterministic 0..1 from the dish id — drives a per-card glow phase so the
-// brass rim-lights shimmer out of sync, without Math.random/Date.now.
-function seed(id: string): number {
-  let h = 2166136261;
-  for (let i = 0; i < id.length; i++) {
-    h ^= id.charCodeAt(i);
-    h = Math.imul(h, 16777619);
-  }
-  return ((h >>> 0) % 1000) / 1000;
-}
-
 export default function MenuCinematic({
   restaurantName,
   menuLabel,
@@ -93,28 +82,6 @@ export default function MenuCinematic({
       behavior: "smooth",
     });
   }, [activeKey]);
-
-  // Soft parallax: drift the atmospheric glows as the page scrolls. Runs only
-  // when motion is allowed; everything is rAF-throttled and writes one CSS var.
-  useEffect(() => {
-    const root = rootRef.current;
-    if (!root) return;
-    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
-    let raf = 0;
-    const onScroll = () => {
-      if (raf) return;
-      raf = requestAnimationFrame(() => {
-        raf = 0;
-        root.style.setProperty("--scrollY", String(window.scrollY));
-      });
-    };
-    window.addEventListener("scroll", onScroll, { passive: true });
-    onScroll();
-    return () => {
-      window.removeEventListener("scroll", onScroll);
-      if (raf) cancelAnimationFrame(raf);
-    };
-  }, []);
 
   const select = (key: string) => {
     if (key === activeKey) return;
@@ -244,10 +211,7 @@ export default function MenuCinematic({
                     <li
                       key={`${active.prefix}:${it.id}`}
                       className={`cin-card${hasImg ? " has-img" : " no-img"}`}
-                      style={{
-                        ["--i" as string]: i,
-                        ["--ph" as string]: seed(it.id).toFixed(3),
-                      }}
+                      style={{ ["--i" as string]: i }}
                     >
                       <article className="cin-card-inner" tabIndex={0}>
                         <span className="cin-rim" aria-hidden />
@@ -343,7 +307,6 @@ const styles = `
   --brass-deep: #b07a32;
   --brass-lo: #8a5f28;
   --gold-text: #e9cd9f;
-  --scrollY: 0;
   position: relative;
   min-height: 100dvh;
   color: var(--cream);
@@ -356,18 +319,23 @@ const styles = `
 }
 
 /* Atmosphere ─────────────────────────────────────────────────────────────── */
+/* The glows drift on their own slow loop (GPU transform only) instead of being
+   driven by scroll — a scroll-linked blur(70px) repaint was the main source of
+   jank on mobile. Static-feeling, cinematic, and cheap. */
 .cin-atmos { position: fixed; inset: 0; z-index: 0; pointer-events: none; }
-.cin-glow { position: absolute; border-radius: 50%; filter: blur(70px); opacity: 0.55; }
+.cin-glow { position: absolute; border-radius: 50%; filter: blur(70px); opacity: 0.55; will-change: transform; }
 .cin-glow-a {
   width: 60vmax; height: 60vmax; left: -18vmax; top: -22vmax;
   background: radial-gradient(circle, rgba(176,122,50,0.34), transparent 62%);
-  transform: translateY(calc(var(--scrollY) * 0.06px));
+  animation: cinDriftA 26s ease-in-out infinite alternate;
 }
 .cin-glow-b {
   width: 52vmax; height: 52vmax; right: -20vmax; top: 42vmax;
   background: radial-gradient(circle, rgba(138,95,40,0.26), transparent 64%);
-  transform: translateY(calc(var(--scrollY) * -0.04px));
+  animation: cinDriftB 32s ease-in-out infinite alternate;
 }
+@keyframes cinDriftA { from { transform: translate3d(0,0,0); } to { transform: translate3d(2vmax,3vmax,0); } }
+@keyframes cinDriftB { from { transform: translate3d(0,0,0); } to { transform: translate3d(-2.5vmax,-2vmax,0); } }
 .cin-vignette {
   position: absolute; inset: 0;
   background: radial-gradient(120% 95% at 50% 32%, transparent 48%, rgba(0,0,0,0.62) 100%);
@@ -511,9 +479,8 @@ const styles = `
   background: linear-gradient(140deg, rgba(233,205,159,0.55), transparent 32%, transparent 66%, rgba(216,180,131,0.35));
   -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
   -webkit-mask-composite: xor; mask-composite: exclude;
-  opacity: 0.5; pointer-events: none;
-  animation: cinRim 7s ease-in-out infinite;
-  animation-delay: calc(var(--ph) * -7s);
+  opacity: 0.48; pointer-events: none;
+  transition: opacity .4s ease;
 }
 .cin-card-inner:hover .cin-rim,
 .cin-card-inner:focus-visible .cin-rim { opacity: 0.95; }
@@ -597,7 +564,6 @@ const styles = `
 @keyframes cinPanelIn { from { opacity: 0; } to { opacity: 1; } }
 @keyframes cinHeadIn { from { opacity: 0; transform: translateY(10px) scale(0.99); } to { opacity: 1; transform: none; } }
 @keyframes cinCardIn { from { opacity: 0; transform: translateY(22px) scale(0.985); filter: blur(6px); } to { opacity: 1; transform: none; filter: none; } }
-@keyframes cinRim { 0%,100% { opacity: 0.32; } 50% { opacity: 0.62; } }
 
 .cin-panel { animation: cinPanelIn 260ms ease both; }
 .cin-panel .cin-course-head { animation: cinHeadIn 560ms cubic-bezier(0.16,1,0.3,1) both; }
