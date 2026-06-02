@@ -514,7 +514,7 @@ const styles = `
 }
 .ed-footer {
   display: flex; align-items: center; justify-content: center; gap: 0.6rem;
-  padding: 10px; font-size: 0.86rem;
+  padding: 30px; font-size: 0.86rem;
 }
 .ed-foot-rule { width: 2rem; height: 1px; background: rgba(124,82,38,0.45); }
 .ed-foot-by { color: #000; font-weight: 500; }

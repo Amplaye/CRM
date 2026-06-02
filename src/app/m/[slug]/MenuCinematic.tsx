@@ -558,7 +558,7 @@ const styles = `
 }
 .cin-footer {
   display: flex; align-items: center; justify-content: center; gap: 0.6rem;
-  padding: 10px; font-size: 0.84rem;
+  padding: 25px; font-size: 0.84rem;
 }
 .cin-foot-rule { width: 2rem; height: 1px; background: rgba(217,182,128,0.45); }
 .cin-foot-by { color: #fff; font-weight: 500; }
