@@ -3,6 +3,8 @@ import {
   isDate,
   isTime,
   isE164,
+  normalizePhone,
+  phoneTail,
   timeToMinutes,
   findNextOpenDay,
   normalizeZone,
@@ -11,6 +13,38 @@ import {
   checkOpeningHours,
 } from './booking-validation';
 import type { OpeningHours } from './restaurant-rules';
+
+describe('normalizePhone', () => {
+  it('produces the same canonical "+digits" whether or not the + is present', () => {
+    // The bug: Meta delivers without "+", Twilio with it → two guest rows.
+    expect(normalizePhone('34684109244')).toBe('+34684109244');
+    expect(normalizePhone('+34684109244')).toBe('+34684109244');
+  });
+  it('strips a whatsapp: prefix and any separators', () => {
+    expect(normalizePhone('whatsapp:+34684109244')).toBe('+34684109244');
+    expect(normalizePhone('whatsapp:34684109244')).toBe('+34684109244');
+    expect(normalizePhone('+34 684 109 244')).toBe('+34684109244');
+    expect(normalizePhone('(+34) 684-109-244')).toBe('+34684109244');
+  });
+  it('returns "" for empty / nullish / non-digit input (no-phone path stays intact)', () => {
+    expect(normalizePhone('')).toBe('');
+    expect(normalizePhone(null)).toBe('');
+    expect(normalizePhone(undefined)).toBe('');
+    expect(normalizePhone('abc')).toBe('');
+  });
+});
+
+describe('phoneTail', () => {
+  it('matches the same number stored with or without the +', () => {
+    expect(phoneTail('+34684109244')).toBe(phoneTail('34684109244'));
+    expect(phoneTail('+34684109244')).toBe('684109244');
+  });
+  it('returns "" when there are too few digits to match safely', () => {
+    expect(phoneTail('123')).toBe('');
+    expect(phoneTail('')).toBe('');
+    expect(phoneTail(null)).toBe('');
+  });
+});
 
 describe('normalizeBookingSource', () => {
   // The DB check constraint reservations_source_check only allows these.

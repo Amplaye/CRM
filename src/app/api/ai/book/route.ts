@@ -17,6 +17,8 @@ import {
   isDate,
   isTime,
   isE164,
+  normalizePhone,
+  phoneTail,
   normalizeZone,
   normalizeBookingSource,
   nowInCanary,
@@ -79,6 +81,13 @@ export async function POST(request: Request) {
       }
     }
 
+    // Canonical phone for storage + a tolerant tail for lookup. Meta delivers
+    // the inbound number without a leading "+", so without this the same guest
+    // was inserted twice ("34684109244" vs "+34684109244"). Store canonical,
+    // match on the last 9 digits so an already-stored row (either format) wins.
+    const canonicalPhone = normalizePhone(payload.guest_phone);
+    const lookupTail = phoneTail(payload.guest_phone);
+
     const supabase = createServiceRoleClient();
 
     // 0–2. Three independent reads up front — tenant settings (for opening
@@ -98,12 +107,13 @@ export async function POST(request: Request) {
         .eq('idempotency_key', payload.idempotency_key)
         .eq('action', 'create_reservation')
         .limit(1),
+      // Tolerant guest lookup: fetch the tenant's guests and match on the last
+      // 9 digits (E.164 subscriber part) so a row stored with OR without the
+      // leading "+" is found — never create a duplicate for the same number.
       supabase
         .from('guests')
-        .select('id, name')
-        .eq('tenant_id', payload.tenant_id)
-        .eq('phone', payload.guest_phone)
-        .limit(1),
+        .select('id, name, phone')
+        .eq('tenant_id', payload.tenant_id),
     ]);
 
     // SaaS gate (Mossa 3): does this tenant run a waitlist? Read once from the
@@ -164,7 +174,9 @@ export async function POST(request: Request) {
 
     // 2. Guest Verification / Creation
     let guestId: string;
-    const existingGuests = existingGuestsRes.data;
+    const existingGuests = lookupTail
+      ? (existingGuestsRes.data || []).filter((g: { id: string; name: string | null; phone: string | null }) => phoneTail(g.phone) === lookupTail)
+      : [];
 
     if (existingGuests && existingGuests.length > 0) {
        guestId = existingGuests[0].id;
@@ -184,7 +196,7 @@ export async function POST(request: Request) {
          .from('guests')
          .insert({
             tenant_id: payload.tenant_id,
-            phone: payload.guest_phone,
+            phone: canonicalPhone || payload.guest_phone,
             name: payload.guest_name || "Unknown Guest",
             visit_count: 0,
             no_show_count: 0,

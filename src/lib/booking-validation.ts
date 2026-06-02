@@ -28,6 +28,34 @@ export function isE164(phone: unknown): boolean {
   return trimmed.length > 0 && PHONE_E164_RE.test(trimmed);
 }
 
+/**
+ * Canonical phone form for STORING a guest, idempotent regardless of how the
+ * channel delivered it. Under Meta WhatsApp the inbound `from` arrives WITHOUT
+ * a leading "+" (e.g. "34684109244"); under Twilio it was "whatsapp:+34…".
+ * Both refer to the same person but used to create two separate `guests` rows.
+ *
+ * Strips a "whatsapp:" prefix and every non-digit, then prepends a single "+".
+ * The country code is NEVER guessed: inbound WhatsApp numbers always include it
+ * (that is how WhatsApp routes), so the digits are already E.164 minus the "+".
+ * Returns "" for empty/garbage input so callers can keep their no-phone path.
+ */
+export function normalizePhone(phone: unknown): string {
+  if (phone === null || phone === undefined) return '';
+  const digits = String(phone).replace(/^whatsapp:/i, '').replace(/\D/g, '');
+  return digits ? `+${digits}` : '';
+}
+
+/**
+ * Last 9 digits (E.164 subscriber part) used for a TOLERANT guest lookup that
+ * matches an existing row whether it was stored with or without the leading
+ * "+". Mirrors the deterministic tail-match already used in cancel-by-phone /
+ * confirm-pending. Returns "" when there are too few digits to match safely.
+ */
+export function phoneTail(phone: unknown): string {
+  const digits = String(phone ?? '').replace(/\D/g, '');
+  return digits.length >= 7 ? digits.slice(-9) : '';
+}
+
 export function timeToMinutes(time: string): number {
   const [h, m] = time.split(':').map(Number);
   return h * 60 + m;

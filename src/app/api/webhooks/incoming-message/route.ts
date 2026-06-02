@@ -4,6 +4,7 @@ import { logAuditEvent } from '@/lib/audit';
 import { handleMetaWebhookVerification } from '@/lib/meta-signature';
 import { assertAiSecret } from '@/lib/ai-auth';
 import { tenantReceivesTraffic, type TenantStatus } from '@/lib/tenants/status';
+import { normalizePhone } from '@/lib/booking-validation';
 
 // Meta webhook verification handshake. When this route is registered as a Meta
 // WhatsApp webhook (directly, without n8n in front), Meta calls GET once with
@@ -98,8 +99,10 @@ export async function POST(request: Request) {
       const { data: newGuest, error: guestErr } = await supabase
         .from('guests')
         .insert({
+          // Store canonical "+digits" — Meta delivers `from` without the "+",
+          // which used to create a second guest row for the same number.
+          phone: normalizePhone(payload.guest_phone) || payload.guest_phone,
           tenant_id: payload.tenant_id,
-          phone: payload.guest_phone,
           name: guestName || "Unknown Guest",
           visit_count: 0,
           no_show_count: 0,
