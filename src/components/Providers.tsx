@@ -3,6 +3,7 @@
 import { AuthProvider } from "@/lib/contexts/AuthContext";
 import { TenantProvider, useTenant } from "@/lib/contexts/TenantContext";
 import { useLanguage } from "@/lib/contexts/LanguageContext";
+import { tenantHasLocaleSwitcher } from "@/lib/tenants/legacy-locale";
 import { ReactNode, useEffect } from "react";
 
 // Once a tenant is active, the CRM dashboard language is FIXED to that tenant's
@@ -16,10 +17,14 @@ function CrmLanguageBridge() {
   const { activeTenant } = useTenant();
   const { language, setLanguage } = useLanguage();
   const crmLocale = activeTenant?.settings?.crm_locale;
+  // PICNIC (legacy template tenant) keeps an in-app language switcher, so the
+  // bridge must NOT force its language back to crm_locale — that would undo the
+  // user's on-the-fly choice on the next render. See src/lib/tenants/legacy-locale.ts.
+  const hasSwitcher = tenantHasLocaleSwitcher(activeTenant?.slug);
 
   useEffect(() => {
-    if (crmLocale && crmLocale !== language) setLanguage(crmLocale);
-  }, [crmLocale, language, setLanguage]);
+    if (!hasSwitcher && crmLocale && crmLocale !== language) setLanguage(crmLocale);
+  }, [hasSwitcher, crmLocale, language, setLanguage]);
 
   return null;
 }

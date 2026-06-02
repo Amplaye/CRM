@@ -1,8 +1,9 @@
 "use client";
 
-import { Bell, Menu, Phone, MessageSquare, ShieldAlert, LogOut } from "lucide-react";
+import { Bell, Menu, Phone, MessageSquare, ShieldAlert, LogOut, Globe } from "lucide-react";
 import { useLanguage } from "@/lib/contexts/LanguageContext";
 import { useTenant } from "@/lib/contexts/TenantContext";
+import { tenantHasLocaleSwitcher } from "@/lib/tenants/legacy-locale";
 import { useAuth } from "@/lib/contexts/AuthContext";
 import { useEffect, useState, useRef } from "react";
 import { useRouter } from "next/navigation";
@@ -24,8 +25,12 @@ interface TopbarProps {
 }
 
 export function Topbar({ onMenuToggle }: TopbarProps) {
-  const { t } = useLanguage();
+  const { t, language, setLanguage } = useLanguage();
   const { activeTenant, isImpersonating, switchTenant } = useTenant();
+  // PICNIC (the legacy template tenant) keeps an in-app CRM language switcher so
+  // it can be demoed in any of the four languages; every real tenant's language
+  // stays fixed to crm_locale. See src/lib/tenants/legacy-locale.ts.
+  const showLocaleSwitcher = tenantHasLocaleSwitcher(activeTenant?.slug);
   const { user, loading: authLoading } = useAuth();
   const router = useRouter();
   const [isClient, setIsClient] = useState(false);
@@ -356,9 +361,27 @@ export function Topbar({ onMenuToggle }: TopbarProps) {
       </div>
 
       {/* Right side - controls */}
-      {/* No language switcher: the CRM language is fixed per tenant
-          (settings.crm_locale), chosen once at onboarding. */}
+      {/* Language switcher is shown ONLY for the legacy template tenant (PICNIC),
+          so it can be demoed in any UI language. Every real tenant's CRM language
+          is fixed per tenant (settings.crm_locale), chosen once at onboarding. */}
       <div className="flex items-center space-x-2 sm:space-x-3 md:space-x-4">
+        {isClient && showLocaleSwitcher && (
+          <div className="flex items-center border-2 rounded-lg px-2 sm:px-3 h-8 sm:h-9" style={{ borderColor: '#c4956a', background: 'rgba(252,246,237,0.6)' }}>
+            <Globe className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-black mr-1.5 sm:mr-2" />
+            <select
+              value={language}
+              onChange={(e) => setLanguage(e.target.value as "en" | "es" | "it" | "de")}
+              className="bg-transparent text-xs sm:text-sm font-medium text-black outline-none cursor-pointer"
+              aria-label="CRM language"
+            >
+              <option value="en">EN</option>
+              <option value="es">ES</option>
+              <option value="it">IT</option>
+              <option value="de">DE</option>
+            </select>
+          </div>
+        )}
+
         <div className="relative" ref={dropdownRef}>
           <button
             onClick={() => {
