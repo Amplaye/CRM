@@ -1743,12 +1743,14 @@ function ImportMenuModal({
     if (stage !== "processing" || !jobId) return;
     let cancelled = false;
     const startedAt = Date.now();
-    // The Edge Function runs the OpenAI call in the background with its own
-    // ~140s internal timeout (the 60s figure is only the synchronous HTTP
-    // connection cap — fire-and-forget compute runs well past it; a real
-    // 18-page menu completed at ~87s). So we give the worker until ~150s before
-    // declaring it dead, instead of spinning forever. Most menus (text-layer
-    // PDFs) finish in well under 30s.
+    // The Edge Function does the OpenAI work as a BACKGROUND task
+    // (EdgeRuntime.waitUntil), so it runs well past the 60s HTTP connection cap
+    // — up to the worker's ~150s wall-clock window. We give it until ~150s
+    // before declaring it dead, matching that physical ceiling: if the worker
+    // hasn't written done/error by then it really was killed, and waiting longer
+    // would just spin. (Extraction now folds allergen/tag deduction into ONE
+    // call instead of two sequential ones; a rich 239-item sushi menu completed
+    // at ~102s, an 18-page menu at ~87s. Text-layer PDFs usually finish <30s.)
     const DEAD_AFTER_MS = 150_000;
 
     const failNow = () => {

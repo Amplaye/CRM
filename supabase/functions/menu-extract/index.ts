@@ -2,22 +2,40 @@
 // ---------------------------------------------------------------------------
 // The long-running worker for menu import. On Vercel Hobby every function is
 // capped at 60s, but a large PDF takes 60-120s+ to extract via OpenAI vision.
-// Supabase Edge Functions get a 150s wall-clock window (Free plan), so the slow
+// Supabase Edge Functions get a ~150s wall-clock window (Free plan), so the slow
 // OpenAI call lives HERE instead of on Vercel.
+//
+// CRITICAL: that 150s is the WORKER's lifetime, NOT the HTTP request's. The
+// gateway closes the request/response connection at ~60s (verified: the caller
+// gets HTTP 000 at 60.4s). Menu extraction needs TWO sequential OpenAI calls
+// (extract + allergen/tag enrichment) that together exceed 60s even for a small
+// 2-page text menu — so we do NOT run them in the request handler. We launch the
+// work as a background task via EdgeRuntime.waitUntil and return 202 at once;
+// the task then runs within the worker's full ~150s window. (Pre-fix this ran
+// inline and the gateway killed it mid-call, leaving rows stuck on 'processing'
+// → the "menu is too large to read within the time limit" error owners hit.)
 //
 // Flow: POST /api/menu/import-job (on Vercel) inserts a 'pending' row in
 // menu_import_jobs with the file as base64, then fire-and-forgets a POST to this
-// function with { jobId }. This function loads the row, sets status='processing',
-// runs the OpenAI extraction, and writes status='done' + result (or 'error').
+// function with { jobId }. This function ACCEPTS (202), then in the background
+// loads the row, sets status='processing', runs the OpenAI extraction, and
+// writes status='done' + result (or 'error').
 // The dashboard polls GET /api/menu/import-job/[id] until done.
 //
 // Auth: server-to-server only. The caller must send the service-role key as a
 // Bearer token; we also reject if WORKER_SHARED_SECRET is set and mismatched.
 // Deploy with: supabase functions deploy menu-extract --no-verify-jwt
 //
-// This is a Deno port of src/lib/menu/extract.ts. Kept in sync by hand — the
-// prompt + allow-lists + normalization are duplicated below. If you change the
-// extraction contract, change BOTH files.
+// This is a Deno port of src/lib/menu/extract.ts. NOTE: this Edge Function is
+// the ONLY live extraction path — the dashboard uploads to POST
+// /api/menu/import-job which fire-and-forgets here. The Node sibling's OpenAI
+// calls (extractMenuFromText/File in extract.ts, via the old synchronous
+// /api/menu/import-file route) are no longer reached by the UI; extract.ts is
+// still used for its normalizeExtraction + types. The allow-lists and
+// normalization below mirror it; if you change the extraction CONTRACT (schema,
+// allowed allergens/tags), update extract.ts too so import-confirm's
+// normalizeExtraction stays consistent. The single-vs-two-call strategy here is
+// intentionally NOT mirrored (it's a worker-runtime concern, not a contract).
 
 import { createClient } from "jsr:@supabase/supabase-js@2";
 
@@ -116,6 +134,45 @@ Per piatti senza descrizione, deduci dal nome (es. "Tarta de queso"/cheesecake �
 
 Restituisci lo STESSO oggetto JSON, identica struttura, con allergens/tags compilati. Solo JSON valido, nessun commento, nessun markdown.`;
 
+// SINGLE-PASS instructions: extraction AND allergen/tag deduction in ONE call.
+// Fuses SYSTEM_PROMPT (structure) with the culinary deduction rules from
+// ENRICH_PROMPT (allergens/tags). Used for the TEXT and single-FILE paths so we
+// make ONE OpenAI call instead of two sequential ones.
+//
+// WHY this matters: two sequential gpt-4o calls, each emitting up to 16k tokens
+// of JSON, take 60-90s EACH — together they blow past even the worker's ~150s
+// wall-clock and the task gets killed mid-enrichment with the row stuck on
+// 'processing' (measured on a rich 2-page sushi menu: still processing at 180s,
+// updated_at frozen). One combined call halves that and finishes comfortably
+// inside the window. The model sees names+descriptions either way, so deducing
+// allergens/tags in the same pass loses no quality vs the separate enrichment.
+// (The CHUNKED image-PDF path still enriches once at the end — there the first
+// pass is vision per-chunk in parallel, and a single final text enrichment over
+// the merged menu is cheap.)
+const COMBINED_INSTRUCTIONS = `${SYSTEM_PROMPT}
+
+IMPORTANTE — in QUESTA stessa risposta compila anche "allergens" e "tags" di OGNI piatto, deducendoli dal nome e dalla descrizione con la conoscenza culinaria standard (oltre a quelli esplicitamente indicati sul menù). NON lasciarli vuoti se l'allergene è ovvio.
+
+ALLERGENI — lista chiusa, lowercase (SOLO questi): glutine, latticini, uova, pesce, crostacei, frutta_secca, arachidi, soia, sedano, senape, sesamo, solfiti, lupini, molluschi
+Deduzioni tipiche (non esaustivo):
+- tempura/tempurizado/rebozado/empanado/panato/gyoza/tallarines/pasta/pane/soba(grano)/salsa di soia/teriyaki/katsu/kabayaki → glutine
+- salsa di soia/teriyaki/miso/tofu/soia/edamame → soia
+- langostino/gambas/ebi/gambero → crostacei
+- pulpo/calamar/zamburiñas/vieiras/mejillones/almejas/seppia/polpo/calamaro/capesante → molluschi
+- atún/salmón/pescado/anguila/surimi/sashimi/maguro/dashi/tonno/salmone/anguilla → pesce
+- queso/crema/nata/yogur/helado(non sorbetto)/formaggio/panna → latticini
+- mayonesa/mahonesa/tortilla/dashimaki/tamago/huevo/uovo → uova
+- sésamo/gomasio/aceite de sésamo/olio di sesamo → sesamo
+- nueces/almendras/anacardos/noci/mandorle → frutta_secca
+
+TAG — lista chiusa (SOLO questi): vegano, vegetariano, piccante, consigliato, specialita, novita
+- "piccante": picante, spicy, kimchi, chili, peperoncino, wasabi
+- "vegetariano": NON contiene carne, pesce, molluschi o crostacei
+- "vegano": vegetariano E senza uova, latticini o miele
+- "consigliato": SOLO se il menù lo marca esplicitamente (especial/recomendado/del chef/stella)
+- "specialita": SOLO se il menù lo marca esplicitamente (especialidad de la casa/della casa/signature). NON dedurlo dal nome.
+- "novita": NON applicarlo MAI in automatico (è una decisione del ristoratore).`;
+
 type ResponseContentBlock =
   | { type: "input_text"; text: string }
   | { type: "input_image"; image_url: string }
@@ -199,11 +256,23 @@ async function visionExtractRaw(base64Data: string, mediaType: string): Promise<
   return parseExtraction(raw);
 }
 
+// Single (non-chunked) file: extract + deduce allergens/tags in ONE vision
+// call. No separate enrichment pass — see COMBINED_INSTRUCTIONS for why one
+// call instead of two (the two-call version blew past the worker's wall-clock).
 async function extractMenuFromFile(opts: {
   base64Data: string;
   mediaType: string;
 }): Promise<ExtractedMenu> {
-  return await enrichAllergensAndTags(await visionExtractRaw(opts.base64Data, opts.mediaType));
+  const isPdf = opts.mediaType === "application/pdf";
+  const dataUrl = `data:${opts.mediaType};base64,${opts.base64Data}`;
+  const fileBlock: ResponseContentBlock = isPdf
+    ? { type: "input_file", filename: "menu.pdf", file_data: dataUrl }
+    : { type: "input_image", image_url: dataUrl };
+  const raw = await callResponses(
+    [fileBlock, { type: "input_text", text: USER_PROMPT }],
+    COMBINED_INSTRUCTIONS,
+  );
+  return parseExtraction(raw);
 }
 
 // Merge several extracted menus (one per PDF page-chunk) into one, preserving
@@ -280,12 +349,18 @@ async function extractMenuFromChunks(
   return await enrichAllergensAndTags(mergeMenus(ok));
 }
 
+// Text menu (PDF text-layer, .docx, .csv, cleaned HTML): extract + deduce
+// allergens/tags in ONE call via the combined instructions. No second pass —
+// the model already sees every name+description, so folding deduction into the
+// same call loses no quality and keeps us well inside the worker's wall-clock
+// (two sequential 16k-token calls did not fit; see COMBINED_INSTRUCTIONS).
 async function extractMenuFromText(text: string): Promise<ExtractedMenu> {
   const trimmed = text.slice(0, 100_000);
-  const raw = await callResponses([
-    { type: "input_text", text: `${USER_PROMPT}\n\n---MENU TEXT---\n${trimmed}` },
-  ]);
-  return await enrichAllergensAndTags(parseExtraction(raw));
+  const raw = await callResponses(
+    [{ type: "input_text", text: `${USER_PROMPT}\n\n---MENU TEXT---\n${trimmed}` }],
+    COMBINED_INSTRUCTIONS,
+  );
+  return parseExtraction(raw);
 }
 
 // Second pass: deduce allergens + tags from dish names/descriptions. Mirrors
@@ -512,47 +587,40 @@ const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const WORKER_SHARED_SECRET = Deno.env.get("WORKER_SHARED_SECRET") || "";
 
-Deno.serve(async (req) => {
-  if (req.method !== "POST") {
-    return new Response("Method not allowed", { status: 405 });
-  }
+// Surface any background-task rejection in the logs instead of crashing silently.
+addEventListener("unhandledrejection", (ev) => {
+  console.error("[menu-extract] unhandledrejection:", (ev as PromiseRejectionEvent).reason);
+  (ev as PromiseRejectionEvent).preventDefault();
+});
 
-  // Server-to-server auth via a shared secret we fully control (set as a
-  // function secret, sent by the Next.js create route as x-worker-secret).
-  // We don't gate on the Bearer/service-role token here because the Supabase
-  // gateway handles the platform JWT and the exact injected value of
-  // SUPABASE_SERVICE_ROLE_KEY isn't guaranteed to equal what the caller sends.
-  if (!WORKER_SHARED_SECRET || req.headers.get("x-worker-secret") !== WORKER_SHARED_SECRET) {
-    return new Response("Unauthorized", { status: 401 });
-  }
-
-  let jobId: string | undefined;
-  try {
-    const body = await req.json();
-    jobId = body?.jobId;
-  } catch {
-    return new Response("Bad request", { status: 400 });
-  }
-  if (!jobId) return new Response("Missing jobId", { status: 400 });
-
+// Do the slow extraction OUT OF BAND. Loaded as a background task via
+// EdgeRuntime.waitUntil so it isn't bound to the HTTP request's lifetime.
+//
+// WHY: the request/response connection through the Supabase gateway is closed
+// at ~60s (measured: the caller gets HTTP 000 at 60.4s). A menu needs TWO
+// sequential OpenAI calls — extraction, then the allergen/tag enrichment pass —
+// which together routinely exceed 60s even for a small 2-page text menu. If we
+// ran them inside the request handler, the gateway would kill the worker
+// mid-call and leave the row stuck on 'processing' forever (the bug that
+// surfaced to owners as "the menu is too large to read within the time limit").
+//
+// A background task instead lives within the worker's full ~150s wall-clock
+// window (Free plan), independent of the 60s HTTP cap. We write status to the
+// row throughout, and the dashboard polls GET /api/menu/import-job/[id].
+async function processJob(jobId: string): Promise<void> {
   const supabase = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
 
-  // Load the job.
   const { data: job, error: loadErr } = await supabase
     .from("menu_import_jobs")
     .select("*")
     .eq("id", jobId)
     .maybeSingle();
   if (loadErr || !job) {
-    return new Response("Job not found", { status: 404 });
+    console.error(`[menu-extract] job ${jobId} not found`, loadErr?.message);
+    return;
   }
   // Idempotency: if it already finished, do nothing.
-  if (job.status === "done" || job.status === "error") {
-    return new Response(JSON.stringify({ ok: true, already: job.status }), {
-      status: 200,
-      headers: { "Content-Type": "application/json" },
-    });
-  }
+  if (job.status === "done" || job.status === "error") return;
 
   await supabase
     .from("menu_import_jobs")
@@ -599,13 +667,9 @@ Deno.serve(async (req) => {
         updated_at: new Date().toISOString(),
       })
       .eq("id", jobId);
-
-    return new Response(JSON.stringify({ ok: true }), {
-      status: 200,
-      headers: { "Content-Type": "application/json" },
-    });
   } catch (e) {
     const message = (e as Error)?.message || "Extraction failed";
+    console.error(`[menu-extract] job ${jobId} failed:`, message);
     await supabase
       .from("menu_import_jobs")
       .update({
@@ -616,9 +680,42 @@ Deno.serve(async (req) => {
         updated_at: new Date().toISOString(),
       })
       .eq("id", jobId);
-    return new Response(JSON.stringify({ ok: false, error: message }), {
-      status: 200, // 200 so the fire-and-forget caller doesn't retry; status is in the row
-      headers: { "Content-Type": "application/json" },
-    });
   }
+}
+
+Deno.serve(async (req) => {
+  if (req.method !== "POST") {
+    return new Response("Method not allowed", { status: 405 });
+  }
+
+  // Server-to-server auth via a shared secret we fully control (set as a
+  // function secret, sent by the Next.js create route as x-worker-secret).
+  // We don't gate on the Bearer/service-role token here because the Supabase
+  // gateway handles the platform JWT and the exact injected value of
+  // SUPABASE_SERVICE_ROLE_KEY isn't guaranteed to equal what the caller sends.
+  if (!WORKER_SHARED_SECRET || req.headers.get("x-worker-secret") !== WORKER_SHARED_SECRET) {
+    return new Response("Unauthorized", { status: 401 });
+  }
+
+  let jobId: string | undefined;
+  try {
+    const body = await req.json();
+    jobId = body?.jobId;
+  } catch {
+    return new Response("Bad request", { status: 400 });
+  }
+  if (!jobId) return new Response("Missing jobId", { status: 400 });
+
+  // Kick the extraction as a background task and return IMMEDIATELY. The heavy
+  // work (two OpenAI calls, >60s) must NOT live inside this request, or the
+  // gateway's ~60s connection cap would kill it mid-flight. EdgeRuntime.waitUntil
+  // keeps it running in the worker's full wall-clock window; status lands in the
+  // row, which the dashboard polls. The caller (Next.js route) already fires
+  // this and-forgets, so a 202 here is all it needs.
+  EdgeRuntime.waitUntil(processJob(jobId));
+
+  return new Response(JSON.stringify({ ok: true, accepted: true, jobId }), {
+    status: 202,
+    headers: { "Content-Type": "application/json" },
+  });
 });
