@@ -411,8 +411,8 @@ export default function MenuPage() {
                   ["3", t("menu_template_3") || "Scuro"],
                   ["4", t("menu_template_4") || "Classico"],
                 ] as const).map(([num, label]) => (
-                  <option key={num} value={num}>
-                    {num} · {label}
+                  <option key={num} value={num} title={label}>
+                    {num}
                   </option>
                 ))}
               </select>
