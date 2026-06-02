@@ -32,7 +32,7 @@ export function TenantSwitcher() {
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-md border-2 text-sm font-semibold text-black hover:bg-[#c4956a]/10 transition-colors"
+        className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-md border-2 text-sm font-semibold text-black hover:bg-[#c4956a]/10 transition-colors cursor-pointer"
         style={{ borderColor: "#c4956a", background: "rgba(252,246,237,0.6)" }}
       >
         <Shield className={`w-4 h-4 flex-shrink-0 ${isImpersonating ? "text-amber-600" : "text-[#c4956a]"}`} />

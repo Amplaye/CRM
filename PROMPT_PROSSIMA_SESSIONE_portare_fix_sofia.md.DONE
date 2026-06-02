@@ -1,0 +1,31 @@
+# Prompt prossima sessione — portare i fix di Sofía (BALI Rest) a Oraz + template + future tenant
+
+Copia-incolla questo come primo messaggio della nuova chat.
+
+---
+
+Lavoriamo sul CRM (BaliFlow), path `/Users/amplaye/CRM`. Leggi prima il sub-index memoria `_index_baliflow_crm.md` e in particolare la memory `bug_baliflow_chatbot_confirm_input_undefined.md`: nella sessione precedente ho corretto **due bug nel chatbot WhatsApp di BALI Rest** e ora vanno **portati a Oraz e al template** (così ogni futuro tenant nasce già corretto). Tutto su n8n (`https://n8n.srv1468837.hstgr.cloud`, API key in `credentials.md`). **N8N/ è gitignored** → niente commit, il deploy live via PUT È la produzione; fai sempre backup del JSON prima del PUT e rileggi dopo per verificare.
+
+## I due fix da replicare (sono nel nodo "Fetch History + Check Availability")
+Riferimento già corretto e verificato: `/Users/amplaye/CRM/N8N/picnic/bali_rest_FetchHistory_node.INPUT_RESET_FIX_2026-06-02.js` (BALI Rest, workflow `9liGOnPCOuTSMyrM`). Confronta con quello e applica le STESSE modifiche. **Match per stringa/pattern, NON per numero di riga** (le righe differiscono per workflow).
+
+1. **Crash `input is not defined`** — il nodo usa `$input.first().json`, non un `const input`. Due residui di copia-incolla rompono la conferma:
+   - `input.lang` → sostituisci con `lang` (nel ramo CONFIRMO → `possible_duplicate`, è quello che faceva crashare Sofía: conferma persa in silenzio, log `confirm.create_error` con `err: "input is not defined"`).
+   - `input.messageSid` → sostituisci con `($input.first().json.messageSid)` (ramo creazione guest al primo contatto).
+2. **Handler reset** — il widget web manda il token `__TENANT_SELECTED__` come finto messaggio utente, non gestito → la prenotazione a metà + history vecchia si trascinano. Aggiungi l'handler subito DOPO il guard no-sender e PRIMA del persist del messaggio utente in `bot_messages`: riconosce `__TENANT_SELECTED__`/`__RESET__` + frasi di reset esplicite, cancella `sd.pendingBookings[key]`+`pendingWaitlist`+`customerLang`/`sessions`, fa DELETE `bot_messages` di quel telefono, ritorna `{skip:true, reason:'reset'}`. **Attento alla TDZ**: la chiave service-role va INLINE nell'handler (`_SUPA_BM_KEY` è dichiarato più sotto). Il `tenant_id` nella DELETE deve essere quello del tenant su cui stai lavorando.
+
+## Dove applicarli (verifica TU lo stato live prima, non fidarti)
+Tutti e tre hanno la stessa struttura a 8 nodi e **al momento hanno entrambi i bug e nessun handler reset** (verificato 2026-06-02):
+- **Picnic template** `166QnQsGHqXDpBxa` (tenant `626547ff-bc44-4f35-8f42-0e97f1dcf0d5`, **inattivo**) — **questo è il più importante**: è il "golden source" da cui l'onboarding clona (vedi `src/lib/onboarding/orchestrator.ts` `TEMPLATE_RESTAURANT_WORKFLOW_IDS` + `substitute.ts`). `substitute.ts` riscrive a clone-time UUID/telefono/nome/webhook/Vapi/review-url → quindi se metti `tenant_id=eq.626547ff-...` nella DELETE del reset, viene riscritto automaticamente al tenant nuovo. **Correggere il template = ogni futuro tenant nasce già sano.** Regola d'oro del progetto: si patcha il template, mai il singolo cliente.
+- **Oraz** `zXEYdw8Zbs5seCci` (tenant `93eebe9c-8af5-4ca5-a315-3376ef4976e5`, attivo) — tenant già esistente, NON eredita il fix del template → va patchato a mano (tenant_id Oraz nella DELETE del reset).
+- (BALI Rest `9liGOnPCOuTSMyrM` è già fatto — non toccarlo, serve solo da riferimento.)
+
+## In più: bug data-quality da risolvere (l'utente l'ha chiesto esplicitamente)
+Lo stesso telefono crea **due righe `guests`** diverse a seconda che il numero abbia il `+` o no (es. visto su BALI Rest: una `34684109244` e una `+34684109244`, stessa persona splittata; sotto Meta `from` arriva senza `+`). Va **normalizzato il telefono** in un solo punto al confine, così l'upsert del guest trova sempre la stessa riga. Indaga dove nasce: probabilmente in `/api/ai/book` (CRM, `src/app/api/ai/`) e/o nel guest-upsert lato n8n. Verifica come matchano già altrove (in Fetch History il match guest usa `slice(-9)` sulle cifre → quello è tollerante; il problema è la CREAZIONE del guest con formato incoerente). Decidi un formato canonico (consiglio: E.164 con `+`), applicalo alla creazione/lookup, e valuta se vale la pena fondere i duplicati già esistenti (con cautela: ci sono FK da `conversations.linked_reservation_id`, come visto nel cleanup). Questo è CRM source → quello SÌ va committato+pushato.
+
+## Metodo (come la sessione precedente)
+- Fai SEMPRE il full test loop dal vivo: backup JSON → patch nodo → PUT → rileggi e verifica i marker → `node --check` del nodo (0 bare `input.`) → smoke-test live via webhook con un telefono di test (`__TENANT_SELECTED__` → `{skip:true,reason:'reset'}` + history azzerata; booking + CONFIRMO con prenotazione esistente → reservation creata, zero nuovi `confirm.create_error`) → **pulisci tutti i dati di test** (reservations, guests, bot_messages, conversations; occhio alla FK `conversations_linked_reservation_id_fkey` → prima PATCH a null poi DELETE).
+- Per il reset, attento per ogni workflow a: tenant_id giusto nella DELETE, chiave Supabase inline (TDZ), handler messo prima del persist del messaggio.
+- A fine lavoro aggiorna la memory.
+
+Procedi: parti verificando lo stato live di Oraz e del template, poi applica i fix, poi affronta la normalizzazione telefono. Chiedimi solo se c'è una decisione di prodotto reale (per il resto: just fix).
