@@ -734,6 +734,23 @@ export default function MenuPage() {
                           onClick={() => setItemModal({ mode: "edit", item: it })}
                         >
                           <div className="flex items-center gap-2">
+                            {it.image_url ? (
+                              // eslint-disable-next-line @next/next/no-img-element
+                              <img
+                                src={it.image_url}
+                                alt=""
+                                className="w-9 h-9 rounded-md object-cover shrink-0 border"
+                                style={{ borderColor: "rgba(196,149,106,0.4)" }}
+                              />
+                            ) : (
+                              <span
+                                className="w-9 h-9 rounded-md shrink-0 flex items-center justify-center border"
+                                style={{ borderColor: "rgba(196,149,106,0.3)", background: "rgba(252,246,237,0.6)" }}
+                                title={t("menu_item_photo_add") || "Aggiungi una foto"}
+                              >
+                                <ImageIcon className="w-4 h-4 text-[#c4956a]" />
+                              </span>
+                            )}
                             <span className="font-bold text-black truncate">{it.name}</span>
                             {!it.available && (
                               <span className="text-[9px] uppercase font-bold tracking-widest text-orange-700 bg-orange-50 px-1.5 py-0.5 rounded">
@@ -1029,10 +1046,82 @@ function ItemEditModal({
   );
   const [tags, setTags] = useState<string[]>(isEditing ? initial.tags : []);
   const [available, setAvailable] = useState<boolean>(isEditing ? initial.available : true);
+  const [imageUrl, setImageUrl] = useState<string | null>(
+    isEditing ? initial.image_url ?? null : null
+  );
+  const [uploading, setUploading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const toggleArrayValue = (current: string[], value: string): string[] =>
     current.includes(value) ? current.filter((v) => v !== value) : [...current, value];
+
+  // Compress + upload a dish photo to the public "menu-images" bucket. We
+  // downscale to ~1400px on the long edge and re-encode as WebP (q0.82) on the
+  // client so a 4MB phone photo becomes ~150–250KB — Supabase Free shares one
+  // 1GB bucket across all tenants, so every photo must be light.
+  const compressToWebp = (file: File): Promise<Blob> =>
+    new Promise((resolve, reject) => {
+      const img = new Image();
+      const url = URL.createObjectURL(file);
+      img.onload = () => {
+        URL.revokeObjectURL(url);
+        const MAX = 1400;
+        let { width, height } = img;
+        if (width > height && width > MAX) {
+          height = Math.round((height * MAX) / width);
+          width = MAX;
+        } else if (height >= width && height > MAX) {
+          width = Math.round((width * MAX) / height);
+          height = MAX;
+        }
+        const canvas = document.createElement("canvas");
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext("2d");
+        if (!ctx) return reject(new Error("no 2d context"));
+        ctx.drawImage(img, 0, 0, width, height);
+        canvas.toBlob(
+          (blob) => (blob ? resolve(blob) : reject(new Error("toBlob failed"))),
+          "image/webp",
+          0.82
+        );
+      };
+      img.onerror = () => {
+        URL.revokeObjectURL(url);
+        reject(new Error("image decode failed"));
+      };
+      img.src = url;
+    });
+
+  const handlePhotoPick = async (file: File | null) => {
+    if (!file || !file.type.startsWith("image/")) return;
+    setUploading(true);
+    try {
+      const blob = await compressToWebp(file);
+      // Stable path per item keeps the bucket tidy and lets re-uploads overwrite.
+      // For a brand-new dish (no id yet) we use a time-independent random suffix
+      // built from the file's own bytes-length + name so it stays deterministic
+      // within this session without Date.now().
+      const itemKey = isEditing
+        ? initial.id
+        : `new-${tenantId.slice(0, 8)}-${name.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").slice(0, 32) || "dish"}`;
+      const path = `${tenantId}/${itemKey}.webp`;
+      const { error: upErr } = await supabase.storage
+        .from("menu-images")
+        .upload(path, blob, { contentType: "image/webp", upsert: true });
+      if (upErr) throw upErr;
+      const { data: pub } = supabase.storage.from("menu-images").getPublicUrl(path);
+      // Cache-bust so an overwritten photo refreshes in the editor preview.
+      setImageUrl(`${pub.publicUrl}?v=${blob.size}`);
+    } catch (e) {
+      console.error("[menu] photo upload failed", e);
+      alert(`Errore caricamento foto: ${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      setUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  };
 
   const handleSave = async () => {
     if (!name.trim()) return;
@@ -1048,6 +1137,7 @@ function ItemEditModal({
       allergens,
       tags,
       available,
+      image_url: imageUrl,
     };
     let error: { message: string } | null = null;
     if (isEditing) {
@@ -1098,6 +1188,69 @@ function ItemEditModal({
         </div>
 
         <div className="flex-1 overflow-y-auto p-6 space-y-5">
+          {/* Dish photo — optional, shown big on the public /m/<slug> menu. */}
+          <div>
+            <label className="block text-xs font-bold text-black uppercase tracking-widest mb-1.5">
+              {t("menu_item_photo") || "Foto piatto"}
+            </label>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/jpeg,image/png,image/webp"
+              className="hidden"
+              onChange={(e) => handlePhotoPick(e.target.files?.[0] ?? null)}
+            />
+            {imageUrl ? (
+              <div className="relative w-full h-44 rounded-xl overflow-hidden border-2 group" style={{ borderColor: "#c4956a" }}>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={imageUrl} alt={name || "Foto piatto"} className="w-full h-full object-cover" />
+                <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-colors flex items-center justify-center gap-2 opacity-0 group-hover:opacity-100">
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={uploading}
+                    className="cursor-pointer px-3 py-1.5 rounded-lg bg-white text-black text-xs font-bold shadow"
+                  >
+                    {t("menu_item_photo_replace") || "Sostituisci"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setImageUrl(null)}
+                    disabled={uploading}
+                    className="cursor-pointer px-3 py-1.5 rounded-lg bg-red-600 text-white text-xs font-bold shadow inline-flex items-center gap-1"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" /> {t("menu_item_photo_remove") || "Rimuovi"}
+                  </button>
+                </div>
+                {uploading && (
+                  <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
+                    <Loader2 className="w-6 h-6 text-white animate-spin" />
+                  </div>
+                )}
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={uploading}
+                className="cursor-pointer w-full h-32 rounded-xl border-2 border-dashed flex flex-col items-center justify-center gap-2 text-sm font-semibold transition-colors hover:bg-[rgba(196,149,106,0.08)]"
+                style={{ borderColor: "#c4956a", color: "#7e5226", background: "rgba(252,246,237,0.4)" }}
+              >
+                {uploading ? (
+                  <>
+                    <Loader2 className="w-6 h-6 animate-spin" />
+                    {t("menu_item_photo_uploading") || "Caricamento..."}
+                  </>
+                ) : (
+                  <>
+                    <ImageIcon className="w-6 h-6" />
+                    {t("menu_item_photo_add") || "Aggiungi una foto"}
+                  </>
+                )}
+              </button>
+            )}
+          </div>
+
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="md:col-span-2">
               <label className="block text-xs font-bold text-black uppercase tracking-widest mb-1.5">

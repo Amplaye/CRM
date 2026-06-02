@@ -198,9 +198,10 @@ create table public.knowledge_articles (
 -- ============================================
 -- 11. MENU (categories + items)
 -- ============================================
--- Per-tenant menu. Categories are flat (no sub-categories). Items have no
--- photos. Allergens + tags are arrays so the search bar can filter by
--- allergene / tag without joins. Public read for /m/<slug> hosted menu page.
+-- Per-tenant menu. Categories are flat (no sub-categories). Items can carry an
+-- optional photo (image_url → public "menu-images" Storage bucket, path
+-- <tenant_id>/<item_id>.webp). Allergens + tags are arrays so the search bar can
+-- filter by allergene / tag without joins. Public read for /m/<slug> hosted menu page.
 create table public.menu_categories (
   id uuid default uuid_generate_v4() primary key,
   tenant_id uuid not null references public.tenants(id) on delete cascade,
@@ -221,10 +222,18 @@ create table public.menu_items (
   allergens text[] not null default '{}',
   tags text[] not null default '{}',
   available boolean not null default true,
+  image_url text,
   sort_order integer not null default 0,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
+
+-- Storage: a public "menu-images" bucket holds optional dish photos. The owner
+-- uploads from the CRM menu editor; the public /m/<slug> page reads them. Policies:
+--   menu_images_public_read   (select, public)      — anyone can view a dish photo
+--   menu_images_auth_insert/update/delete (authenticated) — only signed-in owners write
+-- (Bucket + policies are created out-of-band via the Storage + Management API,
+--  not by this schema file — documented here for reference.)
 
 -- ============================================
 -- 12. AUDIT EVENTS

@@ -88,11 +88,26 @@ type ItemRow = {
   allergens: string[];
   tags: string[];
   available: boolean;
+  image_url: string | null;
   sort_order: number;
 };
 
-export default async function PublicMenuPage({ params }: { params: Promise<Params> }) {
+export default async function PublicMenuPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<Params>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
   const { slug } = await params;
+  const sp = await searchParams;
+  // ?style=1|2|3 lets us preview the three candidate menu designs side by side
+  // before committing to one as the default. Falls back to the chosen default.
+  const styleRaw = Array.isArray(sp.style) ? sp.style[0] : sp.style;
+  const style = (["1", "2", "3"].includes(styleRaw ?? "") ? styleRaw : "1") as
+    | "1"
+    | "2"
+    | "3";
   const sb = createServiceRoleClient();
 
   const { data: tenant } = (await sb
@@ -119,7 +134,7 @@ export default async function PublicMenuPage({ params }: { params: Promise<Param
       sb
         .from("menu_items")
         .select(
-          "id,category_id,name,description,price,currency,allergens,tags,available,sort_order"
+          "id,category_id,name,description,price,currency,allergens,tags,available,image_url,sort_order"
         )
         .eq("tenant_id", tenant.id)
         .eq("available", true)
@@ -178,6 +193,7 @@ export default async function PublicMenuPage({ params }: { params: Promise<Param
     currency: it.currency,
     tags: it.tags,
     allergens: it.allergens,
+    image_url: it.image_url,
     tagLabels: it.tags.map((tg) => tagLabel(tg, locale)),
     allergenLabels: it.allergens.map((al) => allergenLabel(al, locale)),
   });
@@ -220,6 +236,7 @@ export default async function PublicMenuPage({ params }: { params: Promise<Param
   return (
     <div className={`${fraunces.variable} ${manrope.variable}`}>
       <MenuView
+        style={style}
         restaurantName={tenant.name}
         menuLabel={ui.menu}
         emptyLabel={ui.updating}

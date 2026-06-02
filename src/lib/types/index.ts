@@ -81,6 +81,8 @@ export interface MenuItem {
   allergens: string[];
   tags: string[];
   available: boolean;
+  /** Optional dish photo (public "menu-images" Storage bucket). */
+  image_url: string | null;
   sort_order: number;
   created_at: string;
   updated_at: string;

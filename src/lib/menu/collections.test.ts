@@ -14,6 +14,7 @@ function item(id: string, sort_order: number, name: string): MenuItem {
     allergens: [],
     tags: [],
     available: true,
+    image_url: null,
     sort_order,
     created_at: '2026-01-01',
     updated_at: '2026-01-01',
