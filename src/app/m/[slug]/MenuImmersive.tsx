@@ -303,12 +303,16 @@ export default function MenuImmersive({
                   )}
                 </div>
               </div>
+
+              {/* Footer lives at the end of the LAST dish slide, so "Powered by
+                  BaliFlow" only shows once the menu is scrolled to its end —
+                  never as a fixed overlay on top of the dishes. */}
+              {i === items.length - 1 && <ImFooter />}
             </section>
           );
         })}
       </div>
 
-      <ImFooter />
       <style>{styles}</style>
     </div>
   );
@@ -591,11 +595,20 @@ const styles = `
 .im-empty-msg { margin: 1.2rem 0 0; font-style: italic; color: rgba(247,239,226,0.7); font-size: 1rem; }
 
 /* ── Footer ─────────────────────────────────────────────────────────────── */
+/* Sits in-flow at the bottom of the last dish slide (not a fixed overlay), so
+   it never covers the dishes and only appears once the menu is scrolled to its
+   end. z-index keeps it above the photo scrim. */
 .im-footwrap {
-  position: absolute; z-index: 30; bottom: max(env(safe-area-inset-bottom), 0.55rem);
-  left: 50%; transform: translateX(-50%);
+  position: relative; z-index: 12;
+  width: 100%;
   display: flex; flex-direction: column; align-items: center; gap: 0.5rem;
-  pointer-events: none;
+  padding: 0.5rem 1rem max(env(safe-area-inset-bottom), 0.9rem);
+}
+/* Empty state has no scrolling reel, so pin the footer to the bottom there
+   instead of letting it sit centred next to the empty message. */
+.im-empty-root .im-footwrap {
+  position: absolute; bottom: max(env(safe-area-inset-bottom), 0.55rem);
+  left: 50%; transform: translateX(-50%); width: auto; padding: 0;
 }
 .im-footer {
   display: flex; align-items: center; justify-content: center; gap: 0.6rem;
