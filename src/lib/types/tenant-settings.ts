@@ -66,6 +66,10 @@ export interface TenantSettings {
    * Independent of `locale`/the assistant — chosen once at onboarding and read
    * at app boot to fix the dashboard language (there is no in-app switcher). */
   crm_locale?: "es" | "it" | "en" | "de";
+  /** Public-menu template shown on /m/<slug>: "1" Immersive · "2" Editorial ·
+   * "3" Cinematic · "4" Classic. Chosen by the owner in the menu editor;
+   * defaults to "1" when unset. ?style= on the public URL is a preview override. */
+  menu_style?: "1" | "2" | "3" | "4";
   currency?: string;
   ai_enabled_channels?: string[];
   features?: Partial<TenantFeatures>;

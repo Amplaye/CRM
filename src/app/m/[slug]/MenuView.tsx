@@ -6,14 +6,16 @@
 //   "1" → MenuImmersive — full-screen luxury "stories", giant dish photos
 //   "2" → MenuEditorial — gourmet-magazine bento spread, oversized type
 //   "3" → MenuCinematic — dark, materic, glassmorphism with gold rim-light
+//   "4" → MenuClassic   — the original cream-paper "Maître" fine-dining card
 //
-// All three consume the exact same flat, server-localized sections (including the
+// All four consume the exact same flat, server-localized sections (including the
 // new optional per-dish `image_url`). The shared shape lives here and is the
 // single source of truth that page.tsx imports.
 
 import MenuImmersive from "./MenuImmersive";
 import MenuEditorial from "./MenuEditorial";
 import MenuCinematic from "./MenuCinematic";
+import MenuClassic from "./MenuClassic";
 
 export type MenuViewItem = {
   id: string;
@@ -37,7 +39,7 @@ export type MenuViewSection = {
   items: MenuViewItem[];
 };
 
-export type MenuStyle = "1" | "2" | "3";
+export type MenuStyle = "1" | "2" | "3" | "4";
 
 type Props = {
   style: MenuStyle;
@@ -51,5 +53,6 @@ type Props = {
 export default function MenuView({ style, ...rest }: Props) {
   if (style === "2") return <MenuEditorial {...rest} />;
   if (style === "3") return <MenuCinematic {...rest} />;
+  if (style === "4") return <MenuClassic {...rest} />;
   return <MenuImmersive {...rest} />;
 }

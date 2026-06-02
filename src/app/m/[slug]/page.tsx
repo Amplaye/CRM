@@ -46,7 +46,13 @@ type TenantRow = {
   name: string;
   slug: string;
   status: string;
-  settings: { timezone?: string; currency?: string; crm_locale?: string };
+  settings: {
+    timezone?: string;
+    currency?: string;
+    crm_locale?: string;
+    /** Saved public-menu template: "1"|"2"|"3"|"4". Defaults to "1". */
+    menu_style?: string;
+  };
 };
 
 // The public menu shows the language the restaurant operates in (its CRM locale),
@@ -101,13 +107,13 @@ export default async function PublicMenuPage({
 }) {
   const { slug } = await params;
   const sp = await searchParams;
-  // ?style=1|2|3 lets us preview the three candidate menu designs side by side
-  // before committing to one as the default. Falls back to the chosen default.
+  // ?style=1|2|3|4 is a transient PREVIEW override (used by the CRM preview
+  // selector). The real default is the template the owner saved in the CRM,
+  // read below from tenant.settings.menu_style.
   const styleRaw = Array.isArray(sp.style) ? sp.style[0] : sp.style;
-  const style = (["1", "2", "3"].includes(styleRaw ?? "") ? styleRaw : "1") as
-    | "1"
-    | "2"
-    | "3";
+  const previewStyle = ["1", "2", "3", "4"].includes(styleRaw ?? "")
+    ? (styleRaw as "1" | "2" | "3" | "4")
+    : null;
   const sb = createServiceRoleClient();
 
   const { data: tenant } = (await sb
@@ -122,6 +128,14 @@ export default async function PublicMenuPage({
 
   const locale = resolveLocale(tenant.settings?.crm_locale);
   const ui = PUBLIC_STRINGS[locale];
+
+  // Final template: a ?style preview override wins (transient), otherwise the
+  // owner's saved choice, otherwise "1" (Immersive).
+  const savedRaw = tenant.settings?.menu_style;
+  const savedStyle = ["1", "2", "3", "4"].includes(savedRaw ?? "")
+    ? (savedRaw as "1" | "2" | "3" | "4")
+    : "1";
+  const style = previewStyle ?? savedStyle;
 
   const [{ data: catsRaw }, { data: itemsRaw }, { data: collsRaw }, { data: linksRaw }] =
     await Promise.all([

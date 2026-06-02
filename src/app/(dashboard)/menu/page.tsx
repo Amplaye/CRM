@@ -74,8 +74,36 @@ const UNCAT_ID = "__uncategorized__";
 
 export default function MenuPage() {
   const { t, language } = useLanguage();
-  const { activeTenant: tenant } = useTenant();
+  const { activeTenant: tenant, refreshActiveTenant } = useTenant();
   const supabase = createClient();
+
+  // Public-menu template selector (1 Immersive · 2 Editorial · 3 Cinematic ·
+  // 4 Classic). The saved value lives in tenants.settings.menu_style and is the
+  // real default for /m/<slug>; picking one here saves immediately.
+  const savedStyle = (tenant?.settings?.menu_style ?? "1") as "1" | "2" | "3" | "4";
+  const [menuStyle, setMenuStyle] = useState<"1" | "2" | "3" | "4">(savedStyle);
+  const [savingStyle, setSavingStyle] = useState(false);
+  useEffect(() => {
+    setMenuStyle((tenant?.settings?.menu_style ?? "1") as "1" | "2" | "3" | "4");
+  }, [tenant?.settings?.menu_style]);
+
+  const chooseStyle = async (s: "1" | "2" | "3" | "4") => {
+    if (!tenant || s === menuStyle) return;
+    const prev = menuStyle;
+    setMenuStyle(s); // optimistic
+    setSavingStyle(true);
+    const { error } = await supabase
+      .from("tenants")
+      .update({ settings: { ...tenant.settings, menu_style: s } })
+      .eq("id", tenant.id);
+    setSavingStyle(false);
+    if (error) {
+      setMenuStyle(prev);
+      alert(`Errore salvataggio template: ${error.message}`);
+      return;
+    }
+    await refreshActiveTenant();
+  };
 
   const [categories, setCategories] = useState<MenuCategory[]>([]);
   const [items, setItems] = useState<MenuItem[]>([]);
@@ -353,12 +381,67 @@ export default function MenuPage() {
         style={{ background: "rgba(252,246,237,0.85)", borderColor: "#c4956a" }}
       >
         <div className="p-5 border-b shrink-0" style={{ borderColor: "#c4956a" }}>
-          <h1 className="text-xl font-bold text-black tracking-tight">
-            {t("menu_title") || "Menu"}
-          </h1>
-          <p className="text-xs text-black mt-1">
-            {t("menu_subtitle") || "Piatti, categorie, allergeni del ristorante"}
-          </p>
+          <div className="flex items-start justify-between gap-2">
+            <div>
+              <h1 className="text-xl font-bold text-black tracking-tight">
+                {t("menu_title") || "Menu"}
+              </h1>
+              <p className="text-xs text-black mt-1">
+                {t("menu_subtitle") || "Piatti, categorie, allergeni del ristorante"}
+              </p>
+            </div>
+            {tenant?.slug && (
+              <a
+                href={`/m/${tenant.slug}?style=${menuStyle}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="cursor-pointer shrink-0 inline-flex items-center gap-1.5 text-xs font-bold text-black px-3 py-2 rounded-lg border-2 hover:bg-[#c4956a]/10 transition-colors"
+                style={{ borderColor: "#c4956a" }}
+                title={t("menu_preview_public") || "Anteprima menù pubblico"}
+              >
+                <Eye className="w-4 h-4" />
+                {t("menu_import_preview") || "Anteprima"}
+              </a>
+            )}
+          </div>
+
+          {/* Template selector — pick the public-menu look. Saving is immediate:
+              the chosen number becomes both the preview and the live menu. */}
+          <div className="mt-4">
+            <span className="text-[10px] uppercase font-black tracking-widest text-[#a87642] flex items-center gap-1.5">
+              {t("menu_template") || "Template menù"}
+              {savingStyle && <Loader2 className="w-3 h-3 animate-spin" />}
+            </span>
+            <div className="mt-1.5 grid grid-cols-4 gap-1.5">
+              {([
+                ["1", t("menu_template_1") || "Immersivo"],
+                ["2", t("menu_template_2") || "Editoriale"],
+                ["3", t("menu_template_3") || "Scuro"],
+                ["4", t("menu_template_4") || "Classico"],
+              ] as const).map(([num, label]) => {
+                const on = menuStyle === num;
+                return (
+                  <button
+                    key={num}
+                    type="button"
+                    onClick={() => chooseStyle(num)}
+                    disabled={savingStyle}
+                    title={label}
+                    aria-pressed={on}
+                    className="cursor-pointer flex flex-col items-center justify-center py-1.5 rounded-lg border-2 transition-colors"
+                    style={
+                      on
+                        ? { borderColor: "#c4956a", background: "linear-gradient(135deg, #d4a574, #c4956a)", color: "#fff" }
+                        : { borderColor: "rgba(196,149,106,0.5)", background: "rgba(252,246,237,0.6)", color: "#1c150d" }
+                    }
+                  >
+                    <span className="text-base font-black leading-none">{num}</span>
+                    <span className="text-[8.5px] font-bold uppercase tracking-wide mt-0.5">{label}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
 
           <div className="mt-4 relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-black" />
@@ -547,19 +630,6 @@ export default function MenuPage() {
             <QrCode className="w-3.5 h-3.5 mr-1.5" />
             {t("menu_generate_qr_short") || "QR"}
           </button>
-          {tenant?.slug && (
-            <a
-              href={`/m/${tenant.slug}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="cursor-pointer text-xs font-bold text-black inline-flex items-center justify-center px-2.5 py-2 rounded-md border-2 hover:bg-[#c4956a]/10 transition-colors"
-              style={{ borderColor: "#c4956a" }}
-              title="Anteprima menù pubblico"
-            >
-              <Eye className="w-3.5 h-3.5 mr-1.5" />
-              Anteprima
-            </a>
-          )}
         </div>
       </aside>
 
