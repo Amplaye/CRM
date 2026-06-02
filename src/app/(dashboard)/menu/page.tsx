@@ -23,7 +23,7 @@ import {
   MinusCircle,
 } from "lucide-react";
 import { useLanguage } from "@/lib/contexts/LanguageContext";
-import { useEffect, useMemo, useRef, useState, type DragEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { useTenant } from "@/lib/contexts/TenantContext";
 import type {
@@ -35,6 +35,8 @@ import type {
   Tenant,
 } from "@/lib/types";
 import type { ExtractedMenu, ExtractedMenuItem } from "@/lib/menu/extract";
+import { flattenDishes, correlateDishName } from "@/lib/menu/photo-extract";
+import { extractPdfPhotos, type ExtractedPhoto } from "@/lib/menu/photo-extract.client";
 import { MAX_UPLOAD_BYTES, MAX_UPLOAD_MB, ACCEPTED_EXTENSIONS, VISION_MIME } from "@/lib/menu/limits";
 import {
   allergenLabel,
@@ -1639,12 +1641,19 @@ function ImportMenuModal({
   existingItemsCount: number;
   onClose: () => void;
 }) {
+  const supabase = createClient();
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [tab, setTab] = useState<"file" | "url">("file");
   const [file, setFile] = useState<File | null>(null);
   const [url, setUrl] = useState("");
-  const [stage, setStage] = useState<"idle" | "uploading" | "processing" | "preview" | "saving" | "done">("idle");
+  const [stage, setStage] = useState<"idle" | "uploading" | "processing" | "pairing" | "preview" | "saving" | "done">("idle");
   const [extracted, setExtracted] = useState<ExtractedMenu | null>(null);
+  // Dish-photo import. `photos` = every candidate pulled from the PDF (WebP +
+  // data URL). `photoAssign` maps a dish coordinate key "c:i" (c=-1 for
+  // uncategorized) to an index into `photos`. Dishes/photos not in the map are
+  // unassigned. Built from the AI pairing, then user-editable in the preview.
+  const [photos, setPhotos] = useState<ExtractedPhoto[]>([]);
+  const [photoAssign, setPhotoAssign] = useState<Record<string, number>>({});
   const [error, setError] = useState<string | null>(null);
   const [dragging, setDragging] = useState(false);
   const [savedCounts, setSavedCounts] = useState<{ cats: number; items: number } | null>(null);
@@ -1657,6 +1666,76 @@ function ImportMenuModal({
   // the cap, so it can't look "stuck at 92%").
   const [progressPct, setProgressPct] = useState(0);
   const progressRef = useRef(0);
+
+  // Extraction finished. If the source was a PDF file, pull its embedded dish
+  // photos, ask the AI which dish each one is, pre-fill the assignment map, and
+  // THEN show the preview. Photos are a best-effort enhancement: any failure
+  // (URL/text import with no local PDF, no embedded images, AI/extraction
+  // error) falls straight through to the normal photo-less preview.
+  const enterPreviewWithPhotos = useCallback(
+    async (menu: ExtractedMenu) => {
+      const isPdfFile =
+        tab === "file" &&
+        !!file &&
+        (file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf"));
+      if (!isPdfFile || !file) {
+        setStage("preview");
+        return;
+      }
+      setStage("pairing");
+      try {
+        const found = await extractPdfPhotos(file);
+        if (found.length === 0) {
+          setStage("preview");
+          return;
+        }
+        const dishes = flattenDishes(menu);
+        const dishNames = dishes.map((d) => d.name).filter((n) => n.trim().length > 0);
+
+        let pairs: Array<{ image: number; dish: string | null }> = [];
+        try {
+          const res = await fetch("/api/menu/match-photos", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              tenant_id: tenantId,
+              images: found.map((p) => p.dataUrl),
+              dishes: dishNames,
+            }),
+          });
+          if (res.ok) {
+            const data = await res.json();
+            if (Array.isArray(data.pairs)) pairs = data.pairs;
+          }
+        } catch {
+          // AI matcher unreachable — still show the photos in the unmatched
+          // tray so the user can assign them by hand.
+        }
+
+        // Turn AI pairs (image index → dish name) into our {c:i} → photoIndex
+        // map, dropping ambiguous/unknown dish names rather than mis-pairing.
+        const assign: Record<string, number> = {};
+        for (const p of pairs) {
+          if (typeof p.image !== "number" || p.image < 0 || p.image >= found.length) continue;
+          if (!p.dish) continue;
+          const ref = correlateDishName(p.dish, dishes);
+          if (!ref) continue;
+          const key = `${ref.c}:${ref.i}`;
+          // First photo wins a dish; extra matches for the same dish stay in the
+          // unmatched tray.
+          if (assign[key] === undefined) assign[key] = p.image;
+        }
+
+        setPhotos(found);
+        setPhotoAssign(assign);
+      } catch {
+        // ignore — photos are optional
+      } finally {
+        setStage("preview");
+      }
+    },
+    [tab, file, tenantId]
+  );
 
   // Poll the job status while extraction runs on the Supabase Edge Function.
   // Large PDFs take 60-120s, well past Vercel's 60s cap, so the work is async.
@@ -1718,9 +1797,13 @@ function ImportMenuModal({
       if (cancelled) return;
 
       if (data?.status === "done") {
-        setExtracted(data.result as ExtractedMenu);
+        const menu = data.result as ExtractedMenu;
+        setExtracted(menu);
         setPct(100, true);
-        setStage("preview");
+        // If this was a PDF file upload, try to lift the dish photos out of it
+        // and pre-pair them before showing the preview. Best-effort: any failure
+        // just lands on the normal photo-less preview.
+        void enterPreviewWithPhotos(menu);
         return;
       }
       if (data?.status === "error") {
@@ -1759,7 +1842,7 @@ function ImportMenuModal({
       cancelled = true;
       clearInterval(iv);
     };
-  }, [stage, jobId, t]);
+  }, [stage, jobId, t, enterPreviewWithPhotos]);
 
   // Accept by MIME type OR by extension (browsers report a blank/generic type
   // for files dragged from some apps). Mirrors the server: PDF, images, .docx,
@@ -1888,11 +1971,58 @@ function ImportMenuModal({
         setStage("preview");
         return;
       }
+
+      // Attach the paired dish photos now that the rows exist (we needed their
+      // ids for the canonical bucket path {tenant}/{item.id}.webp). Best-effort:
+      // a photo that fails to upload never rolls back the saved menu — the user
+      // can add it later from the editor.
+      const assignments = Object.entries(photoAssign);
+      if (assignments.length > 0 && data.created_ids) {
+        await attachPhotos(data.created_ids, assignments);
+      }
+
       setSavedCounts({ cats: data.categories_created, items: data.items_created });
       setStage("done");
     } catch (e: any) {
       setError(e?.message || "Errore di rete");
       setStage("preview");
+    }
+  };
+
+  // Upload each assigned photo to the bucket at the canonical per-item path and
+  // set menu_items.image_url. `createdIds` mirrors the extracted menu's {c,i}
+  // layout (c=-1 → uncategorized). Failures are swallowed per-photo so one bad
+  // upload can't lose the rest or the menu.
+  const attachPhotos = async (
+    createdIds: {
+      categories: Array<{ items: Array<string | null> }>;
+      uncategorized: Array<string | null>;
+    },
+    assignments: Array<[string, number]>
+  ) => {
+    const idFor = (c: number, i: number): string | null => {
+      if (c === -1) return createdIds.uncategorized?.[i] ?? null;
+      return createdIds.categories?.[c]?.items?.[i] ?? null;
+    };
+    for (const [key, photoIdx] of assignments) {
+      const [c, i] = key.split(":").map(Number);
+      const itemId = idFor(c, i);
+      const photo = photos[photoIdx];
+      if (!itemId || !photo) continue;
+      try {
+        const path = `${tenantId}/${itemId}.webp`;
+        const { error: upErr } = await supabase.storage
+          .from("menu-images")
+          .upload(path, photo.blob, { contentType: "image/webp", upsert: true });
+        if (upErr) continue;
+        const { data: pub } = supabase.storage.from("menu-images").getPublicUrl(path);
+        await supabase
+          .from("menu_items")
+          .update({ image_url: `${pub.publicUrl}?v=${photo.blob.size}` })
+          .eq("id", itemId);
+      } catch {
+        // skip this photo, keep going
+      }
     }
   };
 
@@ -1923,7 +2053,59 @@ function ImportMenuModal({
       next.categories[catIdx].items.splice(itemIdx, 1);
     }
     setExtracted(next);
+    // Removing a dish shifts the index of every later dish in the SAME bucket,
+    // so re-key the photo assignment map: drop the removed dish's photo and
+    // decrement keys after it. Keys in other buckets are untouched.
+    const c = catIdx === "uncat" ? -1 : catIdx;
+    setPhotoAssign((prev) => {
+      const out: Record<string, number> = {};
+      for (const [key, photoIdx] of Object.entries(prev)) {
+        const [kc, ki] = key.split(":").map(Number);
+        if (kc !== c) {
+          out[key] = photoIdx;
+          continue;
+        }
+        if (ki === itemIdx) continue; // removed dish's photo → unassigned
+        out[`${kc}:${ki > itemIdx ? ki - 1 : ki}`] = photoIdx;
+      }
+      return out;
+    });
   };
+
+  // Assign a specific extracted photo to a dish coordinate (or move it there
+  // from another dish — a photo belongs to at most one dish).
+  const assignPhotoToDish = (key: string, photoIdx: number) => {
+    setPhotoAssign((prev) => {
+      const out: Record<string, number> = {};
+      // Drop this photo from any dish it was on, and clear the target dish.
+      for (const [k, idx] of Object.entries(prev)) {
+        if (idx === photoIdx) continue;
+        if (k === key) continue;
+        out[k] = idx;
+      }
+      out[key] = photoIdx;
+      return out;
+    });
+  };
+
+  // Remove the photo from a dish → back to the unmatched tray.
+  const clearPhotoFromDish = (key: string) => {
+    setPhotoAssign((prev) => {
+      const out = { ...prev };
+      delete out[key];
+      return out;
+    });
+  };
+
+  // Photos not assigned to any dish (the "unmatched" tray).
+  const assignedPhotoIdxs = useMemo(
+    () => new Set(Object.values(photoAssign)),
+    [photoAssign]
+  );
+  const unmatchedPhotos = useMemo(
+    () => photos.map((p, idx) => ({ p, idx })).filter(({ idx }) => !assignedPhotoIdxs.has(idx)),
+    [photos, assignedPhotoIdxs]
+  );
 
   const totalItems = extracted
     ? extracted.categories.reduce((s, c) => s + c.items.length, 0) + extracted.uncategorized.length
@@ -2093,6 +2275,19 @@ function ImportMenuModal({
             </>
           )}
 
+          {stage === "pairing" && (
+            <div className="py-12 text-center">
+              <Loader2 className="w-12 h-12 mx-auto mb-4 animate-spin text-[#c4956a]" />
+              <p className="font-bold text-black">
+                {t("menu_import_photos_analyzing") || "Cerco le foto dei piatti nel PDF..."}
+              </p>
+              <p className="text-xs text-black mt-1">
+                {t("menu_import_photos_wait") ||
+                  "Estraggo le immagini e le abbino ai piatti."}
+              </p>
+            </div>
+          )}
+
           {(stage === "uploading" || stage === "processing") && (
             <div className="py-12 text-center">
               <Loader2 className="w-12 h-12 mx-auto mb-4 animate-spin text-[#c4956a]" />
@@ -2141,6 +2336,48 @@ function ImportMenuModal({
                 </div>
               )}
 
+              {photos.length > 0 && (
+                <div className="mb-4 p-3 rounded-lg bg-[#faf6f1] border border-[#e7d3bf] flex items-start gap-2">
+                  <ImageIcon className="w-5 h-5 text-[#c4956a] flex-shrink-0 mt-0.5" />
+                  <p className="text-sm text-black">
+                    {(t("menu_import_photos_found") as string) ||
+                      "Ho trovato delle foto nel PDF e le ho abbinate ai piatti."}{" "}
+                    <span className="font-bold">
+                      {photos.length - unmatchedPhotos.length}/{photos.length}
+                    </span>{" "}
+                    {(t("menu_import_photos_assigned") as string) || "abbinate."}{" "}
+                    {(t("menu_import_photos_hint") as string) ||
+                      "Controlla, riassegna o scarta le foto qui sotto prima di salvare."}
+                  </p>
+                </div>
+              )}
+
+              {/* Unmatched photos tray: photos we found but couldn't (or no
+                  longer) assign. Click a dish's photo slot to pick from these. */}
+              {unmatchedPhotos.length > 0 && (
+                <div className="mb-4">
+                  <p className="text-[11px] uppercase font-bold tracking-widest text-black mb-1.5">
+                    {(t("menu_import_photos_unmatched") as string) || "Foto non abbinate"}{" "}
+                    ({unmatchedPhotos.length})
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    {unmatchedPhotos.map(({ p, idx }) => (
+                      <div
+                        key={idx}
+                        className="relative w-14 h-14 rounded-lg overflow-hidden border border-[#e7d3bf]"
+                        title={
+                          (t("menu_import_photos_unmatched_hint") as string) ||
+                          "Usa il pulsante foto su un piatto per assegnarla"
+                        }
+                      >
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={p.dataUrl} alt="" className="w-full h-full object-cover" />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               <div className="space-y-5">
                 {extracted.categories.map((cat, ci) => (
                   <PreviewCategory
@@ -2149,6 +2386,12 @@ function ImportMenuModal({
                     language={language}
                     name={cat.name}
                     items={cat.items}
+                    coordC={ci}
+                    photos={photos}
+                    photoAssign={photoAssign}
+                    unmatchedPhotos={unmatchedPhotos}
+                    onAssignPhoto={assignPhotoToDish}
+                    onClearPhoto={clearPhotoFromDish}
                     onUpdate={(ii, patch) => updatePreviewItem(ci, ii, patch)}
                     onRemove={(ii) => removePreviewItem(ci, ii)}
                   />
@@ -2159,6 +2402,12 @@ function ImportMenuModal({
                     language={language}
                     name={t("menu_uncategorized") || "Senza categoria"}
                     items={extracted.uncategorized}
+                    coordC={-1}
+                    photos={photos}
+                    photoAssign={photoAssign}
+                    unmatchedPhotos={unmatchedPhotos}
+                    onAssignPhoto={assignPhotoToDish}
+                    onClearPhoto={clearPhotoFromDish}
                     onUpdate={(ii, patch) => updatePreviewItem("uncat", ii, patch)}
                     onRemove={(ii) => removePreviewItem("uncat", ii)}
                   />
@@ -2183,6 +2432,8 @@ function ImportMenuModal({
                   onClick={() => {
                     setExtracted(null);
                     setFile(null);
+                    setPhotos([]);
+                    setPhotoAssign({});
                     setStage("idle");
                   }}
                   className="cursor-pointer px-4 py-2 border-2 rounded-lg text-sm font-bold text-black hover:bg-zinc-50"
@@ -2260,6 +2511,12 @@ function PreviewCategory({
   language,
   name,
   items,
+  coordC,
+  photos,
+  photoAssign,
+  unmatchedPhotos,
+  onAssignPhoto,
+  onClearPhoto,
   onUpdate,
   onRemove,
 }: {
@@ -2267,9 +2524,18 @@ function PreviewCategory({
   language: MenuLocale;
   name: string;
   items: ExtractedMenuItem[];
+  // Category index in extracted.categories (-1 for uncategorized) — the `c`
+  // half of the {c,i} photo-assignment key.
+  coordC: number;
+  photos: ExtractedPhoto[];
+  photoAssign: Record<string, number>;
+  unmatchedPhotos: Array<{ p: ExtractedPhoto; idx: number }>;
+  onAssignPhoto: (key: string, photoIdx: number) => void;
+  onClearPhoto: (key: string) => void;
   onUpdate: (idx: number, patch: Partial<ExtractedMenuItem>) => void;
   onRemove: (idx: number) => void;
 }) {
+  const hasPhotos = photos.length > 0;
   return (
     <div>
       <h4 className="text-xs uppercase font-black tracking-widest text-black mb-2">{name}</h4>
@@ -2281,6 +2547,17 @@ function PreviewCategory({
             style={{ borderColor: "rgba(196,149,106,0.4)" }}
           >
             <div className="flex items-start gap-2">
+              {hasPhotos && (
+                <DishPhotoSlot
+                  t={t}
+                  coordKey={`${coordC}:${idx}`}
+                  photos={photos}
+                  photoAssign={photoAssign}
+                  unmatchedPhotos={unmatchedPhotos}
+                  onAssignPhoto={onAssignPhoto}
+                  onClearPhoto={onClearPhoto}
+                />
+              )}
               <div className="flex-1 min-w-0">
                 <div className="flex gap-2 items-center">
                   <input
@@ -2348,6 +2625,81 @@ function PreviewCategory({
           </div>
         ))}
       </div>
+    </div>
+  );
+}
+
+// The per-dish photo control in the import preview. Shows the assigned photo
+// (with a remove button) or, if none, a "+" that opens a small picker of the
+// currently-unmatched photos so the user can attach one by hand.
+function DishPhotoSlot({
+  t,
+  coordKey,
+  photos,
+  photoAssign,
+  unmatchedPhotos,
+  onAssignPhoto,
+  onClearPhoto,
+}: {
+  t: (k: any) => string;
+  coordKey: string;
+  photos: ExtractedPhoto[];
+  photoAssign: Record<string, number>;
+  unmatchedPhotos: Array<{ p: ExtractedPhoto; idx: number }>;
+  onAssignPhoto: (key: string, photoIdx: number) => void;
+  onClearPhoto: (key: string) => void;
+}) {
+  const [picking, setPicking] = useState(false);
+  const assignedIdx = photoAssign[coordKey];
+  const assigned = assignedIdx !== undefined ? photos[assignedIdx] : undefined;
+
+  if (assigned) {
+    return (
+      <div className="relative w-14 h-14 flex-shrink-0 rounded-lg overflow-hidden border border-[#e7d3bf] group">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src={assigned.dataUrl} alt="" className="w-full h-full object-cover" />
+        <button
+          onClick={() => onClearPhoto(coordKey)}
+          className="cursor-pointer absolute top-0.5 right-0.5 w-5 h-5 rounded-full bg-black/60 text-white flex items-center justify-center hover:bg-red-600"
+          title={(t("menu_import_photos_remove") as string) || "Togli la foto"}
+        >
+          <X className="w-3 h-3" />
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="relative flex-shrink-0">
+      <button
+        onClick={() => setPicking((v) => !v)}
+        disabled={unmatchedPhotos.length === 0}
+        className="cursor-pointer disabled:cursor-default disabled:opacity-40 w-14 h-14 rounded-lg border-2 border-dashed border-[#d4a574] flex items-center justify-center text-[#c4956a] hover:bg-[#faf6f1]"
+        title={
+          unmatchedPhotos.length === 0
+            ? ((t("menu_import_photos_none_left") as string) || "Nessuna foto da assegnare")
+            : ((t("menu_import_photos_assign") as string) || "Assegna una foto")
+        }
+      >
+        <ImageIcon className="w-5 h-5" />
+      </button>
+      {picking && unmatchedPhotos.length > 0 && (
+        <div className="absolute z-10 mt-1 left-0 w-56 max-h-48 overflow-auto p-2 bg-white rounded-lg shadow-xl border border-[#e7d3bf] grid grid-cols-3 gap-2">
+          {unmatchedPhotos.map(({ p, idx }) => (
+            <button
+              key={idx}
+              onClick={() => {
+                onAssignPhoto(coordKey, idx);
+                setPicking(false);
+              }}
+              className="cursor-pointer w-full aspect-square rounded overflow-hidden border border-[#e7d3bf] hover:ring-2 hover:ring-[#c4956a]"
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={p.dataUrl} alt="" className="w-full h-full object-cover" />
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

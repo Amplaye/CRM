@@ -80,7 +80,20 @@ export async function POST(req: NextRequest) {
   let categoriesCreated = 0;
   let itemsCreated = 0;
 
-  for (const cat of extracted.categories) {
+  // Map created item ids back to the client's {c,i} coordinates so the client
+  // can attach dish photos after insert (the photo feature uploads to
+  // menu-images/{tenant}/{item.id}.webp and sets image_url, which needs the id
+  // that only exists post-insert). `c` is the category index in
+  // extracted.categories; `c=-1` is the uncategorized bucket. `i` is the index
+  // within that bucket BEFORE the empty-name filter — we key by the original
+  // index so the client's {c,i} (built from the same arrays) lines up.
+  const createdIds: { categories: Array<{ items: Array<string | null> }>; uncategorized: Array<string | null> } = {
+    categories: [],
+    uncategorized: [],
+  };
+
+  for (let c = 0; c < extracted.categories.length; c++) {
+    const cat = extracted.categories[c];
     const key = cat.name.toLowerCase().trim();
     let catId = nameToId.get(key);
     if (!catId) {
@@ -101,39 +114,19 @@ export async function POST(req: NextRequest) {
       categoriesCreated += 1;
     }
 
-    if (cat.items.length === 0) continue;
-    const rows = cat.items
-      .filter((it) => it.name.trim().length > 0)
-      .map((it, idx) => ({
-        tenant_id: body.tenant_id,
-        category_id: catId,
-        name: it.name,
-        description: it.description,
-        price: it.price,
-        currency: it.currency || 'EUR',
-        allergens: it.allergens,
-        tags: it.tags,
-        available: true,
-        sort_order: idx,
-      }));
-    if (rows.length > 0) {
-      const { error: itemsErr } = await supabase.from('menu_items').insert(rows);
-      if (itemsErr) {
-        return NextResponse.json(
-          { error: 'Failed to insert items', details: itemsErr.message },
-          { status: 500 }
-        );
-      }
-      itemsCreated += rows.length;
-    }
-  }
+    // Per-category id list aligned to the ORIGINAL item index (i). Empty-name
+    // items get no row → their slot stays null.
+    const idsForCat: Array<string | null> = new Array(cat.items.length).fill(null);
+    createdIds.categories.push({ items: idsForCat });
 
-  // Handle uncategorized items (category_id stays null).
-  const uncategorized = extracted.uncategorized
-    .filter((it) => it.name.trim().length > 0)
-    .map((it, idx) => ({
+    if (cat.items.length === 0) continue;
+    // Keep original index alongside each insertable row so we can map ids back.
+    const indexed = cat.items
+      .map((it, i) => ({ it, i }))
+      .filter(({ it }) => it.name.trim().length > 0);
+    const rows = indexed.map(({ it }, idx) => ({
       tenant_id: body.tenant_id,
-      category_id: null,
+      category_id: catId,
       name: it.name,
       description: it.description,
       price: it.price,
@@ -143,14 +136,58 @@ export async function POST(req: NextRequest) {
       available: true,
       sort_order: idx,
     }));
+    if (rows.length > 0) {
+      const { data: insertedItems, error: itemsErr } = await supabase
+        .from('menu_items')
+        .insert(rows)
+        .select('id');
+      if (itemsErr || !insertedItems) {
+        return NextResponse.json(
+          { error: 'Failed to insert items', details: itemsErr?.message },
+          { status: 500 }
+        );
+      }
+      // insertedItems preserves insert order → align to indexed[] → original i.
+      insertedItems.forEach((row, k) => {
+        const origI = indexed[k]?.i;
+        if (typeof origI === 'number') idsForCat[origI] = row.id as string;
+      });
+      itemsCreated += rows.length;
+    }
+  }
+
+  // Handle uncategorized items (category_id stays null).
+  createdIds.uncategorized = new Array(extracted.uncategorized.length).fill(null);
+  const uncatIndexed = extracted.uncategorized
+    .map((it, i) => ({ it, i }))
+    .filter(({ it }) => it.name.trim().length > 0);
+  const uncategorized = uncatIndexed.map(({ it }, idx) => ({
+    tenant_id: body.tenant_id,
+    category_id: null,
+    name: it.name,
+    description: it.description,
+    price: it.price,
+    currency: it.currency || 'EUR',
+    allergens: it.allergens,
+    tags: it.tags,
+    available: true,
+    sort_order: idx,
+  }));
   if (uncategorized.length > 0) {
-    const { error: uncatErr } = await supabase.from('menu_items').insert(uncategorized);
-    if (uncatErr) {
+    const { data: insertedUncat, error: uncatErr } = await supabase
+      .from('menu_items')
+      .insert(uncategorized)
+      .select('id');
+    if (uncatErr || !insertedUncat) {
       return NextResponse.json(
-        { error: 'Failed to insert uncategorized items', details: uncatErr.message },
+        { error: 'Failed to insert uncategorized items', details: uncatErr?.message },
         { status: 500 }
       );
     }
+    insertedUncat.forEach((row, k) => {
+      const origI = uncatIndexed[k]?.i;
+      if (typeof origI === 'number') createdIds.uncategorized[origI] = row.id as string;
+    });
     itemsCreated += uncategorized.length;
   }
 
@@ -159,5 +196,6 @@ export async function POST(req: NextRequest) {
     mode,
     categories_created: categoriesCreated,
     items_created: itemsCreated,
+    created_ids: createdIds,
   });
 }
