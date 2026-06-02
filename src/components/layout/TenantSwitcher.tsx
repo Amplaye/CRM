@@ -68,7 +68,7 @@ export function TenantSwitcher() {
                 setOpen(false);
                 switchTenant(null);
               }}
-              className="w-full flex items-center gap-2 px-2.5 py-1.5 text-xs text-black hover:bg-[#c4956a]/10 transition-colors"
+              className="w-full flex items-center gap-2 px-2.5 py-1.5 text-xs text-black hover:bg-[#c4956a]/10 transition-colors cursor-pointer"
             >
               <Shield className="w-3.5 h-3.5 text-[#c4956a] flex-shrink-0" />
               <span className="flex-1 text-left font-semibold">Platform Admin</span>
@@ -90,7 +90,7 @@ export function TenantSwitcher() {
                       setOpen(false);
                       if (!isActive) switchTenant(t.id);
                     }}
-                    className={`w-full flex items-center gap-2 px-2.5 py-1.5 text-xs text-black hover:bg-[#c4956a]/10 transition-colors ${
+                    className={`w-full flex items-center gap-2 px-2.5 py-1.5 text-xs text-black hover:bg-[#c4956a]/10 transition-colors cursor-pointer ${
                       isActive ? "bg-[#c4956a]/15 font-semibold" : ""
                     }`}
                   >
