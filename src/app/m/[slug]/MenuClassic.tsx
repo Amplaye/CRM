@@ -245,11 +245,15 @@ export default function MenuClassic({
       )}
 
       <footer className="menu-footer">
-        <span className="menu-foot-rule" aria-hidden />
         <span className="menu-foot-by">Powered by</span>{" "}
         <span className="menu-foot-brand">BaliFlow</span>
-        <span className="menu-foot-rule" aria-hidden />
       </footer>
+
+      <div className="menu-foot-orn" aria-hidden>
+        <span className="menu-foot-orn-line" />
+        <span className="menu-foot-orn-star" />
+        <span className="menu-foot-orn-line" />
+      </div>
 
       <style>{styles}</style>
     </div>
@@ -428,6 +432,24 @@ const styles = `
 .menu-foot-rule { width: 2rem; height: 1px; background: rgba(124,82,38,0.45); }
 .menu-foot-by { color: #000; font-weight: 500; }
 .menu-foot-brand { font-weight: 700; color: var(--brass-deep); }
+
+/* Decorative star divider beneath "Powered by". Two fading rules with a solid
+   brass five-point star centred between them. */
+.menu-foot-orn {
+  display: flex; align-items: center; justify-content: center; gap: 1rem;
+  width: min(360px, 78%); margin: 0 auto; padding-bottom: 3rem;
+}
+.menu-foot-orn-line {
+  flex: 1; height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(124,82,38,0.55) 70%, rgba(124,82,38,0.7));
+}
+.menu-foot-orn-line:last-child {
+  background: linear-gradient(270deg, transparent, rgba(124,82,38,0.55) 70%, rgba(124,82,38,0.7));
+}
+.menu-foot-orn-star {
+  width: 1.05rem; height: 1.05rem; flex: none; background: var(--brass-deep);
+  clip-path: polygon(50% 0%, 61% 35%, 98% 35%, 68% 57%, 79% 91%, 50% 70%, 21% 91%, 32% 57%, 2% 35%, 39% 35%);
+}
 
 /* ── Motion ─────────────────────────────────────────────────────────────── */
 @keyframes menuReveal { from { opacity: 0; transform: translateY(14px); filter: blur(4px); } to { opacity: 1; transform: none; filter: none; } }

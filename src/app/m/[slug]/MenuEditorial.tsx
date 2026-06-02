@@ -283,11 +283,15 @@ export default function MenuEditorial({
       )}
 
       <footer className="ed-footer">
-        <span className="ed-foot-rule" aria-hidden />
         <span className="ed-foot-by">Powered by</span>{" "}
         <span className="ed-foot-brand">BaliFlow</span>
-        <span className="ed-foot-rule" aria-hidden />
       </footer>
+
+      <div className="ed-foot-orn" aria-hidden>
+        <span className="ed-foot-orn-line" />
+        <span className="ed-foot-orn-star" />
+        <span className="ed-foot-orn-line" />
+      </div>
 
       <style>{styles}</style>
     </div>
@@ -515,6 +519,23 @@ const styles = `
 .ed-foot-rule { width: 2rem; height: 1px; background: rgba(124,82,38,0.45); }
 .ed-foot-by { color: #000; font-weight: 500; }
 .ed-foot-brand { font-weight: 700; color: var(--bronze); }
+
+/* Decorative star divider beneath "Powered by". */
+.ed-foot-orn {
+  display: flex; align-items: center; justify-content: center; gap: 1rem;
+  width: min(360px, 78%); margin: -1.4rem auto 0; padding-bottom: 3rem;
+}
+.ed-foot-orn-line {
+  flex: 1; height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(124,82,38,0.55) 70%, rgba(124,82,38,0.7));
+}
+.ed-foot-orn-line:last-child {
+  background: linear-gradient(270deg, transparent, rgba(124,82,38,0.55) 70%, rgba(124,82,38,0.7));
+}
+.ed-foot-orn-star {
+  width: 1.05rem; height: 1.05rem; flex: none; background: var(--bronze);
+  clip-path: polygon(50% 0%, 61% 35%, 98% 35%, 68% 57%, 79% 91%, 50% 70%, 21% 91%, 32% 57%, 2% 35%, 39% 35%);
+}
 
 /* ── Reveal on chapter swap ────────────────────────────────────────────────*/
 /* Chapters filter in place (one mounted at a time): a quick crossfade on the

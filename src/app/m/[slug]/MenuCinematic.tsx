@@ -280,11 +280,15 @@ export default function MenuCinematic({
       )}
 
       <footer className="cin-footer">
-        <span className="cin-foot-rule" aria-hidden />
         <span className="cin-foot-by">Powered by</span>{" "}
         <span className="cin-foot-brand">BaliFlow</span>
-        <span className="cin-foot-rule" aria-hidden />
       </footer>
+
+      <div className="cin-foot-orn" aria-hidden>
+        <span className="cin-foot-orn-line" />
+        <span className="cin-foot-orn-star" />
+        <span className="cin-foot-orn-line" />
+      </div>
 
       <style>{styles}</style>
     </div>
@@ -559,6 +563,23 @@ const styles = `
 .cin-foot-rule { width: 2rem; height: 1px; background: rgba(217,182,128,0.45); }
 .cin-foot-by { color: #fff; font-weight: 500; }
 .cin-foot-brand { font-weight: 700; color: var(--brass); }
+
+/* Decorative star divider beneath "Powered by". */
+.cin-foot-orn {
+  display: flex; align-items: center; justify-content: center; gap: 1rem;
+  width: min(360px, 78%); margin: -1rem auto 0; padding-bottom: 2.8rem;
+}
+.cin-foot-orn-line {
+  flex: 1; height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(217,182,128,0.5) 70%, rgba(217,182,128,0.68));
+}
+.cin-foot-orn-line:last-child {
+  background: linear-gradient(270deg, transparent, rgba(217,182,128,0.5) 70%, rgba(217,182,128,0.68));
+}
+.cin-foot-orn-star {
+  width: 1.05rem; height: 1.05rem; flex: none; background: var(--brass-soft, #d8b483);
+  clip-path: polygon(50% 0%, 61% 35%, 98% 35%, 68% 57%, 79% 91%, 50% 70%, 21% 91%, 32% 57%, 2% 35%, 39% 35%);
+}
 
 /* Motion ─────────────────────────────────────────────────────────────────── */
 @keyframes cinReveal { from { opacity: 0; transform: translateY(16px); filter: blur(5px); } to { opacity: 1; transform: none; filter: none; } }

@@ -316,12 +316,17 @@ export default function MenuImmersive({
 
 function ImFooter() {
   return (
-    <footer className="im-footer">
-      <span className="im-foot-rule" aria-hidden />
-      <span className="im-foot-by">Powered by</span>{" "}
-      <span className="im-foot-brand">BaliFlow</span>
-      <span className="im-foot-rule" aria-hidden />
-    </footer>
+    <div className="im-footwrap">
+      <footer className="im-footer">
+        <span className="im-foot-by">Powered by</span>{" "}
+        <span className="im-foot-brand">BaliFlow</span>
+      </footer>
+      <div className="im-foot-orn" aria-hidden>
+        <span className="im-foot-orn-line" />
+        <span className="im-foot-orn-star" />
+        <span className="im-foot-orn-line" />
+      </div>
+    </div>
   );
 }
 
@@ -586,16 +591,36 @@ const styles = `
 .im-empty-msg { margin: 1.2rem 0 0; font-style: italic; color: rgba(247,239,226,0.7); font-size: 1rem; }
 
 /* ── Footer ─────────────────────────────────────────────────────────────── */
-.im-footer {
+.im-footwrap {
   position: absolute; z-index: 30; bottom: max(env(safe-area-inset-bottom), 0.55rem);
   left: 50%; transform: translateX(-50%);
+  display: flex; flex-direction: column; align-items: center; gap: 0.5rem;
+  pointer-events: none;
+}
+.im-footer {
   display: flex; align-items: center; justify-content: center; gap: 0.6rem;
   font-size: 0.82rem; letter-spacing: 0.04em; white-space: nowrap;
-  pointer-events: none;
 }
 .im-foot-rule { width: 1.6rem; height: 1px; background: rgba(216,180,131,0.5); }
 .im-foot-by { color: #fff; font-weight: 500; }
 .im-foot-brand { font-weight: 700; color: var(--brass-soft); }
+
+/* Decorative star divider beneath "Powered by". */
+.im-foot-orn {
+  display: flex; align-items: center; justify-content: center; gap: 1rem;
+  width: min(300px, 70vw);
+}
+.im-foot-orn-line {
+  flex: 1; height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(216,180,131,0.5) 70%, rgba(216,180,131,0.66));
+}
+.im-foot-orn-line:last-child {
+  background: linear-gradient(270deg, transparent, rgba(216,180,131,0.5) 70%, rgba(216,180,131,0.66));
+}
+.im-foot-orn-star {
+  width: 0.95rem; height: 0.95rem; flex: none; background: var(--brass-soft);
+  clip-path: polygon(50% 0%, 61% 35%, 98% 35%, 68% 57%, 79% 91%, 50% 70%, 21% 91%, 32% 57%, 2% 35%, 39% 35%);
+}
 
 /* ── Motion ─────────────────────────────────────────────────────────────── */
 @keyframes imKen {
