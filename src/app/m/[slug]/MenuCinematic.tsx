@@ -281,7 +281,9 @@ export default function MenuCinematic({
 
       <footer className="cin-footer">
         <span className="cin-foot-rule" aria-hidden />
-        Powered by <span className="cin-foot-brand">BaliFlow</span>
+        <span className="cin-foot-by">Powered by</span>{" "}
+        <span className="cin-foot-brand">BaliFlow</span>
+        <span className="cin-foot-rule" aria-hidden />
       </footer>
 
       <style>{styles}</style>
@@ -551,10 +553,11 @@ const styles = `
   font-family: var(--font-display), serif; font-style: italic; font-size: 1.15rem;
 }
 .cin-footer {
-  display: flex; align-items: center; justify-content: center; gap: 0.5rem;
-  padding: 0.5rem 1rem 2.8rem; font-size: 0.66rem; color: rgba(207,194,166,0.4);
+  display: flex; align-items: center; justify-content: center; gap: 0.6rem;
+  padding: 0.5rem 1rem 2.8rem; font-size: 0.84rem;
 }
-.cin-foot-rule { width: 1.7rem; height: 1px; background: rgba(217,182,128,0.3); }
+.cin-foot-rule { width: 2rem; height: 1px; background: rgba(217,182,128,0.45); }
+.cin-foot-by { color: #fff; font-weight: 500; }
 .cin-foot-brand { font-weight: 700; color: var(--brass); }
 
 /* Motion ─────────────────────────────────────────────────────────────────── */

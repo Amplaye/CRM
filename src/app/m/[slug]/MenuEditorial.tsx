@@ -284,9 +284,9 @@ export default function MenuEditorial({
 
       <footer className="ed-footer">
         <span className="ed-foot-rule" aria-hidden />
-        <span>
-          Powered by <span className="ed-foot-brand">BaliFlow</span>
-        </span>
+        <span className="ed-foot-by">Powered by</span>{" "}
+        <span className="ed-foot-brand">BaliFlow</span>
+        <span className="ed-foot-rule" aria-hidden />
       </footer>
 
       <style>{styles}</style>
@@ -510,9 +510,10 @@ const styles = `
 }
 .ed-footer {
   display: flex; align-items: center; justify-content: center; gap: 0.6rem;
-  padding: 1rem 1rem 3rem; font-size: 0.68rem; color: rgba(28,21,13,0.42);
+  padding: 1rem 1rem 3rem; font-size: 0.86rem;
 }
-.ed-foot-rule { width: 1.8rem; height: 1px; background: rgba(124,82,38,0.35); }
+.ed-foot-rule { width: 2rem; height: 1px; background: rgba(124,82,38,0.45); }
+.ed-foot-by { color: #000; font-weight: 500; }
 .ed-foot-brand { font-weight: 700; color: var(--bronze); }
 
 /* ── Reveal on chapter swap ────────────────────────────────────────────────*/

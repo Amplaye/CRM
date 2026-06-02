@@ -318,7 +318,9 @@ function ImFooter() {
   return (
     <footer className="im-footer">
       <span className="im-foot-rule" aria-hidden />
-      Powered by <span className="im-foot-brand">BaliFlow</span>
+      <span className="im-foot-by">Powered by</span>{" "}
+      <span className="im-foot-brand">BaliFlow</span>
+      <span className="im-foot-rule" aria-hidden />
     </footer>
   );
 }
@@ -587,11 +589,12 @@ const styles = `
 .im-footer {
   position: absolute; z-index: 30; bottom: max(env(safe-area-inset-bottom), 0.55rem);
   left: 50%; transform: translateX(-50%);
-  display: flex; align-items: center; gap: 0.45rem;
-  font-size: 0.6rem; letter-spacing: 0.04em; color: rgba(247,239,226,0.4);
+  display: flex; align-items: center; justify-content: center; gap: 0.6rem;
+  font-size: 0.82rem; letter-spacing: 0.04em; white-space: nowrap;
   pointer-events: none;
 }
-.im-foot-rule { width: 1.3rem; height: 1px; background: rgba(216,180,131,0.4); }
+.im-foot-rule { width: 1.6rem; height: 1px; background: rgba(216,180,131,0.5); }
+.im-foot-by { color: #fff; font-weight: 500; }
 .im-foot-brand { font-weight: 700; color: var(--brass-soft); }
 
 /* ── Motion ─────────────────────────────────────────────────────────────── */

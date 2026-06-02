@@ -246,7 +246,9 @@ export default function MenuClassic({
 
       <footer className="menu-footer">
         <span className="menu-foot-rule" aria-hidden />
-        Powered by <span className="menu-foot-brand">BaliFlow</span>
+        <span className="menu-foot-by">Powered by</span>{" "}
+        <span className="menu-foot-brand">BaliFlow</span>
+        <span className="menu-foot-rule" aria-hidden />
       </footer>
 
       <style>{styles}</style>
@@ -420,10 +422,11 @@ const styles = `
   font-family: var(--font-display), serif; font-style: italic; font-size: 1.1rem; }
 
 .menu-footer {
-  display: flex; align-items: center; justify-content: center; gap: 0.5rem;
-  padding: 0.5rem 1rem 2.6rem; font-size: 0.68rem; color: rgba(28,21,13,0.4);
+  display: flex; align-items: center; justify-content: center; gap: 0.6rem;
+  padding: 0.5rem 1rem 2.6rem; font-size: 0.86rem;
 }
-.menu-foot-rule { width: 1.6rem; height: 1px; background: rgba(124,82,38,0.35); }
+.menu-foot-rule { width: 2rem; height: 1px; background: rgba(124,82,38,0.45); }
+.menu-foot-by { color: #000; font-weight: 500; }
 .menu-foot-brand { font-weight: 700; color: var(--brass-deep); }
 
 /* ── Motion ─────────────────────────────────────────────────────────────── */
