@@ -10,7 +10,34 @@
 
 ---
 
-## ⏱️ STATO ESECUZIONE (aggiornato 2026-06-02 sera)
+## ⏱️ STATO ESECUZIONE (aggiornato 2026-06-02 notte)
+
+**🎉 FASE B COMPLETATA — Picnic `166QnQsGHqXDpBxa` è il MOTORE UNICO attivo. Oraz e BALI Rest disattivati. Meta Router instrada tutto al motore con `tenant_id`.**
+
+**✅ FASE B (Task B0→B4) — fatta e testata 2026-06-02 notte:**
+- **A5 BALI Rest: SALTATO** (deciso: dato l'obiettivo "solo Picnic", BALI Rest viene assorbito e ritirato, non ha senso allineare il suo codice).
+- **B1 — tenant dinamico:** in ogni Code node (Fetch/OpenAI/Send/Book) iniettato in cima `const __TENANT_ID__ = $('Extract Message').first().json.tenant_id || <fallback Picnic>`; tutte le 41 occorrenze UUID letterali → `' + __TENANT_ID__ + '` (resta 1 fallback documentato per nodo). Aggiunto `tenant_id` come assignment nel Set node `Extract Message` (legge `body.tenant_id`). Script: `N8N/picnic/build_b1.py`.
+  - **BUG CRITICO TROVATO E FIXATO:** prima versione leggeva da `$('WhatsApp Webhook').first().json.body` → in un Code node quel `.first()` torna vuoto (a differenza di `.item` nel Set node), quindi il resolver cadeva sul fallback Picnic → **fuga di config cross-tenant** (Oraz riceveva KB/menu/persona di Picnic). Fix: leggere da `$('Extract Message').first().json.tenant_id` (provato affidabile). Lezione: il fallback silenzioso al literal Picnic MASCHERA i fallimenti di risoluzione — è un rischio; con il router che inietta sempre `tenant_id` non scatta, ma resta da irrobustire (fail-loud).
+- **B2 — config-driven persona + workflow_id:** in OpenAI `Eres Sofía … (restaurante en Las Palmas)` → `Eres ${ASSISTANT_NAME_CFG} … (restaurante en ${VENUE_CITY_CFG})` via `picnicCfgGet(_bc,'assistant_name','Sofía')`/`'venue_city','Las Palmas'`. `workflow_id: '166QnQsGHqXDpBxa'` (Fetch+Book, era un bug di logEvt mai aggiornato su Oraz) → `$workflow.id` con fallback. Aggiunte chiavi `bot_config`: `assistant_name`, `venue_city`, e `restaurant_name` (Picnic e BALI Rest non l'avevano → defaultavano a 'BALI REST', latent bug fixato). Script: `N8N/picnic/build_b2.py`.
+- **B3 — segreti:** `OPENAI_KEY` ora da `picnicCfgGet(_bc,'openai_key','')`; blank dei fallback inline Twilio SID/token e ai_secret (0 plaintext residuo). Valori reali messi in `tenants.secrets` (openai_key, ai_secret, twilio_*) per i 3 tenant (il config loader fa già `select=settings,secrets` e merge in bot_config). **La JWT Supabase di bootstrap RESTA inline** (54 occ.): serve per leggere la colonna secrets stessa → non eliminabile senza env var/credenziale n8n (infra, fuori sessione). Script: `N8N/picnic/build_b3.py`.
+- **B4 — migrazione:** Meta Router (`zuYx8raoBVz88Erj`) modificato: `forwardToBot(_ctx, tenantId)` inietta `tenant_id` nel body e inoltra a `ENGINE_PATH='picnic-whatsapp'` (sticky usa `t.id`, selezione usa `selected.id`). Picnic reso `sandbox_routable=true` (appare nel menu). **Oraz e BALI Rest DISATTIVATI** (workflow inattivi). Script: `N8N/picnic/build_router_b4.py`.
+
+**Test (tutti su engine `166QnQsGHqXDpBxa`, seriale, dati puliti):**
+- Oraz-via-engine (tenant_id in payload) **12/12 100%** sia post-B1 sia sul motore finale completo B1+B2+B3.
+- B3 post-secrets: Oraz booking/modify/cancel **100%**.
+- **Anti-leak end-to-end via Meta Router** (selezione tenant + query): Picnic→`restaurant_name=Picnic`, Oraz→`Oraz`, BALI Rest→`BALI Rest`. Ogni tenant risolve la PROPRIA config sullo stesso motore.
+
+**Stato finale workflow:** Picnic=ACTIVE (motore unico), Oraz=inactive, BALI Rest=inactive, Meta Router=active. **Aggiungere un nuovo tenant = solo config Supabase + renderlo routable nel Router. Niente clone di codice.**
+
+**Residui / follow-up (non bloccanti):**
+- Resolver tenant: fallback silenzioso al literal Picnic → valutare fail-loud se `tenant_id` assente.
+- JWT Supabase ancora inline (bootstrap) → spostare in env var/credenziale n8n quando si ha accesso al server Hostinger.
+- Dialetto "canario" ancora fisso nel prompt (corretto per tutti e 3 i tenant attuali, tutti a Las Palmas) → parametrizzabile come `dialect` se arriva un tenant non-canario.
+- `picnic-confirm-booking`/`picnic-store-reminder`/`picnic-sticky-lang`: webhook helper condivisi (passano `tenant_id` nel body) → restano così, sono engine-internal non tenant-specifici.
+
+---
+
+### (storico) ⏱️ STATO ESECUZIONE FASE A (2026-06-02 sera)
 
 **✅ FASE A — Picnic (Task A0→A4) COMPLETATA e TESTATA.** Restano A5 (BALI Rest) e tutta la Fase B → **prossima sessione** (deciso con l'utente).
 

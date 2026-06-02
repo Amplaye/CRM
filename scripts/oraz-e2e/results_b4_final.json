@@ -1,0 +1,328 @@
+{
+  "greeting": {
+    "name": "Saludo (no arranca flujo)",
+    "rounds": [
+      {
+        "ok": true,
+        "checks": [
+          {
+            "label": "replies something",
+            "ok": true,
+            "detail": "¡Hola! ¿En qué puedo ayudarle?"
+          },
+          {
+            "label": "greets",
+            "ok": true,
+            "detail": "¡Hola! ¿En qué puedo ayudarle?"
+          },
+          {
+            "label": "offers help / asks intent",
+            "ok": true,
+            "detail": "¡Hola! ¿En qué puedo ayudarle?"
+          },
+          {
+            "label": "does NOT ask party-size yet (no booking flow on bare hello)",
+            "ok": true,
+            "detail": "¡Hola! ¿En qué puedo ayudarle?"
+          }
+        ],
+        "phone": "3469931004"
+      }
+    ],
+    "pass": 1,
+    "rate": 100
+  },
+  "booking": {
+    "name": "Reserva completa (happy path)",
+    "rounds": [
+      {
+        "ok": true,
+        "checks": [
+          {
+            "label": "asks party size first",
+            "ok": true,
+            "detail": "¡Hola! ¿Para cuántas personas sería la reserva?"
+          },
+          {
+            "label": "asks day after party",
+            "ok": true,
+            "detail": "Perfecto, ¿para qué día la quieren?"
+          },
+          {
+            "label": "asks time after day",
+            "ok": true,
+            "detail": "¿A qué hora la quieren mañana?"
+          },
+          {
+            "label": "does NOT ask interior/exterior (single zone)",
+            "ok": true,
+            "detail": "Genial, ya tengo todo para mañana a las 21:00. ¿A nombre de quién pongo la reserva?"
+          },
+          {
+            "label": "asks name (availability ok)",
+            "ok": true,
+            "detail": "Genial, ya tengo todo para mañana a las 21:00. ¿A nombre de quién pongo la reserva?"
+          },
+          {
+            "label": "book_reservation fired (confirmation card)",
+            "ok": true,
+            "detail": "{\"fecha\":\"2026-06-03\",\"hora\":\"21:00\",\"nombre\":\"Carlos\",\"telefono\":\"+3469942820\",\"personas\":4,\"zona\":\"\",\"notas\":\"\",\"force_new\":false,\"edgeHour\":false}"
+          }
+        ],
+        "phone": "3469942820"
+      }
+    ],
+    "pass": 1,
+    "rate": 100
+  },
+  "menu": {
+    "name": "Carta / platos (get_menu real)",
+    "rounds": [
+      {
+        "ok": true,
+        "checks": [
+          {
+            "label": "replies",
+            "ok": true,
+            "detail": "¡Hola!  \nSí, tenemos sushi 😊\n\nEn la carta van a encontrar, por ejemplo, en la parte de entrantes de sushi:\n\n• Oshinko Appetizer – 7€  \n• Sushi Appetizer (5 piezas) – 13€  \n• Sashimi Appetizer (10 piezas) – 15€  \n• Sunomono – 12€  \n• Tako Su – 13€  \n• Usuzukuri – 14€  \n• Tuna Tataki – 15€  \n• Spicy Tuna Bowl Avocado – 13€  \n• Spicy Lobster Cha La Ca – 16€  \n• Yellowtail Jalapeno – 16€  \n• Black Pepper Tuna Tataki – 16€  \n• Tuna Tar Tar – 15€  \n• Toro Tar Tar – 18€  \n• Lobster Yakimono – 18€  \n• Tuna Pizza – 17€  \n• Eggplant Cha La Ca – 16€  \n• Timi Special – 16€  \n• Pizza Sandwich – 17€  \n• Mini Special – 15€  \n• Crispy Rice – 16€  \n• Beef Tataki w. Jalapeno – 16€  \n• Howie Special – 16€  \n• King Crab Yakimono – 20€  \n\nY aquí puede ver la carta completa, con todos los apartados y alérgenos:  \nhttps://crm.baliflowagency.com/m/oraz-t0221f\n\n¿Le interesa saber si tenemos opciones para alguna alergia o tipo de dieta en concreto?"
+          },
+          {
+            "label": "mentions a real menu dish or price",
+            "ok": true,
+            "detail": "¡Hola!  \nSí, tenemos sushi 😊\n\nEn la carta van a encontrar, por ejemplo, en la parte de entrantes de sushi:\n\n• Oshinko Appetizer – 7€  \n• Sushi Appetizer (5 piezas) – 13€  \n• Sashimi Appetizer (10 piezas) – 15€  \n• Sunomono – 12€  \n• Tako Su – 13€  \n• Usuzukuri – 14€  \n• Tuna Tataki – 15€  \n• Spicy Tuna Bowl Avocado – 13€  \n• Spicy Lobster Cha La Ca – 16€  \n• Yellowtail Jalapeno – 16€  \n• Black Pepper Tuna Tataki – 16€  \n• Tuna Tar Tar – 15€  \n• Toro Tar Tar – 18€  \n• Lobster Yakimono – 18€  \n• Tuna Pizza – 17€  \n• Eggplant Cha La Ca – 16€  \n• Timi Special – 16€  \n• Pizza Sandwich – 17€  \n• Mini Special – 15€  \n• Crispy Rice – 16€  \n• Beef Tataki w. Jalapeno – 16€  \n• Howie Special – 16€  \n• King Crab Yakimono – 20€  \n\nY aquí puede ver la carta completa, con todos los apartados y alérgenos:  \nhttps://crm.baliflowagency.com/m/oraz-t0221f\n\n¿Le interesa saber si tenemos opciones para alguna alergia o tipo de dieta en concreto?"
+          },
+          {
+            "label": "does not refuse to talk about menu",
+            "ok": true,
+            "detail": "¡Hola!  \nSí, tenemos sushi 😊\n\nEn la carta van a encontrar, por ejemplo, en la parte de entrantes de sushi:\n\n• Oshinko Appetizer – 7€  \n• Sushi Appetizer (5 piezas) – 13€  \n• Sashimi Appetizer (10 piezas) – 15€  \n• Sunomono – 12€  \n• Tako Su – 13€  \n• Usuzukuri – 14€  \n• Tuna Tataki – 15€  \n• Spicy Tuna Bowl Avocado – 13€  \n• Spicy Lobster Cha La Ca – 16€  \n• Yellowtail Jalapeno – 16€  \n• Black Pepper Tuna Tataki – 16€  \n• Tuna Tar Tar – 15€  \n• Toro Tar Tar – 18€  \n• Lobster Yakimono – 18€  \n• Tuna Pizza – 17€  \n• Eggplant Cha La Ca – 16€  \n• Timi Special – 16€  \n• Pizza Sandwich – 17€  \n• Mini Special – 15€  \n• Crispy Rice – 16€  \n• Beef Tataki w. Jalapeno – 16€  \n• Howie Special – 16€  \n• King Crab Yakimono – 20€  \n\nY aquí puede ver la carta completa, con todos los apartados y alérgenos:  \nhttps://crm.baliflowagency.com/m/oraz-t0221f\n\n¿Le interesa saber si tenemos opciones para alguna alergia o tipo de dieta en concreto?"
+          }
+        ],
+        "phone": "3469912718"
+      }
+    ],
+    "pass": 1,
+    "rate": 100
+  },
+  "policy": {
+    "name": "Políticas y alergias (KB / get_menu)",
+    "rounds": [
+      {
+        "ok": true,
+        "checks": [
+          {
+            "label": "answers the cake policy (yes/no/condition)",
+            "ok": true,
+            "detail": "¡Hola!  \nEn Oraz no está permitido llevar tarta propia de fuera.  \n\nSi quieren celebrar un cumpleaños, podemos anotarlo en la reserva y el equipo les ayuda con el detalle en mesa. ¿Les gustaría que les mire una reserva para el cumpleaños?"
+          },
+          {
+            "label": "stays on-topic (no booking funnel hijack)",
+            "ok": true,
+            "detail": "¡Hola!  \nEn Oraz no está permitido llevar tarta propia de fuera.  \n\nSi quieren celebrar un cumpleaños, podemos anotarlo en la reserva y el equipo les ayuda con el detalle en mesa. ¿Les gustaría que les mire una reserva para el cumpleaños?"
+          }
+        ],
+        "phone": "3469927138"
+      }
+    ],
+    "pass": 1,
+    "rate": 100
+  },
+  "modify": {
+    "name": "Modificar reserva (modify_reservation)",
+    "rounds": [
+      {
+        "ok": true,
+        "checks": [
+          {
+            "label": "responds (not silent)",
+            "ok": true,
+            "detail": "Tiene ahora mismo una reserva activa para 2 personas mañana a las 20:00. ¿Quiere mantener el mismo día y personas y solo pasarla a las 21:30?"
+          },
+          {
+            "label": "reservation time changed to 21:30 (modify processed)",
+            "ok": true,
+            "detail": "{\"modifyData\":{\"hora\":\"21:30\",\"telefono\":\"+3469938683\",\"fecha_actual\":\"2026-06-03\",\"hora_actual\":\"20:00\",\"personas_actual\":2},\"reply\":\"\"}"
+          },
+          {
+            "label": "did NOT create a brand-new booking card",
+            "ok": true,
+            "detail": "\"\""
+          }
+        ],
+        "phone": "3469938683"
+      }
+    ],
+    "pass": 1,
+    "rate": 100
+  },
+  "cancel": {
+    "name": "Cancelar reserva",
+    "rounds": [
+      {
+        "ok": true,
+        "checks": [
+          {
+            "label": "reservation became cancelled in DB",
+            "ok": true,
+            "detail": "status still not cancelled for d10b3ff1-a3b4-4b3f-8419-2f3f743de583"
+          }
+        ],
+        "phone": "3469965389"
+      }
+    ],
+    "pass": 1,
+    "rate": 100
+  },
+  "hours": {
+    "name": "Horario de apertura",
+    "rounds": [
+      {
+        "ok": true,
+        "checks": [
+          {
+            "label": "replies",
+            "ok": true,
+            "detail": "¡Hola! Hoy martes abrimos por la noche de 19:30 a 22:30. ¿Quiere que le mire una reserva?"
+          },
+          {
+            "label": "states the time in digits",
+            "ok": true,
+            "detail": "¡Hola! Hoy martes abrimos por la noche de 19:30 a 22:30. ¿Quiere que le mire una reserva?"
+          },
+          {
+            "label": "does NOT spell the time in words",
+            "ok": true,
+            "detail": "¡Hola! Hoy martes abrimos por la noche de 19:30 a 22:30. ¿Quiere que le mire una reserva?"
+          },
+          {
+            "label": "does not claim ignorance of hours",
+            "ok": true,
+            "detail": "¡Hola! Hoy martes abrimos por la noche de 19:30 a 22:30. ¿Quiere que le mire una reserva?"
+          }
+        ],
+        "phone": "3469968634"
+      }
+    ],
+    "pass": 1,
+    "rate": 100
+  },
+  "closed_day": {
+    "name": "Día cerrado (propone otro día)",
+    "rounds": [
+      {
+        "ok": true,
+        "checks": [
+          {
+            "label": "says lunes is closed",
+            "ok": true,
+            "detail": "El lunes estamos cerrados. ¿Les viene bien otro día cercano, por ejemplo el martes o el domingo al mediodía?"
+          },
+          {
+            "label": "proposes another day (generic or named)",
+            "ok": true,
+            "detail": "El lunes estamos cerrados. ¿Les viene bien otro día cercano, por ejemplo el martes o el domingo al mediodía?"
+          },
+          {
+            "label": "does NOT ask time for the closed day",
+            "ok": true,
+            "detail": "El lunes estamos cerrados. ¿Les viene bien otro día cercano, por ejemplo el martes o el domingo al mediodía?"
+          }
+        ],
+        "phone": "3469980519"
+      }
+    ],
+    "pass": 1,
+    "rate": 100
+  },
+  "out_of_hours": {
+    "name": "Hora fuera de horario (propone válida)",
+    "rounds": [
+      {
+        "ok": true,
+        "checks": [
+          {
+            "label": "does not confirm a 5am booking",
+            "ok": true,
+            "detail": "A las 5:00 de la mañana estamos cerrados. ¿Les viene mejor para el almuerzo sobre las 14:00 o por la noche sobre las 20:00?"
+          },
+          {
+            "label": "proposes a valid time (digits) or names a shift",
+            "ok": true,
+            "detail": "A las 5:00 de la mañana estamos cerrados. ¿Les viene mejor para el almuerzo sobre las 14:00 o por la noche sobre las 20:00?"
+          }
+        ],
+        "phone": "3469909590"
+      }
+    ],
+    "pass": 1,
+    "rate": 100
+  },
+  "waitlist": {
+    "name": "Lista de espera (solo si lleno + aviso)",
+    "rounds": [
+      {
+        "ok": true,
+        "checks": [
+          {
+            "label": "handled large party gracefully (alt / no-space / contact)",
+            "ok": true,
+            "detail": "Ahora mismo no puedo comprobar disponibilidad automática para grupos tan grandes, pero por capacidad del local 40 personas superarían nuestro aforo habitual (32).  \n\nSi quieren, puedo proponerles:\n- dividir el grupo en dos turnos (por ejemplo, 19:30 y 21:30), o  \n- elegir otro día/horario más tranquilo, o  \n- que el responsable les atienda por teléfono en el +34 641790137 para ver opciones especiales.  \n\n¿Qué prefieren?"
+          }
+        ],
+        "phone": "3469938961"
+      }
+    ],
+    "pass": 1,
+    "rate": 100
+  },
+  "language": {
+    "name": "Cambio de idioma (es/it/en)",
+    "rounds": [
+      {
+        "ok": true,
+        "checks": [
+          {
+            "label": "replies in Italian",
+            "ok": true,
+            "detail": "Ciao! 😊  \nQuante persone sarete?"
+          },
+          {
+            "label": "not Spanish for an Italian msg",
+            "ok": true,
+            "detail": "Ciao! 😊  \nQuante persone sarete?"
+          },
+          {
+            "label": "switches to English",
+            "ok": true,
+            "detail": "We open at 7:30 PM for dinner today (Tuesday).  \nFrom Wednesday to Sunday we’re also open for lunch from 12:30 PM to 3:30 PM.\n\nWould you like to book a table?"
+          }
+        ],
+        "phone": "3469962454"
+      }
+    ],
+    "pass": 1,
+    "rate": 100
+  },
+  "offtopic": {
+    "name": "Off-topic (redirige, no flujo)",
+    "rounds": [
+      {
+        "ok": true,
+        "checks": [
+          {
+            "label": "does not start booking funnel",
+            "ok": true,
+            "detail": "¡Hola! Soy la asistente de reservas de Oraz y solo tengo info del restaurante, no del tiempo.\n\nPara saber el tiempo en Las Palmas mañana, les recomiendo mirar una app tipo AEMET, El Tiempo o Google Weather buscando “tiempo mañana Las Palmas de Gran Canaria”."
+          },
+          {
+            "label": "redirects to restaurant help or declines gracefully",
+            "ok": true,
+            "detail": "¡Hola! Soy la asistente de reservas de Oraz y solo tengo info del restaurante, no del tiempo.\n\nPara saber el tiempo en Las Palmas mañana, les recomiendo mirar una app tipo AEMET, El Tiempo o Google Weather buscando “tiempo mañana Las Palmas de Gran Canaria”."
+          }
+        ],
+        "phone": "3469991413"
+      }
+    ],
+    "pass": 1,
+    "rate": 100
+  }
+}
