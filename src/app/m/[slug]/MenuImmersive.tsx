@@ -599,7 +599,7 @@ const styles = `
 }
 .im-footer {
   display: flex; align-items: center; justify-content: center; gap: 0.6rem;
-  font-size: 0.82rem; letter-spacing: 0.04em; white-space: nowrap;
+  padding: 10px; font-size: 0.82rem; letter-spacing: 0.04em; white-space: nowrap;
 }
 .im-foot-rule { width: 1.6rem; height: 1px; background: rgba(216,180,131,0.5); }
 .im-foot-by { color: #fff; font-weight: 500; }
