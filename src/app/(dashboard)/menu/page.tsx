@@ -381,38 +381,18 @@ export default function MenuPage() {
         style={{ background: "rgba(252,246,237,0.85)", borderColor: "#c4956a" }}
       >
         <div className="p-5 border-b shrink-0" style={{ borderColor: "#c4956a" }}>
-          <div className="flex items-start justify-between gap-2">
-            <div>
-              <h1 className="text-xl font-bold text-black tracking-tight">
-                {t("menu_title") || "Menu"}
-              </h1>
-              <p className="text-xs text-black mt-1">
-                {t("menu_subtitle") || "Piatti, categorie, allergeni del ristorante"}
-              </p>
-            </div>
-            {tenant?.slug && (
-              <a
-                href={`/m/${tenant.slug}?style=${menuStyle}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="cursor-pointer shrink-0 inline-flex items-center gap-1.5 text-xs font-bold text-black px-3 py-2 rounded-lg border-2 hover:bg-[#c4956a]/10 transition-colors"
-                style={{ borderColor: "#c4956a" }}
-                title={t("menu_preview_public") || "Anteprima menù pubblico"}
-              >
-                <Eye className="w-4 h-4" />
-                {t("menu_import_preview") || "Anteprima"}
-              </a>
-            )}
-          </div>
+          <div className="flex items-center justify-between gap-3">
+            <h1 className="text-xl font-bold text-black tracking-tight">
+              {t("menu_title") || "Menu"}
+            </h1>
 
-          {/* Template selector — pick the public-menu look. Saving is immediate:
-              the chosen number becomes both the preview and the live menu. */}
-          <div className="mt-4">
-            <span className="text-[10px] uppercase font-black tracking-widest text-[#a87642] flex items-center gap-1.5">
-              {t("menu_template") || "Template menù"}
-              {savingStyle && <Loader2 className="w-3 h-3 animate-spin" />}
-            </span>
-            <div className="mt-1.5 grid grid-cols-4 gap-1.5">
+            {/* Template picker + preview, inline. The 4 numbered chips choose the
+                public-menu look (saved immediately = both preview and live menu);
+                the eye opens that look in a new tab. */}
+            <div className="flex items-center gap-1.5 shrink-0">
+              {savingStyle && (
+                <Loader2 className="w-3.5 h-3.5 animate-spin text-[#a87642]" />
+              )}
               {([
                 ["1", t("menu_template_1") || "Immersivo"],
                 ["2", t("menu_template_2") || "Editoriale"],
@@ -427,19 +407,36 @@ export default function MenuPage() {
                     onClick={() => chooseStyle(num)}
                     disabled={savingStyle}
                     title={label}
+                    aria-label={label}
                     aria-pressed={on}
-                    className="cursor-pointer flex flex-col items-center justify-center py-1.5 rounded-lg border-2 transition-colors"
+                    className={`cursor-pointer w-7 h-7 rounded-lg border-2 text-sm font-black flex items-center justify-center transition-all duration-150 hover:-translate-y-0.5 active:translate-y-0 ${
+                      on
+                        ? "scale-110 shadow-md text-white"
+                        : "hover:bg-[#c4956a]/10 text-[#1c150d]"
+                    }`}
                     style={
                       on
-                        ? { borderColor: "#c4956a", background: "linear-gradient(135deg, #d4a574, #c4956a)", color: "#fff" }
-                        : { borderColor: "rgba(196,149,106,0.5)", background: "rgba(252,246,237,0.6)", color: "#1c150d" }
+                        ? { borderColor: "#c4956a", background: "linear-gradient(135deg, #d4a574, #c4956a)" }
+                        : { borderColor: "rgba(196,149,106,0.5)", background: "rgba(252,246,237,0.6)" }
                     }
                   >
-                    <span className="text-base font-black leading-none">{num}</span>
-                    <span className="text-[8.5px] font-bold uppercase tracking-wide mt-0.5">{label}</span>
+                    {num}
                   </button>
                 );
               })}
+              {tenant?.slug && (
+                <a
+                  href={`/m/${tenant.slug}?style=${menuStyle}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="cursor-pointer ml-1 inline-flex items-center justify-center w-9 h-7 rounded-lg border-2 text-black hover:bg-[#c4956a]/10 hover:-translate-y-0.5 transition-all duration-150"
+                  style={{ borderColor: "#c4956a" }}
+                  title={t("menu_preview_public") || "Anteprima menù pubblico"}
+                  aria-label={t("menu_preview_public") || "Anteprima menù pubblico"}
+                >
+                  <Eye className="w-4 h-4" />
+                </a>
+              )}
             </div>
           </div>
 
