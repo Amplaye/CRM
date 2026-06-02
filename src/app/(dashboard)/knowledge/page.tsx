@@ -16,6 +16,73 @@ import { useAuth } from "@/lib/contexts/AuthContext";
 const isVoicePromptArticle = (title: string) =>
   (title || "").toUpperCase().replace(/[^A-Z]/g, "") === "VOICEPROMPT";
 
+// Labels used by the KB generator for the address / maps lines, in all 4 langs
+// (kept in sync with kb-generator.ts L). We use them to turn the *address* line
+// into the clickable Maps link and hide the long raw URL line.
+const ADDRESS_LABELS = ["Dirección", "Indirizzo", "Address", "Adresse"];
+const MAPS_LABELS = ["Mapa / Cómo llegar", "Mappa / Come arrivare", "Map / Directions", "Karte / Anfahrt"];
+const URL_RE = /(https?:\/\/[^\s]+)/g;
+const isUrl = (s: string) => /^https?:\/\/[^\s]+$/.test(s);
+
+// Render KB content: make the address line a clickable Maps link (the long raw
+// Maps URL line is hidden), and turn any other bare URL into a compact link.
+function renderArticleContent(content: string) {
+  const lines = content.split("\n");
+
+  // Find the Maps URL on its labelled line, e.g. "Mappa / Come arrivare: https://…"
+  let mapsUrl = "";
+  let mapsLineIdx = -1;
+  lines.forEach((line, i) => {
+    const colon = line.indexOf(":");
+    if (colon === -1) return;
+    const label = line.slice(0, colon).trim();
+    if (MAPS_LABELS.includes(label)) {
+      const m = line.slice(colon + 1).match(/https?:\/\/[^\s]+/);
+      if (m) { mapsUrl = m[0]; mapsLineIdx = i; }
+    }
+  });
+
+  return lines.map((line, i) => {
+    if (i === mapsLineIdx) return null; // hide the long raw Maps URL line
+
+    const colon = line.indexOf(":");
+    const label = colon === -1 ? "" : line.slice(0, colon).trim();
+
+    // Address line → make the street value itself the Maps link
+    if (mapsUrl && ADDRESS_LABELS.includes(label)) {
+      const value = line.slice(colon + 1).trim();
+      return (
+        <span key={i}>
+          {label}:{" "}
+          <a href={mapsUrl} target="_blank" rel="noopener noreferrer"
+             className="font-semibold underline decoration-[#c4956a] decoration-2 underline-offset-2 hover:text-[#c4956a] transition-colors">
+            {value}
+          </a>
+          {i < lines.length - 1 ? "\n" : ""}
+        </span>
+      );
+    }
+
+    // Any other line: linkify bare URLs into compact clickable links
+    const parts = line.split(URL_RE);
+    return (
+      <span key={i}>
+        {parts.map((part, j) =>
+          isUrl(part) ? (
+            <a key={j} href={part} target="_blank" rel="noopener noreferrer"
+               className="underline decoration-[#c4956a] underline-offset-2 hover:text-[#c4956a] transition-colors break-all">
+              {part}
+            </a>
+          ) : (
+            part
+          )
+        )}
+        {i < lines.length - 1 ? "\n" : ""}
+      </span>
+    );
+  });
+}
+
 export default function KnowledgePage() {
   const { t } = useLanguage();
   const { activeTenant: tenant } = useTenant();
@@ -428,7 +495,7 @@ export default function KnowledgePage() {
 
                <div className="flex-1 prose prose-zinc max-w-none">
                   <div className="whitespace-pre-wrap break-words text-black leading-relaxed text-lg bg-zinc-50/50 p-8 rounded-3xl border-2" style={{ borderColor: '#c4956a' }}>
-                     {selectedArticle.content}
+                     {renderArticleContent(selectedArticle.content)}
                   </div>
                </div>
 
