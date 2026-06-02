@@ -386,44 +386,36 @@ export default function MenuPage() {
               {t("menu_title") || "Menu"}
             </h1>
 
-            {/* Template picker + preview, inline. The 4 numbered chips choose the
+            {/* Template picker + preview, inline. The 1–4 selector chooses the
                 public-menu look (saved immediately = both preview and live menu);
                 the eye opens that look in a new tab. */}
             <div className="flex items-center gap-1.5 shrink-0">
               {savingStyle && (
                 <Loader2 className="w-3.5 h-3.5 animate-spin text-[#a87642]" />
               )}
-              {([
-                ["1", t("menu_template_1") || "Immersivo"],
-                ["2", t("menu_template_2") || "Editoriale"],
-                ["3", t("menu_template_3") || "Scuro"],
-                ["4", t("menu_template_4") || "Classico"],
-              ] as const).map(([num, label]) => {
-                const on = menuStyle === num;
-                return (
-                  <button
-                    key={num}
-                    type="button"
-                    onClick={() => chooseStyle(num)}
-                    disabled={savingStyle}
-                    title={label}
-                    aria-label={label}
-                    aria-pressed={on}
-                    className={`cursor-pointer w-7 h-7 rounded-lg border-2 text-sm font-black flex items-center justify-center transition-all duration-150 hover:-translate-y-0.5 active:translate-y-0 ${
-                      on
-                        ? "scale-110 shadow-md text-white"
-                        : "hover:bg-[#c4956a]/10 text-[#1c150d]"
-                    }`}
-                    style={
-                      on
-                        ? { borderColor: "#c4956a", background: "linear-gradient(135deg, #d4a574, #c4956a)" }
-                        : { borderColor: "rgba(196,149,106,0.5)", background: "rgba(252,246,237,0.6)" }
-                    }
-                  >
-                    {num}
-                  </button>
-                );
-              })}
+              <select
+                value={menuStyle}
+                onChange={(e) => chooseStyle(e.target.value as "1" | "2" | "3" | "4")}
+                disabled={savingStyle}
+                aria-label={t("menu_template") || "Template menù"}
+                className="cursor-pointer h-7 rounded-lg border-2 pl-2.5 pr-7 text-sm font-black text-[#1c150d] focus:outline-none focus:ring-1 focus:ring-[#c4956a] appearance-none"
+                style={{
+                  borderColor: "#c4956a",
+                  background:
+                    "rgba(252,246,237,0.6) url(\"data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23a87642' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E\") no-repeat right 8px center",
+                }}
+              >
+                {([
+                  ["1", t("menu_template_1") || "Immersivo"],
+                  ["2", t("menu_template_2") || "Editoriale"],
+                  ["3", t("menu_template_3") || "Scuro"],
+                  ["4", t("menu_template_4") || "Classico"],
+                ] as const).map(([num, label]) => (
+                  <option key={num} value={num}>
+                    {num} · {label}
+                  </option>
+                ))}
+              </select>
               {tenant?.slug && (
                 <a
                   href={`/m/${tenant.slug}?style=${menuStyle}`}
