@@ -490,7 +490,7 @@ const styles = `
   position: absolute; inset: 0;
   background-size: cover; background-position: center;
   transform: scale(1.08);
-  animation: imKen 12s ease-in-out infinite alternate;
+  animation: imKen 5s ease-out infinite alternate;
 }
 .im-fallback {
   position: absolute; inset: 0;
@@ -596,8 +596,8 @@ const styles = `
 
 /* ── Motion ─────────────────────────────────────────────────────────────── */
 @keyframes imKen {
-  from { transform: scale(1.06) translate(0, 0); }
-  to   { transform: scale(1.16) translate(-1.5%, -2.5%); }
+  from { transform: scale(1.16) translate(-1.5%, -2.5%); }
+  to   { transform: scale(1.06) translate(0, 0); }
 }
 @keyframes imCue {
   0%, 100% { opacity: 0.4; transform: translateY(0); }
