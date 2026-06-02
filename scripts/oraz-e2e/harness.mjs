@@ -77,7 +77,7 @@ async function sendTurn(phone, body, profileName = 'E2E') {
       res = await fetch(`${N8N_BASE}/webhook/${WEBHOOK_PATH}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ From: `whatsapp:+${phone}`, Body: body, ProfileName: profileName, MessageSid: sid }),
+        body: JSON.stringify({ From: `whatsapp:+${phone}`, Body: body, ProfileName: profileName, MessageSid: sid, tenant_id: TENANT_ID }),
       });
     } catch (e) {
       if (tryN === 3) throw e;
