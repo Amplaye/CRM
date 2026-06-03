@@ -862,3 +862,84 @@ export function defaultQuestionnaire(): KbQuestionnaire {
     chef_recommendations: [],
   };
 }
+
+// --- Post-onboarding editing of the reservation-policy article -------------
+// Settings → Bookings lets an owner change the booking rules they chose at
+// onboarding (cancellation notice, late tolerance, last-reservation cut-offs,
+// deposit). The structured values are read LIVE by /api/ai/availability and
+// /api/ai/book, but the assistant also QUOTES the policy from the reservation KB
+// article — so a change must regenerate THAT one article (in the same language(s)
+// it already has) or the bot would say the old policy while enforcing the new one
+// (the exact desync this feature exists to avoid). Pure → unit-tested.
+
+/** Titles of the reservation-policy article in every supported language. Lets a
+ *  caller find the existing row no matter which language the tenant runs in. */
+export const RESERVATION_TITLES: readonly string[] = (Object.keys(DICT) as Lang[]).map((l) => DICT[l].tReservations);
+
+/** Recover the language order of a (possibly multi-language) merged article from
+ *  its "[Español]/[Italiano]/…" section headers, so a regeneration restacks the
+ *  blocks in the same order. No headers → single-language: use `fallback`. */
+export function detectArticleLangs(content: string, fallback: Lang): Lang[] {
+  const nameToCode: Record<string, Lang> = { Español: "es", Italiano: "it", English: "en", Deutsch: "de" };
+  const hits: Array<{ code: Lang; idx: number }> = [];
+  for (const [name, code] of Object.entries(nameToCode)) {
+    const idx = content.indexOf(`[${name}]`);
+    if (idx >= 0) hits.push({ code, idx });
+  }
+  if (!hits.length) return [fallback];
+  return hits.sort((a, b) => a.idx - b.idx).map((h) => h.code);
+}
+
+/** The booking rules an owner edits after onboarding (Settings → Bookings). */
+export interface BookingPolicyForm {
+  cancellation_notice: CancellationNotice;
+  late_tolerance_min: number;
+  late_grace_if_notified: boolean;
+  last_lunch_offset_min: number;
+  last_dinner_offset_min: number;
+  deposit_required: boolean;
+  deposit_amount: string;
+}
+
+/** The non-edited facts the reservation article also needs, read from the
+ *  tenant's current state (not from the form) so they survive the regeneration. */
+export interface ReservationArticleContext {
+  restaurant_name: string;
+  restaurant_phone: string;
+  opening_hours?: OpeningHours;
+  languages: Lang[];        // detected order, primary first
+  capacity_seats: number;   // 0 → capacity line omitted
+  auto_confirm_max: number;
+  accepts_large_groups: boolean;
+  terrace: boolean;
+  noshow_release_min?: number;
+}
+
+/** Regenerate ONLY the reservation-policy article from the edited booking rules
+ *  plus the tenant's current non-edited facts. Returns the merged article
+ *  ({title, content, category}); the other KB articles are left untouched. */
+export function reservationArticleFromForm(form: BookingPolicyForm, ctx: ReservationArticleContext): GeneratedArticle {
+  const q: KbQuestionnaire = {
+    ...defaultQuestionnaire(),
+    capacity_seats: ctx.capacity_seats,
+    auto_confirm_max: ctx.auto_confirm_max,
+    accepts_large_groups: ctx.accepts_large_groups,
+    deposit_required: form.deposit_required,
+    deposit_amount: form.deposit_amount,
+    late_tolerance_min: form.late_tolerance_min,
+    late_grace_if_notified: form.late_grace_if_notified,
+    last_lunch_offset_min: form.last_lunch_offset_min,
+    last_dinner_offset_min: form.last_dinner_offset_min,
+    cancellation_notice: form.cancellation_notice,
+    noshow_release_min: ctx.noshow_release_min ?? 0,
+    terrace: ctx.terrace,
+  };
+  const langs = ctx.languages.length ? ctx.languages : (["es"] as Lang[]);
+  const articles = generateKbArticlesMulti(
+    q,
+    { restaurant_name: ctx.restaurant_name, restaurant_phone: ctx.restaurant_phone, opening_hours: ctx.opening_hours },
+    langs,
+  );
+  // The reservation policy is the FIRST 'policies' article (pushed before diets).
+  return articles.find((a) => a.category === "policies") || articles[0];
+}
