@@ -1,41 +1,38 @@
-# Prompt prossima sessione — Async/Scaling: resta SOLO il concurrency limit (Task 3)
+# Prompt prossima sessione — Chiudere Fase 1 async + opzionali (motore unico)
 
-> Stato aggiornato 2026-06-02 sera. La parte software della Fase 1 async è FATTA e deployata.
-> Resta UN solo knob lato server, che richiede l'accesso Hostinger.
+> Copia-incolla il blocco qui sotto come primo messaggio della prossima sessione.
 
 ---
 
-## Cosa è già FATTO (Fase 1 async sul motore unico `166QnQsGHqXDpBxa`)
+Continuiamo sullo **scaling del bot WhatsApp ristoranti** (motore unico). La Fase 1 async è quasi chiusa: restano l'hardening del concurrency limit + la prova finale del carico, una verifica veloce del Router, e 3 opzionali. Lavora in autonomia, fammi domande **solo a voce** e solo se davvero bloccanti.
 
-- **Task 1 — respond-first: già presente, verificato.** Sia il motore (`Respond to Twilio` = 2° nodo, `responseMode:responseNode`) sia il Meta Router (`Respond` = 2° nodo) rispondono 200 PRIMA del lavoro pesante. → niente 502, niente retry/duplicati Meta. Nessuna modifica necessaria.
-- **Task 2 — filtro webhook di stato Meta: FATTO + deployato.** Early-out in cima a `Route Message` del Meta Router (`N8N/picnic/build_router_status_filter.py`): payload con `value.statuses[]` e senza `messages` → `{skip:true, reason:'status_webhook'}`, niente catalog fetch né forward al motore. Smoke test OK. Backup `N8N/picnic/live_metarouter.PRE_STATUSFILTER_*`.
-- **Task 4 — memoria su Supabase: verificato OK.** History su `bot_messages`; staticData solo per debounce/pending/sticky-lang (OK in main mode).
-- **Load test motore** (`scripts/oraz-e2e/loadtest.mjs` ora punta a `picnic-whatsapp`+tenant_id → `loadtest-engine.json`): 8=8/8 OK; 12=accept ~700ms ma e2e ~100s; 16=e2e ~90s, molti oltre il poll-window. **Respond-first da solo NON regge 12+: serve il concurrency limit.**
-- **Funzionale seriale invariato 12/12** (waitlist era un flake, 2/2 al re-run). Test data ripulito.
+**Contesto fisso (NON rifare audit/load-test da zero):**
+- Motore unico = `[Picnic] Chatbot WhatsApp` **`166QnQsGHqXDpBxa`** (UNICO attivo), webhook `picnic-whatsapp`, 8 nodi. Entry reale = `[Meta Router] WhatsApp` **`zuYx8raoBVz88Erj`**, webhook `meta-whatsapp-router`. Tenant risolto a runtime da `body.tenant_id`. Tutti tenant di TEST → deploy/testa liberamente. Architettura: memoria `reference_motore_unico_chatbot.md`; scaling: `project_n8n_scaling.md`.
+- **Già FATTO (NON rifare):** respond-first verificato su motore+Router; filtro webhook di stato Meta live nel Router; memoria conversazione su Supabase (`bot_messages`) verificata; `N8N_CONCURRENCY_PRODUCTION_LIMIT=8` impostato sul server.
+- **Accesso server n8n (Hostinger):** compose in **`/docker/n8n/docker-compose.yml`**, env nel blocco **`environment:`** (NON `.env`), backup `.bak`. Restart che rilegge il compose: `cd /docker/n8n && docker compose up -d`. Le modifiche al server le fa **Sofía** (io non ho SSH/pannello) → se serve, chiedi a voce e dai a Sofía istruzioni in spagnolo.
 
-## Task 3 — concurrency limit: FATTO, ma serve hardening (timeout)
+## ⚠️ Incidente da ricordare (NON ripeterlo)
+Col limite a 8 attivo, un **burst load test** ha lasciato 8 esecuzioni incastrate in `running` che occupavano tutti gli slot → motore DOWN (webhook HTTP 000) finché non si sono auto-sbloccate (timeout interno). L'API `stop`/`delete` NON libera lo slot in-memory. **NON rifare burst (8+ simultanee) finché `EXECUTIONS_TIMEOUT` non è in place.** Traffico reale = 1-3 simultanee → limite a 8 innocuo per l'uso attuale.
 
-**`N8N_CONCURRENCY_PRODUCTION_LIMIT=8` è stato impostato sul server** (Sofía, 2026-06-02).
-⚠️ Setup REALE Hostinger: compose in **`/docker/n8n/docker-compose.yml`**, env nel blocco **`environment:`** (NON `.env`/`/root`). Backup `/docker/n8n/docker-compose.yml.bak`. Restart = `cd /docker/n8n && docker compose restart`.
+## TASK A — Hardening del limite + PROVA FINALE (l'obiettivo della Fase 1)
+1. Verifica con Sofía che sia stato aggiunto `EXECUTIONS_TIMEOUT=120` (opz. `EXECUTIONS_TIMEOUT_MAX=180`) nel blocco `environment:` di `/docker/n8n/docker-compose.yml` + `docker compose up -d`. (Messaggio già preparato la sessione scorsa.) Se non fatto, ridallo a Sofía a voce/spagnolo.
+2. Conferma singola (NO burst): `curl -m40 -X POST .../webhook/picnic-whatsapp` con `tenant_id` Oraz → deve tornare 200 veloce; controlla che l'esecuzione **completi** (`status=success`).
+3. **SOLO con il timeout attivo**, prova del carico in sicurezza: `cd CRM && node scripts/oraz-e2e/loadtest.mjs --levels 8,12,16 --gap 30 --out loadtest-after-timeout.json`. **Atteso/obiettivo: a 12 e 16 → 0 persi** (alcune in coda → e2e più alto ma COMPLETANO), nessun webwook a 000, nessuna esecuzione incastrata. Se ancora si incastra → indaga la causa-radice del wedge (httpRequest senza timeout nei Code node? sub-call? valore limite?) prima di dichiarare chiuso. Baseline pre-limite = `loadtest-engine.json`.
 
-**⚠️ INCIDENTE da non ripetere:** verificando col load test (burst 8/12/16), col limite attivo **8 esecuzioni si sono incastrate in `running`** occupando tutti gli slot → motore DOWN (webhook HTTP 000). L'API `stop`/`delete` NON le libera. Si sono sbloccate da sole dopo qualche minuto (timeout interno) → motore recuperato senza restart. **Senza limite la raffica completava (lenta); col limite si bloccava.**
+## TASK B — Verifica instradamento Router (dopo la mia modifica del filtro status)
+La sessione scorsa ho modificato `Route Message` del Router; ho testato solo filtro-status + verify-challenge, NON un instradamento reale. Manda **1-2 messaggi SINGOLI sequenziali** (niente burst) al webhook `meta-whatsapp-router` in formato Meta (`entry[0].changes[0].value.messages[0]`) per due tenant diversi e conferma **anti-leak**: ogni tenant risponde con la PROPRIA `restaurant_name` (Picnic/Oraz/BALI Rest), ispezionando le execution del motore. Niente fuga cross-tenant.
 
-**RESTA DA FARE — hardening (rende il limite sicuro sotto carico):**
-1. Aggiungere nello stesso blocco `environment:` di `/docker/n8n/docker-compose.yml`:
-   `EXECUTIONS_TIMEOUT=120` (opz. `EXECUTIONS_TIMEOUT_MAX=180`), poi `docker compose restart`.
-   → un'esecuzione incastrata muore a 120s e libera lo slot (normale ~20-30s).
-2. **SOLO DOPO il timeout**, ri-verificare in sicurezza: `cd CRM && node scripts/oraz-e2e/loadtest.mjs --levels 8,12,16 --gap 30 --out loadtest-after-timeout.json`. Atteso: 12/16 **0 persi** (in coda ma completano).
+## TASK C (opzionale) — Resolver tenant fail-loud
+Oggi ogni Code node del motore fa `const __TENANT_ID__ = $('Extract Message').first().json.tenant_id || '<Picnic fallback>'`: se `tenant_id` manca → **fallback silenzioso a Picnic** = rischio fuga config cross-tenant. Cambiare in **fail-loud**: se manca `tenant_id`, logga l'anomalia e scarta/risponde generico, invece di servire Picnic. (Il motore riceve SEMPRE `tenant_id` dal Router o dall'harness, quindi un missing = vero bug.) Applicare coerentemente nei nodi Fetch/OpenAI/Send/Book. Backup + `node --check` + E2E 12/12 dopo.
 
-> ⚠️ NON rifare burst load test (8+ simultanee) finché `EXECUTIONS_TIMEOUT` non è in place — riblocca il motore. Traffico reale = 1-3 simultanee, il limite a 8 è innocuo per l'uso attuale.
+## TASK D (opzionale, serve accesso server) — JWT Supabase di bootstrap fuori dal codice
+La JWT service-role di bootstrap (serve a leggere la colonna `secrets`) è **inline nel codice in ~54 punti**. Spostarla in una **env var/credenziale n8n** (stesso metodo `/docker/n8n/.../environment:` + restart, via Sofía) e leggerla nei Code node da `process.env`. Riduce la superficie segreti. Vedi insidia in `reference_motore_unico_chatbot.md`.
 
-## Verifica standard (invariata)
-- Funzionale: `ORAZ_WEBHOOK_PATH=picnic-whatsapp ORAZ_TENANT_ID=93eebe9c-8af5-4ca5-a315-3376ef4976e5 ORAZ_WORKFLOW_ID=166QnQsGHqXDpBxa node scripts/oraz-e2e/run.mjs --rounds 1 --concurrency 1` (deve restare 12/12), poi `--cleanup`.
-- Anti-leak via Router: ogni tenant risponde con la PROPRIA `restaurant_name`.
+## TASK E (opzionale) — Dialetto parametrizzabile
+Il system prompt (nodo OpenAI) ha il dialetto **"canario" hardcoded** (ok per i 3 tenant attuali, tutti Las Palmas). Parametrizzarlo: `picnicCfgGet(_bc,'dialect','canario')` e iniettarlo nel prompt, così un futuro tenant non-canario è solo config. Backup + `node --check` + E2E dopo.
+
+## Verifica standard (sempre)
+- Funzionale seriale: `ORAZ_WEBHOOK_PATH=picnic-whatsapp ORAZ_TENANT_ID=93eebe9c-8af5-4ca5-a315-3376ef4976e5 ORAZ_WORKFLOW_ID=166QnQsGHqXDpBxa node scripts/oraz-e2e/run.mjs --rounds 1 --concurrency 1` (deve restare 12/12; "waitlist" a volte flakka → re-run), poi `--cleanup`.
 
 ## Procedura
-Credenziali da `CRM/.env.local`. Backup `N8N/picnic/live_*.PRE_*.json` prima di ogni PUT (solo `{name,nodes,connections,settings}`); edit jsCode via Python + `node --check` (wrappare in `(async function(){...})` perché i Code node usano top-level await). Aggiorna piano e memoria a fine sessione.
-
-## Follow-up non bloccanti (opzionali, dal motore unico)
-- Resolver tenant: fallback silenzioso al literal Picnic se `tenant_id` manca → valuta fail-loud.
-- JWT Supabase di bootstrap inline (stesso accesso server del Task 3) → env var/credenziale n8n.
-- Dialetto "canario" fisso → `bot_config.dialect`.
+Credenziali da `CRM/.env.local` (N8N_BASE_URL, N8N_API_KEY, SUPABASE_SERVICE_ROLE_KEY). Backup `N8N/picnic/live_*.PRE_*.json` prima di ogni PUT (solo `{name,nodes,connections,settings}`; `N8N/` è gitignored → il deploy live via API è la source of truth). Edit jsCode via Python + `node --check` (wrappa in `(async function(){...})` perché i Code node usano top-level await). A fine sessione: aggiorna `project_n8n_scaling.md` + commit/push.
