@@ -10,6 +10,7 @@ import {
   type Lang,
   type OpeningHours,
 } from "@/lib/onboarding/kb-generator";
+import { resyncTenantWorkflows, type ResyncSummary } from "@/lib/onboarding/resync-workflows";
 
 // Save the post-onboarding booking settings (Settings → Bookings).
 //
@@ -25,11 +26,15 @@ import {
 // and then we REGENERATE the reservation KB article so the policy the bot QUOTES
 // matches the policy it ENFORCES.
 //
-// restaurant_phone + review_url are saved as the durable source of truth, but in
-// today's template they're also baked into the per-tenant cloned n8n workflows at
-// clone time (substitute.ts). Propagating a later change into those legacy clones
-// needs an n8n re-sync — there are no real clients yet, so that wire-up is left as
-// the one remaining piece (see the Settings → Bookings hint).
+// restaurant_phone + review_url (and owner_phone) are saved as the durable
+// source of truth, but in today's template they're ALSO baked into the
+// per-tenant cloned n8n workflows at clone time (substitute.ts). When any of the
+// three changes here we therefore re-sync those clones IN PLACE
+// (resyncTenantWorkflows) so the reminders / daily-summary / post-dinner flows
+// use the new value — best-effort, never blocking the save. The shared motore
+// (166…) is excluded: it reads its config LIVE from the DB.
+// NEXT STEP (architectural): make those auxiliary workflows also read the values
+// LIVE from the DB like the motore, and drop the baking + this re-sync entirely.
 
 const CANCELLATION_VALUES: CancellationNotice[] = ["none", "same_day", "2h", "24h"];
 
@@ -66,6 +71,12 @@ export async function POST(req: NextRequest) {
     if (tErr || !tenant) return NextResponse.json({ error: "Tenant not found" }, { status: 404 });
 
     const settings = ((tenant.settings as Record<string, any>) || {});
+
+    // The contact values BEFORE this save — needed to find-and-replace them in
+    // the tenant's cloned n8n workflows (those bake the values at clone time).
+    const oldOwnerPhone = String(settings.owner_phone ?? "").trim();
+    const oldRestaurantPhone = String(settings.restaurant_phone ?? "").trim();
+    const oldReviewUrl = String(settings.review_url ?? "").trim();
 
     // --- sanitize inputs ---
     const ownerPhone = String(body.owner_phone ?? settings.owner_phone ?? "").trim();
@@ -189,7 +200,30 @@ export async function POST(req: NextRequest) {
       console.error("[settings/booking] KB regen failed:", kbErr);
     }
 
-    return NextResponse.json({ success: true, kb });
+    // --- propagate the 3 baked contacts into the cloned n8n workflows ---
+    // Best-effort: a settings save must succeed even if the n8n re-sync hiccups
+    // (n8n down, a stale workflow id, …). The shared motore is excluded inside
+    // resyncTenantWorkflows. Only run when something actually changed AND the
+    // tenant has cloned workflows recorded.
+    let workflows: ResyncSummary | undefined;
+    const contactsChanged =
+      oldOwnerPhone !== ownerPhone ||
+      oldRestaurantPhone !== restaurantPhone ||
+      oldReviewUrl !== reviewUrl;
+    const hasWorkflows = Array.isArray(settings.n8n?.workflow_ids) && settings.n8n.workflow_ids.length > 0;
+    if (contactsChanged && hasWorkflows) {
+      try {
+        workflows = await resyncTenantWorkflows(tenant_id, {
+          oldOwnerPhone, newOwnerPhone: ownerPhone,
+          oldRestaurantPhone, newRestaurantPhone: restaurantPhone,
+          oldReviewUrl, newReviewUrl: reviewUrl,
+        });
+      } catch (wfErr) {
+        console.error("[settings/booking] n8n re-sync failed:", wfErr);
+      }
+    }
+
+    return NextResponse.json({ success: true, kb, workflows });
   } catch (err: unknown) {
     console.error("[settings/booking] error:", err);
     const message = err instanceof Error ? err.message : "Unknown error";

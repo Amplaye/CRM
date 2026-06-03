@@ -7,6 +7,7 @@
 
 import { createServiceRoleClient } from "@/lib/supabase/server";
 import { substituteTenantTokens, toCreatePayload } from "./substitute";
+import { n8n, fetchWithTimeout } from "./n8n-client";
 import { createTenant } from "@/lib/tenants/create-tenant";
 import { buildVoicePrompt } from "./voice-prompt";
 import { cloneTemplateAssistant, findAssistantByName } from "./vapi";
@@ -129,42 +130,9 @@ export const TEMPLATE_RESTAURANT_WORKFLOW_IDS = [
   // stale template id can never again break the whole provisioning.
 ];
 
-// Every outbound call in provisioning gets a hard timeout. Without one, a single
-// hung n8n/Vapi/KB request leaves the whole SSE stream open forever and the
-// wizard sits on the loading screen indefinitely (the exact "loaded to infinity"
-// bug an owner hit on her phone). On timeout we throw a labelled error so the
-// step log shows WHICH call stalled, and the run fails cleanly instead of
-// hanging — the owner then sees the retry / contact-support actions.
-async function fetchWithTimeout(url: string, init: RequestInit, ms: number): Promise<Response> {
-  const ctrl = new AbortController();
-  const id = setTimeout(() => ctrl.abort(), ms);
-  try {
-    return await fetch(url, { ...init, signal: ctrl.signal });
-  } catch (e: any) {
-    if (e?.name === "AbortError") throw new Error(`request timed out after ${ms / 1000}s: ${url}`);
-    throw e;
-  } finally {
-    clearTimeout(id);
-  }
-}
-
-async function n8n(method: string, path: string, body?: any): Promise<any> {
-  const apiKey = process.env.N8N_API_KEY;
-  const baseUrl = process.env.N8N_BASE_URL || "https://n8n.srv1468837.hstgr.cloud";
-  if (!apiKey) throw new Error("N8N_API_KEY not configured");
-  const res = await fetchWithTimeout(`${baseUrl}/api/v1${path}`, {
-    method,
-    headers: { "X-N8N-API-KEY": apiKey, "Content-Type": "application/json" },
-    body: body ? JSON.stringify(body) : undefined,
-  }, 30_000);
-  const text = await res.text();
-  if (!res.ok) throw new Error(`n8n ${method} ${path} → ${res.status}: ${text.slice(0, 300)}`);
-  try {
-    return JSON.parse(text);
-  } catch {
-    return text;
-  }
-}
+// The n8n REST client (n8n) and the generic timeout-wrapped fetch
+// (fetchWithTimeout) used throughout provisioning now live in ./n8n-client so
+// the post-onboarding contact re-sync route can reuse the exact same transport.
 
 // Build a realistic table layout whose seat total equals the capacity the owner
 // declared in the questionnaire. We no longer ask for a small/medium/large

@@ -55,7 +55,10 @@ function replaceAll(haystack: string, needle: string, replacement: string): stri
 // Spanish, matching the template's own +34). If the number doesn't start with it
 // (a future non-ES tenant), we leave the digits as-is rather than guessing — the
 // worst case is a longer-but-correct number, never a doubled prefix.
-function nationalDigits(phone: string, countryCode = "34"): string {
+//
+// Exported so the post-onboarding re-sync (resyncContactTokens) can mirror the
+// clone-time stripping when it rewrites the national form of restaurant_phone.
+export function nationalDigits(phone: string, countryCode = "34"): string {
   const digits = (phone || "").replace(/\D/g, "");
   return digits.startsWith(countryCode) ? digits.slice(countryCode.length) : digits;
 }
@@ -96,6 +99,68 @@ export function substituteTenantTokens(workflowJsonText: string, sub: OnboardSub
   // not substrings inside arbitrary words.
   text = text.replace(/\bPICNIC\b/g, sub.newRestaurantName.toUpperCase());
   text = text.replace(/\bPicnic\b/g, sub.newRestaurantName);
+
+  return text;
+}
+
+// The old→new values for a post-onboarding contact re-sync. Only the three
+// fields that the clone baked into the per-tenant workflows (owner_phone,
+// restaurant_phone, review_url) — everything else (slug, ids, names) is stable
+// after onboarding and stays untouched.
+export interface ContactResync {
+  oldOwnerPhone: string;
+  newOwnerPhone: string;
+  oldRestaurantPhone: string;
+  newRestaurantPhone: string;
+  oldReviewUrl: string;
+  newReviewUrl: string;
+}
+
+// Re-sync the THREE contact tokens the onboarding clone baked into a per-tenant
+// n8n workflow (owner_phone, restaurant_phone, review_url) when the owner later
+// edits them in Settings → Bookings. Pure find-and-replace over the workflow
+// JSON text: it preserves node ids, webhook paths and everything else, so the
+// caller can PUT the same workflow back IN PLACE (never recreate it).
+//
+// This is the pragmatic counterpart to substituteTenantTokens (which runs at
+// clone time, template→new). The real fix is to make these auxiliary workflows
+// read the values LIVE from the DB like the shared motore already does, and drop
+// the baking + this re-sync entirely — see the note in the sync route.
+export function resyncContactTokens(workflowJsonText: string, sub: ContactResync): string {
+  let text = workflowJsonText;
+
+  // Full-form replacement for each contact: only when old is non-empty and
+  // actually differs, so a no-op save (or a never-set field) never touches the
+  // JSON. Order is independent — these strings don't overlap in practice.
+  // KNOWN LIMIT: when owner_phone and restaurant_phone were baked as the SAME
+  // literal (some legacy tenants set them equal), they're indistinguishable in
+  // the JSON — changing one to a different new value moves both (owner runs
+  // first and wins). Unsolvable with find-replace; it only bites equal→diverging
+  // edits. The proper fix is LIVE DB reads (see header).
+  const pairs: Array<[string, string]> = [
+    [sub.oldOwnerPhone, sub.newOwnerPhone],
+    [sub.oldRestaurantPhone, sub.newRestaurantPhone],
+    [sub.oldReviewUrl, sub.newReviewUrl],
+  ];
+  for (const [oldV, newV] of pairs) {
+    const o = (oldV || "").trim();
+    if (o && o !== (newV || "").trim()) text = replaceAll(text, o, newV);
+  }
+
+  // restaurant_phone is baked in TWO forms: its full form (handled above) AND
+  // national-only digits — substitute.ts strips the country code for the BARE/
+  // DIGITS template tokens (e.g. "828712623"), and that bare form can end up
+  // glued after a literal "+34" in the clone ("+34684109244"). We rewrite
+  // national→national (both country-code-stripped), which CANNOT double a +34
+  // that isn't part of the replaced substring — the opposite of the clone-time
+  // bug. Guards: only when the national string is long enough (≥7 digits) to be
+  // a real phone — short digit runs could collide with arbitrary ids — and only
+  // when it actually changes after stripping.
+  const oldNat = nationalDigits(sub.oldRestaurantPhone || "");
+  const newNat = nationalDigits(sub.newRestaurantPhone || "");
+  if (oldNat.length >= 7 && oldNat !== newNat) {
+    text = replaceAll(text, oldNat, newNat);
+  }
 
   return text;
 }
