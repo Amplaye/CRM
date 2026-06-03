@@ -13,22 +13,20 @@
 - **Load test motore** (`scripts/oraz-e2e/loadtest.mjs` ora punta a `picnic-whatsapp`+tenant_id → `loadtest-engine.json`): 8=8/8 OK; 12=accept ~700ms ma e2e ~100s; 16=e2e ~90s, molti oltre il poll-window. **Respond-first da solo NON regge 12+: serve il concurrency limit.**
 - **Funzionale seriale invariato 12/12** (waitlist era un flake, 2/2 al re-run). Test data ripulito.
 
-## Cosa RESTA — Task 3 (l'UNICO fix che fa reggere 12+), BLOCCATO su accesso server
+## Task 3 — concurrency limit: FATTO, ma serve hardening (timeout)
 
-Impostare la env var **`N8N_CONCURRENCY_PRODUCTION_LIMIT=8`** sul server n8n Hostinger e riavviare n8n.
-Da CLI NON è possibile (l'API n8n non setta env var; nelle credenziali non c'è SSH/pannello, solo l'API key).
+**`N8N_CONCURRENCY_PRODUCTION_LIMIT=8` è stato impostato sul server** (Sofía, 2026-06-02).
+⚠️ Setup REALE Hostinger: compose in **`/docker/n8n/docker-compose.yml`**, env nel blocco **`environment:`** (NON `.env`/`/root`). Backup `/docker/n8n/docker-compose.yml.bak`. Restart = `cd /docker/n8n && docker compose restart`.
 
-**Come farlo (per chi ha l'accesso Hostinger — pannello hPanel del VPS `srv1468837`):**
-1. hPanel → VPS → il server di n8n → **Browser terminal** (o SSH).
-2. n8n gira in Docker. Trovare il compose: `cd /root` (o dove sta `docker-compose.yml`); `ls`.
-3. Aprire il file env del compose (di solito `.env` accanto al `docker-compose.yml`) e aggiungere la riga:
-   `N8N_CONCURRENCY_PRODUCTION_LIMIT=8`
-4. Riavviare: `docker compose down && docker compose up -d` (oppure `docker restart <container_n8n>` se env passata via `-e`).
-5. Verifica: dopo il restart, ri-eseguire il load test e confrontare con `loadtest-engine.json`:
-   `cd CRM && node scripts/oraz-e2e/loadtest.mjs --levels 8,12,16 --gap 30 --out loadtest-after-limit.json`
-   Atteso: a 12/16 **0 persi** (alcune in coda → e2e più alto ma completano), nessun 502.
+**⚠️ INCIDENTE da non ripetere:** verificando col load test (burst 8/12/16), col limite attivo **8 esecuzioni si sono incastrate in `running`** occupando tutti gli slot → motore DOWN (webhook HTTP 000). L'API `stop`/`delete` NON le libera. Si sono sbloccate da sole dopo qualche minuto (timeout interno) → motore recuperato senza restart. **Senza limite la raffica completava (lenta); col limite si bloccava.**
 
-> In alternativa, se l'utente dà il login hPanel/SSH, guidarlo a voce passo-passo (è non-tecnico).
+**RESTA DA FARE — hardening (rende il limite sicuro sotto carico):**
+1. Aggiungere nello stesso blocco `environment:` di `/docker/n8n/docker-compose.yml`:
+   `EXECUTIONS_TIMEOUT=120` (opz. `EXECUTIONS_TIMEOUT_MAX=180`), poi `docker compose restart`.
+   → un'esecuzione incastrata muore a 120s e libera lo slot (normale ~20-30s).
+2. **SOLO DOPO il timeout**, ri-verificare in sicurezza: `cd CRM && node scripts/oraz-e2e/loadtest.mjs --levels 8,12,16 --gap 30 --out loadtest-after-timeout.json`. Atteso: 12/16 **0 persi** (in coda ma completano).
+
+> ⚠️ NON rifare burst load test (8+ simultanee) finché `EXECUTIONS_TIMEOUT` non è in place — riblocca il motore. Traffico reale = 1-3 simultanee, il limite a 8 è innocuo per l'uso attuale.
 
 ## Verifica standard (invariata)
 - Funzionale: `ORAZ_WEBHOOK_PATH=picnic-whatsapp ORAZ_TENANT_ID=93eebe9c-8af5-4ca5-a315-3376ef4976e5 ORAZ_WORKFLOW_ID=166QnQsGHqXDpBxa node scripts/oraz-e2e/run.mjs --rounds 1 --concurrency 1` (deve restare 12/12), poi `--cleanup`.
