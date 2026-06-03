@@ -406,7 +406,7 @@ export function Topbar({ onMenuToggle }: TopbarProps) {
               <div className="px-4 py-3 border-b flex items-center justify-between flex-shrink-0" style={{ borderColor: '#c4956a' }}>
                 <span className="text-sm font-semibold text-black">{t("topbar_notifications")}</span>
                 {notifications.length > 0 && (
-                  <button onClick={() => setNotifications([])} className="text-xs text-[#c4956a] hover:text-[#b8845c]">
+                  <button onClick={() => setNotifications([])} className="text-xs text-[#c4956a] hover:text-[#b8845c] cursor-pointer">
                     {t("topbar_clear_all")}
                   </button>
                 )}
@@ -452,7 +452,7 @@ export function Topbar({ onMenuToggle }: TopbarProps) {
               <div className="px-4 py-3 border-b flex items-center justify-between" style={{ borderColor: '#c4956a' }}>
                 <span className="text-sm font-semibold text-black">{t("topbar_notifications")}</span>
                 {notifications.length > 0 && (
-                  <button onClick={() => setNotifications([])} className="text-xs text-[#c4956a] hover:text-[#b8845c]">
+                  <button onClick={() => setNotifications([])} className="text-xs text-[#c4956a] hover:text-[#b8845c] cursor-pointer">
                     {t("topbar_clear_all")}
                   </button>
                 )}
