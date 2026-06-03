@@ -237,6 +237,13 @@ export async function runOnboard(
         // RIGHT owner. Without this it was dropped and every tenant fell back to
         // the bot's hardcoded Picnic number — owners got each other's bookings.
         owner_phone: input.owner_phone.startsWith("+") ? input.owner_phone : `+${input.owner_phone}`,
+        // restaurant_phone + review_url live at the TOP LEVEL of settings: this is
+        // the source of truth the Settings → Bookings tab edits AND the value the
+        // auxiliary n8n workflows now read LIVE at runtime (no longer baked into
+        // the clone). Persisting them here is what makes a freshly-onboarded
+        // tenant's reminders/follow-up/etc. use ITS OWN phone + review link.
+        restaurant_phone: input.restaurant_phone,
+        review_url: input.review_url,
         last_reservation_offset: input.last_reservation_offset || { lunch: 45, dinner: 60 },
         avg_spend: 25,
         avg_cost: 10,
@@ -453,13 +460,15 @@ export async function runOnboard(
         }
         push({ step: "n8n", message: `${already.length} workflows already present — reused`, ok: true, data: { workflow_ids: already } });
       } else {
+        // Only STABLE tokens are baked into the clone now. The three mutable
+        // contacts (owner_phone, restaurant_phone, review_url) are read LIVE from
+        // the DB by every auxiliary workflow — see substitute.ts. They were
+        // persisted to the tenant's settings in step 1 (provisioningSettings +
+        // bot_config.responsible_phone), so the live read resolves them.
         const sub = {
           newTenantId: tenantId,
           newSlug: input.slug,
-          newOwnerPhone: input.owner_phone.startsWith("+") ? input.owner_phone : `+${input.owner_phone}`,
           newRestaurantName: input.restaurant_name,
-          newRestaurantPhone: input.restaurant_phone,
-          newReviewUrl: input.review_url,
           newVapiAssistantId: vapiAssistantId,
         };
 

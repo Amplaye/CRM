@@ -474,7 +474,6 @@ export const en = {
   settings_booking_deposit_amount: "Deposit amount",
   settings_booking_deposit_amount_ph: "e.g. 20 per person",
   settings_booking_footnote: "Owner phone, public phone and review link are saved here and propagated automatically to the bot's flows (reminders, daily summary, post-dinner follow-up).",
-  settings_booking_workflows_synced: "{n} bot flows updated with the new contacts.",
   settings_feature_waitlist: "Waitlist",
   settings_feature_waitlist_hint: "Collect guests when you're full and notify them if a table frees up.",
   settings_feature_double_shift: "Double shift",

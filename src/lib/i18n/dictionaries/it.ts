@@ -477,7 +477,6 @@ export const it: Dictionary = {
   settings_booking_deposit_amount: "Importo caparra",
   settings_booking_deposit_amount_ph: "es. 20 a persona",
   settings_booking_footnote: "Telefono titolare, telefono pubblico e link recensioni vengono salvati qui e propagati automaticamente ai flussi del bot (promemoria, riepilogo giornaliero, messaggio post-cena).",
-  settings_booking_workflows_synced: "{n} flussi del bot aggiornati con i nuovi contatti.",
   settings_feature_waitlist: "Lista d'attesa",
   settings_feature_waitlist_hint: "Raccogli i clienti quando è tutto pieno e avvisali se si libera un tavolo.",
   settings_feature_double_shift: "Doppio turno",

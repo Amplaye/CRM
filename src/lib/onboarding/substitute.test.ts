@@ -1,115 +1,76 @@
 import { describe, it, expect } from "vitest";
-import { substituteTenantTokens, resyncContactTokens, type OnboardSubstitutions, type ContactResync } from "./substitute";
+import { substituteTenantTokens, type OnboardSubstitutions } from "./substitute";
 
-// Minimal substitution input — only the fields these cases exercise.
+// Minimal substitution input — only the STABLE fields the clone still bakes.
 function sub(overrides: Partial<OnboardSubstitutions>): OnboardSubstitutions {
   return {
     newTenantId: "00000000-0000-0000-0000-000000000000",
     newSlug: "bali-rest",
-    newOwnerPhone: "+34684109244",
     newRestaurantName: "BALI Rest",
-    newRestaurantPhone: "+34684109244",
-    newReviewUrl: "",
     ...overrides,
   };
 }
 
-describe("substituteTenantTokens — restaurant phone tokens", () => {
-  // The bug: the template embeds the national-only digits "828712623" right
-  // after a literal "+34". Substituting them with the FULL number's digits
-  // ("34684109244") produced "+3434684109244" — a doubled country code that
-  // Meta/Twilio then sent to a malformed/wrong recipient.
-  it("does NOT double the country code when the template token sits after a +34 literal", () => {
-    const template = JSON.stringify({ code: "const PHONE = '+34828712623';" });
-    const out = substituteTenantTokens(template, sub({ newRestaurantPhone: "+34684109244" }));
-    expect(out).toContain("+34684109244");
-    expect(out).not.toContain("+3434684109244");
-    expect(out).not.toMatch(/\+?3434684109244/);
+const TEMPLATE_TENANT_ID = "626547ff-bc44-4f35-8f42-0e97f1dcf0d5";
+const TEMPLATE_VAPI_ID = "6c92f776-abb2-4175-8a55-45d76ec01d1a";
+
+describe("substituteTenantTokens — stable tokens", () => {
+  it("rewrites the template tenant_id everywhere (the live-config lookup key)", () => {
+    const template = JSON.stringify({
+      a: `url=...tenants?id=eq.${TEMPLATE_TENANT_ID}&select=settings`,
+      b: `tenant_id=eq.${TEMPLATE_TENANT_ID}`,
+    });
+    const out = substituteTenantTokens(template, sub({ newTenantId: "11111111-1111-1111-1111-111111111111" }));
+    expect(out).toContain("11111111-1111-1111-1111-111111111111");
+    expect(out).not.toContain(TEMPLATE_TENANT_ID);
   });
 
-  // The spaced BARE token must also drop the country code, regardless of whether
-  // the new number itself has spaces (it usually won't).
-  it("substitutes the spaced BARE token with the national part only", () => {
-    const template = JSON.stringify({ display: "Llama al +34 828 712 623" });
-    const out = substituteTenantTokens(template, sub({ newRestaurantPhone: "+34684109244" }));
-    expect(out).toContain("684109244");
-    expect(out).not.toMatch(/34684109244\d/); // no extra digits glued on
+  it("rewrites the Vapi assistant id only when provided", () => {
+    const template = JSON.stringify({ assistantId: TEMPLATE_VAPI_ID });
+    const withId = substituteTenantTokens(template, sub({ newVapiAssistantId: "aaaa-bbbb" }));
+    expect(withId).toContain("aaaa-bbbb");
+    expect(withId).not.toContain(TEMPLATE_VAPI_ID);
+    // Omitted → the template id is left intact (caller didn't clone an assistant).
+    const without = substituteTenantTokens(template, sub({}));
+    expect(without).toContain(TEMPLATE_VAPI_ID);
   });
 
-  // A number supplied without the +34 prefix must not be corrupted: nationalDigits
-  // leaves non-matching numbers as-is (longer-but-correct beats doubled-prefix).
-  it("leaves a number without the +34 prefix as-is (no false stripping)", () => {
-    const template = JSON.stringify({ code: "const D = '828712623';" });
-    const out = substituteTenantTokens(template, sub({ newRestaurantPhone: "684109244" }));
-    expect(out).toContain("684109244");
+  it("rewrites picnic-* webhook paths to the new slug", () => {
+    const template = JSON.stringify({ path: "picnic-whatsapp", audit: "picnic-audit-run" });
+    const out = substituteTenantTokens(template, sub({ newSlug: "trattoria-rossa" }));
+    expect(out).toContain("trattoria-rossa-whatsapp");
+    expect(out).toContain("trattoria-rossa-audit-run");
+    expect(out).not.toContain("picnic-");
+  });
+
+  it("rewrites standalone PICNIC / Picnic restaurant-name tokens", () => {
+    const template = JSON.stringify({ name: "[Picnic] Reminders", upper: "Bienvenido a PICNIC" });
+    const out = substituteTenantTokens(template, sub({ newRestaurantName: "BALI Rest" }));
+    expect(out).toContain("BALI Rest");
+    expect(out).toContain("BALI REST");
+    expect(out).not.toMatch(/\bPicnic\b/);
+    expect(out).not.toMatch(/\bPICNIC\b/);
   });
 });
 
-// Minimal re-sync input — only the three baked contact fields.
-function rsub(overrides: Partial<ContactResync>): ContactResync {
-  return {
-    oldOwnerPhone: "+34641790137",
-    newOwnerPhone: "+34641790137",
-    oldRestaurantPhone: "+34684109244",
-    newRestaurantPhone: "+34684109244",
-    oldReviewUrl: "https://g.page/old",
-    newReviewUrl: "https://g.page/old",
-    ...overrides,
-  };
-}
-
-describe("resyncContactTokens — post-onboarding contact re-sync", () => {
-  // Happy path: a clone that baked the old owner phone, restaurant phone (full
-  // + national) and review url gets all three rewritten to the new values.
-  it("rewrites owner phone, restaurant phone (full + national) and review url", () => {
-    const clone = JSON.stringify({
+describe("substituteTenantTokens — mutable contacts are NOT baked", () => {
+  // The three mutable contacts (owner_phone, restaurant_phone, review_url) are
+  // read LIVE from the DB by the cloned workflows, so substitution must leave
+  // those literals untouched (they remain inert Picnic fallbacks behind the live
+  // read). This is the whole point of the 2026-06-03 definitive fix: editing a
+  // contact in Settings → Bookings takes effect without re-cloning.
+  it("leaves owner phone, restaurant phone and review url literals untouched", () => {
+    const template = JSON.stringify({
       owner: "+34641790137",
-      phoneFull: "+34684109244",
-      phoneNat: "684109244",
-      review: "https://g.page/old",
+      restoFull: "+34 828 712 623",
+      restoNat: "828712623",
+      review: "https://www.google.com/maps?cid=975701473301178074",
     });
-    const out = resyncContactTokens(clone, rsub({
-      oldOwnerPhone: "+34641790137", newOwnerPhone: "+34600111222",
-      oldRestaurantPhone: "+34684109244", newRestaurantPhone: "+34999888777",
-      oldReviewUrl: "https://g.page/old", newReviewUrl: "https://g.page/new",
-    }));
-    expect(out).toContain("+34600111222"); // new owner
-    expect(out).toContain("+34999888777"); // new restaurant full
-    expect(out).toContain("999888777");    // new restaurant national
-    expect(out).toContain("https://g.page/new");
-    expect(out).not.toContain("641790137");
-    expect(out).not.toContain("684109244");
-    expect(out).not.toContain("g.page/old");
-  });
-
-  // No-op: when every old equals its new, the JSON must come back byte-identical
-  // (so the caller can detect "nothing changed" and skip the PUT).
-  it("is a no-op when old === new for all fields", () => {
-    const clone = JSON.stringify({ owner: "+34641790137", phone: "+34684109244", review: "https://g.page/old" });
-    const out = resyncContactTokens(clone, rsub({}));
-    expect(out).toBe(clone);
-  });
-
-  // Double-prefix guard: the national form is rewritten national→national, so a
-  // value glued after a literal "+34" ("+34684109244") becomes "+34" + new
-  // national — never a doubled "+3434…" (the inverse of the clone-time bug).
-  it("does NOT double the country code when rewriting the national form glued after +34", () => {
-    const clone = JSON.stringify({ code: "const PHONE = '+34684109244';" });
-    const out = resyncContactTokens(clone, rsub({
-      oldRestaurantPhone: "+34684109244", newRestaurantPhone: "+34999888777",
-    }));
-    expect(out).toContain("+34999888777");
-    expect(out).not.toMatch(/\+?3434999888777/);
-    expect(out).not.toMatch(/\+?34999888777\d/); // no extra digits glued on
-  });
-
-  // Short-string guard: a national run shorter than 7 digits is NOT substituted,
-  // so it can't accidentally match inside arbitrary ids/numbers.
-  it("does not rewrite a sub-7-digit national run", () => {
-    const clone = JSON.stringify({ ref: "12345", id: "node-12345-abc" });
-    const out = resyncContactTokens(clone, rsub({
-      oldRestaurantPhone: "+3412345", newRestaurantPhone: "+3499999",
-    }));
-    expect(out).toBe(clone); // untouched: "12345" too short to be a phone
+    const out = substituteTenantTokens(template, sub({}));
+    // Unchanged — the clone reads these from the DB at runtime, not from the JSON.
+    expect(out).toContain("+34641790137");
+    expect(out).toContain("+34 828 712 623");
+    expect(out).toContain("828712623");
+    expect(out).toContain("cid=975701473301178074");
   });
 });

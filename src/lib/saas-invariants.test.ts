@@ -26,10 +26,12 @@ function sourceFiles(dir: string): string[] {
 
 const API_DIR = join(process.cwd(), "src", "app", "api");
 
-// The template restaurant's own owner phone. It lives ONLY in the onboarding
-// substitute map (src/lib/onboarding/substitute.ts) as a search-and-replace key.
-// It must never reappear in a runtime API route as a fallback — that hardcoded
-// "borrow the template's config" was the #1 agency smell removed in Mossa 1.
+// The template restaurant's own owner phone. Since 2026-06-03 the cloned n8n
+// workflows read the owner phone LIVE from the DB, so this literal no longer
+// lives anywhere in src/ (it remains only as an inert fallback inside the live
+// n8n template content). It must never reappear in a runtime API route as a
+// fallback — that hardcoded "borrow the template's config" was the #1 agency
+// smell removed in Mossa 1.
 const TEMPLATE_OWNER_PHONE = "34641790137";
 
 describe("SaaS pillar — no cross-tenant (Picnic) fallback in runtime routes [Mossa 1]", () => {

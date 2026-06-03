@@ -81,7 +81,6 @@ export function BookingTab() {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState(false);
-  const [wfSynced, setWfSynced] = useState<number | null>(null);
 
   // Re-read from DB on mount (TenantContext caches settings in sessionStorage).
   useEffect(() => {
@@ -112,7 +111,6 @@ export function BookingTab() {
     setSaving(true);
     setSaved(false);
     setError(false);
-    setWfSynced(null);
     try {
       const res = await fetch("/api/settings/booking", {
         method: "POST",
@@ -132,13 +130,8 @@ export function BookingTab() {
         }),
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      // Surface how many cloned n8n flows picked up the new contacts (if any).
-      try {
-        const json = await res.json();
-        if (json?.workflows && typeof json.workflows.changed === "number") {
-          setWfSynced(json.workflows.changed);
-        }
-      } catch { /* response body optional */ }
+      // The contacts are read live from the DB by the workflows — nothing to
+      // re-sync, the save alone propagates them.
       // Push the regenerated KB into the voice assistant (best-effort, like General).
       try {
         await fetch("/api/sync-kb-vapi", {
@@ -238,12 +231,6 @@ export function BookingTab() {
       </section>
 
       <p className="text-xs text-black/50 flex items-center gap-1.5"><Star className="w-3.5 h-3.5" />{t("settings_booking_footnote")}</p>
-      {wfSynced !== null && wfSynced > 0 && (
-        <p className="text-xs text-green-700 flex items-center gap-1.5">
-          <CalendarClock className="w-3.5 h-3.5" />
-          {t("settings_booking_workflows_synced").replace("{n}", String(wfSynced))}
-        </p>
-      )}
     </div>
   );
 }

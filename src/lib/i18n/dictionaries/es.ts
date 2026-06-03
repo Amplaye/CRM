@@ -477,7 +477,6 @@ export const es: Dictionary = {
   settings_booking_deposit_amount: "Importe del depósito",
   settings_booking_deposit_amount_ph: "p. ej. 20 por persona",
   settings_booking_footnote: "El teléfono del responsable, el teléfono público y el enlace de reseñas se guardan aquí y se propagan automáticamente a los flujos del bot (recordatorios, resumen diario, mensaje posterior).",
-  settings_booking_workflows_synced: "{n} flujos del bot actualizados con los nuevos contactos.",
   settings_feature_waitlist: "Lista de espera",
   settings_feature_waitlist_hint: "Apunta clientes cuando esté lleno y avísales si se libera una mesa.",
   settings_feature_double_shift: "Doble turno",
