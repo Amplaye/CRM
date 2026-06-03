@@ -224,13 +224,61 @@ export async function POST(request: Request) {
       const fmt = (d: Date) => d.toISOString().slice(0, 10);
       const { data: nearby } = await supabase
         .from('reservations')
-        .select('id, date, time, party_size, status')
+        .select('id, date, time, party_size, status, notes')
         .eq('tenant_id', payload.tenant_id)
         .eq('guest_id', guestId)
         .in('status', ['confirmed', 'seated', 'pending_confirmation', 'escalated'])
         .gte('date', fmt(winStart))
         .lte('date', fmt(winEnd))
         .order('date', { ascending: true });
+
+      // OPTION A — late detail on the SAME reservation, not a new booking.
+      // A client often sends booking details across two quick messages
+      // ("è un 50° anniversario" then, 12s later, "e una persona è in sedia a
+      // rotelle"). The first message already created the reservation, so the
+      // second arrives here as a "duplicate" and its detail (the wheelchair)
+      // would be lost. If there's exactly one active reservation with the SAME
+      // date+time+party_size and the new payload carries notes the existing row
+      // doesn't have yet, treat it as an addendum: merge the notes into the
+      // existing reservation instead of asking "is this an additional booking?".
+      const incomingNotes = (payload.notes || '').trim();
+      if (incomingNotes && nearby && nearby.length === 1) {
+        const ex = nearby[0] as any;
+        const sameSlot = ex.date === payload.date && (ex.time || '').slice(0, 5) === payload.time.slice(0, 5) && ex.party_size === payload.party_size;
+        const exNotes = (ex.notes || '').trim();
+        // New info if the existing notes don't already contain the incoming text
+        // (case-insensitive substring — the bot tends to resend the full merged
+        // notes string, so guard against re-appending the same content).
+        const isNewInfo = sameSlot && exNotes.toLowerCase() !== incomingNotes.toLowerCase() && !exNotes.toLowerCase().includes(incomingNotes.toLowerCase());
+        if (isNewInfo) {
+          const mergedNotes = exNotes ? `${exNotes} — ${incomingNotes}` : incomingNotes;
+          const { error: mergeErr } = await supabase
+            .from('reservations')
+            .update({ notes: mergedNotes })
+            .eq('id', ex.id);
+          if (!mergeErr) {
+            await logAuditEvent({
+              tenant_id: payload.tenant_id,
+              action: "modify_reservation",
+              entity_id: ex.id,
+              idempotency_key: payload.idempotency_key,
+              source: "ai_agent",
+              details: { type: "notes_addendum", added: incomingNotes, notes: mergedNotes },
+            });
+            return NextResponse.json({
+              success: true,
+              notes_merged: true,
+              reservation_id: ex.id,
+              status: ex.status,
+              date: ex.date,
+              time: ex.time,
+              party_size: ex.party_size,
+              notes: mergedNotes,
+              message: `Detalle añadido a la reserva existente (${ex.date} ${ex.time}). Notas ahora: "${mergedNotes}". Confirma al cliente que has tomado nota de este detalle; NO crees una reserva nueva ni preguntes si es adicional.`,
+            });
+          }
+        }
+      }
 
       if (nearby && nearby.length > 0) {
         const summary = nearby.map((r: any) => `${r.date} ${r.time} (${r.party_size} pax)`).join(', ');
@@ -400,7 +448,7 @@ export async function POST(request: Request) {
         });
       }
 
-      const reservation = {
+      const reservation: Record<string, any> = {
         tenant_id: payload.tenant_id,
         guest_id: guestId,
         date: payload.date,
@@ -417,6 +465,13 @@ export async function POST(request: Request) {
         end_time: endTime,
         shift,
       };
+      // Pin the customer's language so the manual-confirmation WhatsApp (sent
+      // when staff approve this escalated request from /pending) goes out in the
+      // guest's language instead of defaulting to Spanish. Same logic as the
+      // normal-booking path below.
+      if (payload.language && ['es', 'it', 'en', 'de'].includes(payload.language)) {
+        reservation.language = payload.language;
+      }
 
       const { data: newRes, error: newResErr } = await supabase
         .from('reservations')

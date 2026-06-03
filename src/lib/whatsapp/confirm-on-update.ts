@@ -38,13 +38,28 @@ export async function sendReservationConfirmationWhatsApp(params: {
       return { sent: false, reason: "phone_not_sendable" };
     }
 
+    // Resolve the message language. The reservation's own language wins; if it's
+    // missing (older rows, or escalated bookings created before the language was
+    // pinned) fall back to the tenant's primary language so an Italian (or other
+    // non-Spanish) restaurant doesn't send a Spanish confirmation. Spanish is the
+    // last-resort default inside buildBookingConfirmationMessage.
+    let lang = params.reservation.language ?? null;
+    if (!lang) {
+      const { data: tenant } = await supabase
+        .from("tenants")
+        .select("settings")
+        .eq("id", params.tenantId)
+        .maybeSingle();
+      lang = (tenant?.settings as any)?.bot_config?.primary_language ?? null;
+    }
+
     const message = buildBookingConfirmationMessage({
       date: params.reservation.date,
       time: params.reservation.time,
       partySize: params.reservation.party_size,
       guestName: guest?.name ?? null,
       notes: params.reservation.notes ?? null,
-      language: params.reservation.language ?? null,
+      language: lang,
     });
 
     const headers: Record<string, string> = { "Content-Type": "application/json" };
