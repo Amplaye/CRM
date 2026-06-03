@@ -194,9 +194,16 @@ export const TenantProvider = ({ children }: { children: ReactNode }) => {
   const refreshActiveTenant = async () => {
     if (!user || !activeTenant) return;
     try {
+      // Select the SAME explicit columns as the initial load — NOT select("*").
+      // The `authenticated` role only has column-level SELECT on these columns of
+      // `tenants`; `select("*")` touches an ungranted column and Postgres returns
+      // 403 ("permission denied for table tenants"). That 403 made this read fall
+      // into the `if (!data) return` below, so Settings saves (e.g. the Bookings
+      // tab) persisted to the DB but the cached/active tenant kept the stale value
+      // and the form appeared to revert. Keep this list in sync with the Tenant type.
       const { data } = await supabase
         .from("tenants")
-        .select("*")
+        .select("id, name, slug, status, created_at, settings")
         .eq("id", activeTenant.id)
         .maybeSingle();
       if (!data) return;
@@ -205,7 +212,7 @@ export const TenantProvider = ({ children }: { children: ReactNode }) => {
       const updatedList = availableTenants.map((t) => (t.id === fresh.id ? fresh : t));
       setAvailableTenants(updatedList);
       safeSession.set(`tenant_ctx_${user.id}`, JSON.stringify({
-        globalRole, tenants: updatedList, activeTenant: fresh, activeRole,
+        globalRole, tenants: updatedList, activeTenant: fresh, activeRole, isImpersonating,
       }));
     } catch (err) {
       console.error("Failed to refresh active tenant", err);
