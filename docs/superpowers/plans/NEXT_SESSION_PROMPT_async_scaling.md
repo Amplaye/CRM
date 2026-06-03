@@ -4,7 +4,9 @@
 
 ---
 
-Continuiamo sullo **scaling del bot WhatsApp ristoranti** (motore unico). La Fase 1 async è quasi chiusa: restano l'hardening del concurrency limit + la prova finale del carico, una verifica veloce del Router, e 3 opzionali. Lavora in autonomia, fammi domande **solo a voce** e solo se davvero bloccanti.
+Continuiamo sullo **scaling del bot WhatsApp ristoranti** (motore unico). La Fase 1 async è quasi chiusa. Lavora in autonomia, fammi domande **solo a voce** e solo se davvero bloccanti.
+
+> **STATO 2026-06-03 (notte):** ✅ TASK B (routing anti-leak verificato, no leak cross-tenant) — ✅ TASK C (resolver fail-loud, deployato+test negativo OK) — ✅ TASK E (dialetto config-driven, deployato). E2E 12/12 dopo deploy. **RESTANO:** TASK A (timeout + prova carico, serve Sofía) e TASK D (opzionale, serve server). Dettagli in `project_n8n_scaling.md`.
 
 **Contesto fisso (NON rifare audit/load-test da zero):**
 - Motore unico = `[Picnic] Chatbot WhatsApp` **`166QnQsGHqXDpBxa`** (UNICO attivo), webhook `picnic-whatsapp`, 8 nodi. Entry reale = `[Meta Router] WhatsApp` **`zuYx8raoBVz88Erj`**, webhook `meta-whatsapp-router`. Tenant risolto a runtime da `body.tenant_id`. Tutti tenant di TEST → deploy/testa liberamente. Architettura: memoria `reference_motore_unico_chatbot.md`; scaling: `project_n8n_scaling.md`.
