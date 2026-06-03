@@ -246,12 +246,23 @@ export async function POST(request: Request) {
         const ex = nearby[0] as any;
         const sameSlot = ex.date === payload.date && (ex.time || '').slice(0, 5) === payload.time.slice(0, 5) && ex.party_size === payload.party_size;
         const exNotes = (ex.notes || '').trim();
-        // New info if the existing notes don't already contain the incoming text
-        // (case-insensitive substring — the bot tends to resend the full merged
-        // notes string, so guard against re-appending the same content).
-        const isNewInfo = sameSlot && exNotes.toLowerCase() !== incomingNotes.toLowerCase() && !exNotes.toLowerCase().includes(incomingNotes.toLowerCase());
+        const exLc = exNotes.toLowerCase();
+        const inLc = incomingNotes.toLowerCase();
+        // New info only if the two note strings genuinely differ AND neither one
+        // already contains the other. The engine usually resends the FULL merged
+        // notes ("anniversario + wheelchair"), so the incoming string often
+        // contains the existing one — in that case adopt the incoming verbatim
+        // instead of concatenating (which would duplicate "anniversario").
+        const isNewInfo = sameSlot && exLc !== inLc && !exLc.includes(inLc);
         if (isNewInfo) {
-          const mergedNotes = exNotes ? `${exNotes} — ${incomingNotes}` : incomingNotes;
+          // If the incoming notes already contain the existing notes, the client
+          // (via the bot) sent the cumulative version — use it as-is. Otherwise
+          // it's a genuine separate addendum — append it.
+          const mergedNotes = !exNotes
+            ? incomingNotes
+            : inLc.includes(exLc)
+              ? incomingNotes
+              : `${exNotes} — ${incomingNotes}`;
           const { error: mergeErr } = await supabase
             .from('reservations')
             .update({ notes: mergedNotes })
