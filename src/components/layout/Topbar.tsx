@@ -1,6 +1,6 @@
 "use client";
 
-import { Bell, Menu, Phone, MessageSquare, ShieldAlert, LogOut, Globe } from "lucide-react";
+import { Bell, Menu, Phone, MessageSquare, ShieldAlert, LogOut, Globe, X } from "lucide-react";
 import { useLanguage } from "@/lib/contexts/LanguageContext";
 import { useTenant } from "@/lib/contexts/TenantContext";
 import { tenantHasLocaleSwitcher } from "@/lib/tenants/legacy-locale";
@@ -40,7 +40,9 @@ export function Topbar({ onMenuToggle }: TopbarProps) {
   const dropdownRef = useRef<HTMLDivElement>(null);
   const seenIdsRef = useRef<Set<string>>(new Set());
 
-  const pushNotification = (notif: Notification) => {
+  const pushNotification = (notif: Notification, ts: number = Date.now()) => {
+    // Suppress anything cleared via "Cancella tutto" or dismissed individually.
+    if (isCleared(notif.id, ts)) return;
     setNotifications(prev => {
       if (prev.some(p => p.id === notif.id)) return prev;
       return [notif, ...prev].slice(0, 20);
@@ -68,22 +70,66 @@ export function Topbar({ onMenuToggle }: TopbarProps) {
   // stored copy wasn't). Re-load — and reset in-memory state — whenever the
   // active tenant changes so account A's items never show under account B.
   const notifKey = activeTenant?.id ? `crm_notifications_${activeTenant.id}` : null;
+  // "Cancella tutto" can't delete the source rows (notifications are derived from
+  // reservations/waitlist/audit_events on every fetch), so a plain setNotifications([])
+  // was instantly undone by the next catch-up / realtime event. We persist instead a
+  // "cleared at" watermark + a set of individually-dismissed ids, and filter both the
+  // catch-up query results and realtime events against them. Same per-tenant scoping.
+  const clearedKey = activeTenant?.id ? `crm_notif_cleared_${activeTenant.id}` : null;
+  const dismissedKey = activeTenant?.id ? `crm_notif_dismissed_${activeTenant.id}` : null;
+  const clearedAtRef = useRef<number>(0);
+  const dismissedRef = useRef<Set<string>>(new Set());
+
+  // Returns true when a notification should be hidden: dismissed by id, or its source
+  // event happened at/before the last "Cancella tutto". `ts` is the event timestamp (ms).
+  const isCleared = (id: string, ts: number) =>
+    dismissedRef.current.has(id) || (clearedAtRef.current > 0 && ts <= clearedAtRef.current);
+
   useEffect(() => {
     setIsClient(true);
     seenIdsRef.current = new Set();
     safeLocal.remove("crm_notifications"); // purge the old un-scoped key (cross-tenant leak)
+    // Load the clear watermark + dismissed-id set for the active tenant.
+    clearedAtRef.current = clearedKey ? (parseInt(safeLocal.get(clearedKey) || "0", 10) || 0) : 0;
+    dismissedRef.current = new Set();
+    if (dismissedKey) {
+      const rawDismissed = safeLocal.get(dismissedKey);
+      if (rawDismissed) { try { dismissedRef.current = new Set(JSON.parse(rawDismissed)); } catch(e) {} }
+    }
     if (!notifKey) { setNotifications([]); return; }
     const saved = safeLocal.get(notifKey);
     if (saved) {
       try {
         const parsed: Notification[] = JSON.parse(saved);
         parsed.forEach(n => seenIdsRef.current.add(n.id));
-        setNotifications(parsed);
+        // Drop anything already dismissed (a stored copy could predate the dismissal).
+        setNotifications(parsed.filter(n => !dismissedRef.current.has(n.id)));
         return;
       } catch(e) {}
     }
     setNotifications([]);
-  }, [notifKey]);
+  }, [notifKey, clearedKey, dismissedKey]);
+
+  // Clear all: stamp the watermark to now so derived notifications older than this
+  // are never re-added, then empty the list. Survives refetch + realtime.
+  const clearAllNotifications = () => {
+    const now = Date.now();
+    clearedAtRef.current = now;
+    if (clearedKey) safeLocal.set(clearedKey, String(now));
+    setNotifications([]);
+  };
+
+  // Dismiss a single notification: remember its id so it isn't re-derived, then drop it.
+  const dismissNotification = (id: string) => {
+    dismissedRef.current.add(id);
+    // Cap the set so it can't grow unbounded; the 24h catch-up window means older ids
+    // are no longer queried anyway. Keep the most recent 200.
+    if (dismissedRef.current.size > 200) {
+      dismissedRef.current = new Set(Array.from(dismissedRef.current).slice(-200));
+    }
+    if (dismissedKey) safeLocal.set(dismissedKey, JSON.stringify(Array.from(dismissedRef.current)));
+    setNotifications(prev => prev.filter(n => n.id !== id));
+  };
 
   // Save notifications to the tenant-scoped key on change.
   useEffect(() => {
@@ -132,11 +178,13 @@ export function Topbar({ onMenuToggle }: TopbarProps) {
         ]);
         if (cancelled) return;
 
-        const newNotifs: Notification[] = [];
+        const newNotifs: { n: Notification; ts: number }[] = [];
         (resRes.data || []).forEach((res: any) => {
           if (res.source === 'walk_in' || res.status === 'seated' || res.created_by_type === 'staff') return;
           const isEscalated = res.status === 'escalated';
-          newNotifs.push({
+          const ts = new Date(res.created_at).getTime();
+          if (isCleared(res.id, ts)) return;
+          newNotifs.push({ ts, n: {
             id: res.id,
             type: isEscalated ? 'incident' : 'reservation',
             message: `${t('topbar_new_reservation')}: ${res.party_size} ${t('topbar_people')} - ${res.date} ${res.time}`,
@@ -144,17 +192,19 @@ export function Topbar({ onMenuToggle }: TopbarProps) {
             read: false,
             href: isEscalated ? '/pending' : `/reservations?date=${res.date}`,
             source: res.source ?? null,
-          });
+          } });
         });
         (wlRes.data || []).forEach((entry: any) => {
-          newNotifs.push({
+          const ts = new Date(entry.created_at).getTime();
+          if (isCleared(entry.id, ts)) return;
+          newNotifs.push({ ts, n: {
             id: entry.id,
             type: 'waitlist',
             message: `${t('topbar_waitlist')}: ${entry.party_size} ${t('topbar_people')} - ${entry.date || ''}`,
             time: new Date(entry.created_at).toLocaleTimeString(),
             read: false,
             href: '/waitlist',
-          });
+          } });
         });
         (auRes.data || []).forEach((ev: any) => {
           const before = ev.details?.previous || {};
@@ -165,19 +215,21 @@ export function Topbar({ onMenuToggle }: TopbarProps) {
           if (upd.party_size && before.party_size && upd.party_size !== before.party_size) parts.push(`${before.party_size} → ${upd.party_size} ${t('topbar_people')}`);
           const diff = parts.length ? ` (${parts.join(', ')})` : '';
           const goDate = upd.date || before.date || '';
-          newNotifs.push({
+          const ts = new Date(ev.created_at).getTime();
+          if (isCleared(ev.id, ts)) return;
+          newNotifs.push({ ts, n: {
             id: ev.id,
             type: 'reservation',
             message: `${t('topbar_reservation_modified')}${diff}`,
             time: new Date(ev.created_at).toLocaleTimeString(),
             read: false,
             href: goDate ? `/reservations?date=${goDate}` : '/reservations',
-          });
+          } });
         });
 
         if (newNotifs.length > 0) {
-          newNotifs.forEach((n, i) => {
-            setTimeout(() => pushNotification(n), i * 180);
+          newNotifs.forEach((item, i) => {
+            setTimeout(() => pushNotification(item.n, item.ts), i * 180);
           });
         }
         safeLocal.set(lastKey, new Date().toISOString());
@@ -406,7 +458,7 @@ export function Topbar({ onMenuToggle }: TopbarProps) {
               <div className="px-4 py-3 border-b flex items-center justify-between flex-shrink-0" style={{ borderColor: '#c4956a' }}>
                 <span className="text-sm font-semibold text-black">{t("topbar_notifications")}</span>
                 {notifications.length > 0 && (
-                  <button onClick={() => setNotifications([])} className="text-xs text-[#c4956a] hover:text-[#b8845c] cursor-pointer">
+                  <button onClick={clearAllNotifications} className="text-xs text-[#c4956a] hover:text-[#b8845c] cursor-pointer">
                     {t("topbar_clear_all")}
                   </button>
                 )}
@@ -439,7 +491,13 @@ export function Topbar({ onMenuToggle }: TopbarProps) {
                           </p>
                           <p className="text-xs text-black mt-1">{n.time}</p>
                         </div>
-                        <span className="text-xs text-[#c4956a] flex-shrink-0 mt-0.5">→</span>
+                        <button
+                          onClick={(e) => { e.stopPropagation(); dismissNotification(n.id); }}
+                          title={t("topbar_clear_all")}
+                          className="flex-shrink-0 mt-0.5 p-1 -m-1 text-[#c4956a] hover:text-[#b8845c] cursor-pointer"
+                        >
+                          <X className="h-3.5 w-3.5" />
+                        </button>
                       </div>
                     </div>
                   );
@@ -452,7 +510,7 @@ export function Topbar({ onMenuToggle }: TopbarProps) {
               <div className="px-4 py-3 border-b flex items-center justify-between" style={{ borderColor: '#c4956a' }}>
                 <span className="text-sm font-semibold text-black">{t("topbar_notifications")}</span>
                 {notifications.length > 0 && (
-                  <button onClick={() => setNotifications([])} className="text-xs text-[#c4956a] hover:text-[#b8845c] cursor-pointer">
+                  <button onClick={clearAllNotifications} className="text-xs text-[#c4956a] hover:text-[#b8845c] cursor-pointer">
                     {t("topbar_clear_all")}
                   </button>
                 )}
@@ -465,7 +523,7 @@ export function Topbar({ onMenuToggle }: TopbarProps) {
                   const isFresh = freshIds.has(n.id);
                   return (
                     <div key={n.id} onClick={() => { router.push(n.href); setShowDropdown(false); }}
-                      className={`px-4 py-3 border-b hover:bg-[#c4956a]/10 transition-colors cursor-pointer ${isFresh ? 'is-new-notif' : ''}`}
+                      className={`group px-4 py-3 border-b hover:bg-[#c4956a]/10 transition-colors cursor-pointer ${isFresh ? 'is-new-notif' : ''}`}
                       style={{ borderColor: 'rgba(196,149,106,0.2)' }}>
                       <div className="flex items-start gap-2.5">
                         <span className="text-base flex-shrink-0 mt-0.5">{icon}</span>
@@ -485,7 +543,13 @@ export function Topbar({ onMenuToggle }: TopbarProps) {
                           </p>
                           <p className="text-xs text-black mt-1">{n.time}</p>
                         </div>
-                        <span className="text-xs text-[#c4956a] flex-shrink-0 mt-0.5">→</span>
+                        <button
+                          onClick={(e) => { e.stopPropagation(); dismissNotification(n.id); }}
+                          title={t("topbar_clear_all")}
+                          className="flex-shrink-0 mt-0.5 p-1 -m-1 text-[#c4956a]/0 group-hover:text-[#c4956a] hover:!text-[#b8845c] transition-colors cursor-pointer"
+                        >
+                          <X className="h-3.5 w-3.5" />
+                        </button>
                       </div>
                     </div>
                   );

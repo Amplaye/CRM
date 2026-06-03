@@ -117,6 +117,12 @@ export interface VenueInfo {
   deposit_required: boolean;
   deposit_amount: string;
   cancellation_notice: CancellationNotice;
+  // Short Google-Maps link (via da.gd) shown in the WhatsApp recap instead of the long
+  // bare URL that widened the chat. Optional + best-effort: when absent the bot falls
+  // back to the long mapsLink(). maps_short_src records the long URL it was generated
+  // from, so it's only regenerated when the address changes. See scripts/venue-maps-short.mjs.
+  maps_short?: string;
+  maps_short_src?: string;
 }
 
 /** The booking-policy thresholds the cloned n8n bot reads from settings.bot_config.
@@ -523,6 +529,26 @@ export function formatDepositAmount(raw: string, currency = "EUR"): string {
 export function mapsLink(address: string, city?: string): string {
   const q = [address, city].map((s) => (s || "").trim()).filter(Boolean).join(", ");
   return q ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(q)}` : "";
+}
+
+/** Shorten a long Maps URL via da.gd (free, no key, redirects straight to the target —
+ *  no tracker, and unlike is.gd it doesn't block google.com/maps URLs). Best-effort:
+ *  returns "" on any failure/timeout so callers can fall back to the long URL. */
+export async function shortenMapsLink(longUrl: string): Promise<string> {
+  if (!longUrl) return "";
+  try {
+    const ctrl = new AbortController();
+    const to = setTimeout(() => ctrl.abort(), 6000);
+    const r = await fetch("https://da.gd/s?url=" + encodeURIComponent(longUrl), {
+      headers: { "User-Agent": "baliflow-crm/1.0" },
+      signal: ctrl.signal,
+    });
+    clearTimeout(to);
+    const text = (await r.text()).trim();
+    return r.ok && /^https?:\/\/da\.gd\//.test(text) ? text : "";
+  } catch {
+    return "";
+  }
 }
 
 function paymentLabel(L: Labels, m: PaymentMethod): string {

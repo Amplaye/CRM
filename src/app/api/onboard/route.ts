@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { createServerSupabaseClient, createServiceRoleClient } from "@/lib/supabase/server";
 import { runOnboard, OnboardInput, OnboardProgress } from "@/lib/onboarding/orchestrator";
 import { resolveOwnerProvisionTenant } from "@/lib/onboarding/owner-tenant";
-import { generateKbArticlesMulti, venueFromQuestionnaire, botConfigFromQuestionnaire, KbQuestionnaire, Lang } from "@/lib/onboarding/kb-generator";
+import { generateKbArticlesMulti, venueFromQuestionnaire, botConfigFromQuestionnaire, mapsLink, shortenMapsLink, KbQuestionnaire, Lang } from "@/lib/onboarding/kb-generator";
 import { featuresFromQuestionnaire } from "@/lib/types/tenant-settings";
 import { chatCompletion } from "@/lib/openai-base-url";
 
@@ -165,6 +165,17 @@ export async function POST(req: Request) {
   // collide on n8n webhook paths.
   const slug = `${slugify(body.restaurant_name) || "resto"}-${tenantId.slice(0, 4)}`;
 
+  // Pre-generate a SHORT Maps link (da.gd) so the WhatsApp recap shows the street name
+  // + a tiny link instead of a giant URL. Best-effort: if da.gd is slow/down we store the
+  // venue without maps_short and the bot falls back to the long URL. Idempotency key
+  // (maps_short_src) lets scripts/venue-maps-short.mjs refresh it later if the address changes.
+  const venue = venueFromQuestionnaire(body.questionnaire);
+  const longMaps = mapsLink(venue.address, venue.city);
+  if (longMaps) {
+    const short = await shortenMapsLink(longMaps);
+    if (short) { venue.maps_short = short; venue.maps_short_src = longMaps; }
+  }
+
   const input: OnboardInput = {
     restaurant_name: body.restaurant_name,
     slug,
@@ -185,9 +196,9 @@ export async function POST(req: Request) {
     // Feature flags derived from the wizard answers, so Settings → Features
     // opens already matching what the owner said (e.g. "no terrace" → OFF).
     features: featuresFromQuestionnaire(body.questionnaire, selected.length),
-    // Booking-confirmation venue subset (address/parking/deposit/cancellation),
-    // persisted on the tenant so /api/ai/book can echo it in the recap.
-    venue: venueFromQuestionnaire(body.questionnaire),
+    // Booking-confirmation venue subset (address/parking/deposit/cancellation +
+    // pre-shortened maps link), persisted on the tenant so /api/ai/book can echo it.
+    venue,
     // Booking-policy thresholds the cloned n8n bot reads from settings.bot_config
     // (large-group / block sizes + last-reservation offset). Without these the bot
     // fell back to its hardcoded Picnic defaults and ignored the wizard answers.

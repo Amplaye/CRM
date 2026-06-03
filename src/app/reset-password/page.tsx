@@ -81,6 +81,9 @@ export default function ResetPasswordPage() {
                   </div>
                   <input
                     type="password"
+                    id="password"
+                    name="new-password"
+                    autoComplete="new-password"
                     required
                     minLength={6}
                     value={password}
@@ -100,6 +103,9 @@ export default function ResetPasswordPage() {
                   </div>
                   <input
                     type="password"
+                    id="confirmPassword"
+                    name="confirm-password"
+                    autoComplete="new-password"
                     required
                     minLength={6}
                     value={confirmPassword}

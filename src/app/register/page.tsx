@@ -133,6 +133,9 @@ export default function RegisterPage() {
                   </div>
                   <input
                     type="text"
+                    id="name"
+                    name="name"
+                    autoComplete="name"
                     required
                     value={name}
                     onChange={(e) => setName(e.target.value)}
@@ -151,6 +154,9 @@ export default function RegisterPage() {
                   </div>
                   <input
                     type="text"
+                    id="businessName"
+                    name="organization"
+                    autoComplete="organization"
                     required
                     value={businessName}
                     onChange={(e) => setBusinessName(e.target.value)}
@@ -169,6 +175,9 @@ export default function RegisterPage() {
                   </div>
                   <input
                     type="email"
+                    id="email"
+                    name="email"
+                    autoComplete="email"
                     required
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
@@ -187,6 +196,9 @@ export default function RegisterPage() {
                   </div>
                   <input
                     type={showPassword ? "text" : "password"}
+                    id="password"
+                    name="password"
+                    autoComplete="new-password"
                     required
                     minLength={6}
                     value={password}
