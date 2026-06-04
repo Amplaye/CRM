@@ -58,15 +58,26 @@ export async function POST(req: NextRequest) {
     const normalizedTo = to.replace(/^whatsapp:/, "").trim();
     const errorKey = `meta:whatsapp:${normalizedTo}`;
 
+    // Meta sandbox: a send to a number not on the test allow-list fails with code
+    // 131030 ("Recipient phone number not in allowed list"). On the shared sandbox
+    // number this is an EXPECTED test artifact (E2E numbers are never whitelisted),
+    // not a platform fault — logging it as a high-severity message_failure only
+    // spams the bug board. Skip the system event for 131030; still return the error
+    // to the caller so the flow knows the send didn't land.
+    const metaErrorCode = (result.error as { error?: { code?: number } } | undefined)?.error?.code;
+    const isSandboxNotAllowed = metaErrorCode === 131030;
+
     if (!result.ok) {
-      logSystemEvent({
-        category: "message_failure",
-        severity: "high",
-        title: `WhatsApp send failed to ${to}`,
-        description: result.errorMessage || "Meta error",
-        metadata: { to, metaError: result.error },
-        error_key: errorKey,
-      });
+      if (!isSandboxNotAllowed) {
+        logSystemEvent({
+          category: "message_failure",
+          severity: "high",
+          title: `WhatsApp send failed to ${to}`,
+          description: result.errorMessage || "Meta error",
+          metadata: { to, metaError: result.error },
+          error_key: errorKey,
+        });
+      }
       return NextResponse.json(
         { error: result.errorMessage || "Meta error", details: result.error },
         { status: result.status || 502 }
