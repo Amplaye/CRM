@@ -1,6 +1,6 @@
 "use client";
 
-import { Save, ChevronDown, Phone, Star, CalendarClock } from "lucide-react";
+import { Save, ChevronDown, Phone, CalendarClock } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
 import { useLanguage } from "@/lib/contexts/LanguageContext";
 import { useTenant } from "@/lib/contexts/TenantContext";
@@ -229,8 +229,6 @@ export function BookingTab() {
           </Row>
         )}
       </section>
-
-      <p className="text-xs text-black flex items-center gap-1.5"><Star className="w-3.5 h-3.5" />{t("settings_booking_footnote")}</p>
     </div>
   );
 }
