@@ -57,7 +57,7 @@ function Row({ label, hint, children }: { label: string; hint?: string; children
     <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 py-3 border-b last:border-b-0" style={{ borderColor: "rgba(196,149,106,0.25)" }}>
       <div className="flex-1">
         <label className="text-sm font-bold text-black">{label}</label>
-        {hint && <p className="text-xs text-black/70 mt-0.5">{hint}</p>}
+        {hint && <p className="text-xs text-black mt-0.5">{hint}</p>}
       </div>
       <div className="shrink-0 w-full sm:w-auto">{children}</div>
     </div>
@@ -159,7 +159,7 @@ export function BookingTab() {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h2 className="text-lg font-bold text-black">{t("settings_booking_title")}</h2>
-          <p className="mt-1 text-sm text-black/70">{t("settings_booking_desc")}</p>
+          <p className="mt-1 text-sm text-black">{t("settings_booking_desc")}</p>
         </div>
         <div className="mt-3 sm:mt-0 flex items-center space-x-3">
           {saved && <span className="text-sm font-medium text-green-600">{t("settings_saved")}</span>}
@@ -176,7 +176,7 @@ export function BookingTab() {
       {/* Contacts */}
       <section className="p-6 rounded-xl border-2" style={SECTION}>
         <h3 className="text-lg font-bold text-black mb-1 flex items-center gap-2"><Phone className="w-4 h-4" />{t("settings_booking_contacts")}</h3>
-        <p className="text-xs text-black/70 mb-3">{t("settings_booking_contacts_desc")}</p>
+        <p className="text-xs text-black mb-3">{t("settings_booking_contacts_desc")}</p>
         <Row label={t("settings_booking_owner_phone")} hint={t("settings_booking_owner_phone_hint")}>
           <input type="tel" value={ownerPhone} onChange={(e) => setOwnerPhone(e.target.value)} placeholder="+34 600 000 000" className={INPUT} style={INPUT_BORDER} />
         </Row>
@@ -191,7 +191,7 @@ export function BookingTab() {
       {/* Booking rules */}
       <section className="p-6 rounded-xl border-2" style={SECTION}>
         <h3 className="text-lg font-bold text-black mb-1 flex items-center gap-2"><CalendarClock className="w-4 h-4" />{t("settings_booking_rules")}</h3>
-        <p className="text-xs text-black/70 mb-3">{t("settings_booking_rules_desc")}</p>
+        <p className="text-xs text-black mb-3">{t("settings_booking_rules_desc")}</p>
 
         <Row label={t("settings_booking_cancellation")} hint={t("settings_booking_cancellation_hint")}>
           <FieldSelect value={cancellation} onChange={(v) => setCancellation(v as CancellationNotice)}>
@@ -230,7 +230,7 @@ export function BookingTab() {
         )}
       </section>
 
-      <p className="text-xs text-black/50 flex items-center gap-1.5"><Star className="w-3.5 h-3.5" />{t("settings_booking_footnote")}</p>
+      <p className="text-xs text-black flex items-center gap-1.5"><Star className="w-3.5 h-3.5" />{t("settings_booking_footnote")}</p>
     </div>
   );
 }
