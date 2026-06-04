@@ -41,10 +41,10 @@ function Toggle({ on, onClick }: { on: boolean; onClick: () => void }) {
   );
 }
 
-function FieldSelect({ value, onChange, children }: { value: string; onChange: (v: string) => void; children: ReactNode }) {
+function FieldSelect({ id, value, onChange, children }: { id?: string; value: string; onChange: (v: string) => void; children: ReactNode }) {
   return (
     <div className="relative w-full sm:w-56">
-      <select value={value} onChange={(e) => onChange(e.target.value)} className={SELECT_CLS} style={{ borderColor: "#c4956a" }}>
+      <select id={id} name={id} value={value} onChange={(e) => onChange(e.target.value)} className={SELECT_CLS} style={{ borderColor: "#c4956a" }}>
         {children}
       </select>
       <ChevronDown className="pointer-events-none absolute right-3 inset-y-0 my-auto w-4 h-4 text-[#8b6540]" aria-hidden />
@@ -52,11 +52,11 @@ function FieldSelect({ value, onChange, children }: { value: string; onChange: (
   );
 }
 
-function Row({ label, hint, children }: { label: string; hint?: string; children: ReactNode }) {
+function Row({ htmlFor, label, hint, children }: { htmlFor?: string; label: string; hint?: string; children: ReactNode }) {
   return (
     <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 py-3 border-b last:border-b-0" style={{ borderColor: "rgba(196,149,106,0.25)" }}>
       <div className="flex-1">
-        <label className="text-sm font-bold text-black">{label}</label>
+        <label htmlFor={htmlFor} className="text-sm font-bold text-black">{label}</label>
         {hint && <p className="text-xs text-black mt-0.5">{hint}</p>}
       </div>
       <div className="shrink-0 w-full sm:w-auto">{children}</div>
@@ -177,14 +177,14 @@ export function BookingTab() {
       <section className="p-6 rounded-xl border-2" style={SECTION}>
         <h3 className="text-lg font-bold text-black mb-1 flex items-center gap-2"><Phone className="w-4 h-4" />{t("settings_booking_contacts")}</h3>
         <p className="text-xs text-black mb-3">{t("settings_booking_contacts_desc")}</p>
-        <Row label={t("settings_booking_owner_phone")} hint={t("settings_booking_owner_phone_hint")}>
-          <input type="tel" value={ownerPhone} onChange={(e) => setOwnerPhone(e.target.value)} placeholder="+34 600 000 000" className={INPUT} style={INPUT_BORDER} />
+        <Row htmlFor="owner_phone" label={t("settings_booking_owner_phone")} hint={t("settings_booking_owner_phone_hint")}>
+          <input id="owner_phone" name="owner_phone" type="tel" autoComplete="tel" value={ownerPhone} onChange={(e) => setOwnerPhone(e.target.value)} placeholder="+34 600 000 000" className={INPUT} style={INPUT_BORDER} />
         </Row>
-        <Row label={t("settings_booking_public_phone")} hint={t("settings_booking_public_phone_hint")}>
-          <input type="tel" value={restaurantPhone} onChange={(e) => setRestaurantPhone(e.target.value)} placeholder="+34 828 000 000" className={INPUT} style={INPUT_BORDER} />
+        <Row htmlFor="restaurant_phone" label={t("settings_booking_public_phone")} hint={t("settings_booking_public_phone_hint")}>
+          <input id="restaurant_phone" name="restaurant_phone" type="tel" autoComplete="tel" value={restaurantPhone} onChange={(e) => setRestaurantPhone(e.target.value)} placeholder="+34 828 000 000" className={INPUT} style={INPUT_BORDER} />
         </Row>
-        <Row label={t("settings_booking_review_url")} hint={t("settings_booking_review_url_hint")}>
-          <input type="url" value={reviewUrl} onChange={(e) => setReviewUrl(e.target.value)} placeholder="https://g.page/..." className={INPUT} style={INPUT_BORDER} />
+        <Row htmlFor="review_url" label={t("settings_booking_review_url")} hint={t("settings_booking_review_url_hint")}>
+          <input id="review_url" name="review_url" type="url" autoComplete="url" value={reviewUrl} onChange={(e) => setReviewUrl(e.target.value)} placeholder="https://g.page/..." className={INPUT} style={INPUT_BORDER} />
         </Row>
       </section>
 
@@ -193,14 +193,14 @@ export function BookingTab() {
         <h3 className="text-lg font-bold text-black mb-1 flex items-center gap-2"><CalendarClock className="w-4 h-4" />{t("settings_booking_rules")}</h3>
         <p className="text-xs text-black mb-3">{t("settings_booking_rules_desc")}</p>
 
-        <Row label={t("settings_booking_cancellation")} hint={t("settings_booking_cancellation_hint")}>
-          <FieldSelect value={cancellation} onChange={(v) => setCancellation(v as CancellationNotice)}>
+        <Row htmlFor="cancellation_notice" label={t("settings_booking_cancellation")} hint={t("settings_booking_cancellation_hint")}>
+          <FieldSelect id="cancellation_notice" value={cancellation} onChange={(v) => setCancellation(v as CancellationNotice)}>
             {CANCELLATION_OPTIONS.map((c) => <option key={c} value={c}>{t(CANCELLATION_KEY[c] as any)}</option>)}
           </FieldSelect>
         </Row>
 
-        <Row label={t("settings_booking_late")} hint={t("settings_booking_late_hint")}>
-          <FieldSelect value={String(lateTol)} onChange={(v) => setLateTol(Number(v))}>
+        <Row htmlFor="late_tolerance" label={t("settings_booking_late")} hint={t("settings_booking_late_hint")}>
+          <FieldSelect id="late_tolerance" value={String(lateTol)} onChange={(v) => setLateTol(Number(v))}>
             {LATE_OPTIONS.map((n) => <option key={n} value={String(n)}>{n} min</option>)}
           </FieldSelect>
         </Row>
@@ -208,13 +208,13 @@ export function BookingTab() {
           <Toggle on={lateGrace} onClick={() => setLateGrace((v) => !v)} />
         </Row>
 
-        <Row label={t("settings_booking_last_lunch")} hint={t("settings_booking_last_hint")}>
-          <FieldSelect value={String(lunchOff)} onChange={(v) => setLunchOff(Number(v))}>
+        <Row htmlFor="last_lunch_offset" label={t("settings_booking_last_lunch")} hint={t("settings_booking_last_hint")}>
+          <FieldSelect id="last_lunch_offset" value={String(lunchOff)} onChange={(v) => setLunchOff(Number(v))}>
             {OFFSET_OPTIONS.map((n) => <option key={n} value={String(n)}>{offsetLabel(n)}</option>)}
           </FieldSelect>
         </Row>
-        <Row label={t("settings_booking_last_dinner")} hint={t("settings_booking_last_hint")}>
-          <FieldSelect value={String(dinnerOff)} onChange={(v) => setDinnerOff(Number(v))}>
+        <Row htmlFor="last_dinner_offset" label={t("settings_booking_last_dinner")} hint={t("settings_booking_last_hint")}>
+          <FieldSelect id="last_dinner_offset" value={String(dinnerOff)} onChange={(v) => setDinnerOff(Number(v))}>
             {OFFSET_OPTIONS.map((n) => <option key={n} value={String(n)}>{offsetLabel(n)}</option>)}
           </FieldSelect>
         </Row>
@@ -223,8 +223,8 @@ export function BookingTab() {
           <Toggle on={depositRequired} onClick={() => setDepositRequired((v) => !v)} />
         </Row>
         {depositRequired && (
-          <Row label={t("settings_booking_deposit_amount")}>
-            <input type="text" value={depositAmount} onChange={(e) => setDepositAmount(e.target.value)}
+          <Row htmlFor="deposit_amount" label={t("settings_booking_deposit_amount")}>
+            <input id="deposit_amount" name="deposit_amount" type="text" value={depositAmount} onChange={(e) => setDepositAmount(e.target.value)}
               placeholder={t("settings_booking_deposit_amount_ph")} className={INPUT} style={INPUT_BORDER} />
           </Row>
         )}
