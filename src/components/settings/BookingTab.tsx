@@ -21,6 +21,12 @@ const CANCELLATION_KEY: Record<CancellationNotice, string> = {
 const LATE_OPTIONS = [10, 15, 20, 30];
 // -1 = shift not served; 0 = up to closing; >0 = minutes before closing.
 const OFFSET_OPTIONS = [-1, 0, 15, 30, 45, 60, 90];
+// Owner-facing presets for the auto-confirm limit (the MAX party size that still
+// auto-confirms). "Other" reveals a free number input.
+const AUTO_CONFIRM_PRESETS = [2, 4, 6, 8, 10, 12];
+// Default MAX shown when a tenant has no bot_config yet: the bot falls back to a
+// large-threshold of 7, i.e. auto-confirm up to 6.
+const DEFAULT_AUTO_CONFIRM_MAX = 6;
 
 const INPUT = "block w-full rounded-lg border-2 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-[#c4956a] sm:w-56";
 const INPUT_BORDER = { borderColor: "#c4956a", background: "rgba(252,246,237,0.6)" };
@@ -78,6 +84,9 @@ export function BookingTab() {
   const [dinnerOff, setDinnerOff] = useState(60);
   const [depositRequired, setDepositRequired] = useState(false);
   const [depositAmount, setDepositAmount] = useState("");
+  // Owner-facing MAX party size that auto-confirms (= bot's large threshold − 1).
+  const [autoConfirmMax, setAutoConfirmMax] = useState(DEFAULT_AUTO_CONFIRM_MAX);
+  const [customMax, setCustomMax] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState(false);
@@ -104,6 +113,11 @@ export function BookingTab() {
     const bc = s.bot_config || {};
     setLateTol(Number.isFinite(bc.late_tolerance_min) ? bc.late_tolerance_min : 15);
     setLateGrace(bc.late_grace_if_notified !== false);
+    // Display the MAX (threshold − 1). No bot_config yet → bot uses 7 → show 6.
+    const large = Number(bc.party_size_threshold_large);
+    const max = Number.isFinite(large) && large > 0 ? large - 1 : DEFAULT_AUTO_CONFIRM_MAX;
+    setAutoConfirmMax(max);
+    setCustomMax(!AUTO_CONFIRM_PRESETS.includes(max));
   }, [tenant]);
 
   const handleSave = async () => {
@@ -127,6 +141,7 @@ export function BookingTab() {
           last_dinner_offset_min: dinnerOff,
           deposit_required: depositRequired,
           deposit_amount: depositAmount,
+          auto_confirm_max: autoConfirmMax,
         }),
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -192,6 +207,47 @@ export function BookingTab() {
       <section className="p-6 rounded-xl border-2" style={SECTION}>
         <h3 className="text-lg font-bold text-black mb-1 flex items-center gap-2"><CalendarClock className="w-4 h-4" />{t("settings_booking_rules")}</h3>
         <p className="text-xs text-black mb-3">{t("settings_booking_rules_desc")}</p>
+
+        {/* Auto-confirm limit — the MAX party size the AI confirms instantly.
+            Bigger groups become "requests" the staff approves (Pending). */}
+        <Row htmlFor="auto_confirm" label={t("settings_autoconfirm_label")} hint={t("settings_autoconfirm_hint")}>
+          <div>
+            <FieldSelect
+              id="auto_confirm"
+              value={customMax ? "__other__" : String(autoConfirmMax)}
+              onChange={(v) => {
+                if (v === "__other__") {
+                  setCustomMax(true);
+                  if (AUTO_CONFIRM_PRESETS.includes(autoConfirmMax)) {
+                    setAutoConfirmMax(Math.max(...AUTO_CONFIRM_PRESETS) + 1);
+                  }
+                } else {
+                  setCustomMax(false);
+                  setAutoConfirmMax(Number(v));
+                }
+              }}
+            >
+              {AUTO_CONFIRM_PRESETS.map((n) => (
+                <option key={n} value={String(n)}>{n} {t("settings_autoconfirm_unit")}</option>
+              ))}
+              <option value="__other__">{t("settings_autoconfirm_other")}</option>
+            </FieldSelect>
+            {customMax && (
+              <div className="mt-2 flex items-center gap-2">
+                <input
+                  id="auto_confirm_custom"
+                  type="number"
+                  min={1}
+                  value={autoConfirmMax || ""}
+                  onChange={(e) => setAutoConfirmMax(Math.max(0, Number(e.target.value)))}
+                  className="w-20 border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#c4956a]/40 focus:border-[#c4956a]"
+                  style={{ borderColor: "#c4956a" }}
+                />
+                <span className="text-sm text-black">{t("settings_autoconfirm_unit")}</span>
+              </div>
+            )}
+          </div>
+        </Row>
 
         <Row htmlFor="cancellation_notice" label={t("settings_booking_cancellation")} hint={t("settings_booking_cancellation_hint")}>
           <FieldSelect id="cancellation_notice" value={cancellation} onChange={(v) => setCancellation(v as CancellationNotice)}>

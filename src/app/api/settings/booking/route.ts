@@ -5,6 +5,7 @@ import { getFeatures } from "@/lib/types/tenant-settings";
 import {
   reservationArticleFromForm,
   detectArticleLangs,
+  largeToBlock,
   RESERVATION_TITLES,
   type CancellationNotice,
   type Lang,
@@ -85,6 +86,23 @@ export async function POST(req: NextRequest) {
     const depositRequired = !!body.deposit_required;
     const depositAmount = String(body.deposit_amount ?? "").trim();
 
+    // Auto-confirm limit (moved here from Settings → Features): the owner-facing
+    // MAX party size the assistant confirms instantly. The n8n bot + /api/ai/book
+    // read the +1 "first size that needs manual review" threshold. Fall back to the
+    // current setting (or 6) when the form doesn't send the field.
+    const features = getFeatures(settings);
+    const prevLarge = Number(settings.bot_config?.party_size_threshold_large);
+    const prevMax = Number.isFinite(prevLarge) && prevLarge > 0 ? prevLarge - 1 : 6;
+    const autoConfirmMax = clampInt(body.auto_confirm_max, 1, 100, prevMax);
+    const largeThreshold = Math.max(1, autoConfirmMax + 1);
+    // A venue that hosts events / large groups keeps headroom above the review line.
+    const acceptsLarge = features.events_enabled !== false;
+    // Preserve any wider manual-block ceiling the owner already had; else derive it.
+    const prevBlock = Number(settings.bot_config?.party_size_block_threshold);
+    const blockThreshold = Number.isFinite(prevBlock) && prevBlock > largeThreshold
+      ? prevBlock
+      : largeToBlock(largeThreshold, acceptsLarge);
+
     // Closing-time gate uses ONE offset: the stricter (larger) of the served
     // shifts; a shift switched off (-1) is ignored. Mirrors botConfigFromQuestionnaire.
     const servedOffsets = [lunchOff, dinnerOff].filter((n) => n >= 0);
@@ -108,6 +126,8 @@ export async function POST(req: NextRequest) {
         closing_time_offset_min: closingOffset,
         late_tolerance_min: lateTol,
         late_grace_if_notified: lateGrace,
+        party_size_threshold_large: largeThreshold,
+        party_size_block_threshold: blockThreshold,
       },
     };
 
@@ -141,16 +161,9 @@ export async function POST(req: NextRequest) {
         .eq("tenant_id", tenant_id);
       const capacity = (tables || []).reduce((s: number, t: { seats?: number }) => s + (Number(t.seats) || 0), 0);
 
-      const features = getFeatures(settings as any);
-      const large = Number(settings.bot_config?.party_size_threshold_large);
-      const autoConfirmMax = Number.isFinite(large) && large > 0 ? large - 1 : 6;
-      const block = Number(settings.bot_config?.party_size_block_threshold);
-      // Accepts large groups when there's headroom above the manual-review line;
-      // else fall back to the events feature flag.
-      const acceptsLarge = Number.isFinite(block) && Number.isFinite(large)
-        ? block > large
-        : !!features.events_enabled;
-
+      // `features`, `autoConfirmMax` and `acceptsLarge` are the values we just
+      // saved above — so the KB article QUOTES the same auto-confirm policy the
+      // book route ENFORCES.
       const article = reservationArticleFromForm(
         {
           cancellation_notice: cancellation,
