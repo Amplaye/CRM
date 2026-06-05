@@ -22,6 +22,11 @@ describe('getShift', () => {
     expect(getShift('20:00')).toBe('dinner');
     expect(getShift('23:30')).toBe('dinner');
   });
+  it('classifies post-midnight small hours as dinner (after-midnight close)', () => {
+    expect(getShift('00:00')).toBe('dinner');
+    expect(getShift('00:15')).toBe('dinner');
+    expect(getShift('01:00')).toBe('dinner');
+  });
 });
 
 describe('getRotationMinutes', () => {
@@ -130,6 +135,13 @@ describe('isOpen', () => {
   });
 });
 
+// Oraz live schedule: Fri dinner runs 19:30–00:00, Sat 19:30–01:00 (closes after
+// midnight). Mirrors tenant.settings.opening_hours for the after-midnight regression.
+const AFTER_MIDNIGHT_HOURS: OpeningHours = {
+  '5': [{ open: '12:30', close: '15:30' }, { open: '19:30', close: '00:00' }], // Fri
+  '6': [{ open: '12:30', close: '15:30' }, { open: '19:30', close: '01:00' }], // Sat
+};
+
 describe('getTimeSlots', () => {
   it('returns empty for closed days', () => {
     expect(getTimeSlots(1, PICNIC_HOURS)).toEqual([]);
@@ -149,6 +161,23 @@ describe('getTimeSlots', () => {
     // No gap-fill — 16:00 lunch close to 20:00 dinner open should NOT include 16:15–19:45
     expect(thu).not.toContain('17:00');
     expect(thu).not.toContain('19:00');
+  });
+  // After-midnight close: dinner that ends at 00:00 / 01:00 must still produce slots.
+  // Regression — the loop used to never run (1170 <= 0), wiping the whole dinner service.
+  it('generates dinner slots when dinner closes at midnight (00:00)', () => {
+    const fri = getTimeSlots(5, AFTER_MIDNIGHT_HOURS); // 19:30–00:00
+    expect(fri).toContain('19:30');
+    expect(fri).toContain('21:00');
+    expect(fri).toContain('23:45');
+    expect(fri).toContain('00:00');
+    expect(fri).not.toContain('01:00');
+  });
+  it('generates dinner slots past midnight when dinner closes at 01:00', () => {
+    const sat = getTimeSlots(6, AFTER_MIDNIGHT_HOURS); // 19:30–01:00
+    expect(sat).toContain('23:45');
+    expect(sat).toContain('00:00');
+    expect(sat).toContain('00:15');
+    expect(sat).toContain('01:00');
   });
 });
 
@@ -183,6 +212,17 @@ describe('classifyHora', () => {
   });
   it('Monday closed → closed_day', () => {
     expect(classifyHora('20:00', 1, PICNIC_LIVE)).toEqual({ kind: 'closed_day' });
+  });
+  // After-midnight close (Fri dinner 19:30–00:00): last reservation = 00:00 − 45 = 23:15.
+  it('Friday 21:00 with dinner closing at midnight is in_range', () => {
+    expect(classifyHora('21:00', 5, AFTER_MIDNIGHT_HOURS)).toEqual({ kind: 'in_range' });
+  });
+  it('Friday 23:45 is past last reservation (23:15) → after_last_reservation', () => {
+    expect(classifyHora('23:45', 5, AFTER_MIDNIGHT_HOURS)).toEqual({ kind: 'after_last_reservation', lastReservation: '23:15' });
+  });
+  it('Saturday last reservation crosses midnight (01:00 − 45 = 00:15)', () => {
+    expect(classifyHora('00:30', 6, AFTER_MIDNIGHT_HOURS)).toEqual({ kind: 'after_last_reservation', lastReservation: '00:15' });
+    expect(classifyHora('00:00', 6, AFTER_MIDNIGHT_HOURS)).toEqual({ kind: 'in_range' });
   });
 });
 

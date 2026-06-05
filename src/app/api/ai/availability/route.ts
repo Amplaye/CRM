@@ -49,7 +49,12 @@ function lastBookingTime(
   for (const s of shiftHours) {
     const startMin = timeToMin(s.open);
     if ((shift === 'lunch' && startMin < 17 * 60) || (shift === 'dinner' && startMin >= 17 * 60)) {
-      return minToTime(Math.max(startMin, timeToMin(s.close) - offset));
+      let closeMin = timeToMin(s.close);
+      // Dinner that closes after midnight (00:00 / 01:00) wraps to a small number;
+      // push it past 24h so "close − offset" doesn't go negative (e.g. 00:00 − 45
+      // → 23:15, 01:00 − 45 → 00:15) instead of collapsing onto the open time.
+      if (closeMin <= startMin) closeMin += 24 * 60;
+      return minToTime(Math.max(startMin, closeMin - offset) % (24 * 60));
     }
   }
   return null;

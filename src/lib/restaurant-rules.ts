@@ -17,6 +17,10 @@ function timeToMinutes(time: string): number {
 export function getShift(time: string): 'lunch' | 'dinner' {
   const [h, m] = time.split(':').map(Number);
   const minutes = h * 60 + m;
+  // Small hours (00:00–04:59) belong to the previous evening's dinner service
+  // for venues whose dinner closes after midnight (e.g. 19:30–00:00 / 19:30–01:00).
+  // No venue serves lunch at this hour, so this is purely a correctness fix.
+  if (minutes < 300) return 'dinner';
   // lunch: before 16:00 (960min), dinner: 16:00+
   return minutes < 960 ? 'lunch' : 'dinner';
 }
@@ -88,8 +92,19 @@ export function classifyHora(
 ): HoraClassification {
   const slots = openingHours[String(dayOfWeek)] || [];
   if (slots.length === 0) return { kind: 'closed_day' };
-  const askedMin = timeToMinutes(askedTime);
-  const ranges = slots.map(s => ({ open: timeToMinutes(s.open), close: timeToMinutes(s.close), openStr: s.open, closeStr: s.close }));
+  let askedMin = timeToMinutes(askedTime);
+  // Normalize shifts that close after midnight (close <= open → push past 24h),
+  // so the in-range / last-reservation math doesn't collapse (e.g. 19:30–00:00).
+  const ranges = slots.map(s => {
+    const open = timeToMinutes(s.open);
+    let close = timeToMinutes(s.close);
+    if (close <= open) close += 24 * 60;
+    return { open, close, openStr: s.open, closeStr: s.close };
+  });
+  // A small-hours asked time (e.g. 00:15) belongs to a midnight-crossing dinner,
+  // so compare it on the same normalized timeline.
+  const crossesMidnight = ranges.some(r => r.close > 24 * 60);
+  if (crossesMidnight && askedMin < 5 * 60) askedMin += 24 * 60;
   const inRange = ranges.some(r => askedMin >= r.open && askedMin <= r.close - cutoffMinutes);
   if (inRange) return { kind: 'in_range' };
   const nextOpening = ranges
@@ -98,8 +113,9 @@ export function classifyHora(
   if (nextOpening) return { kind: 'before_next_opening', nextOpen: nextOpening.openStr };
   const lasts = ranges.map(r => r.close - cutoffMinutes).filter(v => Number.isFinite(v));
   const bestLast = lasts.length ? Math.max(...lasts) : null;
-  const hh = bestLast != null ? String(Math.floor(bestLast / 60)).padStart(2, '0') : null;
-  const mm = bestLast != null ? String(bestLast % 60).padStart(2, '0') : null;
+  const bestLastNorm = bestLast != null ? ((bestLast % (24 * 60)) + 24 * 60) % (24 * 60) : null;
+  const hh = bestLastNorm != null ? String(Math.floor(bestLastNorm / 60)).padStart(2, '0') : null;
+  const mm = bestLastNorm != null ? String(bestLastNorm % 60).padStart(2, '0') : null;
   return { kind: 'after_last_reservation', lastReservation: hh && mm ? `${hh}:${mm}` : '' };
 }
 
@@ -109,10 +125,16 @@ export function getTimeSlots(dayOfWeek: number, openingHours: OpeningHours): str
 
   for (const slot of daySlots) {
     const startMin = timeToMinutes(slot.open);
-    const endMin = timeToMinutes(slot.close);
+    let endMin = timeToMinutes(slot.close);
+    // Shift that closes after midnight (e.g. 19:30–00:00 or 19:30–01:00): the
+    // close minute wraps to a small number (0 / 60), so push it past 24h. Without
+    // this the loop never runs and the ENTIRE dinner service vanishes from the
+    // availability array — the bot then wrongly tells clients there's no dinner.
+    if (endMin <= startMin) endMin += 24 * 60;
     for (let min = startMin; min <= endMin; min += 15) {
-      const h = Math.floor(min / 60);
-      const m = min % 60;
+      const t = min % (24 * 60);
+      const h = Math.floor(t / 60);
+      const m = t % 60;
       slots.push(`${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`);
     }
   }
