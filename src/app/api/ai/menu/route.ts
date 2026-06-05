@@ -70,6 +70,43 @@ const QUERY_SYNONYMS: Record<string, { allergenAbsent?: string; tag?: string }> 
   spicy: { tag: 'piccante' },
 };
 
+// Multilingual food-category words → substrings to match against the tenant's
+// REAL category names (which may be in another language, e.g. Oraz uses English
+// "Dessert"). Without this, "¿qué postres tenéis?" / "che dolci avete?" miss the
+// "Dessert" category and fall back to the menu link. Keys are normalized words
+// found in the customer's query; values are normalized substrings that, if any
+// appears in a category name, resolve to that category.
+const CATEGORY_SYNONYMS: Record<string, string[]> = {
+  postre: ['dessert', 'postre', 'dolc', 'nachtisch'],
+  postres: ['dessert', 'postre', 'dolc', 'nachtisch'],
+  dolce: ['dessert', 'dolc', 'postre'],
+  dolci: ['dessert', 'dolc', 'postre'],
+  dessert: ['dessert', 'dolc', 'postre'],
+  desserts: ['dessert', 'dolc', 'postre'],
+  nachtisch: ['dessert', 'dolc', 'postre'],
+  entrante: ['appetizer', 'starter', 'entrante', 'antipast'],
+  entrantes: ['appetizer', 'starter', 'entrante', 'antipast'],
+  antipasto: ['appetizer', 'starter', 'antipast'],
+  antipasti: ['appetizer', 'starter', 'antipast'],
+  starter: ['appetizer', 'starter', 'antipast'],
+  starters: ['appetizer', 'starter', 'antipast'],
+  appetizer: ['appetizer', 'starter', 'antipast'],
+  ensalada: ['salad', 'ensalada', 'insalat'],
+  ensaladas: ['salad', 'ensalada', 'insalat'],
+  insalata: ['salad', 'insalat'],
+  salad: ['salad', 'ensalada', 'insalat'],
+  sopa: ['soup', 'sopa', 'zupp'],
+  sopas: ['soup', 'sopa', 'zupp'],
+  zuppa: ['soup', 'zupp'],
+  soup: ['soup', 'sopa', 'zupp'],
+  bebida: ['drink', 'beverage', 'bebida', 'bevand'],
+  bebidas: ['drink', 'beverage', 'bebida', 'bevand'],
+  bevanda: ['drink', 'beverage', 'bevand'],
+  bevande: ['drink', 'beverage', 'bevand'],
+  drink: ['drink', 'beverage', 'bevand'],
+  drinks: ['drink', 'beverage', 'bevand'],
+};
+
 function shapeItem(it: ItemRow, catName: string | null) {
   return {
     name: it.name,
@@ -337,9 +374,16 @@ export async function GET(request: Request) {
 
     // If a meaningful token names a category ("pizze", "dolci", "bevande") AND no
     // specific dish or diet filter was named, treat it as a category request.
+    // Also resolve cross-language category words (e.g. ES "postres" → EN "Dessert")
+    // via CATEGORY_SYNONYMS, so a tenant whose categories are in another language
+    // still answers "¿qué postres tenéis?" instead of deflecting to the menu link.
+    const synTargets = (dishNameHit || syn)
+      ? []
+      : Array.from(new Set([q, ...sigTokens].flatMap((t) => CATEGORY_SYNONYMS[t] || [])));
     const asCat = (dishNameHit || syn) ? undefined : cats.find((c) => {
       const n = norm(c.name);
       if (catMatch(n, q)) return true;
+      if (synTargets.some((s) => n.includes(s))) return true;
       return sigTokens.some((t) => catMatch(n, t));
     });
     if (asCat) {
