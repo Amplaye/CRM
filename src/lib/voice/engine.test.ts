@@ -21,16 +21,14 @@ describe("voice engine — pure helpers", () => {
     expect(greetingFor("X", "es-ES")).toContain("Sofía");
   });
 
-  it("includes the venue name tokens in the transcriber keywords, localized", () => {
-    const kw = transcriberKeywords("BALI Rest"); // default es
+  it("keyterm is just the venue name tokens (language-neutral for multilingual STT)", () => {
+    const kw = transcriberKeywords("BALI Rest");
     expect(kw).toContain("BALI");
     expect(kw).toContain("Rest");
-    expect(kw).toContain("reserva");
     expect(new Set(kw).size).toBe(kw.length); // de-duplicated
-    // Italian tenants get Italian hints — Spanish hints would bias the STT to ES.
-    const it = transcriberKeywords("Oraz", "it");
-    expect(it).toContain("prenotazione");
-    expect(it).not.toContain("reserva");
+    // No language-specific domain words — they would bias code-switching.
+    expect(kw).not.toContain("reserva");
+    expect(kw).not.toContain("prenotazione");
   });
 
   it("stamps metadata.tenant_id and the system prompt into the overrides", () => {
@@ -48,9 +46,11 @@ describe("voice engine — pure helpers", () => {
     expect(ov.model.provider).toBe("openai");
     // Language MUST be pinned to the tenant's locale, else Deepgram auto-detects
     // and mis-hears Italian as Spanish — making the model reply in Spanish.
-    expect(ov.transcriber.language).toBe("it");
+    // Multilingual STT (not pinned to one language) so the agent adapts to the
+    // caller; nova-3; venue name in keyterm.
+    expect(ov.transcriber.language).toBe("multi");
     expect(ov.transcriber.model).toBe("nova-3");
-    expect(ov.transcriber.keyterm).toContain("prenotazione");
+    expect(ov.transcriber.keyterm).toContain("Oraz");
   });
 
   it("spells the date in full in the tenant's tz + language", () => {

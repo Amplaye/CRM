@@ -86,27 +86,17 @@ export function greetingFor(name: string, locale?: string): string {
   }
 }
 
-/** Domain keyword hints per language. They MUST match the transcriber's pinned
- * language — Spanish hints on an Italian call bias Deepgram toward Spanish and
- * make it mis-transcribe Italian audio as Spanish (the root cause of the
- * assistant replying in Spanish), so each language carries its own words. */
-const KEYWORDS_BY_LANG: Record<"es" | "it" | "en" | "de", string[]> = {
-  es: ["interior", "exterior", "terraza", "reserva", "Confirmo", "Cancelar"],
-  it: ["interno", "esterno", "terrazza", "prenotazione", "Confermo", "Cancella"],
-  en: ["inside", "outside", "terrace", "booking", "Confirm", "Cancel"],
-  de: ["innen", "außen", "Terrasse", "Reservierung", "Bestätigen", "Stornieren"],
-};
-
-/** Pure: transcriber keywords so the STT recognises the venue name + the few
- * domain words, in the tenant's own language. The venue name tokens are added
- * so each tenant's name transcribes cleanly. */
-export function transcriberKeywords(name: string, lang: "es" | "it" | "en" | "de" = "es"): string[] {
-  const base = KEYWORDS_BY_LANG[lang] || KEYWORDS_BY_LANG.es;
+/** Pure: transcriber keyterm hints — just the venue name tokens, so the STT
+ * locks onto the restaurant's (possibly unusual) name. Deliberately language-
+ * neutral: the transcriber runs in multilingual mode (language="multi") so the
+ * agent adapts to whatever language the caller speaks; language-specific domain
+ * words would bias code-switching toward one language, so we omit them. */
+export function transcriberKeywords(name: string): string[] {
   const nameTokens = (name || "")
     .split(/\s+/)
     .map((t) => t.replace(/[^\p{L}\p{N}]/gu, ""))
     .filter((t) => t.length >= 3);
-  return Array.from(new Set([...nameTokens, ...base]));
+  return Array.from(new Set(nameTokens));
 }
 
 export interface ComposedTenantPrompt {
@@ -181,20 +171,20 @@ export function buildAssistantOverrides(
     firstMessage: greetingFor(composed.name, composed.locale),
     metadata: { tenant_id: tenantId },
     variableValues: { ...dateVars },
-    // Vapi requires `provider` whenever transcriber/model are present in the
-    // overrides (else it 400s). We override the tenant-specific bits (language,
-    // keyterm, system prompt) plus the model; provider stays deepgram.
-    // `language` is the critical fix: without it Deepgram auto-detects and
-    // mis-hears Italian audio as Spanish ("quattro persone" -> "cuatro personas"),
-    // feeding the model Spanish text so it (correctly) replies in Spanish. Pinning
-    // the tenant's language makes the STT deterministic per call, not a lottery.
-    // nova-3 is meaningfully more accurate than nova-2; on nova-3 the venue/domain
-    // hints go in `keyterm` (keyterm prompting) instead of the legacy `keywords`.
+    // Vapi requires `provider` whenever transcriber/model are present (else 400).
+    // `language: "multi"` is the key fix: it puts nova-3 in true multilingual
+    // code-switching mode, so the STT recognises whatever language the caller
+    // speaks (it/es/en/de all covered) and the agent adapts per the IDIOMA rule.
+    // The earlier bug (Italian heard as Spanish) came from sending NO language at
+    // all — Deepgram's naive auto-detect, not real multilingual ASR. We do NOT
+    // pin a single language: that would make the agent mono-lingual and mis-
+    // transcribe any other-language caller. nova-3 > nova-2 in accuracy; the venue
+    // name goes in `keyterm` (nova-3 keyterm prompting) so it transcribes cleanly.
     transcriber: {
       provider: "deepgram",
       model: "nova-3",
-      language: langOf(composed.locale),
-      keyterm: transcriberKeywords(composed.name, langOf(composed.locale)),
+      language: "multi",
+      keyterm: transcriberKeywords(composed.name),
     },
     model: {
       provider: "openai",
