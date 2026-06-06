@@ -165,8 +165,16 @@ export function buildAssistantOverrides(
     firstMessage: greetingFor(composed.name, composed.locale),
     metadata: { tenant_id: tenantId },
     variableValues: { ...dateVars },
-    transcriber: { keywords: transcriberKeywords(composed.name) },
-    model: { messages: [{ role: "system", content: composed.systemPrompt }] },
+    // Vapi requires `provider` whenever transcriber/model are present in the
+    // overrides (else it 400s). These MUST match the engine assistant's own
+    // config (deepgram nova-2 + openai gpt-4o-mini) so we only override the
+    // tenant-specific bits (keywords, system prompt), not the providers.
+    transcriber: { provider: "deepgram", model: "nova-2", keywords: transcriberKeywords(composed.name) },
+    model: {
+      provider: "openai",
+      model: "gpt-4o-mini",
+      messages: [{ role: "system", content: composed.systemPrompt }],
+    },
   };
 }
 

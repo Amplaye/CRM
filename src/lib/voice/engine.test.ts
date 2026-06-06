@@ -35,6 +35,9 @@ describe("voice engine — pure helpers", () => {
     expect(ov.model.messages[0]).toEqual({ role: "system", content: "SYS" });
     expect(ov.variableValues.current_date).toBe("lunedì 1 giugno 2026");
     expect(ov.firstMessage).toContain("Oraz");
+    // Vapi rejects (400) transcriber/model overrides that omit `provider`.
+    expect(ov.transcriber.provider).toBe("deepgram");
+    expect(ov.model.provider).toBe("openai");
   });
 
   it("spells the date in full in the tenant's tz + language", () => {
