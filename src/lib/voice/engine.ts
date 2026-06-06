@@ -138,6 +138,20 @@ export async function composeTenantVoicePrompt(
     description?: string;
   };
 
+  // The venue's real seating zones, derived from its tables — so the agent only
+  // asks "inside or outside?" when the venue actually HAS both (Oraz is
+  // indoor-only; asking it, then proposing non-existent outdoor slots, was a bug).
+  const { data: tableRows } = await supabase
+    .from("restaurant_tables")
+    .select("zone")
+    .eq("tenant_id", tenantId);
+  const zoneSet = new Set<string>(
+    ((tableRows || []) as { zone?: string | null }[])
+      .map((r) => r.zone)
+      .filter((z): z is string => !!z),
+  );
+  const zones = (["inside", "outside"] as const).filter((z) => zoneSet.has(z));
+
   const voicePromptBody = buildVoicePrompt({
     restaurant_name: tenant.name,
     language: langOf(settings.locale),
@@ -145,6 +159,7 @@ export async function composeTenantVoicePrompt(
     restaurant_phone: settings.restaurant_phone,
     timezone: settings.timezone,
     description: settings.description,
+    zones: [...zones],
   });
 
   const { data: articles, error: aErr } = await supabase

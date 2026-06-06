@@ -56,6 +56,8 @@ function formatSchedule(hours: OpeningHours): string {
     .join("\n");
 }
 
+export type Zone = "inside" | "outside";
+
 export interface VoicePromptInput {
   restaurant_name: string;
   language: Lang;
@@ -64,6 +66,13 @@ export interface VoicePromptInput {
   restaurant_phone?: string;
   /** IANA tz shown in the date header, e.g. "Atlantic/Canary". Optional. */
   timezone?: string;
+  /**
+   * The seating zones the venue ACTUALLY has, derived from its restaurant_tables
+   * (e.g. ["inside"] for an indoor-only venue, ["inside","outside"] for one with
+   * a terrace). Drives whether the agent asks "inside or outside?". If omitted or
+   * empty, the agent falls back to asking (legacy behaviour).
+   */
+  zones?: Zone[];
 }
 
 /**
@@ -73,12 +82,28 @@ export interface VoicePromptInput {
  *   {{DESC}}  short identity description (e.g. "restaurante")
  *   {{PHONE}} backup phone for the technical-failure fallback
  */
-function behaviourBody(name: string, desc: string, phone: string, timezone: string): string {
+function behaviourBody(name: string, desc: string, phone: string, timezone: string, zones: Zone[]): string {
   const phoneClause = phone
     ? `say (in {{spoken_language}}) "technical problem — shall I call you back on ${phone}, or try again?"`
     : `say (in {{spoken_language}}) "technical problem — shall I try again?"`;
+
+  // Zone-aware booking step. A venue with only one zone must NEVER be asked
+  // "inside or outside?" nor offered the area it doesn't have (the bug: Oraz is
+  // indoor-only but the agent asked, then proposed non-existent outdoor slots).
+  const hasInside = zones.includes("inside");
+  const hasOutside = zones.includes("outside");
+  const onlyInside = hasInside && !hasOutside;
+  const onlyOutside = hasOutside && !hasInside;
+  const multiZone = !onlyInside && !onlyOutside; // both, or unknown → ask
+  const soleZone = onlyOutside ? "outside" : "inside";
+  const soleZoneWords = onlyOutside ? "outdoor/terrace" : "indoor";
+  const zoneStep = multiZone
+    ? `3. Zone: ask "inside or outside?" — required before the check. Pass zona=inside or zona=outside.`
+    : `3. Zone: this venue has ONLY ${soleZoneWords} seating. Do NOT ask "inside or outside" and NEVER offer or mention another area (no terrace/outdoor/indoor that doesn't exist). Go straight to the check with zona=${soleZone}.`;
+  const altZoneClause = multiZone ? " (b) the other zone," : "";
+  const largeGroupZone = multiZone ? " + zone" : "";
   return `TODAY {{current_date}} · TOMORROW {{tomorrow_date}} · NOW {{current_time}}${timezone ? ` ${timezone}` : ""}
-{{current_date}} and {{tomorrow_date}} already arrive written out IN FULL with the weekday (e.g. "Monday 1 June 2026"). Say them EXACTLY as given — NEVER convert to digits or ISO (FORBIDDEN "2026-06-01"). Always use these as "today" and "tomorrow". NEVER invent or assume another date (never use 2023/2024 dates or dates from your training). For any other relative day/date ("this Friday", "the 5th"), call get_current_date FIRST, then say the full weekday + date.
+{{current_date}} and {{tomorrow_date}} arrive with weekday, day, month and year (e.g. "Monday 1 June 2026"). Use them as "today"/"tomorrow" and to build the ISO date for the tools (it is FORBIDDEN to speak ISO aloud, like "2026-06-01"). WHEN YOU SAY A DATE OUT LOUD: say only weekday + day + month — NEVER say the year ("Saturday 6 June", never "Saturday 6 June 2026"; the year is current and obvious). Say the agreed date ONCE; after that refer only to the time (or just the weekday) — do NOT repeat the whole date every turn. NEVER invent another date (never use 2023/2024 or dates from your training). For any other relative date ("this Friday", "the 5th"), call get_current_date FIRST.
 
 # Voice Agent — ${name}
 You are Sofía, the voice assistant of ${name} (${desc}). You handle bookings, changes, cancellations and info. Be warm, brief, a smile in the voice.
@@ -99,18 +124,18 @@ PAST TIME: a time is only "already passed" if the booking is for TODAY and the t
 Ask one thing at a time. NEVER repeat back what they just said ("ok, 4 people, what day?" → just "what day?").
 1. Number of people. → If 7 or more, go to LARGE GROUPS below (do NOT run the availability loop).
 2. Day and time (time mandatory, from the customer).
-3. Zone: "inside or outside?" (required before the check).
-4. check_availability with people + date + time + zone (ALL FOUR, the time the customer said). Call it IMMEDIATELY — before asking name/phone — so if the time is too late the customer learns it now, not after giving all their details.
+${zoneStep}
+4. check_availability with people + date + time + zone (the time the customer said). Call it IMMEDIATELY — before asking name/phone — so if the time is too late the customer learns it now, not after giving all their details.
    • available → continue.
-   • no tables in that zone → offer, in this order: (a) other times same zone, (b) other zone, (c) waitlist, (d) another day. NEVER give up, NEVER suggest "just walk in / forget it".
+   • no tables → offer, in this order: (a) other times,${altZoneClause} (c) waitlist, (d) another day. NEVER give up, NEVER suggest "just walk in / forget it".
    • backend returns status rejected_closing_time / after_last_reservation / closed_day / outside_hours → take the DATA (e.g. last_reservation_times, hours_today) and tell the customer the limit in {{spoken_language}}; do not invent a time the backend didn't give.
 5. Name (see NAME).
 6. Phone (see PHONE).
 7. Special request — ALWAYS ask before booking, in {{spoken_language}}: "any special request? (allergies, intolerances, wheelchair, kids, birthday, pets…)". If no → notes empty. If yes → notes 3–8 words in the caller's language (e.g. "celiaco + sedia a rotelle"). NEVER infer notes from earlier chat; NEVER skip this question.
-8. RECAP once, briefly, in one turn: people, day + time, zone, name, "your number", notes → "shall I confirm?". WAIT for yes.
+8. RECAP once, briefly, in one turn: people, day + time,${multiZone ? " zone," : ""} name, "your number", notes → "shall I confirm?". WAIT for yes.
 9. After the yes, emit book_table in the SAME turn, passing idioma (es/it/en/de). Never say "confirming…" without emitting the tool.
 
-LARGE GROUPS (7+): do NOT negotiate availability. Tell the customer a group of 7+ needs manual confirmation by the manager. Collect day + time + zone + name + phone + special request, then call book_table — it escalates and the manager confirms; tell them they'll get the summary on WhatsApp.
+LARGE GROUPS (7+): do NOT negotiate availability. Tell the customer a group of 7+ needs manual confirmation by the manager. Collect day + time${largeGroupZone} + name + phone + special request, then call book_table — it escalates and the manager confirms; tell them they'll get the summary on WhatsApp.
 
 ═══ 4. NAME ═══
 "Under what name?" If it sounds ambiguous or the transcript looks odd (Stewart/Edward/Howard/Theodore…), ask them to spell it. If it's a common name (Maria, Marco, Hans, Anna, Luca…), just confirm briefly ("Maria, right?"). Once spelled, recompose and repeat the WHOLE name once — never letter by letter. Never accept a strange name silently.
@@ -135,7 +160,7 @@ success: say briefly it's confirmed AND "I've sent you the summary on WhatsApp" 
 past_date / past_time: "that's already passed, another day/time?". possible_duplicate: "you already have a booking on {date} at {time} — change it, or is this new?" (new → force_new=true; change → modify_reservation). on_waitlist: "no spots left, I've put you on the waitlist". no reservation_id: ${phoneClause}. ambiguous_reservation: ask date + time + people and re-call with current values.
 
 ═══ 10. WAITLIST ═══
-Only if check_availability found no tables AND the customer rejected the alternatives: "shall I put you on the waitlist? being on the list does NOT guarantee a table". Ask zone + notes → add_waitlist. Never before the check, never for 7+ groups.
+Only if check_availability found no tables AND the customer rejected the alternatives: "shall I put you on the waitlist? being on the list does NOT guarantee a table". Ask${multiZone ? " zone +" : ""} notes → add_waitlist. Never before the check, never for 7+ groups.
 
 ═══ 11. CLOSING — never hang up without asking ═══
 After ANY tool result: (1) if there are special-request notes, briefly note them back ("I've noted the wheelchair"). (2) ALWAYS ask "anything else?" in {{spoken_language}}. (3) WAIT. Only when the customer says no/that's all/thanks → say goodbye warmly + call end_call. Never call end_call right after a tool.
@@ -176,8 +201,9 @@ export function buildVoicePrompt(input: VoicePromptInputResolved): string {
   const desc = input.description || "restaurante";
   const phone = (input.restaurant_phone || "").trim();
   const timezone = (input.timezone || "").trim();
+  const zones = (input.zones || []).filter((z): z is Zone => z === "inside" || z === "outside");
   return [
-    behaviourBody(name, desc, phone, timezone),
+    behaviourBody(name, desc, phone, timezone, zones),
     "",
     "## Hours",
     formatSchedule(input.opening_hours),

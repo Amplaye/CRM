@@ -60,9 +60,24 @@ describe("buildVoicePrompt — agency golden-source template, filled with client
     const p = buildVoicePrompt({ restaurant_name: "X", language: "es", opening_hours: hours, timezone: "Atlantic/Canary" });
     expect(p.startsWith("TODAY {{current_date}} · TOMORROW {{tomorrow_date}} · NOW {{current_time}}")).toBe(true);
     expect(p).toContain("Atlantic/Canary");
-    expect(p).toContain("NEVER invent or assume another date");
-    // The header tells the agent the dates arrive already spelled out — never ISO.
-    expect(p).toContain("NEVER convert to digits or ISO");
+    expect(p).toContain("NEVER invent another date");
+    // The header tells the agent never to speak ISO, and never to speak the year.
+    expect(p).toContain("FORBIDDEN to speak ISO aloud");
+    expect(p).toContain("NEVER say the year");
+  });
+
+  it("only asks 'inside or outside?' when the venue actually has both zones", () => {
+    const both = buildVoicePrompt({ restaurant_name: "X", language: "it", opening_hours: hours, zones: ["inside", "outside"] });
+    expect(both).toContain('ask "inside or outside?"');
+
+    const indoorOnly = buildVoicePrompt({ restaurant_name: "X", language: "it", opening_hours: hours, zones: ["inside"] });
+    expect(indoorOnly).toContain("ONLY indoor seating");
+    expect(indoorOnly).toContain("zona=inside");
+    expect(indoorOnly).not.toContain('ask "inside or outside?"');
+
+    // Unknown zones (omitted) → fall back to asking (legacy behaviour).
+    const unknown = buildVoicePrompt({ restaurant_name: "X", language: "it", opening_hours: hours });
+    expect(unknown).toContain('ask "inside or outside?"');
   });
 
   it("omits the timezone from the header when not provided", () => {
