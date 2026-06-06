@@ -182,18 +182,19 @@ export function buildAssistantOverrides(
     metadata: { tenant_id: tenantId },
     variableValues: { ...dateVars },
     // Vapi requires `provider` whenever transcriber/model are present in the
-    // overrides (else it 400s). These MUST match the engine assistant's own
-    // config (deepgram nova-2 + openai gpt-4o-mini) so we only override the
-    // tenant-specific bits (language, keywords, system prompt), not the providers.
-    // `language` is the critical fix: without it Deepgram nova-2 auto-detects and
+    // overrides (else it 400s). We override the tenant-specific bits (language,
+    // keyterm, system prompt) plus the model; provider stays deepgram.
+    // `language` is the critical fix: without it Deepgram auto-detects and
     // mis-hears Italian audio as Spanish ("quattro persone" -> "cuatro personas"),
     // feeding the model Spanish text so it (correctly) replies in Spanish. Pinning
     // the tenant's language makes the STT deterministic per call, not a lottery.
+    // nova-3 is meaningfully more accurate than nova-2; on nova-3 the venue/domain
+    // hints go in `keyterm` (keyterm prompting) instead of the legacy `keywords`.
     transcriber: {
       provider: "deepgram",
-      model: "nova-2",
+      model: "nova-3",
       language: langOf(composed.locale),
-      keywords: transcriberKeywords(composed.name, langOf(composed.locale)),
+      keyterm: transcriberKeywords(composed.name, langOf(composed.locale)),
     },
     model: {
       provider: "openai",

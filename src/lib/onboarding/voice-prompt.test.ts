@@ -17,9 +17,9 @@ describe("buildVoicePrompt — agency golden-source template, filled with client
 
   it("carries the production behavioural rules that make the agent robust", () => {
     const p = buildVoicePrompt({ restaurant_name: "X", language: "es", opening_hours: hours });
-    // The rule that fixes the oraz language-mixing bug.
-    expect(p).toContain("PROHIBIDO mezclar idiomas");
-    expect(p).toContain("IDIOMAS (ES/IT/EN/DE)");
+    // The consolidated IDIOMA block: speak the caller's language, never mix.
+    expect(p).toContain("NUNCA mezcles dos idiomas");
+    expect(p).toContain("IDIOMA (LEE ESTO PRIMERO)");
     // A few other golden-source sections must be present.
     expect(p).toContain("TELÉFONO (CRÍTICO)");
     expect(p).toContain("ANTI-ECO");
@@ -38,7 +38,7 @@ describe("buildVoicePrompt — agency golden-source template, filled with client
     // Spanish working language, tenant name still embedded.
     expect(it).toContain("Da Mario");
     expect(it).toContain("ESTILO");
-    expect(it).toContain("PROHIBIDO mezclar idiomas");
+    expect(it).toContain("NUNCA mezcles dos idiomas");
   });
 
   it("parametrises the backup phone in the technical-failure fallback", () => {

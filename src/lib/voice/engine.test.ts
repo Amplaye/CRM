@@ -49,7 +49,8 @@ describe("voice engine — pure helpers", () => {
     // Language MUST be pinned to the tenant's locale, else Deepgram auto-detects
     // and mis-hears Italian as Spanish — making the model reply in Spanish.
     expect(ov.transcriber.language).toBe("it");
-    expect(ov.transcriber.keywords).toContain("prenotazione");
+    expect(ov.transcriber.model).toBe("nova-3");
+    expect(ov.transcriber.keyterm).toContain("prenotazione");
   });
 
   it("spells the date in full in the tenant's tz + language", () => {
