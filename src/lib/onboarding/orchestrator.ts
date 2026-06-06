@@ -9,8 +9,6 @@ import { createServiceRoleClient } from "@/lib/supabase/server";
 import { substituteTenantTokens, toCreatePayload } from "./substitute";
 import { n8n, fetchWithTimeout } from "./n8n-client";
 import { createTenant } from "@/lib/tenants/create-tenant";
-import { buildVoicePrompt } from "./voice-prompt";
-import { cloneTemplateAssistant, findAssistantByName } from "./vapi";
 
 export type OpeningHoursSlot = { open: string; close: string };
 export type OpeningHours = Record<string, OpeningHoursSlot[]>; // keys 0..6 (Sunday=0)
@@ -203,22 +201,14 @@ export async function runOnboard(
   };
 
   let tenantId = "";
-  let vapiAssistantId = "";
+  // Voice "motore unico": there is ONE shared engine assistant for every tenant
+  // (see lib/voice/engine.ts). We no longer clone a per-tenant Vapi assistant at
+  // onboarding — the engine composes each tenant's prompt fresh from the code
+  // template + the tenant's DB KB/hours on every call. So vapiAssistantId stays
+  // empty: the cloned auxiliary n8n workflows keep referencing the template id
+  // (which IS the engine), and substitute.ts leaves it untouched.
+  const vapiAssistantId = "";
   const createdWorkflowIds: string[] = [];
-
-  // Voice prompt body, computed once: the caller's text (admin wizard) or, when
-  // omitted (self-serve), built from the fixed agency template. Reused as the
-  // VOICE PROMPT KB article (step 3) and the cloned assistant's system prompt
-  // stub (step 4); the full KB is then merged in by sync-kb-vapi (step 5).
-  const voicePromptBody = input.voice_prompt?.trim()
-    ? input.voice_prompt
-    : buildVoicePrompt({
-        restaurant_name: input.restaurant_name,
-        language: input.language,
-        opening_hours: input.opening_hours,
-        restaurant_phone: input.restaurant_phone,
-        timezone: input.timezone,
-      });
 
   try {
     const supabase = createServiceRoleClient();
@@ -351,6 +341,10 @@ export async function runOnboard(
       if (count && count > 0) {
         push({ step: "kb", message: `${count} KB articles already present — skipped`, ok: true });
       } else {
+        // Only real KB articles are stored now. The behavioural voice prompt is
+        // NOT persisted per tenant anymore: the shared engine composes it from
+        // the CODE template (buildVoicePrompt) + these KB articles at call time,
+        // so there is no frozen "VOICE PROMPT" snapshot to drift out of date.
         const articles = input.kb_articles.map((a) => ({
           tenant_id: tenantId,
           title: a.title,
@@ -358,88 +352,19 @@ export async function runOnboard(
           category: a.category || "general",
           status: "published",
         }));
-        // Voice prompt is stored as a "VOICE PROMPT" titled article — sync-kb-vapi
-        // recognises this title and uses the body as the assistant's voice prompt
-        // (the rest of the articles become the KB block in the same system prompt).
-        articles.push({
-          tenant_id: tenantId,
-          title: "VOICE PROMPT",
-          content: voicePromptBody,
-          category: "general",
-          status: "published",
-        });
         const { error } = await supabase.from("knowledge_articles").insert(articles);
         if (error) throw new Error(`KB insert: ${error.message}`);
         push({ step: "kb", message: `${articles.length} KB articles inserted`, ok: true });
       }
     }
 
-    // 4. Vapi assistant — clone the agency template ("PICNIC - Sofía"). We reuse
-    //    its voice / model / tools and only change the name, system prompt and
-    //    greeting. The system prompt starts as the voice prompt body; step 5
-    //    merges in the KB. A localized greeting avoids leaking the template's
-    //    Picnic opener until the voicemail sync overwrites firstMessage.
-    {
-      const greetings: Record<OnboardInput["language"], string> = {
-        es: `¡Hola, ${input.restaurant_name}, bienvenido! ¿En qué te puedo ayudar?`,
-        it: `Ciao, ${input.restaurant_name}, benvenuto! Come posso aiutarti?`,
-        en: `Hello, welcome to ${input.restaurant_name}! How can I help you?`,
-        de: `Hallo, willkommen bei ${input.restaurant_name}! Wie kann ich helfen?`,
-      };
-      const key = process.env.VAPI_PRIVATE_KEY;
-      if (!key) throw new Error("VAPI_PRIVATE_KEY not configured");
-      const assistantName = `${input.restaurant_name} — Voice`;
-
-      // Idempotent: don't leak a second clone on retry. Prefer the id already on
-      // the tenant; else recover one a previous (truncated) run created under the
-      // same name; else clone fresh.
-      const { data: pre } = await supabase.from("tenants").select("settings").eq("id", tenantId).single();
-      const existingId = (pre?.settings as any)?.vapi?.assistantId as string | undefined;
-      let assistantId = existingId || (await findAssistantByName(key, assistantName)) || "";
-      if (assistantId) {
-        push({ step: "vapi", message: `Reusing existing Vapi assistant ${assistantId}`, ok: true, data: { assistantId } });
-      } else {
-        ({ assistantId } = await cloneTemplateAssistant({
-          key,
-          name: assistantName,
-          systemPrompt: voicePromptBody,
-          firstMessage: greetings[input.language] || greetings.es,
-        }));
-      }
-      vapiAssistantId = assistantId;
-
-      // Persist the Vapi assistant id in tenant.settings so sync-kb-vapi and the
-      // voicemail sync can find it without code changes per-tenant.
-      const { data: cur } = await supabase.from("tenants").select("settings").eq("id", tenantId).single();
-      const merged = {
-        ...((cur?.settings as any) || {}),
-        vapi: {
-          assistantId: vapiAssistantId,
-          timezone: input.timezone,
-          locale: input.locale,
-        },
-      };
-      await supabase.from("tenants").update({ settings: merged }).eq("id", tenantId);
-      if (!assistantId || assistantId !== existingId) {
-        push({ step: "vapi", message: `Vapi assistant ${vapiAssistantId} ready`, ok: true, data: { assistantId: vapiAssistantId } });
-      }
-    }
-
-    // 5. Sync KB into the Vapi assistant so its prompt has menu / policies / voice prompt
-    {
-      const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "https://crm.baliflowagency.com";
-      const sec = process.env.AI_WEBHOOK_SECRET || "";
-      const r = await fetchWithTimeout(`${baseUrl}/api/sync-kb-vapi`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "x-ai-secret": sec },
-        body: JSON.stringify({ tenant_id: tenantId }),
-      }, 45_000);
-      if (!r.ok) {
-        const t = await r.text();
-        throw new Error(`sync-kb-vapi: ${r.status} ${t.slice(0, 200)}`);
-      }
-      push({ step: "kb_sync", message: `KB synced into Vapi assistant ${vapiAssistantId}`, ok: true });
-    }
+    // 4. Voice — nothing to provision. Every tenant is served by the SHARED
+    //    engine assistant (lib/voice/engine.ts), which composes this tenant's
+    //    prompt fresh from the code template + its DB KB/hours on every call.
+    //    No per-tenant clone, no system-prompt sync. settings.voice.provider was
+    //    set to "vapi" in step 1. To take web calls, add a slug→tenant_id line
+    //    to the booking widget (one line, like the chat router).
+    push({ step: "vapi", message: "Voice served by shared engine (no per-tenant clone)", ok: true });
 
     // 6. Clone n8n workflows — idempotent. A truncated run can leave the 13
     //    workflows created but never recorded on the tenant; cloning again would
