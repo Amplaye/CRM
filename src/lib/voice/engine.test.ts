@@ -21,12 +21,16 @@ describe("voice engine — pure helpers", () => {
     expect(greetingFor("X", "es-ES")).toContain("Sofía");
   });
 
-  it("includes the venue name tokens in the transcriber keywords", () => {
-    const kw = transcriberKeywords("BALI Rest");
+  it("includes the venue name tokens in the transcriber keywords, localized", () => {
+    const kw = transcriberKeywords("BALI Rest"); // default es
     expect(kw).toContain("BALI");
     expect(kw).toContain("Rest");
     expect(kw).toContain("reserva");
     expect(new Set(kw).size).toBe(kw.length); // de-duplicated
+    // Italian tenants get Italian hints — Spanish hints would bias the STT to ES.
+    const it = transcriberKeywords("Oraz", "it");
+    expect(it).toContain("prenotazione");
+    expect(it).not.toContain("reserva");
   });
 
   it("stamps metadata.tenant_id and the system prompt into the overrides", () => {
@@ -42,6 +46,10 @@ describe("voice engine — pure helpers", () => {
     // Vapi rejects (400) transcriber/model overrides that omit `provider`.
     expect(ov.transcriber.provider).toBe("deepgram");
     expect(ov.model.provider).toBe("openai");
+    // Language MUST be pinned to the tenant's locale, else Deepgram auto-detects
+    // and mis-hears Italian as Spanish — making the model reply in Spanish.
+    expect(ov.transcriber.language).toBe("it");
+    expect(ov.transcriber.keywords).toContain("prenotazione");
   });
 
   it("spells the date in full in the tenant's tz + language", () => {

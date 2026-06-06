@@ -86,11 +86,22 @@ export function greetingFor(name: string, locale?: string): string {
   }
 }
 
+/** Domain keyword hints per language. They MUST match the transcriber's pinned
+ * language — Spanish hints on an Italian call bias Deepgram toward Spanish and
+ * make it mis-transcribe Italian audio as Spanish (the root cause of the
+ * assistant replying in Spanish), so each language carries its own words. */
+const KEYWORDS_BY_LANG: Record<"es" | "it" | "en" | "de", string[]> = {
+  es: ["interior", "exterior", "terraza", "reserva", "Confirmo", "Cancelar"],
+  it: ["interno", "esterno", "terrazza", "prenotazione", "Confermo", "Cancella"],
+  en: ["inside", "outside", "terrace", "booking", "Confirm", "Cancel"],
+  de: ["innen", "außen", "Terrasse", "Reservierung", "Bestätigen", "Stornieren"],
+};
+
 /** Pure: transcriber keywords so the STT recognises the venue name + the few
- * domain words. Base list mirrors the template; the venue name tokens are added
+ * domain words, in the tenant's own language. The venue name tokens are added
  * so each tenant's name transcribes cleanly. */
-export function transcriberKeywords(name: string): string[] {
-  const base = ["interior", "exterior", "terraza", "reserva", "Confirmo", "Cancelar"];
+export function transcriberKeywords(name: string, lang: "es" | "it" | "en" | "de" = "es"): string[] {
+  const base = KEYWORDS_BY_LANG[lang] || KEYWORDS_BY_LANG.es;
   const nameTokens = (name || "")
     .split(/\s+/)
     .map((t) => t.replace(/[^\p{L}\p{N}]/gu, ""))
@@ -173,8 +184,17 @@ export function buildAssistantOverrides(
     // Vapi requires `provider` whenever transcriber/model are present in the
     // overrides (else it 400s). These MUST match the engine assistant's own
     // config (deepgram nova-2 + openai gpt-4o-mini) so we only override the
-    // tenant-specific bits (keywords, system prompt), not the providers.
-    transcriber: { provider: "deepgram", model: "nova-2", keywords: transcriberKeywords(composed.name) },
+    // tenant-specific bits (language, keywords, system prompt), not the providers.
+    // `language` is the critical fix: without it Deepgram nova-2 auto-detects and
+    // mis-hears Italian audio as Spanish ("quattro persone" -> "cuatro personas"),
+    // feeding the model Spanish text so it (correctly) replies in Spanish. Pinning
+    // the tenant's language makes the STT deterministic per call, not a lottery.
+    transcriber: {
+      provider: "deepgram",
+      model: "nova-2",
+      language: langOf(composed.locale),
+      keywords: transcriberKeywords(composed.name, langOf(composed.locale)),
+    },
     model: {
       provider: "openai",
       model: "gpt-4o-mini",
