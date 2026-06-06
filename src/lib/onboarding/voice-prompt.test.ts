@@ -17,28 +17,29 @@ describe("buildVoicePrompt — agency golden-source template, filled with client
 
   it("carries the production behavioural rules that make the agent robust", () => {
     const p = buildVoicePrompt({ restaurant_name: "X", language: "es", opening_hours: hours });
-    // The consolidated IDIOMA block: speak the caller's language, never mix.
-    expect(p).toContain("NUNCA mezcles dos idiomas");
-    expect(p).toContain("IDIOMA (LEE ESTO PRIMERO)");
-    // A few other golden-source sections must be present.
-    expect(p).toContain("TELÉFONO (CRÍTICO)");
-    expect(p).toContain("ANTI-ECO");
-    expect(p).toContain("CIERRE");
+    // The #1 LANGUAGE rule: speak only the caller's language, never mix, and
+    // never read the Spanish tool results aloud.
+    expect(p).toContain("LANGUAGE — THE #1 RULE");
+    expect(p).toContain("{{spoken_language}}");
+    expect(p).toContain("TOOL RESULTS COME BACK IN SPANISH");
+    // The key behavioural sections must be present.
+    expect(p).toContain("PHONE");
+    expect(p).toContain("CLOSING");
+    expect(p).toContain("LARGE GROUPS (7+)");
   });
 
-  it("renders a per-day schedule (in Spanish) including closed days and multiple slots", () => {
+  it("renders a per-day schedule (English labels) including closed days and multiple slots", () => {
     const p = buildVoicePrompt({ restaurant_name: "X", language: "es", opening_hours: hours });
-    expect(p).toContain("Lunes: 12:30-15:30");
-    expect(p).toContain("Miércoles: 12:30-15:30, 19:30-22:30");
-    expect(p).toContain("Domingo: CERRADO");
+    expect(p).toContain("Monday: 12:30-15:30");
+    expect(p).toContain("Wednesday: 12:30-15:30, 19:30-22:30");
+    expect(p).toContain("Sunday: CLOSED");
   });
 
-  it("writes the instructions in Spanish regardless of the tenant locale (runtime IDIOMAS rule handles spoken language)", () => {
+  it("writes the instructions in English regardless of tenant locale (runtime LANGUAGE rule + {{spoken_language}} drive the spoken language)", () => {
     const it = buildVoicePrompt({ restaurant_name: "Da Mario", language: "it", opening_hours: hours });
-    // Spanish working language, tenant name still embedded.
     expect(it).toContain("Da Mario");
-    expect(it).toContain("ESTILO");
-    expect(it).toContain("NUNCA mezcles dos idiomas");
+    expect(it).toContain("BOOKING FLOW");
+    expect(it).toContain("Never mix two languages");
   });
 
   it("parametrises the backup phone in the technical-failure fallback", () => {
@@ -48,24 +49,24 @@ describe("buildVoicePrompt — agency golden-source template, filled with client
       opening_hours: hours,
       restaurant_phone: "+34 641 790 137",
     });
-    expect(withPhone).toContain("¿llamamos al +34 641 790 137 o lo intento de nuevo?");
+    expect(withPhone).toContain("call you back on +34 641 790 137");
 
     const noPhone = buildVoicePrompt({ restaurant_name: "X", language: "es", opening_hours: hours });
-    expect(noPhone).toContain("Problema técnico, ¿lo intento de nuevo?");
-    expect(noPhone).not.toContain("llamamos al");
+    expect(noPhone).toContain("shall I try again?");
+    expect(noPhone).not.toContain("call you back on");
   });
 
   it("opens with the date/time header both providers fill at call time (prevents date hallucination)", () => {
     const p = buildVoicePrompt({ restaurant_name: "X", language: "es", opening_hours: hours, timezone: "Atlantic/Canary" });
-    expect(p.startsWith("HOY {{current_date}} · MAÑANA {{tomorrow_date}} · HORA {{current_time}}")).toBe(true);
+    expect(p.startsWith("TODAY {{current_date}} · TOMORROW {{tomorrow_date}} · NOW {{current_time}}")).toBe(true);
     expect(p).toContain("Atlantic/Canary");
-    expect(p).toContain("NUNCA inventes ni asumas otra fecha");
+    expect(p).toContain("NEVER invent or assume another date");
     // The header tells the agent the dates arrive already spelled out — never ISO.
-    expect(p).toContain("NUNCA las conviertas a números ni a formato ISO");
+    expect(p).toContain("NEVER convert to digits or ISO");
   });
 
   it("omits the timezone from the header when not provided", () => {
     const p = buildVoicePrompt({ restaurant_name: "X", language: "es", opening_hours: hours });
-    expect(p.startsWith("HOY {{current_date}} · MAÑANA {{tomorrow_date}} · HORA {{current_time}}\n")).toBe(true);
+    expect(p.startsWith("TODAY {{current_date}} · TOMORROW {{tomorrow_date}} · NOW {{current_time}}\n")).toBe(true);
   });
 });
