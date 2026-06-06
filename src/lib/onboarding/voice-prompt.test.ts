@@ -21,7 +21,7 @@ describe("buildVoicePrompt — agency golden-source template, filled with client
     // never read the Spanish tool results aloud.
     expect(p).toContain("LANGUAGE — THE #1 RULE");
     expect(p).toContain("{{spoken_language}}");
-    expect(p).toContain("TOOL RESULTS COME BACK IN SPANISH");
+    expect(p).toContain("TOOL RESULTS ARE DATA, NOT A SCRIPT");
     // The key behavioural sections must be present.
     expect(p).toContain("PHONE");
     expect(p).toContain("CLOSING");
