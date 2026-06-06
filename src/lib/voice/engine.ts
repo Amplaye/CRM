@@ -85,6 +85,60 @@ export function spelledDateVars(now: Date, timezone?: string, locale?: string): 
 /** The assistant's own name (the voice persona), spoken in the greeting. */
 export const ASSISTANT_NAME = "Sofía";
 
+/** The LLM the engine runs. Read LIVE from the Vapi engine assistant — the Vapi
+ * dashboard is the single source of truth for the model. Nothing is hardcoded
+ * here except a fallback used only if Vapi is unreachable. */
+export interface EngineModel {
+  provider: string;
+  model: string;
+}
+
+// Fallback only — the real value comes from the dashboard via fetchEngineModel.
+const FALLBACK_ENGINE_MODEL: EngineModel = { provider: "openai", model: "gpt-5-mini" };
+
+let _engineModelCache: { value: EngineModel; at: number } | null = null;
+const ENGINE_MODEL_TTL_MS = 60_000;
+
+/** The Vapi REST bearer token, tolerating the quoted form some envs store. */
+function vapiPrivateKey(): string {
+  return (process.env.VAPI_PRIVATE_KEY || "").replace(/^"|"$/g, "").trim();
+}
+
+/**
+ * Read the engine assistant's configured model from Vapi so the dashboard is the
+ * single source of truth: change the model there and the next call uses it, with
+ * no code change. Cached briefly (60s) to avoid a Vapi round-trip per call.
+ * Falls back to the last cached value, then FALLBACK_ENGINE_MODEL, so a Vapi
+ * hiccup never breaks call setup. `now`/`fetchImpl` injected for testing.
+ */
+export async function fetchEngineModel(
+  now: number = Date.now(),
+  fetchImpl: typeof fetch = fetch,
+): Promise<EngineModel> {
+  if (_engineModelCache && now - _engineModelCache.at < ENGINE_MODEL_TTL_MS) {
+    return _engineModelCache.value;
+  }
+  const key = vapiPrivateKey();
+  if (!key) return _engineModelCache?.value || FALLBACK_ENGINE_MODEL;
+  try {
+    const res = await fetchImpl(`https://api.vapi.ai/assistant/${ENGINE_VAPI_ASSISTANT_ID}`, {
+      headers: { Authorization: `Bearer ${key}` },
+    });
+    if (!res.ok) return _engineModelCache?.value || FALLBACK_ENGINE_MODEL;
+    const a: any = await res.json();
+    const provider = a?.model?.provider;
+    const model = a?.model?.model;
+    if (provider && model) {
+      const value: EngineModel = { provider, model };
+      _engineModelCache = { value, at: now };
+      return value;
+    }
+  } catch {
+    /* network/parse error — fall through to fallback */
+  }
+  return _engineModelCache?.value || FALLBACK_ENGINE_MODEL;
+}
+
 /** Pure: the spoken greeting, in the tenant's primary language. The assistant
  * introduces herself by name + the venue she works for. The IDIOMAS rule still
  * switches language on the caller's first turn; this is only the opener. */
@@ -186,6 +240,7 @@ export function buildAssistantOverrides(
   composed: ComposedTenantPrompt,
   tenantId: string,
   dateVars: VoiceDateVars = {},
+  model: EngineModel = FALLBACK_ENGINE_MODEL,
 ): Record<string, any> {
   return {
     firstMessage: greetingFor(composed.name, composed.locale),
@@ -206,15 +261,14 @@ export function buildAssistantOverrides(
       model: "solaria-1",
       languages: candidateLanguages(composed.locale),
     },
-    // gpt-4.1-mini: markedly better instruction-following than gpt-4o-mini at
-    // similar latency (still non-reasoning, so no added voice lag) and cost
-    // (~$0.018/call). The stronger adherence is what lets the prompt drop the
-    // per-rule 4-language verbatim scripts that 4o-mini needed to avoid
-    // language-leak/format bugs. Non-reasoning model chosen deliberately for
-    // voice: gpt-5.1 would reason mid-turn and risk audible silences.
+    // The model is whatever the Vapi engine assistant is set to (read live by
+    // fetchEngineModel — the dashboard is the source of truth, nothing pinned in
+    // code). We still must send a model object here because Vapi requires
+    // provider+model to accept the per-tenant system prompt (messages); it
+    // inherits temperature/maxTokens from the base assistant via deep-merge.
     model: {
-      provider: "openai",
-      model: "gpt-4.1-mini",
+      provider: model.provider,
+      model: model.model,
       messages: [{ role: "system", content: composed.systemPrompt }],
     },
   };
@@ -234,8 +288,9 @@ export async function buildTenantCallConfig(
   const supabase = createServiceRoleClient();
   const composed = await composeTenantVoicePrompt(supabase, tenantId);
   const dateVars = { ...spelledDateVars(now, composed.timezone, composed.locale), ...extraVars };
+  const model = await fetchEngineModel();
   return {
     assistantId: ENGINE_VAPI_ASSISTANT_ID,
-    assistantOverrides: buildAssistantOverrides(composed, tenantId, dateVars),
+    assistantOverrides: buildAssistantOverrides(composed, tenantId, dateVars, model),
   };
 }
