@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { createServiceRoleClient } from "@/lib/supabase/server";
 import { assertPlatformAdmin } from "@/lib/admin-auth";
 import { N8N_TEMPLATE_COUNT } from "@/lib/tenants/activation";
+import { ENGINE_VAPI_ASSISTANT_ID } from "@/lib/voice/engine";
+import { getVoiceProvider } from "@/lib/types/tenant-settings";
 
 // Activation health-check for a single tenant.
 //
@@ -102,17 +104,39 @@ export async function GET(req: NextRequest) {
     detail: "",
   }) - 1;
 
-  // 3. Vapi assistant — recorded AND actually existing on Vapi.
-  const assistantId: string | undefined = s?.vapi?.assistantId;
+  // 3. Voice assistant. Two valid Vapi shapes since the "motore unico":
+  //    - ENGINE tenant (the norm now): no per-tenant assistantId — every call is
+  //      served by the ONE shared engine assistant, with the tenant injected at
+  //      call time. A missing settings.vapi.assistantId is EXPECTED, not a fault;
+  //      we verify the shared engine exists instead. (The old code read
+  //      settings.vapi.assistantId and false-flagged every engine tenant red.)
+  //    - Legacy per-tenant clone: a stored assistantId that ISN'T the engine —
+  //      verify that specific assistant, as before.
+  //  Retell premium tenants are reported on their own id, not falsely failed.
+  const provider = getVoiceProvider(s);
+  const recordedAssistantId: string | undefined = s?.vapi?.assistantId;
   let vapiState: CheckState = "fail";
   let vapiDetail = "nessun assistant collegato";
-  if (assistantId) {
-    const exists = await vapiAssistantExists(assistantId);
-    if (exists === true) { vapiState = "ok"; vapiDetail = `collegato (${assistantId.slice(0, 8)}…)`; }
+  let vapiLabel = "Assistente vocale (Vapi)";
+  if (provider === "retell") {
+    const agentId: string | undefined = s?.retell?.agentId;
+    vapiLabel = "Assistente vocale (Retell — premium)";
+    vapiState = agentId ? "ok" : "warn";
+    vapiDetail = agentId ? `agente Retell collegato (${agentId.slice(0, 8)}…)` : "premium senza agente Retell";
+  } else if (recordedAssistantId && recordedAssistantId !== ENGINE_VAPI_ASSISTANT_ID) {
+    // Legacy per-tenant clone.
+    const exists = await vapiAssistantExists(recordedAssistantId);
+    if (exists === true) { vapiState = "ok"; vapiDetail = `clone collegato (${recordedAssistantId.slice(0, 8)}…)`; }
     else if (exists === false) { vapiState = "fail"; vapiDetail = "id presente ma assistant inesistente su Vapi"; }
-    else { vapiState = "warn"; vapiDetail = `id presente (${assistantId.slice(0, 8)}…), verifica Vapi non disponibile`; }
+    else { vapiState = "warn"; vapiDetail = `id presente (${recordedAssistantId.slice(0, 8)}…), verifica Vapi non disponibile`; }
+  } else {
+    // Engine tenant — served by the shared "motore unico" assistant.
+    const exists = await vapiAssistantExists(ENGINE_VAPI_ASSISTANT_ID);
+    if (exists === true) { vapiState = "ok"; vapiDetail = `servito dal motore unico (${ENGINE_VAPI_ASSISTANT_ID.slice(0, 8)}…)`; }
+    else if (exists === false) { vapiState = "fail"; vapiDetail = "motore unico (engine) non trovato su Vapi"; }
+    else { vapiState = "warn"; vapiDetail = "motore unico configurato, verifica Vapi non disponibile"; }
   }
-  checks.push({ key: "vapi", label: "Assistente vocale (Vapi)", state: vapiState, detail: vapiDetail });
+  checks.push({ key: "vapi", label: vapiLabel, state: vapiState, detail: vapiDetail });
 
   // 4. n8n workflows — the AUTHORITATIVE signal is how many [Name]* workflows are
   // active on n8n right now (live), not what the settings recorded. Legacy

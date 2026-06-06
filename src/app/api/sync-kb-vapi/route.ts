@@ -3,6 +3,7 @@ import { createServiceRoleClient, createServerSupabaseClient } from "@/lib/supab
 import { assertAiSecret } from "@/lib/ai-auth";
 import { isPromptArticle, syncAssistantPrompt, VapiKbArticle } from "@/lib/onboarding/vapi";
 import { verifyTenantMembership } from "@/lib/tenant-membership";
+import { ENGINE_VAPI_ASSISTANT_ID } from "@/lib/voice/engine";
 
 // Sync a tenant's published KB into its Vapi assistant. On Vapi there is no
 // separate knowledge base: the published articles are concatenated into the
@@ -57,15 +58,19 @@ export async function POST(req: NextRequest) {
       .single();
     if (tenantErr || !tenant) return NextResponse.json({ error: "Tenant not found" }, { status: 404 });
 
-    // Resolve the Vapi assistant strictly from the tenant's own settings,
-    // populated by onboarding. No cross-tenant fallback: if it's missing the
-    // tenant simply hasn't been onboarded yet, and we say so explicitly.
+    // "Motore unico" tenants have NO per-tenant assistant: every call is served
+    // by the shared engine, whose prompt+KB are composed FRESH per call from code
+    // + live DB (see lib/voice/engine.ts). So there is nothing to sync here — the
+    // KB is already live the instant it's saved. This is the norm now; it is a
+    // graceful no-op, not an error (the browser save flow fire-and-forgets this).
+    // We must also NEVER patch the shared engine itself (it serves all tenants).
     const assistantId = (tenant.settings as any)?.vapi?.assistantId;
-    if (!assistantId) {
-      return NextResponse.json(
-        { error: `No Vapi config for tenant ${tenant_id}. Run onboarding first.` },
-        { status: 400 }
-      );
+    if (!assistantId || assistantId === ENGINE_VAPI_ASSISTANT_ID) {
+      return NextResponse.json({
+        success: true,
+        skipped: "motore-unico",
+        message: "KB letta live per chiamata dal motore unico — nessun sync necessario.",
+      });
     }
 
     const { data: allArticles, error: artErr } = await supabase

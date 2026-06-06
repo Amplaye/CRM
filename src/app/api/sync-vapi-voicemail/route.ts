@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createServiceRoleClient, createServerSupabaseClient } from "@/lib/supabase/server";
 import { assertAiSecret } from "@/lib/ai-auth";
 import { verifyTenantMembership } from "@/lib/tenant-membership";
+import { ENGINE_VAPI_ASSISTANT_ID } from "@/lib/voice/engine";
 
 const VAPI_BASE = "https://api.vapi.ai";
 
@@ -219,9 +220,19 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "vapi_voicemail not configured for this tenant" }, { status: 400 });
     }
 
+    // Voicemail injection PATCHes a tenant's OWN Vapi assistant. "Motore unico"
+    // tenants don't have one (the shared engine serves everyone and must never be
+    // hand-patched), so this is a graceful no-op for them. Voicemail on the engine
+    // model would mean composing the voicemail block into the per-call prompt
+    // (lib/voice/engine.ts) — a separate feature, not wired yet. This route stays
+    // live for legacy per-tenant / Retell-clone assistants.
     const vapiCfg = settings.vapi;
-    if (!vapiCfg?.assistantId) {
-      return NextResponse.json({ error: "Vapi assistantId not configured for this tenant. Run onboarding first." }, { status: 400 });
+    if (!vapiCfg?.assistantId || vapiCfg.assistantId === ENGINE_VAPI_ASSISTANT_ID) {
+      return NextResponse.json({
+        ok: true,
+        skipped: "motore-unico",
+        message: "Tenant servito dal motore unico — voicemail per-assistant non applicabile.",
+      });
     }
     const tz = vapiCfg.timezone || settings.timezone || "Atlantic/Canary";
 
