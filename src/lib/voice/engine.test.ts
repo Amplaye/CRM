@@ -8,13 +8,17 @@ import {
 } from "./engine";
 
 describe("voice engine — pure helpers", () => {
-  it("greets in the tenant's primary language with its name", () => {
+  it("greets in the tenant's primary language, introducing herself by name + venue", () => {
+    // "Ciao, sono Sofía, l'assistente di Oraz. Come posso aiutarti?"
     expect(greetingFor("Oraz", "it-IT")).toContain("Oraz");
+    expect(greetingFor("Oraz", "it-IT")).toContain("Sofía");
     expect(greetingFor("Oraz", "it-IT")).toMatch(/Ciao/);
     expect(greetingFor("Picnic", "es-ES")).toMatch(/Hola/);
-    expect(greetingFor("X", "en-GB")).toMatch(/Hello/);
+    expect(greetingFor("X", "en-GB")).toMatch(/Hi/);
     expect(greetingFor("X", "de-DE")).toMatch(/Hallo/);
     expect(greetingFor("X")).toMatch(/Hola/); // default es
+    // assistant always names herself
+    expect(greetingFor("X", "es-ES")).toContain("Sofía");
   });
 
   it("includes the venue name tokens in the transcriber keywords", () => {

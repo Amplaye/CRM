@@ -65,19 +65,24 @@ export function spelledDateVars(now: Date, timezone?: string, locale?: string): 
   return { current_date: full(now), tomorrow_date: full(tomorrow), current_time };
 }
 
-/** Pure: the spoken greeting, in the tenant's primary language. The IDIOMAS rule
- * still switches language on the caller's first turn; this is only the opener. */
+/** The assistant's own name (the voice persona), spoken in the greeting. */
+export const ASSISTANT_NAME = "Sofía";
+
+/** Pure: the spoken greeting, in the tenant's primary language. The assistant
+ * introduces herself by name + the venue she works for. The IDIOMAS rule still
+ * switches language on the caller's first turn; this is only the opener. */
 export function greetingFor(name: string, locale?: string): string {
   const n = name || "el restaurante";
+  const a = ASSISTANT_NAME;
   switch (langOf(locale)) {
     case "it":
-      return `Ciao, ${n}, benvenuto! Come posso aiutarti?`;
+      return `Ciao, sono ${a}, l'assistente di ${n}. Come posso aiutarti?`;
     case "en":
-      return `Hello, ${n}, welcome! How can I help you?`;
+      return `Hi, I'm ${a}, the assistant for ${n}. How can I help you?`;
     case "de":
-      return `Hallo, ${n}, willkommen! Wie kann ich dir helfen?`;
+      return `Hallo, ich bin ${a}, die Assistentin von ${n}. Wie kann ich dir helfen?`;
     default:
-      return `¡Hola, ${n}, bienvenido! ¿En qué te puedo ayudar?`;
+      return `Hola, soy ${a}, la asistente de ${n}. ¿En qué te puedo ayudar?`;
   }
 }
 
