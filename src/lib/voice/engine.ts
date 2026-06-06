@@ -97,6 +97,7 @@ export interface ComposedTenantPrompt {
   systemPrompt: string;
   name: string;
   locale?: string;
+  timezone?: string;
 }
 
 /**
@@ -146,7 +147,7 @@ export async function composeTenantVoicePrompt(
     .filter((a) => a && a.title && !isPromptArticle(a.title) && (a.content || "").trim());
 
   const systemPrompt = composeVapiSystemPrompt({ voicePromptBody, kbArticles });
-  return { systemPrompt, name: tenant.name, locale: settings.locale };
+  return { systemPrompt, name: tenant.name, locale: settings.locale, timezone: settings.timezone };
 }
 
 /**
@@ -169,13 +170,20 @@ export function buildAssistantOverrides(
   };
 }
 
-/** Convenience: compose prompt + overrides for a tenant in one call (web path). */
+/**
+ * Convenience: compose prompt + overrides for a tenant in one call. Date vars
+ * are computed from the TENANT's own timezone + language (single source — the
+ * caller/widget only needs the tenant_id); `extraVars` (e.g. from_number) is
+ * merged on top. `now` is injectable for testing.
+ */
 export async function buildTenantCallConfig(
   tenantId: string,
-  dateVars: VoiceDateVars = {},
+  extraVars: VoiceDateVars = {},
+  now: Date = new Date(),
 ): Promise<{ assistantId: string; assistantOverrides: Record<string, any> }> {
   const supabase = createServiceRoleClient();
   const composed = await composeTenantVoicePrompt(supabase, tenantId);
+  const dateVars = { ...spelledDateVars(now, composed.timezone, composed.locale), ...extraVars };
   return {
     assistantId: ENGINE_VAPI_ASSISTANT_ID,
     assistantOverrides: buildAssistantOverrides(composed, tenantId, dateVars),

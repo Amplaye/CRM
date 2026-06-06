@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServiceRoleClient } from "@/lib/supabase/server";
-import { buildTenantCallConfig, spelledDateVars } from "@/lib/voice/engine";
+import { buildTenantCallConfig } from "@/lib/voice/engine";
 
 // Inbound phone voice engine endpoint (Vapi "assistant-request" server event).
 // A phone number points its server.url here; on an incoming call Vapi POSTs the
@@ -45,11 +45,9 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Inbound phone: Vapi can fill {{current_date}} etc itself, but we compute
-    // them here too so the source is identical to the web path. Timezone/locale
-    // come from the composed tenant inside buildTenantCallConfig's prompt; for
-    // the header vars we let buildTenantCallConfig stamp defaults.
-    const cfg = await buildTenantCallConfig(tenantId, spelledDateVars(new Date()));
+    // Date header vars are derived from the tenant's own tz/locale in the engine
+    // (same source as the web path).
+    const cfg = await buildTenantCallConfig(tenantId);
     return NextResponse.json(
       { assistantId: cfg.assistantId, assistantOverrides: cfg.assistantOverrides },
       { status: 200 },

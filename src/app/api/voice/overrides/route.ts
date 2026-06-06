@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { buildTenantCallConfig, spelledDateVars } from "@/lib/voice/engine";
+import { buildTenantCallConfig } from "@/lib/voice/engine";
 
 // Web voice engine endpoint. The public booking widget calls this with a
 // tenant_id and gets back { assistantId, assistantOverrides } for the SHARED
@@ -36,14 +36,14 @@ export async function OPTIONS(req: NextRequest) {
   return new NextResponse(null, { status: 204, headers: corsHeaders(req.headers.get("origin")) });
 }
 
-async function handle(req: NextRequest, tenantId: string | null, tz?: string, locale?: string) {
+async function handle(req: NextRequest, tenantId: string | null) {
   const cors = corsHeaders(req.headers.get("origin"));
   if (!tenantId) {
     return NextResponse.json({ error: "Missing tenant_id" }, { status: 400, headers: cors });
   }
   try {
-    const dateVars = spelledDateVars(new Date(), tz, locale);
-    const cfg = await buildTenantCallConfig(tenantId, dateVars);
+    // Date vars are derived from the tenant's own tz/locale inside the engine.
+    const cfg = await buildTenantCallConfig(tenantId);
     return NextResponse.json(cfg, { headers: cors });
   } catch (err: any) {
     const msg = err?.message || "Unknown error";
@@ -53,11 +53,10 @@ async function handle(req: NextRequest, tenantId: string | null, tz?: string, lo
 }
 
 export async function GET(req: NextRequest) {
-  const u = req.nextUrl.searchParams;
-  return handle(req, u.get("tenant_id"), u.get("tz") || undefined, u.get("locale") || undefined);
+  return handle(req, req.nextUrl.searchParams.get("tenant_id"));
 }
 
 export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => ({}));
-  return handle(req, body?.tenant_id ?? null, body?.tz, body?.locale);
+  return handle(req, body?.tenant_id ?? null);
 }
