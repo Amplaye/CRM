@@ -1,0 +1,54 @@
+import { describe, it, expect } from "vitest";
+import {
+  greetingFor,
+  transcriberKeywords,
+  buildAssistantOverrides,
+  spelledDateVars,
+  ENGINE_VAPI_ASSISTANT_ID,
+} from "./engine";
+
+describe("voice engine — pure helpers", () => {
+  it("greets in the tenant's primary language with its name", () => {
+    expect(greetingFor("Oraz", "it-IT")).toContain("Oraz");
+    expect(greetingFor("Oraz", "it-IT")).toMatch(/Ciao/);
+    expect(greetingFor("Picnic", "es-ES")).toMatch(/Hola/);
+    expect(greetingFor("X", "en-GB")).toMatch(/Hello/);
+    expect(greetingFor("X", "de-DE")).toMatch(/Hallo/);
+    expect(greetingFor("X")).toMatch(/Hola/); // default es
+  });
+
+  it("includes the venue name tokens in the transcriber keywords", () => {
+    const kw = transcriberKeywords("BALI Rest");
+    expect(kw).toContain("BALI");
+    expect(kw).toContain("Rest");
+    expect(kw).toContain("reserva");
+    expect(new Set(kw).size).toBe(kw.length); // de-duplicated
+  });
+
+  it("stamps metadata.tenant_id and the system prompt into the overrides", () => {
+    const ov = buildAssistantOverrides(
+      { systemPrompt: "SYS", name: "Oraz", locale: "it-IT" },
+      "tenant-123",
+      { current_date: "lunedì 1 giugno 2026", current_time: "11:15" },
+    );
+    expect(ov.metadata.tenant_id).toBe("tenant-123");
+    expect(ov.model.messages[0]).toEqual({ role: "system", content: "SYS" });
+    expect(ov.variableValues.current_date).toBe("lunedì 1 giugno 2026");
+    expect(ov.firstMessage).toContain("Oraz");
+  });
+
+  it("spells the date in full in the tenant's tz + language", () => {
+    // 2026-06-01 is a Monday.
+    const vars = spelledDateVars(new Date("2026-06-01T10:15:00Z"), "Europe/Rome", "it-IT");
+    expect(vars.current_date).toMatch(/lunedì/);
+    expect(vars.current_date).toMatch(/2026/);
+    expect(vars.tomorrow_date).toMatch(/marted/); // martedì
+    expect(vars.current_time).toMatch(/^\d{2}:\d{2}$/);
+    // never ISO
+    expect(vars.current_date).not.toMatch(/2026-06-01/);
+  });
+
+  it("exposes a non-empty engine assistant id", () => {
+    expect(ENGINE_VAPI_ASSISTANT_ID).toMatch(/[0-9a-f-]{36}/);
+  });
+});
