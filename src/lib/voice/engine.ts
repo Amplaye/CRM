@@ -43,6 +43,23 @@ function langOf(locale?: string): "es" | "it" | "en" | "de" {
   return c === "it" || c === "en" || c === "de" ? c : "es";
 }
 
+/** The four languages the system supports, with the tenant's primary first.
+ * Gladia restricts auto-detection to exactly this set (so it never drifts to an
+ * unrelated language like Hindi the way Deepgram "multi" did), while still
+ * adapting to whichever of the four the caller speaks. Primary-first biases
+ * detection toward the venue's own language for borderline (it/es) audio. */
+function candidateLanguages(locale?: string): string[] {
+  const primary = langOf(locale);
+  return [primary, ...["it", "es", "en", "de"].filter((l) => l !== primary)];
+}
+
+/** Human language name for the per-call default-language directive in the
+ * prompt (so the model defaults to the venue's language, not the Spanish the
+ * prompt happens to be written in). */
+function languageName(locale?: string): string {
+  return { it: "italiano", es: "español", en: "English", de: "Deutsch" }[langOf(locale)];
+}
+
 const BCP47: Record<string, string> = { es: "es-ES", it: "it-IT", en: "en-GB", de: "de-DE" };
 
 /**
@@ -86,18 +103,6 @@ export function greetingFor(name: string, locale?: string): string {
   }
 }
 
-/** Pure: transcriber keyterm hints — just the venue name tokens, so the STT
- * locks onto the restaurant's (possibly unusual) name. Deliberately language-
- * neutral: the transcriber runs in multilingual mode (language="multi") so the
- * agent adapts to whatever language the caller speaks; language-specific domain
- * words would bias code-switching toward one language, so we omit them. */
-export function transcriberKeywords(name: string): string[] {
-  const nameTokens = (name || "")
-    .split(/\s+/)
-    .map((t) => t.replace(/[^\p{L}\p{N}]/gu, ""))
-    .filter((t) => t.length >= 3);
-  return Array.from(new Set(nameTokens));
-}
 
 export interface ComposedTenantPrompt {
   systemPrompt: string;
@@ -170,25 +175,31 @@ export function buildAssistantOverrides(
   return {
     firstMessage: greetingFor(composed.name, composed.locale),
     metadata: { tenant_id: tenantId },
-    variableValues: { ...dateVars },
-    // Vapi requires `provider` whenever transcriber/model are present (else 400).
-    // `language: "multi"` is the key fix: it puts nova-3 in true multilingual
-    // code-switching mode, so the STT recognises whatever language the caller
-    // speaks (it/es/en/de all covered) and the agent adapts per the IDIOMA rule.
-    // The earlier bug (Italian heard as Spanish) came from sending NO language at
-    // all — Deepgram's naive auto-detect, not real multilingual ASR. We do NOT
-    // pin a single language: that would make the agent mono-lingual and mis-
-    // transcribe any other-language caller. nova-3 > nova-2 in accuracy; the venue
-    // name goes in `keyterm` (nova-3 keyterm prompting) so it transcribes cleanly.
+    // spoken_language drives the prompt's per-call default-language directive so
+    // the agent opens (and stays) in the venue's language instead of defaulting
+    // to the Spanish the prompt is written in.
+    variableValues: { ...dateVars, spoken_language: languageName(composed.locale) },
+    // Transcriber: Gladia solaria-1, restricted to the four supported languages.
+    // Deepgram "multi" spanned 10 languages and drifted (it transcribed clear
+    // Italian audio with spurious Hindi/Devanagari mid-sentence), which then
+    // pushed the model to Spanish. Gladia detects among ONLY {it,es,en,de}, so it
+    // stays multilingual (adapts to the caller) but can never wander to an
+    // unrelated language. Primary-first list biases borderline it/es audio toward
+    // the venue's own language. Premium STT, deliberately chosen for reliability.
     transcriber: {
-      provider: "deepgram",
-      model: "nova-3",
-      language: "multi",
-      keyterm: transcriberKeywords(composed.name),
+      provider: "gladia",
+      model: "solaria-1",
+      languages: candidateLanguages(composed.locale),
     },
+    // gpt-4.1-mini: markedly better instruction-following than gpt-4o-mini at
+    // similar latency (still non-reasoning, so no added voice lag) and cost
+    // (~$0.018/call). The stronger adherence is what lets the prompt drop the
+    // per-rule 4-language verbatim scripts that 4o-mini needed to avoid
+    // language-leak/format bugs. Non-reasoning model chosen deliberately for
+    // voice: gpt-5.1 would reason mid-turn and risk audible silences.
     model: {
       provider: "openai",
-      model: "gpt-4o-mini",
+      model: "gpt-4.1-mini",
       messages: [{ role: "system", content: composed.systemPrompt }],
     },
   };

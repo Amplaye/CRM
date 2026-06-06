@@ -1,7 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
   greetingFor,
-  transcriberKeywords,
   buildAssistantOverrides,
   spelledDateVars,
   ENGINE_VAPI_ASSISTANT_ID,
@@ -21,16 +20,6 @@ describe("voice engine — pure helpers", () => {
     expect(greetingFor("X", "es-ES")).toContain("Sofía");
   });
 
-  it("keyterm is just the venue name tokens (language-neutral for multilingual STT)", () => {
-    const kw = transcriberKeywords("BALI Rest");
-    expect(kw).toContain("BALI");
-    expect(kw).toContain("Rest");
-    expect(new Set(kw).size).toBe(kw.length); // de-duplicated
-    // No language-specific domain words — they would bias code-switching.
-    expect(kw).not.toContain("reserva");
-    expect(kw).not.toContain("prenotazione");
-  });
-
   it("stamps metadata.tenant_id and the system prompt into the overrides", () => {
     const ov = buildAssistantOverrides(
       { systemPrompt: "SYS", name: "Oraz", locale: "it-IT" },
@@ -42,15 +31,20 @@ describe("voice engine — pure helpers", () => {
     expect(ov.variableValues.current_date).toBe("lunedì 1 giugno 2026");
     expect(ov.firstMessage).toContain("Oraz");
     // Vapi rejects (400) transcriber/model overrides that omit `provider`.
-    expect(ov.transcriber.provider).toBe("deepgram");
+    expect(ov.transcriber.provider).toBe("gladia");
     expect(ov.model.provider).toBe("openai");
-    // Language MUST be pinned to the tenant's locale, else Deepgram auto-detects
-    // and mis-hears Italian as Spanish — making the model reply in Spanish.
-    // Multilingual STT (not pinned to one language) so the agent adapts to the
-    // caller; nova-3; venue name in keyterm.
-    expect(ov.transcriber.language).toBe("multi");
-    expect(ov.transcriber.model).toBe("nova-3");
-    expect(ov.transcriber.keyterm).toContain("Oraz");
+    // Multilingual STT restricted to the 4 supported languages (no drift to
+    // unrelated languages), tenant's primary first so it biases that way.
+    expect(ov.transcriber.languages).toEqual(["it", "es", "en", "de"]);
+    // Per-call default-language directive: the model must default to Italian,
+    // not the Spanish the prompt is written in.
+    expect(ov.variableValues.spoken_language).toBe("italiano");
+  });
+
+  it("puts the venue's own language first and a Spanish tenant defaults to Spanish", () => {
+    const es = buildAssistantOverrides({ systemPrompt: "S", name: "BALI", locale: "es-ES" }, "t");
+    expect(es.transcriber.languages).toEqual(["es", "it", "en", "de"]);
+    expect(es.variableValues.spoken_language).toBe("español");
   });
 
   it("spells the date in full in the tenant's tz + language", () => {
