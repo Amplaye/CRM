@@ -48,7 +48,7 @@ export async function GET(req: NextRequest) {
   // guest contact + the per-tenant settings (sender number, feature flags).
   const { data: rows } = await supabase
     .from("reservations")
-    .select("id, tenant_id, date, time, party_size, status, language, guests(name, phone, language), tenants(name, settings)")
+    .select("id, tenant_id, date, time, party_size, status, language, guests(name, phone), tenants(name, settings)")
     .in("status", ["confirmed", "pending_confirmation"])
     .gte("date", minDate)
     .lte("date", maxDate);
@@ -59,7 +59,7 @@ export async function GET(req: NextRequest) {
   type Row = {
     id: string; tenant_id: string; date: string; time: string; party_size: number;
     language: string | null;
-    guests: { name: string | null; phone: string | null; language: string | null } | null;
+    guests: { name: string | null; phone: string | null } | null;
     tenants: { name: string | null; settings: TenantSettings | null } | null;
   };
   for (const r of (rows || []) as unknown as Row[]) {
@@ -87,7 +87,11 @@ export async function GET(req: NextRequest) {
       .limit(1);
     if (prior && prior.length) { skipped++; continue; }
 
-    const lang = asLang(r.language ?? r.guests?.language);
+    // Language: the reservation's own pinned language (set in /api/ai/book from
+    // the customer's chat language) wins; fall back to the tenant's primary
+    // language so a null never defaults to Spanish for a non-ES tenant.
+    const tenantPrimaryLang = (r.tenants?.settings as { bot_config?: { primary_language?: string } } | null)?.bot_config?.primary_language;
+    const lang = asLang(r.language ?? tenantPrimaryLang);
     const guestName = r.guests?.name || (lang === "es" ? "Cliente" : lang === "it" ? "Cliente" : "Guest");
     const restaurant = r.tenants?.name || "";
     const from = tenantWhatsAppFrom(settings);

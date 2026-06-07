@@ -69,6 +69,19 @@ export async function POST(request: Request) {
     // platform default. Same settings object we already loaded, no extra query.
     const tenantFrom = tenantWhatsAppFrom(tenantRow?.settings);
 
+    // Language for the waitlist-offer template. There's no per-guest language
+    // column (guests/waitlist_entries don't store it), so fall back to the
+    // tenant's primary language — never hardcode 'es'. This keeps Oraz (it) and
+    // every other tenant offering in their own language. Same source the bot and
+    // reminders use (bot_config.primary_language).
+    const _tenantPrimaryLang = String(
+      ((tenantRow?.settings as { bot_config?: { primary_language?: string } } | null)?.bot_config?.primary_language) || ''
+    ).slice(0, 2).toLowerCase();
+    const tenantLang: 'es' | 'it' | 'en' | 'de' =
+      _tenantPrimaryLang === 'it' || _tenantPrimaryLang === 'en' || _tenantPrimaryLang === 'de'
+        ? _tenantPrimaryLang
+        : 'es';
+
     // Expire stale offers first (no reply within TTL) so their tables can be
     // re-offered. Runs inline so every invocation naturally self-cleans.
     await expireStaleOffers(supabase, tenant_id);
@@ -144,7 +157,7 @@ export async function POST(request: Request) {
       // tables are already held by a pending_confirmation reservation)
       const { data: waitingEntries } = await supabase
         .from('waitlist_entries')
-        .select('*, guests(name, phone, language)')
+        .select('*, guests(name, phone)')
         .eq('tenant_id', tenant_id)
         .eq('date', date)
         .eq('status', 'waiting')
@@ -169,9 +182,7 @@ export async function POST(request: Request) {
         const needed = tablesNeeded(entry.party_size);
         const guestPhone = entry.guests?.phone || '';
         const guestName = entry.guests?.name || 'Cliente';
-        const guestLangRaw = String(entry.guests?.language || '').slice(0, 2).toLowerCase();
-        const guestLang: 'es' | 'it' | 'en' | 'de' =
-          guestLangRaw === 'it' || guestLangRaw === 'en' || guestLangRaw === 'de' ? guestLangRaw : 'es';
+        const guestLang: 'es' | 'it' | 'en' | 'de' = tenantLang;
 
         // OPTION 1: Free tables available (full shift)
         if (freeTables.length >= needed) {
