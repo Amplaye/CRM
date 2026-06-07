@@ -1,7 +1,7 @@
 "use client";
 
 import { Suspense, useState, useEffect } from "react";
-import { Settings as SettingsIcon, Users, ToggleRight, CalendarClock } from "lucide-react";
+import { Settings as SettingsIcon, Users, ToggleRight, CalendarClock, LineChart } from "lucide-react";
 import { useSearchParams, useRouter, usePathname } from "next/navigation";
 import { useLanguage } from "@/lib/contexts/LanguageContext";
 import { useTenant } from "@/lib/contexts/TenantContext";
@@ -9,17 +9,19 @@ import { GeneralTab } from "@/components/settings/GeneralTab";
 import { StaffTab } from "@/components/settings/StaffTab";
 import { FeaturesTab } from "@/components/settings/FeaturesTab";
 import { BookingTab } from "@/components/settings/BookingTab";
+import { ManagementTab } from "@/components/settings/ManagementTab";
+import { getFeatures } from "@/lib/types/tenant-settings";
 
-type Tab = "general" | "booking" | "features" | "staff";
+type Tab = "general" | "booking" | "features" | "management" | "staff";
 
 function SettingsContent() {
   const { t } = useLanguage();
-  const { activeRole, globalRole } = useTenant();
+  const { activeRole, globalRole, activeTenant } = useTenant();
   const searchParams = useSearchParams();
   const router = useRouter();
   const pathname = usePathname();
 
-  const TABS: Tab[] = ["general", "booking", "features", "staff"];
+  const TABS: Tab[] = ["general", "booking", "features", "management", "staff"];
   const initial = (searchParams.get("tab") as Tab) || "general";
   const [tab, setTab] = useState<Tab>(TABS.includes(initial) ? initial : "general");
 
@@ -35,6 +37,10 @@ function SettingsContent() {
   const canSeeFeaturesTab = activeRole === "owner" || globalRole === "platform_admin";
   // Bookings = contact details + booking rules; owner-level, same gate as features.
   const canSeeBookingTab = activeRole === "owner" || globalRole === "platform_admin";
+  // Gestionale = financial targets/budgets; owner/admin only, and only when the
+  // management module is enabled for this tenant.
+  const managementEnabled = getFeatures(activeTenant?.settings).management_enabled;
+  const canSeeManagementTab = (activeRole === "owner" || globalRole === "platform_admin") && managementEnabled;
 
   const setActiveTab = (next: Tab) => {
     setTab(next);
@@ -81,6 +87,16 @@ function SettingsContent() {
             {t("settings_tab_features") || "Funzionalità"}
           </button>
         )}
+        {canSeeManagementTab && (
+          <button
+            onClick={() => setActiveTab("management")}
+            className={`inline-flex items-center gap-2 px-4 py-2 text-sm font-medium border-b-2 transition-colors cursor-pointer ${tab === "management" ? "text-black" : "text-black/60 hover:text-black border-transparent"}`}
+            style={tab === "management" ? { borderColor: "#c4956a" } : {}}
+          >
+            <LineChart className="w-4 h-4" />
+            {t("settings_tab_management" as any) || "Gestionale"}
+          </button>
+        )}
         {canSeeStaffTab && (
           <button
             onClick={() => setActiveTab("staff")}
@@ -96,6 +112,7 @@ function SettingsContent() {
       {tab === "general" && <GeneralTab />}
       {tab === "booking" && canSeeBookingTab && <BookingTab />}
       {tab === "features" && canSeeFeaturesTab && <FeaturesTab />}
+      {tab === "management" && canSeeManagementTab && <ManagementTab />}
       {tab === "staff" && canSeeStaffTab && <StaffTab />}
     </div>
   );

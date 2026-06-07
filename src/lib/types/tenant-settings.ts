@@ -89,6 +89,14 @@ export interface TenantSettings {
    * `voice.provider`). Credentials never live here — they go encrypted in the
    * dedicated pos_credentials table (a browser can read settings; secrets can't). */
   pos?: { provider?: "mock" | "cassa_in_cloud" | "tilby" | "ipratico" | "nempos" | "deliverect" };
+  /** Controllo-gestione preferences (Settings → Gestionale). Targets/budgets the
+   * food-cost and P&L screens read; not policy the bot enforces. */
+  management?: {
+    /** Food-cost % above which a dish is flagged low-margin. Default 30. */
+    food_cost_target_pct?: number;
+    /** Monthly staff-cost budget, compared against entered labor_cost on the P&L. */
+    labor_budget_monthly?: number;
+  };
   /** Offboarding bookkeeping, written by the archive flow (src/lib/tenants/delete-tenant.ts). */
   archive?: { prev_status: TenantStatus; export_path?: string };
   /** Which voice platform serves this tenant's calls. Vapi is the BASE tier

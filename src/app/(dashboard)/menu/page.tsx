@@ -51,6 +51,7 @@ import {
   membershipDiff,
 } from "@/lib/menu/collections";
 import { QRCodeSVG } from "qrcode.react";
+import { RecipePanel } from "@/components/management/RecipePanel";
 
 const COMMON_ALLERGENS = [
   "glutine",
@@ -1446,6 +1447,16 @@ function ItemEditModal({
               })}
             </div>
           </div>
+
+          {/* Recipe & food-cost editor — only for an existing dish (needs its id),
+              self-hides when management_enabled is OFF. */}
+          {isEditing && (
+            <RecipePanel
+              tenantId={tenantId}
+              menuItemId={initial.id}
+              price={price.trim() === "" ? null : Number(price.replace(",", "."))}
+            />
+          )}
         </div>
 
         <div
