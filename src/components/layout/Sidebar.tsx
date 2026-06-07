@@ -22,6 +22,9 @@ import {
   StickyNote,
   Inbox,
   ShieldAlert,
+  Calculator,
+  PieChart,
+  Package,
 } from "lucide-react";
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
@@ -39,7 +42,7 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
-const navItems: Array<{ name: string; href: string; icon: any; badgeKey?: keyof NotificationCounts; badgeStyle?: "alert" | "info" }> = [
+const navItems: Array<{ name: string; href: string; icon: any; badgeKey?: keyof NotificationCounts; badgeStyle?: "alert" | "info"; feature?: keyof ReturnType<typeof getFeatures> }> = [
   { name: "Tables", href: "/floor", icon: LayoutGrid },
   { name: "Reservations", href: "/reservations", icon: Calendar, badgeKey: "reservations", badgeStyle: "info" },
   { name: "Waitlist", href: "/waitlist", icon: Clock, badgeKey: "waitlist", badgeStyle: "alert" },
@@ -49,6 +52,10 @@ const navItems: Array<{ name: string; href: string; icon: any; badgeKey?: keyof 
   { name: "Analytics", href: "/", icon: BarChart3 },
   { name: "Knowledge Base", href: "/knowledge", icon: BookOpen },
   { name: "Menu", href: "/menu", icon: UtensilsCrossed },
+  // Gestionale (controllo gestione) — only when management_enabled is ON.
+  { name: "Food Cost", href: "/food-cost", icon: Calculator, feature: "management_enabled" },
+  { name: "PL", href: "/pl", icon: PieChart, feature: "management_enabled" },
+  { name: "Inventory", href: "/inventory", icon: Package, feature: "management_enabled" },
   { name: "Settings", href: "/settings", icon: Settings },
 ];
 
@@ -116,7 +123,9 @@ export function Sidebar({ mobileOpen = false, onClose }: SidebarProps) {
     ? navItems.filter(i => i.href === "/floor" || i.href === "/reservations")
     : navItems
   // Feature flag: hide the Waitlist page for tenants that don't use it.
-  ).filter(i => i.href !== "/waitlist" || features.waitlist_enabled);
+  ).filter(i => i.href !== "/waitlist" || features.waitlist_enabled)
+  // Feature-gated items (e.g. the gestionale pages) only show when their flag is ON.
+  .filter(i => !i.feature || features[i.feature]);
 
   const adminNavItems = [
     { href: "/admin", icon: Shield, label: "Tenants" },

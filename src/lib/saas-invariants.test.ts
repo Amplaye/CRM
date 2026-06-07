@@ -119,6 +119,43 @@ describe("SaaS pillar — the wizard owner phone is persisted, never dropped [ow
   });
 });
 
+describe("SaaS pillar — POS credentials are never readable by the browser [gestionale]", () => {
+  // Till API keys must live ONLY in the dedicated, service-role-only
+  // pos_credentials table (AES-256-GCM). They must never be written into
+  // tenants.settings (the browser reads settings everywhere → an API key there is
+  // a leak), and the encrypt/decrypt path must never surface in a client bundle.
+  // Skip test files (this very file references the patterns in comments).
+  const allSrc = sourceFiles(join(process.cwd(), "src")).filter((f) => !/\.test\.tsx?$/.test(f));
+
+  it("no code writes POS secrets into tenants.settings.pos (provider flag only)", () => {
+    // settings.pos may only carry the non-secret provider flag. Catch an obvious
+    // mistake: a credential/secret/apiKey field assigned under a `pos:` settings object.
+    const offenders: string[] = [];
+    for (const f of allSrc) {
+      const txt = readFileSync(f, "utf8");
+      // a `pos: { ... secret/apiKey/credential ... }` settings literal
+      const m = txt.match(/pos:\s*\{[^}]*\b(secret|api_?key|credential|token|password)\b/i);
+      if (m) offenders.push(`${f} → ${m[0].slice(0, 60)}`);
+    }
+    expect(offenders, `POS secret in settings.pos:\n${offenders.join("\n")}`).toEqual([]);
+  });
+
+  it("the credential cipher key (POS_CRED_ENC_KEY) is only used server-side, never in a client component", () => {
+    const offenders: string[] = [];
+    for (const f of allSrc) {
+      const txt = readFileSync(f, "utf8");
+      if (txt.includes("POS_CRED_ENC_KEY") && /^["']use client["']/m.test(txt)) {
+        offenders.push(f);
+      }
+    }
+    expect(offenders, `POS_CRED_ENC_KEY referenced in a client component:\n${offenders.join("\n")}`).toEqual([]);
+  });
+
+  it("management_enabled defaults OFF (opt-in module, never auto-on)", () => {
+    expect(getFeatures(null).management_enabled).toBe(false);
+  });
+});
+
 describe("SaaS pillar — every new tenant clones PICNIC's full workflow set [gold standard]", () => {
   // PICNIC is the maintenance-free legacy tenant. The onboarding template must
   // clone exactly its per-tenant workflows so a new client is born complete.

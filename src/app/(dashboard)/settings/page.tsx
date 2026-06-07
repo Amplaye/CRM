@@ -94,7 +94,7 @@ function SettingsContent() {
             style={tab === "management" ? { borderColor: "#c4956a" } : {}}
           >
             <LineChart className="w-4 h-4" />
-            {t("settings_tab_management" as any) || "Gestionale"}
+            {t("settings_tab_management") || "Gestionale"}
           </button>
         )}
         {canSeeStaffTab && (
