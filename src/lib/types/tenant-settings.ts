@@ -20,6 +20,7 @@ export interface TenantFeatures {
   pet_friendly: boolean;     // pets allowed
   reminders_enabled: boolean; // send the day-before booking reminder (WhatsApp template)
   followup_enabled: boolean;  // send the post-visit thank-you / review request (WhatsApp template)
+  management_enabled: boolean; // iammi-style controllo gestione (POS sales, food cost, P&L, inventory, invoices)
 }
 
 /** Sensible defaults for an average restaurant. Chosen so existing tenants keep
@@ -37,6 +38,10 @@ export const DEFAULT_FEATURES: TenantFeatures = {
   pet_friendly: false,
   reminders_enabled: true,
   followup_enabled: false,
+  // OFF by default: financial management is an opt-in module an owner enables
+  // (it surfaces POS/food-cost/inventory screens that only matter once a till is
+  // connected — today the MockAdapter — and recipes/costs are entered).
+  management_enabled: false,
 };
 
 /** Ordered list driving the Settings → Features UI (label/hint via i18n keys). */
@@ -50,6 +55,7 @@ export const FEATURE_FLAGS: ReadonlyArray<{ key: keyof TenantFeatures; labelKey:
   { key: "pet_friendly", labelKey: "settings_feature_pet_friendly", hintKey: "settings_feature_pet_friendly_hint" },
   { key: "reminders_enabled", labelKey: "settings_feature_reminders", hintKey: "settings_feature_reminders_hint" },
   { key: "followup_enabled", labelKey: "settings_feature_followup", hintKey: "settings_feature_followup_hint" },
+  { key: "management_enabled", labelKey: "settings_feature_management", hintKey: "settings_feature_management_hint" },
 ];
 
 /**
@@ -77,6 +83,12 @@ export interface TenantSettings {
    * number (e.g. "whatsapp:+34..."); unset → platform default. Resolved in one
    * place by src/lib/whatsapp/from.ts (Mossa 5: sending number is config, not code). */
   whatsapp?: { from?: string };
+  /** Which POS adapter feeds the canonical pos_sales tables. `mock` (default)
+   * generates realistic fake sales; the real tills drop in later. Resolved in one
+   * place by src/lib/pos/pos-provider.ts (same single-resolution-point idiom as
+   * `voice.provider`). Credentials never live here — they go encrypted in the
+   * dedicated pos_credentials table (a browser can read settings; secrets can't). */
+  pos?: { provider?: "mock" | "cassa_in_cloud" | "tilby" | "ipratico" | "nempos" | "deliverect" };
   /** Offboarding bookkeeping, written by the archive flow (src/lib/tenants/delete-tenant.ts). */
   archive?: { prev_status: TenantStatus; export_path?: string };
   /** Which voice platform serves this tenant's calls. Vapi is the BASE tier
