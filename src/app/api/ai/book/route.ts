@@ -94,7 +94,7 @@ export async function POST(request: Request) {
     // hours), idempotency check, and existing-guest lookup. Run in parallel
     // (~10ms wall-clock vs ~30ms sequential). Each result still falls back
     // to its sequential validation branch below.
-    const [tenantRes, idempotencyRes, existingGuestsRes] = await Promise.all([
+    const [tenantRes, idempotencyRes, existingGuestsRes, convLangRes] = await Promise.all([
       supabase
         .from('tenants')
         .select('settings')
@@ -114,7 +114,35 @@ export async function POST(request: Request) {
         .from('guests')
         .select('id, name, phone')
         .eq('tenant_id', payload.tenant_id),
+      // Conversation language — the authoritative "language the customer used in
+      // chat". The bot replies in (and tags the conversation with) the locked
+      // session language, but the `language` it sends in THIS payload can be
+      // stale on a fast turn (sticky-lang flush latency in n8n staticData), so a
+      // booking made early grabs the tenant default instead of the real language.
+      // Reading conversations.language here fixes the Meta reminder template going
+      // out in the wrong language (e.g. Oraz IT customer getting an ES reminder).
+      payload.linked_conversation_id
+        ? supabase
+            .from('conversations')
+            .select('language')
+            .eq('id', payload.linked_conversation_id)
+            .maybeSingle()
+        : Promise.resolve({ data: null }),
     ]);
+
+    // Authoritative booking language: prefer the conversation's tagged language
+    // (set from the locked session lang), fall back to the payload, then to the
+    // tenant primary, then 'es'. reservations.language is what the reminder cron
+    // /n8n reminder workflow reads, so pinning the real chat language here makes
+    // the booking_reminder template arrive in the language the customer used.
+    const VALID_LANGS = ['es', 'it', 'en', 'de'] as const;
+    const _conversationLang = (convLangRes.data as { language?: string } | null)?.language;
+    const _tenantPrimaryLang = ((tenantRes.data?.settings as { bot_config?: { primary_language?: string } } | null)?.bot_config?.primary_language || '').slice(0, 2).toLowerCase();
+    const effectiveLang: string | undefined = [
+      _conversationLang,
+      payload.language,
+      _tenantPrimaryLang,
+    ].map((l) => (l || '').slice(0, 2).toLowerCase()).find((l) => (VALID_LANGS as readonly string[]).includes(l)) || undefined;
 
     // SaaS gate (Mossa 3): does this tenant run a waitlist? Read once from the
     // settings we already fetched. When off, the three "full → waitlist" fallbacks
@@ -478,10 +506,11 @@ export async function POST(request: Request) {
       };
       // Pin the customer's language so the manual-confirmation WhatsApp (sent
       // when staff approve this escalated request from /pending) goes out in the
-      // guest's language instead of defaulting to Spanish. Same logic as the
+      // guest's language instead of defaulting to Spanish. Uses effectiveLang
+      // (conversation > payload > tenant primary) — same logic as the
       // normal-booking path below.
-      if (payload.language && ['es', 'it', 'en', 'de'].includes(payload.language)) {
-        reservation.language = payload.language;
+      if (effectiveLang) {
+        reservation.language = effectiveLang;
       }
 
       const { data: newRes, error: newResErr } = await supabase
@@ -532,7 +561,6 @@ export async function POST(request: Request) {
     }
 
     // 6. Normal booking (within auto-confirm limit) - create reservation then atomically assign tables
-    const bookingLang = payload.language;
     const reservation: Record<string, any> = {
        tenant_id: payload.tenant_id,
        guest_id: guestId,
@@ -551,11 +579,13 @@ export async function POST(request: Request) {
        end_time: endTime,
        shift,
     };
-    // Pin the customer's language to THIS reservation. The reminder cron
-    // reads reservations.language so different bookings from the same phone
-    // can have different languages (e.g. user tests IT and ES from same line).
-    if (bookingLang && ['es', 'it', 'en', 'de'].includes(bookingLang)) {
-      reservation.language = bookingLang;
+    // Pin the customer's language to THIS reservation. The reminder cron / n8n
+    // reminder workflow read reservations.language to pick the booking_reminder
+    // template language, so this must be the language the customer actually used
+    // in chat. effectiveLang prefers the conversation's tagged language over the
+    // (sometimes stale) payload language — see the resolution block up top.
+    if (effectiveLang) {
+      reservation.language = effectiveLang;
     }
 
     const { data: newRes, error: newResErr } = await supabase
@@ -794,7 +824,7 @@ export async function POST(request: Request) {
     // tenants with no settings.venue → fields are simply omitted.
     const venue = ((tenantRes.data?.settings as { venue?: VenueInfo } | null) || {}).venue;
     const venueLines = venue
-      ? bookingVenueLines(venue, (payload.language || 'es') as Lang)
+      ? bookingVenueLines(venue, (effectiveLang || 'es') as Lang)
       : null;
 
     return NextResponse.json({
