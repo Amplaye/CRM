@@ -779,6 +779,13 @@ alter publication supabase_realtime add table public.tenant_members;
 -- staff in real time when an Admin removes them.
 alter table public.tenant_members replica identity full;
 
+-- REALTIME: enable broadcasts for tenants so a tenant's open CRM session sees
+-- settings changes live — specifically the admin per-tenant feature toggles
+-- (settings.features.*, e.g. management_enabled → Gestionale sidebar items).
+-- Default replica identity (PK) is enough: the UPDATE payload carries the full
+-- NEW row, which is all TenantContext reads.
+alter publication supabase_realtime add table public.tenants;
+
 -- =====================================================================
 -- SECURITY HARDENING (2026-05-29) — applied to the live DB via the
 -- Management API and codified here. See SECURITY_REVIEW_2026-05-29.md.

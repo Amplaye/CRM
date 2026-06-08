@@ -166,6 +166,44 @@ export const TenantProvider = ({ children }: { children: ReactNode }) => {
     loadTenantData();
   }, [user, authLoading, supabase]);
 
+  // Live-apply changes to the active tenant's row. The admin per-tenant feature
+  // toggles (settings.features.*, e.g. management_enabled) write to tenants.settings
+  // from the Platform Admin panel; without this, the owner's already-open CRM kept
+  // the sessionStorage-cached settings and the Gestionale sidebar items
+  // (Magazzino / Food Cost / P&L) only appeared after a hard reload. Subscribing to
+  // this tenant's row makes the toggle reflect instantly. `tenants` is in the
+  // supabase_realtime publication (see 2026-06-08-tenants-realtime.sql).
+  useEffect(() => {
+    if (!user || !activeTenant?.id) return;
+    const tenantId = activeTenant.id;
+
+    const applyRow = (row: any) => {
+      if (!row) return;
+      // The realtime payload (default replica identity) carries the full NEW row,
+      // including the updated settings JSONB — apply it straight to state so the UI
+      // (sidebar gating, Settings forms) updates instantly. Drop the sessionStorage
+      // cache: it's now stale, and the next full navigation re-reads the fresh row
+      // once (one cheap query) rather than reviving the pre-toggle settings.
+      setActiveTenant((prev) => (prev && prev.id === tenantId ? ({ ...prev, ...row } as Tenant) : prev));
+      setAvailableTenants((prev) => prev.map((t) => (t.id === tenantId ? ({ ...t, ...row } as Tenant) : t)));
+      safeSession.remove(`tenant_ctx_${user.id}`);
+    };
+
+    const channel = supabase
+      .channel(`tenant-settings-${tenantId}`)
+      .on(
+        "postgres_changes",
+        { event: "UPDATE", schema: "public", table: "tenants", filter: `id=eq.${tenantId}` },
+        (payload: any) => applyRow(payload.new),
+      )
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
+    // activeTenant.id is the only identity we resubscribe on; updating activeTenant's
+    // other fields from inside must not re-run this effect (would churn the channel).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user, activeTenant?.id, supabase]);
+
   const switchTenant = (tenantId: string | null) => {
     if (user) safeSession.remove(`tenant_ctx_${user.id}`);
     if (tenantId === null) {

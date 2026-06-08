@@ -23,7 +23,19 @@ export async function updateSession(request: NextRequest) {
     }
   )
 
-  const { data: { user } } = await supabase.auth.getUser()
+  // Presence check for the auth REDIRECT gate only. We use getSession() (reads +
+  // refreshes the token from the cookie LOCALLY) instead of getUser(), which makes
+  // a network round-trip to the Auth server (~190ms) on EVERY request — and this
+  // middleware runs on every page, API call and navigation (see matcher below), so
+  // getUser() here was a per-request latency tax that made the whole CRM feel slow.
+  //
+  // Safe because this only decides "send anonymous visitors to /login". It is NOT
+  // the authorization boundary: every table read is gated by Postgres RLS (which
+  // verifies the JWT signature server-side) and privileged /api/admin routes
+  // re-check the role via assertPlatformAdmin. A forged cookie still can't read or
+  // mutate data — it would just avoid the login bounce, then hit empty/403 responses.
+  const { data: { session } } = await supabase.auth.getSession()
+  const user = session?.user ?? null
 
   if (
     !user &&
