@@ -1,9 +1,9 @@
 "use client";
 
-import { Save, Plus, Trash2, Clock, Power, PowerOff } from "lucide-react";
+import { Save, Plus, Trash2, Clock, Power, PowerOff, Upload, Image as ImageIcon } from "lucide-react";
 import { useLanguage } from "@/lib/contexts/LanguageContext";
 import { useTenant } from "@/lib/contexts/TenantContext";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 
 interface TimeSlot { open: string; close: string }
@@ -88,6 +88,9 @@ export function GeneralTab() {
   const supabase = createClient();
 
   const [name, setName] = useState("");
+  const [logoUrl, setLogoUrl] = useState<string>("");
+  const [logoUploading, setLogoUploading] = useState(false);
+  const logoInputRef = useRef<HTMLInputElement>(null);
   const [timezone, setTimezone] = useState("Atlantic/Canary");
   const [avgSpend, setAvgSpend] = useState(50);
   const [avgCost, setAvgCost] = useState(25);
@@ -129,6 +132,7 @@ export function GeneralTab() {
     setName(tenant.name);
     const s = tenant.settings as any;
     if (s) {
+      setLogoUrl(s.branding?.logo_url || "");
       setTimezone(s.timezone || "Atlantic/Canary");
       setAvgSpend(s.avg_spend || 50);
       setAvgCost(s.avg_cost || 25);
@@ -159,6 +163,90 @@ export function GeneralTab() {
     }
   }, [tenant]);
 
+  // Compress a picked logo to a square-ish WebP (~256px) and upload it to the
+  // public "branding" bucket, then persist settings.branding.logo_url right away
+  // so the sidebar updates without waiting for the Save button. Mirrors the
+  // dish-photo upload in the Menu editor (Supabase Free shares one bucket, so
+  // we keep logos tiny).
+  const compressLogo = (file: File): Promise<Blob> =>
+    new Promise((resolve, reject) => {
+      const img = new Image();
+      const url = URL.createObjectURL(file);
+      img.onload = () => {
+        URL.revokeObjectURL(url);
+        const MAX = 256;
+        let { width, height } = img;
+        if (width > height && width > MAX) {
+          height = Math.round((height * MAX) / width);
+          width = MAX;
+        } else if (height >= width && height > MAX) {
+          width = Math.round((width * MAX) / height);
+          height = MAX;
+        }
+        const canvas = document.createElement("canvas");
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext("2d");
+        if (!ctx) return reject(new Error("no 2d context"));
+        ctx.drawImage(img, 0, 0, width, height);
+        canvas.toBlob((blob) => (blob ? resolve(blob) : reject(new Error("toBlob failed"))), "image/webp", 0.9);
+      };
+      img.onerror = () => {
+        URL.revokeObjectURL(url);
+        reject(new Error("image decode failed"));
+      };
+      img.src = url;
+    });
+
+  const persistLogo = async (nextUrl: string) => {
+    if (!tenant) return;
+    const merged = {
+      ...((tenant.settings as any) || {}),
+      branding: { ...((tenant.settings as any)?.branding || {}), logo_url: nextUrl || undefined },
+    };
+    const { error } = await supabase.from("tenants").update({ settings: merged }).eq("id", tenant.id);
+    if (error) throw error;
+    await refreshActiveTenant();
+  };
+
+  const handleLogoPick = async (file: File | null) => {
+    if (!tenant || !file || !file.type.startsWith("image/")) return;
+    setLogoUploading(true);
+    try {
+      const blob = await compressLogo(file);
+      const path = `${tenant.id}/logo.webp`;
+      const { error: upErr } = await supabase.storage
+        .from("branding")
+        .upload(path, blob, { contentType: "image/webp", upsert: true });
+      if (upErr) throw upErr;
+      const { data: pub } = supabase.storage.from("branding").getPublicUrl(path);
+      // Cache-bust so an overwritten logo refreshes immediately in the sidebar.
+      const nextUrl = `${pub.publicUrl}?v=${blob.size}`;
+      setLogoUrl(nextUrl);
+      await persistLogo(nextUrl);
+    } catch (e) {
+      console.error("[settings] logo upload failed", e);
+      alert(`Errore caricamento logo: ${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      setLogoUploading(false);
+      if (logoInputRef.current) logoInputRef.current.value = "";
+    }
+  };
+
+  const handleLogoRemove = async () => {
+    if (!tenant) return;
+    setLogoUploading(true);
+    try {
+      await supabase.storage.from("branding").remove([`${tenant.id}/logo.webp`]).catch(() => {});
+      setLogoUrl("");
+      await persistLogo("");
+    } catch (e) {
+      console.error("[settings] logo remove failed", e);
+    } finally {
+      setLogoUploading(false);
+    }
+  };
+
   const handleSave = async () => {
     if (!tenant) return;
     setSaving(true);
@@ -169,6 +257,11 @@ export function GeneralTab() {
     if (aiVoice) channels.push("voice");
 
     const newSettings = {
+      // Preserve any settings keys this form doesn't manage (e.g. pos, voice,
+      // n8n, bot_config) — they'd be wiped otherwise since we overwrite the
+      // whole settings JSONB below.
+      ...((tenant.settings as any) || {}),
+      branding: { ...((tenant.settings as any)?.branding || {}), logo_url: logoUrl || undefined },
       timezone,
       currency: "EUR",
       ai_enabled_channels: channels,
@@ -338,6 +431,54 @@ export function GeneralTab() {
             <label className="block text-sm font-medium text-black">{t("settings_name")}</label>
             <input type="text" value={name} onChange={e => setName(e.target.value)}
               className={`mt-1 ${inputStyle}`} style={inputBorder} />
+          </div>
+
+          <div className="mt-6">
+            <label className="block text-sm font-medium text-black">{t("settings_logo")}</label>
+            <p className="mt-0.5 text-xs text-black/70">{t("settings_logo_desc")}</p>
+            <div className="mt-3 flex items-center gap-4">
+              <div
+                className="h-16 w-16 rounded-xl border-2 flex items-center justify-center overflow-hidden shrink-0"
+                style={{ borderColor: "#c4956a", background: "white" }}
+              >
+                {logoUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={logoUrl} alt={name || "logo"} className="h-full w-full object-cover" />
+                ) : (
+                  <ImageIcon className="h-7 w-7 text-[#c4956a]" />
+                )}
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <input
+                  ref={logoInputRef}
+                  type="file"
+                  accept="image/png,image/jpeg,image/webp"
+                  className="hidden"
+                  onChange={(e) => handleLogoPick(e.target.files?.[0] ?? null)}
+                />
+                <button
+                  type="button"
+                  onClick={() => logoInputRef.current?.click()}
+                  disabled={logoUploading}
+                  className="cursor-pointer inline-flex items-center gap-2 px-3 py-2 rounded-lg border-2 text-sm font-semibold text-black hover:bg-[#c4956a]/10 transition-colors disabled:opacity-50"
+                  style={{ borderColor: "#c4956a" }}
+                >
+                  <Upload className="h-4 w-4 text-[#c4956a]" />
+                  {logoUploading ? t("settings_logo_uploading") : logoUrl ? t("settings_logo_change") : t("settings_logo_upload")}
+                </button>
+                {logoUrl && !logoUploading && (
+                  <button
+                    type="button"
+                    onClick={handleLogoRemove}
+                    className="cursor-pointer inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-red-600 text-red-600 text-sm font-medium hover:bg-red-600 hover:text-white transition-colors"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                    {t("settings_logo_remove")}
+                  </button>
+                )}
+              </div>
+            </div>
+            <p className="mt-2 text-xs text-black/60">{t("settings_logo_hint")}</p>
           </div>
         </section>
 

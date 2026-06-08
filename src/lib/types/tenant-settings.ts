@@ -87,8 +87,14 @@ export interface TenantSettings {
    * generates realistic fake sales; the real tills drop in later. Resolved in one
    * place by src/lib/pos/pos-provider.ts (same single-resolution-point idiom as
    * `voice.provider`). Credentials never live here — they go encrypted in the
-   * dedicated pos_credentials table (a browser can read settings; secrets can't). */
-  pos?: { provider?: "mock" | "cassa_in_cloud" | "tilby" | "ipratico" | "nempos" | "deliverect" };
+   * dedicated pos_credentials table (a browser can read settings; secrets can't).
+   * `declared` records the till brand the owner picked at onboarding even when the
+   * active `provider` stays `mock` (its real adapter isn't shipped yet), so we know
+   * which adapter to wire up when its API access arrives. */
+  pos?: {
+    provider?: "mock" | "cassa_in_cloud" | "tilby" | "ipratico" | "nempos" | "deliverect" | "loyverse";
+    declared?: "none" | "cassa_in_cloud" | "tilby" | "ipratico" | "nempos" | "deliverect" | "loyverse";
+  };
   /** Controllo-gestione preferences (Settings → Gestionale). Targets/budgets the
    * food-cost and P&L screens read; not policy the bot enforces. */
   management?: {
@@ -97,6 +103,11 @@ export interface TenantSettings {
     /** Monthly staff-cost budget, compared against entered labor_cost on the P&L. */
     labor_budget_monthly?: number;
   };
+  /** Per-restaurant branding shown in the CRM chrome. `logo_url` is a public URL
+   * in the "branding" Storage bucket; when set, the sidebar uses it both top-left
+   * (replacing the BaliFlow logo) and bottom-left (replacing the owner's initials
+   * avatar). Unset → BaliFlow defaults. Uploaded/edited in Settings → General. */
+  branding?: { logo_url?: string };
   /** Offboarding bookkeeping, written by the archive flow (src/lib/tenants/delete-tenant.ts). */
   archive?: { prev_status: TenantStatus; export_path?: string };
   /** Which voice platform serves this tenant's calls. Vapi is the BASE tier

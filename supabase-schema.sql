@@ -224,6 +224,11 @@ create table public.menu_items (
   available boolean not null default true,
   image_url text,
   sort_order integer not null default 0,
+  -- POS write-back link: the external product/variant id of the till product this
+  -- dish maps to (populated by the sync's name-match step). With it, a price
+  -- changed in the CRM can be pushed back to the till for THIS exact product,
+  -- instead of re-guessing by name. Null until a sync matches the dish.
+  pos_external_product_id text,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
@@ -234,6 +239,14 @@ create table public.menu_items (
 --   menu_images_auth_insert/update/delete (authenticated) — only signed-in owners write
 -- (Bucket + policies are created out-of-band via the Storage + Management API,
 --  not by this schema file — documented here for reference.)
+--
+-- Storage: a public "branding" bucket holds each tenant's custom CRM logo
+-- (settings.branding.logo_url, path <tenant_id>/logo.webp). The owner uploads
+-- from Settings → General; the Sidebar renders it top-left (replacing the
+-- BaliFlow mark) and bottom-left (replacing the initials avatar). Policies:
+--   branding_public_read   (select, public)        — anyone can view a logo
+--   branding_auth_insert/update/delete (authenticated) — only signed-in owners write
+-- (2MB cap, png/jpeg/webp only. Created out-of-band like menu-images above.)
 
 -- ============================================
 -- 12. AUDIT EVENTS

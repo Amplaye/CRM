@@ -114,6 +114,10 @@ export function Sidebar({ mobileOpen = false, onClose }: SidebarProps) {
     ? (displayName || t("team_role_staff") || "Staff")
     : (displayName || user?.email || "User");
   const avatarChar = (displayName || user?.email || "U").charAt(0).toUpperCase();
+  // The restaurant's own logo (uploaded in Settings → General). When set it
+  // replaces the BaliFlow mark top-left and the initials avatar bottom-left.
+  // Platform admins keep the BaliFlow logo so the tenant switcher stays neutral.
+  const customLogo = globalRole !== "platform_admin" ? activeTenant?.settings?.branding?.logo_url : undefined;
 
   // Staff (camerieri) see only the two pages they need: floor for walk-ins
   // and reservations to mark arrivals/no-shows. Everything else is hidden.
@@ -143,7 +147,8 @@ export function Sidebar({ mobileOpen = false, onClose }: SidebarProps) {
   const sidebarContent = (
     <>
       <div className="h-14 md:h-16 flex items-center px-3 border-b gap-2 shrink-0" style={{ borderColor: '#c4956a' }}>
-        <img src="/logo.png" alt="BaliFlow" className="w-7 h-7 md:w-8 md:h-8 rounded-md flex-shrink-0 shadow-sm object-cover" />
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src={customLogo || "/logo.png"} alt={activeTenant?.name || "BaliFlow"} className="w-7 h-7 md:w-8 md:h-8 rounded-md flex-shrink-0 shadow-sm object-cover" />
         {isAdmin ? (
           <div className="flex-1 min-w-0">
             <TenantSwitcher />
@@ -224,8 +229,13 @@ export function Sidebar({ mobileOpen = false, onClose }: SidebarProps) {
       <div className="p-3 md:p-4 border-t" style={{ borderColor: '#c4956a', background: 'rgba(252,246,237,0.85)' }}>
          <div className="flex items-center justify-between gap-3">
             <div className="flex items-center min-w-0">
-              <div className="h-8 w-8 rounded-full bg-[#c4956a]/20 flex items-center justify-center text-[#8b6540] font-bold text-xs flex-shrink-0">
-                {avatarChar}
+              <div className="h-8 w-8 rounded-full bg-[#c4956a]/20 flex items-center justify-center text-[#8b6540] font-bold text-xs flex-shrink-0 overflow-hidden">
+                {customLogo ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={customLogo} alt={activeTenant?.name || ""} className="h-full w-full object-cover" />
+                ) : (
+                  avatarChar
+                )}
               </div>
               <div className="ml-3 overflow-hidden">
                 <p className="text-sm font-medium text-black truncate">{primaryLabel}</p>
