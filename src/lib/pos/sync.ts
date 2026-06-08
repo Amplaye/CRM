@@ -42,6 +42,10 @@ const COLD_START_DAYS = 21;
 export async function syncConnection(supabase: any, connection: PosConnectionRow): Promise<SyncResult> {
   const now = new Date();
   const until = now.toISOString();
+  // First sync = cold start: backfill history for reporting (P&L/food cost) but
+  // do NOT deplete current stock by weeks of past consumption — inventory is a
+  // "today" snapshot, not history-derived. Only incremental syncs deplete.
+  const isColdStart = !connection.last_sync_at;
   const since = connection.last_sync_at
     ? new Date(new Date(connection.last_sync_at).getTime() - OVERLAP_MS).toISOString()
     : new Date(now.getTime() - COLD_START_DAYS * 24 * 60 * 60 * 1000).toISOString();
@@ -89,11 +93,9 @@ export async function syncConnection(supabase: any, connection: PosConnectionRow
     // menu_items by name (the seam the real product-mapping step will own).
     const productToMenuItem = await buildProductMap(supabase, connection.tenant_id, adapter, ctx);
 
-    for (const sale of sales) {
-      const upserted = await upsertSale(supabase, connection, sale, productToMenuItem);
-      if (upserted) result.upserted++;
-      else result.skipped++;
-    }
+    const batch = await ingestSalesBatch(supabase, connection, sales, productToMenuItem, !isColdStart);
+    result.upserted = batch.inserted;
+    result.skipped = batch.skipped;
 
     await supabase
       .from("pos_connections")
@@ -163,81 +165,120 @@ function normalizeName(s: string): string {
   return s.trim().toLowerCase().replace(/\s+/g, " ");
 }
 
-/** Upsert one sale + its lines. Returns true if the sale row was newly inserted
- * (so stock is depleted exactly once), false if it already existed (skipped). */
-async function upsertSale(
+const CHUNK = 500;
+function chunked<T>(arr: T[], size = CHUNK): T[][] {
+  const out: T[][] = [];
+  for (let i = 0; i < arr.length; i += size) out.push(arr.slice(i, i + size));
+  return out;
+}
+
+/**
+ * Ingest a whole batch of sales idempotently in BULK — the difference between a
+ * fast sync and a 9-minute one. Instead of ~5 sequential round trips per bill,
+ * it does a handful of set-based queries:
+ *   1. one SELECT of already-seen external_ids → split new vs skipped
+ *   2. chunked bulk-INSERT of the new sales, returning their ids
+ *   3. chunked bulk-INSERT of all their lines (menu_item_id mapped)
+ *   4. ONE stock-depletion RPC per menu_item (sold qty summed across the batch),
+ *      not one per line
+ * Re-running the same window re-sees every external_id → 0 inserted, all skipped.
+ */
+async function ingestSalesBatch(
   supabase: any,
   connection: PosConnectionRow,
-  sale: CanonicalSale,
+  sales: CanonicalSale[],
   productToMenuItem: Map<string, string>,
-): Promise<boolean> {
-  // Was it already ingested? (idempotency check before doing line/stock work)
-  const { data: existing } = await supabase
-    .from("pos_sales")
-    .select("id")
-    .eq("tenant_id", connection.tenant_id)
-    .eq("provider", connection.provider)
-    .eq("external_id", sale.externalId)
-    .maybeSingle();
+  depleteStock: boolean,
+): Promise<{ inserted: number; skipped: number }> {
+  if (sales.length === 0) return { inserted: 0, skipped: 0 };
 
-  const saleRow = {
-    tenant_id: connection.tenant_id,
-    connection_id: connection.id,
-    provider: connection.provider,
-    external_id: sale.externalId,
-    channel: sale.channel,
-    channel_source: sale.channelSource,
-    business_date: sale.businessDate,
-    closed_at: sale.closedAt,
-    currency: sale.currency,
-    gross_total: sale.grossTotal,
-    net_total: sale.netTotal,
-    tax_total: sale.taxTotal,
-    discount_total: sale.discountTotal,
-    fees_total: sale.feesTotal,
-    tip_total: sale.tipTotal,
-    covers: sale.covers,
-    payment_method: sale.paymentMethod,
-    order_ref: sale.orderRef,
-    raw_payload: sale.raw ?? {},
-    updated_at: new Date().toISOString(),
-  };
+  // 1. which external_ids do we already have?
+  const seen = new Set<string>();
+  for (const ids of chunked(sales.map((s) => s.externalId))) {
+    const { data } = await supabase
+      .from("pos_sales")
+      .select("external_id")
+      .eq("tenant_id", connection.tenant_id)
+      .eq("provider", connection.provider)
+      .in("external_id", ids);
+    for (const r of data || []) seen.add(r.external_id);
+  }
+  const fresh = sales.filter((s) => !seen.has(s.externalId));
+  const skipped = sales.length - fresh.length;
+  if (fresh.length === 0) return { inserted: 0, skipped };
 
-  const { data: up } = await supabase
-    .from("pos_sales")
-    .upsert(saleRow, { onConflict: "tenant_id,provider,external_id" })
-    .select("id")
-    .single();
-  const saleId = up?.id;
-  if (!saleId) return false;
-
-  if (existing) return false; // already had it → don't re-insert lines / re-deplete stock
-
-  // Insert the lines (sale is new → no duplicates possible).
-  const lines = sale.items.map((it) => ({
-    tenant_id: connection.tenant_id,
-    sale_id: saleId,
-    external_product_id: it.externalProductId,
-    name: it.name,
-    category: it.category,
-    quantity: it.quantity,
-    unit_price: it.unitPrice,
-    gross_total: it.grossTotal,
-    tax_rate: it.taxRate,
-    menu_item_id: it.externalProductId ? productToMenuItem.get(it.externalProductId) ?? null : null,
-    raw_payload: it.raw ?? {},
-  }));
-  if (lines.length > 0) await supabase.from("pos_sale_items").insert(lines);
-
-  // Deplete inventory for mapped dishes (no-op for lines without a recipe).
-  for (const line of lines) {
-    if (!line.menu_item_id) continue;
-    await supabase.rpc("fn_consume_stock_for_sale_item", {
-      p_tenant_id: connection.tenant_id,
-      p_menu_item_id: line.menu_item_id,
-      p_sold_qty: line.quantity,
-    });
+  // 2. bulk-insert the new sales, keep externalId → id
+  const now = new Date().toISOString();
+  const saleIdByExternal = new Map<string, string>();
+  for (const group of chunked(fresh)) {
+    const rows = group.map((sale) => ({
+      tenant_id: connection.tenant_id,
+      connection_id: connection.id,
+      provider: connection.provider,
+      external_id: sale.externalId,
+      channel: sale.channel,
+      channel_source: sale.channelSource,
+      business_date: sale.businessDate,
+      closed_at: sale.closedAt,
+      currency: sale.currency,
+      gross_total: sale.grossTotal,
+      net_total: sale.netTotal,
+      tax_total: sale.taxTotal,
+      discount_total: sale.discountTotal,
+      fees_total: sale.feesTotal,
+      tip_total: sale.tipTotal,
+      covers: sale.covers,
+      payment_method: sale.paymentMethod,
+      order_ref: sale.orderRef,
+      raw_payload: sale.raw ?? {},
+      updated_at: now,
+    }));
+    const { data } = await supabase
+      .from("pos_sales")
+      .upsert(rows, { onConflict: "tenant_id,provider,external_id" })
+      .select("id, external_id");
+    for (const r of data || []) saleIdByExternal.set(r.external_id, r.id);
   }
 
-  return true;
+  // 3. build all line rows + accumulate stock depletion per menu_item
+  const allLines: any[] = [];
+  const soldByMenuItem = new Map<string, number>();
+  for (const sale of fresh) {
+    const saleId = saleIdByExternal.get(sale.externalId);
+    if (!saleId) continue;
+    for (const it of sale.items) {
+      const menuItemId = it.externalProductId ? productToMenuItem.get(it.externalProductId) ?? null : null;
+      allLines.push({
+        tenant_id: connection.tenant_id,
+        sale_id: saleId,
+        external_product_id: it.externalProductId,
+        name: it.name,
+        category: it.category,
+        quantity: it.quantity,
+        unit_price: it.unitPrice,
+        gross_total: it.grossTotal,
+        tax_rate: it.taxRate,
+        menu_item_id: menuItemId,
+        raw_payload: it.raw ?? {},
+      });
+      if (menuItemId) soldByMenuItem.set(menuItemId, (soldByMenuItem.get(menuItemId) || 0) + it.quantity);
+    }
+  }
+  for (const group of chunked(allLines)) {
+    if (group.length) await supabase.from("pos_sale_items").insert(group);
+  }
+
+  // 4. one stock-depletion call per dish (summed qty), not one per line.
+  //    Skipped on a cold-start backfill (would rewind today's stock by weeks).
+  if (depleteStock) {
+    for (const [menuItemId, qty] of soldByMenuItem) {
+      await supabase.rpc("fn_consume_stock_for_sale_item", {
+        p_tenant_id: connection.tenant_id,
+        p_menu_item_id: menuItemId,
+        p_sold_qty: qty,
+      });
+    }
+  }
+
+  return { inserted: fresh.length, skipped };
 }
