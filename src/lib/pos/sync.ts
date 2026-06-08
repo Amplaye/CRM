@@ -134,7 +134,16 @@ export async function syncConnection(supabase: any, connection: PosConnectionRow
 
 /** Build externalProductId → menu_item_id, matching the till catalogue against
  * the tenant's menu_items by case-insensitive name. Best-effort: unmatched
- * products simply leave menu_item_id null (the line still records revenue). */
+ * products simply leave menu_item_id null (the line still records revenue).
+ *
+ * PRICE SOURCE OF TRUTH (see docs/POS_PRICE_CONFLICT.md): this function links a
+ * dish to its till product but DELIBERATELY never copies the till's price onto
+ * menu_items.price. The CRM is authoritative for menu prices — the owner edits a
+ * price here, we push it to the till (/api/pos/push-price). If we also pulled the
+ * till price back on every sync, a stale till price would silently overwrite the
+ * owner's CRM edit ("last writer wins" in the wrong direction). So we sync sales
+ * (facts) but not prices (CRM-owned). Each line's actual sold price still lands on
+ * pos_sale_items.unit_price as a historical record. */
 async function buildProductMap(
   supabase: any,
   tenantId: string,

@@ -1,7 +1,7 @@
 "use client";
 
 import { Suspense, useState, useEffect } from "react";
-import { Settings as SettingsIcon, Users, ToggleRight, CalendarClock, LineChart } from "lucide-react";
+import { Settings as SettingsIcon, Users, ToggleRight, CalendarClock, LineChart, Plug } from "lucide-react";
 import { useSearchParams, useRouter, usePathname } from "next/navigation";
 import { useLanguage } from "@/lib/contexts/LanguageContext";
 import { useTenant } from "@/lib/contexts/TenantContext";
@@ -10,9 +10,10 @@ import { StaffTab } from "@/components/settings/StaffTab";
 import { FeaturesTab } from "@/components/settings/FeaturesTab";
 import { BookingTab } from "@/components/settings/BookingTab";
 import { ManagementTab } from "@/components/settings/ManagementTab";
+import { PosTab } from "@/components/settings/PosTab";
 import { getFeatures } from "@/lib/types/tenant-settings";
 
-type Tab = "general" | "booking" | "features" | "management" | "staff";
+type Tab = "general" | "booking" | "features" | "management" | "pos" | "staff";
 
 function SettingsContent() {
   const { t } = useLanguage();
@@ -21,7 +22,7 @@ function SettingsContent() {
   const router = useRouter();
   const pathname = usePathname();
 
-  const TABS: Tab[] = ["general", "booking", "features", "management", "staff"];
+  const TABS: Tab[] = ["general", "booking", "features", "management", "pos", "staff"];
   const initial = (searchParams.get("tab") as Tab) || "general";
   const [tab, setTab] = useState<Tab>(TABS.includes(initial) ? initial : "general");
 
@@ -41,6 +42,9 @@ function SettingsContent() {
   // management module is enabled for this tenant.
   const managementEnabled = getFeatures(activeTenant?.settings).management_enabled;
   const canSeeManagementTab = (activeRole === "owner" || globalRole === "platform_admin") && managementEnabled;
+  // Cassa = POS connection (paste token, test, sync). Same gate as gestionale —
+  // it only matters once the management module is on and a till feeds the data.
+  const canSeePosTab = (activeRole === "owner" || globalRole === "platform_admin") && managementEnabled;
 
   const setActiveTab = (next: Tab) => {
     setTab(next);
@@ -97,6 +101,16 @@ function SettingsContent() {
             {t("settings_tab_management") || "Gestionale"}
           </button>
         )}
+        {canSeePosTab && (
+          <button
+            onClick={() => setActiveTab("pos")}
+            className={`inline-flex items-center gap-2 px-4 py-2 text-sm font-medium border-b-2 transition-colors cursor-pointer ${tab === "pos" ? "text-black" : "text-black/60 hover:text-black border-transparent"}`}
+            style={tab === "pos" ? { borderColor: "#c4956a" } : {}}
+          >
+            <Plug className="w-4 h-4" />
+            {t("settings_tab_pos") || "Cassa"}
+          </button>
+        )}
         {canSeeStaffTab && (
           <button
             onClick={() => setActiveTab("staff")}
@@ -113,6 +127,7 @@ function SettingsContent() {
       {tab === "booking" && canSeeBookingTab && <BookingTab />}
       {tab === "features" && canSeeFeaturesTab && <FeaturesTab />}
       {tab === "management" && canSeeManagementTab && <ManagementTab />}
+      {tab === "pos" && canSeePosTab && <PosTab />}
       {tab === "staff" && canSeeStaffTab && <StaffTab />}
     </div>
   );

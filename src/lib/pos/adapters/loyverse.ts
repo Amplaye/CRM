@@ -36,6 +36,7 @@ import type {
   PosAdapter,
   PosChannel,
   PosPaymentMethod,
+  ProductUpsert,
   PushResult,
 } from "@/lib/pos/types";
 
@@ -157,6 +158,67 @@ function paymentMethodOf(payments: LvPayment[] | null | undefined): PosPaymentMe
   if (/voucher|ticket|buono|meal/.test(s)) return "meal_voucher";
   if (/transfer|bonifico|bank/.test(s)) return "bank_transfer";
   return "other";
+}
+
+// Page /items once and find the item that owns a given variant_id. Loyverse
+// keys catalogue writes by ITEM (an item holds N variants), but line items and
+// inventory key by variant_id — so every write that targets one variant first
+// has to locate its parent item. Shared by price/product/stock write-backs.
+async function findItemByVariant(
+  ctx: AdapterContext,
+  variantId: string,
+): Promise<LvItem | undefined> {
+  const items = await pageAll<LvItem>(ctx, "/items", {}, (page: LvItemsPage) => ({
+    rows: page.items ?? [],
+    cursor: page.cursor ?? null,
+  }));
+  return items.find((it) => (it.variants ?? []).some((v) => v.variant_id === variantId));
+}
+
+// Make sure the item that owns `variantId` has track_stock=true, so Loyverse
+// accepts a POST /inventory for it (it 400s otherwise — "track_stock set to
+// false"). Idempotent: if it's already tracking, this is a no-op (we skip the
+// re-POST). Returns false only when the item can't be found.
+async function ensureTrackStock(ctx: AdapterContext, variantId: string): Promise<boolean> {
+  const item = await findItemByVariant(ctx, variantId);
+  if (!item || !item.id) return false;
+  if ((item as any).track_stock === true) return true;
+  await posFetch(`${BASE}/items`, {
+    method: "POST",
+    headers: { ...authHeaders(ctx), "Content-Type": "application/json" },
+    body: JSON.stringify({ ...item, track_stock: true }),
+  });
+  return true;
+}
+
+// Resolve the store to write stock against: the configured store_id, else the
+// account's first store (Loyverse inventory is per-store, so a store is required).
+async function resolveStoreId(ctx: AdapterContext): Promise<string | undefined> {
+  const configured = typeof ctx.config?.store_id === "string" ? ctx.config.store_id : undefined;
+  if (configured) return configured;
+  const res = await posFetch(`${BASE}/stores?limit=1`, { headers: authHeaders(ctx) });
+  const data = (await res.json()) as { stores?: Array<{ id?: string }> };
+  return data.stores?.[0]?.id || undefined;
+}
+
+// Ensure a category exists by name, returning its id (Loyverse items reference
+// categories by id). Looks up the existing set first, creates it only if absent.
+async function ensureCategoryId(ctx: AdapterContext, name: string): Promise<string | undefined> {
+  const want = name.trim().toLowerCase();
+  if (!want) return undefined;
+  const cats = await pageAll<LvCategory>(ctx, "/categories", {}, (page: LvCategoriesPage) => ({
+    rows: page.categories ?? [],
+    cursor: page.cursor ?? null,
+  }));
+  const hit = cats.find((c) => (c.name || "").trim().toLowerCase() === want);
+  if (hit?.id) return hit.id;
+  const res = await posFetch(`${BASE}/categories`, {
+    method: "POST",
+    headers: { ...authHeaders(ctx), "Content-Type": "application/json" },
+    body: JSON.stringify({ name }),
+  });
+  const saved = (await res.json()) as LvCategory;
+  return saved.id || undefined;
 }
 
 // Generic cursor pager: keeps calling `path` with the carried cursor until the
@@ -320,11 +382,7 @@ export const loyverseAdapter: PosAdapter = {
 
     // 1) Find the item that owns this variant_id. fetchProducts maps variant→item
     //    but drops the item id, so we page /items and locate it here.
-    const items = await pageAll<LvItem>(ctx, "/items", {}, (page: LvItemsPage) => ({
-      rows: page.items ?? [],
-      cursor: page.cursor ?? null,
-    }));
-    const item = items.find((it) => (it.variants ?? []).some((v) => v.variant_id === p.externalProductId));
+    const item = await findItemByVariant(ctx, p.externalProductId);
     if (!item || !item.id) {
       return { ok: false, detail: `Prodotto ${p.externalProductId} non trovato su Loyverse` };
     }
@@ -350,6 +408,100 @@ export const loyverseAdapter: PosAdapter = {
     return {
       ok: true,
       detail: `Prezzo aggiornato su Loyverse: ${item.item_name} → €${newPrice ?? price}`,
+    };
+  },
+
+  // CREATE or RENAME a product. Loyverse's /items is an upsert keyed by item id:
+  //   • create  (no externalProductId) → POST a new item; Loyverse mints the item
+  //     id AND a variant id. We return the VARIANT id (the joinable id everything
+  //     else uses) so the CRM links the dish immediately.
+  //   • rename   (externalProductId set) → locate the parent item, change its name
+  //     (and category if asked), keep every variant/price untouched, POST it back.
+  async pushProduct(ctx: AdapterContext, p: ProductUpsert): Promise<PushResult> {
+    const name = (p.name || "").trim();
+    if (!name) return { ok: false, detail: "Nome prodotto mancante" };
+    const categoryId = p.category ? await ensureCategoryId(ctx, p.category) : undefined;
+
+    // ---- rename / update an existing product --------------------------------
+    if (p.externalProductId) {
+      const item = await findItemByVariant(ctx, p.externalProductId);
+      if (!item || !item.id) {
+        return { ok: false, detail: `Prodotto ${p.externalProductId} non trovato su Loyverse` };
+      }
+      const body: any = { ...item, item_name: name };
+      if (categoryId) body.category_id = categoryId;
+      const res = await posFetch(`${BASE}/items`, {
+        method: "POST",
+        headers: { ...authHeaders(ctx), "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      const saved = (await res.json()) as LvItem;
+      return {
+        ok: true,
+        detail: `Prodotto aggiornato su Loyverse: ${saved.item_name || name}`,
+        externalProductId: p.externalProductId,
+      };
+    }
+
+    // ---- create a new product -----------------------------------------------
+    // track_stock:true so the item is inventory-capable from the start — Loyverse
+    // rejects a stock write (POST /inventory) on an item that doesn't track stock,
+    // and a CRM-managed product almost always wants a giacenza.
+    const variant: any = { default_pricing_type: "FIXED" };
+    if (p.price != null) variant.default_price = round2(num(p.price));
+    const body: any = { item_name: name, track_stock: true, variants: [variant] };
+    if (categoryId) body.category_id = categoryId;
+    const res = await posFetch(`${BASE}/items`, {
+      method: "POST",
+      headers: { ...authHeaders(ctx), "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    const saved = (await res.json()) as LvItem;
+    const newVariantId = (saved.variants ?? [])[0]?.variant_id || undefined;
+    if (!newVariantId) {
+      return { ok: false, detail: "Loyverse non ha restituito l'id del nuovo prodotto" };
+    }
+    return {
+      ok: true,
+      detail: `Prodotto creato su Loyverse: ${saved.item_name || name}`,
+      externalProductId: newVariantId,
+    };
+  },
+
+  // SET on-hand stock for one variant at a store. Loyverse tracks inventory
+  // per (variant, store); the write is POST /inventory with the NEW absolute
+  // level in `stock_after` (not a delta). We resolve the store from config (or
+  // the account's first store) since inventory is meaningless without one.
+  async pushStock(
+    ctx: AdapterContext,
+    p: { externalProductId: string; quantity: number },
+  ): Promise<PushResult> {
+    // Validate the RAW input first (num() coerces NaN→0, which would mask a bad
+    // value AND waste a /stores call), then resolve the store.
+    const qty = typeof p.quantity === "string" ? Number(p.quantity) : p.quantity;
+    if (qty == null || !Number.isFinite(qty) || qty < 0) {
+      return { ok: false, detail: `Quantità non valida: ${p.quantity}` };
+    }
+    const storeId = await resolveStoreId(ctx);
+    if (!storeId) return { ok: false, detail: "Nessun negozio Loyverse su cui scrivere la giacenza" };
+
+    // Loyverse rejects inventory writes on items that don't track stock; flip the
+    // flag on first (idempotent) so a correction always lands.
+    const tracked = await ensureTrackStock(ctx, p.externalProductId);
+    if (!tracked) return { ok: false, detail: `Prodotto ${p.externalProductId} non trovato su Loyverse` };
+
+    const res = await posFetch(`${BASE}/inventory`, {
+      method: "POST",
+      headers: { ...authHeaders(ctx), "Content-Type": "application/json" },
+      body: JSON.stringify({
+        inventory_levels: [{ variant_id: p.externalProductId, store_id: storeId, stock_after: qty }],
+      }),
+    });
+    const saved = (await res.json()) as { inventory_levels?: Array<{ stock_after?: number }> };
+    const after = saved.inventory_levels?.[0]?.stock_after;
+    return {
+      ok: true,
+      detail: `Giacenza aggiornata su Loyverse: ${after ?? qty}`,
     };
   },
 };

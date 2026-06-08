@@ -267,3 +267,134 @@ describe("loyverseAdapter.fetchProducts", () => {
     expect(products[2]).toMatchObject({ externalProductId: "item-acqua", category: null, price: null });
   });
 });
+
+describe("loyverseAdapter.pushProduct — create", () => {
+  it("POSTs a new item without category and returns the new variant id", async () => {
+    queue(
+      // POST /items response (Loyverse mints the item + variant ids)
+      { id: "item-new", item_name: "Tiramisù", variants: [{ variant_id: "var-new", default_price: 6 }] },
+    );
+    const res = await loyverseAdapter.pushProduct!(ctx, { name: "Tiramisù", price: 6 });
+    expect(res.ok).toBe(true);
+    expect(res.externalProductId).toBe("var-new");
+    // exactly one POST to /items, carrying the name + price, no category lookup
+    expect((posFetch as any).mock.calls).toHaveLength(1);
+    const [url, init] = (posFetch as any).mock.calls[0];
+    expect(url).toContain("/items");
+    expect(init.method).toBe("POST");
+    const body = JSON.parse(init.body);
+    expect(body.item_name).toBe("Tiramisù");
+    expect(body.variants[0].default_price).toBe(6);
+    expect(body.category_id).toBeUndefined();
+  });
+
+  it("ensures the category exists (creating it) before POSTing the item", async () => {
+    queue(
+      // GET /categories — "Dolci" doesn't exist yet
+      { categories: [{ id: "cat-pizze", name: "Pizze" }], cursor: null },
+      // POST /categories — create "Dolci"
+      { id: "cat-dolci", name: "Dolci" },
+      // POST /items — the new product, tagged with the created category
+      { id: "item-new", item_name: "Tiramisù", variants: [{ variant_id: "var-new", default_price: 6 }] },
+    );
+    const res = await loyverseAdapter.pushProduct!(ctx, { name: "Tiramisù", price: 6, category: "Dolci" });
+    expect(res.ok).toBe(true);
+    expect(res.externalProductId).toBe("var-new");
+    const itemPost = (posFetch as any).mock.calls[2];
+    const body = JSON.parse(itemPost[1].body);
+    expect(body.category_id).toBe("cat-dolci");
+  });
+
+  it("rejects an empty name without any network call", async () => {
+    const res = await loyverseAdapter.pushProduct!(ctx, { name: "   " });
+    expect(res.ok).toBe(false);
+    expect((posFetch as any).mock.calls.length).toBe(0);
+  });
+});
+
+describe("loyverseAdapter.pushProduct — rename", () => {
+  it("renames the parent item, keeping its variants/prices untouched", async () => {
+    queue(
+      // GET /items — find the item owning var-A
+      {
+        items: [
+          {
+            id: "item-1",
+            item_name: "Pizza Margherita",
+            variants: [{ variant_id: "var-A", default_price: 7, stores: [{ store_id: "s1", price: 7 }] }],
+          },
+        ],
+        cursor: null,
+      },
+      // POST /items — echoes the renamed item
+      { id: "item-1", item_name: "Pizza Regina", variants: [{ variant_id: "var-A", default_price: 7 }] },
+    );
+    const res = await loyverseAdapter.pushProduct!(ctx, { externalProductId: "var-A", name: "Pizza Regina" });
+    expect(res.ok).toBe(true);
+    expect(res.externalProductId).toBe("var-A");
+    const postCall = (posFetch as any).mock.calls[1];
+    const body = JSON.parse(postCall[1].body);
+    expect(body.item_name).toBe("Pizza Regina");
+    // the variant + its price survive the rename
+    expect(body.variants[0].variant_id).toBe("var-A");
+    expect(body.variants[0].default_price).toBe(7);
+  });
+
+  it("returns ok:false when the product to rename isn't found", async () => {
+    queue({ items: [{ id: "item-1", variants: [{ variant_id: "other" }] }], cursor: null });
+    const res = await loyverseAdapter.pushProduct!(ctx, { externalProductId: "missing", name: "X" });
+    expect(res.ok).toBe(false);
+    expect(res.detail).toMatch(/non trovato/);
+  });
+});
+
+describe("loyverseAdapter.pushStock", () => {
+  it("resolves the store, ensures track_stock, then POSTs to /inventory", async () => {
+    queue(
+      // GET /stores?limit=1 (no store_id in config → resolve the first store)
+      { stores: [{ id: "store-1", name: "Trattoria Demo" }] },
+      // GET /items (ensureTrackStock) — item ALREADY tracks stock → no re-POST
+      { items: [{ id: "item-1", track_stock: true, variants: [{ variant_id: "var-A" }] }], cursor: null },
+      // POST /inventory response
+      { inventory_levels: [{ variant_id: "var-A", store_id: "store-1", stock_after: 42 }] },
+    );
+    const res = await loyverseAdapter.pushStock!(ctx, { externalProductId: "var-A", quantity: 42 });
+    expect(res.ok).toBe(true);
+    expect(res.detail).toContain("42");
+    // last call is the inventory POST
+    const calls = (posFetch as any).mock.calls;
+    const invPost = calls[calls.length - 1];
+    expect(invPost[0]).toContain("/inventory");
+    expect(invPost[1].method).toBe("POST");
+    const body = JSON.parse(invPost[1].body);
+    expect(body.inventory_levels[0]).toMatchObject({ variant_id: "var-A", store_id: "store-1", stock_after: 42 });
+  });
+
+  it("flips track_stock on the item when it isn't tracking yet", async () => {
+    const ctxWithStore: AdapterContext = { ...ctx, config: { store_id: "store-cfg" } };
+    queue(
+      // GET /items (ensureTrackStock) — item does NOT track stock yet
+      { items: [{ id: "item-1", track_stock: false, item_name: "X", variants: [{ variant_id: "var-A" }] }], cursor: null },
+      // POST /items — enabling track_stock
+      { id: "item-1", track_stock: true, variants: [{ variant_id: "var-A" }] },
+      // POST /inventory
+      { inventory_levels: [{ variant_id: "var-A", store_id: "store-cfg", stock_after: 10 }] },
+    );
+    const res = await loyverseAdapter.pushStock!(ctxWithStore, { externalProductId: "var-A", quantity: 10 });
+    expect(res.ok).toBe(true);
+    const calls = (posFetch as any).mock.calls;
+    // the track_stock-enabling POST to /items carried track_stock:true
+    const itemPost = calls.find((c: any) => c[0].includes("/items") && c[1]?.method === "POST");
+    expect(JSON.parse(itemPost[1].body).track_stock).toBe(true);
+    // inventory write used the configured store, no /stores lookup
+    expect(calls.some((c: any) => c[0].includes("/stores"))).toBe(false);
+    const invPost = calls[calls.length - 1];
+    expect(JSON.parse(invPost[1].body).inventory_levels[0].store_id).toBe("store-cfg");
+  });
+
+  it("rejects a non-finite quantity without any network call", async () => {
+    const res = await loyverseAdapter.pushStock!(ctx, { externalProductId: "var-A", quantity: NaN });
+    expect(res.ok).toBe(false);
+    expect((posFetch as any).mock.calls.length).toBe(0);
+  });
+});

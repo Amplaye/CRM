@@ -85,10 +85,25 @@ export interface AdapterContext {
 }
 
 /** Result of a write-back to the till. `ok:false` carries a human-readable
- * reason the CRM can surface (e.g. "this till is read-only"). */
+ * reason the CRM can surface (e.g. "this till is read-only"). When a write
+ * CREATES a product on the till, `externalProductId` is the id it was given, so
+ * the CRM can persist the dish↔till link immediately (instead of waiting for the
+ * next sync to re-match by name). */
 export interface PushResult {
   ok: boolean;
   detail?: string;
+  externalProductId?: string;
+}
+
+/** A product to create or rename on the till. `externalProductId` present =
+ * rename/update that product; absent = create a new one (the till assigns the
+ * id, returned in PushResult.externalProductId). `price`/`category` are optional
+ * on create so the CRM can push just a name and fill the rest later. */
+export interface ProductUpsert {
+  externalProductId?: string;
+  name: string;
+  price?: number | null;
+  category?: string | null;
 }
 
 /** The contract every till implements.
@@ -96,12 +111,12 @@ export interface PushResult {
  * READ side (mandatory): testConnection / fetchSales / fetchProducts — pull the
  * till's data into the canonical pos_sales tables. Every adapter must do this.
  *
- * WRITE side (optional): pushProductPrice — push a CHANGE made in the CRM back
- * out to the till, so the owner manages everything from the CRM and never opens
- * the POS (the product vision). It's optional on the interface so a read-only or
- * not-yet-implemented till simply omits it; callers check `adapter.pushProductPrice`
- * before using it and report "not supported" otherwise. Loyverse implements it
- * for real; the five Italian stubs don't yet. */
+ * WRITE side (optional): pushProductPrice / pushProduct / pushStock — push a
+ * CHANGE made in the CRM back out to the till, so the owner manages everything
+ * from the CRM and never opens the POS (the product vision). Each is optional so
+ * a read-only or not-yet-implemented till simply omits it; callers check the
+ * method exists before using it and report "not supported" otherwise. Loyverse
+ * implements all three for real; the five Italian stubs don't yet. */
 export interface PosAdapter {
   readonly provider: PosProvider;
   testConnection(ctx: AdapterContext): Promise<{ ok: true; detail?: string }>;
@@ -113,5 +128,16 @@ export interface PosAdapter {
   pushProductPrice?(
     ctx: AdapterContext,
     p: { externalProductId: string; price: number },
+  ): Promise<PushResult>;
+  /** Create a product on the till (no externalProductId) or rename/retag an
+   * existing one (externalProductId set). On create, PushResult.externalProductId
+   * carries the new till id so the CRM can link the dish straight away. */
+  pushProduct?(ctx: AdapterContext, p: ProductUpsert): Promise<PushResult>;
+  /** Set the on-hand stock for one product at a store. `quantity` is the new
+   * absolute level (not a delta). Used by the editable Magazzino so a stock
+   * correction in the CRM reaches the till's inventory. */
+  pushStock?(
+    ctx: AdapterContext,
+    p: { externalProductId: string; quantity: number },
   ): Promise<PushResult>;
 }
