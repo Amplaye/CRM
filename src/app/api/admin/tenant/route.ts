@@ -71,7 +71,7 @@ export async function GET(req: NextRequest) {
     const escalationRate = conversations.length > 0 ? Math.round((escalations / conversations.length) * 100) : 0;
 
     return NextResponse.json({
-      tenant: { id: tenant.id, name: tenant.name, status: tenant.status, created_at: tenant.created_at, archived_at: tenant.archived_at, purge_after: tenant.purge_after },
+      tenant: { id: tenant.id, name: tenant.name, status: tenant.status, created_at: tenant.created_at, archived_at: tenant.archived_at, purge_after: tenant.purge_after, settings: tenant.settings || {} },
       kpis: {
         aiRevenue7,
         aiRevenue30,

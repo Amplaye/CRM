@@ -7,9 +7,10 @@ import Link from "next/link";
 import {
   ArrowLeft, Bot, AlertTriangle, MessageSquare, Calendar,
   Phone, TrendingUp, UserX, Zap, Clock, Lightbulb, DollarSign, ShieldCheck, Eye,
-  CheckCircle2, XCircle, AlertCircle,
+  CheckCircle2, XCircle, AlertCircle, Package,
 } from "lucide-react";
 import { TENANT_STATUSES, type TenantStatus } from "@/lib/tenants/status";
+import { getFeatures, type TenantFeatures } from "@/lib/types/tenant-settings";
 
 const STATUS_BADGE: Record<TenantStatus, string> = {
   active: "bg-emerald-50 text-emerald-700 border-emerald-200",
@@ -25,7 +26,7 @@ interface TenantHealth {
 }
 
 interface TenantDetail {
-  tenant: { id: string; name: string; status: TenantStatus; created_at: string; archived_at?: string | null; purge_after?: string | null };
+  tenant: { id: string; name: string; status: TenantStatus; created_at: string; archived_at?: string | null; purge_after?: string | null; settings?: Record<string, any> | null };
   kpis: {
     aiRevenue7: number;
     aiRevenue30: number;
@@ -65,6 +66,29 @@ export default function TenantDetailPage() {
   const [working, setWorking] = useState(false);
   const [downloadUrl, setDownloadUrl] = useState<string | null>(null);
   const [actionMsg, setActionMsg] = useState<string | null>(null);
+  const [featureSaving, setFeatureSaving] = useState<keyof TenantFeatures | null>(null);
+
+  // Flip a single feature flag for this tenant (admin-only). The PATCH route
+  // merges into tenants.settings, so we only send the one key that changed.
+  const toggleFeature = async (key: keyof TenantFeatures, value: boolean) => {
+    if (!tenantId) return;
+    setFeatureSaving(key);
+    try {
+      const res = await fetch("/api/admin/tenant", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tenant_id: tenantId, settings: { [key]: value } }),
+      });
+      const j = await res.json();
+      if (!res.ok) throw new Error(j.error || "Failed");
+      setData((prev) =>
+        prev ? { ...prev, tenant: { ...prev.tenant, settings: { ...(prev.tenant.settings || {}), [key]: value } } } : prev
+      );
+    } catch (err) {
+      console.error(err);
+    }
+    setFeatureSaving(null);
+  };
 
   const runArchive = async () => {
     setWorking(true); setActionMsg(null);
@@ -249,6 +273,60 @@ export default function TenantDetailPage() {
           )}
         </div>
       )}
+
+      {/* Funzionalità (feature flags) — admin attiva/disattiva moduli per cliente.
+          Il modulo Gestionale (POS, food cost, P&L, inventario) è opt-in: finché è
+          spento, il ristorante non vede le pagine Food Cost / PL / Inventario. */}
+      {(() => {
+        const features = getFeatures(tenant.settings as any);
+        const FeatureToggle = ({
+          flag, icon, title, hint,
+        }: { flag: keyof TenantFeatures; icon: React.ReactNode; title: string; hint: string }) => {
+          const on = features[flag];
+          const saving = featureSaving === flag;
+          return (
+            <div className="flex items-start gap-3 p-3 rounded-lg" style={{ background: "rgba(196,149,106,0.06)" }}>
+              <div className="mt-0.5">{icon}</div>
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-medium text-black">{title}</p>
+                <p className="text-[10px] text-black/70 mt-0.5">{hint}</p>
+              </div>
+              <button
+                type="button"
+                role="switch"
+                aria-checked={on}
+                disabled={saving}
+                onClick={() => toggleFeature(flag, !on)}
+                className={`relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full transition-colors disabled:opacity-50 ${
+                  on ? "bg-emerald-500" : "bg-zinc-300"
+                }`}
+              >
+                <span
+                  className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${
+                    on ? "translate-x-6" : "translate-x-1"
+                  }`}
+                />
+              </button>
+            </div>
+          );
+        };
+        return (
+          <div className="rounded-xl border-2 p-4" style={cardStyle}>
+            <div className="flex items-center gap-2 mb-3">
+              <Package className="w-4 h-4 text-[#c4956a]" />
+              <h3 className="text-xs font-bold text-black uppercase tracking-wider">Funzionalità</h3>
+            </div>
+            <div className="space-y-2">
+              <FeatureToggle
+                flag="management_enabled"
+                icon={<Package className="w-3.5 h-3.5 text-[#c4956a]" />}
+                title="Gestionale — Inventario, Food Cost, P&L"
+                hint="Attiva le pagine di controllo gestione (vendite POS, food cost, conto economico, inventario, fatture) per questo ristorante."
+              />
+            </div>
+          </div>
+        );
+      })()}
 
       {/* KPI Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-2 sm:gap-4">
