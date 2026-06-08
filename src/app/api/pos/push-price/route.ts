@@ -3,6 +3,7 @@ import { createServerSupabaseClient, createServiceRoleClient } from "@/lib/supab
 import { getAdapter } from "@/lib/pos/registry";
 import { decryptCredentials } from "@/lib/pos/credentials";
 import { getPosProvider } from "@/lib/pos/pos-provider";
+import { verifyTenantMembership } from "@/lib/tenant-membership";
 
 // CRM → POS price write-back. The owner changes a dish price in the CRM; we
 // update menu_items.price (the CRM's own copy) AND push it to the connected till
@@ -13,7 +14,8 @@ import { getPosProvider } from "@/lib/pos/pos-provider";
 // Body: { menu_item_id: string, price: number }
 // Returns: { ok, crmUpdated, pos: { attempted, ok, detail } }
 export async function POST(req: Request) {
-  // 1) Auth: who is calling?
+  // 1) Auth: who is calling? (membership is checked per-tenant below, once we know
+  //    which dish — and therefore which tenant — is being edited.)
   const authClient = await createServerSupabaseClient();
   const { data: { user } } = await authClient.auth.getUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -41,13 +43,9 @@ export async function POST(req: Request) {
     .maybeSingle();
   if (!dish) return NextResponse.json({ error: "menu_item_not_found" }, { status: 404 });
 
-  const { data: membership } = await svc
-    .from("tenant_members")
-    .select("role")
-    .eq("user_id", user.id)
-    .eq("tenant_id", dish.tenant_id)
-    .maybeSingle();
-  if (!membership) return NextResponse.json({ error: "forbidden" }, { status: 403 });
+  // Member OR platform admin (incl. impersonating from the admin panel).
+  const allowed = await verifyTenantMembership(dish.tenant_id);
+  if (!allowed) return NextResponse.json({ error: "forbidden" }, { status: 403 });
 
   // 3) Update the CRM's own price first (source of truth for food cost / menu).
   const { error: upErr } = await svc

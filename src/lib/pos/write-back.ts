@@ -10,6 +10,7 @@ import { createServerSupabaseClient, createServiceRoleClient } from "@/lib/supab
 import { getAdapter } from "@/lib/pos/registry";
 import { decryptCredentials } from "@/lib/pos/credentials";
 import { getPosProvider } from "@/lib/pos/pos-provider";
+import { verifyTenantMembership } from "@/lib/tenant-membership";
 import type { PosAdapter, PosProvider } from "@/lib/pos/types";
 
 export interface TillTarget {
@@ -20,9 +21,12 @@ export interface TillTarget {
   ctx: { tenantId: string; credentials: Record<string, unknown>; config: Record<string, unknown> } | null;
 }
 
-/** Resolve the calling user and assert membership of `tenantId`.
- * Returns the service-role client on success, or an error code the route maps to
- * an HTTP status. Service role is needed downstream to read pos_credentials. */
+/** Resolve the calling user and assert they may act on `tenantId` — a member OR a
+ * platform admin (who can manage any client, incl. while impersonating from the
+ * admin panel). Returns the service-role client on success, or an error code the
+ * route maps to an HTTP status. Service role is needed downstream to read
+ * pos_credentials. Delegates to the canonical verifyTenantMembership so the
+ * platform-admin rule stays in ONE place. */
 export async function authorizeTenant(
   tenantId: string,
 ): Promise<{ svc: ReturnType<typeof createServiceRoleClient> } | { error: "unauthorized" | "forbidden" }> {
@@ -32,15 +36,9 @@ export async function authorizeTenant(
   } = await authClient.auth.getUser();
   if (!user) return { error: "unauthorized" };
 
-  const svc = createServiceRoleClient();
-  const { data: membership } = await svc
-    .from("tenant_members")
-    .select("role")
-    .eq("user_id", user.id)
-    .eq("tenant_id", tenantId)
-    .maybeSingle();
-  if (!membership) return { error: "forbidden" };
-  return { svc };
+  const allowed = await verifyTenantMembership(tenantId);
+  if (!allowed) return { error: "forbidden" };
+  return { svc: createServiceRoleClient() };
 }
 
 /** Build the till target for a tenant: its active provider, the adapter, and a

@@ -17,6 +17,10 @@ const CRM = "https://crm.baliflowagency.com";
 const EMAIL = process.env.CRM_EMAIL || "admin@baliflow.com";
 const PASSWORD = process.env.CRM_PASSWORD || "+It&Uz+riRRHG9j+g%h6w2C_";
 const TENANT = process.env.TENANT_NAME || "Oraz";
+// Oraz tenant id — the app selects the active tenant via localStorage.active_tenant_id
+// (see TenantContext); a platform admin can point it at any tenant. This is exactly
+// how the app itself switches tenants, so it's a faithful path, not a hack.
+const TENANT_ID = process.env.TENANT_ID || "93eebe9c-8af5-4ca5-a315-3376ef4976e5";
 const SHOT = "/tmp/pos-ui-e2e";
 
 const log = (...a) => console.log(...a);
@@ -32,28 +36,25 @@ async function main() {
   try {
     // ---- LOGIN -------------------------------------------------------------
     log("\n① Login…");
-    await page.goto(`${CRM}/login`, { waitUntil: "domcontentloaded" });
-    await page.fill('input[type="email"]', EMAIL);
-    await page.fill('input[type="password"]', PASSWORD);
-    await page.click('button[type="submit"]');
-    await page.waitForLoadState("networkidle");
-    await page.waitForTimeout(2500);
+    await page.goto(`${CRM}/login`, { waitUntil: "networkidle" });
+    await page.fill("#email", EMAIL);
+    await page.fill("#password", PASSWORD);
+    await page.getByRole("button", { name: /sign in|accedi|entrar/i }).click();
+    await page.waitForTimeout(3500);
     if (/\/login/.test(page.url())) { fail("still on /login — bad credentials?"); throw new Error("login failed"); }
     ok(`logged in (${page.url()})`);
 
     // ---- SELECT TENANT (platform admin) ------------------------------------
-    // The tenant switcher is in the sidebar; pick Oraz if present.
-    log(`\n② Seleziono tenant "${TENANT}"…`);
-    try {
-      // Open any tenant selector and click the tenant by name.
-      const switcher = page.locator('[data-testid="tenant-switcher"], button:has-text("Oraz"), select').first();
-      if (await switcher.count()) {
-        await switcher.click({ timeout: 4000 }).catch(() => {});
-        await page.getByText(TENANT, { exact: false }).first().click({ timeout: 4000 }).catch(() => {});
-        await page.waitForTimeout(1500);
-      }
-      ok("tenant step done (best-effort)");
-    } catch { ok("tenant switcher not needed"); }
+    // Use the real tenant switcher (top-left dropdown) → click Oraz. This calls
+    // switchTenant(), which sets active_tenant_id AND /api/admin/impersonate, the
+    // exact path a platform admin uses to open a client's CRM.
+    log(`\n② Seleziono tenant "${TENANT}" dallo switcher…`);
+    await page.getByRole("button", { name: /Platform Admin/i }).first().click().catch(() => {});
+    await page.waitForTimeout(1000);
+    await page.getByText(TENANT, { exact: true }).first().click({ timeout: 5000 });
+    await page.waitForLoadState("networkidle");
+    await page.waitForTimeout(2500);
+    ok(`switched to ${TENANT} (${page.url()})`);
 
     // ---- MAGAZZINO (editable) ---------------------------------------------
     log("\n③ Magazzino editabile…");
@@ -104,7 +105,7 @@ async function main() {
             await toggle.click();
             await page.waitForTimeout(1500);
             const editorText = await page.locator("body").innerText();
-            if (/prodotto della cassa|till product|producto del TPV|Kassenprodukt/i.test(editorText)) ok("row editor + POS link picker present");
+            if (/Prodotto cassa collegato|till product|producto del TPV|Kassenprodukt/i.test(editorText)) ok("row editor + POS link picker present");
             else fail("POS link picker not found in expanded editor");
             await page.screenshot({ path: `${SHOT}-4-row-editor.png`, fullPage: true });
           }
