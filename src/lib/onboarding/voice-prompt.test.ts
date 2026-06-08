@@ -18,14 +18,14 @@ describe("buildVoicePrompt — agency golden-source template, filled with client
   it("carries the production behavioural rules that make the agent robust", () => {
     const p = buildVoicePrompt({ restaurant_name: "X", language: "es", opening_hours: hours });
     // The #1 LANGUAGE rule: speak only the caller's language, never mix, and
-    // never read the Spanish tool results aloud.
-    expect(p).toContain("LANGUAGE — THE #1 RULE");
+    // never read the (now neutral, JSON) tool results aloud.
+    expect(p).toContain("THREE RULES ABOVE ALL");
     expect(p).toContain("{{spoken_language}}");
-    expect(p).toContain("TOOL RESULTS ARE DATA, NOT A SCRIPT");
+    expect(p).toContain("TOOL RESULTS ARE DATA");
     // The key behavioural sections must be present.
     expect(p).toContain("PHONE");
-    expect(p).toContain("CLOSING");
-    expect(p).toContain("LARGE GROUPS (7+)");
+    expect(p).toContain("AFTER A RESULT");
+    expect(p).toContain("LARGE GROUP (7+)");
   });
 
   it("renders a per-day schedule (English labels) including closed days and multiple slots", () => {
@@ -38,7 +38,7 @@ describe("buildVoicePrompt — agency golden-source template, filled with client
   it("writes the instructions in English regardless of tenant locale (runtime LANGUAGE rule + {{spoken_language}} drive the spoken language)", () => {
     const it = buildVoicePrompt({ restaurant_name: "Da Mario", language: "it", opening_hours: hours });
     expect(it).toContain("Da Mario");
-    expect(it).toContain("BOOKING FLOW");
+    expect(it).toContain("BOOKING");
     expect(it).toContain("Never mix two languages");
   });
 

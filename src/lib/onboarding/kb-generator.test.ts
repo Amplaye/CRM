@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   generateKbArticles, generateKbArticlesMulti, defaultQuestionnaire, KbQuestionnaire, KbContext, OpeningHours,
   mapsLink, venueFromQuestionnaire, bookingVenueLines, formatDepositAmount, botConfigFromQuestionnaire,
+  extractArticleLang,
 } from "./kb-generator";
 
 const ctx: KbContext = { restaurant_name: "Trattoria Rossa", restaurant_phone: "+34 928 123 456", language: "es" };
@@ -316,6 +317,33 @@ describe("generateKbArticlesMulti — assistant speaks several languages", () =>
     const loc = byTitle(arts, "Ubicación y cómo llegar")!;
     expect(loc.content).toContain("- Japanisch"); // translated cuisine
     expect(loc.content).toContain("Orientierungspunkt: Frente al mercado"); // fallback landmark
+  });
+});
+
+describe("extractArticleLang — keep only the call's language out of a merged article", () => {
+  const merged = "[Italiano]\nLunedì: CHIUSO\nMartedì: 19:30-22:30\n[Español]\nLunes: CERRADO\nMartes: 19:30-22:30\n[English]\nMonday: CLOSED\nTuesday: 19:30-22:30";
+
+  it("returns only the requested language's section, header line dropped", () => {
+    const it_ = extractArticleLang(merged, "it");
+    expect(it_).toContain("Lunedì: CHIUSO");
+    expect(it_).not.toContain("Lunes: CERRADO");
+    expect(it_).not.toContain("Monday: CLOSED");
+    expect(it_).not.toContain("[Italiano]");
+  });
+
+  it("pulls the middle and last sections correctly (no bleed across markers)", () => {
+    expect(extractArticleLang(merged, "es")).toBe("Lunes: CERRADO\nMartes: 19:30-22:30");
+    expect(extractArticleLang(merged, "en")).toBe("Monday: CLOSED\nTuesday: 19:30-22:30");
+  });
+
+  it("falls back to the first (primary) section when the language is absent", () => {
+    // No German section → first present (Italian, stored primary-first).
+    expect(extractArticleLang(merged, "de")).toContain("Lunedì: CHIUSO");
+    expect(extractArticleLang(merged, "de")).not.toContain("CERRADO");
+  });
+
+  it("returns single-language content unchanged (no language headers)", () => {
+    expect(extractArticleLang("Parking: street + private car park.", "it")).toBe("Parking: street + private car park.");
   });
 });
 

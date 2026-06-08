@@ -20,7 +20,6 @@
 import { createServiceRoleClient } from "@/lib/supabase/server";
 import { buildVoicePrompt, type OpeningHours } from "@/lib/onboarding/voice-prompt";
 import { composeVapiSystemPrompt, isPromptArticle, type VapiKbArticle } from "@/lib/onboarding/vapi";
-import { extractArticleLang } from "@/lib/onboarding/kb-generator";
 
 // The shared engine assistant. Defaults to the former golden-source template
 // ("PICNIC - Sofía"), which already carries the right voice/transcriber/tools.
@@ -224,15 +223,8 @@ export async function composeTenantVoicePrompt(
     .eq("status", "published");
   if (aErr) throw aErr;
 
-  // Inject the KB in ONE language — the call's own (the tenant's primary). The
-  // articles are stored merged ("[Italiano]…[Español]…[English]"); shipping all
-  // three tripled the prompt and primed the model to leak the other languages.
-  // The agent translates these facts to the caller just like it does tool JSON.
-  const primaryLang = langOf(settings.locale);
   const kbArticles: VapiKbArticle[] = ((articles || []) as VapiKbArticle[])
-    .filter((a) => a && a.title && !isPromptArticle(a.title) && (a.content || "").trim())
-    .map((a) => ({ ...a, content: extractArticleLang(a.content || "", primaryLang) }))
-    .filter((a) => (a.content || "").trim());
+    .filter((a) => a && a.title && !isPromptArticle(a.title) && (a.content || "").trim());
 
   const systemPrompt = composeVapiSystemPrompt({ voicePromptBody, kbArticles });
   return { systemPrompt, name: tenant.name, locale: settings.locale, timezone: settings.timezone };

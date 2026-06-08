@@ -890,6 +890,32 @@ export function detectArticleLangs(content: string, fallback: Lang): Lang[] {
   return hits.sort((a, b) => a.idx - b.idx).map((h) => h.code);
 }
 
+const LANG_SECTION_NAME: Record<string, Lang> = { Español: "es", Italiano: "it", English: "en", Deutsch: "de" };
+
+/** Pull a SINGLE language section out of a merged "[Español]…[Italiano]…" KB
+ *  article body. The voice prompt only needs the facts in the call's own
+ *  language — the agent translates them to the caller as it does any tool data —
+ *  so injecting all 3–4 languages tripled the prompt and primed the model to
+ *  leak the others. Returns just the requested language's body (header line
+ *  dropped). No language headers → already single-language: return as-is.
+ *  Requested language absent → fall back to the FIRST section present (the
+ *  blocks are stored primary-first, so that is the venue's own language). */
+export function extractArticleLang(content: string, lang: Lang): string {
+  const text = content || "";
+  const hits: Array<{ code: Lang; start: number; bodyAt: number }> = [];
+  for (const [name, code] of Object.entries(LANG_SECTION_NAME)) {
+    const marker = `[${name}]`;
+    const idx = text.indexOf(marker);
+    if (idx >= 0) hits.push({ code, start: idx, bodyAt: idx + marker.length });
+  }
+  if (!hits.length) return text.trim();
+  hits.sort((a, b) => a.start - b.start);
+  let i = hits.findIndex((h) => h.code === lang);
+  if (i === -1) i = 0; // requested language not present → first (primary) section
+  const end = i + 1 < hits.length ? hits[i + 1].start : text.length;
+  return text.slice(hits[i].bodyAt, end).trim();
+}
+
 /** The booking rules an owner edits after onboarding (Settings → Bookings). */
 export interface BookingPolicyForm {
   cancellation_notice: CancellationNotice;
