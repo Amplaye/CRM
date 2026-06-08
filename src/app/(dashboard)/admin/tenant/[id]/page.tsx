@@ -68,21 +68,26 @@ export default function TenantDetailPage() {
   const [actionMsg, setActionMsg] = useState<string | null>(null);
   const [featureSaving, setFeatureSaving] = useState<keyof TenantFeatures | null>(null);
 
-  // Flip a single feature flag for this tenant (admin-only). The PATCH route
-  // merges into tenants.settings, so we only send the one key that changed.
+  // Flip a single feature flag for this tenant (admin-only). Flags live in
+  // settings.features (the nested object getFeatures() reads + the sidebar gates
+  // on) — NOT at settings root. We merge the changed key into the full features
+  // object, mirroring how Settings → Funzionalità persists, so reading and
+  // writing hit the same place. The PATCH route merges this into tenants.settings.
   const toggleFeature = async (key: keyof TenantFeatures, value: boolean) => {
     if (!tenantId) return;
     setFeatureSaving(key);
+    const currentSettings = data?.tenant.settings || {};
+    const nextFeatures = { ...getFeatures(currentSettings as any), [key]: value };
     try {
       const res = await fetch("/api/admin/tenant", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ tenant_id: tenantId, settings: { [key]: value } }),
+        body: JSON.stringify({ tenant_id: tenantId, settings: { features: nextFeatures } }),
       });
       const j = await res.json();
       if (!res.ok) throw new Error(j.error || "Failed");
       setData((prev) =>
-        prev ? { ...prev, tenant: { ...prev.tenant, settings: { ...(prev.tenant.settings || {}), [key]: value } } } : prev
+        prev ? { ...prev, tenant: { ...prev.tenant, settings: { ...(prev.tenant.settings || {}), features: nextFeatures } } } : prev
       );
     } catch (err) {
       console.error(err);
