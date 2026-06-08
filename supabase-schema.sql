@@ -866,7 +866,7 @@ create table if not exists public.pos_connections (
   id uuid default uuid_generate_v4() primary key,
   tenant_id uuid not null references public.tenants(id) on delete cascade,
   provider text not null default 'mock'
-    check (provider in ('mock','cassa_in_cloud','tilby','ipratico','nempos','deliverect')),
+    check (provider in ('mock','cassa_in_cloud','tilby','ipratico','nempos','deliverect','loyverse')),
   active boolean not null default true,
   config jsonb not null default '{}'::jsonb,        -- NON-secret: shop id, cursor…
   last_sync_at timestamptz,

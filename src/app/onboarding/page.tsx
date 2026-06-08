@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import {
   ChevronLeft, ChevronRight, ChevronDown, Check, AlertTriangle, RefreshCw,
-  Building, Clock, ClipboardList, Loader2, Star, Info, MessageCircle,
+  Building, Clock, ClipboardList, Loader2, Star, Info, MessageCircle, CreditCard,
 } from "lucide-react";
 import {
   KbQuestionnaire, PaymentMethod, ParkingKind, Allergen, CancellationNotice, defaultQuestionnaire,
@@ -34,9 +34,31 @@ import { UI, type UiLang, UI_LANGS } from "./i18n";
 // dedicated support line, change only this constant.
 const SUPPORT_WHATSAPP = "34641459479"; // E.164 without "+", for wa.me
 
-type Step = 1 | 2 | 3 | 4;
+type Step = 1 | 2 | 3 | 4 | 5;
 type AsstLang = "es" | "it" | "en" | "de";
 type CrmLang = "es" | "it" | "en" | "de";
+type PosChoice =
+  | "none"
+  | "loyverse"
+  | "cassa_in_cloud"
+  | "tilby"
+  | "ipratico"
+  | "nempos"
+  | "deliverect";
+
+// The tills offered in the wizard. `live` marks the one we can actually connect
+// today (Loyverse — instant API token); the rest are recognised brands shown so
+// the owner can declare what they use, but their adapter is still a stub
+// (badged "coming soon"). Order: the connectable one first, then by Italian
+// market familiarity. Keep this list in sync with PosProvider in lib/pos/types.
+const POS_OPTIONS: Array<{ id: PosChoice; label: string; live: boolean }> = [
+  { id: "loyverse", label: "Loyverse", live: true },
+  { id: "cassa_in_cloud", label: "Cassa in Cloud", live: false },
+  { id: "tilby", label: "Tilby", live: false },
+  { id: "ipratico", label: "iPratico", live: false },
+  { id: "nempos", label: "NemPOS", live: false },
+  { id: "deliverect", label: "Deliverect", live: false },
+];
 
 interface Slot { open: string; close: string }
 type Hours = Record<string, Slot[]>;
@@ -141,6 +163,10 @@ export default function OnboardingPage() {
   // the declared capacity (Card 1 → capacity_seats), so there's no separate
   // small/medium/large table step any more.
   const [q, setQ] = useState<KbQuestionnaire>(() => defaultQuestionnaire());
+  // STEP 4 — POS/till the venue uses (optional). Default "none": the owner can
+  // connect a till later from Settings. Saved to settings.pos.provider after a
+  // successful provisioning (see submit()).
+  const [posChoice, setPosChoice] = useState<PosChoice>("none");
 
   const [step, setStep] = useState<Step>(1);
   const [running, setRunning] = useState(false);
@@ -236,6 +262,25 @@ export default function OnboardingPage() {
     window.location.href = "/";
   }
 
+  // Write settings.pos.provider on the just-provisioned tenant. Re-reads the
+  // current settings first so we MERGE onto whatever the orchestrator wrote
+  // (features, venue, onboarding flag…) instead of clobbering it. Mock stays the
+  // default for tenants that pick a till brand that isn't connectable yet, so the
+  // management module still has sample data until the real adapter ships; the
+  // declared brand is recorded in settings.pos.declared for later activation.
+  async function savePosProvider(choice: PosChoice) {
+    if (!tenantId || choice === "none") return;
+    try {
+      const { data } = await supabase.from("tenants").select("settings").eq("id", tenantId).single();
+      const settings = (data?.settings as any) || {};
+      // Only Loyverse is wired to a real adapter; everything else records the
+      // declared brand but keeps the data source on mock until its adapter lands.
+      const provider = choice === "loyverse" ? "loyverse" : "mock";
+      const pos = { ...(settings.pos || {}), provider, declared: choice };
+      await supabase.from("tenants").update({ settings: { ...settings, pos } }).eq("id", tenantId);
+    } catch { /* non-blocking: owner can set the till later in Settings */ }
+  }
+
   async function submit() {
     setRunning(true); setProgress([]); setDone(null);
     // Watchdog: provisioning is bounded server-side (maxDuration 120s + per-call
@@ -283,7 +328,15 @@ export default function OnboardingPage() {
           const json = line.slice(5).trim(); if (!json) continue;
           try {
             const ev = JSON.parse(json);
-            if (ev.step === "result") { sawResult = true; setDone({ ok: ev.ok }); }
+            if (ev.step === "result") {
+              sawResult = true;
+              setDone({ ok: ev.ok });
+              // Persist the chosen till once provisioning succeeded. Best-effort
+              // and non-blocking: the management module reads settings.pos.provider,
+              // and a failure here must never undo a successful onboarding (the
+              // owner can always set it later from Settings). "none" writes nothing.
+              if (ev.ok && posChoice !== "none") void savePosProvider(posChoice);
+            }
             else setProgress((p) => [...p, { step: ev.step, message: ev.message, ok: ev.ok }]);
           } catch {}
         }
@@ -364,9 +417,9 @@ export default function OnboardingPage() {
       <p className="text-sm text-black mb-6">{t.subtitle}</p>
 
       <div className="flex items-center gap-1.5 sm:gap-2 mb-2">
-        {[1, 2, 3, 4].map((n) => (<div key={n} className={`flex-1 h-1.5 rounded-full transition-colors ${n <= step ? "bg-[#c4956a]" : "bg-zinc-200"}`} />))}
+        {[1, 2, 3, 4, 5].map((n) => (<div key={n} className={`flex-1 h-1.5 rounded-full transition-colors ${n <= step ? "bg-[#c4956a]" : "bg-zinc-200"}`} />))}
       </div>
-      <p className="text-[11px] text-black/60 mb-5">{t.stepCounter.replace("{n}", String(step)).replace("{total}", "4")}</p>
+      <p className="text-[11px] text-black/60 mb-5">{t.stepCounter.replace("{n}", String(step)).replace("{total}", "5")}</p>
 
       {step === 1 && (
         <div className="space-y-5">
@@ -527,8 +580,52 @@ export default function OnboardingPage() {
       )}
 
       {step === 4 && (
+        <div className="space-y-5">
+          <h2 className="text-base font-bold flex items-center gap-2"><CreditCard className="w-4 h-4" /> 4. {t.sPos}</h2>
+          <p className="text-xs text-black">{t.sPosHint}</p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {/* "None / decide later" — the default, always selectable */}
+            <button
+              type="button"
+              onClick={() => setPosChoice("none")}
+              aria-pressed={posChoice === "none"}
+              className={`text-left rounded-xl border-2 p-4 transition-colors ${posChoice === "none" ? "border-[#c4956a] bg-[#c4956a]/15" : "border-zinc-200 bg-white hover:border-[#c4956a]/50"}`}
+            >
+              <div className="flex items-center justify-between gap-2">
+                <span className="font-bold text-sm text-black">{t.posNone}</span>
+                {posChoice === "none" && <Check className="w-4 h-4 text-[#c4956a] flex-shrink-0" />}
+              </div>
+              <p className="text-[11px] text-black/60 mt-1">{t.posNoneHint}</p>
+            </button>
+            {POS_OPTIONS.map((opt) => {
+              const on = posChoice === opt.id;
+              return (
+                <button
+                  key={opt.id}
+                  type="button"
+                  onClick={() => setPosChoice(opt.id)}
+                  aria-pressed={on}
+                  className={`text-left rounded-xl border-2 p-4 transition-colors ${on ? "border-[#c4956a] bg-[#c4956a]/15" : "border-zinc-200 bg-white hover:border-[#c4956a]/50"}`}
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="font-bold text-sm text-black">{opt.label}</span>
+                    {on && <Check className="w-4 h-4 text-[#c4956a] flex-shrink-0" />}
+                  </div>
+                  <span
+                    className={`inline-block mt-2 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full ${opt.live ? "bg-emerald-100 text-emerald-700" : "bg-zinc-100 text-zinc-500"}`}
+                  >
+                    {opt.live ? t.posLive : t.posComingSoon}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {step === 5 && (
         <div className="space-y-4">
-          <h2 className="text-base font-bold flex items-center gap-2"><Check className="w-4 h-4" /> 4. {t.s5}</h2>
+          <h2 className="text-base font-bold flex items-center gap-2"><Check className="w-4 h-4" /> 5. {t.s5}</h2>
           <div className="rounded-xl border-2 border-amber-200 bg-amber-50 p-4 text-sm">
             <ul className="text-xs space-y-0.5">
               <li>• {t.sumRestaurant}: <b>{restaurantName || "—"}</b></li>
@@ -536,6 +633,7 @@ export default function OnboardingPage() {
               <li>• {t.sumCrmLang}: <b>{ASST_LANGS.find(([v]) => v === crmLocale)?.[1] || crmLocale}</b></li>
               <li>• {t.sumCapacity}: {q.capacity_seats} · {t.sumAutoConfirm} {q.auto_confirm_max}</li>
               <li>• {t.sumPayments}: {q.payments.length || "—"}</li>
+              <li>• {t.sumPos}: <b>{posChoice === "none" ? t.posNone : POS_OPTIONS.find((o) => o.id === posChoice)?.label}</b></li>
             </ul>
           </div>
           <p className="text-xs text-black">{t.sumFootnote}</p>
@@ -544,7 +642,7 @@ export default function OnboardingPage() {
 
       <div className="mt-6 flex items-center justify-between gap-3">
         <button onClick={() => setStep((s) => (s - 1) as Step)} disabled={step === 1} className="flex items-center gap-1 px-4 py-2 rounded-lg border-2 border-[#c4956a] text-[#c4956a] cursor-pointer disabled:cursor-not-allowed disabled:opacity-30"><ChevronLeft className="w-4 h-4" /> {t.back}</button>
-        {step < 4 ? (
+        {step < 5 ? (
           <button onClick={() => setStep((s) => (s + 1) as Step)} className="flex items-center gap-1 px-5 py-2.5 rounded-lg bg-[#c4956a] text-white font-bold cursor-pointer hover:bg-[#b3855c] transition-colors">{t.next} <ChevronRight className="w-4 h-4" /></button>
         ) : (
           <button onClick={submit} disabled={!restaurantName.trim()} className="flex items-center gap-1 px-5 py-2.5 rounded-lg bg-emerald-600 text-white font-bold cursor-pointer disabled:cursor-not-allowed disabled:opacity-50"><Check className="w-4 h-4" /> {t.createCrm}</button>

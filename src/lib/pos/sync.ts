@@ -150,14 +150,26 @@ async function buildProductMap(
   }
   const { data: items } = await supabase
     .from("menu_items")
-    .select("id, name")
+    .select("id, name, pos_external_product_id")
     .eq("tenant_id", tenantId);
-  const byName = new Map<string, string>();
-  for (const it of items || []) byName.set(normalizeName(it.name), it.id);
+  const byName = new Map<string, { id: string; linked: string | null }>();
+  for (const it of items || []) byName.set(normalizeName(it.name), { id: it.id, linked: it.pos_external_product_id ?? null });
+  // Persist the dish→till-product link the FIRST time we match it, so price
+  // write-back later targets this exact product instead of re-matching by name.
+  const toLink: Array<{ id: string; ext: string }> = [];
   for (const p of products) {
-    const id = byName.get(normalizeName(p.name));
-    if (id) map.set(p.externalProductId, id);
+    const hit = byName.get(normalizeName(p.name));
+    if (hit) {
+      map.set(p.externalProductId, hit.id);
+      if (hit.linked !== p.externalProductId) toLink.push({ id: hit.id, ext: p.externalProductId });
+    }
   }
+  // Best-effort: a failure here must never break the sale sync.
+  await Promise.all(
+    toLink.map((l) =>
+      supabase.from("menu_items").update({ pos_external_product_id: l.ext }).eq("id", l.id).then(() => {}, () => {}),
+    ),
+  ).catch(() => {});
   return map;
 }
 

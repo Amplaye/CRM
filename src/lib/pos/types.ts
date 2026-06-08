@@ -12,7 +12,8 @@ export type PosProvider =
   | "tilby"
   | "ipratico"
   | "nempos"
-  | "deliverect";
+  | "deliverect"
+  | "loyverse";
 
 export type PosChannel = "sala" | "asporto" | "delivery";
 
@@ -83,11 +84,34 @@ export interface AdapterContext {
   config: Record<string, unknown>;
 }
 
-/** The contract every till implements. Five real adapters are stubs today; the
- * MockAdapter is the only one that produces data. */
+/** Result of a write-back to the till. `ok:false` carries a human-readable
+ * reason the CRM can surface (e.g. "this till is read-only"). */
+export interface PushResult {
+  ok: boolean;
+  detail?: string;
+}
+
+/** The contract every till implements.
+ *
+ * READ side (mandatory): testConnection / fetchSales / fetchProducts — pull the
+ * till's data into the canonical pos_sales tables. Every adapter must do this.
+ *
+ * WRITE side (optional): pushProductPrice — push a CHANGE made in the CRM back
+ * out to the till, so the owner manages everything from the CRM and never opens
+ * the POS (the product vision). It's optional on the interface so a read-only or
+ * not-yet-implemented till simply omits it; callers check `adapter.pushProductPrice`
+ * before using it and report "not supported" otherwise. Loyverse implements it
+ * for real; the five Italian stubs don't yet. */
 export interface PosAdapter {
   readonly provider: PosProvider;
   testConnection(ctx: AdapterContext): Promise<{ ok: true; detail?: string }>;
   fetchSales(ctx: AdapterContext, p: FetchSalesParams): Promise<CanonicalSale[]>;
   fetchProducts(ctx: AdapterContext): Promise<CanonicalProduct[]>;
+  /** Push a new price for one product (identified by its external product id —
+   * the same id fetchProducts returns) to the till. Optional: present only on
+   * tills that support writing back. */
+  pushProductPrice?(
+    ctx: AdapterContext,
+    p: { externalProductId: string; price: number },
+  ): Promise<PushResult>;
 }

@@ -18,7 +18,8 @@ export function getPosProvider(settings: TenantSettings | null | undefined): Pos
     explicit === "tilby" ||
     explicit === "ipratico" ||
     explicit === "nempos" ||
-    explicit === "deliverect"
+    explicit === "deliverect" ||
+    explicit === "loyverse"
   ) {
     return explicit;
   }

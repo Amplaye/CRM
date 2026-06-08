@@ -10,6 +10,7 @@ import { tilbyAdapter } from "@/lib/pos/adapters/tilby";
 import { ipraticoAdapter } from "@/lib/pos/adapters/ipratico";
 import { nemposAdapter } from "@/lib/pos/adapters/nempos";
 import { deliverectAdapter } from "@/lib/pos/adapters/deliverect";
+import { loyverseAdapter } from "@/lib/pos/adapters/loyverse";
 
 const ADAPTERS: Record<PosProvider, PosAdapter> = {
   mock: mockAdapter,
@@ -18,6 +19,7 @@ const ADAPTERS: Record<PosProvider, PosAdapter> = {
   ipratico: ipraticoAdapter,
   nempos: nemposAdapter,
   deliverect: deliverectAdapter,
+  loyverse: loyverseAdapter,
 };
 
 export function getAdapter(provider: PosProvider): PosAdapter {

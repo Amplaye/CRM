@@ -60,6 +60,13 @@ interface UiStrings {
   // step headers
   s1: string; s2: string; s3: string; s4: string; s5: string;
   s2hint: string; s3hint: string; s4hint: string;
+  // POS / till step (optional). The owner picks which cash-register the venue
+  // uses so the management module can ingest its sales; "none" is the default.
+  sPos: string; sPosHint: string;
+  posNone: string; posNoneHint: string;
+  posComingSoon: string; // badge on tills that aren't connectable yet
+  posLive: string;       // badge on the one till we can connect today (Loyverse)
+  sumPos: string;        // summary label
   // step 1 fields
   fName: string; fPhone: string; fWhatsapp: string; fReview: string;
   fTimezone: string; fLanguages: string; fLanguagesHint: string;
@@ -97,6 +104,10 @@ export const UI: Record<UiLang, UiStrings> = {
     s2hint: "Deja un día vacío si cierras. Varios tramos = comida + cena.",
     s3hint: "Elige el tamaño. Podrás mover/añadir/quitar mesas después desde el plano.",
     s4hint: "Responde estas preguntas: con ellas creamos automáticamente lo que el asistente necesita saber. No hay que escribir textos.",
+    sPos: "Sistema de caja (TPV)", sPosHint: "Elige el TPV que usa tu restaurante: conectaremos sus ventas al control de gestión. Puedes dejarlo para más tarde.",
+    posNone: "Lo decido más tarde", posNoneHint: "Sin caja conectada por ahora",
+    posComingSoon: "Próximamente", posLive: "Disponible",
+    sumPos: "Caja (TPV)",
     fName: "Nombre del restaurante", fPhone: "Teléfono público",
     fWhatsapp: "Tu WhatsApp (avisos al personal)", fReview: "Enlace de reseñas Google (opcional)",
     fTimezone: "Zona horaria", fLanguages: "Idiomas del asistente",
@@ -183,6 +194,10 @@ export const UI: Record<UiLang, UiStrings> = {
     s2hint: "Lascia vuoto un giorno se chiudi. Più fasce = pranzo + cena.",
     s3hint: "Scegli la dimensione. Potrai spostare/aggiungere/togliere tavoli dopo dalla pianta.",
     s4hint: "Rispondi a queste domande: con esse creiamo automaticamente ciò che l'assistente deve sapere. Non devi scrivere testi.",
+    sPos: "Sistema di cassa (POS)", sPosHint: "Scegli il POS che usa il tuo ristorante: collegheremo le sue vendite al controllo di gestione. Puoi anche deciderlo più avanti.",
+    posNone: "Lo decido più tardi", posNoneHint: "Nessuna cassa collegata per ora",
+    posComingSoon: "In arrivo", posLive: "Disponibile",
+    sumPos: "Cassa (POS)",
     fName: "Nome del ristorante", fPhone: "Telefono pubblico",
     fWhatsapp: "Il tuo WhatsApp (avvisi al personale)", fReview: "Link recensioni Google (opzionale)",
     fTimezone: "Fuso orario", fLanguages: "Lingue dell'assistente",
@@ -269,6 +284,10 @@ export const UI: Record<UiLang, UiStrings> = {
     s2hint: "Leave a day empty if you're closed. Multiple slots = lunch + dinner.",
     s3hint: "Pick the size. You can move/add/remove tables later from the floor plan.",
     s4hint: "Answer these questions: from them we automatically build what the assistant needs to know. No writing required.",
+    sPos: "Point of sale (POS)", sPosHint: "Pick the till your restaurant uses: we'll connect its sales to the management module. You can also decide this later.",
+    posNone: "I'll decide later", posNoneHint: "No till connected for now",
+    posComingSoon: "Coming soon", posLive: "Available",
+    sumPos: "Till (POS)",
     fName: "Restaurant name", fPhone: "Public phone",
     fWhatsapp: "Your WhatsApp (staff alerts)", fReview: "Google reviews link (optional)",
     fTimezone: "Time zone", fLanguages: "Assistant languages",
@@ -355,6 +374,10 @@ export const UI: Record<UiLang, UiStrings> = {
     s2hint: "Lass einen Tag leer, wenn geschlossen ist. Mehrere Zeitfenster = Mittag + Abend.",
     s3hint: "Wähle die Größe. Tische kannst du später im Plan verschieben/hinzufügen/entfernen.",
     s4hint: "Beantworte diese Fragen: daraus erstellen wir automatisch, was der Assistent wissen muss. Kein Text nötig.",
+    sPos: "Kassensystem (POS)", sPosHint: "Wähle das Kassensystem deines Restaurants: Wir verbinden seine Verkäufe mit dem Controlling-Modul. Du kannst das auch später entscheiden.",
+    posNone: "Ich entscheide später", posNoneHint: "Vorerst keine Kasse verbunden",
+    posComingSoon: "Demnächst", posLive: "Verfügbar",
+    sumPos: "Kasse (POS)",
     fName: "Name des Restaurants", fPhone: "Öffentliche Telefonnummer",
     fWhatsapp: "Dein WhatsApp (Personal-Benachrichtigungen)", fReview: "Google-Bewertungslink (optional)",
     fTimezone: "Zeitzone", fLanguages: "Sprachen des Assistenten",
