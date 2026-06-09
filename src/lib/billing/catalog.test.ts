@@ -6,6 +6,8 @@ import {
   getAddon,
   planAmount,
   formatEur,
+  bundleableAddons,
+  bundleTotal,
   resolveStripePriceId,
   resolvePaypalPlanId,
 } from "./catalog";
@@ -95,5 +97,39 @@ describe("provider id resolution reads env, undefined when unset", () => {
     process.env.PAYPAL_PLAN_ADDON_WEBSITE_CARE = "P-care";
     expect(resolveStripePriceId("voice_agent")).toBe("price_voice");
     expect(resolvePaypalPlanId("website_care")).toBe("P-care");
+  });
+});
+
+describe("billing catalog — bundle (pay everything together)", () => {
+  it("only recurring, non-coming-soon add-ons are bundleable", () => {
+    const ids = bundleableAddons().map((a) => a.id);
+    // voice_agent + website_care are recurring; website_design is one-off; smart_inventory is coming soon.
+    expect(ids).toContain("voice_agent");
+    expect(ids).toContain("website_care");
+    expect(ids).not.toContain("website_design");
+    expect(ids).not.toContain("smart_inventory");
+  });
+
+  it("monthly bundle = plan + sum of monthly add-on prices", () => {
+    const premium = getPlan("premium")!;
+    // 399 + voice_agent 199 + website_care 59 = 657
+    expect(bundleTotal(premium, "monthly", ["voice_agent", "website_care"])).toBe(657);
+  });
+
+  it("yearly bundle bills add-ons ×10 (2 months free, matching the plan)", () => {
+    const premium = getPlan("premium")!;
+    // 3990 + voice_agent 199×10 + website_care 59×10 = 3990 + 1990 + 590 = 6570
+    expect(bundleTotal(premium, "yearly", ["voice_agent", "website_care"])).toBe(6570);
+  });
+
+  it("ignores one-off / coming-soon / unknown ids in the total", () => {
+    const business = getPlan("business")!;
+    // website_design (one-off) and smart_inventory (coming soon) contribute nothing.
+    expect(bundleTotal(business, "monthly", ["website_design", "smart_inventory"])).toBe(business.monthly);
+  });
+
+  it("an empty add-on list yields just the plan price", () => {
+    const premium = getPlan("premium")!;
+    expect(bundleTotal(premium, "monthly", [])).toBe(premium.monthly);
   });
 });
