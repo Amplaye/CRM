@@ -187,7 +187,7 @@ export function PaymentsTab() {
         <h2 className="text-lg font-bold text-black flex items-center gap-2">
           <CreditCard className="w-5 h-5" /> {t(tk("settings_payments_title")) || "Abbonamento e pagamenti"}
         </h2>
-        <p className="mt-1 text-sm text-black/70">
+        <p className="mt-1 text-sm text-black">
           {t(tk("settings_payments_desc")) || "Scegli il piano, paga con Stripe o PayPal e gestisci i componenti aggiuntivi. Senza commissioni sulle tue prenotazioni."}
         </p>
       </div>
@@ -195,7 +195,7 @@ export function PaymentsTab() {
       {/* Return-from-checkout notice */}
       {notice && (
         <div
-          className={`flex items-start gap-2 text-sm rounded-lg p-3 ${notice.ok ? "text-emerald-700" : "text-black/70"}`}
+          className={`flex items-start gap-2 text-sm rounded-lg p-3 ${notice.ok ? "text-emerald-700" : "text-black"}`}
           style={{ background: notice.ok ? "rgba(16,185,129,0.08)" : "rgba(196,149,106,0.10)" }}
         >
           {notice.ok ? <CheckCircle2 className="w-4 h-4 mt-0.5 shrink-0" /> : <XCircle className="w-4 h-4 mt-0.5 shrink-0" />}
@@ -216,7 +216,7 @@ export function PaymentsTab() {
                 )}
                 {sub.cycle ? ` · ${t(tk(sub.cycle === "yearly" ? "settings_payments_yearly" : "settings_payments_monthly")) || sub.cycle}` : ""}
               </div>
-              <div className="text-xs text-black/60">
+              <div className="text-xs text-black">
                 {t(tk("settings_payments_status")) || "Stato"}: {sub.status}
                 {sub.current_period_end
                   ? ` · ${(t(tk("settings_payments_renews")) || "rinnova il {d}").replace("{d}", new Date(sub.current_period_end).toLocaleDateString())}`
@@ -229,7 +229,7 @@ export function PaymentsTab() {
 
       {/* Provider-not-configured hint */}
       {!loading && !anyProvider && (
-        <div className="rounded-lg border-2 p-3 text-sm text-black/70" style={{ borderColor: "#eaddcb", background: "rgba(252,246,237,0.4)" }}>
+        <div className="rounded-lg border-2 p-3 text-sm text-black" style={{ borderColor: "#eaddcb", background: "rgba(252,246,237,0.4)" }}>
           {t(tk("settings_payments_not_configured")) || "I pagamenti online si attivano a breve. L'interfaccia è pronta: appena colleghiamo Stripe e PayPal potrai abbonarti da qui."}
         </div>
       )}
@@ -240,7 +240,7 @@ export function PaymentsTab() {
           <button
             key={c}
             onClick={() => setCycle(c)}
-            className={`px-4 py-1.5 text-sm rounded-md transition-colors cursor-pointer ${cycle === c ? "text-white font-bold" : "text-black/70"}`}
+            className={`px-4 py-1.5 text-sm rounded-md transition-colors cursor-pointer ${cycle === c ? "text-white font-bold" : "text-black"}`}
             style={cycle === c ? { background: "linear-gradient(135deg, #d4a574, #c4956a)" } : {}}
           >
             {c === "monthly"
@@ -261,15 +261,23 @@ export function PaymentsTab() {
           const amount = planAmount(plan, cycle);
           const isCurrent = sub?.plan === plan.id && (sub?.status === "active" || sub?.status === "trialing");
           const Icon = plan.id === "premium" ? Sparkles : Building2;
+          // Business plan gets a "diamond" border: a shimmering iridescent
+          // gradient ring (padding-box trick) instead of a flat border colour.
+          const isBusiness = plan.id === "business";
           return (
             <div
               key={plan.id}
-              className="rounded-xl border-2 p-5 flex flex-col"
-              style={{
-                borderColor: plan.highlighted ? "#c4956a" : "#eaddcb",
-                background: plan.highlighted ? "rgba(196,149,106,0.08)" : "rgba(252,246,237,0.5)",
-              }}
+              className={`rounded-xl flex flex-col ${isBusiness ? "payments-diamond-border p-[2px]" : "border-2 p-5"}`}
+              style={
+                isBusiness
+                  ? undefined
+                  : {
+                      borderColor: plan.highlighted ? "#c4956a" : "#eaddcb",
+                      background: plan.highlighted ? "rgba(196,149,106,0.08)" : "rgba(252,246,237,0.5)",
+                    }
+              }
             >
+            <div className={isBusiness ? "rounded-[10px] p-5 flex flex-col flex-1" : "contents"} style={isBusiness ? { background: "rgba(252,246,237,0.95)" } : undefined}>
               <div className="flex items-center justify-between">
                 <h3 className="text-base font-bold text-black flex items-center gap-2">
                   <Icon className="w-4 h-4" /> {t(tk(plan.nameKey)) || plan.name}
@@ -280,18 +288,18 @@ export function PaymentsTab() {
                   </span>
                 )}
               </div>
-              <p className="mt-1 text-xs text-black/60">{t(tk(plan.taglineKey)) || ""}</p>
+              <p className="mt-1 text-xs text-black">{t(tk(plan.taglineKey)) || ""}</p>
 
               <div className="mt-3 flex items-baseline gap-1">
                 <span className="text-3xl font-extrabold text-black">{formatEur(amount)}</span>
-                <span className="text-sm text-black/60">
+                <span className="text-sm text-black">
                   /{cycle === "yearly" ? t(tk("settings_payments_per_year")) || "anno" : t(tk("settings_payments_per_month")) || "mese"}
                 </span>
               </div>
 
               <ul className="mt-4 space-y-1.5 flex-1">
                 {plan.featureKeys.map((fk) => (
-                  <li key={fk} className="flex items-start gap-2 text-sm text-black/80">
+                  <li key={fk} className="flex items-start gap-2 text-sm text-black">
                     <Check className="w-4 h-4 mt-0.5 shrink-0" style={{ color: "#c4956a" }} />
                     <span>{t(tk(fk)) || fk}</span>
                   </li>
@@ -324,6 +332,7 @@ export function PaymentsTab() {
                 </div>
               )}
             </div>
+            </div>
           );
         })}
       </div>
@@ -332,7 +341,7 @@ export function PaymentsTab() {
       <div className="space-y-3">
         <div>
           <h3 className="text-base font-bold text-black">{t(tk("settings_payments_addons_title")) || "Componenti aggiuntivi"}</h3>
-          <p className="text-xs text-black/60">{t(tk("settings_payments_addons_desc")) || "Aggiungi ciò che ti serve. Si acquistano a parte dal tuo piano."}</p>
+          <p className="text-xs text-black">{t(tk("settings_payments_addons_desc")) || "Aggiungi ciò che ti serve. Si acquistano a parte dal tuo piano."}</p>
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           {ADDONS.map((addon) => {
@@ -373,9 +382,9 @@ export function PaymentsTab() {
                   </span>
                   <span className="text-sm font-extrabold text-black whitespace-nowrap">{priceLabel}</span>
                 </div>
-                <p className="mt-1 text-xs text-black/60 flex-1">{t(tk(addon.descKey)) || ""}</p>
+                <p className="mt-1 text-xs text-black flex-1">{t(tk(addon.descKey)) || ""}</p>
                 {addon.comingSoon ? (
-                  <div className="mt-3 text-center text-xs text-black/50 py-2 rounded-lg" style={{ background: "rgba(196,149,106,0.08)" }}>
+                  <div className="mt-3 text-center text-xs text-black py-2 rounded-lg" style={{ background: "rgba(196,149,106,0.08)" }}>
                     {t(tk("settings_payments_coming_soon")) || "Prossimamente"}
                   </div>
                 ) : owned ? (
@@ -385,7 +394,7 @@ export function PaymentsTab() {
                 ) : (
                   <>
                     {bundleable && (
-                      <p className="mt-3 text-[11px] text-black/50">{t(tk("settings_payments_addon_buy_separately")) || "oppure acquistalo a parte:"}</p>
+                      <p className="mt-3 text-[11px] text-black">{t(tk("settings_payments_addon_buy_separately")) || "oppure acquistalo a parte:"}</p>
                     )}
                     <div className="mt-2 flex gap-2">
                       <button
@@ -421,7 +430,7 @@ export function PaymentsTab() {
             <h3 className="text-base font-bold text-black flex items-center gap-2">
               <Layers className="w-4 h-4" /> {t(tk("settings_payments_bundle_title")) || "Paga tutto in un'unica soluzione"}
             </h3>
-            <p className="mt-1 text-xs text-black/60">
+            <p className="mt-1 text-xs text-black">
               {t(tk("settings_payments_bundle_desc")) || "Piano + componenti aggiuntivi selezionati, in un solo abbonamento Stripe."}
             </p>
 
@@ -431,7 +440,7 @@ export function PaymentsTab() {
                 <button
                   key={p.id}
                   onClick={() => setBundlePlan(p.id)}
-                  className={`px-3 py-1 text-xs rounded-md transition-colors cursor-pointer ${bundlePlan === p.id ? "text-white font-bold" : "text-black/70"}`}
+                  className={`px-3 py-1 text-xs rounded-md transition-colors cursor-pointer ${bundlePlan === p.id ? "text-white font-bold" : "text-black"}`}
                   style={bundlePlan === p.id ? { background: "linear-gradient(135deg, #d4a574, #c4956a)" } : {}}
                 >
                   {t(tk(p.nameKey)) || p.name}
@@ -442,7 +451,7 @@ export function PaymentsTab() {
             {/* Selected add-ons recap */}
             {selectedList.length > 0 ? (
               <ul className="mt-3 space-y-1">
-                <li className="flex items-center justify-between text-xs text-black/70">
+                <li className="flex items-center justify-between text-xs text-black">
                   <span>{t(tk(bundlePlanObj.nameKey)) || bundlePlanObj.name}</span>
                   <span className="font-bold">{formatEur(planAmount(bundlePlanObj, cycle))}/{perLabel}</span>
                 </li>
@@ -450,7 +459,7 @@ export function PaymentsTab() {
                   const a = ADDONS.find((x) => x.id === id);
                   if (!a) return null;
                   return (
-                    <li key={id} className="flex items-center justify-between text-xs text-black/70">
+                    <li key={id} className="flex items-center justify-between text-xs text-black">
                       <span>+ {t(tk(a.nameKey)) || a.name}</span>
                       <span className="font-bold">{formatEur(cycle === "yearly" ? a.amount * 10 : a.amount)}/{perLabel}</span>
                     </li>
@@ -458,17 +467,17 @@ export function PaymentsTab() {
                 })}
               </ul>
             ) : (
-              <p className="mt-3 text-xs text-black/50">{t(tk("settings_payments_bundle_select_hint")) || "Seleziona almeno un componente aggiuntivo qui sopra per pagare tutto insieme."}</p>
+              <p className="mt-3 text-xs text-black">{t(tk("settings_payments_bundle_select_hint")) || "Seleziona almeno un componente aggiuntivo qui sopra per pagare tutto insieme."}</p>
             )}
           </div>
 
           <div className="flex flex-col items-end gap-2">
             <div className="text-right">
-              <div className="text-[11px] text-black/50">
+              <div className="text-[11px] text-black">
                 {(t(tk("settings_payments_bundle_total")) || "Totale {cycle}").replace("{cycle}", perLabel)}
               </div>
               <div className="text-2xl font-extrabold text-black">
-                {formatEur(bundleSum)}<span className="text-sm font-normal text-black/60">/{perLabel}</span>
+                {formatEur(bundleSum)}<span className="text-sm font-normal text-black">/{perLabel}</span>
               </div>
             </div>
             <button
@@ -481,7 +490,7 @@ export function PaymentsTab() {
               {(t(tk("settings_payments_bundle_pay")) || "Paga piano + {n} aggiuntivi (Stripe)").replace("{n}", String(selectedList.length))}
             </button>
             {!providers.stripe && (
-              <p className="text-[11px] text-black/50 max-w-[200px] text-right">{t(tk("settings_payments_bundle_paypal_note")) || "Il pagamento combinato è disponibile solo con Stripe."}</p>
+              <p className="text-[11px] text-black max-w-[200px] text-right">{t(tk("settings_payments_bundle_paypal_note")) || "Il pagamento combinato è disponibile solo con Stripe."}</p>
             )}
           </div>
         </div>
@@ -494,7 +503,7 @@ export function PaymentsTab() {
         </div>
       )}
 
-      <p className="text-xs text-black/40">
+      <p className="text-xs text-black">
         {t(tk("settings_payments_secure_note")) || "Pagamenti gestiti in modo sicuro da Stripe e PayPal. BALI Flow non conserva i dati della tua carta."}
       </p>
     </div>

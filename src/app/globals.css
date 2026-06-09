@@ -265,3 +265,34 @@ tr.is-new-row::after {
     background-color: rgba(196, 149, 106, 0.06);
   }
 }
+
+/* "Diamond" border for the Business plan card (Settings → Payments). An iridescent
+   gradient ring drawn on the outer wrapper's background; the inner card sits on top
+   via padding, leaving a 2px gradient frame. The slow hue drift gives the facet-like
+   shimmer of a cut diamond without a heavy animation. */
+.payments-diamond-border {
+  position: relative;
+  background: linear-gradient(
+    135deg,
+    #e9d8a6 0%,
+    #b8c6db 18%,
+    #f5f7fa 34%,
+    #c4956a 50%,
+    #f5f7fa 66%,
+    #b8c6db 82%,
+    #e9d8a6 100%
+  );
+  background-size: 300% 300%;
+  animation: payments-diamond-shimmer 6s ease-in-out infinite;
+  box-shadow: 0 0 0 1px rgba(196, 149, 106, 0.15), 0 8px 24px -8px rgba(120, 140, 170, 0.35);
+}
+@keyframes payments-diamond-shimmer {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .payments-diamond-border {
+    animation: none;
+  }
+}
