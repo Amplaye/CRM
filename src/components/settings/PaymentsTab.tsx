@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { CreditCard, Check, Loader2, CheckCircle2, XCircle, Sparkles, Building2, Layers } from "lucide-react";
+import { CreditCard, Check, Loader2, CheckCircle2, XCircle, Sparkles, Building2, Layers, MessageCircle } from "lucide-react";
 import { useLanguage } from "@/lib/contexts/LanguageContext";
 import { useTenant } from "@/lib/contexts/TenantContext";
 import { Dictionary } from "@/lib/i18n/dictionaries/en";
@@ -11,6 +11,7 @@ import {
   planAmount,
   bundleTotal,
   formatEur,
+  CONTACT_WHATSAPP_URL,
   type PlanId,
   type AddonId,
   type BillingCycle,
@@ -383,7 +384,20 @@ export function PaymentsTab() {
                   <span className="text-sm font-extrabold text-black whitespace-nowrap">{priceLabel}</span>
                 </div>
                 <p className="mt-1 text-xs text-black flex-1">{t(tk(addon.descKey)) || ""}</p>
-                {addon.comingSoon ? (
+                {addon.contactUs ? (
+                  // Variable-priced, sold by hand → single "contact us" CTA that
+                  // opens WhatsApp with Sofía instead of Stripe/PayPal buttons.
+                  <a
+                    href={CONTACT_WHATSAPP_URL}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="mt-3 inline-flex items-center justify-center gap-1.5 px-3 py-2 text-white text-xs font-bold rounded-lg cursor-pointer"
+                    style={{ background: "linear-gradient(135deg, #25d366, #128c7e)" }}
+                  >
+                    <MessageCircle className="w-3.5 h-3.5" />
+                    {t(tk("settings_payments_contact_us")) || "Contattaci"}
+                  </a>
+                ) : addon.comingSoon ? (
                   <div className="mt-3 text-center text-xs text-black py-2 rounded-lg" style={{ background: "rgba(196,149,106,0.08)" }}>
                     {t(tk("settings_payments_coming_soon")) || "Prossimamente"}
                   </div>

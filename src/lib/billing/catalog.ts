@@ -59,9 +59,17 @@ export interface Addon {
   /** "from €750" style — the amount is a starting price, not fixed. */
   fromPrice?: boolean;
   comingSoon?: boolean;
+  /** Sold off-platform: the price is variable, so instead of pay buttons the
+   * card shows a single "contact us" CTA that opens WhatsApp with Sofía. */
+  contactUs?: boolean;
 }
 
 export const CURRENCY = "EUR" as const;
+
+/** WhatsApp deep-link for "contact us" add-ons (variable-priced, sold by hand).
+ * Opens a chat with Sofía pre-filled with an interest message. */
+export const CONTACT_WHATSAPP_URL =
+  "https://wa.me/34684109244?text=" + encodeURIComponent("Ciao, sarei interessato alla pagina web");
 
 export const PLANS: Plan[] = [
   {
@@ -113,6 +121,7 @@ export const ADDONS: Addon[] = [
     amount: 750,
     billing: "oneoff",
     fromPrice: true,
+    contactUs: true,
   },
   {
     id: "voice_vapi",
@@ -188,8 +197,12 @@ export function bundleTotal(plan: Plan, cycle: BillingCycle, addonIds: AddonId[]
 //   STRIPE_PRICE_PREMIUM_MONTHLY, STRIPE_PRICE_PREMIUM_YEARLY,
 //   STRIPE_PRICE_BUSINESS_MONTHLY, STRIPE_PRICE_BUSINESS_YEARLY,
 //   STRIPE_PRICE_ADDON_VOICE_VAPI, STRIPE_PRICE_ADDON_VOICE_RETELL,
-//   STRIPE_PRICE_ADDON_WEBSITE_DESIGN, STRIPE_PRICE_ADDON_SMART_INVENTORY
+//   STRIPE_PRICE_ADDON_SMART_INVENTORY
 //   PAYPAL_PLAN_PREMIUM_MONTHLY, … (same suffixes)
+//
+// `website_design` has NO Stripe price: it's `contactUs` (variable price, sold by
+// hand), so the card shows a WhatsApp "contact us" CTA instead of pay buttons and
+// never hits checkout.
 //
 // Recurring add-ons also have an optional YEARLY price
 // (STRIPE_PRICE_ADDON_<NAME>_YEARLY). A Stripe subscription Checkout can't mix

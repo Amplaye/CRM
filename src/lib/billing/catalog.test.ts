@@ -38,6 +38,8 @@ describe("billing catalog — prices match the pricing page", () => {
     expect(getAddon("website_design")!.amount).toBe(750);
     expect(getAddon("website_design")!.fromPrice).toBe(true);
     expect(getAddon("website_design")!.billing).toBe("oneoff");
+    // Variable price → "contact us" WhatsApp CTA, no Stripe checkout.
+    expect(getAddon("website_design")!.contactUs).toBe(true);
     expect(getAddon("smart_inventory")!.amount).toBe(199);
     expect(getAddon("smart_inventory")!.comingSoon).toBe(true);
   });

@@ -1071,6 +1071,7 @@ export const es: Dictionary = {
   settings_payments_per_month: "mes",
   settings_payments_per_year: "año",
   settings_payments_from: "desde",
+  settings_payments_contact_us: "Contáctanos",
   settings_payments_recommended: "Recomendado",
   settings_payments_current: "Plan activo: {p}",
   settings_payments_status: "Estado",
