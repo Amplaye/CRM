@@ -831,6 +831,8 @@ export const en = {
   pending_to_arrange: "To arrange",
   pending_call_btn: "Call",
   pending_handled_btn: "Handled",
+  pending_assign_tables_btn: "Assign tables",
+  pending_event_need_details: "Set date, time and party size before assigning tables.",
   pending_confirm_with: "Confirm with",
   pending_people_label: "People",
   pending_date_label: "Date",

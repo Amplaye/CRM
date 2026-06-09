@@ -69,6 +69,10 @@ export default function PendingPage() {
   const [warning, setWarning] = useState<ConfirmWarning>(null);
   // Table picker view mode: grid (buttons) or plan (visual canvas)
   const [tablePickerView, setTablePickerView] = useState<"grid" | "plan">("grid");
+  // Event-request inline draft: the owner sets the real date/time/party_size
+  // (agreed by phone) before assigning tables like a normal pending request.
+  const [eventDraft, setEventDraft] = useState<{ id: string; date: string; time: string; party_size: number } | null>(null);
+  const [eventSaving, setEventSaving] = useState(false);
 
   const fetchPending = async () => {
     if (!tenant) return;
@@ -127,13 +131,15 @@ export default function PendingPage() {
     return h < 16 ? 'lunch' : 'dinner';
   };
 
-  const startConfirm = async (id: string) => {
+  const startConfirm = async (id: string, reqOverride?: PendingReservation) => {
     setConfirmingId(id);
     setSelectedTables(new Set());
     setZoneFilter(null);
 
-    // Find the request's date and shift, fetch occupied tables for that date+shift
-    const req = pending.find(p => p.id === id);
+    // Find the request's date and shift, fetch occupied tables for that date+shift.
+    // `reqOverride` lets callers pass a freshly-edited row (event requests) without
+    // waiting for React state to flush.
+    const req = reqOverride || pending.find(p => p.id === id);
     if (req && tenant) {
       const reqShift = getShift(req.time);
       const { data: resData } = await supabase
@@ -305,6 +311,44 @@ export default function PendingPage() {
     }
   };
 
+  // Event request → real booking. Once the owner has agreed date/time/party by
+  // phone, they set those here; we persist them (the row arrived with placeholder
+  // date/time/party) and then open the SAME table-assignment picker the other
+  // pending requests use. handleConfirm reads date/time/party from the (now
+  // updated) row, so the whole confirm flow works unchanged.
+  const enterEventAssign = async (id: string) => {
+    const draft = eventDraft && eventDraft.id === id ? eventDraft : null;
+    if (!draft) return;
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(draft.date) || !/^\d{2}:\d{2}$/.test(draft.time) || !(draft.party_size > 0)) {
+      window.alert(t("pending_event_need_details"));
+      return;
+    }
+    setEventSaving(true);
+    try {
+      const newShift = getShift(draft.time);
+      const { error: upErr } = await supabase
+        .from("reservations")
+        .update({ date: draft.date, time: draft.time, party_size: draft.party_size, shift: newShift })
+        .eq("id", id);
+      if (upErr) throw upErr;
+
+      // Update local state so the picker + confirm read the agreed values.
+      const updated = pending.map((p) =>
+        p.id === id ? { ...p, date: draft.date, time: draft.time, party_size: draft.party_size } : p
+      );
+      setPending(updated);
+      const freshReq = updated.find((p) => p.id === id);
+      setEventDraft(null);
+      if (freshReq) await startConfirm(id, freshReq);
+    } catch (err: any) {
+      console.error("Event assign error:", err);
+      window.alert((err?.message ? err.message : "Error"));
+      fetchPending();
+    } finally {
+      setEventSaving(false);
+    }
+  };
+
   const handleReject = async (id: string) => {
     if (!confirm(t("pending_reject_confirm"))) return;
     const rejectedReq = pending.find(p => p.id === id);
@@ -382,6 +426,14 @@ export default function PendingPage() {
             const isConfirming = confirmingId === req.id;
             const isNew = (req as any).created_at && (req as any).created_at > seenAt;
             const rowIdx = isNew ? newRowIdx++ : 0;
+            // For an event request the owner fills date/time/party before assigning
+            // tables. The draft starts empty (the row's date/time are placeholders).
+            const draft = isEventRequest && eventDraft && eventDraft.id === req.id ? eventDraft : null;
+            const setDraft = (patch: Partial<{ date: string; time: string; party_size: number }>) =>
+              setEventDraft((prev) => {
+                const base = prev && prev.id === req.id ? prev : { id: req.id, date: "", time: "", party_size: req.party_size };
+                return { ...base, ...patch };
+              });
 
             return (
               <div
@@ -421,21 +473,49 @@ export default function PendingPage() {
                           <Users className="w-4 h-4 text-black flex-shrink-0" />
                           <div className="min-w-0">
                             <p className="text-xs text-black">{t("pending_people_label")}</p>
-                            <p className="text-sm font-bold text-black">{isEventRequest ? `~${req.party_size}` : req.party_size}</p>
+                            {isEventRequest && !isConfirming ? (
+                              <input
+                                type="number"
+                                min={1}
+                                value={draft ? draft.party_size : req.party_size}
+                                onChange={(e) => setDraft({ party_size: Math.max(1, parseInt(e.target.value) || 1) })}
+                                className="w-16 text-sm font-bold text-black bg-white border border-[#c4956a]/40 rounded px-1.5 py-0.5"
+                              />
+                            ) : (
+                              <p className="text-sm font-bold text-black">{req.party_size}</p>
+                            )}
                           </div>
                         </div>
                         <div className="flex items-center gap-2">
                           <Calendar className="w-4 h-4 text-black flex-shrink-0" />
                           <div className="min-w-0">
                             <p className="text-xs text-black">{t("pending_date_label")}</p>
-                            <p className="text-sm font-bold text-black">{isEventRequest ? t("pending_to_arrange") : req.date}</p>
+                            {isEventRequest && !isConfirming ? (
+                              <input
+                                type="date"
+                                value={draft ? draft.date : ""}
+                                onChange={(e) => setDraft({ date: e.target.value })}
+                                className="text-sm font-bold text-black bg-white border border-[#c4956a]/40 rounded px-1.5 py-0.5"
+                              />
+                            ) : (
+                              <p className="text-sm font-bold text-black">{req.date}</p>
+                            )}
                           </div>
                         </div>
                         <div className="flex items-center gap-2">
                           <Clock className="w-4 h-4 text-black flex-shrink-0" />
                           <div className="min-w-0">
                             <p className="text-xs text-black">{t("pending_time_label")}</p>
-                            <p className="text-sm font-bold text-black">{isEventRequest ? t("pending_to_arrange") : req.time}</p>
+                            {isEventRequest && !isConfirming ? (
+                              <input
+                                type="time"
+                                value={draft ? draft.time : ""}
+                                onChange={(e) => setDraft({ time: e.target.value })}
+                                className="text-sm font-bold text-black bg-white border border-[#c4956a]/40 rounded px-1.5 py-0.5"
+                              />
+                            ) : (
+                              <p className="text-sm font-bold text-black">{req.time}</p>
+                            )}
                           </div>
                         </div>
                         <div className="flex items-center gap-2">
@@ -467,6 +547,15 @@ export default function PendingPage() {
                       <div className="flex flex-row sm:flex-col gap-2 sm:ml-4">
                         {isEventRequest ? (
                           <>
+                            <button
+                              onClick={() => enterEventAssign(req.id)}
+                              disabled={eventSaving}
+                              className="cursor-pointer flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-3 sm:px-4 py-2 rounded-lg text-sm font-bold text-white transition-all hover:shadow-md disabled:opacity-60"
+                              style={{ background: 'linear-gradient(135deg, #22c55e 0%, #16a34a 100%)' }}
+                            >
+                              <Check className="w-4 h-4" />
+                              {eventSaving ? "..." : t("pending_assign_tables_btn")}
+                            </button>
                             {guestPhone && (
                               <a
                                 href={`tel:${guestPhone}`}
@@ -479,8 +568,7 @@ export default function PendingPage() {
                             )}
                             <button
                               onClick={() => handleMarkHandled(req.id)}
-                              className="cursor-pointer flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-3 sm:px-4 py-2 rounded-lg text-sm font-bold text-white transition-all hover:shadow-md"
-                              style={{ background: 'linear-gradient(135deg, #22c55e 0%, #16a34a 100%)' }}
+                              className="cursor-pointer flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-3 sm:px-4 py-2 rounded-lg text-sm font-bold text-[#8b6540] bg-[#c4956a]/10 border border-[#c4956a]/30 hover:bg-[#c4956a]/20 transition-all"
                             >
                               <Check className="w-4 h-4" />
                               {t("pending_handled_btn")}

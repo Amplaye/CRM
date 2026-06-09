@@ -834,6 +834,8 @@ export const it: Dictionary = {
   pending_to_arrange: "Da concordare",
   pending_call_btn: "Chiama",
   pending_handled_btn: "Gestito",
+  pending_assign_tables_btn: "Assegna tavoli",
+  pending_event_need_details: "Imposta data, ora e numero di persone prima di assegnare i tavoli.",
   pending_confirm_with: "Conferma con",
   pending_people_label: "Persone",
   pending_date_label: "Data",
