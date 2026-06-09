@@ -25,6 +25,7 @@ import {
   Calculator,
   PieChart,
   Package,
+  Lock,
 } from "lucide-react";
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
@@ -123,13 +124,17 @@ export function Sidebar({ mobileOpen = false, onClose }: SidebarProps) {
   // and reservations to mark arrivals/no-shows. Everything else is hidden.
   const isHost = activeRole === "host";
   const features = getFeatures(activeTenant?.settings);
+  // The gestionale pages are gated by a PAID add-on (smart_inventory →
+  // management_enabled). Unlike a plain hide, we keep them VISIBLE but LOCKED when
+  // not entitled: a greyed item with a padlock that deep-links to the upgrade
+  // screen, so the feature sells itself instead of being invisible. `locked` is
+  // computed per item from its gating flag.
   const visibleNavItems = (isHost
     ? navItems.filter(i => i.href === "/floor" || i.href === "/reservations")
     : navItems
   // Feature flag: hide the Waitlist page for tenants that don't use it.
   ).filter(i => i.href !== "/waitlist" || features.waitlist_enabled)
-  // Feature-gated items (e.g. the gestionale pages) only show when their flag is ON.
-  .filter(i => !i.feature || features[i.feature]);
+  .map(i => ({ ...i, locked: !!i.feature && !features[i.feature] }));
 
   const adminNavItems = [
     { href: "/admin", icon: Shield, label: "Tenants" },
@@ -167,6 +172,24 @@ export function Sidebar({ mobileOpen = false, onClose }: SidebarProps) {
         <nav className="space-y-0.5 md:space-y-1 px-2 md:px-3">
           {/* Restaurant nav — only show if user has a tenant */}
           {!isPlatformOnly && visibleNavItems.map((item) => {
+            const label = t(`nav_${item.name.toLowerCase().replace(" ", "_")}` as keyof Dictionary) || item.name;
+            // Locked (paid add-on not active): greyed, padlock, and a deep-link to
+            // the upgrade screen instead of the (forbidden) feature page.
+            if (item.locked) {
+              return (
+                <Link
+                  key={item.name}
+                  href="/settings?upgrade=management"
+                  onClick={handleNavClick}
+                  title={t("billing_addon_locked_hint" as keyof Dictionary) || "Funzione a pagamento — sblocca dall'abbonamento"}
+                  className="flex items-center px-3 py-2.5 md:py-2 text-sm font-medium rounded-md transition-colors text-black/40 hover:bg-[#c4956a]/10 hover:text-black/60"
+                >
+                  <item.icon className="mr-3 flex-shrink-0 h-5 w-5 text-black/40" aria-hidden="true" />
+                  <span className="flex-1">{label}</span>
+                  <Lock className="ml-2 flex-shrink-0 h-3.5 w-3.5 text-black/40" aria-label="locked" />
+                </Link>
+              );
+            }
             const isActive = pathname === item.href || (item.href !== "/" && pathname?.startsWith(item.href));
             const badgeCount = item.badgeKey ? counts[item.badgeKey] : 0;
             const badgeBg = item.badgeStyle === "alert" ? "bg-red-500" : "bg-[#c4956a]";
@@ -186,9 +209,7 @@ export function Sidebar({ mobileOpen = false, onClose }: SidebarProps) {
                   className="mr-3 flex-shrink-0 h-5 w-5 text-black"
                   aria-hidden="true"
                 />
-                <span className="flex-1">
-                  {t(`nav_${item.name.toLowerCase().replace(" ", "_")}` as keyof Dictionary) || item.name}
-                </span>
+                <span className="flex-1">{label}</span>
                 {badgeCount > 0 && (
                   <span
                     className={cn(

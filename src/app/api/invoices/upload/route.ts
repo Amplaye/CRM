@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { extractInvoice } from "@/lib/invoices/extract";
+import { assertManagement } from "@/lib/billing/guard";
 
 // Upload a supplier-invoice photo/PDF → OCR it synchronously (an invoice is a
 // single page, so unlike the menu importer we don't need the async job) → store
@@ -35,6 +36,11 @@ export async function POST(req: NextRequest) {
   if (!form || typeof tenantId !== "string" || !tenantId || !(file instanceof File)) {
     return NextResponse.json({ error: "Missing tenant_id or file" }, { status: 400 });
   }
+
+  // Paid add-on gate: invoice OCR is part of the gestionale. Check before the
+  // expensive extraction so an unentitled tenant never burns an OCR call.
+  const gate = await assertManagement(tenantId);
+  if (gate) return gate;
 
   const mediaType = ALLOWED[(file.type || "").toLowerCase()];
   if (!mediaType) {

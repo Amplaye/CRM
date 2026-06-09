@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { authorizeTenant, resolveTill, notConnected, notSupported, type PosOutcome } from "@/lib/pos/write-back";
 import { createServiceRoleClient } from "@/lib/supabase/server";
+import { assertManagement } from "@/lib/billing/guard";
 
 // CRM → POS stock write-back. The owner corrects an ingredient's on-hand quantity
 // in the editable Magazzino; we save it to ingredients.stock_qty (the CRM's own
@@ -37,6 +38,9 @@ export async function POST(req: Request) {
   if ("error" in auth) {
     return NextResponse.json({ error: auth.error }, { status: auth.error === "unauthorized" ? 401 : 403 });
   }
+  // Paid add-on gate: stock write-back to the till is a gestionale feature.
+  const gate = await assertManagement(ing.tenant_id, auth.svc);
+  if (gate) return gate;
 
   // CRM stock is the source of truth for the warehouse; save it first.
   const { error: upErr } = await svc

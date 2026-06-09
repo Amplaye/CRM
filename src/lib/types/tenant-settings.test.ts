@@ -48,10 +48,23 @@ describe('getVoiceProvider (tiering: vapi base / retell premium)', () => {
 });
 
 describe('FEATURE_FLAGS', () => {
-  it('lists exactly the keys of TenantFeatures', () => {
+  // Every free, self-serve toggle must be listed so the Settings → Funzionalità UI
+  // can render it — EXCEPT management_enabled, which is a paid add-on
+  // (smart_inventory): it must NOT appear as a client toggle (that would let an
+  // owner unlock the gestionale for free). It's unlocked by purchase or the admin
+  // manual override instead.
+  const PAID_ADDON_FLAGS = ['management_enabled'];
+
+  it('lists exactly the self-serve keys of TenantFeatures (paid add-ons excluded)', () => {
     const listed = FEATURE_FLAGS.map((f) => f.key).sort();
-    const defined = Object.keys(DEFAULT_FEATURES).sort();
-    expect(listed).toEqual(defined);
+    const expected = Object.keys(DEFAULT_FEATURES)
+      .filter((k) => !PAID_ADDON_FLAGS.includes(k))
+      .sort();
+    expect(listed).toEqual(expected);
+  });
+
+  it('does NOT expose management_enabled as a client toggle', () => {
+    expect(FEATURE_FLAGS.map((f) => f.key)).not.toContain('management_enabled');
   });
 });
 

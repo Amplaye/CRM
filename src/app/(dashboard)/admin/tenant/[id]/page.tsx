@@ -10,7 +10,7 @@ import {
   CheckCircle2, XCircle, AlertCircle, Package,
 } from "lucide-react";
 import { TENANT_STATUSES, type TenantStatus } from "@/lib/tenants/status";
-import { getFeatures, type TenantFeatures } from "@/lib/types/tenant-settings";
+import { getRawFeatures, type TenantFeatures } from "@/lib/types/tenant-settings";
 
 const STATUS_BADGE: Record<TenantStatus, string> = {
   active: "bg-emerald-50 text-emerald-700 border-emerald-200",
@@ -77,7 +77,10 @@ export default function TenantDetailPage() {
     if (!tenantId) return;
     setFeatureSaving(key);
     const currentSettings = data?.tenant.settings || {};
-    const nextFeatures = { ...getFeatures(currentSettings as any), [key]: value };
+    // Merge onto the RAW flags, not the billing-derived ones: management_enabled
+    // here is the MANUAL OVERRIDE bit. Using getFeatures() would persist the
+    // add-on-derived `true` back into the raw flag when toggling anything else.
+    const nextFeatures = { ...getRawFeatures(currentSettings as any), [key]: value };
     try {
       const res = await fetch("/api/admin/tenant", {
         method: "PATCH",
@@ -283,7 +286,10 @@ export default function TenantDetailPage() {
           Il modulo Gestionale (POS, food cost, P&L, inventario) è opt-in: finché è
           spento, il ristorante non vede le pagine Food Cost / PL / Inventario. */}
       {(() => {
-        const features = getFeatures(tenant.settings as any);
+        // RAW flags: the management toggle shows/sets the MANUAL OVERRIDE bit, not
+        // the paid-add-on-derived value, so the admin sees the true state of the
+        // switch they control (a paying tenant has access regardless of this).
+        const features = getRawFeatures(tenant.settings as any);
         const FeatureToggle = ({
           flag, icon, title, hint,
         }: { flag: keyof TenantFeatures; icon: React.ReactNode; title: string; hint: string }) => {

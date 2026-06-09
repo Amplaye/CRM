@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { authorizeTenant, resolveTill } from "@/lib/pos/write-back";
+import { assertManagement } from "@/lib/billing/guard";
 
 // List the connected till's products, so the CRM can offer them as link targets
 // (e.g. linking a warehouse ingredient like "Vino della casa" to its sellable
@@ -17,6 +18,9 @@ export async function GET(req: Request) {
   if ("error" in auth) {
     return NextResponse.json({ error: auth.error }, { status: auth.error === "unauthorized" ? 401 : 403 });
   }
+  // Paid add-on gate: connecting/reading a till is part of the gestionale module.
+  const gate = await assertManagement(tenantId, auth.svc);
+  if (gate) return gate;
 
   const till = await resolveTill(auth.svc, tenantId);
   if (!till.ctx) return NextResponse.json({ provider: till.provider, products: [] });

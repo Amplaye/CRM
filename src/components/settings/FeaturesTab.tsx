@@ -5,7 +5,7 @@ import { useLanguage } from "@/lib/contexts/LanguageContext";
 import { useTenant } from "@/lib/contexts/TenantContext";
 import { createClient } from "@/lib/supabase/client";
 import { Dictionary } from "@/lib/i18n/dictionaries/en";
-import { TenantFeatures, FEATURE_FLAGS, getFeatures } from "@/lib/types/tenant-settings";
+import { TenantFeatures, FEATURE_FLAGS, getRawFeatures } from "@/lib/types/tenant-settings";
 
 // Settings → Features. Each restaurant capability is a single on/off toggle that
 // flips a flag in tenants.settings.features. Flipping a switch SAVES INSTANTLY —
@@ -18,7 +18,12 @@ export function FeaturesTab() {
   const { activeTenant: tenant, refreshActiveTenant } = useTenant();
   const supabase = createClient();
 
-  const [features, setFeatures] = useState<TenantFeatures>(getFeatures(null));
+  // RAW flags, not billing-derived: this tab edits only the free self-serve
+  // toggles and persists the whole features object. Reading the DERIVED
+  // management_enabled here would let an unrelated toggle write the paid value
+  // back into the raw override (silently making it permanent). management_enabled
+  // is not even rendered (absent from FEATURE_FLAGS); we just must not clobber it.
+  const [features, setFeatures] = useState<TenantFeatures>(getRawFeatures(null));
   const [status, setStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
 
   // Latest intended flags — lets rapid consecutive toggles accumulate without a
@@ -41,7 +46,7 @@ export function FeaturesTab() {
     if (!tenant) return;
     if (initedFor.current === tenant.id) return;
     initedFor.current = tenant.id;
-    const f = getFeatures(tenant.settings);
+    const f = getRawFeatures(tenant.settings);
     featuresRef.current = f;
     setFeatures(f);
   }, [tenant]);

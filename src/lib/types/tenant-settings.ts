@@ -1,5 +1,9 @@
 // Feature flags + typed tenant settings.
 import type { TenantStatus } from "@/lib/tenants/status";
+// `management_enabled` is gated by the smart_inventory paid add-on; getFeatures()
+// derives its effective value via this helper. entitlements.ts only reads the RAW
+// settings.features flag (the manual override), so there is no import cycle.
+import { hasManagement } from "@/lib/billing/entitlements";
 //
 // SaaS principle (see docs/PIANO_SAAS.md, Mossa 3): a restaurant's differences
 // live as DATA here — config, never forked code. Adding a new capability means
@@ -44,7 +48,12 @@ export const DEFAULT_FEATURES: TenantFeatures = {
   management_enabled: false,
 };
 
-/** Ordered list driving the Settings → Features UI (label/hint via i18n keys). */
+/** Ordered list driving the client-facing Settings → Funzionalità UI (label/hint
+ * via i18n keys). `management_enabled` is deliberately ABSENT: it's a paid add-on,
+ * not a free self-serve toggle. Owners unlock the gestionale by buying the add-on
+ * (or we enable it for them via the admin manual override) — never by flipping a
+ * switch in their own settings. Keeping it out of this list is what stops a client
+ * from turning the paid module on for free. */
 export const FEATURE_FLAGS: ReadonlyArray<{ key: keyof TenantFeatures; labelKey: string; hintKey: string }> = [
   { key: "waitlist_enabled", labelKey: "settings_feature_waitlist", hintKey: "settings_feature_waitlist_hint" },
   { key: "double_shift", labelKey: "settings_feature_double_shift", hintKey: "settings_feature_double_shift_hint" },
@@ -55,7 +64,6 @@ export const FEATURE_FLAGS: ReadonlyArray<{ key: keyof TenantFeatures; labelKey:
   { key: "pet_friendly", labelKey: "settings_feature_pet_friendly", hintKey: "settings_feature_pet_friendly_hint" },
   { key: "reminders_enabled", labelKey: "settings_feature_reminders", hintKey: "settings_feature_reminders_hint" },
   { key: "followup_enabled", labelKey: "settings_feature_followup", hintKey: "settings_feature_followup_hint" },
-  { key: "management_enabled", labelKey: "settings_feature_management", hintKey: "settings_feature_management_hint" },
 ];
 
 /**
@@ -161,8 +169,29 @@ export interface TenantSettings {
 }
 
 /** Read the effective flags for a tenant, applying defaults for anything unset.
- * Single source of truth — the app and (future) engine both read flags via this. */
+ * Single source of truth — the app and (future) engine both read flags via this.
+ *
+ * `management_enabled` is special: it's a PAID add-on (smart_inventory). Its
+ * effective value is "the raw flag is on (manual override)" OR "the add-on is
+ * paid and active (incl. the 7-day grace window)". By deriving it HERE, every
+ * existing call site that reads getFeatures().management_enabled — sidebar, page
+ * guards, the finance API — gets billing-aware gating for free, with the unlock /
+ * re-lock rules living only in entitlements.ts. The raw stored flag stays the
+ * manual override (admin trial/gift, or a fallback if billing ever hiccups). */
 export function getFeatures(settings: TenantSettings | null | undefined): TenantFeatures {
+  const merged = { ...DEFAULT_FEATURES, ...(settings?.features || {}) };
+  merged.management_enabled = hasManagement(settings);
+  return merged;
+}
+
+/** The RAW stored flags — defaults merged with settings.features, WITHOUT the
+ * billing derivation. Use this anywhere you EDIT the flags (the admin feature
+ * toggle, Settings → Funzionalità): the management toggle there must reflect and
+ * write the MANUAL OVERRIDE bit, not the paid-add-on-derived value — otherwise
+ * toggling any unrelated flag would persist the derived `true` back into the raw
+ * override, silently turning the manual switch on. Consumers that only READ
+ * effective access (sidebar, page guards, APIs) use getFeatures() instead. */
+export function getRawFeatures(settings: TenantSettings | null | undefined): TenantFeatures {
   return { ...DEFAULT_FEATURES, ...(settings?.features || {}) };
 }
 

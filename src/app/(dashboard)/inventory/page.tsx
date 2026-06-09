@@ -14,6 +14,7 @@ import {
   Trash2,
 } from "lucide-react";
 import { KPICard } from "@/components/ui/KPICard";
+import { ManagementLocked } from "@/components/management/ManagementLocked";
 import { useLanguage } from "@/lib/contexts/LanguageContext";
 import { useTenant } from "@/lib/contexts/TenantContext";
 import { createClient } from "@/lib/supabase/client";
@@ -174,7 +175,7 @@ export default function InventoryPage() {
   }
 
   if (!enabled) {
-    return <div className="p-8 text-sm text-black">{t("management_disabled" as keyof Dictionary) || "Modulo gestionale non attivo."}</div>;
+    return <ManagementLocked />;
   }
 
   return (

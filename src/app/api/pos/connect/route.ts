@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { authorizeTenant } from "@/lib/pos/write-back";
+import { assertManagement } from "@/lib/billing/guard";
 import { getAdapter } from "@/lib/pos/registry";
 import { encryptCredentials } from "@/lib/pos/credentials";
 import { applyPosProvider } from "@/lib/pos/pos-provider";
@@ -43,6 +44,9 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: auth.error }, { status: auth.error === "unauthorized" ? 401 : 403 });
   }
   const svc = auth.svc;
+  // Paid add-on gate: the whole POS connection flow belongs to the gestionale.
+  const gate = await assertManagement(tenantId, svc);
+  if (gate) return gate;
 
   // ---- SYNC NOW: run the orchestrator against the active connection ----------
   if (action === "sync") {

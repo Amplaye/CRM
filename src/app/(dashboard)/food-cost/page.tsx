@@ -6,6 +6,7 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ReferenceLine, Cel
 import { ChartFrame } from "@/components/ChartFrame";
 import { KPICard } from "@/components/ui/KPICard";
 import { RecipePanel } from "@/components/management/RecipePanel";
+import { ManagementLocked } from "@/components/management/ManagementLocked";
 import { useLanguage } from "@/lib/contexts/LanguageContext";
 import { useTenant } from "@/lib/contexts/TenantContext";
 import { createClient } from "@/lib/supabase/client";
@@ -120,7 +121,7 @@ export default function FoodCostPage() {
   }
 
   if (!enabled) {
-    return <div className="p-8 text-sm text-black">{t("management_disabled" as keyof Dictionary) || "Modulo gestionale non attivo."}</div>;
+    return <ManagementLocked />;
   }
 
   return (

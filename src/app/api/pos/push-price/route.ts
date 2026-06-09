@@ -4,6 +4,7 @@ import { getAdapter } from "@/lib/pos/registry";
 import { decryptCredentials } from "@/lib/pos/credentials";
 import { getPosProvider } from "@/lib/pos/pos-provider";
 import { verifyTenantMembership } from "@/lib/tenant-membership";
+import { assertManagement } from "@/lib/billing/guard";
 
 // CRM → POS price write-back. The owner changes a dish price in the CRM; we
 // update menu_items.price (the CRM's own copy) AND push it to the connected till
@@ -46,6 +47,9 @@ export async function POST(req: Request) {
   // Member OR platform admin (incl. impersonating from the admin panel).
   const allowed = await verifyTenantMembership(dish.tenant_id);
   if (!allowed) return NextResponse.json({ error: "forbidden" }, { status: 403 });
+  // Paid add-on gate: price write-back to the till is a gestionale feature.
+  const gate = await assertManagement(dish.tenant_id, svc);
+  if (gate) return gate;
 
   // 3) Update the CRM's own price first (source of truth for food cost / menu).
   const { error: upErr } = await svc

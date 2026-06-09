@@ -10,6 +10,7 @@ import { useTenant } from "@/lib/contexts/TenantContext";
 import { createClient } from "@/lib/supabase/client";
 import { Dictionary } from "@/lib/i18n/dictionaries/en";
 import { getFeatures } from "@/lib/types/tenant-settings";
+import { ManagementLocked } from "@/components/management/ManagementLocked";
 import { plSummary, plByBand, periodFoodCost } from "@/lib/management/pl";
 import type { PlSummary, RecipeLine, SaleRow } from "@/lib/management/types";
 import type { Shift } from "@/lib/management/time-buckets";
@@ -119,7 +120,7 @@ export default function PlPage() {
   }, [activeTenant?.id, enabled, supabase, tz]);
 
   if (!enabled) {
-    return <div className="p-8 text-sm text-black">{t("management_disabled" as keyof Dictionary) || "Modulo gestionale non attivo."}</div>;
+    return <ManagementLocked />;
   }
 
   const fmt = (n: number | null) => (n == null ? "—" : `€ ${n.toLocaleString("it-IT", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`);

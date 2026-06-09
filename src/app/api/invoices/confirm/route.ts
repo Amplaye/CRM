@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { assertManagement } from "@/lib/billing/guard";
 
 // Confirm a parsed supplier invoice. The owner may have edited line values and
 // mapped lines to ingredients. For every line that carries an ingredient_id we
@@ -36,6 +37,10 @@ export async function POST(req: NextRequest) {
   if (!body || typeof body.tenant_id !== "string" || typeof body.invoice_id !== "string") {
     return NextResponse.json({ error: "Missing tenant_id or invoice_id" }, { status: 400 });
   }
+
+  // Paid add-on gate: confirming an invoice (writes ingredient costs) is gestionale.
+  const gate = await assertManagement(body.tenant_id);
+  if (gate) return gate;
 
   // Apply per-line edits + ingredient mappings.
   for (const l of body.lines || []) {
