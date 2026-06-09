@@ -66,10 +66,16 @@ export interface Addon {
 
 export const CURRENCY = "EUR" as const;
 
-/** WhatsApp deep-link for "contact us" add-ons (variable-priced, sold by hand).
- * Opens a chat with Sofía pre-filled with an interest message. */
-export const CONTACT_WHATSAPP_URL =
-  "https://wa.me/34684109244?text=" + encodeURIComponent("Ciao, sarei interessato alla pagina web");
+/** Sofía's WhatsApp number for "contact us" add-ons (variable-priced, sold by
+ * hand). */
+export const CONTACT_WHATSAPP_NUMBER = "34684109244";
+
+/** WhatsApp deep-link for "contact us" add-ons. The pre-filled message follows
+ * the CRM's active language (pass the already-translated string), so a German
+ * tenant sends German, a Spanish one Spanish, etc. — not Italian for everyone. */
+export function contactWhatsappUrl(message: string): string {
+  return `https://wa.me/${CONTACT_WHATSAPP_NUMBER}?text=${encodeURIComponent(message)}`;
+}
 
 export const PLANS: Plan[] = [
   {

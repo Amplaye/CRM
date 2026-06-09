@@ -10,6 +10,8 @@ import {
   bundleTotal,
   resolveStripePriceId,
   resolvePaypalPlanId,
+  contactWhatsappUrl,
+  CONTACT_WHATSAPP_NUMBER,
 } from "./catalog";
 
 // The catalog is the single source of truth for what a restaurant pays. These
@@ -42,6 +44,15 @@ describe("billing catalog — prices match the pricing page", () => {
     expect(getAddon("website_design")!.contactUs).toBe(true);
     expect(getAddon("smart_inventory")!.amount).toBe(199);
     expect(getAddon("smart_inventory")!.comingSoon).toBe(true);
+  });
+
+  it("contactWhatsappUrl: points to Sofía + carries the (localized) message verbatim", () => {
+    expect(CONTACT_WHATSAPP_NUMBER).toBe("34684109244");
+    // The message is passed in already-translated from the UI → the URL must
+    // round-trip ANY language, not bake in Italian.
+    const de = contactWhatsappUrl("Hallo, ich interessiere mich für die Webseite");
+    expect(de).toBe("https://wa.me/34684109244?text=Hallo%2C%20ich%20interessiere%20mich%20f%C3%BCr%20die%20Webseite");
+    expect(decodeURIComponent(new URL(contactWhatsappUrl("Hola página")).searchParams.get("text"))).toBe("Hola página");
   });
 
   it("planAmount picks the right column per cycle", () => {

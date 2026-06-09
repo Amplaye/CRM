@@ -11,7 +11,7 @@ import {
   planAmount,
   bundleTotal,
   formatEur,
-  CONTACT_WHATSAPP_URL,
+  contactWhatsappUrl,
   type PlanId,
   type AddonId,
   type BillingCycle,
@@ -388,7 +388,9 @@ export function PaymentsTab() {
                   // Variable-priced, sold by hand → single "contact us" CTA that
                   // opens WhatsApp with Sofía instead of Stripe/PayPal buttons.
                   <a
-                    href={CONTACT_WHATSAPP_URL}
+                    href={contactWhatsappUrl(
+                      t(tk("settings_payments_contact_us_message")) || "Ciao, sarei interessato alla pagina web",
+                    )}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="mt-3 inline-flex items-center justify-center gap-1.5 px-3 py-2 text-white text-xs font-bold rounded-lg cursor-pointer"

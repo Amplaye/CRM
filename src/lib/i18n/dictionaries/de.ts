@@ -1072,6 +1072,7 @@ export const de: Dictionary = {
   settings_payments_per_year: "Jahr",
   settings_payments_from: "ab",
   settings_payments_contact_us: "Kontaktiere uns",
+  settings_payments_contact_us_message: "Hallo, ich interessiere mich für die Webseite",
   settings_payments_recommended: "Empfohlen",
   settings_payments_current: "Aktiver Tarif: {p}",
   settings_payments_status: "Status",

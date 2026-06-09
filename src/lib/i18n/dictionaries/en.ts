@@ -1069,6 +1069,7 @@ export const en = {
   settings_payments_per_year: "year",
   settings_payments_from: "from",
   settings_payments_contact_us: "Contact us",
+  settings_payments_contact_us_message: "Hi, I'm interested in the website",
   settings_payments_recommended: "Recommended",
   settings_payments_current: "Active plan: {p}",
   settings_payments_status: "Status",
