@@ -2,9 +2,9 @@
 // Verifies, with a real browser + real login, that the new Payments tab renders:
 //   • heading + both plan cards (Premium / Business) with the right prices
 //   • monthly/yearly toggle flips the displayed price (399→3990, 329→3290)
-//   • the four add-ons (voice €199, website care €59, design from €750, inventory soon)
-//   • the "payments not configured yet" notice (Stripe/PayPal keys aren't set on prod)
-//   • pay buttons are disabled while no provider is configured (no accidental 503)
+//   • the add-ons: voice BASE €99 + voice PREMIUM €199, design from €750, inventory soon
+//   • the removed website-care €59 add-on is GONE
+//   • Stripe is configured on prod → the Stripe pay button is enabled (live checkout)
 //
 // It does NOT start a real checkout (no keys, and that would hit Stripe/PayPal).
 //
@@ -74,19 +74,21 @@ async function main() {
     if (/€\s?399/.test(txt)) ok("Premium €399/mo shown"); else fail("€399 not shown (monthly)");
     if (/€\s?329/.test(txt)) ok("Business €329/mo shown"); else fail("€329 not shown (monthly)");
 
-    // Add-ons
-    if (/€\s?199/.test(txt)) ok("add-on €199 shown (voice/inventory)"); else fail("€199 add-on missing");
-    if (/€\s?59/.test(txt)) ok("website care €59 shown"); else fail("€59 add-on missing");
+    // Add-ons — voice now split into two tiers; website-care €59 removed.
+    if (/€\s?99\b/.test(txt)) ok("voice BASE €99 shown"); else fail("€99 voice base missing");
+    if (/€\s?199/.test(txt)) ok("voice PREMIUM / inventory €199 shown"); else fail("€199 add-on missing");
     if (/€\s?750/.test(txt)) ok("website design from €750 shown"); else fail("€750 add-on missing");
+    // The €59 website-care add-on must be GONE.
+    if (/€\s?59\b/.test(txt)) fail("€59 website-care still shown (should be removed)"); else ok("€59 website-care removed ✓");
 
     // Coming soon on inventory
     if (/Prossimamente|Coming soon|Próximamente|Demnächst/i.test(txt)) ok("smart inventory 'coming soon' shown");
     else fail("'coming soon' note not found");
 
-    // Not-configured notice (no keys on prod yet)
+    // Stripe keys ARE configured on prod now → no 'not configured' notice expected.
     if (/non ancora configurati|being set up|configurando|eingerichtet|si attivano a breve/i.test(txt))
-      ok("'payments not configured' notice shown (expected — no keys yet)");
-    else log("   • no 'not configured' notice (keys may be set, or providers active)");
+      log("   • 'payments not configured' notice present (unexpected — Stripe keys should be set)");
+    else ok("no 'not configured' notice (Stripe configured)");
 
     // ---- YEARLY TOGGLE -----------------------------------------------------
     log("\n④ Toggle Annuale…");
@@ -105,8 +107,8 @@ async function main() {
     const stripeBtn = page.getByRole("button", { name: /Stripe/i }).first();
     if (await stripeBtn.count()) {
       const disabled = await stripeBtn.isDisabled();
-      if (disabled) ok("Stripe pay button disabled while unconfigured (no accidental 503)");
-      else log("   • Stripe button enabled — provider appears configured");
+      if (!disabled) ok("Stripe pay button enabled (Stripe configured → live checkout)");
+      else log("   • Stripe button disabled — provider not configured?");
     } else fail("no Stripe pay button rendered");
 
     log(`\n${failures === 0 ? "✅ PAYMENTS UI E2E PASSATO" : `❌ PAYMENTS UI E2E: ${failures} problemi`} — screenshots in ${SHOT}-*.png`);
