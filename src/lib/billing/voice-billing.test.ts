@@ -20,7 +20,7 @@ describe("voiceProviderFromAddons — the provider IS the SKU", () => {
     expect(voiceProviderFromAddons(["voice_agent"])).toBe("retell");
   });
   it("a non-voice add-on grants no voice tier", () => {
-    expect(voiceProviderFromAddons(["website_care"])).toBeNull();
+    expect(voiceProviderFromAddons(["website_design"])).toBeNull();
   });
   it("empty / nullish → no tier", () => {
     expect(voiceProviderFromAddons([])).toBeNull();
@@ -31,7 +31,7 @@ describe("voiceProviderFromAddons — the provider IS the SKU", () => {
 
 describe("planVoiceBillingSync — flip the tier the add-ons paid for", () => {
   it("no voice add-on → no-op, never touches voice.provider", () => {
-    const plan = planVoiceBillingSync({ voice: { provider: "vapi" } }, ["website_care"]);
+    const plan = planVoiceBillingSync({ voice: { provider: "vapi" } }, ["website_design"]);
     expect(plan.noop).toBe(true);
     expect(plan.target).toBeNull();
     expect(plan.nextSettings).toBeNull();
@@ -122,7 +122,7 @@ describe("syncVoiceProviderFromBilling — persists only when there's a change",
 
   it("does not write when there's no voice add-on", async () => {
     const { svc, updates } = fakeSvc({ voice: { provider: "vapi" } });
-    const plan = await syncVoiceProviderFromBilling(svc, "t1", ["website_care"]);
+    const plan = await syncVoiceProviderFromBilling(svc, "t1", ["website_design"]);
     expect(plan.noop).toBe(true);
     expect(updates).toHaveLength(0);
   });

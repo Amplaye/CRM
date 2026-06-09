@@ -1120,8 +1120,6 @@ export const es: Dictionary = {
   billing_addon_voice_vapi_desc: "Contesta el teléfono con voz natural y reserva mientras tu equipo sigue en sala.",
   billing_addon_voice_retell: "Agente de voz IA — Premium",
   billing_addon_voice_retell_desc: "Voz premium de mayor calidad: la conversación más natural y fluida para tus clientes más exigentes.",
-  billing_addon_website_care: "Cuidado del sitio web",
-  billing_addon_website_care_desc: "Rápida, actualizada y segura, con cambios cuando los necesites.",
   billing_addon_website_design: "Diseño web",
   billing_addon_website_design_desc: "Tu web desde cero, fiel a tu marca y lista para reservar.",
   billing_addon_smart_inventory: "Inventario inteligente",

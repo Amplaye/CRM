@@ -22,7 +22,6 @@ export type AddonId =
   | "voice_vapi"
   | "voice_retell"
   | "voice_agent"
-  | "website_care"
   | "website_design"
   | "smart_inventory";
 export type BillingCycle = "monthly" | "yearly";
@@ -116,15 +115,6 @@ export const ADDONS: Addon[] = [
     fromPrice: true,
   },
   {
-    id: "website_care",
-    nameKey: "billing_addon_website_care",
-    name: "Cuidado del Sitio Web",
-    descKey: "billing_addon_website_care_desc",
-    amount: 59,
-    billing: "recurring",
-    period: "monthly",
-  },
-  {
     id: "voice_vapi",
     nameKey: "billing_addon_voice_vapi",
     name: "Agente de voz IA — Base",
@@ -198,8 +188,7 @@ export function bundleTotal(plan: Plan, cycle: BillingCycle, addonIds: AddonId[]
 //   STRIPE_PRICE_PREMIUM_MONTHLY, STRIPE_PRICE_PREMIUM_YEARLY,
 //   STRIPE_PRICE_BUSINESS_MONTHLY, STRIPE_PRICE_BUSINESS_YEARLY,
 //   STRIPE_PRICE_ADDON_VOICE_VAPI, STRIPE_PRICE_ADDON_VOICE_RETELL,
-//   STRIPE_PRICE_ADDON_WEBSITE_CARE, STRIPE_PRICE_ADDON_WEBSITE_DESIGN,
-//   STRIPE_PRICE_ADDON_SMART_INVENTORY
+//   STRIPE_PRICE_ADDON_WEBSITE_DESIGN, STRIPE_PRICE_ADDON_SMART_INVENTORY
 //   PAYPAL_PLAN_PREMIUM_MONTHLY, … (same suffixes)
 //
 // Recurring add-ons also have an optional YEARLY price

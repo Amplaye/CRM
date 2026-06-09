@@ -1117,8 +1117,6 @@ export const en = {
   billing_addon_voice_vapi_desc: "Answers the phone in a natural voice and books while your team stays on the floor.",
   billing_addon_voice_retell: "AI voice agent — Premium",
   billing_addon_voice_retell_desc: "Premium higher-quality voice: the most natural, fluid conversation for your most demanding guests.",
-  billing_addon_website_care: "Website care",
-  billing_addon_website_care_desc: "Fast, up to date and secure, with changes whenever you need them.",
   billing_addon_website_design: "Website design",
   billing_addon_website_design_desc: "Your website from scratch, true to your brand and ready to take bookings.",
   billing_addon_smart_inventory: "Smart inventory",

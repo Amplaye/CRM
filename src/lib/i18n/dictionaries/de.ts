@@ -1120,8 +1120,6 @@ export const de: Dictionary = {
   billing_addon_voice_vapi_desc: "Beantwortet das Telefon mit natürlicher Stimme und reserviert, während dein Team im Service bleibt.",
   billing_addon_voice_retell: "KI-Sprachagent — Premium",
   billing_addon_voice_retell_desc: "Premium-Stimme in höherer Qualität: das natürlichste, flüssigste Gespräch für deine anspruchsvollsten Gäste.",
-  billing_addon_website_care: "Website-Pflege",
-  billing_addon_website_care_desc: "Schnell, aktuell und sicher, mit Änderungen wann immer du sie brauchst.",
   billing_addon_website_design: "Website-Design",
   billing_addon_website_design_desc: "Deine Website von Grund auf, treu deiner Marke und bereit für Reservierungen.",
   billing_addon_smart_inventory: "Smartes Lager",
