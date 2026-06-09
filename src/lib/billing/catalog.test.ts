@@ -32,8 +32,9 @@ describe("billing catalog — prices match the pricing page", () => {
     expect(p.yearly).toBe(p.monthly * 10);
   });
 
-  it("add-on prices: voice €199/mo, website care €59/mo, design from €750, inventory €199/mo", () => {
-    expect(getAddon("voice_agent")!.amount).toBe(199);
+  it("add-on prices: voice base €99/mo, voice premium €199/mo, website care €59/mo, design from €750, inventory €199/mo", () => {
+    expect(getAddon("voice_vapi")!.amount).toBe(99);
+    expect(getAddon("voice_retell")!.amount).toBe(199);
     expect(getAddon("website_care")!.amount).toBe(59);
     expect(getAddon("website_design")!.amount).toBe(750);
     expect(getAddon("website_design")!.fromPrice).toBe(true);
@@ -54,11 +55,12 @@ describe("billing catalog — prices match the pricing page", () => {
     expect(formatEur(750)).toBe("€750");
   });
 
-  it("there are exactly two plans and four add-ons", () => {
+  it("there are exactly two plans and five add-ons (voice split into two tiers)", () => {
     expect(PLANS.map((p) => p.id).sort()).toEqual(["business", "premium"]);
     expect(ADDONS.map((a) => a.id).sort()).toEqual([
       "smart_inventory",
-      "voice_agent",
+      "voice_retell",
+      "voice_vapi",
       "website_care",
       "website_design",
     ]);
@@ -69,8 +71,8 @@ describe("provider id resolution reads env, undefined when unset", () => {
   const KEYS = [
     "STRIPE_PRICE_PREMIUM_MONTHLY",
     "STRIPE_PRICE_BUSINESS_YEARLY",
-    "STRIPE_PRICE_ADDON_VOICE_AGENT",
-    "STRIPE_PRICE_ADDON_VOICE_AGENT_YEARLY",
+    "STRIPE_PRICE_ADDON_VOICE_RETELL",
+    "STRIPE_PRICE_ADDON_VOICE_RETELL_YEARLY",
     "PAYPAL_PLAN_PREMIUM_MONTHLY",
     "PAYPAL_PLAN_ADDON_WEBSITE_CARE",
   ];
@@ -81,7 +83,7 @@ describe("provider id resolution reads env, undefined when unset", () => {
   it("returns undefined when the env var is missing (so checkout 503s cleanly)", () => {
     expect(resolveStripePriceId("premium", "monthly")).toBeUndefined();
     expect(resolvePaypalPlanId("premium", "monthly")).toBeUndefined();
-    expect(resolveStripePriceId("voice_agent")).toBeUndefined();
+    expect(resolveStripePriceId("voice_retell")).toBeUndefined();
   });
 
   it("maps plan + cycle to the predictable env var name", () => {
@@ -94,35 +96,36 @@ describe("provider id resolution reads env, undefined when unset", () => {
   });
 
   it("maps add-ons via the ADDON_ env prefix", () => {
-    process.env.STRIPE_PRICE_ADDON_VOICE_AGENT = "price_voice";
+    process.env.STRIPE_PRICE_ADDON_VOICE_RETELL = "price_voice";
     process.env.PAYPAL_PLAN_ADDON_WEBSITE_CARE = "P-care";
-    expect(resolveStripePriceId("voice_agent")).toBe("price_voice");
+    expect(resolveStripePriceId("voice_retell")).toBe("price_voice");
     expect(resolvePaypalPlanId("website_care")).toBe("P-care");
   });
 
   it("yearly bundle picks the add-on's YEARLY price (Stripe can't mix intervals)", () => {
-    process.env.STRIPE_PRICE_ADDON_VOICE_AGENT = "price_voice_monthly";
-    process.env.STRIPE_PRICE_ADDON_VOICE_AGENT_YEARLY = "price_voice_yearly";
+    process.env.STRIPE_PRICE_ADDON_VOICE_RETELL = "price_voice_monthly";
+    process.env.STRIPE_PRICE_ADDON_VOICE_RETELL_YEARLY = "price_voice_yearly";
     // monthly cycle → monthly add-on price; yearly cycle → yearly add-on price.
-    expect(resolveStripePriceId("voice_agent", "monthly")).toBe("price_voice_monthly");
-    expect(resolveStripePriceId("voice_agent", "yearly")).toBe("price_voice_yearly");
+    expect(resolveStripePriceId("voice_retell", "monthly")).toBe("price_voice_monthly");
+    expect(resolveStripePriceId("voice_retell", "yearly")).toBe("price_voice_yearly");
     // no-cycle (standalone add-on checkout) still resolves the monthly price.
-    expect(resolveStripePriceId("voice_agent")).toBe("price_voice_monthly");
+    expect(resolveStripePriceId("voice_retell")).toBe("price_voice_monthly");
   });
 
   it("falls back to the monthly add-on price when no yearly one is set", () => {
-    process.env.STRIPE_PRICE_ADDON_VOICE_AGENT = "price_voice_monthly";
+    process.env.STRIPE_PRICE_ADDON_VOICE_RETELL = "price_voice_monthly";
     // the route guards the yearly-bundle mismatch separately; the resolver itself
     // never returns undefined just because the yearly price is missing.
-    expect(resolveStripePriceId("voice_agent", "yearly")).toBe("price_voice_monthly");
+    expect(resolveStripePriceId("voice_retell", "yearly")).toBe("price_voice_monthly");
   });
 });
 
 describe("billing catalog — bundle (pay everything together)", () => {
   it("only recurring, non-coming-soon add-ons are bundleable", () => {
     const ids = bundleableAddons().map((a) => a.id);
-    // voice_agent + website_care are recurring; website_design is one-off; smart_inventory is coming soon.
-    expect(ids).toContain("voice_agent");
+    // both voice tiers + website_care are recurring; website_design is one-off; smart_inventory is coming soon.
+    expect(ids).toContain("voice_vapi");
+    expect(ids).toContain("voice_retell");
     expect(ids).toContain("website_care");
     expect(ids).not.toContain("website_design");
     expect(ids).not.toContain("smart_inventory");
@@ -130,14 +133,14 @@ describe("billing catalog — bundle (pay everything together)", () => {
 
   it("monthly bundle = plan + sum of monthly add-on prices", () => {
     const premium = getPlan("premium")!;
-    // 399 + voice_agent 199 + website_care 59 = 657
-    expect(bundleTotal(premium, "monthly", ["voice_agent", "website_care"])).toBe(657);
+    // 399 + voice_retell 199 + website_care 59 = 657
+    expect(bundleTotal(premium, "monthly", ["voice_retell", "website_care"])).toBe(657);
   });
 
   it("yearly bundle bills add-ons ×10 (2 months free, matching the plan)", () => {
     const premium = getPlan("premium")!;
-    // 3990 + voice_agent 199×10 + website_care 59×10 = 3990 + 1990 + 590 = 6570
-    expect(bundleTotal(premium, "yearly", ["voice_agent", "website_care"])).toBe(6570);
+    // 3990 + voice_retell 199×10 + website_care 59×10 = 3990 + 1990 + 590 = 6570
+    expect(bundleTotal(premium, "yearly", ["voice_retell", "website_care"])).toBe(6570);
   });
 
   it("ignores one-off / coming-soon / unknown ids in the total", () => {

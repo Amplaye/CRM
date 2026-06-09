@@ -11,7 +11,20 @@
 // read the matching env var; checkout refuses cleanly when it's unset.
 
 export type PlanId = "premium" | "business";
-export type AddonId = "voice_agent" | "website_care" | "website_design" | "smart_inventory";
+// Voice is sold as TWO mutually-exclusive tiers (the provider IS the SKU):
+//   voice_vapi   €99  — base, low per-minute cost (Vapi)
+//   voice_retell €199 — premium, higher quality / higher per-minute cost (Retell)
+// Buying one flips settings.voice.provider via the billing→voice bridge
+// (src/lib/billing/voice-billing.ts). `voice_agent` is the legacy single-tier id
+// (kept only so old subscription rows still type-check + map to the retell tier);
+// it is no longer sold, so it's absent from ADDONS / ADDON_IDS.
+export type AddonId =
+  | "voice_vapi"
+  | "voice_retell"
+  | "voice_agent"
+  | "website_care"
+  | "website_design"
+  | "smart_inventory";
 export type BillingCycle = "monthly" | "yearly";
 
 /** A single purchasable subscription plan. Amounts are in EUR, whole euros (the
@@ -112,10 +125,19 @@ export const ADDONS: Addon[] = [
     period: "monthly",
   },
   {
-    id: "voice_agent",
-    nameKey: "billing_addon_voice_agent",
-    name: "Agente de voz IA",
-    descKey: "billing_addon_voice_agent_desc",
+    id: "voice_vapi",
+    nameKey: "billing_addon_voice_vapi",
+    name: "Agente de voz IA — Base",
+    descKey: "billing_addon_voice_vapi_desc",
+    amount: 99,
+    billing: "recurring",
+    period: "monthly",
+  },
+  {
+    id: "voice_retell",
+    nameKey: "billing_addon_voice_retell",
+    name: "Agente de voz IA — Premium",
+    descKey: "billing_addon_voice_retell_desc",
     amount: 199,
     billing: "recurring",
     period: "monthly",
@@ -175,8 +197,9 @@ export function bundleTotal(plan: Plan, cycle: BillingCycle, addonIds: AddonId[]
 // a config change, not a code change. Env naming is explicit and predictable:
 //   STRIPE_PRICE_PREMIUM_MONTHLY, STRIPE_PRICE_PREMIUM_YEARLY,
 //   STRIPE_PRICE_BUSINESS_MONTHLY, STRIPE_PRICE_BUSINESS_YEARLY,
-//   STRIPE_PRICE_ADDON_VOICE_AGENT, STRIPE_PRICE_ADDON_WEBSITE_CARE,
-//   STRIPE_PRICE_ADDON_WEBSITE_DESIGN, STRIPE_PRICE_ADDON_SMART_INVENTORY
+//   STRIPE_PRICE_ADDON_VOICE_VAPI, STRIPE_PRICE_ADDON_VOICE_RETELL,
+//   STRIPE_PRICE_ADDON_WEBSITE_CARE, STRIPE_PRICE_ADDON_WEBSITE_DESIGN,
+//   STRIPE_PRICE_ADDON_SMART_INVENTORY
 //   PAYPAL_PLAN_PREMIUM_MONTHLY, … (same suffixes)
 //
 // Recurring add-ons also have an optional YEARLY price

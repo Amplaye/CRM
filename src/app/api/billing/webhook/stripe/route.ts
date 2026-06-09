@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createServiceRoleClient } from "@/lib/supabase/server";
 import { verifyWebhook } from "@/lib/billing/stripe";
 import { upsertSubscription } from "@/lib/billing/state";
+import { syncVoiceProviderFromBilling } from "@/lib/billing/voice-billing";
 import { PLANS, ADDONS } from "@/lib/billing/catalog";
 
 // Stripe webhook — the ONLY trusted writer of subscription state. The browser
@@ -65,6 +66,7 @@ export async function POST(req: Request) {
             .maybeSingle();
           const addons = new Set<string>(existing?.addons || []);
           bundleAddons.forEach((a: string) => addons.add(a));
+          const finalAddons = Array.from(addons);
           await upsertSubscription(svc, tenantId, {
             plan: meta.plan,
             cycle: meta.cycle === "yearly" ? "yearly" : "monthly",
@@ -72,8 +74,9 @@ export async function POST(req: Request) {
             provider: "stripe",
             stripe_customer_id: s.customer || null,
             stripe_subscription_id: s.subscription || null,
-            addons: Array.from(addons),
+            addons: finalAddons,
           });
+          await syncVoice(svc, tenantId, finalAddons);
         } else if (isPlan) {
           await upsertSubscription(svc, tenantId, {
             plan: meta.plan,
@@ -92,11 +95,13 @@ export async function POST(req: Request) {
             .maybeSingle();
           const addons = new Set<string>(existing?.addons || []);
           addons.add(meta.addon);
+          const finalAddons = Array.from(addons);
           await upsertSubscription(svc, tenantId, {
-            addons: Array.from(addons),
+            addons: finalAddons,
             provider: "stripe",
             stripe_customer_id: s.customer || undefined,
           });
+          await syncVoice(svc, tenantId, finalAddons);
         }
         break;
       }
@@ -134,6 +139,24 @@ export async function POST(req: Request) {
   }
 
   return NextResponse.json({ received: true });
+}
+
+// Flip settings.voice.provider to match the paid voice add-on (voice_vapi → Vapi,
+// voice_retell → Retell). Best-effort and AFTER the billing mirror is already
+// written: a voice-sync failure must never fail the webhook and make Stripe retry
+// a payment we've already recorded. The actual agent/number provisioning is staged
+// (settings.voice.provisioning="pending") for an out-of-band reconcile, not fired here.
+async function syncVoice(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  svc: any,
+  tenantId: string,
+  addons: string[],
+): Promise<void> {
+  try {
+    await syncVoiceProviderFromBilling(svc, tenantId, addons);
+  } catch (e) {
+    console.error("[stripe webhook] voice provider sync failed", { tenantId, error: e });
+  }
 }
 
 function mapStripeStatus(s: string): "active" | "trialing" | "past_due" | "canceled" | "incomplete" {

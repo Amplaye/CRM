@@ -124,7 +124,15 @@ export interface TenantSettings {
    * voice-prompt.ts), so the switch is a routing change, not a rebuild. When the
    * flag is absent (legacy tenants written before tiering), getVoiceProvider
    * falls back to deducing it from which provider id is stored. */
-  voice?: { provider?: VoiceProviderTier };
+  voice?: {
+    provider?: VoiceProviderTier;
+    /** Set by the billing → voice bridge (src/lib/billing/voice-billing.ts) when a
+     * paid voice add-on flips the tier. `pending` = the flag is set but the target
+     * provider's agent/number still has to be provisioned (clone/sync/number-buy,
+     * done out-of-band by the reconcile job, never inline in the webhook); `active`
+     * = the target provider already had an agent id, so the flip is fully live. */
+    provisioning?: "pending" | "active";
+  };
   /** Voice provider ids — both may be present (a premium tenant keeps its Vapi
    * clone so a downgrade back to base is instant). `voice.provider` decides which
    * one actually serves calls. */
