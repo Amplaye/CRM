@@ -90,6 +90,20 @@ async function main() {
       log("   • 'payments not configured' notice present (unexpected — Stripe keys should be set)");
     else ok("no 'not configured' notice (Stripe configured)");
 
+    // ---- WEBSITE DESIGN → "CONTACT US" (WhatsApp, variable price) ----------
+    log("\n③b Box pagina web → bottone Contattaci…");
+    const contactLink = page.locator('a[href*="wa.me/34684109244"]').first();
+    if (await contactLink.count()) {
+      ok("Contattaci link → WhatsApp Sofía (wa.me/34684109244) present");
+      const href = await contactLink.getAttribute("href");
+      if (/interessato%20alla%20pagina%20web|interessato\+alla\+pagina\+web|interessato alla pagina web/i.test(decodeURIComponent(href || "")))
+        ok("prefilled message 'interessato alla pagina web' present");
+      else fail(`WhatsApp prefill text wrong: ${href}`);
+      const label = (await contactLink.innerText()).trim();
+      if (/Contattaci|Contact us|Contáctanos|Kontaktiere/i.test(label)) ok(`button label '${label}'`);
+      else fail(`contact button label unexpected: '${label}'`);
+    } else fail("Contattaci WhatsApp link NOT found in website-design box");
+
     // ---- YEARLY TOGGLE -----------------------------------------------------
     log("\n④ Toggle Annuale…");
     const yearlyBtn = page.getByRole("button", { name: /Annuale|Yearly|Anual|Jährlich/i }).first();
