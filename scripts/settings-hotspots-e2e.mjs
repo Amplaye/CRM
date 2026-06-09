@@ -23,7 +23,12 @@ const SHOT = "/tmp/settings-hotspots-e2e";
 const log = (...a) => console.log(...a);
 
 async function main() {
-  const browser = await chromium.launch();
+  // Headed: a real browser transparently solves Vercel's JS security checkpoint
+  // (Attack Challenge Mode) if it's active; headless can get stuck on it.
+  const browser = await chromium.launch({
+    headless: false,
+    args: ["--disable-blink-features=AutomationControlled"],
+  });
   const ctx = await browser.newContext({ viewport: { width: 1400, height: 1100 } });
   const page = await ctx.newPage();
   let failures = 0;
@@ -33,7 +38,17 @@ async function main() {
   try {
     // ---- LOGIN -------------------------------------------------------------
     log("\n① Login…");
-    await page.goto(`${CRM}/login`, { waitUntil: "networkidle" });
+    await page.goto(`${CRM}/login`, { waitUntil: "domcontentloaded" });
+    // If Vercel's security checkpoint is showing, it solves itself and redirects;
+    // wait (with reloads) until the real login form appears.
+    for (let i = 0; i < 6; i++) {
+      if (await page.locator("#email").count()) break;
+      const title = await page.title().catch(() => "");
+      log(`   …waiting for login form (try ${i + 1}, page="${title}")`);
+      await page.waitForTimeout(8000);
+      await page.reload({ waitUntil: "domcontentloaded" }).catch(() => {});
+    }
+    await page.waitForSelector("#email", { timeout: 45000 });
     await page.fill("#email", EMAIL);
     await page.fill("#password", PASSWORD);
     await page.getByRole("button", { name: /sign in|accedi|entrar/i }).click();
