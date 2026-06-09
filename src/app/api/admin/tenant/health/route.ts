@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServiceRoleClient } from "@/lib/supabase/server";
 import { assertPlatformAdmin } from "@/lib/admin-auth";
-import { N8N_TEMPLATE_COUNT } from "@/lib/tenants/activation";
+import { N8N_TEMPLATE_COUNT, N8N_MOTORE_UNICO_MIN_COUNT } from "@/lib/tenants/activation";
 import { ENGINE_VAPI_ASSISTANT_ID } from "@/lib/voice/engine";
 import { getVoiceProvider } from "@/lib/types/tenant-settings";
 
@@ -27,7 +27,24 @@ interface Check {
   detail: string;
 }
 
-async function n8nCountFor(restaurantName: string): Promise<number | null> {
+interface N8nProbe {
+  /** Active workflows named `[<tenant>] …` — the tenant's own per-tenant set. */
+  ownActive: number;
+  /** Are the shared "motore unico" engines that cover the superseded per-tenant
+   * workflows (WhatsApp + Reminders) live? If so, a tenant missing those few own
+   * workflows is still fully operational. */
+  sharedEnginesLive: boolean;
+}
+
+// The shared workflows whose presence proves a motore-unico tenant's WhatsApp +
+// reminders work even without its own `[Name]` copies. Matched case-insensitively
+// and by prefix so a future rename of the suffix doesn't silently break this.
+const SHARED_ENGINE_PREFIXES = [
+  "[meta router] whatsapp",        // all inbound WhatsApp → the one chatbot engine
+  "[all] reminders — multi-tenant", // reminders for every tenant
+];
+
+async function n8nProbe(restaurantName: string): Promise<N8nProbe | null> {
   const apiKey = process.env.N8N_API_KEY;
   const baseUrl = process.env.N8N_BASE_URL || "https://n8n.srv1468837.hstgr.cloud";
   if (!apiKey) return null;
@@ -37,13 +54,18 @@ async function n8nCountFor(restaurantName: string): Promise<number | null> {
     });
     if (!res.ok) return null;
     const data = await res.json();
+    const all: Array<{ name?: string; active?: boolean }> = data?.data || [];
     // Case-insensitive: a tenant named "PICNIC" has workflows named "[Picnic] …".
     // A case-sensitive match returned 0 and falsely flagged a working legacy
     // tenant as "0/13 incomplete".
     const prefix = `[${restaurantName}]`.toLowerCase();
-    return (data?.data || []).filter(
-      (w: any) => typeof w?.name === "string" && w.name.toLowerCase().startsWith(prefix) && w.active
-    ).length;
+    const isActiveNamed = (w: { name?: string; active?: boolean }, p: string) =>
+      typeof w.name === "string" && w.name.toLowerCase().startsWith(p) && w.active === true;
+    const ownActive = all.filter((w) => isActiveNamed(w, prefix)).length;
+    const sharedEnginesLive = SHARED_ENGINE_PREFIXES.every((p) =>
+      all.some((w) => isActiveNamed(w, p))
+    );
+    return { ownActive, sharedEnginesLive };
   } catch {
     return null;
   }
@@ -143,10 +165,10 @@ export async function GET(req: NextRequest) {
   // tenants have no recorded ids but plenty of live workflows. The recorded
   // count is only a fallback hint when n8n is unreachable.
   const recordedIds: string[] = Array.isArray(s?.n8n?.workflow_ids) ? s.n8n.workflow_ids : [];
-  const activeCount = await n8nCountFor(tenant.name);
+  const probe = await n8nProbe(tenant.name);
   let n8nState: CheckState;
   let n8nDetail: string;
-  if (activeCount === null) {
+  if (probe === null) {
     // Can't verify live → never hard-fail on the recorded count alone (a legacy
     // tenant with 0 recorded ids may still be fully live). Worst case: warn.
     n8nState = "warn";
@@ -154,12 +176,20 @@ export async function GET(req: NextRequest) {
       recordedIds.length > 0
         ? `${recordedIds.length} registrati; stato n8n non verificabile ora`
         : "stato n8n non verificabile ora";
-  } else if (activeCount >= N8N_TEMPLATE_COUNT) {
+  } else if (probe.ownActive >= N8N_TEMPLATE_COUNT) {
+    // Self-hosted tenant — runs the full per-tenant set.
     n8nState = "ok";
-    n8nDetail = `${activeCount}/${N8N_TEMPLATE_COUNT} workflow attivi`;
+    n8nDetail = `${probe.ownActive}/${N8N_TEMPLATE_COUNT} workflow attivi`;
+  } else if (probe.ownActive >= N8N_MOTORE_UNICO_MIN_COUNT && probe.sharedEnginesLive) {
+    // Motore-unico tenant: a few per-tenant workflows (WhatsApp, Reminders,
+    // Web Call Token) are intentionally served by the shared engines instead of
+    // being cloned. That's not "incomplete" — confirm the shared engines are
+    // live and report it as healthy.
+    n8nState = "ok";
+    n8nDetail = `${probe.ownActive} propri + WhatsApp/Reminders dal motore unico (condivisi)`;
   } else {
     n8nState = "fail";
-    n8nDetail = `${activeCount}/${N8N_TEMPLATE_COUNT} workflow attivi (incompleto)`;
+    n8nDetail = `${probe.ownActive}/${N8N_TEMPLATE_COUNT} workflow attivi (incompleto)`;
   }
   checks.push({ key: "n8n", label: "Automazioni (n8n)", state: n8nState, detail: n8nDetail });
 

@@ -110,7 +110,6 @@ export const TEMPLATE_RESTAURANT_WORKFLOW_IDS = [
   "5xfCf9n0vQcS9MQl", // Auto-Complete Stale Seated
   "CFMJqjOcSr6mEqVq", // Voice Tool — Restaurant Info
   "Hm1IhFQTaqnlJMQR", // Reminders
-  "WRdkF33U17VQZZ8J", // No-Show Auto-Cancel
   "dZeAkXEpRjOjn8n6", // Follow-up Post-Cena
   "hcVLsbtGUWtPS2G1", // Waitlist Reassurance
   "nZdFqTRUrBlPOb3z", // Menu del Dia - 30min antes
@@ -127,6 +126,17 @@ export const TEMPLATE_RESTAURANT_WORKFLOW_IDS = [
   // clone, an orphan. It is a 4-min cron ping, non-essential; dropped rather
   // than rebuilt. The loop below also tolerates 404s defensively so a single
   // stale template id can never again break the whole provisioning.
+  //
+  // NOTE: "No-Show Auto-Cancel" (formerly id WRdkF33U17VQZZ8J) was REMOVED
+  // 2026-06-09. On 2026-06-08 that very workflow was repurposed into the single
+  // shared `[ALL] No-Show Auto-Cancel — Multi-Tenant` cron, which already loops
+  // EVERY tenant. Cloning it per-tenant did two bad things: (1) the clone kept
+  // the `[ALL]` name (the rename only swaps a leading `[Picnic]`), so it spun up
+  // a DUPLICATE `[ALL]` cron on every onboard — by 2026-06-09 there were four,
+  // all firing every 5 min, quadrupling no-show processing; (2) it never showed
+  // up under the tenant's own `[Name]` prefix, so the health card counted it as
+  // missing ("15/16 incompleto"). No-show is now a shared concern: no per-tenant
+  // clone, served by the single `[ALL]` workflow. PER_TENANT count drops 16→15.
 ];
 
 // The n8n REST client (n8n) and the generic timeout-wrapped fetch

@@ -14,7 +14,7 @@
 // Read-modify-write, idempotent, never destructive.
 
 import { createServiceRoleClient } from "@/lib/supabase/server";
-import { N8N_TEMPLATE_COUNT } from "@/lib/tenants/activation";
+import { N8N_MOTORE_UNICO_MIN_COUNT } from "@/lib/tenants/activation";
 import { resolveProvisioningMarkers, slugify } from "@/lib/tenants/provisioning-markers";
 
 const N8N_BASE = process.env.N8N_BASE_URL || "https://n8n.srv1468837.hstgr.cloud";
@@ -84,8 +84,12 @@ export async function reconcileProvisioning(dryRun: boolean): Promise<ReconcileR
       skipped.push({ name: t.name, why: "n8n unreachable — cannot verify, left untouched" });
       continue;
     }
-    if (activeCount < N8N_TEMPLATE_COUNT) {
-      skipped.push({ name: t.name, why: `${activeCount}/${N8N_TEMPLATE_COUNT} workflows — genuinely incomplete, not a lost marker` });
+    // This gate exists only to avoid marking a DEAD tenant routable. A tenant
+    // with at least the motore-unico floor of live own workflows clearly has a
+    // working bot (the rest — WhatsApp/Reminders — are served by shared
+    // engines), so use that floor, not the full self-hosted count.
+    if (activeCount < N8N_MOTORE_UNICO_MIN_COUNT) {
+      skipped.push({ name: t.name, why: `${activeCount} workflows (<${N8N_MOTORE_UNICO_MIN_COUNT}) — genuinely incomplete, not a lost marker` });
       continue;
     }
 

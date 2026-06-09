@@ -2,7 +2,11 @@ import { describe, it, expect } from "vitest";
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { getFeatures } from "./types/tenant-settings";
-import { N8N_TEMPLATE_COUNT } from "./tenants/activation";
+import {
+  N8N_TEMPLATE_COUNT,
+  N8N_MOTORE_UNICO_MIN_COUNT,
+  MOTORE_UNICO_SHARED_WORKFLOWS,
+} from "./tenants/activation";
 
 /**
  * SAAS PROOF SUITE — the investor pillars, locked by the build.
@@ -175,5 +179,24 @@ describe("SaaS pillar — every new tenant clones PICNIC's full workflow set [go
     expect(ids.length).toBe(N8N_TEMPLATE_COUNT);
     // no accidental duplicate ids (would clone the same workflow twice)
     expect(new Set(ids).size).toBe(ids.length);
+  });
+
+  it("does NOT clone the shared [ALL] No-Show workflow per tenant", () => {
+    // WRdkF33U17VQZZ8J was repurposed into the single `[ALL] No-Show — Multi-
+    // Tenant` cron on 2026-06-08. Cloning it per onboard spawned a DUPLICATE
+    // `[ALL]` cron each time (4 were firing by 2026-06-09) and the clone never
+    // matched the tenant's `[Name]` prefix, so the health card under-counted it.
+    // It must stay out of the clone list — no-show is a shared concern now.
+    const ids = (block![1].match(/"[A-Za-z0-9]+"/g) || []).map((s) => s.replace(/"/g, ""));
+    expect(ids).not.toContain("WRdkF33U17VQZZ8J");
+  });
+
+  it("the motore-unico floor is the full count minus the shared-engine workflows", () => {
+    // A migrated tenant runs WhatsApp/Reminders/Web-Call-Token via shared
+    // engines, not its own clones, so its expected own-workflow floor is lower.
+    expect(N8N_MOTORE_UNICO_MIN_COUNT).toBe(
+      N8N_TEMPLATE_COUNT - MOTORE_UNICO_SHARED_WORKFLOWS.length,
+    );
+    expect(N8N_MOTORE_UNICO_MIN_COUNT).toBeGreaterThan(0);
   });
 });
