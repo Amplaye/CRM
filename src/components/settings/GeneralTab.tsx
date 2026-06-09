@@ -668,7 +668,7 @@ export function GeneralTab() {
             <p className="mt-1 text-xs text-black/70">{t("settings_voicemail_forward_hint")}</p>
           </div>
 
-          <div className="mb-5">
+          <div className="mb-5" data-testid="voicemail-schedule">
             <h4 className="text-sm font-bold text-black mb-1">{t("settings_voicemail_schedule")}</h4>
             <p className="text-xs text-black/70 mb-3">{t("settings_voicemail_schedule_desc")}</p>
             {voicemail.mode !== "scheduled" && (
