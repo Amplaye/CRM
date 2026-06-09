@@ -17,8 +17,11 @@ import { PLANS, ADDONS } from "@/lib/billing/catalog";
 
 export const dynamic = "force-dynamic";
 
-const PLAN_IDS = new Set(PLANS.map((p) => p.id));
-const ADDON_IDS = new Set(ADDONS.map((a) => a.id));
+// Typed as Set<string> on purpose: these are membership checks against raw
+// strings coming from Stripe metadata, so we don't want the literal-union
+// element type to narrow the `.has()` argument.
+const PLAN_IDS = new Set<string>(PLANS.map((p) => p.id));
+const ADDON_IDS = new Set<string>(ADDONS.map((a) => a.id));
 
 export async function POST(req: Request) {
   const raw = await req.text();
@@ -46,8 +49,32 @@ export async function POST(req: Request) {
         const kind = meta.kind;
         const isAddon = kind === "addon" && ADDON_IDS.has(meta.addon);
         const isPlan = kind === "plan" && PLAN_IDS.has(meta.plan);
+        const isBundle = kind === "bundle" && PLAN_IDS.has(meta.plan);
 
-        if (isPlan) {
+        if (isBundle) {
+          // Plan + add-ons paid in one subscription. Activate the plan and merge
+          // every bundled add-on (CSV in metadata) into the existing add-on list.
+          const bundleAddons = String(meta.addons || "")
+            .split(",")
+            .map((x: string) => x.trim())
+            .filter((x: string) => ADDON_IDS.has(x));
+          const { data: existing } = await svc
+            .from("subscriptions")
+            .select("addons")
+            .eq("tenant_id", tenantId)
+            .maybeSingle();
+          const addons = new Set<string>(existing?.addons || []);
+          bundleAddons.forEach((a: string) => addons.add(a));
+          await upsertSubscription(svc, tenantId, {
+            plan: meta.plan,
+            cycle: meta.cycle === "yearly" ? "yearly" : "monthly",
+            status: "active",
+            provider: "stripe",
+            stripe_customer_id: s.customer || null,
+            stripe_subscription_id: s.subscription || null,
+            addons: Array.from(addons),
+          });
+        } else if (isPlan) {
           await upsertSubscription(svc, tenantId, {
             plan: meta.plan,
             cycle: meta.cycle === "yearly" ? "yearly" : "monthly",

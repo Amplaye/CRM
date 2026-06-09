@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { CreditCard, Check, Loader2, CheckCircle2, XCircle, Sparkles, Building2 } from "lucide-react";
+import { CreditCard, Check, Loader2, CheckCircle2, XCircle, Sparkles, Building2, Layers } from "lucide-react";
 import { useLanguage } from "@/lib/contexts/LanguageContext";
 import { useTenant } from "@/lib/contexts/TenantContext";
 import { Dictionary } from "@/lib/i18n/dictionaries/en";
@@ -9,6 +9,7 @@ import {
   PLANS,
   ADDONS,
   planAmount,
+  bundleTotal,
   formatEur,
   type PlanId,
   type AddonId,
@@ -43,6 +44,10 @@ export function PaymentsTab() {
   const { activeTenant: tenant } = useTenant();
 
   const [cycle, setCycle] = useState<BillingCycle>("monthly");
+  // Recurring add-ons the owner ticked to pay together with the plan (the bundle).
+  const [selectedAddons, setSelectedAddons] = useState<Set<AddonId>>(new Set());
+  // Which plan the "pay everything together" bundle button targets.
+  const [bundlePlan, setBundlePlan] = useState<PlanId>(PLANS.find((p) => p.highlighted)?.id || PLANS[0].id);
   const [sub, setSub] = useState<SubState | null>(null);
   const [providers, setProviders] = useState<{ stripe: boolean; paypal: boolean }>({ stripe: false, paypal: false });
   const [loading, setLoading] = useState(true);
@@ -122,8 +127,59 @@ export function PaymentsTab() {
     }
   }
 
+  // Pay the chosen plan + all ticked recurring add-ons in ONE Stripe subscription.
+  async function checkoutBundle() {
+    if (!tenant?.id) return;
+    const addons = Array.from(selectedAddons);
+    if (addons.length === 0) return;
+    setBusy("bundle");
+    setError(null);
+    try {
+      const res = await fetch("/api/billing/checkout", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          tenant_id: tenant.id,
+          provider: "stripe", // bundle is Stripe-only
+          kind: "bundle",
+          plan: bundlePlan,
+          cycle,
+          addons,
+        }),
+      });
+      const data = await res.json();
+      if (data?.ok && data?.url) {
+        window.location.href = data.url;
+        return;
+      }
+      if (data?.error === "not_configured") {
+        setError(t(tk("settings_payments_not_configured")) || "Pagamenti non ancora configurati.");
+      } else {
+        setError(data?.detail || data?.error || (t(tk("settings_save_error")) || "Errore"));
+      }
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    } catch (e: any) {
+      setError(e?.message || "Errore");
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  function toggleAddon(id: AddonId) {
+    setSelectedAddons((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
   const cardStyle = { borderColor: "#c4956a", background: "rgba(252,246,237,0.6)" };
   const anyProvider = providers.stripe || providers.paypal;
+  const selectedList = Array.from(selectedAddons);
+  const bundlePlanObj = PLANS.find((p) => p.id === bundlePlan) || PLANS[0];
+  const bundleSum = bundleTotal(bundlePlanObj, cycle, selectedList);
+  const perLabel = cycle === "yearly" ? t(tk("settings_payments_per_year")) || "anno" : t(tk("settings_payments_per_month")) || "mese";
 
   return (
     <div className="space-y-6">
@@ -288,14 +344,33 @@ export function PaymentsTab() {
             // PayPal one-offs aren't wired; offer Stripe only for the one-off.
             const stripeOk = providers.stripe;
             const paypalOk = providers.paypal && addon.billing === "recurring";
+            // Recurring, payable add-ons can be added to the "pay everything
+            // together" bundle. One-offs and coming-soon ones stay separate-only.
+            const bundleable = addon.billing === "recurring" && !addon.comingSoon && !owned;
+            const checked = selectedAddons.has(addon.id);
             return (
               <div
                 key={addon.id}
                 className="rounded-lg border-2 p-4 flex flex-col"
-                style={{ borderColor: "#eaddcb", background: "rgba(252,246,237,0.5)", opacity: addon.comingSoon ? 0.6 : 1 }}
+                style={{
+                  borderColor: checked ? "#c4956a" : "#eaddcb",
+                  background: checked ? "rgba(196,149,106,0.10)" : "rgba(252,246,237,0.5)",
+                  opacity: addon.comingSoon ? 0.6 : 1,
+                }}
               >
                 <div className="flex items-center justify-between gap-2">
-                  <span className="text-sm font-bold text-black">{t(tk(addon.nameKey)) || addon.name}</span>
+                  <span className="text-sm font-bold text-black flex items-center gap-2">
+                    {bundleable && (
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={() => toggleAddon(addon.id)}
+                        aria-label={t(tk("settings_payments_addon_select")) || "Seleziona per pagare insieme al piano"}
+                        className="w-4 h-4 rounded cursor-pointer accent-[#c4956a]"
+                      />
+                    )}
+                    {t(tk(addon.nameKey)) || addon.name}
+                  </span>
                   <span className="text-sm font-extrabold text-black whitespace-nowrap">{priceLabel}</span>
                 </div>
                 <p className="mt-1 text-xs text-black/60 flex-1">{t(tk(addon.descKey)) || ""}</p>
@@ -308,29 +383,107 @@ export function PaymentsTab() {
                     {t(tk("settings_payments_added")) || "Attivo"}
                   </div>
                 ) : (
-                  <div className="mt-3 flex gap-2">
-                    <button
-                      onClick={() => checkout("stripe", "addon", addon.id)}
-                      disabled={!stripeOk || busy !== null}
-                      className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 text-white text-xs font-bold rounded-lg disabled:opacity-40 cursor-pointer disabled:cursor-not-allowed"
-                      style={{ background: "linear-gradient(135deg, #635bff, #4f46e5)" }}
-                    >
-                      {busy === `addon:${addon.id}:stripe` ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <CreditCard className="w-3.5 h-3.5" />}
-                      Stripe
-                    </button>
-                    <button
-                      onClick={() => checkout("paypal", "addon", addon.id)}
-                      disabled={!paypalOk || busy !== null}
-                      className="flex-1 inline-flex items-center justify-center px-3 py-2 text-xs font-bold rounded-lg border-2 disabled:opacity-40 cursor-pointer disabled:cursor-not-allowed"
-                      style={{ borderColor: "#ffc439", color: "#003087", background: "#fff" }}
-                    >
-                      {busy === `addon:${addon.id}:paypal` ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <span className="italic font-extrabold">PayPal</span>}
-                    </button>
-                  </div>
+                  <>
+                    {bundleable && (
+                      <p className="mt-3 text-[11px] text-black/50">{t(tk("settings_payments_addon_buy_separately")) || "oppure acquistalo a parte:"}</p>
+                    )}
+                    <div className="mt-2 flex gap-2">
+                      <button
+                        onClick={() => checkout("stripe", "addon", addon.id)}
+                        disabled={!stripeOk || busy !== null}
+                        className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 text-white text-xs font-bold rounded-lg disabled:opacity-40 cursor-pointer disabled:cursor-not-allowed"
+                        style={{ background: "linear-gradient(135deg, #635bff, #4f46e5)" }}
+                      >
+                        {busy === `addon:${addon.id}:stripe` ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <CreditCard className="w-3.5 h-3.5" />}
+                        Stripe
+                      </button>
+                      <button
+                        onClick={() => checkout("paypal", "addon", addon.id)}
+                        disabled={!paypalOk || busy !== null}
+                        className="flex-1 inline-flex items-center justify-center px-3 py-2 text-xs font-bold rounded-lg border-2 disabled:opacity-40 cursor-pointer disabled:cursor-not-allowed"
+                        style={{ borderColor: "#ffc439", color: "#003087", background: "#fff" }}
+                      >
+                        {busy === `addon:${addon.id}:paypal` ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <span className="italic font-extrabold">PayPal</span>}
+                      </button>
+                    </div>
+                  </>
                 )}
               </div>
             );
           })}
+        </div>
+      </div>
+
+      {/* Pay everything together — plan + ticked recurring add-ons, one Stripe checkout */}
+      <div className="rounded-xl border-2 p-5" style={{ borderColor: "#c4956a", background: "rgba(196,149,106,0.06)" }}>
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div className="min-w-[220px] flex-1">
+            <h3 className="text-base font-bold text-black flex items-center gap-2">
+              <Layers className="w-4 h-4" /> {t(tk("settings_payments_bundle_title")) || "Paga tutto in un'unica soluzione"}
+            </h3>
+            <p className="mt-1 text-xs text-black/60">
+              {t(tk("settings_payments_bundle_desc")) || "Piano + componenti aggiuntivi selezionati, in un solo abbonamento Stripe."}
+            </p>
+
+            {/* Plan selector for the bundle */}
+            <div className="mt-3 inline-flex rounded-lg border-2 p-1" style={{ borderColor: "#eaddcb" }}>
+              {PLANS.map((p) => (
+                <button
+                  key={p.id}
+                  onClick={() => setBundlePlan(p.id)}
+                  className={`px-3 py-1 text-xs rounded-md transition-colors cursor-pointer ${bundlePlan === p.id ? "text-white font-bold" : "text-black/70"}`}
+                  style={bundlePlan === p.id ? { background: "linear-gradient(135deg, #d4a574, #c4956a)" } : {}}
+                >
+                  {t(tk(p.nameKey)) || p.name}
+                </button>
+              ))}
+            </div>
+
+            {/* Selected add-ons recap */}
+            {selectedList.length > 0 ? (
+              <ul className="mt-3 space-y-1">
+                <li className="flex items-center justify-between text-xs text-black/70">
+                  <span>{t(tk(bundlePlanObj.nameKey)) || bundlePlanObj.name}</span>
+                  <span className="font-bold">{formatEur(planAmount(bundlePlanObj, cycle))}/{perLabel}</span>
+                </li>
+                {selectedList.map((id) => {
+                  const a = ADDONS.find((x) => x.id === id);
+                  if (!a) return null;
+                  return (
+                    <li key={id} className="flex items-center justify-between text-xs text-black/70">
+                      <span>+ {t(tk(a.nameKey)) || a.name}</span>
+                      <span className="font-bold">{formatEur(cycle === "yearly" ? a.amount * 10 : a.amount)}/{perLabel}</span>
+                    </li>
+                  );
+                })}
+              </ul>
+            ) : (
+              <p className="mt-3 text-xs text-black/50">{t(tk("settings_payments_bundle_select_hint")) || "Seleziona almeno un componente aggiuntivo qui sopra per pagare tutto insieme."}</p>
+            )}
+          </div>
+
+          <div className="flex flex-col items-end gap-2">
+            <div className="text-right">
+              <div className="text-[11px] text-black/50">
+                {(t(tk("settings_payments_bundle_total")) || "Totale {cycle}").replace("{cycle}", perLabel)}
+              </div>
+              <div className="text-2xl font-extrabold text-black">
+                {formatEur(bundleSum)}<span className="text-sm font-normal text-black/60">/{perLabel}</span>
+              </div>
+            </div>
+            <button
+              onClick={checkoutBundle}
+              disabled={!providers.stripe || selectedList.length === 0 || busy !== null}
+              className="inline-flex items-center justify-center gap-2 px-4 py-2.5 text-white text-sm font-bold rounded-lg disabled:opacity-40 cursor-pointer disabled:cursor-not-allowed"
+              style={{ background: "linear-gradient(135deg, #635bff, #4f46e5)" }}
+            >
+              {busy === "bundle" ? <Loader2 className="w-4 h-4 animate-spin" /> : <CreditCard className="w-4 h-4" />}
+              {(t(tk("settings_payments_bundle_pay")) || "Paga piano + {n} aggiuntivi (Stripe)").replace("{n}", String(selectedList.length))}
+            </button>
+            {!providers.stripe && (
+              <p className="text-[11px] text-black/50 max-w-[200px] text-right">{t(tk("settings_payments_bundle_paypal_note")) || "Il pagamento combinato è disponibile solo con Stripe."}</p>
+            )}
+          </div>
         </div>
       </div>
 

@@ -150,6 +150,25 @@ export function formatEur(amount: number): string {
   return `€${amount.toLocaleString("es-ES")}`;
 }
 
+/** Add-ons eligible for the "pay everything together" bundle: recurring and not
+ * coming soon. One-offs and disabled add-ons can't ride a single subscription. */
+export function bundleableAddons(): Addon[] {
+  return ADDONS.filter((a) => a.billing === "recurring" && !a.comingSoon);
+}
+
+/** The combined per-cycle total (EUR) for a plan + the chosen recurring add-ons.
+ * Add-on prices are monthly; for a yearly plan we bill them ×10 (matching the
+ * plan's "2 months free" yearly math). */
+export function bundleTotal(plan: Plan, cycle: BillingCycle, addonIds: AddonId[]): number {
+  const planPart = planAmount(plan, cycle);
+  const months = cycle === "yearly" ? 10 : 1;
+  const addonPart = addonIds.reduce((sum, id) => {
+    const a = getAddon(id);
+    return a && a.billing === "recurring" && !a.comingSoon ? sum + a.amount * months : sum;
+  }, 0);
+  return planPart + addonPart;
+}
+
 // ---- Provider id resolution ------------------------------------------------
 // The live Stripe price ids / PayPal plan ids only exist after the products are
 // created in each dashboard. We read them from env so deploying the keys later is
