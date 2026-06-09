@@ -135,6 +135,28 @@ export interface TenantSettings {
     closing_time_offset_min?: number;
     [key: string]: any;
   };
+  /** Billing/subscription state, written by the Stripe/PayPal webhooks (Settings →
+   * Payments). PUBLIC metadata only — the provider ids and status the UI shows.
+   * Secrets (API keys, webhook secrets) NEVER live here: like POS credentials they
+   * go encrypted in the dedicated payment_secrets table. The active subscription is
+   * the source of truth in the `subscriptions` table; this mirror is what the CRM
+   * reads cheaply at boot to know the current plan without a Stripe round-trip. */
+  billing?: {
+    /** Currently active plan, or null/absent when the tenant has no subscription. */
+    plan?: "premium" | "business";
+    cycle?: "monthly" | "yearly";
+    /** Lifecycle as reported by the provider: active, trialing, past_due, canceled. */
+    status?: "active" | "trialing" | "past_due" | "canceled" | "incomplete";
+    provider?: "stripe" | "paypal";
+    /** ISO timestamp the current paid period ends (renewal or expiry). */
+    current_period_end?: string;
+    /** Add-on ids the tenant currently subscribes to. */
+    addons?: string[];
+    /** Provider customer/subscription ids — references, not secrets. */
+    stripe_customer_id?: string;
+    stripe_subscription_id?: string;
+    paypal_subscription_id?: string;
+  };
   [key: string]: any;
 }
 

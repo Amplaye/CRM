@@ -1,7 +1,7 @@
 "use client";
 
 import { Suspense, useState, useEffect } from "react";
-import { Settings as SettingsIcon, Users, ToggleRight, CalendarClock, LineChart, Plug } from "lucide-react";
+import { Settings as SettingsIcon, Users, ToggleRight, CalendarClock, LineChart, Plug, CreditCard } from "lucide-react";
 import { useSearchParams, useRouter, usePathname } from "next/navigation";
 import { useLanguage } from "@/lib/contexts/LanguageContext";
 import { useTenant } from "@/lib/contexts/TenantContext";
@@ -11,9 +11,10 @@ import { FeaturesTab } from "@/components/settings/FeaturesTab";
 import { BookingTab } from "@/components/settings/BookingTab";
 import { ManagementTab } from "@/components/settings/ManagementTab";
 import { PosTab } from "@/components/settings/PosTab";
+import { PaymentsTab } from "@/components/settings/PaymentsTab";
 import { getFeatures } from "@/lib/types/tenant-settings";
 
-type Tab = "general" | "booking" | "features" | "management" | "pos" | "staff";
+type Tab = "general" | "booking" | "features" | "management" | "pos" | "payments" | "staff";
 
 function SettingsContent() {
   const { t } = useLanguage();
@@ -22,7 +23,7 @@ function SettingsContent() {
   const router = useRouter();
   const pathname = usePathname();
 
-  const TABS: Tab[] = ["general", "booking", "features", "management", "pos", "staff"];
+  const TABS: Tab[] = ["general", "booking", "features", "management", "pos", "payments", "staff"];
   const initial = (searchParams.get("tab") as Tab) || "general";
   const [tab, setTab] = useState<Tab>(TABS.includes(initial) ? initial : "general");
 
@@ -45,6 +46,9 @@ function SettingsContent() {
   // Cassa = POS connection (paste token, test, sync). Same gate as gestionale —
   // it only matters once the management module is on and a till feeds the data.
   const canSeePosTab = (activeRole === "owner" || globalRole === "platform_admin") && managementEnabled;
+  // Payments = plan/subscription + add-ons. Billing authority lives with the owner
+  // (or Bali Flow staff impersonating); not gated on management, every owner can buy.
+  const canSeePaymentsTab = activeRole === "owner" || globalRole === "platform_admin";
 
   const setActiveTab = (next: Tab) => {
     setTab(next);
@@ -111,6 +115,16 @@ function SettingsContent() {
             {t("settings_tab_pos") || "Cassa"}
           </button>
         )}
+        {canSeePaymentsTab && (
+          <button
+            onClick={() => setActiveTab("payments")}
+            className={`inline-flex items-center gap-2 px-4 py-2 text-sm font-medium border-b-2 transition-colors cursor-pointer ${tab === "payments" ? "text-black" : "text-black/60 hover:text-black border-transparent"}`}
+            style={tab === "payments" ? { borderColor: "#c4956a" } : {}}
+          >
+            <CreditCard className="w-4 h-4" />
+            {t("settings_tab_payments") || "Pagamenti"}
+          </button>
+        )}
         {canSeeStaffTab && (
           <button
             onClick={() => setActiveTab("staff")}
@@ -128,6 +142,7 @@ function SettingsContent() {
       {tab === "features" && canSeeFeaturesTab && <FeaturesTab />}
       {tab === "management" && canSeeManagementTab && <ManagementTab />}
       {tab === "pos" && canSeePosTab && <PosTab />}
+      {tab === "payments" && canSeePaymentsTab && <PaymentsTab />}
       {tab === "staff" && canSeeStaffTab && <StaffTab />}
     </div>
   );

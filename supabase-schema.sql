@@ -1247,3 +1247,54 @@ begin
     alter publication supabase_realtime add table public.labor_cost;
   end if;
 end $$;
+
+-- ============================================
+-- BILLING / SUBSCRIPTIONS (Settings → Payments) — see supabase/migrations/20260609_billing.sql
+-- subscriptions: members read-only (webhooks write via service-role); the active
+-- plan/cycle/status/add-ons + provider reference ids. Mirrored into
+-- tenants.settings.billing for cheap reads.
+-- payment_secrets: encrypted provider material, service-role/admin ONLY (no member
+-- policy), identical security shape to pos_credentials.
+-- ============================================
+create table if not exists public.subscriptions (
+  id uuid default uuid_generate_v4() primary key,
+  tenant_id uuid not null references public.tenants(id) on delete cascade,
+  plan text check (plan in ('premium','business') or plan is null),
+  cycle text check (cycle in ('monthly','yearly') or cycle is null),
+  status text not null default 'incomplete'
+    check (status in ('active','trialing','past_due','canceled','incomplete')),
+  provider text check (provider in ('stripe','paypal') or provider is null),
+  stripe_customer_id text,
+  stripe_subscription_id text,
+  paypal_subscription_id text,
+  addons text[] not null default '{}',
+  current_period_end timestamptz,
+  cancel_at_period_end boolean not null default false,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  constraint uq_subscriptions_tenant unique (tenant_id)
+);
+create index if not exists idx_subscriptions_tenant on public.subscriptions(tenant_id);
+create index if not exists idx_subscriptions_stripe_sub on public.subscriptions(stripe_subscription_id);
+create index if not exists idx_subscriptions_paypal_sub on public.subscriptions(paypal_subscription_id);
+
+create table if not exists public.payment_secrets (
+  id uuid default uuid_generate_v4() primary key,
+  tenant_id uuid not null references public.tenants(id) on delete cascade,
+  provider text not null check (provider in ('stripe','paypal')),
+  secret_enc text not null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  constraint uq_payment_secrets_tenant_provider unique (tenant_id, provider)
+);
+create index if not exists idx_payment_secrets_tenant on public.payment_secrets(tenant_id);
+
+alter table public.subscriptions enable row level security;
+alter table public.payment_secrets enable row level security;
+
+create policy "subscriptions tenant read" on public.subscriptions
+  for select using (private.is_tenant_member(tenant_id));
+create policy "subscriptions admin access" on public.subscriptions
+  for all using (private.is_platform_admin()) with check (private.is_platform_admin());
+create policy "payment_secrets admin access" on public.payment_secrets
+  for all using (private.is_platform_admin()) with check (private.is_platform_admin());
