@@ -5,6 +5,7 @@ import { useLanguage } from "@/lib/contexts/LanguageContext";
 import { useTenant } from "@/lib/contexts/TenantContext";
 import { createClient } from "@/lib/supabase/client";
 import { Dictionary } from "@/lib/i18n/dictionaries/en";
+import { InfoHotspot } from "@/components/ui/InfoHotspot";
 
 // Settings → Gestionale. Owner-set targets/budgets the food-cost and P&L screens
 // read (food-cost target %, monthly labor budget) plus a quick "labor cost per
@@ -45,12 +46,17 @@ export function ManagementTab() {
   const saveTargets = async () => {
     if (!tenant) return;
     setStatus("saving");
-    const pct = Number(targetPct.replace(",", "."));
+    // Empty/invalid target must fall back to the 30% default, never 0 — a 0%
+    // target would flag every dish as over-budget on the Food cost screen.
+    const rawPct = targetPct.trim();
+    const parsedPct = rawPct === "" ? NaN : Number(rawPct.replace(",", "."));
+    const pct = Number.isFinite(parsedPct) && parsedPct > 0 ? Math.min(parsedPct, 100) : 30;
+    if (String(pct) !== targetPct) setTargetPct(String(pct)); // reflect the normalized value
     const budget = laborBudget.trim() === "" ? null : Number(laborBudget.replace(",", "."));
     const management = {
       ...((tenant.settings as any)?.management || {}),
-      food_cost_target_pct: Number.isFinite(pct) ? pct : 30,
-      labor_budget_monthly: budget != null && Number.isFinite(budget) ? budget : null,
+      food_cost_target_pct: pct,
+      labor_budget_monthly: budget != null && Number.isFinite(budget) && budget >= 0 ? budget : null,
     };
     const newSettings = { ...(tenant.settings || {}), management };
     const { error } = await supabase.from("tenants").update({ settings: newSettings }).eq("id", tenant.id);
@@ -102,17 +108,39 @@ export function ManagementTab() {
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 p-4 rounded-lg border-2" style={inputStyle}>
         <label className="flex flex-col gap-1">
-          <span className="text-sm font-bold text-black">{t("settings_management_target" as keyof Dictionary) || "Target food cost %"}</span>
+          <span className="text-sm font-bold text-black flex items-center gap-1.5">
+            {t("settings_management_target" as keyof Dictionary) || "Target food cost %"}
+            <InfoHotspot
+              title={t("settings_management_target" as keyof Dictionary) || "Target food cost %"}
+              body={t("settings_management_target_help" as keyof Dictionary) || "La percentuale massima del prezzo di un piatto che vuoi spendere in ingredienti. La schermata Food cost segna in rosso i piatti che la superano."}
+              example={t("settings_management_target_example" as keyof Dictionary) || "Es: un piatto venduto a 12€ con 3,60€ di ingredienti ha un food cost del 30%. Con target 30%, sopra i 3,60€ il piatto va in rosso."}
+            />
+          </span>
           <input type="number" value={targetPct} onChange={(e) => setTargetPct(e.target.value)} onBlur={saveTargets} className={inputCls} style={inputStyle} />
         </label>
         <label className="flex flex-col gap-1">
-          <span className="text-sm font-bold text-black">{t("settings_management_labor_budget" as keyof Dictionary) || "Budget personale (mensile)"}</span>
+          <span className="text-sm font-bold text-black flex items-center gap-1.5">
+            {t("settings_management_labor_budget" as keyof Dictionary) || "Budget personale (mensile)"}
+            <InfoHotspot
+              align="end"
+              title={t("settings_management_labor_budget" as keyof Dictionary) || "Budget personale (mensile)"}
+              body={t("settings_management_labor_budget_help" as keyof Dictionary) || "Quanto prevedi di spendere ogni mese per il personale (stipendi e contributi). Nel Conto economico il costo reale viene confrontato con questo tetto."}
+              example={t("settings_management_labor_budget_example" as keyof Dictionary) || "Es: budget 5.000€. Se a fine mese il costo personale è 5.400€, la voce «Costo personale» diventa rossa: sei oltre budget di 400€."}
+            />
+          </span>
           <input type="number" value={laborBudget} onChange={(e) => setLaborBudget(e.target.value)} onBlur={saveTargets} placeholder="€" className={inputCls} style={inputStyle} />
         </label>
       </div>
 
       <div className="p-4 rounded-lg border-2 space-y-3" style={inputStyle}>
-        <h3 className="text-sm font-bold text-black">{t("settings_management_labor_entry" as keyof Dictionary) || "Costo personale per giorno/turno"}</h3>
+        <h3 className="text-sm font-bold text-black flex items-center gap-1.5">
+          {t("settings_management_labor_entry" as keyof Dictionary) || "Costo personale per giorno/turno"}
+          <InfoHotspot
+            title={t("settings_management_labor_entry" as keyof Dictionary) || "Costo personale per giorno/turno"}
+            body={t("settings_management_labor_entry_help" as keyof Dictionary) || "Registra quanto è costato il personale in un giorno e turno preciso. È l'unico dato che inserisci a mano: serve al Conto economico per il margine per turno."}
+            example={t("settings_management_labor_entry_example" as keyof Dictionary) || "Es: 14/06 · Cena · 320€. Il sistema lo somma al food cost di quella sera e ti dice se la cena ha guadagnato o perso."}
+          />
+        </h3>
         <div className="flex flex-wrap items-end gap-3">
           <label className="flex flex-col gap-1">
             <span className="text-xs text-black/70">{t("settings_management_date" as keyof Dictionary) || "Data"}</span>

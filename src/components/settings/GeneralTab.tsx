@@ -668,14 +668,14 @@ export function GeneralTab() {
             <p className="mt-1 text-xs text-black/70">{t("settings_voicemail_forward_hint")}</p>
           </div>
 
-          <div
-            className="mb-5 transition-opacity"
-            style={{ opacity: voicemail.mode === "scheduled" ? 1 : 0.45 }}
-          >
+          <div className="mb-5">
             <h4 className="text-sm font-bold text-black mb-1">{t("settings_voicemail_schedule")}</h4>
             <p className="text-xs text-black/70 mb-3">{t("settings_voicemail_schedule_desc")}</p>
             {voicemail.mode !== "scheduled" && (
-              <p className="text-xs italic text-[#c4956a] font-semibold mb-3">{t("settings_voicemail_schedule_only_in_scheduled")}</p>
+              <div className="flex items-start gap-2 mb-3 px-3 py-2 rounded-lg border" style={{ borderColor: "#c4956a", background: "rgba(196,149,106,0.12)" }}>
+                <Clock className="w-4 h-4 mt-0.5 shrink-0 text-[#c4956a]" />
+                <p className="text-xs text-black">{t("settings_voicemail_schedule_only_in_scheduled")}</p>
+              </div>
             )}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
               {DAY_LABELS_KEYS.map((dayKey, dayIdx) => {

@@ -1012,6 +1012,8 @@ export const en = {
   inventory_pos_link: "Linked till product (to sync stock)",
   inventory_pos_none: "No till connected (go to Settings → Till).",
   inventory_pos_unlinked: "— Not linked —",
+  inventory_pos_link_help: "Links this stock item to the same product on the till, so the count stays in sync: when it sells at the till the stock drops on its own, and if you correct it here the till updates too. Best for items sold as-is (a bottle, a can, a packaged product).",
+  inventory_pos_link_example: "E.g. «Red wine (bottle)» linked to the till product «Red wine». Sell 2 at the till → stock goes from 10 to 8 by itself, with nothing to type in.",
   food_cost_subtitle: "Cost and margin per dish.",
   food_cost_avg: "Avg food cost",
   food_cost_low_margin: "Dishes below margin",
@@ -1063,6 +1065,12 @@ export const en = {
   settings_management_date: "Date",
   settings_management_shift: "Shift",
   settings_management_cost: "Cost €",
+  settings_management_target_help: "The maximum share of a dish's price you want to spend on ingredients. The Food cost screen flags dishes above it in red.",
+  settings_management_target_example: "E.g. a dish sold at €12 with €3.60 of ingredients has a 30% food cost. With a 30% target, anything above €3.60 turns red.",
+  settings_management_labor_budget_help: "How much you plan to spend on staff each month (wages and contributions). The P&L compares the real cost against this cap.",
+  settings_management_labor_budget_example: "E.g. €5,000 budget. If the month's staff cost is €5,400, the «Labor cost» figure turns red: €400 over budget.",
+  settings_management_labor_entry_help: "Log how much staff cost on a specific day and shift. It's the only figure you enter by hand — the P&L needs it for per-shift margin.",
+  settings_management_labor_entry_example: "E.g. Jun 14 · Dinner · €320. It's added to that evening's food cost to show whether dinner made or lost money.",
 
   // Settings → Payments (billing / subscription)
   settings_tab_payments: "Payments",

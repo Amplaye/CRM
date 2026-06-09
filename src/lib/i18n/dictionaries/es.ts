@@ -1015,6 +1015,8 @@ export const es: Dictionary = {
   inventory_pos_link: "Producto del TPV vinculado (para sincronizar stock)",
   inventory_pos_none: "Ningún TPV conectado (ve a Ajustes → TPV).",
   inventory_pos_unlinked: "— Sin vincular —",
+  inventory_pos_link_help: "Vincula este artículo de almacén con el mismo producto en la caja, para que la existencia quede sincronizada: cuando se vende en caja baja sola, y si la corriges aquí también se actualiza en la caja. Ideal para productos que se venden tal cual (una botella, una lata, un producto envasado).",
+  inventory_pos_link_example: "Ej: «Vino tinto (botella)» vinculado al producto de caja «Vino tinto». Vendes 2 en caja → la existencia pasa de 10 a 8 sola, sin escribir nada.",
   food_cost_subtitle: "Coste y margen por plato.",
   food_cost_avg: "Food cost medio",
   food_cost_low_margin: "Platos bajo margen",
@@ -1066,6 +1068,12 @@ export const es: Dictionary = {
   settings_management_date: "Fecha",
   settings_management_shift: "Turno",
   settings_management_cost: "Coste €",
+  settings_management_target_help: "El porcentaje máximo del precio de un plato que quieres gastar en ingredientes. La pantalla Food cost marca en rojo los platos que lo superan.",
+  settings_management_target_example: "Ej: un plato vendido a 12€ con 3,60€ de ingredientes tiene un food cost del 30%. Con objetivo 30%, por encima de 3,60€ el plato se pone en rojo.",
+  settings_management_labor_budget_help: "Cuánto prevés gastar cada mes en personal (sueldos y cotizaciones). En la Cuenta de resultados se compara el coste real con este tope.",
+  settings_management_labor_budget_example: "Ej: presupuesto 5.000€. Si a fin de mes el coste de personal es 5.400€, la cifra «Coste de personal» se pone roja: 400€ por encima.",
+  settings_management_labor_entry_help: "Registra cuánto costó el personal en un día y turno concretos. Es el único dato que introduces a mano: la Cuenta de resultados lo necesita para el margen por turno.",
+  settings_management_labor_entry_example: "Ej: 14/06 · Cena · 320€. Se suma al food cost de esa noche para mostrar si la cena ganó o perdió dinero.",
 
   // Ajustes → Pagos (suscripción)
   settings_tab_payments: "Pagos",

@@ -14,6 +14,7 @@ import {
   Trash2,
 } from "lucide-react";
 import { KPICard } from "@/components/ui/KPICard";
+import { InfoHotspot } from "@/components/ui/InfoHotspot";
 import { ManagementLocked } from "@/components/management/ManagementLocked";
 import { useLanguage } from "@/lib/contexts/LanguageContext";
 import { useTenant } from "@/lib/contexts/TenantContext";
@@ -381,6 +382,12 @@ function IngredientRowGroup({
                 <label className="flex flex-col gap-1 min-w-[260px]">
                   <span className="text-xs font-bold text-black/70 flex items-center gap-1">
                     <Link2 className="w-3.5 h-3.5" /> {t("inventory_pos_link" as keyof Dictionary) || "Prodotto cassa collegato (per sincronizzare la giacenza)"}
+                    <InfoHotspot
+                      side="top"
+                      title={t("inventory_pos_link" as keyof Dictionary) || "Prodotto cassa collegato"}
+                      body={t("inventory_pos_link_help" as keyof Dictionary) || "Collega questo articolo di magazzino allo stesso prodotto sulla cassa, così la giacenza resta sincronizzata: quando viene venduto alla cassa scala da sola, e se la correggi qui si aggiorna anche sulla cassa. Utile per i prodotti venduti così come sono (una bottiglia, una lattina, un prodotto confezionato)."}
+                      example={t("inventory_pos_link_example" as keyof Dictionary) || "Es: «Vino rosso (bottiglia)» collegato al prodotto cassa «Vino rosso». Vendi 2 bottiglie alla cassa → la giacenza passa da 10 a 8 da sola, senza scriverlo a mano."}
+                    />
                   </span>
                   {posProducts === null ? (
                     <span className="text-xs text-black/40">…</span>

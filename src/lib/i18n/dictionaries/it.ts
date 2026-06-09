@@ -1015,6 +1015,8 @@ export const it: Dictionary = {
   inventory_pos_link: "Prodotto cassa collegato (per sincronizzare la giacenza)",
   inventory_pos_none: "Nessuna cassa collegata (vai in Impostazioni → Cassa).",
   inventory_pos_unlinked: "— Non collegato —",
+  inventory_pos_link_help: "Collega questo articolo di magazzino allo stesso prodotto sulla cassa, così la giacenza resta sincronizzata: quando viene venduto alla cassa scala da sola, e se la correggi qui si aggiorna anche sulla cassa. Utile per i prodotti venduti così come sono (una bottiglia, una lattina, un prodotto confezionato).",
+  inventory_pos_link_example: "Es: «Vino rosso (bottiglia)» collegato al prodotto cassa «Vino rosso». Vendi 2 bottiglie alla cassa → la giacenza passa da 10 a 8 da sola, senza scriverlo a mano.",
   food_cost_subtitle: "Costo e margine per piatto.",
   food_cost_avg: "Food cost medio",
   food_cost_low_margin: "Piatti sotto-margine",
@@ -1066,6 +1068,12 @@ export const it: Dictionary = {
   settings_management_date: "Data",
   settings_management_shift: "Turno",
   settings_management_cost: "Costo €",
+  settings_management_target_help: "La percentuale massima del prezzo di un piatto che vuoi spendere in ingredienti. La schermata Food cost segna in rosso i piatti che la superano.",
+  settings_management_target_example: "Es: un piatto venduto a 12€ con 3,60€ di ingredienti ha un food cost del 30%. Con target 30%, sopra i 3,60€ il piatto va in rosso.",
+  settings_management_labor_budget_help: "Quanto prevedi di spendere ogni mese per il personale (stipendi e contributi). Nel Conto economico il costo reale viene confrontato con questo tetto.",
+  settings_management_labor_budget_example: "Es: budget 5.000€. Se a fine mese il costo personale è 5.400€, la voce «Costo personale» diventa rossa: sei oltre budget di 400€.",
+  settings_management_labor_entry_help: "Registra quanto è costato il personale in un giorno e turno preciso. È l'unico dato che inserisci a mano: serve al Conto economico per il margine per turno.",
+  settings_management_labor_entry_example: "Es: 14/06 · Cena · 320€. Il sistema lo somma al food cost di quella sera e ti dice se la cena ha guadagnato o perso.",
 
   // Impostazioni → Pagamenti (abbonamento)
   settings_tab_payments: "Pagamenti",

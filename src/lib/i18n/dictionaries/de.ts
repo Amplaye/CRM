@@ -1015,6 +1015,8 @@ export const de: Dictionary = {
   inventory_pos_link: "Verknüpftes Kassenprodukt (zur Bestandssynchronisierung)",
   inventory_pos_none: "Keine Kasse verbunden (geh zu Einstellungen → Kasse).",
   inventory_pos_unlinked: "— Nicht verknüpft —",
+  inventory_pos_link_help: "Verknüpft diesen Lagerartikel mit demselben Produkt an der Kasse, damit der Bestand synchron bleibt: Beim Verkauf an der Kasse sinkt er von selbst, und korrigierst du ihn hier, wird die Kasse ebenfalls aktualisiert. Ideal für Artikel, die unverändert verkauft werden (eine Flasche, eine Dose, ein verpacktes Produkt).",
+  inventory_pos_link_example: "Z. B. «Rotwein (Flasche)» verknüpft mit dem Kassenprodukt «Rotwein». Verkaufst du 2 an der Kasse → der Bestand geht von 10 auf 8 von selbst, ohne Eingabe.",
   food_cost_subtitle: "Kosten und Marge pro Gericht.",
   food_cost_avg: "Ø Food Cost",
   food_cost_low_margin: "Gerichte unter Marge",
@@ -1066,6 +1068,12 @@ export const de: Dictionary = {
   settings_management_date: "Datum",
   settings_management_shift: "Schicht",
   settings_management_cost: "Kosten €",
+  settings_management_target_help: "Der maximale Anteil am Verkaufspreis eines Gerichts, den du für Zutaten ausgeben willst. Der Food-cost-Bildschirm markiert Gerichte darüber in Rot.",
+  settings_management_target_example: "Z. B. ein Gericht für 12€ mit 3,60€ Zutaten hat 30% Food cost. Bei Ziel 30% wird alles über 3,60€ rot.",
+  settings_management_labor_budget_help: "Wie viel du monatlich für Personal einplanst (Löhne und Abgaben). Die GuV vergleicht die echten Kosten mit dieser Obergrenze.",
+  settings_management_labor_budget_example: "Z. B. Budget 5.000€. Sind die Personalkosten am Monatsende 5.400€, wird «Personalkosten» rot: 400€ über Budget.",
+  settings_management_labor_entry_help: "Erfasse, was das Personal an einem bestimmten Tag und in einer Schicht gekostet hat. Es ist der einzige Wert, den du manuell eingibst — die GuV braucht ihn für die Marge pro Schicht.",
+  settings_management_labor_entry_example: "Z. B. 14.06. · Abendessen · 320€. Es wird zum Food cost dieses Abends addiert und zeigt, ob das Abendessen Gewinn oder Verlust gemacht hat.",
 
   // Einstellungen → Zahlungen (Abonnement)
   settings_tab_payments: "Zahlungen",
