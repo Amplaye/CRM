@@ -8,8 +8,10 @@ import { chatCompletion } from "@/lib/openai-base-url";
 
 // Owner self-serve provisioning. Same engine as the admin wizard
 // (/api/admin/onboard → runOnboard), but driven by the restaurant owner for
-// THEIR OWN tenant. Up to ~60s end-to-end (Vapi + 13 n8n clones + KB sync).
-export const maxDuration = 120;
+// THEIR OWN tenant. Clones 16 n8n workflows sequentially; 300s headroom so a
+// slow n8n can't kill the run before the final commit (see admin/onboard for
+// the full rationale + the early-marker safety net). Fluid Compute allows 800s.
+export const maxDuration = 300;
 
 const localeFor = (l: Lang) =>
   l === "it" ? "it-IT" : l === "en" ? "en-GB" : l === "de" ? "de-DE" : "es-ES";

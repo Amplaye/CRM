@@ -2,9 +2,14 @@ import { NextResponse } from "next/server";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { runOnboard, OnboardInput, OnboardProgress } from "@/lib/onboarding/orchestrator";
 
-// Onboarding can take up to ~60s end-to-end (Vapi + 13 n8n clones + KB sync).
-// Fluid Compute supports up to 800s, so 120s is comfortably within limits.
-export const maxDuration = 120;
+// Onboarding clones 16 n8n workflows sequentially (~48 HTTP round-trips to n8n
+// on Hostinger) + Vapi + KB sync. On a slow n8n the old 120s wall could kill the
+// function mid-clone, right before the final settings commit — the chef-oraz /
+// Lugares-Mágicos "active but unroutable" bug. Two defenses now: (1) the
+// routability markers are written EARLY (orchestrator step 1), so a timeout can
+// never leave a tenant invisible in the test menu; (2) 300s headroom makes a
+// partial run unlikely in the first place. Fluid Compute supports up to 800s.
+export const maxDuration = 300;
 
 async function assertPlatformAdmin(_req: Request): Promise<{ ok: true } | { ok: false; res: NextResponse }> {
   const supabase = await createServerSupabaseClient();

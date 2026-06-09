@@ -9,6 +9,7 @@ import { createServiceRoleClient } from "@/lib/supabase/server";
 import { substituteTenantTokens, toCreatePayload } from "./substitute";
 import { n8n, fetchWithTimeout } from "./n8n-client";
 import { createTenant } from "@/lib/tenants/create-tenant";
+import { resolveProvisioningMarkers } from "@/lib/tenants/provisioning-markers";
 
 export type OpeningHoursSlot = { open: string; close: string };
 export type OpeningHours = Record<string, OpeningHoursSlot[]>; // keys 0..6 (Sunday=0)
@@ -252,6 +253,18 @@ export async function runOnboard(
         // Booking-confirmation venue subset, read by /api/ai/book to repeat the
         // address (+ maps link), parking, deposit and cancellation in the recap.
         ...(input.venue ? { venue: input.venue } : {}),
+        // Provisioning markers written EARLY — at row creation, BEFORE the slow
+        // n8n clone (16 workflows ≈ 48 sequential HTTP calls). sandbox_routable is
+        // what the [Meta Router] n8n workflow reads to list a tenant in the "which
+        // restaurant?" test menu (see docs/SANDBOX_ROUTER.md). Writing it here,
+        // not in the final commit, means a freshly-created tenant is routable the
+        // instant its row exists — so even if the function is killed mid-clone
+        // (Vercel 120s wall vs. a slow n8n), the tenant is never invisible. The
+        // final commit only ADDS n8n.workflow_ids; it no longer GATES routability.
+        // (This is the chef-oraz / Lugares-Mágicos failure mode: secrets + flag
+        // used to land together at the very end, so a timeout there left the
+        // tenant active-but-unroutable.)
+        provisioning: resolveProvisioningMarkers(undefined, input.slug),
       };
       // Booking-policy thresholds + primary language the cloned n8n bot reads from
       // settings.bot_config. Merged (not replaced) onto whatever bot_config the tenant
@@ -286,6 +299,10 @@ export async function runOnboard(
         if (getErr || !cur) throw new Error(`tenant ${input.tenant_id} not found`);
         const prevSettings = (cur.settings as any) || {};
         const mergedSettings = { ...prevSettings, ...provisioningSettings };
+        // Deep-merge provisioning so the early markers (sandbox_routable/slug) are
+        // added to — not replacing — whatever signup already wrote (e.g. a
+        // self_serve flag), and so a re-run never drops an attached number.
+        mergedSettings.provisioning = resolveProvisioningMarkers(prevSettings.provisioning, input.slug);
         const mergedBotCfg = mergeBotConfig(prevSettings.bot_config);
         if (mergedBotCfg) mergedSettings.bot_config = mergedBotCfg;
         const { error: updErr } = await supabase
@@ -497,12 +514,10 @@ export async function runOnboard(
         // shared menu. A real customer (own number) gets sandbox_routable cleared at
         // number-attach time and so drops out of the shared test menu. See
         // docs/SANDBOX_ROUTER.md.
-        merged.provisioning = {
-          ...(prev.provisioning || {}),
-          whatsapp_attached: false,
-          sandbox_routable: true,
-          slug: input.slug,
-        };
+        // The routability markers are written EARLY now (step 1), so here we only
+        // ensure they exist without CLOBBERING a later number-attach. Shared rule
+        // in resolveProvisioningMarkers: own number wins, else routable-in-sandbox.
+        merged.provisioning = resolveProvisioningMarkers(prev.provisioning, input.slug);
         if (input.self_serve) {
           merged.onboarding = { ...(prev.onboarding || {}), completed: true, completed_at: new Date().toISOString() };
           merged.provisioning.self_serve = true;
@@ -561,12 +576,20 @@ export async function runOnboard(
         if (finalErr) throw new Error(`final commit: ${finalErr.message}`);
       }
 
-      // Verify it actually landed before reporting success.
+      // Verify it actually landed before reporting success. We check the
+      // routability marker too: a tenant that's active but NOT sandbox_routable
+      // (and without its own number) is exactly the invisible-in-test-menu bug we
+      // fixed — never report "done" in that state.
       const { data: check } = await supabase
         .from("tenants").select("status, settings").eq("id", tenantId).single();
+      const cs = (check?.settings || {}) as Record<string, any>;
+      const prov = cs.provisioning || {};
+      const routableOrAttached = prov.sandbox_routable === true || prov.whatsapp_attached === true;
       const ok = check?.status === "active" &&
-        (!input.self_serve || (check?.settings as any)?.onboarding?.completed === true);
-      if (!ok) throw new Error("final commit did not persist (status/markers missing)");
+        routableOrAttached &&
+        Array.isArray(cs?.n8n?.workflow_ids) &&
+        (!input.self_serve || cs?.onboarding?.completed === true);
+      if (!ok) throw new Error("final commit did not persist (status/routability/workflow markers missing)");
     }
 
     push({ step: "done", message: "Onboarding complete", ok: true });
