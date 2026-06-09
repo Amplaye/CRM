@@ -23,7 +23,7 @@ function SettingsContent() {
   const router = useRouter();
   const pathname = usePathname();
 
-  const TABS: Tab[] = ["general", "booking", "features", "management", "pos", "payments", "staff"];
+  const TABS: Tab[] = ["general", "booking", "staff", "features", "management", "pos", "payments"];
   const initial = (searchParams.get("tab") as Tab) || "general";
   const [tab, setTab] = useState<Tab>(TABS.includes(initial) ? initial : "general");
 
@@ -85,6 +85,16 @@ function SettingsContent() {
             {t("settings_tab_booking") || "Prenotazioni"}
           </button>
         )}
+        {canSeeStaffTab && (
+          <button
+            onClick={() => setActiveTab("staff")}
+            className={`inline-flex items-center gap-2 px-4 py-2 text-sm font-medium border-b-2 transition-colors cursor-pointer ${tab === "staff" ? "text-black" : "text-black/60 hover:text-black border-transparent"}`}
+            style={tab === "staff" ? { borderColor: "#c4956a" } : {}}
+          >
+            <Users className="w-4 h-4" />
+            {t("settings_tab_staff") || "Staff"}
+          </button>
+        )}
         {canSeeFeaturesTab && (
           <button
             onClick={() => setActiveTab("features")}
@@ -123,16 +133,6 @@ function SettingsContent() {
           >
             <CreditCard className="w-4 h-4" />
             {t("settings_tab_payments") || "Pagamenti"}
-          </button>
-        )}
-        {canSeeStaffTab && (
-          <button
-            onClick={() => setActiveTab("staff")}
-            className={`inline-flex items-center gap-2 px-4 py-2 text-sm font-medium border-b-2 transition-colors cursor-pointer ${tab === "staff" ? "text-black" : "text-black/60 hover:text-black border-transparent"}`}
-            style={tab === "staff" ? { borderColor: "#c4956a" } : {}}
-          >
-            <Users className="w-4 h-4" />
-            {t("settings_tab_staff") || "Staff"}
           </button>
         )}
       </div>
