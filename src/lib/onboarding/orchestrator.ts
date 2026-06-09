@@ -545,19 +545,39 @@ export async function runOnboard(
         // Sourced from env (single source of truth — rotate the env, new tenants follow).
         const metaToken = process.env.META_ACCESS_TOKEN || "";
         const metaPhoneId = process.env.META_WHATSAPP_PHONE_NUMBER_ID || "";
+        // ENGINE creds → tenants.secrets. The unified chatbot engine reads
+        // {bot_config ∪ secrets} at runtime and calls OpenAI with `openai_key`
+        // and gates the CRM /api/ai/* routes with `ai_secret`. Without these a
+        // freshly-cloned tenant calls OpenAI with an empty Bearer token → 401 →
+        // the engine's catch fires the "no consigo procesar tu mensaje" fallback.
+        // This was the ryan-onir / Lugares-Mágicos failure mode: born with only
+        // the Meta creds. Sourced from env (single source of truth — rotate the
+        // env, new tenants follow), same pattern as the Meta creds below.
+        const openaiKey = process.env.OPENAI_API_KEY || "";
+        const aiSecret = process.env.AI_WEBHOOK_SECRET || "";
         const metaSecrets = await (async () => {
-          if (!metaToken || !metaPhoneId) return { wrote: false as const };
           const { data: curSec } = await supabase
             .from("tenants").select("secrets").eq("id", tenantId).single();
-          const mergedSecrets = {
+          const mergedSecrets: Record<string, string> = {
             ...((curSec?.secrets as any) || {}),
-            meta_phone_number_id: metaPhoneId,
-            meta_access_token: metaToken,
-            ...(process.env.META_WABA_ID ? { meta_waba_id: process.env.META_WABA_ID } : {}),
+            ...(openaiKey ? { openai_key: openaiKey } : {}),
+            ...(aiSecret ? { ai_secret: aiSecret } : {}),
+            ...(metaToken && metaPhoneId
+              ? {
+                  meta_phone_number_id: metaPhoneId,
+                  meta_access_token: metaToken,
+                  ...(process.env.META_WABA_ID ? { meta_waba_id: process.env.META_WABA_ID } : {}),
+                }
+              : {}),
           };
           const { error: secErr } = await supabase
             .from("tenants").update({ secrets: mergedSecrets }).eq("id", tenantId);
-          return { wrote: !secErr, error: secErr?.message };
+          return {
+            wrote: !secErr,
+            error: secErr?.message,
+            engineCreds: Boolean(openaiKey && aiSecret),
+            metaCreds: Boolean(metaToken && metaPhoneId),
+          };
         })();
 
         // Re-assert active here too (not only in step 1): the markers and the
@@ -568,12 +588,21 @@ export async function runOnboard(
           .update({ status: "active", settings: merged })
           .eq("id", tenantId);
         if (!error) {
-          if (metaSecrets.wrote) {
-            push({ step: "meta", message: `Meta WhatsApp creds written (shared sandbox number ${metaPhoneId})`, ok: true });
-          } else if (!metaToken || !metaPhoneId) {
-            push({ step: "meta", message: `Meta creds NOT set (env META_ACCESS_TOKEN / META_WHATSAPP_PHONE_NUMBER_ID missing) — bot will fall back to Twilio`, ok: false });
+          if (!metaSecrets.wrote) {
+            push({ step: "secrets", message: `Tenant secrets write failed: ${metaSecrets.error}`, ok: false });
           } else {
-            push({ step: "meta", message: `Meta creds write failed: ${metaSecrets.error}`, ok: false });
+            // Engine creds are the hard requirement — without openai_key the bot
+            // can't answer at all (the "no consigo procesar" fallback).
+            if (metaSecrets.engineCreds) {
+              push({ step: "engine", message: `Engine creds written (openai_key + ai_secret)`, ok: true });
+            } else {
+              push({ step: "engine", message: `Engine creds NOT set (env OPENAI_API_KEY / AI_WEBHOOK_SECRET missing) — chatbot will reply with the error fallback`, ok: false });
+            }
+            if (metaSecrets.metaCreds) {
+              push({ step: "meta", message: `Meta WhatsApp creds written (shared sandbox number ${metaPhoneId})`, ok: true });
+            } else {
+              push({ step: "meta", message: `Meta creds NOT set (env META_ACCESS_TOKEN / META_WHATSAPP_PHONE_NUMBER_ID missing) — bot will fall back to Twilio`, ok: false });
+            }
           }
         }
         return error;
