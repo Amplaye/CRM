@@ -22,6 +22,7 @@ interface PendingReservation {
   notes: string;
   created_at: string;
   guest_id: string;
+  tags?: string[] | null;
   guests?: { name: string; phone: string } | null;
 }
 
@@ -286,6 +287,24 @@ export default function PendingPage() {
     }
   };
 
+  // Event requests aren't real bookings — there are no tables to assign. The
+  // owner calls the customer back, then marks the lead handled, which moves it
+  // out of `escalated` (off the /pending inbox) without notifying the client.
+  const handleMarkHandled = async (id: string) => {
+    try {
+      const { error: upErr } = await supabase
+        .from("reservations")
+        .update({ status: "completed" })
+        .eq("id", id);
+      if (upErr) throw upErr;
+      setPending((prev) => prev.filter((p) => p.id !== id));
+    } catch (err: any) {
+      console.error("Mark-handled error:", err);
+      window.alert((err?.message ? err.message : "Error"));
+      fetchPending();
+    }
+  };
+
   const handleReject = async (id: string) => {
     if (!confirm(t("pending_reject_confirm"))) return;
     const rejectedReq = pending.find(p => p.id === id);
@@ -359,6 +378,7 @@ export default function PendingPage() {
           {(() => { let newRowIdx = 0; return pending.map((req) => {
             const guestName = req.guests?.name || "Unknown";
             const guestPhone = req.guests?.phone || "";
+            const isEventRequest = Array.isArray(req.tags) && req.tags.includes("event_request");
             const isConfirming = confirmingId === req.id;
             const isNew = (req as any).created_at && (req as any).created_at > seenAt;
             const rowIdx = isNew ? newRowIdx++ : 0;
@@ -380,13 +400,20 @@ export default function PendingPage() {
                         <span className="inline-flex items-center px-2 sm:px-2.5 py-1 rounded-lg text-[10px] sm:text-xs font-medium bg-[#c4956a]/10 text-[#8b6540] border border-[#c4956a]/30">
                           {req.source === "ai_chat" ? "WhatsApp" : req.source === "ai_voice" ? "Voice" : "Staff"}
                         </span>
-                        <span className={`inline-flex items-center px-2 sm:px-2.5 py-1 rounded-lg text-[10px] sm:text-xs font-bold uppercase tracking-wider ${
-                          getShift(req.time) === 'lunch'
-                            ? 'bg-amber-100 text-amber-800 border border-amber-200'
-                            : 'bg-indigo-100 text-indigo-800 border border-indigo-200'
-                        }`}>
-                          {getShift(req.time) === 'lunch' ? t("pending_lunch") : t("pending_dinner")}
-                        </span>
+                        {isEventRequest ? (
+                          <span className="inline-flex items-center px-2 sm:px-2.5 py-1 rounded-lg text-[10px] sm:text-xs font-bold uppercase tracking-wider bg-purple-100 text-purple-800 border border-purple-200">
+                            <Phone className="w-3 h-3 mr-1" />
+                            {t("pending_event_request")}
+                          </span>
+                        ) : (
+                          <span className={`inline-flex items-center px-2 sm:px-2.5 py-1 rounded-lg text-[10px] sm:text-xs font-bold uppercase tracking-wider ${
+                            getShift(req.time) === 'lunch'
+                              ? 'bg-amber-100 text-amber-800 border border-amber-200'
+                              : 'bg-indigo-100 text-indigo-800 border border-indigo-200'
+                          }`}>
+                            {getShift(req.time) === 'lunch' ? t("pending_lunch") : t("pending_dinner")}
+                          </span>
+                        )}
                       </div>
 
                       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4 mb-3">
@@ -394,21 +421,21 @@ export default function PendingPage() {
                           <Users className="w-4 h-4 text-black flex-shrink-0" />
                           <div className="min-w-0">
                             <p className="text-xs text-black">{t("pending_people_label")}</p>
-                            <p className="text-sm font-bold text-black">{req.party_size}</p>
+                            <p className="text-sm font-bold text-black">{isEventRequest ? `~${req.party_size}` : req.party_size}</p>
                           </div>
                         </div>
                         <div className="flex items-center gap-2">
                           <Calendar className="w-4 h-4 text-black flex-shrink-0" />
                           <div className="min-w-0">
                             <p className="text-xs text-black">{t("pending_date_label")}</p>
-                            <p className="text-sm font-bold text-black">{req.date}</p>
+                            <p className="text-sm font-bold text-black">{isEventRequest ? t("pending_to_arrange") : req.date}</p>
                           </div>
                         </div>
                         <div className="flex items-center gap-2">
                           <Clock className="w-4 h-4 text-black flex-shrink-0" />
                           <div className="min-w-0">
                             <p className="text-xs text-black">{t("pending_time_label")}</p>
-                            <p className="text-sm font-bold text-black">{req.time}</p>
+                            <p className="text-sm font-bold text-black">{isEventRequest ? t("pending_to_arrange") : req.time}</p>
                           </div>
                         </div>
                         <div className="flex items-center gap-2">
@@ -438,14 +465,37 @@ export default function PendingPage() {
 
                     {!isConfirming && (
                       <div className="flex flex-row sm:flex-col gap-2 sm:ml-4">
-                        <button
-                          onClick={() => startConfirm(req.id)}
-                          className="cursor-pointer flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-3 sm:px-4 py-2 rounded-lg text-sm font-bold text-white transition-all hover:shadow-md"
-                          style={{ background: 'linear-gradient(135deg, #22c55e 0%, #16a34a 100%)' }}
-                        >
-                          <Check className="w-4 h-4" />
-                          {t("pending_confirm_btn")}
-                        </button>
+                        {isEventRequest ? (
+                          <>
+                            {guestPhone && (
+                              <a
+                                href={`tel:${guestPhone}`}
+                                className="cursor-pointer flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-3 sm:px-4 py-2 rounded-lg text-sm font-bold text-white transition-all hover:shadow-md"
+                                style={{ background: 'linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%)' }}
+                              >
+                                <Phone className="w-4 h-4" />
+                                {t("pending_call_btn")}
+                              </a>
+                            )}
+                            <button
+                              onClick={() => handleMarkHandled(req.id)}
+                              className="cursor-pointer flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-3 sm:px-4 py-2 rounded-lg text-sm font-bold text-white transition-all hover:shadow-md"
+                              style={{ background: 'linear-gradient(135deg, #22c55e 0%, #16a34a 100%)' }}
+                            >
+                              <Check className="w-4 h-4" />
+                              {t("pending_handled_btn")}
+                            </button>
+                          </>
+                        ) : (
+                          <button
+                            onClick={() => startConfirm(req.id)}
+                            className="cursor-pointer flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-3 sm:px-4 py-2 rounded-lg text-sm font-bold text-white transition-all hover:shadow-md"
+                            style={{ background: 'linear-gradient(135deg, #22c55e 0%, #16a34a 100%)' }}
+                          >
+                            <Check className="w-4 h-4" />
+                            {t("pending_confirm_btn")}
+                          </button>
+                        )}
                         <button
                           onClick={() => handleReject(req.id)}
                           className="cursor-pointer flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-3 sm:px-4 py-2 rounded-lg text-sm font-bold text-red-600 bg-red-50 border border-red-200 hover:bg-red-100 transition-all"
