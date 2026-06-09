@@ -1,5 +1,31 @@
 import { describe, it, expect } from 'vitest';
-import { extractVisibleText, fetchUrlContent } from './fetch-url';
+import { extractVisibleText, fetchUrlContent, normalizeFileHostUrl } from './fetch-url';
+
+describe('normalizeFileHostUrl', () => {
+  it('rewrites a Google Drive /file/d/<id>/view link to direct download', () => {
+    const out = normalizeFileHostUrl(new URL('https://drive.google.com/file/d/1pDn6hNVabc123/view?usp=sharing'));
+    expect(out.hostname).toBe('drive.usercontent.google.com');
+    expect(out.pathname).toBe('/download');
+    expect(out.searchParams.get('id')).toBe('1pDn6hNVabc123');
+    expect(out.searchParams.get('export')).toBe('download');
+  });
+
+  it('rewrites a Google Drive open?id=<id> link', () => {
+    const out = normalizeFileHostUrl(new URL('https://drive.google.com/open?id=ABC999'));
+    expect(out.hostname).toBe('drive.usercontent.google.com');
+    expect(out.searchParams.get('id')).toBe('ABC999');
+  });
+
+  it('forces dl=1 on a Dropbox share link', () => {
+    const out = normalizeFileHostUrl(new URL('https://www.dropbox.com/s/abc/menu.pdf?dl=0'));
+    expect(out.searchParams.get('dl')).toBe('1');
+  });
+
+  it('leaves an ordinary URL untouched', () => {
+    const url = 'https://example.com/menu.pdf';
+    expect(normalizeFileHostUrl(new URL(url)).toString()).toBe(url);
+  });
+});
 
 describe('extractVisibleText', () => {
   it('strips scripts and styles', () => {

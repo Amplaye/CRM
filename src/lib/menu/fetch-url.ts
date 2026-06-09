@@ -86,6 +86,54 @@ const BINARY_TYPES: Record<string, 'application/pdf' | 'image/jpeg' | 'image/png
   'image/gif': 'image/gif',
 };
 
+// Many users paste a *share* link to a file host (Google Drive, Dropbox)
+// instead of a direct file link. Those share URLs return an HTML viewer SPA,
+// not the actual PDF — which then trips the spa_no_content guard and tells the
+// user to "download as PDF" even though they DID link a PDF. Rewrite the known
+// ones to their direct-download form so the binary path picks them up.
+export function normalizeFileHostUrl(url: URL): URL {
+  const host = url.hostname.toLowerCase();
+
+  // Google Drive: .../file/d/<ID>/view  or  ?id=<ID>  → direct download.
+  if (host === 'drive.google.com' || host === 'docs.google.com') {
+    let id: string | null = null;
+    const m = url.pathname.match(/\/file\/d\/([^/]+)/) || url.pathname.match(/\/d\/([^/]+)/);
+    if (m) id = m[1];
+    if (!id) id = url.searchParams.get('id');
+    if (id) {
+      return new URL(`https://drive.usercontent.google.com/download?id=${encodeURIComponent(id)}&export=download`);
+    }
+  }
+
+  // Dropbox share link → force the raw file (dl=1, or the dl. host).
+  if (host === 'www.dropbox.com' || host === 'dropbox.com') {
+    const direct = new URL(url.toString());
+    direct.searchParams.set('dl', '1');
+    return direct;
+  }
+
+  return url;
+}
+
+// Detect a PDF/image from its leading magic bytes. Used when a file host
+// returns the file as application/octet-stream (Google Drive does this).
+function sniffMediaType(bytes: Uint8Array): VisionMediaTypeOrNull {
+  const b = bytes;
+  // %PDF
+  if (b[0] === 0x25 && b[1] === 0x50 && b[2] === 0x44 && b[3] === 0x46) return 'application/pdf';
+  // JPEG  FF D8 FF
+  if (b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff) return 'image/jpeg';
+  // PNG  89 50 4E 47
+  if (b[0] === 0x89 && b[1] === 0x50 && b[2] === 0x4e && b[3] === 0x47) return 'image/png';
+  // GIF  "GIF8"
+  if (b[0] === 0x47 && b[1] === 0x49 && b[2] === 0x46 && b[3] === 0x38) return 'image/gif';
+  // WEBP  "RIFF"...."WEBP"
+  if (b[0] === 0x52 && b[1] === 0x49 && b[2] === 0x46 && b[3] === 0x46 &&
+      b[8] === 0x57 && b[9] === 0x45 && b[10] === 0x42 && b[11] === 0x50) return 'image/webp';
+  return null;
+}
+type VisionMediaTypeOrNull = 'application/pdf' | 'image/jpeg' | 'image/png' | 'image/webp' | 'image/gif' | null;
+
 export async function fetchUrlContent(rawUrl: string): Promise<FetchResult> {
   let url: URL;
   try {
@@ -96,6 +144,11 @@ export async function fetchUrlContent(rawUrl: string): Promise<FetchResult> {
   if (url.protocol !== 'http:' && url.protocol !== 'https:') {
     return { ok: false, reason: 'invalid_url' };
   }
+
+  // Rewrite known file-host share links to a direct-download URL before we
+  // fetch, so a Google Drive / Dropbox PDF link resolves to the actual file
+  // instead of the HTML viewer page.
+  url = normalizeFileHostUrl(url);
 
   // SSRF guard: validate the host of EVERY hop (initial + each redirect) by
   // resolving it to IPs and rejecting private/loopback/link-local/CGNAT/
@@ -165,6 +218,20 @@ export async function fetchUrlContent(rawUrl: string): Promise<FetchResult> {
     if (buf.byteLength > MAX_BYTES) return { ok: false, reason: 'too_large' };
     const base64 = Buffer.from(new Uint8Array(buf)).toString('base64');
     return { ok: true, kind: 'binary', mediaType: BINARY_TYPES[contentType], base64 };
+  }
+
+  // File hosts (e.g. Google Drive direct-download) often serve a real PDF/image
+  // as application/octet-stream or with no useful type. Sniff the magic bytes
+  // before giving up so a valid Drive PDF link still works.
+  if (contentType === 'application/octet-stream' || contentType === '' || contentType === 'binary/octet-stream') {
+    const buf = await res.arrayBuffer();
+    if (buf.byteLength > MAX_BYTES) return { ok: false, reason: 'too_large' };
+    const sniffed = sniffMediaType(new Uint8Array(buf));
+    if (sniffed) {
+      const base64 = Buffer.from(new Uint8Array(buf)).toString('base64');
+      return { ok: true, kind: 'binary', mediaType: sniffed, base64 };
+    }
+    return { ok: false, reason: 'unsupported_type', details: contentType || 'unknown' };
   }
 
   if (contentType.startsWith('text/html') || contentType === 'application/xhtml+xml') {

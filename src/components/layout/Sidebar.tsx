@@ -49,9 +49,9 @@ const navItems: Array<{ name: string; href: string; icon: any; badgeKey?: keyof 
   { name: "Pending", href: "/pending", icon: ClipboardList, badgeKey: "pending", badgeStyle: "alert" },
   { name: "Conversations", href: "/conversations", icon: MessageSquare, badgeKey: "conversations", badgeStyle: "alert" },
   { name: "Guests", href: "/guests", icon: Users },
+  { name: "Menu", href: "/menu", icon: UtensilsCrossed },
   { name: "Analytics", href: "/", icon: BarChart3 },
   { name: "Knowledge Base", href: "/knowledge", icon: BookOpen },
-  { name: "Menu", href: "/menu", icon: UtensilsCrossed },
   // Gestionale (controllo gestione) — only when management_enabled is ON.
   { name: "Food Cost", href: "/food-cost", icon: Calculator, feature: "management_enabled" },
   { name: "PL", href: "/pl", icon: PieChart, feature: "management_enabled" },
