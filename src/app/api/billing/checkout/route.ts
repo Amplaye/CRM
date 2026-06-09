@@ -128,8 +128,16 @@ export async function POST(req: Request) {
       if (!planPrice) return NextResponse.json({ error: "not_configured", reason: "stripe_price_missing" }, { status: 503 });
       lineItems.push({ price: planPrice, quantity: 1 });
       for (const aId of bundleAddonIds) {
-        const addonPrice = resolveStripePriceId(aId);
-        if (!addonPrice) return NextResponse.json({ error: "not_configured", reason: "stripe_price_missing" }, { status: 503 });
+        // Resolve at the bundle's cycle: a yearly bundle needs the add-on's
+        // yearly price too — Stripe Checkout can't mix billing intervals in one
+        // subscription. resolveStripePriceId falls back to the monthly price if
+        // no yearly one exists; for a yearly bundle that would re-introduce the
+        // mismatch, so reject cleanly instead of letting Stripe 502.
+        const addonPrice = resolveStripePriceId(aId, cycle!);
+        const addonYearly = process.env[`STRIPE_PRICE_ADDON_${aId.toUpperCase()}_YEARLY`];
+        if (!addonPrice || (cycle === "yearly" && !addonYearly)) {
+          return NextResponse.json({ error: "not_configured", reason: "stripe_addon_yearly_missing" }, { status: 503 });
+        }
         lineItems.push({ price: addonPrice, quantity: 1 });
       }
     }

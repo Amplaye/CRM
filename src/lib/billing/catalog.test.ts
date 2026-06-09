@@ -70,6 +70,7 @@ describe("provider id resolution reads env, undefined when unset", () => {
     "STRIPE_PRICE_PREMIUM_MONTHLY",
     "STRIPE_PRICE_BUSINESS_YEARLY",
     "STRIPE_PRICE_ADDON_VOICE_AGENT",
+    "STRIPE_PRICE_ADDON_VOICE_AGENT_YEARLY",
     "PAYPAL_PLAN_PREMIUM_MONTHLY",
     "PAYPAL_PLAN_ADDON_WEBSITE_CARE",
   ];
@@ -97,6 +98,23 @@ describe("provider id resolution reads env, undefined when unset", () => {
     process.env.PAYPAL_PLAN_ADDON_WEBSITE_CARE = "P-care";
     expect(resolveStripePriceId("voice_agent")).toBe("price_voice");
     expect(resolvePaypalPlanId("website_care")).toBe("P-care");
+  });
+
+  it("yearly bundle picks the add-on's YEARLY price (Stripe can't mix intervals)", () => {
+    process.env.STRIPE_PRICE_ADDON_VOICE_AGENT = "price_voice_monthly";
+    process.env.STRIPE_PRICE_ADDON_VOICE_AGENT_YEARLY = "price_voice_yearly";
+    // monthly cycle → monthly add-on price; yearly cycle → yearly add-on price.
+    expect(resolveStripePriceId("voice_agent", "monthly")).toBe("price_voice_monthly");
+    expect(resolveStripePriceId("voice_agent", "yearly")).toBe("price_voice_yearly");
+    // no-cycle (standalone add-on checkout) still resolves the monthly price.
+    expect(resolveStripePriceId("voice_agent")).toBe("price_voice_monthly");
+  });
+
+  it("falls back to the monthly add-on price when no yearly one is set", () => {
+    process.env.STRIPE_PRICE_ADDON_VOICE_AGENT = "price_voice_monthly";
+    // the route guards the yearly-bundle mismatch separately; the resolver itself
+    // never returns undefined just because the yearly price is missing.
+    expect(resolveStripePriceId("voice_agent", "yearly")).toBe("price_voice_monthly");
   });
 });
 

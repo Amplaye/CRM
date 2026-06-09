@@ -178,12 +178,28 @@ export function bundleTotal(plan: Plan, cycle: BillingCycle, addonIds: AddonId[]
 //   STRIPE_PRICE_ADDON_VOICE_AGENT, STRIPE_PRICE_ADDON_WEBSITE_CARE,
 //   STRIPE_PRICE_ADDON_WEBSITE_DESIGN, STRIPE_PRICE_ADDON_SMART_INVENTORY
 //   PAYPAL_PLAN_PREMIUM_MONTHLY, … (same suffixes)
+//
+// Recurring add-ons also have an optional YEARLY price
+// (STRIPE_PRICE_ADDON_<NAME>_YEARLY). A Stripe subscription Checkout can't mix
+// billing intervals, so a yearly-cycle bundle needs the add-ons billed yearly
+// too. When a yearly add-on price isn't set we fall back to the monthly one —
+// fine for standalone add-on checkout (always monthly), but the bundle route
+// must guard against the interval mismatch before it calls Stripe.
 
 export function resolveStripePriceId(kind: PlanId | AddonId, cycle?: BillingCycle): string | undefined {
-  const key = cycle
-    ? `STRIPE_PRICE_${kind.toUpperCase()}_${cycle.toUpperCase()}`
-    : `STRIPE_PRICE_ADDON_${kind.toUpperCase()}`;
-  return process.env[key] || undefined;
+  if (cycle) {
+    // Plans always carry an explicit monthly/yearly price.
+    const planKey = `STRIPE_PRICE_${kind.toUpperCase()}_${cycle.toUpperCase()}`;
+    if (process.env[planKey]) return process.env[planKey];
+    // Recurring add-on at a specific cycle: prefer the yearly price when asked,
+    // else the plain (monthly) add-on price.
+    if (cycle === "yearly") {
+      const addonYearly = `STRIPE_PRICE_ADDON_${kind.toUpperCase()}_YEARLY`;
+      if (process.env[addonYearly]) return process.env[addonYearly];
+    }
+    return process.env[`STRIPE_PRICE_ADDON_${kind.toUpperCase()}`] || undefined;
+  }
+  return process.env[`STRIPE_PRICE_ADDON_${kind.toUpperCase()}`] || undefined;
 }
 
 export function resolvePaypalPlanId(kind: PlanId | AddonId, cycle?: BillingCycle): string | undefined {
