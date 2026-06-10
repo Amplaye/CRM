@@ -789,7 +789,119 @@ export default function MenuPage() {
                     ))}
                 </div>
               ) : (
-                <table className="w-full text-sm">
+                <>
+                {/* MOBILE: card list. A 4-column table is unusable on a phone —
+                    here each dish is a tappable card with a big photo, the name
+                    and price up top, then description and tags. Desktop keeps the
+                    table below (hidden on mobile). */}
+                <ul className="md:hidden">
+                  {visibleItems.map((it) => (
+                    <li key={it.id}>
+                      <div
+                        onClick={() => setItemModal({ mode: "edit", item: it })}
+                        className="cursor-pointer flex gap-3 px-4 py-3.5 border-b active:bg-white/80 transition-colors"
+                        style={{ borderColor: "rgba(196,149,106,0.2)" }}
+                      >
+                        {/* Thumbnail */}
+                        {it.image_url ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img
+                            src={it.image_url}
+                            alt=""
+                            className="w-16 h-16 rounded-xl object-cover shrink-0 border"
+                            style={{ borderColor: "rgba(196,149,106,0.4)" }}
+                          />
+                        ) : (
+                          <span
+                            className="w-16 h-16 rounded-xl shrink-0 flex items-center justify-center border"
+                            style={{
+                              borderColor: "rgba(196,149,106,0.3)",
+                              background: "rgba(252,246,237,0.6)",
+                            }}
+                          >
+                            <ImageIcon className="w-6 h-6 text-[#c4956a]" />
+                          </span>
+                        )}
+
+                        {/* Body */}
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-start justify-between gap-2">
+                            <span className="font-black text-black leading-tight break-words">
+                              {it.name}
+                            </span>
+                            <span className="font-black text-black whitespace-nowrap text-[15px] shrink-0">
+                              {it.price != null ? (
+                                <>
+                                  {it.price.toFixed(2)}
+                                  <span className="ml-0.5">
+                                    {it.currency === "EUR" ? "€" : it.currency}
+                                  </span>
+                                </>
+                              ) : (
+                                <span className="text-black/40 italic font-bold">—</span>
+                              )}
+                            </span>
+                          </div>
+
+                          {(isCollectionView || search.trim()) && it.category_id && (
+                            <span className="block text-[10px] text-[#a87642] font-bold uppercase tracking-wider mt-0.5">
+                              {categoryNameById.get(it.category_id) || ""}
+                            </span>
+                          )}
+
+                          {it.description && (
+                            <p className="text-[13px] text-black/70 line-clamp-2 leading-snug mt-1">
+                              {it.description}
+                            </p>
+                          )}
+
+                          {(!it.available || it.tags.length > 0 || it.allergens.length > 0) && (
+                            <div className="mt-1.5 flex flex-wrap items-center gap-1">
+                              {!it.available && (
+                                <span className="text-[9px] uppercase font-bold tracking-widest text-orange-700 bg-orange-50 px-1.5 py-0.5 rounded">
+                                  {t("menu_unavailable") || "Esaurito"}
+                                </span>
+                              )}
+                              {it.tags.map((tg) => (
+                                <span
+                                  key={tg}
+                                  className="text-[9px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700"
+                                >
+                                  {tagLabel(tg, language)}
+                                </span>
+                              ))}
+                              {it.allergens.map((al) => (
+                                <span
+                                  key={al}
+                                  className="text-[9px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded bg-orange-50 text-orange-700"
+                                >
+                                  {allergenLabel(al, language)}
+                                </span>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Trailing action — remove from collection only (normal
+                            view deletes from inside the edit modal). */}
+                        {isCollectionView && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleRemoveFromCollection(it.id);
+                            }}
+                            className="cursor-pointer self-center -mr-1 p-2 text-orange-600 hover:bg-orange-50 rounded-lg shrink-0"
+                            title={t("menu_collection_remove_item") || "Togli dalla raccolta"}
+                          >
+                            <MinusCircle className="w-5 h-5" />
+                          </button>
+                        )}
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+
+                <table className="hidden md:table w-full text-sm">
                   <thead
                     className="text-left sticky top-0 z-10"
                     style={{ background: "rgba(252,246,237,0.98)" }}
@@ -936,6 +1048,7 @@ export default function MenuPage() {
                     ))}
                   </tbody>
                 </table>
+                </>
               )}
             </div>
           </>
