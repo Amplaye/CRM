@@ -240,6 +240,16 @@ create table public.menu_items (
 -- (Bucket + policies are created out-of-band via the Storage + Management API,
 --  not by this schema file — documented here for reference.)
 --
+-- Storage: a PRIVATE "menu-imports" bucket is the staging area for menu-import
+-- uploads. The browser PUTs the raw file (PDF/image, ≤25 MB) straight here via a
+-- one-time signed URL minted by /api/menu/upload-url, bypassing Vercel's 4.5 MB
+-- serverless request-body cap that otherwise rejects large menus (surfacing on
+-- iOS Safari as "The string did not match the expected pattern."). The signed
+-- URL needs no Storage RLS policy; /api/menu/import-job reads the object back
+-- with the service role and deletes it. No public read. Config: private,
+-- file_size_limit 26214400 (25 MB), allowed_mime_types null (any).
+-- (Created out-of-band via the Storage API like menu-images above.)
+--
 -- Storage: a public "branding" bucket holds each tenant's custom CRM logo
 -- (settings.branding.logo_url, path <tenant_id>/logo.webp). The owner uploads
 -- from Settings → General; the Sidebar renders it top-left (replacing the

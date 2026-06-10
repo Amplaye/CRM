@@ -1918,12 +1918,46 @@ function ImportMenuModal({
     progressRef.current = 0;
     setProgressPct(0);
     try {
-      const form = new FormData();
-      form.append("tenant_id", tenantId);
-      form.append("file", file);
+      // Upload the raw file STRAIGHT to private Storage via a one-time signed
+      // URL, then hand the job route only the resulting path. Vercel's
+      // serverless functions cap the request BODY at 4.5 MB, so a large menu
+      // (the 9.4 MB PDF that triggered the bug) can't be POSTed through
+      // /api/menu/import-job as multipart — the platform rejects it before our
+      // code runs, which iOS Safari surfaces as the opaque "The string did not
+      // match the expected pattern." Storage has no such cap.
+      const signRes = await fetch("/api/menu/upload-url", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tenant_id: tenantId, file_name: file.name }),
+      });
+      const signData = await signRes.json();
+      if (!signRes.ok || !signData?.path || !signData?.token) {
+        setError(signData?.error || `HTTP ${signRes.status}`);
+        setStage("idle");
+        return;
+      }
+      const { error: upErr } = await supabase.storage
+        .from("menu-imports")
+        .uploadToSignedUrl(signData.path, signData.token, file, {
+          contentType: file.type || "application/octet-stream",
+        });
+      if (upErr) {
+        setError(upErr.message || "Upload failed");
+        setStage("idle");
+        return;
+      }
       // Create an async job; the heavy OpenAI extraction runs on the Supabase
       // Edge Function (150s) so it survives Vercel's 60s cap. We then poll.
-      const res = await fetch("/api/menu/import-job", { method: "POST", body: form });
+      const res = await fetch("/api/menu/import-job", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          tenant_id: tenantId,
+          storage_path: signData.path,
+          file_name: file.name,
+          file_type: file.type,
+        }),
+      });
       const data = await res.json();
       if (!res.ok) {
         setError(data.error || `HTTP ${res.status}`);

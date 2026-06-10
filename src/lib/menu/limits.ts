@@ -27,6 +27,31 @@ export const VISION_MIME: Record<string, VisionMediaType> = {
   'image/gif': 'image/gif',
 };
 
+// Same mapping keyed by file extension — the fallback when a file arrives with a
+// blank/generic MIME type. Used by the storage-upload path (a file read back
+// from Storage may not carry its original content-type) and by drag-drop where
+// the browser sometimes reports an empty `type`.
+const EXT_VISION_MIME: Record<string, VisionMediaType> = {
+  pdf: 'application/pdf',
+  jpg: 'image/jpeg',
+  jpeg: 'image/jpeg',
+  png: 'image/png',
+  webp: 'image/webp',
+  gif: 'image/gif',
+};
+
+// Resolve a vision media type from a MIME type first, then the filename
+// extension. Returns undefined for anything we don't send to the vision path.
+export function resolveVisionMediaType(
+  fileType: string | undefined | null,
+  fileName: string | undefined | null
+): VisionMediaType | undefined {
+  const byMime = fileType ? VISION_MIME[fileType.toLowerCase()] : undefined;
+  if (byMime) return byMime;
+  const ext = (fileName?.split('.').pop() || '').toLowerCase();
+  return EXT_VISION_MIME[ext];
+}
+
 // File extensions we accept in the picker / drag-drop, for the cases where the
 // browser reports a blank or generic MIME type. Includes the doc types handled
 // by doc-text.ts (.docx, .csv) alongside PDF/images.

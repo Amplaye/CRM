@@ -4,7 +4,7 @@ import { tryExtractPdfText } from '@/lib/menu/pdf-text';
 import { tryExtractDocText, resolveDocKind } from '@/lib/menu/doc-text';
 import { maybeSplitPdf } from '@/lib/menu/pdf-split';
 import { fetchUrlContent } from '@/lib/menu/fetch-url';
-import { MAX_UPLOAD_BYTES, MAX_UPLOAD_MB, VISION_MIME, type VisionMediaType } from '@/lib/menu/limits';
+import { MAX_UPLOAD_BYTES, MAX_UPLOAD_MB, resolveVisionMediaType, type VisionMediaType } from '@/lib/menu/limits';
 
 // Create an async menu-extraction job. Replaces the slow, synchronous
 // /api/menu/import-file: instead of blocking on the OpenAI call (which on a
@@ -41,6 +41,16 @@ type JobPayload =
   | { source: 'file'; source_text: null; file_base64: string; media_type: string; file_chunks: null }
   | { source: 'file'; source_text: null; file_base64: null; media_type: 'application/pdf'; file_chunks: string[] };
 
+// The JSON request body: a `url` (QR target) OR a `storage_path` (a large file
+// the browser uploaded straight to Storage to dodge Vercel's 4.5 MB body cap).
+type JsonJobBody = {
+  tenant_id?: string;
+  url?: string;
+  storage_path?: string;
+  file_name?: string;
+  file_type?: string;
+};
+
 export async function POST(req: NextRequest) {
   const supabase = await createServerSupabaseClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -55,7 +65,15 @@ export async function POST(req: NextRequest) {
   let payload: JobPayload;
 
   if (contentType.includes('application/json')) {
-    const resolved = await resolveUrlJob(req);
+    // JSON carries EITHER a `url` (the restaurant's QR target) OR a
+    // `storage_path` (a large file the browser uploaded straight to Storage to
+    // dodge Vercel's 4.5 MB body cap — see /api/menu/upload-url).
+    const body = (await req.json().catch(() => null)) as JsonJobBody | null;
+    if (!body) return NextResponse.json({ error: 'Invalid body' }, { status: 400 });
+    const resolved =
+      typeof body.storage_path === 'string' && body.storage_path
+        ? await resolveStorageJob(body)
+        : await resolveUrlJob(body);
     if (resolved instanceof NextResponse) return resolved;
     tenantId = resolved.tenantId;
     payload = resolved.payload;
@@ -142,10 +160,60 @@ async function resolveFileJob(
   }
 
   const bytes = new Uint8Array(await file.arrayBuffer());
+  return buildFileJobFromBytes(bytes, file.name, file.type, tenantId);
+}
+
+// Storage upload (large file) → JobPayload. The browser PUT the raw file into
+// the private `menu-imports` bucket via a signed URL (see /api/menu/upload-url),
+// dodging Vercel's 4.5 MB body cap; here we read it back with the service role
+// and feed it into the SAME pipeline as a multipart upload. Best-effort delete
+// of the temp object afterwards: the worker reads file_base64 from the DB row,
+// so once we've snapshotted the bytes the Storage copy is dead weight.
+async function resolveStorageJob(
+  body: JsonJobBody
+): Promise<{ tenantId: string; payload: JobPayload } | NextResponse> {
+  const tenantId = body.tenant_id;
+  const storagePath = body.storage_path;
+  if (typeof tenantId !== 'string' || !tenantId || typeof storagePath !== 'string' || !storagePath) {
+    return NextResponse.json({ error: 'Invalid body' }, { status: 400 });
+  }
+  // The signed URL was minted under `${tenantId}/…`; refuse anything else so a
+  // caller can't point us at another tenant's object or escape the bucket.
+  if (!storagePath.startsWith(`${tenantId}/`) || storagePath.includes('..')) {
+    return NextResponse.json({ error: 'Invalid storage path' }, { status: 400 });
+  }
+
+  const admin = createServiceRoleClient();
+  const { data: blob, error: dlErr } = await admin.storage.from('menu-imports').download(storagePath);
+  if (dlErr || !blob) {
+    console.error('[menu import-job] storage download failed', dlErr);
+    return NextResponse.json({ error: 'Could not read the uploaded file' }, { status: 422 });
+  }
+  const bytes = new Uint8Array(await blob.arrayBuffer());
+  void admin.storage
+    .from('menu-imports')
+    .remove([storagePath])
+    .catch((e: unknown) => console.error('[menu import-job] temp cleanup failed', e));
+
+  return buildFileJobFromBytes(bytes, body.file_name || storagePath, body.file_type || '', tenantId);
+}
+
+// Shared tail for both file paths (multipart upload + Storage read-back): route
+// the raw bytes by kind. `fileType` may be blank when the bytes came back from
+// Storage, so media-type resolution falls back to the filename extension.
+async function buildFileJobFromBytes(
+  bytes: Uint8Array,
+  fileName: string,
+  fileType: string,
+  tenantId: string
+): Promise<{ tenantId: string; payload: JobPayload } | NextResponse> {
+  if (bytes.byteLength > MAX_UPLOAD_BYTES) {
+    return NextResponse.json({ error: `File too large (max ${MAX_UPLOAD_MB} MB)` }, { status: 413 });
+  }
 
   // Office/data docs (.docx, .csv): convert to text and take the fast text
   // path. Checked first since their MIME types are distinct from PDF/images.
-  const docKind = resolveDocKind(file.type, file.name);
+  const docKind = resolveDocKind(fileType, fileName);
   if (docKind) {
     const docText = await tryExtractDocText(bytes, docKind);
     if (!docText) {
@@ -160,10 +228,10 @@ async function resolveFileJob(
     };
   }
 
-  const mediaType = VISION_MIME[file.type.toLowerCase()];
+  const mediaType = resolveVisionMediaType(fileType, fileName);
   if (!mediaType) {
     return NextResponse.json(
-      { error: `Unsupported file type "${file.type}". Use PDF, an image (JPEG/PNG/WEBP/GIF), Word (.docx) or CSV.` },
+      { error: `Unsupported file type "${fileType || fileName}". Use PDF, an image (JPEG/PNG/WEBP/GIF), Word (.docx) or CSV.` },
       { status: 415 }
     );
   }
@@ -221,10 +289,9 @@ async function buildVisionPayload(
 // OpenAI call happens later in the worker, so a vision-only menu (e.g. the Fuji
 // PDF, ~90s) no longer times out this request.
 async function resolveUrlJob(
-  req: NextRequest
+  body: JsonJobBody
 ): Promise<{ tenantId: string; payload: JobPayload } | NextResponse> {
-  const body = (await req.json().catch(() => null)) as { tenant_id?: string; url?: string } | null;
-  if (!body || typeof body.tenant_id !== 'string' || !body.tenant_id || typeof body.url !== 'string') {
+  if (typeof body.tenant_id !== 'string' || !body.tenant_id || typeof body.url !== 'string') {
     return NextResponse.json({ error: 'Invalid body' }, { status: 400 });
   }
 
