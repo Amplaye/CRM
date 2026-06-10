@@ -223,9 +223,9 @@ export default function InventoryPage() {
           </thead>
           <tbody>
             {loading ? (
-              <tr><td colSpan={7} className="px-4 py-6 text-center text-black/50">…</td></tr>
+              <tr><td colSpan={7} className="px-4 py-6 text-center text-black">…</td></tr>
             ) : rows.length === 0 ? (
-              <tr><td colSpan={7} className="px-4 py-6 text-center text-black/50">{t("inventory_empty" as keyof Dictionary) || "Nessun ingrediente."}</td></tr>
+              <tr><td colSpan={7} className="px-4 py-6 text-center text-black">{t("inventory_empty" as keyof Dictionary) || "Nessun ingrediente."}</td></tr>
             ) : (
               rows.map((r) => (
                 <IngredientRowGroup
@@ -285,7 +285,7 @@ function IngredientRowGroup({
     <>
       <tr className="border-t" style={{ borderColor: "#eaddcb", background: low ? "rgba(220,38,38,0.06)" : undefined }}>
         <td className="px-3 py-2 align-middle">
-          <button onClick={onToggle} className="p-0.5 text-black/50 hover:text-black cursor-pointer" aria-label="toggle editor" aria-expanded={isOpen}>
+          <button onClick={onToggle} className="p-0.5 text-black hover:text-black cursor-pointer" aria-label="toggle editor" aria-expanded={isOpen}>
             {isOpen ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
           </button>
         </td>
@@ -312,7 +312,7 @@ function IngredientRowGroup({
             />
           ) : (
             <div className="flex items-center justify-end gap-1.5">
-              {saveState?.status === "saving" && <Loader2 className="w-3.5 h-3.5 animate-spin text-black/40" />}
+              {saveState?.status === "saving" && <Loader2 className="w-3.5 h-3.5 animate-spin text-black" />}
               {saveState?.status === "ok" && <Check className="w-3.5 h-3.5 text-emerald-600" />}
               <button
                 onClick={onStartStockEdit}
@@ -352,27 +352,27 @@ function IngredientRowGroup({
             <div className="rounded-lg border-2 p-4 space-y-4" style={{ borderColor: "#eaddcb", background: "rgba(252,246,237,0.5)" }}>
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                 <label className="flex flex-col gap-1">
-                  <span className="text-xs font-bold text-black/70">{t("inventory_col_name" as keyof Dictionary) || "Ingrediente"}</span>
+                  <span className="text-xs font-bold text-black">{t("inventory_col_name" as keyof Dictionary) || "Ingrediente"}</span>
                   <input defaultValue={r.name} onBlur={(e) => { const v = e.target.value.trim(); if (v && v !== r.name) onPatch({ name: v }); }} className={inputCls} style={inputStyle} />
                 </label>
                 <label className="flex flex-col gap-1">
-                  <span className="text-xs font-bold text-black/70">{t("inventory_unit" as keyof Dictionary) || "Unità (kg, l, pz)"}</span>
+                  <span className="text-xs font-bold text-black">{t("inventory_unit" as keyof Dictionary) || "Unità (kg, l, pz)"}</span>
                   <input defaultValue={r.unit} onBlur={(e) => { const v = e.target.value.trim(); if (v && v !== r.unit) onPatch({ unit: v }); }} className={inputCls} style={inputStyle} />
                 </label>
                 <label className="flex flex-col gap-1">
-                  <span className="text-xs font-bold text-black/70">{t("inventory_col_par" as keyof Dictionary) || "Scorta min."}</span>
+                  <span className="text-xs font-bold text-black">{t("inventory_col_par" as keyof Dictionary) || "Scorta min."}</span>
                   <input type="number" step="0.01" defaultValue={r.par_level} onBlur={(e) => { const v = Number(e.target.value.replace(",", ".")); if (Number.isFinite(v) && v !== Number(r.par_level)) onPatch({ par_level: v }); }} className={inputCls} style={inputStyle} />
                 </label>
                 <label className="flex flex-col gap-1">
-                  <span className="text-xs font-bold text-black/70">{t("inventory_unit_cost" as keyof Dictionary) || "Costo unitario €"}</span>
+                  <span className="text-xs font-bold text-black">{t("inventory_unit_cost" as keyof Dictionary) || "Costo unitario €"}</span>
                   <input type="number" step="0.0001" defaultValue={r.current_unit_cost} onBlur={(e) => { const v = Number(e.target.value.replace(",", ".")); if (Number.isFinite(v) && v !== Number(r.current_unit_cost)) onPatch({ current_unit_cost: v }); }} className={inputCls} style={inputStyle} />
                 </label>
                 <label className="flex flex-col gap-1">
-                  <span className="text-xs font-bold text-black/70">{t("inventory_col_supplier" as keyof Dictionary) || "Fornitore"}</span>
+                  <span className="text-xs font-bold text-black">{t("inventory_col_supplier" as keyof Dictionary) || "Fornitore"}</span>
                   <input defaultValue={r.supplier_name || ""} onBlur={(e) => { const v = e.target.value.trim() || null; if (v !== r.supplier_name) onPatch({ supplier_name: v }); }} className={inputCls} style={inputStyle} />
                 </label>
                 <label className="flex flex-col gap-1">
-                  <span className="text-xs font-bold text-black/70">{t("inventory_col_expiry" as keyof Dictionary) || "Scadenza"}</span>
+                  <span className="text-xs font-bold text-black">{t("inventory_col_expiry" as keyof Dictionary) || "Scadenza"}</span>
                   <input type="date" defaultValue={r.expiry_date || ""} onBlur={(e) => { const v = e.target.value || null; if (v !== r.expiry_date) onPatch({ expiry_date: v }); }} className={inputCls} style={inputStyle} />
                 </label>
               </div>
@@ -380,7 +380,7 @@ function IngredientRowGroup({
               {/* POS product link — connect this ingredient to a sellable till product so stock syncs. */}
               <div className="flex flex-wrap items-end gap-3 pt-2 border-t" style={{ borderColor: "#eaddcb" }}>
                 <label className="flex flex-col gap-1 min-w-[260px]">
-                  <span className="text-xs font-bold text-black/70 flex items-center gap-1">
+                  <span className="text-xs font-bold text-black flex items-center gap-1">
                     <Link2 className="w-3.5 h-3.5" /> {t("inventory_pos_link" as keyof Dictionary) || "Prodotto cassa collegato (per sincronizzare la giacenza)"}
                     <InfoHotspot
                       side="top"
@@ -390,9 +390,9 @@ function IngredientRowGroup({
                     />
                   </span>
                   {posProducts === null ? (
-                    <span className="text-xs text-black/40">…</span>
+                    <span className="text-xs text-black">…</span>
                   ) : posProducts.length === 0 ? (
-                    <span className="text-xs text-black/50">{t("inventory_pos_none" as keyof Dictionary) || "Nessuna cassa collegata (vai in Impostazioni → Cassa)."}</span>
+                    <span className="text-xs text-black">{t("inventory_pos_none" as keyof Dictionary) || "Nessuna cassa collegata (vai in Impostazioni → Cassa)."}</span>
                   ) : (
                     <select
                       value={r.pos_external_product_id || ""}
@@ -433,17 +433,17 @@ function NewIngredientForm({ onCreate, onCancel, t }: { onCreate: (name: string,
   return (
     <div className="rounded-lg border-2 p-4 flex flex-wrap items-end gap-3" style={{ borderColor: "#c4956a", background: "rgba(252,246,237,0.6)" }}>
       <label className="flex flex-col gap-1">
-        <span className="text-xs font-bold text-black/70">{t("inventory_col_name" as keyof Dictionary) || "Ingrediente"}</span>
+        <span className="text-xs font-bold text-black">{t("inventory_col_name" as keyof Dictionary) || "Ingrediente"}</span>
         <input autoFocus value={name} onChange={(e) => setName(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") onCreate(name, unit); }} className={inputCls} style={inputStyle} placeholder={t("inventory_new_name_ph" as keyof Dictionary) || "Es. Farina 00"} />
       </label>
       <label className="flex flex-col gap-1">
-        <span className="text-xs font-bold text-black/70">{t("inventory_unit" as keyof Dictionary) || "Unità (kg, l, pz)"}</span>
+        <span className="text-xs font-bold text-black">{t("inventory_unit" as keyof Dictionary) || "Unità (kg, l, pz)"}</span>
         <input value={unit} onChange={(e) => setUnit(e.target.value)} className={inputCls + " w-28"} style={inputStyle} />
       </label>
       <button onClick={() => onCreate(name, unit)} disabled={!name.trim()} className="px-4 py-2 text-white text-sm font-bold rounded-lg disabled:opacity-40 cursor-pointer disabled:cursor-not-allowed" style={{ background: "linear-gradient(135deg, #d4a574, #c4956a)" }}>
         {t("save" as keyof Dictionary) || "Salva"}
       </button>
-      <button onClick={onCancel} className="px-4 py-2 text-sm rounded-lg border-2 cursor-pointer text-black/70" style={{ borderColor: "#c4956a" }}>
+      <button onClick={onCancel} className="px-4 py-2 text-sm rounded-lg border-2 cursor-pointer text-black" style={{ borderColor: "#c4956a" }}>
         {t("cancel" as keyof Dictionary) || "Annulla"}
       </button>
     </div>

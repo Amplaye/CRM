@@ -277,7 +277,7 @@ export default function SecurityPage() {
                             <td className="px-4 py-2 text-black">
                               <div className="font-medium">{ev.actor_email || "—"}</div>
                               {ev.action !== "login" && (
-                                <div className="text-[10px] text-black/60">{ev.action}</div>
+                                <div className="text-[10px] text-black">{ev.action}</div>
                               )}
                             </td>
                             <td className="px-4 py-2 text-black">
@@ -285,27 +285,27 @@ export default function SecurityPage() {
                                 <span className="text-[10px] font-bold text-[#c4956a] bg-[#c4956a]/10 px-2 py-0.5 rounded">
                                   {ev.tenant_name}
                                 </span>
-                              ) : <span className="text-black/40">—</span>}
+                              ) : <span className="text-black">—</span>}
                             </td>
                             <td className="px-4 py-2 text-black font-mono text-xs">{ev.ip_address || "—"}</td>
                             <td className="px-4 py-2 text-black text-xs">
                               {ev.geo.country ? (
                                 <span className="inline-flex items-center gap-1">
-                                  <Globe className="w-3 h-3 text-black/50" />
+                                  <Globe className="w-3 h-3 text-black" />
                                   {[ev.geo.city, ev.geo.country].filter(Boolean).join(", ")}
                                 </span>
-                              ) : <span className="text-black/40">—</span>}
+                              ) : <span className="text-black">—</span>}
                             </td>
                             <td className="px-4 py-2 text-black text-xs">
                               <span className="inline-flex items-center gap-1">
-                                <Monitor className="w-3 h-3 text-black/50" />
+                                <Monitor className="w-3 h-3 text-black" />
                                 {ev.browser} · {ev.os}
                               </span>
                             </td>
                             <td className="px-4 py-2">
                               <div className="flex flex-wrap gap-1">
                                 {flags.length === 0 ? (
-                                  <span className="text-[10px] text-black/40">—</span>
+                                  <span className="text-[10px] text-black">—</span>
                                 ) : flags.map(f => (
                                   <span
                                     key={f}

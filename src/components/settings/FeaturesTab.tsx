@@ -96,11 +96,11 @@ export function FeaturesTab() {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h2 className="text-lg font-bold text-black">{t("settings_features_title")}</h2>
-          <p className="mt-1 text-sm text-black/70">{t("settings_features_desc")}</p>
+          <p className="mt-1 text-sm text-black">{t("settings_features_desc")}</p>
         </div>
         {/* Inline status — the toggle saves on its own, so no button, just feedback. */}
         <div className="mt-3 sm:mt-0 h-5 flex items-center" aria-live="polite">
-          {status === "saving" && <span className="text-sm font-medium text-black/40">…</span>}
+          {status === "saving" && <span className="text-sm font-medium text-black">…</span>}
           {status === "saved" && <span className="text-sm font-medium text-green-600">{t("settings_saved")}</span>}
           {status === "error" && <span className="text-sm font-medium text-red-600">{t("settings_save_error")}</span>}
         </div>
@@ -115,7 +115,7 @@ export function FeaturesTab() {
               style={{ borderColor: "#c4956a", background: "rgba(252,246,237,0.6)" }}>
               <div className="flex-1">
                 <label className="text-sm font-bold text-black">{t(labelKey as keyof Dictionary)}</label>
-                <p className="text-xs text-black/70 mt-0.5">{t(hintKey as keyof Dictionary)}</p>
+                <p className="text-xs text-black mt-0.5">{t(hintKey as keyof Dictionary)}</p>
               </div>
               <button
                 type="button"

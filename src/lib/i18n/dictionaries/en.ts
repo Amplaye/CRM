@@ -511,7 +511,7 @@ export const en = {
   settings_feature_commercial_info: "Auto-replies — Price lists & Info",
   settings_feature_commercial_info_hint: "The bot answers questions about cakes, set menus, buffets and price lists on its own (from your \"commercial\" articles) and offers them when it senses an occasion or a large group.",
   settings_feature_commercial_info_cta: "Auto-replies are on. Now add your price lists in the “Price lists & Info” tab.",
-  settings_feature_commercial_info_cta_btn: "Set up Price lists & Info →",
+  settings_feature_commercial_info_cta_btn: "Set up Price lists & Info",
   settings_tab_commercial: "Price lists & Info",
   ci_title: "Commercial price lists & info",
   ci_desc: "Add your price lists and menus. The bot will answer questions about cakes, set menus, buffets or price lists on its own, and offer them when it senses an occasion (birthday, party…) or a large group.",

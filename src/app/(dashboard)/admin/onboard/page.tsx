@@ -211,7 +211,7 @@ export default function OnboardPage() {
     return (
       <div className="p-6 max-w-3xl mx-auto">
         <h1 className="text-2xl font-bold mb-2">Creazione CRM in corso…</h1>
-        <p className="text-sm text-black/70 mb-6">
+        <p className="text-sm text-black mb-6">
           {done?.ok
             ? "✅ Completato. Vedi link sotto."
             : done && !done.ok
@@ -224,13 +224,13 @@ export default function OnboardPage() {
             <div key={i} className="flex items-start gap-2 text-sm">
               {p.ok ? <Check className="w-4 h-4 text-emerald-600 mt-0.5 flex-shrink-0" /> : <AlertTriangle className="w-4 h-4 text-red-500 mt-0.5 flex-shrink-0" />}
               <div className="flex-1">
-                <span className="font-bold uppercase text-[11px] tracking-widest text-black/60 mr-2">{p.step}</span>
+                <span className="font-bold uppercase text-[11px] tracking-widest text-black mr-2">{p.step}</span>
                 <span className={p.ok ? "text-black" : "text-red-600 font-medium"}>{p.message}</span>
               </div>
             </div>
           ))}
           {running && (
-            <div className="flex items-center gap-2 text-xs text-black/60 pt-2">
+            <div className="flex items-center gap-2 text-xs text-black pt-2">
               <RefreshCw className="w-3 h-3 animate-spin" /> in corso…
             </div>
           )}
@@ -267,11 +267,11 @@ export default function OnboardPage() {
   // Step content
   return (
     <div className="p-6 max-w-3xl mx-auto">
-      <div className="flex items-center gap-2 text-xs text-black/50 mb-2">
+      <div className="flex items-center gap-2 text-xs text-black mb-2">
         <Link href="/admin" className="hover:text-black">Admin</Link> / <span>Onboard nuovo cliente</span>
       </div>
       <h1 className="text-2xl font-bold mb-1">Crea un nuovo CRM ristorante</h1>
-      <p className="text-sm text-black/70 mb-6">5 step. Alla fine premi <b>Crea CRM</b> e tutto viene provisionato in ~1 minuto.</p>
+      <p className="text-sm text-black mb-6">5 step. Alla fine premi <b>Crea CRM</b> e tutto viene provisionato in ~1 minuto.</p>
 
       {/* Step indicator */}
       <div className="flex items-center gap-2 mb-6">
@@ -301,7 +301,7 @@ export default function OnboardPage() {
       {step === 2 && (
         <div className="space-y-4">
           <h2 className="text-base font-bold flex items-center gap-2"><Clock className="w-4 h-4" /> 2. Orari di apertura</h2>
-          <p className="text-xs text-black/60">Lascia vuoto un giorno per chiusura. Più slot = pranzo + cena.</p>
+          <p className="text-xs text-black">Lascia vuoto un giorno per chiusura. Più slot = pranzo + cena.</p>
           <div className="space-y-2">
             {DAYS.map((d) => (
               <div key={d.idx} className="rounded-xl border-2 border-[#c4956a]/40 bg-white/60 p-3">
@@ -310,7 +310,7 @@ export default function OnboardPage() {
                   <button onClick={() => addHourSlot(d.idx)} className="text-xs font-semibold text-[#8b6540]">+ slot</button>
                 </div>
                 {(hours[d.idx] || []).length === 0 ? (
-                  <p className="text-xs text-black/40">Cerrado</p>
+                  <p className="text-xs text-black">Cerrado</p>
                 ) : (
                   <div className="space-y-2">
                     {(hours[d.idx] || []).map((s, i) => (
@@ -333,7 +333,7 @@ export default function OnboardPage() {
       {step === 3 && (
         <div className="space-y-4">
           <h2 className="text-base font-bold flex items-center gap-2"><Grid3X3 className="w-4 h-4" /> 3. Tavoli (layout default)</h2>
-          <p className="text-xs text-black/60">Scegli quanti tavoli iniziali. Sposta/aggiungi/rimuovi dopo dal Plan view.</p>
+          <p className="text-xs text-black">Scegli quanti tavoli iniziali. Sposta/aggiungi/rimuovi dopo dal Plan view.</p>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             {[
               { v: "small", lbl: "Piccolo (6)", desc: "ristorante <30 coperti" },
@@ -346,7 +346,7 @@ export default function OnboardPage() {
                 className={`p-4 rounded-xl border-2 text-left ${tableSize === o.v ? "border-[#c4956a] bg-[#c4956a]/10" : "border-zinc-200 bg-white"}`}
               >
                 <div className="font-bold text-sm">{o.lbl}</div>
-                <div className="text-xs text-black/60 mt-0.5">{o.desc}</div>
+                <div className="text-xs text-black mt-0.5">{o.desc}</div>
               </button>
             ))}
           </div>
@@ -360,7 +360,7 @@ export default function OnboardPage() {
             <h2 className="text-base font-bold flex items-center gap-2"><BookOpen className="w-4 h-4" /> 4. Knowledge Base & Voice Prompt</h2>
             <button onClick={fillKbDefaults} className="text-xs px-3 py-1.5 rounded-lg border-2 border-[#c4956a] bg-white">Riempi default</button>
           </div>
-          <p className="text-xs text-black/60">Articoli che il bot userà. Aggiungi menu/policies/contatti.</p>
+          <p className="text-xs text-black">Articoli che il bot userà. Aggiungi menu/policies/contatti.</p>
           <div className="space-y-3">
             {kbArticles.map((a, i) => (
               <div key={i} className="rounded-xl border-2 border-[#c4956a]/40 bg-white p-3 space-y-2">
@@ -389,7 +389,7 @@ export default function OnboardPage() {
       {step === 5 && (
         <div className="space-y-4">
           <h2 className="text-base font-bold flex items-center gap-2"><User className="w-4 h-4" /> 5. Account owner</h2>
-          <p className="text-xs text-black/60">L&apos;owner ricerverà queste credenziali per accedere al CRM.</p>
+          <p className="text-xs text-black">L&apos;owner ricerverà queste credenziali per accedere al CRM.</p>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <Field label="Nome owner" value={ownerName} onChange={setOwnerName} placeholder="Mario Rossi" />
             <Field label="Email" value={ownerEmail} onChange={setOwnerEmail} placeholder="mario@trattoria.com" type="email" />
@@ -441,7 +441,7 @@ export default function OnboardPage() {
 function Field({ label, value, onChange, placeholder, type = "text" }: { label: string; value: string; onChange: (v: string) => void; placeholder?: string; type?: string }) {
   return (
     <div>
-      <label className="block text-xs font-bold uppercase tracking-wider mb-1 text-black/70">{label}</label>
+      <label className="block text-xs font-bold uppercase tracking-wider mb-1 text-black">{label}</label>
       <input type={type} value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} className="w-full border border-zinc-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#c4956a]/40" />
     </div>
   );
@@ -450,7 +450,7 @@ function Field({ label, value, onChange, placeholder, type = "text" }: { label: 
 function SelectField({ label, value, onChange, options }: { label: string; value: string; onChange: (v: string) => void; options: Array<[string, string]> }) {
   return (
     <div>
-      <label className="block text-xs font-bold uppercase tracking-wider mb-1 text-black/70">{label}</label>
+      <label className="block text-xs font-bold uppercase tracking-wider mb-1 text-black">{label}</label>
       <select value={value} onChange={(e) => onChange(e.target.value)} className="w-full border border-zinc-300 rounded-lg px-3 py-2 text-sm">
         {options.map(([v, l]) => (<option key={v} value={v}>{l}</option>))}
       </select>

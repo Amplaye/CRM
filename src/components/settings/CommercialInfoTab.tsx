@@ -140,7 +140,7 @@ export function CommercialInfoTab() {
           <Tags className="w-5 h-5" style={{ color: border }} />
           {t("ci_title")}
         </h2>
-        <p className="mt-1 text-sm text-black/70">{t("ci_desc")}</p>
+        <p className="mt-1 text-sm text-black">{t("ci_desc")}</p>
       </div>
 
       {/* Add-a-list templates */}
@@ -168,7 +168,7 @@ export function CommercialInfoTab() {
           {[1, 2].map((i) => <div key={i} className="h-40 bg-zinc-200 rounded-xl" />)}
         </div>
       ) : cards.length === 0 ? (
-        <div className="p-8 text-center text-sm text-black/70 rounded-xl border-2 border-dashed" style={{ borderColor: border }}>
+        <div className="p-8 text-center text-sm text-black rounded-xl border-2 border-dashed" style={{ borderColor: border }}>
           {t("ci_empty")}
         </div>
       ) : (
@@ -176,7 +176,7 @@ export function CommercialInfoTab() {
           {cards.map((c, idx) => (
             <div key={c.id || `new-${idx}`} className="p-4 rounded-xl border-2 space-y-3" style={{ borderColor: border, background: panel }}>
               <div>
-                <label className="block text-xs font-bold text-black/70 uppercase tracking-wide mb-1">{t("ci_title_label")}</label>
+                <label className="block text-xs font-bold text-black uppercase tracking-wide mb-1">{t("ci_title_label")}</label>
                 <input
                   type="text"
                   value={c.title}
@@ -188,7 +188,7 @@ export function CommercialInfoTab() {
                 />
               </div>
               <div>
-                <label className="block text-xs font-bold text-black/70 uppercase tracking-wide mb-1">{t("ci_content_label")}</label>
+                <label className="block text-xs font-bold text-black uppercase tracking-wide mb-1">{t("ci_content_label")}</label>
                 <textarea
                   value={c.content}
                   onChange={(e) => update(idx, { content: e.target.value })}
@@ -199,7 +199,7 @@ export function CommercialInfoTab() {
                 />
               </div>
               <div className="flex items-center justify-between">
-                <span className="text-xs text-black/50">{c.id ? t("ci_visible_note") : ""}</span>
+                <span className="text-xs text-black">{c.id ? t("ci_visible_note") : ""}</span>
                 <div className="flex items-center gap-2">
                   <button
                     type="button"

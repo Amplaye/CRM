@@ -296,7 +296,7 @@ export default function ConversationsPage() {
               const isActive = channelFilter === opt.id;
               return (
                 <button key={opt.id} onClick={() => setChannelFilter(opt.id)}
-                  className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold transition-colors border ${isActive ? 'text-white border-transparent' : 'text-black/70 border-[#c4956a]/40 hover:bg-[#c4956a]/10'}`}
+                  className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold transition-colors border ${isActive ? 'text-white border-transparent' : 'text-black border-[#c4956a]/40 hover:bg-[#c4956a]/10'}`}
                   style={isActive ? { background: 'linear-gradient(135deg, #d4a574, #c4956a)' } : undefined}>
                   {Icon && <Icon className="w-3 h-3" />}
                   {opt.label}
@@ -418,7 +418,7 @@ export default function ConversationsPage() {
           )}
           <div ref={scrollRef} className="flex-1 overflow-y-auto p-4 md:p-6 space-y-2">
             <div className="flex justify-center mb-3">
-              <span className="text-[10px] font-bold uppercase tracking-widest text-black/50 bg-white/60 px-3 py-1 rounded-full">
+              <span className="text-[10px] font-bold uppercase tracking-widest text-black bg-white/60 px-3 py-1 rounded-full">
                 {new Date(selectedConvo.created_at).toLocaleDateString()}
               </span>
             </div>
@@ -440,7 +440,7 @@ export default function ConversationsPage() {
                         <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${s.bg} ${s.text} ring-1 ${s.ring}`}>
                           {t(`conv_audit_q_${qKey}`)}
                         </span>
-                        <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-white/70 text-black/70">
+                        <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-white/70 text-black">
                           {t(`conv_audit_o_${audit.outcome}`)}
                         </span>
                         {audit.divergence && (
@@ -450,12 +450,12 @@ export default function ConversationsPage() {
                         )}
                       </div>
                       {audit.summary && (
-                        <p className="mt-1.5 text-[13px] text-black/85 leading-snug">{audit.summary}</p>
+                        <p className="mt-1.5 text-[13px] text-black leading-snug">{audit.summary}</p>
                       )}
                       {Array.isArray(audit.issues) && audit.issues.length > 0 && (
                         <div className="mt-2 flex flex-wrap gap-1">
                           {audit.issues.map((iss, i) => (
-                            <span key={i} className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-white/70 text-black/70 border border-black/5">
+                            <span key={i} className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-white/70 text-black border border-black/5">
                               {iss}
                             </span>
                           ))}

@@ -17,7 +17,7 @@ const STATUS_BADGE: Record<TenantStatus, string> = {
   trial: "bg-blue-50 text-blue-700 border-blue-200",
   pending: "bg-yellow-50 text-yellow-700 border-yellow-200",
   suspended: "bg-red-50 text-red-700 border-red-200",
-  archived: "bg-zinc-100 text-zinc-600 border-zinc-300",
+  archived: "bg-zinc-100 text-black border-zinc-300",
 };
 
 interface TenantHealth {
@@ -275,7 +275,7 @@ export default function TenantDetailPage() {
             ))}
           </div>
           {health.overall === "fail" && (
-            <p className="text-[11px] text-black/70 mt-3 pt-3 border-t border-black/10">
+            <p className="text-[11px] text-black mt-3 pt-3 border-t border-black/10">
               Per riparare: riapri l&apos;onboarding di questo cliente e premi invia — il provisioning si completa da dove si era interrotto, senza duplicati.
             </p>
           )}
@@ -300,7 +300,7 @@ export default function TenantDetailPage() {
               <div className="mt-0.5">{icon}</div>
               <div className="flex-1 min-w-0">
                 <p className="text-xs font-medium text-black">{title}</p>
-                <p className="text-[10px] text-black/70 mt-0.5">{hint}</p>
+                <p className="text-[10px] text-black mt-0.5">{hint}</p>
               </div>
               <button
                 type="button"

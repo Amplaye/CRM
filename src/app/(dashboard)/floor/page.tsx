@@ -253,13 +253,13 @@ export default function FloorPage() {
     const colors: Record<string, string> = {
       confirmed: "bg-green-100 text-green-800",
       seated: "bg-blue-100 text-blue-800",
-      completed: "bg-gray-100 text-gray-800",
+      completed: "bg-gray-100 text-black",
       escalated: "bg-orange-100 text-orange-800",
       pending_confirmation: "bg-yellow-100 text-yellow-800",
     };
     return (
       <span
-        className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${colors[status] || "bg-gray-100 text-gray-800"}`}
+        className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${colors[status] || "bg-gray-100 text-black"}`}
       >
         {status.replace("_", " ")}
       </span>
@@ -657,7 +657,7 @@ export default function FloorPage() {
                   {stat.value}
                 </p>
                 {stat.sub && (
-                  <p className="text-xs font-medium text-black/60 mt-0.5">{stat.sub}</p>
+                  <p className="text-xs font-medium text-black mt-0.5">{stat.sub}</p>
                 )}
               </div>
               <stat.icon className="h-8 w-8 text-[#c4956a]" />
@@ -841,7 +841,7 @@ export default function FloorPage() {
                 <div className="flex flex-wrap items-end gap-x-6 gap-y-3">
                   {/* Shape selector */}
                   <div>
-                    <p className="text-[10px] font-semibold text-black/60 uppercase tracking-wide mb-1">{t("floor_shape")}</p>
+                    <p className="text-[10px] font-semibold text-black uppercase tracking-wide mb-1">{t("floor_shape")}</p>
                     <div className="flex gap-2">
                       {(["round", "square", "rectangle"] as TableShape[]).map((s) => {
                         const selected = newTableShape === s;
@@ -873,7 +873,7 @@ export default function FloorPage() {
 
                   {/* Party-size selector */}
                   <div>
-                    <p className="text-[10px] font-semibold text-black/60 uppercase tracking-wide mb-1">{t("floor_party_size")}</p>
+                    <p className="text-[10px] font-semibold text-black uppercase tracking-wide mb-1">{t("floor_party_size")}</p>
                     <div className="flex items-center gap-2">
                       {SEAT_QUICK_OPTIONS.map((n) => {
                         const selected = newTableSeats === n;

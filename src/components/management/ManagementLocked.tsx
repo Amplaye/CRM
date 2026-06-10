@@ -36,7 +36,7 @@ export function ManagementLocked() {
         <h1 className="text-xl sm:text-2xl font-bold text-black">
           {t("management_locked_title" as keyof Dictionary) || "Gestionale — funzione premium"}
         </h1>
-        <p className="mt-2 text-sm text-black/70 max-w-md mx-auto">
+        <p className="mt-2 text-sm text-black max-w-md mx-auto">
           {t("management_locked_body" as keyof Dictionary) ||
             "Collega la cassa e tieni sotto controllo food cost, margini, conto economico, magazzino e fatture. Modulo in arrivo: contattaci per attivarlo sul tuo ristorante."}
         </p>

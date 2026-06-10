@@ -182,11 +182,11 @@ export function Sidebar({ mobileOpen = false, onClose }: SidebarProps) {
                   href="/settings?upgrade=management"
                   onClick={handleNavClick}
                   title={t("billing_addon_locked_hint" as keyof Dictionary) || "Funzione a pagamento — sblocca dall'abbonamento"}
-                  className="flex items-center px-3 py-2.5 md:py-2 text-sm font-medium rounded-md transition-colors text-black/40 hover:bg-[#c4956a]/10 hover:text-black/60"
+                  className="flex items-center px-3 py-2.5 md:py-2 text-sm font-medium rounded-md transition-colors text-black hover:bg-[#c4956a]/10 hover:text-black"
                 >
-                  <item.icon className="mr-3 flex-shrink-0 h-5 w-5 text-black/40" aria-hidden="true" />
+                  <item.icon className="mr-3 flex-shrink-0 h-5 w-5 text-black" aria-hidden="true" />
                   <span className="flex-1">{label}</span>
-                  <Lock className="ml-2 flex-shrink-0 h-3.5 w-3.5 text-black/40" aria-label="locked" />
+                  <Lock className="ml-2 flex-shrink-0 h-3.5 w-3.5 text-black" aria-label="locked" />
                 </Link>
               );
             }

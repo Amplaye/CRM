@@ -146,7 +146,7 @@ export function RecipePanel({
       </div>
 
       {ingredients.length === 0 ? (
-        <p className="text-xs text-black/60">
+        <p className="text-xs text-black">
           {t("recipe_no_ingredients" as keyof Dictionary) ||
             "Nessun ingrediente: aggiungili dalla sezione Magazzino."}
         </p>
@@ -165,8 +165,8 @@ export function RecipePanel({
                     className="w-20 px-2 py-1 text-sm border-2 rounded"
                     style={{ borderColor: "#c4956a" }}
                   />
-                  <span className="w-8 text-xs text-black/60">{ing?.unit}</span>
-                  <span className="w-20 text-right text-xs text-black/70">
+                  <span className="w-8 text-xs text-black">{ing?.unit}</span>
+                  <span className="w-20 text-right text-xs text-black">
                     € {((Number(r.qty) || 0) * (costMap.get(r.ingredient_id) || 0)).toFixed(2)}
                   </span>
                   <button

@@ -279,7 +279,7 @@ export function StaffTab() {
                   {m.role === "owner"
                     ? <Shield className="w-3 h-3 flex-shrink-0" style={{ color: '#c4956a' }} />
                     : <User className="w-3 h-3 flex-shrink-0 text-blue-600" />}
-                  <span className="text-xs text-zinc-500">{roleLabel(m.role)}</span>
+                  <span className="text-xs text-black">{roleLabel(m.role)}</span>
                   <span className="ml-2 px-1.5 py-0.5 text-xs font-semibold rounded-full bg-emerald-100 text-emerald-800">{t("team_status_active") || "Active"}</span>
                 </div>
               </div>
@@ -290,7 +290,7 @@ export function StaffTab() {
                   {m.role === "host" && (
                     <button
                       onClick={() => openQrFor(m)}
-                      className="text-zinc-700 hover:text-black cursor-pointer"
+                      className="text-black hover:text-black cursor-pointer"
                       title={t("staff_qr_login") || "QR di login"}
                     >
                       <QrCode className="w-4 h-4" />
@@ -334,7 +334,7 @@ export function StaffTab() {
                   style={{ borderColor: '#c4956a', background: 'rgba(252,246,237,0.6)' }}
                   autoFocus
                 />
-                <p className="text-xs text-zinc-600 mt-1">
+                <p className="text-xs text-black mt-1">
                   {t("team_invite_name_hint") || "Niente email: dopo il salvataggio si genera un QR di accesso da scansionare col telefono."}
                 </p>
               </div>
@@ -393,7 +393,7 @@ export function StaffTab() {
                   <div className="flex justify-center p-4 rounded-lg" style={{ background: 'white', border: '2px solid #c4956a' }}>
                     <QRCodeSVG value={qrUrl} size={260} level="M" />
                   </div>
-                  <p className="text-xs text-black/70 text-center">
+                  <p className="text-xs text-black text-center">
                     {(t("staff_qr_expires") || "Valido per 10 minuti. Si può usare una sola volta.")}
                   </p>
                 </>

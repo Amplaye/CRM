@@ -514,7 +514,7 @@ export const de: Dictionary = {
   settings_feature_commercial_info: "Automatische Antworten — Preislisten & Infos",
   settings_feature_commercial_info_hint: "Der Bot beantwortet Fragen zu Torten, festen Menüs, Buffets und Preislisten selbst (aus deinen \"kommerziell\"-Artikeln) und schlägt sie vor, wenn er einen Anlass oder eine große Gruppe erkennt.",
   settings_feature_commercial_info_cta: "Automatische Antworten sind aktiv. Füge jetzt deine Preislisten im Tab „Preislisten & Infos“ hinzu.",
-  settings_feature_commercial_info_cta_btn: "Preislisten & Infos einrichten →",
+  settings_feature_commercial_info_cta_btn: "Preislisten & Infos einrichten",
   settings_tab_commercial: "Preislisten & Infos",
   ci_title: "Kommerzielle Preislisten & Infos",
   ci_desc: "Füge deine Preislisten und Menüs hinzu. Der Bot beantwortet Fragen zu Torten, festen Menüs, Buffets oder Preislisten selbst und schlägt sie vor, wenn er einen Anlass (Geburtstag, Feier…) oder eine große Gruppe erkennt.",

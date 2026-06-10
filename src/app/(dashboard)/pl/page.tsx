@@ -143,11 +143,11 @@ export default function PlPage() {
       {/* Hero: revenue + operating margin */}
       <div className="rounded-xl border-2 p-6 grid grid-cols-1 sm:grid-cols-2 gap-4" style={{ borderColor: "#c4956a", background: "rgba(252,246,237,0.85)" }}>
         <div>
-          <div className="text-sm font-medium text-black/70">{t("pl_revenue" as keyof Dictionary) || "Ricavi"}</div>
+          <div className="text-sm font-medium text-black">{t("pl_revenue" as keyof Dictionary) || "Ricavi"}</div>
           <div className="text-4xl font-bold text-black">{fmt(summary?.revenue ?? null)}</div>
         </div>
         <div>
-          <div className="text-sm font-medium text-black/70">{t("pl_operating_margin" as keyof Dictionary) || "Margine operativo"}</div>
+          <div className="text-sm font-medium text-black">{t("pl_operating_margin" as keyof Dictionary) || "Margine operativo"}</div>
           <div className="text-4xl font-bold" style={{ color: (summary?.operatingMargin ?? 0) >= 0 ? "#059669" : "#dc2626" }}>
             {fmt(summary?.operatingMargin ?? null)}
             {summary?.operatingMarginPct != null && <span className="text-lg ml-2">({summary.operatingMarginPct.toFixed(0)}%)</span>}
@@ -208,7 +208,7 @@ export default function PlPage() {
         )}
       </div>
 
-      {loading && <p className="text-sm text-black/50">…</p>}
+      {loading && <p className="text-sm text-black">…</p>}
     </div>
   );
 }

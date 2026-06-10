@@ -460,7 +460,7 @@ export default function MenuPage() {
               <button
                 type="button"
                 onClick={() => setSearch("")}
-                className="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded-full text-black/50 hover:text-black hover:bg-black/5"
+                className="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded-full text-black hover:text-black hover:bg-black/5"
                 aria-label="Cancella ricerca"
               >
                 <X className="h-4 w-4" />
@@ -845,7 +845,7 @@ export default function MenuPage() {
                                   </span>
                                 </>
                               ) : (
-                                <span className="text-black/40 italic font-bold">—</span>
+                                <span className="text-black italic font-bold">—</span>
                               )}
                             </span>
                           </div>
@@ -857,7 +857,7 @@ export default function MenuPage() {
                           )}
 
                           {it.description && (
-                            <p className="text-[13px] text-black/70 line-clamp-2 leading-snug mt-1">
+                            <p className="text-[13px] text-black line-clamp-2 leading-snug mt-1">
                               {it.description}
                             </p>
                           )}
@@ -3406,11 +3406,11 @@ function CollectionEditModal({
             </div>
 
             {items.length === 0 ? (
-              <p className="text-sm text-black/60 italic py-4 text-center">
+              <p className="text-sm text-black italic py-4 text-center">
                 {t("menu_collection_no_items") || "Non ci sono ancora piatti nel menu da aggiungere."}
               </p>
             ) : groupedItems.length === 0 ? (
-              <p className="text-sm text-black/60 italic py-4 text-center">
+              <p className="text-sm text-black italic py-4 text-center">
                 {t("menu_no_results") || "Nessun risultato"}
               </p>
             ) : (
@@ -3441,7 +3441,7 @@ function CollectionEditModal({
                           />
                           <span className="flex-1 text-sm font-bold text-black truncate">{it.name}</span>
                           {it.price != null && (
-                            <span className="text-xs text-black/60 whitespace-nowrap">
+                            <span className="text-xs text-black whitespace-nowrap">
                               {it.price.toFixed(2)} {it.currency === "EUR" ? "€" : it.currency}
                             </span>
                           )}

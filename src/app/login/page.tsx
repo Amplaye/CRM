@@ -128,7 +128,7 @@ export default function LoginPage() {
                   required
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className="block w-full pl-10 text-sm border-2 p-2.5 rounded-lg focus:ring-2 focus:ring-[#c4956a] focus:border-[#c4956a] outline-none transition-all text-black placeholder:text-black/50"
+                  className="block w-full pl-10 text-sm border-2 p-2.5 rounded-lg focus:ring-2 focus:ring-[#c4956a] focus:border-[#c4956a] outline-none transition-all text-black placeholder:text-black"
                   style={{
                     background: 'rgba(252,246,237,0.6)',
                     borderColor: '#c4956a',
@@ -152,7 +152,7 @@ export default function LoginPage() {
                   required
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="block w-full pl-10 pr-10 text-sm border-2 p-2.5 rounded-lg focus:ring-2 focus:ring-[#c4956a] focus:border-[#c4956a] outline-none transition-all text-black placeholder:text-black/50"
+                  className="block w-full pl-10 pr-10 text-sm border-2 p-2.5 rounded-lg focus:ring-2 focus:ring-[#c4956a] focus:border-[#c4956a] outline-none transition-all text-black placeholder:text-black"
                   style={{
                     background: 'rgba(252,246,237,0.6)',
                     borderColor: '#c4956a',
@@ -163,7 +163,7 @@ export default function LoginPage() {
                   onClick={() => setShowPassword(!showPassword)}
                   className="absolute inset-y-0 right-0 pr-3 flex items-center"
                 >
-                  {showPassword ? <EyeOff className="h-4 w-4 text-black/50 hover:text-black transition-colors" /> : <Eye className="h-4 w-4 text-black/50 hover:text-black transition-colors" />}
+                  {showPassword ? <EyeOff className="h-4 w-4 text-black hover:text-black transition-colors" /> : <Eye className="h-4 w-4 text-black hover:text-black transition-colors" />}
                 </button>
               </div>
             </div>

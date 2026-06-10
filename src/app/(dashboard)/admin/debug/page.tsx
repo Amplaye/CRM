@@ -256,7 +256,7 @@ export default function DebugPage() {
                       </div>
                       <p className="text-xs font-medium text-black">{item.title}</p>
                       {item.description && <p className="text-[10px] text-black mt-0.5">{item.description}</p>}
-                      <p className="text-[10px] text-black/25 mt-1">{new Date(item._time).toLocaleString()}</p>
+                      <p className="text-[10px] text-black mt-1">{new Date(item._time).toLocaleString()}</p>
                     </div>
                   ));
                 })()}

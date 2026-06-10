@@ -51,7 +51,7 @@ export default function ForgotPasswordPage() {
           {sent ? (
             <div className="text-center space-y-4">
               <CheckCircle className="mx-auto h-12 w-12 text-emerald-500" />
-              <h3 className="text-lg font-semibold text-zinc-900">{t("auth_check_email")}</h3>
+              <h3 className="text-lg font-semibold text-black">{t("auth_check_email")}</h3>
               <p className="text-sm text-black">
                 {t("auth_reset_sent")} <strong>{email}</strong>. Click the link in the email to reset your password.
               </p>

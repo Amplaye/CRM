@@ -438,7 +438,7 @@ export default function AnalyticsPage() {
           <span className="text-sm font-medium">
             {t("analytics_factors_dynamic").replace("{spend}", String(kpis.avgSpend))}
           </span>
-          <span className="ml-auto text-[11px] font-semibold uppercase tracking-wider text-black/55">
+          <span className="ml-auto text-[11px] font-semibold uppercase tracking-wider text-black">
             {rangeLabel(range)}
           </span>
         </div>
@@ -458,7 +458,7 @@ export default function AnalyticsPage() {
                 €{kpis.grossValue.toLocaleString("es-ES")} {t("analytics_gross")}
               </span>
               {kpis.periodCost > 0 && (
-                <span className="text-xs font-medium text-black/60">
+                <span className="text-xs font-medium text-black">
                   − €{kpis.periodCost.toLocaleString("es-ES")} {t("analytics_ai_cost")}
                 </span>
               )}
@@ -523,13 +523,13 @@ export default function AnalyticsPage() {
                   <Icon className="w-5 h-5" style={{ color: BRAND_BROWN }} />
                 </div>
                 <div className="min-w-0">
-                  <p className="text-[10px] sm:text-[11px] font-semibold uppercase tracking-wider text-black/65 leading-tight">
+                  <p className="text-[10px] sm:text-[11px] font-semibold uppercase tracking-wider text-black leading-tight">
                     {m.label}
                   </p>
                   <p className="text-xl sm:text-2xl font-bold text-black tabular-nums leading-tight mt-0.5">
                     {m.value}
                   </p>
-                  <p className="text-[10px] sm:text-[11px] text-black/55 leading-tight mt-0.5">{m.sub}</p>
+                  <p className="text-[10px] sm:text-[11px] text-black leading-tight mt-0.5">{m.sub}</p>
                 </div>
               </div>
             );
@@ -550,15 +550,15 @@ export default function AnalyticsPage() {
         >
           <div className="flex items-center justify-between mb-6">
             <h3 className="text-[15px] font-semibold text-black">{t("analytics_chart_noshow_title")}</h3>
-            <span className="text-[11px] font-semibold uppercase tracking-wider text-black/55">
+            <span className="text-[11px] font-semibold uppercase tracking-wider text-black">
               {rangeLabel(range)}
             </span>
           </div>
           <div className="relative w-full h-80">
             {!mounted || initialLoading ? (
-              <div className="absolute inset-0 flex items-center justify-center text-sm text-black/60">…</div>
+              <div className="absolute inset-0 flex items-center justify-center text-sm text-black">…</div>
             ) : kpis.chartData.length === 0 ? (
-              <div className="absolute inset-0 flex items-center justify-center text-sm text-black/60">
+              <div className="absolute inset-0 flex items-center justify-center text-sm text-black">
                 {t("analytics_no_data")}
               </div>
             ) : (
@@ -610,15 +610,15 @@ export default function AnalyticsPage() {
         >
           <div className="flex items-center justify-between mb-6">
             <h3 className="text-[15px] font-semibold text-black">{t("analytics_chart_covers_title")}</h3>
-            <span className="text-[11px] font-semibold uppercase tracking-wider text-black/55">
+            <span className="text-[11px] font-semibold uppercase tracking-wider text-black">
               {rangeLabel(range)}
             </span>
           </div>
           <div className="relative w-full h-80">
             {!mounted || initialLoading ? (
-              <div className="absolute inset-0 flex items-center justify-center text-sm text-black/60">…</div>
+              <div className="absolute inset-0 flex items-center justify-center text-sm text-black">…</div>
             ) : kpis.chartData.length === 0 ? (
-              <div className="absolute inset-0 flex items-center justify-center text-sm text-black/60">
+              <div className="absolute inset-0 flex items-center justify-center text-sm text-black">
                 {t("analytics_no_data")}
               </div>
             ) : (

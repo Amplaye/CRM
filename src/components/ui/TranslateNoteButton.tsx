@@ -66,7 +66,7 @@ export function TranslateNoteButton({ text, className }: Props) {
   return (
     <div className={`flex flex-col gap-2 ${className || ""}`}>
       <div className="flex items-center gap-2 flex-wrap">
-        <Languages className="w-4 h-4 text-black/70" aria-hidden />
+        <Languages className="w-4 h-4 text-black" aria-hidden />
         {(Object.keys(FLAGS) as Lang[]).map((lang) => {
           const isActive = activeLang === lang;
           const isLoading = loading === lang;
@@ -93,7 +93,7 @@ export function TranslateNoteButton({ text, className }: Props) {
             type="button"
             onClick={close}
             title="Cerrar"
-            className="inline-flex items-center px-2 py-1.5 rounded-md text-sm text-black/70 hover:bg-black/5"
+            className="inline-flex items-center px-2 py-1.5 rounded-md text-sm text-black hover:bg-black/5"
           >
             <X className="w-4 h-4" />
           </button>

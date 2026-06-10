@@ -506,11 +506,11 @@ export default function DashboardPage() {
           <span className="inline-flex items-center justify-center w-7 h-7 rounded-md" style={{ background: "#c4956a" }}>
             <Sparkles className="w-4 h-4" style={{ color: "#FCF6ED" }} />
           </span>
-          <span className="text-[11px] sm:text-xs font-bold uppercase tracking-[0.18em] text-black/70">
+          <span className="text-[11px] sm:text-xs font-bold uppercase tracking-[0.18em] text-black">
             {t("dash_ai_generated_value")}
           </span>
           <span className="hidden sm:inline-block h-px flex-1 ml-2" style={{ background: "rgba(196,149,106,0.35)" }} />
-          <span className="hidden sm:inline text-[11px] font-semibold uppercase tracking-wider text-black/55">
+          <span className="hidden sm:inline text-[11px] font-semibold uppercase tracking-wider text-black">
             {periodLabel}
           </span>
         </div>
@@ -540,7 +540,7 @@ export default function DashboardPage() {
               >
                 {kpis.revenueChange > 0 ? <TrendingUp className="w-4 h-4" /> : <TrendingDown className="w-4 h-4" />}
                 {kpis.revenueChange > 0 ? "+" : ""}{kpis.revenueChange}%
-                <span className="text-black/55 font-medium">{t("dash_vs_prev_month")}</span>
+                <span className="text-black font-medium">{t("dash_vs_prev_month")}</span>
               </span>
             )}
           </div>
@@ -549,12 +549,12 @@ export default function DashboardPage() {
           <div className="mt-4 h-[3px] w-14 rounded-full" style={{ background: BRAND_BROWN }} />
 
           {/* Supportive subtitle — math breakdown */}
-          <p className="mt-3 text-sm sm:text-[15px] text-black/70 leading-snug max-w-2xl">
-            <span className="sm:hidden font-semibold text-black/80">{periodLabel} — </span>
+          <p className="mt-3 text-sm sm:text-[15px] text-black leading-snug max-w-2xl">
+            <span className="sm:hidden font-semibold text-black">{periodLabel} — </span>
             {kpis.periodCost > 0 ? (
               <>
                 €{kpis.grossValue.toLocaleString("es-ES")}{" "}
-                <span className="text-black/50">{t("dash_ai_cost") ? "gross" : ""}</span>
+                <span className="text-black">{t("dash_ai_cost") ? "gross" : ""}</span>
                 {" − "}
                 €{kpis.periodCost.toLocaleString("es-ES")} {t("dash_ai_cost")}
               </>
@@ -594,7 +594,7 @@ export default function DashboardPage() {
                 </div>
 
                 {/* Label */}
-                <p className="text-[11px] sm:text-xs font-semibold uppercase tracking-wider text-black/70 mb-1.5">
+                <p className="text-[11px] sm:text-xs font-semibold uppercase tracking-wider text-black mb-1.5">
                   {b.label}
                 </p>
 
@@ -610,7 +610,7 @@ export default function DashboardPage() {
                 <div className="mt-2 mb-2 h-[2px] w-8 rounded-full" style={{ background: "#c4956a" }} />
 
                 {/* Caption */}
-                <p className="text-xs text-black/65 leading-tight">{b.sub}</p>
+                <p className="text-xs text-black leading-tight">{b.sub}</p>
               </div>
             );
           })}
@@ -656,13 +656,13 @@ export default function DashboardPage() {
                   <Icon className="w-4 h-4 sm:w-5 sm:h-5" style={{ color: BRAND_BROWN }} />
                 </div>
                 <div className="min-w-0 text-center">
-                  <p className="text-[10px] sm:text-[11px] font-semibold uppercase tracking-wider text-black/65 leading-tight">
+                  <p className="text-[10px] sm:text-[11px] font-semibold uppercase tracking-wider text-black leading-tight">
                     {m.label}
                   </p>
                   <p className="text-lg sm:text-2xl font-bold text-black tabular-nums leading-tight mt-0.5">
                     {m.value}
                   </p>
-                  <p className="text-[10px] sm:text-[11px] text-black/55 leading-tight mt-0.5">{m.sub}</p>
+                  <p className="text-[10px] sm:text-[11px] text-black leading-tight mt-0.5">{m.sub}</p>
                 </div>
                 <div aria-hidden className="w-9 h-9 sm:w-10 sm:h-10" />
               </div>
@@ -730,7 +730,7 @@ export default function DashboardPage() {
                 >
                   <Bot className="w-6 h-6" style={{ color: BRAND_BROWN }} />
                 </div>
-                <p className="text-xs font-semibold text-black/70">{t("analytics_dietary_none")}</p>
+                <p className="text-xs font-semibold text-black">{t("analytics_dietary_none")}</p>
               </div>
             ) : (
               <ChartFrame>
@@ -776,7 +776,7 @@ export default function DashboardPage() {
                 >
                   <Bot className="w-6 h-6" style={{ color: BRAND_BROWN }} />
                 </div>
-                <p className="text-sm font-semibold text-black/80">{t("dash_no_data")}</p>
+                <p className="text-sm font-semibold text-black">{t("dash_no_data")}</p>
               </div>
             ) : (
               mounted && (
@@ -807,9 +807,9 @@ export default function DashboardPage() {
             )}
           </div>
           {kpis.fromWebCount > 0 && (
-            <p className="text-xs text-center text-black/70 mt-2">
+            <p className="text-xs text-center text-black mt-2">
               {t("dash_from_web")}: <span className="font-bold text-black">{kpis.fromWebPct}%</span>{" "}
-              <span className="text-black/55">({kpis.fromWebCount})</span>
+              <span className="text-black">({kpis.fromWebCount})</span>
             </p>
           )}
         </div>
@@ -828,7 +828,7 @@ export default function DashboardPage() {
           <h3 className="text-[11px] sm:text-xs font-bold text-black uppercase tracking-[0.18em]">
             {t("dash_ai_revenue_time")}
           </h3>
-          <span className="text-[10px] sm:text-[11px] font-semibold uppercase tracking-wider text-black/55">
+          <span className="text-[10px] sm:text-[11px] font-semibold uppercase tracking-wider text-black">
             {periodLabel}
           </span>
         </div>

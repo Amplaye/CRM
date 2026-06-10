@@ -514,7 +514,7 @@ export const it: Dictionary = {
   settings_feature_commercial_info: "Risposte automatiche — Listini & Info",
   settings_feature_commercial_info_hint: "Il bot risponde da solo a domande su torte, menù fissi, buffet e listini (dai tuoi articoli \"commerciale\") e le propone quando intuisce un'occasione o un gruppo numeroso.",
   settings_feature_commercial_info_cta: "Hai attivato le Risposte automatiche. Ora aggiungi i tuoi listini nella scheda “Listini & Info”.",
-  settings_feature_commercial_info_cta_btn: "Configura Listini & Info →",
+  settings_feature_commercial_info_cta_btn: "Configura Listini & Info",
   settings_tab_commercial: "Listini & Info",
   ci_title: "Listini & Info commerciali",
   ci_desc: "Aggiungi i tuoi listini e menù. Il bot risponderà da solo a chi chiede di torte, menù fissi, buffet o listini, e li proporrà quando intuisce un'occasione (compleanno, festa…) o un gruppo numeroso.",

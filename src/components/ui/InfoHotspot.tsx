@@ -67,7 +67,7 @@ export function InfoHotspot({ title, body, example, align = "start", side = "bot
           }}
         >
           <p className="text-sm font-bold text-black mb-1">{title}</p>
-          <p className="text-xs leading-relaxed text-black/80">{body}</p>
+          <p className="text-xs leading-relaxed text-black">{body}</p>
           {example && (
             <p
               className="mt-2.5 text-xs leading-relaxed text-black rounded-lg px-2.5 py-2 border-l-2"

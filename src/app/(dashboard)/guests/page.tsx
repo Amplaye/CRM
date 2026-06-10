@@ -435,7 +435,7 @@ function GuestNotesEditor({ guest, onSaved }: { guest: Guest; onSaved: (updated:
         <label className="flex items-center gap-1.5 text-xs font-semibold text-black mb-1">
           <span>🍽️</span>
           <span>{t("guests_dietary_label") || "Allergie / dieta"}</span>
-          {savingField === "dietary_notes" && <span className="text-[10px] text-zinc-500">…</span>}
+          {savingField === "dietary_notes" && <span className="text-[10px] text-black">…</span>}
         </label>
         <textarea
           value={dietary}
@@ -452,7 +452,7 @@ function GuestNotesEditor({ guest, onSaved }: { guest: Guest; onSaved: (updated:
         <label className="flex items-center gap-1.5 text-xs font-semibold text-black mb-1">
           <Accessibility className="w-3.5 h-3.5" />
           <span>{t("guests_accessibility_label") || "Accessibilità"}</span>
-          {savingField === "accessibility_notes" && <span className="text-[10px] text-zinc-500">…</span>}
+          {savingField === "accessibility_notes" && <span className="text-[10px] text-black">…</span>}
         </label>
         <textarea
           value={accessibility}
@@ -469,7 +469,7 @@ function GuestNotesEditor({ guest, onSaved }: { guest: Guest; onSaved: (updated:
         <label className="flex items-center gap-1.5 text-xs font-semibold text-black mb-1">
           <UsersIcon className="w-3.5 h-3.5" />
           <span>{t("guests_family_label") || "Famiglia / note personali"}</span>
-          {savingField === "family_notes" && <span className="text-[10px] text-zinc-500">…</span>}
+          {savingField === "family_notes" && <span className="text-[10px] text-black">…</span>}
         </label>
         <textarea
           value={family}

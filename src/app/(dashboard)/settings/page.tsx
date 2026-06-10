@@ -44,7 +44,11 @@ function SettingsContent() {
   // owner/admin gate, and only when the (free) commercial_info_enabled flag is ON —
   // so the tab simply appears the moment they flip the toggle in Features.
   const commercialEnabled = getFeatures(activeTenant?.settings).commercial_info_enabled;
-  const canSeeCommercialTab = (activeRole === "owner" || globalRole === "platform_admin") && commercialEnabled;
+  // Show when enabled — OR when we're already on the tab. The "Configura Listini"
+  // CTA flips the flag optimistically in FeaturesTab and navigates here before the
+  // TenantContext refresh has propagated the new flag; without the `|| tab` fallback
+  // the content would blank out in that race window (the "a volte sì a volte no" bug).
+  const canSeeCommercialTab = (activeRole === "owner" || globalRole === "platform_admin") && (commercialEnabled || tab === "commercial");
   // Gestionale = financial targets/budgets; owner/admin only, and only when the
   // management module is enabled for this tenant.
   const managementEnabled = getFeatures(activeTenant?.settings).management_enabled;
@@ -75,7 +79,7 @@ function SettingsContent() {
       <div className="flex gap-1">
         <button
           onClick={() => setActiveTab("general")}
-          className={`inline-flex items-center gap-2 pr-4 py-2 text-sm font-medium border-b-2 transition-colors cursor-pointer ${tab === "general" ? "text-black" : "text-black/60 hover:text-black border-transparent"}`}
+          className={`inline-flex items-center gap-2 pr-4 py-2 text-sm font-medium border-b-2 transition-colors cursor-pointer ${tab === "general" ? "text-black" : "text-black hover:text-black border-transparent"}`}
           style={tab === "general" ? { borderColor: "#c4956a" } : {}}
         >
           <SettingsIcon className="w-4 h-4" />
@@ -84,7 +88,7 @@ function SettingsContent() {
         {canSeeBookingTab && (
           <button
             onClick={() => setActiveTab("booking")}
-            className={`inline-flex items-center gap-2 px-4 py-2 text-sm font-medium border-b-2 transition-colors cursor-pointer ${tab === "booking" ? "text-black" : "text-black/60 hover:text-black border-transparent"}`}
+            className={`inline-flex items-center gap-2 px-4 py-2 text-sm font-medium border-b-2 transition-colors cursor-pointer ${tab === "booking" ? "text-black" : "text-black hover:text-black border-transparent"}`}
             style={tab === "booking" ? { borderColor: "#c4956a" } : {}}
           >
             <CalendarClock className="w-4 h-4" />
@@ -94,7 +98,7 @@ function SettingsContent() {
         {canSeeStaffTab && (
           <button
             onClick={() => setActiveTab("staff")}
-            className={`inline-flex items-center gap-2 px-4 py-2 text-sm font-medium border-b-2 transition-colors cursor-pointer ${tab === "staff" ? "text-black" : "text-black/60 hover:text-black border-transparent"}`}
+            className={`inline-flex items-center gap-2 px-4 py-2 text-sm font-medium border-b-2 transition-colors cursor-pointer ${tab === "staff" ? "text-black" : "text-black hover:text-black border-transparent"}`}
             style={tab === "staff" ? { borderColor: "#c4956a" } : {}}
           >
             <Users className="w-4 h-4" />
@@ -104,7 +108,7 @@ function SettingsContent() {
         {canSeeFeaturesTab && (
           <button
             onClick={() => setActiveTab("features")}
-            className={`inline-flex items-center gap-2 px-4 py-2 text-sm font-medium border-b-2 transition-colors cursor-pointer ${tab === "features" ? "text-black" : "text-black/60 hover:text-black border-transparent"}`}
+            className={`inline-flex items-center gap-2 px-4 py-2 text-sm font-medium border-b-2 transition-colors cursor-pointer ${tab === "features" ? "text-black" : "text-black hover:text-black border-transparent"}`}
             style={tab === "features" ? { borderColor: "#c4956a" } : {}}
           >
             <ToggleRight className="w-4 h-4" />
@@ -114,7 +118,7 @@ function SettingsContent() {
         {canSeeCommercialTab && (
           <button
             onClick={() => setActiveTab("commercial")}
-            className={`inline-flex items-center gap-2 px-4 py-2 text-sm font-medium border-b-2 transition-colors cursor-pointer ${tab === "commercial" ? "text-black" : "text-black/60 hover:text-black border-transparent"}`}
+            className={`inline-flex items-center gap-2 px-4 py-2 text-sm font-medium border-b-2 transition-colors cursor-pointer ${tab === "commercial" ? "text-black" : "text-black hover:text-black border-transparent"}`}
             style={tab === "commercial" ? { borderColor: "#c4956a" } : {}}
           >
             <Tags className="w-4 h-4" />
@@ -124,7 +128,7 @@ function SettingsContent() {
         {canSeeManagementTab && (
           <button
             onClick={() => setActiveTab("management")}
-            className={`inline-flex items-center gap-2 px-4 py-2 text-sm font-medium border-b-2 transition-colors cursor-pointer ${tab === "management" ? "text-black" : "text-black/60 hover:text-black border-transparent"}`}
+            className={`inline-flex items-center gap-2 px-4 py-2 text-sm font-medium border-b-2 transition-colors cursor-pointer ${tab === "management" ? "text-black" : "text-black hover:text-black border-transparent"}`}
             style={tab === "management" ? { borderColor: "#c4956a" } : {}}
           >
             <LineChart className="w-4 h-4" />
@@ -134,7 +138,7 @@ function SettingsContent() {
         {canSeePosTab && (
           <button
             onClick={() => setActiveTab("pos")}
-            className={`inline-flex items-center gap-2 px-4 py-2 text-sm font-medium border-b-2 transition-colors cursor-pointer ${tab === "pos" ? "text-black" : "text-black/60 hover:text-black border-transparent"}`}
+            className={`inline-flex items-center gap-2 px-4 py-2 text-sm font-medium border-b-2 transition-colors cursor-pointer ${tab === "pos" ? "text-black" : "text-black hover:text-black border-transparent"}`}
             style={tab === "pos" ? { borderColor: "#c4956a" } : {}}
           >
             <Plug className="w-4 h-4" />
@@ -144,7 +148,7 @@ function SettingsContent() {
         {canSeePaymentsTab && (
           <button
             onClick={() => setActiveTab("payments")}
-            className={`inline-flex items-center gap-2 px-4 py-2 text-sm font-medium border-b-2 transition-colors cursor-pointer ${tab === "payments" ? "text-black" : "text-black/60 hover:text-black border-transparent"}`}
+            className={`inline-flex items-center gap-2 px-4 py-2 text-sm font-medium border-b-2 transition-colors cursor-pointer ${tab === "payments" ? "text-black" : "text-black hover:text-black border-transparent"}`}
             style={tab === "payments" ? { borderColor: "#c4956a" } : {}}
           >
             <CreditCard className="w-4 h-4" />

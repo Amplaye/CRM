@@ -169,14 +169,14 @@ export default function AdminPage() {
       {/* Archived tenants — recoverable until their purge date */}
       {archived.length > 0 && (
         <div className="rounded-xl border-2 border-zinc-300 bg-zinc-50 p-4 space-y-2">
-          <h2 className="text-sm font-bold text-zinc-700 uppercase tracking-wider">Archiviati ({archived.length})</h2>
+          <h2 className="text-sm font-bold text-black uppercase tracking-wider">Archiviati ({archived.length})</h2>
           <div className="space-y-2">
             {archived.map((a) => (
               <div key={a.id} className="flex items-center justify-between gap-3 rounded-lg bg-white/70 px-3 py-2 text-sm">
                 <div className="min-w-0">
                   <span className="font-semibold text-black">{a.name}</span>
                   {a.purge_after && (
-                    <span className="text-xs text-zinc-500 block sm:inline sm:ml-2">
+                    <span className="text-xs text-black block sm:inline sm:ml-2">
                       cancellazione il {new Date(a.purge_after).toLocaleDateString()}
                     </span>
                   )}

@@ -435,7 +435,7 @@ export function GeneralTab() {
 
           <div className="mt-6">
             <label className="block text-sm font-medium text-black">{t("settings_logo")}</label>
-            <p className="mt-0.5 text-xs text-black/70">{t("settings_logo_desc")}</p>
+            <p className="mt-0.5 text-xs text-black">{t("settings_logo_desc")}</p>
             <div className="mt-3 flex items-center gap-4">
               <div
                 className="h-16 w-16 rounded-xl border-2 flex items-center justify-center overflow-hidden shrink-0"
@@ -478,7 +478,7 @@ export function GeneralTab() {
                 )}
               </div>
             </div>
-            <p className="mt-2 text-xs text-black/60">{t("settings_logo_hint")}</p>
+            <p className="mt-2 text-xs text-black">{t("settings_logo_hint")}</p>
           </div>
         </section>
 
@@ -547,7 +547,7 @@ export function GeneralTab() {
                   <div className="flex items-center justify-between">
                     <span className="text-sm font-bold text-black">{t(dayKey as any)}</span>
                     {slots.length === 0 && (
-                      <span className="text-[10px] italic text-black/60 uppercase tracking-wider">{t("settings_closed")}</span>
+                      <span className="text-[10px] italic text-black uppercase tracking-wider">{t("settings_closed")}</span>
                     )}
                   </div>
                   <div className="flex flex-col gap-2">
@@ -601,7 +601,7 @@ export function GeneralTab() {
             <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-3">
               <div className="flex-1 min-w-0">
                 <label className="text-sm font-bold text-black">{t("settings_voicemail_mode")}</label>
-                <p className="text-xs text-black/70 mt-0.5">{t("settings_voicemail_mode_hint")}</p>
+                <p className="text-xs text-black mt-0.5">{t("settings_voicemail_mode_hint")}</p>
               </div>
 
               <div className="flex flex-wrap gap-1.5 shrink-0" role="radiogroup" aria-label={t("settings_voicemail_mode")}>
@@ -635,7 +635,7 @@ export function GeneralTab() {
 
             {/* Description of the currently selected mode + live effective state. */}
             <div className="mt-3 flex flex-col gap-1.5">
-              <p className="text-xs text-black/70">
+              <p className="text-xs text-black">
                 {voicemail.mode === "always"
                   ? t("settings_voicemail_mode_always_desc")
                   : voicemail.mode === "scheduled"
@@ -665,12 +665,12 @@ export function GeneralTab() {
               style={inputBorder}
               placeholder="+34 600 000 000"
             />
-            <p className="mt-1 text-xs text-black/70">{t("settings_voicemail_forward_hint")}</p>
+            <p className="mt-1 text-xs text-black">{t("settings_voicemail_forward_hint")}</p>
           </div>
 
           <div className="mb-5" data-testid="voicemail-schedule">
             <h4 className="text-sm font-bold text-black mb-1">{t("settings_voicemail_schedule")}</h4>
-            <p className="text-xs text-black/70 mb-3">{t("settings_voicemail_schedule_desc")}</p>
+            <p className="text-xs text-black mb-3">{t("settings_voicemail_schedule_desc")}</p>
             {voicemail.mode !== "scheduled" && (
               <div className="flex items-start gap-2 mb-3 px-3 py-2 rounded-lg border" style={{ borderColor: "#c4956a", background: "rgba(196,149,106,0.12)" }}>
                 <Clock className="w-4 h-4 mt-0.5 shrink-0 text-[#c4956a]" />
@@ -690,7 +690,7 @@ export function GeneralTab() {
                     <div className="flex items-center justify-between">
                       <span className="text-sm font-bold text-black">{t(dayKey as any)}</span>
                       {slots.length === 0 && (
-                        <span className="text-[10px] italic text-black/60 uppercase tracking-wider">—</span>
+                        <span className="text-[10px] italic text-black uppercase tracking-wider">—</span>
                       )}
                     </div>
                     <div className="flex flex-col gap-2">
@@ -736,7 +736,7 @@ export function GeneralTab() {
 
           <div>
             <h4 className="text-sm font-bold text-black mb-1">{t("settings_voicemail_message")}</h4>
-            <p className="text-xs text-black/70 mb-3">{t("settings_voicemail_message_hint")}</p>
+            <p className="text-xs text-black mb-3">{t("settings_voicemail_message_hint")}</p>
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
               {(["es", "en", "it", "de"] as const).map((lang) => (
                 <div key={lang}>

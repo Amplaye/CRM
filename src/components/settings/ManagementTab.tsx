@@ -97,10 +97,10 @@ export function ManagementTab() {
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-lg font-bold text-black">{t("settings_management_title" as keyof Dictionary) || "Controllo gestione"}</h2>
-          <p className="mt-1 text-sm text-black/70">{t("settings_management_desc" as keyof Dictionary) || "Obiettivi e budget letti dalle schermate Food cost e Conto economico."}</p>
+          <p className="mt-1 text-sm text-black">{t("settings_management_desc" as keyof Dictionary) || "Obiettivi e budget letti dalle schermate Food cost e Conto economico."}</p>
         </div>
         <div className="h-5 flex items-center" aria-live="polite">
-          {status === "saving" && <span className="text-sm text-black/40">…</span>}
+          {status === "saving" && <span className="text-sm text-black">…</span>}
           {status === "saved" && <span className="text-sm text-green-600">{t("settings_saved" as keyof Dictionary) || "Salvato"}</span>}
           {status === "error" && <span className="text-sm text-red-600">{t("settings_save_error" as keyof Dictionary) || "Errore"}</span>}
         </div>
@@ -143,11 +143,11 @@ export function ManagementTab() {
         </h3>
         <div className="flex flex-wrap items-end gap-3">
           <label className="flex flex-col gap-1">
-            <span className="text-xs text-black/70">{t("settings_management_date" as keyof Dictionary) || "Data"}</span>
+            <span className="text-xs text-black">{t("settings_management_date" as keyof Dictionary) || "Data"}</span>
             <input type="date" value={workDate} onChange={(e) => setWorkDate(e.target.value)} className={inputCls} style={inputStyle} />
           </label>
           <label className="flex flex-col gap-1">
-            <span className="text-xs text-black/70">{t("settings_management_shift" as keyof Dictionary) || "Turno"}</span>
+            <span className="text-xs text-black">{t("settings_management_shift" as keyof Dictionary) || "Turno"}</span>
             <select value={shift} onChange={(e) => setShift(e.target.value as any)} className={inputCls + " cursor-pointer"} style={inputStyle}>
               <option value="all">{t("pl_all" as keyof Dictionary) || "Intera giornata"}</option>
               <option value="lunch">{t("pl_lunch" as keyof Dictionary) || "Pranzo"}</option>
@@ -155,7 +155,7 @@ export function ManagementTab() {
             </select>
           </label>
           <label className="flex flex-col gap-1">
-            <span className="text-xs text-black/70">{t("settings_management_cost" as keyof Dictionary) || "Costo €"}</span>
+            <span className="text-xs text-black">{t("settings_management_cost" as keyof Dictionary) || "Costo €"}</span>
             <input type="number" value={cost} onChange={(e) => setCost(e.target.value)} className={inputCls} style={inputStyle} />
           </label>
           <button

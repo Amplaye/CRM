@@ -210,7 +210,7 @@ export default function RegisterPage() {
                   <button
                     type="button"
                     onClick={() => setShowPassword((v) => !v)}
-                    className="absolute inset-y-0 right-0 pr-3 flex items-center text-black/60 hover:text-black"
+                    className="absolute inset-y-0 right-0 pr-3 flex items-center text-black hover:text-black"
                     tabIndex={-1}
                     aria-label={showPassword ? "Hide password" : "Show password"}
                   >
@@ -233,7 +233,7 @@ export default function RegisterPage() {
           {step === 2 && (
             <div className="text-center space-y-4">
               <CheckCircle className="mx-auto h-12 w-12 text-emerald-500" />
-              <h3 className="text-lg font-semibold text-zinc-900">{t("auth_check_email")}</h3>
+              <h3 className="text-lg font-semibold text-black">{t("auth_check_email")}</h3>
               <p className="text-sm text-black">
                 {t("auth_confirm_sent")} <strong>{email}</strong>. Click the link to activate your account.
               </p>

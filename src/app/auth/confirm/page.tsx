@@ -133,7 +133,7 @@ function ConfirmInner() {
             <>
               <MailCheck className="mx-auto h-12 w-12 text-[#c4956a]" />
               <h1 className="mt-4 text-xl font-bold text-[#7a2211]">{t("auth_confirm_title")}</h1>
-              <p className="mt-2 text-sm text-black/80">{t("auth_confirm_sub")}</p>
+              <p className="mt-2 text-sm text-black">{t("auth_confirm_sub")}</p>
               <button
                 type="button"
                 onClick={() => setClicked(true)}
@@ -144,7 +144,7 @@ function ConfirmInner() {
                 {clicked ? <Loader2 className="w-5 h-5 animate-spin" /> : <CheckCircle className="w-5 h-5" />}
                 {clicked ? t("auth_confirm_activating") : t("auth_confirm_cta")}
               </button>
-              <p className="mt-4 text-[11px] text-black/50">
+              <p className="mt-4 text-[11px] text-black">
                 {t("auth_confirm_already")}{" "}
                 <Link href="/login" className="font-semibold text-[#c4956a] hover:text-[#b8845c]">{t("auth_confirm_signin_link")}</Link>.
               </p>
@@ -152,7 +152,7 @@ function ConfirmInner() {
           ) : resent ? (
             <>
               <MailCheck className="mx-auto h-12 w-12 text-emerald-500" />
-              <p className="mt-4 text-sm text-black/80">{t("auth_confirm_resend_done")}</p>
+              <p className="mt-4 text-sm text-black">{t("auth_confirm_resend_done")}</p>
               <Link
                 href="/login"
                 className="mt-6 inline-flex items-center justify-center gap-2 py-3 px-5 rounded-lg text-white font-bold transition-colors"
@@ -167,13 +167,13 @@ function ConfirmInner() {
             // success card above, or to the manual form below on error.
             <>
               <Loader2 className="mx-auto h-10 w-10 animate-spin text-[#c4956a]" />
-              <p className="mt-4 text-sm text-black/80">{t("auth_confirm_resend_sending")}</p>
+              <p className="mt-4 text-sm text-black">{t("auth_confirm_resend_sending")}</p>
             </>
           ) : (
             <>
               <RefreshCw className="mx-auto h-10 w-10 text-[#c4956a]" />
               <h1 className="mt-4 text-xl font-bold text-[#7a2211]">{t("auth_confirm_invalid_title")}</h1>
-              <p className="mt-2 text-sm text-black/80">{t("auth_confirm_invalid_sub")}</p>
+              <p className="mt-2 text-sm text-black">{t("auth_confirm_invalid_sub")}</p>
               <form onSubmit={handleResend} className="mt-5 space-y-3">
                 <input
                   type="email"
@@ -181,7 +181,7 @@ function ConfirmInner() {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder={t("auth_confirm_email_placeholder")}
-                  className="block w-full text-sm border-2 p-2.5 rounded-lg outline-none transition-all text-black placeholder:text-black/50"
+                  className="block w-full text-sm border-2 p-2.5 rounded-lg outline-none transition-all text-black placeholder:text-black"
                   style={{ background: "rgba(252,246,237,0.6)", borderColor: "#c4956a" }}
                 />
                 {resendError && (
@@ -197,7 +197,7 @@ function ConfirmInner() {
                   {resending ? t("auth_confirm_resend_sending") : t("auth_confirm_resend_cta")}
                 </button>
               </form>
-              <p className="mt-4 text-[11px] text-black/50">
+              <p className="mt-4 text-[11px] text-black">
                 {t("auth_confirm_already")}{" "}
                 <Link href="/login" className="font-semibold text-[#c4956a] hover:text-[#b8845c]">{t("auth_confirm_signin_link")}</Link>.
               </p>

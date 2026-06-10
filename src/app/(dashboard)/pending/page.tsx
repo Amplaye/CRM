@@ -368,8 +368,35 @@ export default function PendingPage() {
             ? ((rejectedReq as any).language as 'es' | 'it' | 'en' | 'de')
             : 'es';
           const restaurantPhone = (tenant as any)?.settings?.restaurant_phone as string | undefined;
-          const callPart = restaurantPhone ? ` Si quieres, puedes llamarnos al ${restaurantPhone} para buscar otra fecha.` : '';
-          const rejectMsg = `Hola${rejectedReq.guests?.name ? ' ' + rejectedReq.guests.name : ''}, lamentablemente no podemos aceptar tu solicitud de reserva para el ${formatDateFull(rejectedReq.date, rejectLang)} a las ${rejectedReq.time} (${rejectedReq.party_size} personas).${callPart} ¡Gracias!`;
+          const guestName = rejectedReq.guests?.name ? ' ' + rejectedReq.guests.name : '';
+          const dateStr = formatDateFull(rejectedReq.date, rejectLang);
+          const RT = {
+            es: {
+              greet: `Hola${guestName}`,
+              body: `lamentablemente no podemos aceptar tu solicitud de reserva para el ${dateStr} a las ${rejectedReq.time} (${rejectedReq.party_size} personas).`,
+              call: restaurantPhone ? ` Si quieres, puedes llamarnos al ${restaurantPhone} para buscar otra fecha.` : '',
+              thanks: ' ¡Gracias!',
+            },
+            it: {
+              greet: `Ciao${guestName}`,
+              body: `purtroppo non possiamo accettare la tua richiesta di prenotazione per il ${dateStr} alle ${rejectedReq.time} (${rejectedReq.party_size} persone).`,
+              call: restaurantPhone ? ` Se vuoi, puoi chiamarci al ${restaurantPhone} per cercare un'altra data.` : '',
+              thanks: ' Grazie!',
+            },
+            en: {
+              greet: `Hi${guestName}`,
+              body: `unfortunately we can't accept your booking request for ${dateStr} at ${rejectedReq.time} (${rejectedReq.party_size} people).`,
+              call: restaurantPhone ? ` If you'd like, you can call us at ${restaurantPhone} to find another date.` : '',
+              thanks: ' Thank you!',
+            },
+            de: {
+              greet: `Hallo${guestName}`,
+              body: `leider können wir deine Reservierungsanfrage für den ${dateStr} um ${rejectedReq.time} (${rejectedReq.party_size} Personen) nicht annehmen.`,
+              call: restaurantPhone ? ` Wenn du möchtest, kannst du uns unter ${restaurantPhone} anrufen, um einen anderen Termin zu finden.` : '',
+              thanks: ' Danke!',
+            },
+          }[rejectLang];
+          const rejectMsg = `${RT.greet}, ${RT.body}${RT.call}${RT.thanks}`;
           fetch("/api/send-whatsapp", {
             method: "POST",
             headers: { "Content-Type": "application/json" },

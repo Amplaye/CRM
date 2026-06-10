@@ -60,7 +60,7 @@ export default function ResetPasswordPage() {
           {success ? (
             <div className="text-center space-y-4">
               <CheckCircle className="mx-auto h-12 w-12 text-emerald-500" />
-              <h3 className="text-lg font-semibold text-zinc-900">{t("pwd_updated_title")}</h3>
+              <h3 className="text-lg font-semibold text-black">{t("pwd_updated_title")}</h3>
               <p className="text-sm text-black">
                 {t("pwd_redirecting")}
               </p>

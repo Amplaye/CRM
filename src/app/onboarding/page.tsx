@@ -373,7 +373,7 @@ export default function OnboardingPage() {
       <div className="flex items-center gap-1.5 sm:gap-2 mb-2">
         {[1, 2, 3, 4].map((n) => (<div key={n} className={`flex-1 h-1.5 rounded-full transition-colors ${n <= step ? "bg-[#c4956a]" : "bg-zinc-200"}`} />))}
       </div>
-      <p className="text-[11px] text-black/60 mb-5">{t.stepCounter.replace("{n}", String(step)).replace("{total}", "4")}</p>
+      <p className="text-[11px] text-black mb-5">{t.stepCounter.replace("{n}", String(step)).replace("{total}", "4")}</p>
 
       {step === 1 && (
         <div className="space-y-5">
@@ -854,11 +854,11 @@ function AddressField({ label, value, placeholder, hint, searching, onChange, on
         onFocus={() => { if (results.length) setOpen(true); }}
         className="w-full border border-zinc-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#c4956a]/40 focus:border-[#c4956a]"
       />
-      {hint && <p className="text-[11px] text-black/60 mt-1">{hint}</p>}
+      {hint && <p className="text-[11px] text-black mt-1">{hint}</p>}
       {(open || loading) && (
         <div className="absolute z-20 left-0 right-0 mt-1 rounded-lg border border-zinc-300 bg-white shadow-lg overflow-y-auto max-h-64">
           {loading && results.length === 0 ? (
-            <div className="px-3 py-2 text-xs text-black/60 flex items-center gap-2"><Loader2 className="w-3 h-3 animate-spin" />{searching || "…"}</div>
+            <div className="px-3 py-2 text-xs text-black flex items-center gap-2"><Loader2 className="w-3 h-3 animate-spin" />{searching || "…"}</div>
           ) : (
             results.map((r, i) => (
               // Both handlers: onMouseDown(preventDefault) wins on desktop before

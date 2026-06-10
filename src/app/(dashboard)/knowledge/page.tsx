@@ -436,7 +436,7 @@ export default function KnowledgePage() {
                            type="text"
                            value={editRiskTags}
                            onChange={e => setEditRiskTags(e.target.value)}
-                           className="w-full border-2 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-[#c4956a] placeholder:text-black/50" style={{ borderColor: '#c4956a', background: 'rgba(252,246,237,0.6)' }}
+                           className="w-full border-2 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-[#c4956a] placeholder:text-black" style={{ borderColor: '#c4956a', background: 'rgba(252,246,237,0.6)' }}
                            placeholder={t("know_risk_placeholder")}
                         />
                      </div>
@@ -448,7 +448,7 @@ export default function KnowledgePage() {
                   <textarea
                      value={editContent}
                      onChange={e => setEditContent(e.target.value)}
-                     className="flex-1 w-full border-2 rounded-xl p-6 text-sm leading-relaxed focus:outline-none focus:ring-1 focus:ring-[#c4956a] font-mono placeholder:text-black/50"
+                     className="flex-1 w-full border-2 rounded-xl p-6 text-sm leading-relaxed focus:outline-none focus:ring-1 focus:ring-[#c4956a] font-mono placeholder:text-black"
                      style={{ borderColor: '#c4956a', background: 'rgba(252,246,237,0.6)' }}
                      placeholder={t("know_content_placeholder")}
                   />

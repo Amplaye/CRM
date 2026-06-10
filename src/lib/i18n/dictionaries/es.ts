@@ -514,7 +514,7 @@ export const es: Dictionary = {
   settings_feature_commercial_info: "Respuestas automáticas — Listas e Info",
   settings_feature_commercial_info_hint: "El bot responde solo a preguntas sobre tartas, menús cerrados, bufés y listas de precios (desde tus artículos \"comercial\") y las ofrece cuando detecta una ocasión o un grupo grande.",
   settings_feature_commercial_info_cta: "Has activado las Respuestas automáticas. Ahora añade tus listas en la pestaña “Listas e Info”.",
-  settings_feature_commercial_info_cta_btn: "Configurar Listas e Info →",
+  settings_feature_commercial_info_cta_btn: "Configurar Listas e Info",
   settings_tab_commercial: "Listas e Info",
   ci_title: "Listas e info comerciales",
   ci_desc: "Añade tus listas y menús. El bot responderá solo a quien pregunte por tartas, menús cerrados, bufés o listas, y los ofrecerá cuando detecte una ocasión (cumpleaños, fiesta…) o un grupo grande.",

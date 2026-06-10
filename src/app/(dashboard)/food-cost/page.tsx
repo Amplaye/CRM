@@ -179,9 +179,9 @@ export default function FoodCostPage() {
           </thead>
           <tbody>
             {loading ? (
-              <tr><td colSpan={6} className="px-4 py-6 text-center text-black/50">…</td></tr>
+              <tr><td colSpan={6} className="px-4 py-6 text-center text-black">…</td></tr>
             ) : rows.length === 0 ? (
-              <tr><td colSpan={6} className="px-4 py-6 text-center text-black/50">{t("food_cost_empty" as keyof Dictionary) || "Nessun piatto."}</td></tr>
+              <tr><td colSpan={6} className="px-4 py-6 text-center text-black">{t("food_cost_empty" as keyof Dictionary) || "Nessun piatto."}</td></tr>
             ) : (
               pageRows.map((r) => {
                 const isOpen = expanded === r.menuItemId;
@@ -212,7 +212,7 @@ export default function FoodCostPage() {
 
       {rows.length > PER_PAGE && (
         <div className="flex items-center justify-between text-sm">
-          <span className="text-black/70">
+          <span className="text-black">
             {(t("food_cost_pagination" as keyof Dictionary) || "Piatti {from}–{to} di {total}")
               .replace("{from}", String(safePage * PER_PAGE + 1))
               .replace("{to}", String(Math.min((safePage + 1) * PER_PAGE, rows.length)))
@@ -227,7 +227,7 @@ export default function FoodCostPage() {
             >
               <ChevronLeft className="w-4 h-4" /> {t("back" as keyof Dictionary) || "Indietro"}
             </button>
-            <span className="text-black/70 tabular-nums">{safePage + 1} / {pageCount}</span>
+            <span className="text-black tabular-nums">{safePage + 1} / {pageCount}</span>
             <button
               onClick={() => setPage((p) => Math.min(pageCount - 1, p + 1))}
               disabled={safePage >= pageCount - 1}
@@ -267,7 +267,7 @@ function FoodCostRowGroup({
     <>
       <tr className="border-t" style={{ borderColor: "#eaddcb", background: r.lowMargin ? "rgba(220,38,38,0.06)" : undefined }}>
         <td className="px-3 py-2 align-middle">
-          <button onClick={onToggle} className="p-0.5 text-black/50 hover:text-black cursor-pointer" aria-label="toggle recipe" aria-expanded={isOpen}>
+          <button onClick={onToggle} className="p-0.5 text-black hover:text-black cursor-pointer" aria-label="toggle recipe" aria-expanded={isOpen}>
             {isOpen ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
           </button>
         </td>
@@ -291,7 +291,7 @@ function FoodCostRowGroup({
             />
           ) : (
             <div className="flex items-center justify-end gap-1.5">
-              {saveState?.status === "saving" && <Loader2 className="w-3.5 h-3.5 animate-spin text-black/40" />}
+              {saveState?.status === "saving" && <Loader2 className="w-3.5 h-3.5 animate-spin text-black" />}
               {saveState?.status === "ok" && <Check className="w-3.5 h-3.5 text-emerald-600" />}
               <button
                 onClick={onStartEdit}
