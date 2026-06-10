@@ -52,7 +52,7 @@ describe("billing catalog — prices match the pricing page", () => {
     // round-trip ANY language, not bake in Italian.
     const de = contactWhatsappUrl("Hallo, ich interessiere mich für die Webseite");
     expect(de).toBe("https://wa.me/34684109244?text=Hallo%2C%20ich%20interessiere%20mich%20f%C3%BCr%20die%20Webseite");
-    expect(decodeURIComponent(new URL(contactWhatsappUrl("Hola página")).searchParams.get("text"))).toBe("Hola página");
+    expect(decodeURIComponent(new URL(contactWhatsappUrl("Hola página")).searchParams.get("text")!)).toBe("Hola página");
   });
 
   it("planAmount picks the right column per cycle", () => {
