@@ -1,0 +1,187 @@
+{
+  "updatedAt": "2026-06-03T19:14:10.048Z",
+  "createdAt": "2026-06-01T14:11:19.338Z",
+  "id": "dk3AfbBCPOo8Na42",
+  "name": "[Oraz] Follow-up Post-Cena",
+  "description": null,
+  "active": true,
+  "isArchived": false,
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "*/30 * * * *"
+            }
+          ]
+        }
+      },
+      "id": "f1b2c3d4-0006-4000-8000-000000000001",
+      "name": "Cron 10AM Followup",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        200,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "\n// === ORAZ META SEND v1 (2026-05-28) — injected for Twilio→Meta migration ===\n(function(){\n  if (typeof globalThis.__picnicMetaInit === 'undefined') {\n    globalThis.__picnicMetaInit = true;\n  }\n})();\nconst META_PHONE_ID = '1095078260361095';\nconst META_TOKEN = (typeof process !== 'undefined' && process.env && process.env.META_WA_TOKEN) || 'EAAR5yVijCRsBRjbv99yVEo4gK4ZA238Be4q1VhiLlfZAZACKogZCZCYdZCZAldxZBWlrtjaCx2icGWcghUCwuFLxaKrq3zlGwedeqArWJlXdko3iQLL8Tm3cZBFa7ZAZBwsWGJsSPMmvtjY9wunfBDZAPnMqykuZAaJRxlZAJPxFzJvKLISj6TBrlNpgDbqPZC1qZAOMLwZDZD';\nconst META_GRAPH_VER = 'v21.0';\nconst META_ON = !!(META_PHONE_ID && META_TOKEN);\nfunction twBody(obj) { return Object.keys(obj).map(k => encodeURIComponent(k) + '=' + encodeURIComponent(obj[k])).join('&'); }\nfunction sendWhatsApp(_ctx, to, body) {\n  const _to = String(to || '').replace('whatsapp:', '').trim();\n  if (!_to || !body) return Promise.resolve(null);\n  if (META_ON) {\n    const _toMeta = _to.replace(/[^0-9]/g, '');\n    return _ctx.helpers.httpRequest({ method: 'POST', url: 'https://graph.facebook.com/' + META_GRAPH_VER + '/' + META_PHONE_ID + '/messages', headers: { 'Authorization': 'Bearer ' + META_TOKEN, 'Content-Type': 'application/json' }, body: JSON.stringify({ messaging_product: 'whatsapp', recipient_type: 'individual', to: _toMeta, type: 'text', text: { preview_url: false, body: String(body) } }) });\n  }\n  // Twilio fallback (legacy). TWILIO_SID / TWILIO_TOKEN / TWILIO_FROM must be defined later in node.\n  if (typeof TWILIO_SID === 'undefined' || typeof TWILIO_TOKEN === 'undefined' || typeof TWILIO_FROM === 'undefined') return Promise.resolve(null);\n  const _toTw = _to.startsWith('+') ? ('whatsapp:' + _to) : ('whatsapp:+' + _to.replace(/[^0-9]/g, ''));\n  return _ctx.helpers.httpRequest({ method: 'POST', url: 'https://api.twilio.com/2010-04-01/Accounts/' + TWILIO_SID + '/Messages.json', body: twBody({ From: TWILIO_FROM, To: _toTw, Body: String(body) }), headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'Authorization': 'Basic ' + Buffer.from(TWILIO_SID + ':' + TWILIO_TOKEN).toString('base64') } });\n}\n// === END ORAZ META SEND ===\n\n\n// === ORAZ TENANT CONFIG LOADER v1 (2026-05-11) — Point 5/6 ===\nconst PICNIC_CFG_TENANT_ID = '93eebe9c-8af5-4ca5-a315-3376ef4976e5';\nconst PICNIC_CFG_SB_URL = 'https://azhlnybiqlkbhbboyvud.supabase.co';\nconst PICNIC_CFG_SB_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImF6aGxueWJpcWxrYmhiYm95dnVkIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3NDYxNDUyMywiZXhwIjoyMDkwMTkwNTIzfQ.pBBJAeq7fVYZNSw65T2DyABARrvUm4NKR_x_8eW_57s';\nlet _picnicTenantCfgCache = null;\nasync function picnicLoadTenantConfig(_ctx) {\n  if (_picnicTenantCfgCache) return _picnicTenantCfgCache;\n  try {\n    const res = await _ctx.helpers.httpRequest({\n      method: 'GET',\n      url: PICNIC_CFG_SB_URL + '/rest/v1/tenants?id=eq.' + PICNIC_CFG_TENANT_ID + '&select=settings',\n      headers: { apikey: PICNIC_CFG_SB_KEY, Authorization: 'Bearer ' + PICNIC_CFG_SB_KEY }\n    });\n    const data = typeof res === 'string' ? JSON.parse(res) : res;\n    const s = (data && data[0] && data[0].settings) || {};\n    _picnicTenantCfgCache = { bot_config: (function(){ var _b = Object.assign({}, s.bot_config || {}); if (s.restaurant_phone) _b.restaurant_phone = s.restaurant_phone; if (s.review_url) _b.review_url = s.review_url; if (!_b.responsible_phone && s.owner_phone) _b.responsible_phone = s.owner_phone; return _b; })(), opening_hours: s.opening_hours || {} };\n  } catch(e) { _picnicTenantCfgCache = { bot_config: {}, opening_hours: {} }; }\n  return _picnicTenantCfgCache;\n}\nfunction picnicCfgGet(botCfg, key, fallback) {\n  if (botCfg && botCfg[key] !== undefined && botCfg[key] !== null) return botCfg[key];\n  return fallback;\n}\n// === END ORAZ TENANT CONFIG LOADER ===\n\nlet _picnicSecondaryCfg = null;\ntry { _picnicSecondaryCfg = await picnicLoadTenantConfig(this); } catch(_eCfg) { _picnicSecondaryCfg = { bot_config: {}, opening_hours: {} }; }\n\n// === ORAZ CONFIG CONSTANTS v1 (2026-05-11) — bot_config wired to code ===\nconst _bc = (function(){\n  try { if (typeof _picnicSecondaryCfg !== 'undefined' && _picnicSecondaryCfg && _picnicSecondaryCfg.bot_config) return _picnicSecondaryCfg.bot_config; } catch(_e){}\n  try { if (typeof _picnicVoiceCfg !== 'undefined' && _picnicVoiceCfg && _picnicVoiceCfg.bot_config) return _picnicVoiceCfg.bot_config; } catch(_e){}\n  return {};\n})();\nconst RESTAURANT_PHONE_E164 = String(picnicCfgGet(_bc, 'restaurant_phone', '+3434641790137')).replace(/\\s/g, '');\nconst RESTAURANT_PHONE_DISPLAY = (function(p){ const d=p.replace(/\\s/g,''); return d.length===12 ? d.slice(0,3)+' '+d.slice(3,6)+' '+d.slice(6,9)+' '+d.slice(9) : p; })(picnicCfgGet(_bc, 'restaurant_phone', '+34 641790137'));\nconst OWNER_PHONE_E164 = String(picnicCfgGet(_bc, 'responsible_phone', '+34641790137')).replace(/\\s/g, '');\nconst OWNER_PHONE_DISPLAY = (function(p){ const d=p.replace(/\\s/g,''); return d.length===12 ? d.slice(0,3)+' '+d.slice(3,6)+' '+d.slice(6,9)+' '+d.slice(9) : p; })(picnicCfgGet(_bc, 'responsible_phone', '+34 641 790 137'));\nconst TIMEZONE_CFG = picnicCfgGet(_bc, 'timezone', 'Atlantic/Canary');\nconst TWILIO_FROM_CFG = picnicCfgGet(_bc, 'twilio_from_number', '');\nconst CRM_API_BASE_CFG = picnicCfgGet(_bc, 'crm_api_base', 'https://crm.baliflowagency.com');\nconst AI_SECRET_CFG = picnicCfgGet(_bc, 'ai_secret', 'bb2931a5afa0256a016d177f25a6a099760b63ec9938db818cd27b83ae86c37f');\nconst RESTAURANT_NAME_CFG = picnicCfgGet(_bc, 'restaurant_name', 'ORAZ');\nconst TWILIO_SID_CFG = picnicCfgGet(_bc, 'twilio_account_sid', '');\nconst TWILIO_TOKEN_CFG = picnicCfgGet(_bc, 'twilio_auth_token', '');\n// === END ORAZ CONFIG CONSTANTS ===\n\nfunction twBody(obj) { return Object.keys(obj).map(k => encodeURIComponent(k) + '=' + encodeURIComponent(obj[k])).join('&'); }\n\nconst SUPABASE_URL = 'https://azhlnybiqlkbhbboyvud.supabase.co';\nconst SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImF6aGxueWJpcWxrYmhiYm95dnVkIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3NDYxNDUyMywiZXhwIjoyMDkwMTkwNTIzfQ.pBBJAeq7fVYZNSw65T2DyABARrvUm4NKR_x_8eW_57s';\nconst TENANT_ID = '93eebe9c-8af5-4ca5-a315-3376ef4976e5';\n\nconst TWILIO_SID = TWILIO_SID_CFG;\nconst TWILIO_TOKEN = TWILIO_TOKEN_CFG;\nconst TWILIO_FROM = TWILIO_FROM_CFG;\n\nconst REVIEW_URL = picnicCfgGet(_bc, 'review_url', 'https://www.google.com/maps?cid=975701473301178074');\n\n// Window: completed reservations whose updated_at is between 6 hours ago and\n// 90 minutes ago. The 90-min lower bound respects the user's requirement\n// (review request fires ~90 min after the table is freed). The 6-hour upper\n// bound caps how far back we look on each cron tick — long enough to absorb\n// any cron downtime, short enough to keep the query small.\nconst now = Date.now();\nconst sinceISO = new Date(now - 6 * 60 * 60 * 1000).toISOString();\nconst untilISO = new Date(now - 90 * 60 * 1000).toISOString();\n\nconst url = SUPABASE_URL + '/rest/v1/reservations'\n  + '?tenant_id=eq.' + TENANT_ID\n  + '&status=eq.completed'\n  + '&updated_at=gte.' + encodeURIComponent(sinceISO)\n  + '&updated_at=lte.' + encodeURIComponent(untilISO)\n  + '&select=id,guest_id,party_size,language,tags,guests(name,phone)';\n\nlet reservations = [];\ntry {\n  const resp = await this.helpers.httpRequest({\n    method: 'GET', url, json: true,\n    headers: { apikey: SUPABASE_KEY, Authorization: 'Bearer ' + SUPABASE_KEY }\n  });\n  reservations = Array.isArray(resp) ? resp : [];\n} catch (e) {\n  return [{ json: { error: 'supabase_query_failed', message: e && e.message ? e.message : String(e) } }];\n}\n\nconst sentPhones = new Set();\nlet sentCount = 0;\nlet skipped = 0;\nconst errors = [];\n\nfor (const r of reservations) {\n  // Skip if review already sent (tag set on a previous run).\n  const tags = Array.isArray(r.tags) ? r.tags : [];\n  if (tags.includes('review_sent')) { skipped++; continue; }\n\n  const guest = r && r.guests ? r.guests : null;\n  if (!guest || !guest.phone) { skipped++; continue; }\n  const phone = String(guest.phone).trim();\n  if (!phone) { skipped++; continue; }\n  if (sentPhones.has(phone)) { skipped++; continue; }\n  sentPhones.add(phone);\n\n  const nombre = (guest.name && String(guest.name).trim()) ? String(guest.name).trim() : 'amigo';\n  const to = phone.startsWith('whatsapp:') ? phone : 'whatsapp:' + phone;\n\n  // Prefer reservation.language (set when the booking was made).\n  // Fallback to most recent conversation (last 30 days). Default 'es'.\n  let lang = (r.language && ['es','it','en','de'].includes(r.language)) ? r.language : 'es';\n  if (!r.language) {\n    try {\n      const sinceL = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();\n      const langUrl = SUPABASE_URL + '/rest/v1/conversations?tenant_id=eq.' + TENANT_ID + '&guest_id=eq.' + r.guest_id + '&language=in.(es,it,en,de)&created_at=gte.' + encodeURIComponent(sinceL) + '&order=created_at.desc&limit=1&select=language';\n      const langRes = await this.helpers.httpRequest({ method: 'GET', url: langUrl, headers: { apikey: SUPABASE_KEY, Authorization: 'Bearer ' + SUPABASE_KEY } });\n      const langData = typeof langRes === 'string' ? JSON.parse(langRes) : langRes;\n      if (langData && langData[0] && langData[0].language) lang = langData[0].language;\n    } catch (eL) {}\n  }\n\n  const M = {\n    es: '¡Hola ' + nombre + '! 🌿 Esperamos que lo hayas disfrutado en Oraz. Si te animas a dejarnos tu opinión en Google, nos harías un regalazo 💛\\n\\n👉 ' + REVIEW_URL + '\\n\\n¡Te esperamos pronto!',\n    it: 'Ciao ' + nombre + '! 🌿 Speriamo che ti sia trovato bene da Oraz. Se ti va di lasciarci una recensione su Google, ci faresti un regalo enorme 💛\\n\\n👉 ' + REVIEW_URL + '\\n\\nA presto!',\n    en: 'Hi ' + nombre + \"! 🌿 We hope you enjoyed Oraz. If you'd like to leave us a Google review, it would mean the world 💛\\n\\n👉 \" + REVIEW_URL + '\\n\\nSee you soon!',\n    de: 'Hallo ' + nombre + '! \\ud83c\\\\udf3f Wir hoffen, es hat dir bei Oraz gefallen. Wenn du uns auf Google eine Bewertung hinterlassen m\\u00f6chtest, w\\u00e4re das ein riesiges Geschenk \\ud83d\\\\udc9b\\n\\n\\ud83d\\\\udc49 ' + REVIEW_URL + '\\n\\nBis bald!',\n  };\n  const msg = M[lang] || M.es;\n\n  try {\n    await sendWhatsApp(this, to, msg);\n    sentCount++;\n\n    // Mark this reservation so we don't send again on the next cron tick.\n    try {\n      const newTags = [...tags, 'review_sent'];\n      await this.helpers.httpRequest({\n        method: 'PATCH',\n        url: SUPABASE_URL + '/rest/v1/reservations?id=eq.' + r.id,\n        body: JSON.stringify({ tags: newTags }),\n        headers: { 'Content-Type': 'application/json', apikey: SUPABASE_KEY, Authorization: 'Bearer ' + SUPABASE_KEY, Prefer: 'return=minimal' }\n      });\n    } catch(eT) { errors.push({ id: r.id, error: 'tag_update_failed: ' + (eT && eT.message ? eT.message : String(eT)) }); }\n  } catch (e) {\n    errors.push({ phone, error: e && e.message ? e.message : String(e) });\n  }\n}\n\nreturn [{ json: { window: { from: sinceISO, to: untilISO }, found: reservations.length, sent: sentCount, skipped, errors } }];\n"
+      },
+      "id": "f1b2c3d4-0006-4000-8000-000000000002",
+      "name": "Send Followups",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        420,
+        300
+      ]
+    }
+  ],
+  "connections": {
+    "Cron 10AM Followup": {
+      "main": [
+        [
+          {
+            "node": "Send Followups",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "callerPolicy": "workflowsFromSameOwner",
+    "availableInMCP": false,
+    "timezone": "Atlantic/Canary",
+    "errorWorkflow": "6csT3Cc8ZOdOMNUW"
+  },
+  "staticData": {
+    "node:Cron 10AM Followup": {
+      "recurrenceRules": []
+    }
+  },
+  "meta": null,
+  "pinData": null,
+  "versionId": "aeb86bc3-7dbb-4d0a-8291-196b62c5b155",
+  "activeVersionId": "aeb86bc3-7dbb-4d0a-8291-196b62c5b155",
+  "versionCounter": 11,
+  "triggerCount": 1,
+  "shared": [
+    {
+      "updatedAt": "2026-06-01T14:11:19.340Z",
+      "createdAt": "2026-06-01T14:11:19.340Z",
+      "role": "workflow:owner",
+      "workflowId": "dk3AfbBCPOo8Na42",
+      "projectId": "Hce5OFwofKfp96jg",
+      "project": {
+        "updatedAt": "2026-03-09T13:50:30.846Z",
+        "createdAt": "2026-03-09T13:46:38.889Z",
+        "id": "Hce5OFwofKfp96jg",
+        "name": "Steward Russo <steward_russo94@hotmail.it>",
+        "type": "personal",
+        "icon": null,
+        "description": null,
+        "creatorId": "a5144d60-0ab8-44bc-98d4-046b4f9aa3c0"
+      }
+    }
+  ],
+  "tags": [],
+  "activeVersion": {
+    "updatedAt": "2026-06-03T19:14:10.048Z",
+    "createdAt": "2026-06-03T19:14:10.048Z",
+    "versionId": "aeb86bc3-7dbb-4d0a-8291-196b62c5b155",
+    "workflowId": "dk3AfbBCPOo8Na42",
+    "nodes": [
+      {
+        "parameters": {
+          "rule": {
+            "interval": [
+              {
+                "field": "cronExpression",
+                "expression": "*/30 * * * *"
+              }
+            ]
+          }
+        },
+        "id": "f1b2c3d4-0006-4000-8000-000000000001",
+        "name": "Cron 10AM Followup",
+        "type": "n8n-nodes-base.scheduleTrigger",
+        "typeVersion": 1.2,
+        "position": [
+          200,
+          300
+        ]
+      },
+      {
+        "parameters": {
+          "jsCode": "\n// === ORAZ META SEND v1 (2026-05-28) — injected for Twilio→Meta migration ===\n(function(){\n  if (typeof globalThis.__picnicMetaInit === 'undefined') {\n    globalThis.__picnicMetaInit = true;\n  }\n})();\nconst META_PHONE_ID = '1095078260361095';\nconst META_TOKEN = (typeof process !== 'undefined' && process.env && process.env.META_WA_TOKEN) || 'EAAR5yVijCRsBRjbv99yVEo4gK4ZA238Be4q1VhiLlfZAZACKogZCZCYdZCZAldxZBWlrtjaCx2icGWcghUCwuFLxaKrq3zlGwedeqArWJlXdko3iQLL8Tm3cZBFa7ZAZBwsWGJsSPMmvtjY9wunfBDZAPnMqykuZAaJRxlZAJPxFzJvKLISj6TBrlNpgDbqPZC1qZAOMLwZDZD';\nconst META_GRAPH_VER = 'v21.0';\nconst META_ON = !!(META_PHONE_ID && META_TOKEN);\nfunction twBody(obj) { return Object.keys(obj).map(k => encodeURIComponent(k) + '=' + encodeURIComponent(obj[k])).join('&'); }\nfunction sendWhatsApp(_ctx, to, body) {\n  const _to = String(to || '').replace('whatsapp:', '').trim();\n  if (!_to || !body) return Promise.resolve(null);\n  if (META_ON) {\n    const _toMeta = _to.replace(/[^0-9]/g, '');\n    return _ctx.helpers.httpRequest({ method: 'POST', url: 'https://graph.facebook.com/' + META_GRAPH_VER + '/' + META_PHONE_ID + '/messages', headers: { 'Authorization': 'Bearer ' + META_TOKEN, 'Content-Type': 'application/json' }, body: JSON.stringify({ messaging_product: 'whatsapp', recipient_type: 'individual', to: _toMeta, type: 'text', text: { preview_url: false, body: String(body) } }) });\n  }\n  // Twilio fallback (legacy). TWILIO_SID / TWILIO_TOKEN / TWILIO_FROM must be defined later in node.\n  if (typeof TWILIO_SID === 'undefined' || typeof TWILIO_TOKEN === 'undefined' || typeof TWILIO_FROM === 'undefined') return Promise.resolve(null);\n  const _toTw = _to.startsWith('+') ? ('whatsapp:' + _to) : ('whatsapp:+' + _to.replace(/[^0-9]/g, ''));\n  return _ctx.helpers.httpRequest({ method: 'POST', url: 'https://api.twilio.com/2010-04-01/Accounts/' + TWILIO_SID + '/Messages.json', body: twBody({ From: TWILIO_FROM, To: _toTw, Body: String(body) }), headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'Authorization': 'Basic ' + Buffer.from(TWILIO_SID + ':' + TWILIO_TOKEN).toString('base64') } });\n}\n// === END ORAZ META SEND ===\n\n\n// === ORAZ TENANT CONFIG LOADER v1 (2026-05-11) — Point 5/6 ===\nconst PICNIC_CFG_TENANT_ID = '93eebe9c-8af5-4ca5-a315-3376ef4976e5';\nconst PICNIC_CFG_SB_URL = 'https://azhlnybiqlkbhbboyvud.supabase.co';\nconst PICNIC_CFG_SB_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImF6aGxueWJpcWxrYmhiYm95dnVkIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3NDYxNDUyMywiZXhwIjoyMDkwMTkwNTIzfQ.pBBJAeq7fVYZNSw65T2DyABARrvUm4NKR_x_8eW_57s';\nlet _picnicTenantCfgCache = null;\nasync function picnicLoadTenantConfig(_ctx) {\n  if (_picnicTenantCfgCache) return _picnicTenantCfgCache;\n  try {\n    const res = await _ctx.helpers.httpRequest({\n      method: 'GET',\n      url: PICNIC_CFG_SB_URL + '/rest/v1/tenants?id=eq.' + PICNIC_CFG_TENANT_ID + '&select=settings',\n      headers: { apikey: PICNIC_CFG_SB_KEY, Authorization: 'Bearer ' + PICNIC_CFG_SB_KEY }\n    });\n    const data = typeof res === 'string' ? JSON.parse(res) : res;\n    const s = (data && data[0] && data[0].settings) || {};\n    _picnicTenantCfgCache = { bot_config: (function(){ var _b = Object.assign({}, s.bot_config || {}); if (s.restaurant_phone) _b.restaurant_phone = s.restaurant_phone; if (s.review_url) _b.review_url = s.review_url; if (!_b.responsible_phone && s.owner_phone) _b.responsible_phone = s.owner_phone; return _b; })(), opening_hours: s.opening_hours || {} };\n  } catch(e) { _picnicTenantCfgCache = { bot_config: {}, opening_hours: {} }; }\n  return _picnicTenantCfgCache;\n}\nfunction picnicCfgGet(botCfg, key, fallback) {\n  if (botCfg && botCfg[key] !== undefined && botCfg[key] !== null) return botCfg[key];\n  return fallback;\n}\n// === END ORAZ TENANT CONFIG LOADER ===\n\nlet _picnicSecondaryCfg = null;\ntry { _picnicSecondaryCfg = await picnicLoadTenantConfig(this); } catch(_eCfg) { _picnicSecondaryCfg = { bot_config: {}, opening_hours: {} }; }\n\n// === ORAZ CONFIG CONSTANTS v1 (2026-05-11) — bot_config wired to code ===\nconst _bc = (function(){\n  try { if (typeof _picnicSecondaryCfg !== 'undefined' && _picnicSecondaryCfg && _picnicSecondaryCfg.bot_config) return _picnicSecondaryCfg.bot_config; } catch(_e){}\n  try { if (typeof _picnicVoiceCfg !== 'undefined' && _picnicVoiceCfg && _picnicVoiceCfg.bot_config) return _picnicVoiceCfg.bot_config; } catch(_e){}\n  return {};\n})();\nconst RESTAURANT_PHONE_E164 = String(picnicCfgGet(_bc, 'restaurant_phone', '+3434641790137')).replace(/\\s/g, '');\nconst RESTAURANT_PHONE_DISPLAY = (function(p){ const d=p.replace(/\\s/g,''); return d.length===12 ? d.slice(0,3)+' '+d.slice(3,6)+' '+d.slice(6,9)+' '+d.slice(9) : p; })(picnicCfgGet(_bc, 'restaurant_phone', '+34 641790137'));\nconst OWNER_PHONE_E164 = String(picnicCfgGet(_bc, 'responsible_phone', '+34641790137')).replace(/\\s/g, '');\nconst OWNER_PHONE_DISPLAY = (function(p){ const d=p.replace(/\\s/g,''); return d.length===12 ? d.slice(0,3)+' '+d.slice(3,6)+' '+d.slice(6,9)+' '+d.slice(9) : p; })(picnicCfgGet(_bc, 'responsible_phone', '+34 641 790 137'));\nconst TIMEZONE_CFG = picnicCfgGet(_bc, 'timezone', 'Atlantic/Canary');\nconst TWILIO_FROM_CFG = picnicCfgGet(_bc, 'twilio_from_number', '');\nconst CRM_API_BASE_CFG = picnicCfgGet(_bc, 'crm_api_base', 'https://crm.baliflowagency.com');\nconst AI_SECRET_CFG = picnicCfgGet(_bc, 'ai_secret', 'bb2931a5afa0256a016d177f25a6a099760b63ec9938db818cd27b83ae86c37f');\nconst RESTAURANT_NAME_CFG = picnicCfgGet(_bc, 'restaurant_name', 'ORAZ');\nconst TWILIO_SID_CFG = picnicCfgGet(_bc, 'twilio_account_sid', '');\nconst TWILIO_TOKEN_CFG = picnicCfgGet(_bc, 'twilio_auth_token', '');\n// === END ORAZ CONFIG CONSTANTS ===\n\nfunction twBody(obj) { return Object.keys(obj).map(k => encodeURIComponent(k) + '=' + encodeURIComponent(obj[k])).join('&'); }\n\nconst SUPABASE_URL = 'https://azhlnybiqlkbhbboyvud.supabase.co';\nconst SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImF6aGxueWJpcWxrYmhiYm95dnVkIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3NDYxNDUyMywiZXhwIjoyMDkwMTkwNTIzfQ.pBBJAeq7fVYZNSw65T2DyABARrvUm4NKR_x_8eW_57s';\nconst TENANT_ID = '93eebe9c-8af5-4ca5-a315-3376ef4976e5';\n\nconst TWILIO_SID = TWILIO_SID_CFG;\nconst TWILIO_TOKEN = TWILIO_TOKEN_CFG;\nconst TWILIO_FROM = TWILIO_FROM_CFG;\n\nconst REVIEW_URL = picnicCfgGet(_bc, 'review_url', 'https://www.google.com/maps?cid=975701473301178074');\n\n// Window: completed reservations whose updated_at is between 6 hours ago and\n// 90 minutes ago. The 90-min lower bound respects the user's requirement\n// (review request fires ~90 min after the table is freed). The 6-hour upper\n// bound caps how far back we look on each cron tick — long enough to absorb\n// any cron downtime, short enough to keep the query small.\nconst now = Date.now();\nconst sinceISO = new Date(now - 6 * 60 * 60 * 1000).toISOString();\nconst untilISO = new Date(now - 90 * 60 * 1000).toISOString();\n\nconst url = SUPABASE_URL + '/rest/v1/reservations'\n  + '?tenant_id=eq.' + TENANT_ID\n  + '&status=eq.completed'\n  + '&updated_at=gte.' + encodeURIComponent(sinceISO)\n  + '&updated_at=lte.' + encodeURIComponent(untilISO)\n  + '&select=id,guest_id,party_size,language,tags,guests(name,phone)';\n\nlet reservations = [];\ntry {\n  const resp = await this.helpers.httpRequest({\n    method: 'GET', url, json: true,\n    headers: { apikey: SUPABASE_KEY, Authorization: 'Bearer ' + SUPABASE_KEY }\n  });\n  reservations = Array.isArray(resp) ? resp : [];\n} catch (e) {\n  return [{ json: { error: 'supabase_query_failed', message: e && e.message ? e.message : String(e) } }];\n}\n\nconst sentPhones = new Set();\nlet sentCount = 0;\nlet skipped = 0;\nconst errors = [];\n\nfor (const r of reservations) {\n  // Skip if review already sent (tag set on a previous run).\n  const tags = Array.isArray(r.tags) ? r.tags : [];\n  if (tags.includes('review_sent')) { skipped++; continue; }\n\n  const guest = r && r.guests ? r.guests : null;\n  if (!guest || !guest.phone) { skipped++; continue; }\n  const phone = String(guest.phone).trim();\n  if (!phone) { skipped++; continue; }\n  if (sentPhones.has(phone)) { skipped++; continue; }\n  sentPhones.add(phone);\n\n  const nombre = (guest.name && String(guest.name).trim()) ? String(guest.name).trim() : 'amigo';\n  const to = phone.startsWith('whatsapp:') ? phone : 'whatsapp:' + phone;\n\n  // Prefer reservation.language (set when the booking was made).\n  // Fallback to most recent conversation (last 30 days). Default 'es'.\n  let lang = (r.language && ['es','it','en','de'].includes(r.language)) ? r.language : 'es';\n  if (!r.language) {\n    try {\n      const sinceL = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();\n      const langUrl = SUPABASE_URL + '/rest/v1/conversations?tenant_id=eq.' + TENANT_ID + '&guest_id=eq.' + r.guest_id + '&language=in.(es,it,en,de)&created_at=gte.' + encodeURIComponent(sinceL) + '&order=created_at.desc&limit=1&select=language';\n      const langRes = await this.helpers.httpRequest({ method: 'GET', url: langUrl, headers: { apikey: SUPABASE_KEY, Authorization: 'Bearer ' + SUPABASE_KEY } });\n      const langData = typeof langRes === 'string' ? JSON.parse(langRes) : langRes;\n      if (langData && langData[0] && langData[0].language) lang = langData[0].language;\n    } catch (eL) {}\n  }\n\n  const M = {\n    es: '¡Hola ' + nombre + '! 🌿 Esperamos que lo hayas disfrutado en Oraz. Si te animas a dejarnos tu opinión en Google, nos harías un regalazo 💛\\n\\n👉 ' + REVIEW_URL + '\\n\\n¡Te esperamos pronto!',\n    it: 'Ciao ' + nombre + '! 🌿 Speriamo che ti sia trovato bene da Oraz. Se ti va di lasciarci una recensione su Google, ci faresti un regalo enorme 💛\\n\\n👉 ' + REVIEW_URL + '\\n\\nA presto!',\n    en: 'Hi ' + nombre + \"! 🌿 We hope you enjoyed Oraz. If you'd like to leave us a Google review, it would mean the world 💛\\n\\n👉 \" + REVIEW_URL + '\\n\\nSee you soon!',\n    de: 'Hallo ' + nombre + '! \\ud83c\\\\udf3f Wir hoffen, es hat dir bei Oraz gefallen. Wenn du uns auf Google eine Bewertung hinterlassen m\\u00f6chtest, w\\u00e4re das ein riesiges Geschenk \\ud83d\\\\udc9b\\n\\n\\ud83d\\\\udc49 ' + REVIEW_URL + '\\n\\nBis bald!',\n  };\n  const msg = M[lang] || M.es;\n\n  try {\n    await sendWhatsApp(this, to, msg);\n    sentCount++;\n\n    // Mark this reservation so we don't send again on the next cron tick.\n    try {\n      const newTags = [...tags, 'review_sent'];\n      await this.helpers.httpRequest({\n        method: 'PATCH',\n        url: SUPABASE_URL + '/rest/v1/reservations?id=eq.' + r.id,\n        body: JSON.stringify({ tags: newTags }),\n        headers: { 'Content-Type': 'application/json', apikey: SUPABASE_KEY, Authorization: 'Bearer ' + SUPABASE_KEY, Prefer: 'return=minimal' }\n      });\n    } catch(eT) { errors.push({ id: r.id, error: 'tag_update_failed: ' + (eT && eT.message ? eT.message : String(eT)) }); }\n  } catch (e) {\n    errors.push({ phone, error: e && e.message ? e.message : String(e) });\n  }\n}\n\nreturn [{ json: { window: { from: sinceISO, to: untilISO }, found: reservations.length, sent: sentCount, skipped, errors } }];\n"
+        },
+        "id": "f1b2c3d4-0006-4000-8000-000000000002",
+        "name": "Send Followups",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          420,
+          300
+        ]
+      }
+    ],
+    "connections": {
+      "Cron 10AM Followup": {
+        "main": [
+          [
+            {
+              "node": "Send Followups",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      }
+    },
+    "authors": "Steward Russo",
+    "name": null,
+    "description": null,
+    "autosaved": false,
+    "workflowPublishHistory": [
+      {
+        "createdAt": "2026-06-03T19:14:10.080Z",
+        "id": 14248,
+        "workflowId": "dk3AfbBCPOo8Na42",
+        "versionId": "aeb86bc3-7dbb-4d0a-8291-196b62c5b155",
+        "event": "activated",
+        "userId": "a5144d60-0ab8-44bc-98d4-046b4f9aa3c0"
+      },
+      {
+        "createdAt": "2026-06-03T19:14:10.182Z",
+        "id": 14250,
+        "workflowId": "dk3AfbBCPOo8Na42",
+        "versionId": "aeb86bc3-7dbb-4d0a-8291-196b62c5b155",
+        "event": "activated",
+        "userId": "a5144d60-0ab8-44bc-98d4-046b4f9aa3c0"
+      },
+      {
+        "createdAt": "2026-06-03T19:14:10.070Z",
+        "id": 14247,
+        "workflowId": "dk3AfbBCPOo8Na42",
+        "versionId": "aeb86bc3-7dbb-4d0a-8291-196b62c5b155",
+        "event": "deactivated",
+        "userId": "a5144d60-0ab8-44bc-98d4-046b4f9aa3c0"
+      },
+      {
+        "createdAt": "2026-06-03T19:14:10.175Z",
+        "id": 14249,
+        "workflowId": "dk3AfbBCPOo8Na42",
+        "versionId": "aeb86bc3-7dbb-4d0a-8291-196b62c5b155",
+        "event": "deactivated",
+        "userId": "a5144d60-0ab8-44bc-98d4-046b4f9aa3c0"
+      }
+    ]
+  }
+}
