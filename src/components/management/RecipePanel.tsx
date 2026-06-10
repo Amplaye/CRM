@@ -157,7 +157,7 @@ export function RecipePanel({
               const ing = ingById(r.ingredient_id);
               return (
                 <div key={r.ingredient_id} className="flex items-center gap-2">
-                  <span className="flex-1 text-sm text-black">{ing?.name || r.ingredient_id}</span>
+                  <span className="flex-1 min-w-0 truncate text-sm text-black">{ing?.name || r.ingredient_id}</span>
                   <input
                     type="number"
                     value={r.qty}
@@ -185,7 +185,7 @@ export function RecipePanel({
             <select
               value={picker}
               onChange={(e) => setPicker(e.target.value)}
-              className="flex-1 px-2 py-1.5 text-sm border-2 rounded cursor-pointer"
+              className="flex-1 min-w-0 px-2 py-1.5 text-sm border-2 rounded cursor-pointer"
               style={{ borderColor: "#c4956a" }}
             >
               <option value="">{t("recipe_pick_ingredient" as keyof Dictionary) || "Aggiungi ingrediente…"}</option>
