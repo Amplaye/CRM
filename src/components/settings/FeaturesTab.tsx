@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import Link from "next/link";
+import { ArrowRight } from "lucide-react";
 import { useLanguage } from "@/lib/contexts/LanguageContext";
 import { useTenant } from "@/lib/contexts/TenantContext";
 import { createClient } from "@/lib/supabase/client";
@@ -132,6 +134,22 @@ export function FeaturesTab() {
           );
         })}
       </div>
+
+      {/* Guided follow-up: the moment the owner turns the commercial module ON, point
+          them to where they actually add their price lists (no KB jargon, no guesswork). */}
+      {features.commercial_info_enabled && (
+        <Link
+          href="/settings?tab=commercial"
+          className="flex items-center justify-between gap-3 p-3 rounded-lg border-2 transition-colors hover:bg-[#fcf6ed]"
+          style={{ borderColor: "#c4956a", background: "rgba(252,246,237,0.6)" }}
+        >
+          <span className="text-sm font-medium text-black">{t("settings_feature_commercial_info_cta")}</span>
+          <span className="inline-flex items-center gap-1 text-sm font-bold whitespace-nowrap" style={{ color: "#c4956a" }}>
+            {t("settings_feature_commercial_info_cta_btn")}
+            <ArrowRight className="w-4 h-4" />
+          </span>
+        </Link>
+      )}
     </div>
   );
 }

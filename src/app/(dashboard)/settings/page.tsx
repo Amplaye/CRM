@@ -1,7 +1,7 @@
 "use client";
 
 import { Suspense, useState, useEffect } from "react";
-import { Settings as SettingsIcon, Users, ToggleRight, CalendarClock, LineChart, Plug, CreditCard } from "lucide-react";
+import { Settings as SettingsIcon, Users, ToggleRight, CalendarClock, LineChart, Plug, CreditCard, Tags } from "lucide-react";
 import { useSearchParams, useRouter, usePathname } from "next/navigation";
 import { useLanguage } from "@/lib/contexts/LanguageContext";
 import { useTenant } from "@/lib/contexts/TenantContext";
@@ -12,9 +12,10 @@ import { BookingTab } from "@/components/settings/BookingTab";
 import { ManagementTab } from "@/components/settings/ManagementTab";
 import { PosTab } from "@/components/settings/PosTab";
 import { PaymentsTab } from "@/components/settings/PaymentsTab";
+import { CommercialInfoTab } from "@/components/settings/CommercialInfoTab";
 import { getFeatures } from "@/lib/types/tenant-settings";
 
-type Tab = "general" | "booking" | "features" | "management" | "pos" | "payments" | "staff";
+type Tab = "general" | "booking" | "features" | "commercial" | "management" | "pos" | "payments" | "staff";
 
 function SettingsContent() {
   const { t } = useLanguage();
@@ -23,7 +24,7 @@ function SettingsContent() {
   const router = useRouter();
   const pathname = usePathname();
 
-  const TABS: Tab[] = ["general", "booking", "staff", "features", "management", "pos", "payments"];
+  const TABS: Tab[] = ["general", "booking", "staff", "features", "commercial", "management", "pos", "payments"];
   const initial = (searchParams.get("tab") as Tab) || "general";
   const [tab, setTab] = useState<Tab>(TABS.includes(initial) ? initial : "general");
 
@@ -39,6 +40,11 @@ function SettingsContent() {
   const canSeeFeaturesTab = activeRole === "owner" || globalRole === "platform_admin";
   // Bookings = contact details + booking rules; owner-level, same gate as features.
   const canSeeBookingTab = activeRole === "owner" || globalRole === "platform_admin";
+  // Listini & Info = guided editor for the commercial-info module's KB blocks. Same
+  // owner/admin gate, and only when the (free) commercial_info_enabled flag is ON —
+  // so the tab simply appears the moment they flip the toggle in Features.
+  const commercialEnabled = getFeatures(activeTenant?.settings).commercial_info_enabled;
+  const canSeeCommercialTab = (activeRole === "owner" || globalRole === "platform_admin") && commercialEnabled;
   // Gestionale = financial targets/budgets; owner/admin only, and only when the
   // management module is enabled for this tenant.
   const managementEnabled = getFeatures(activeTenant?.settings).management_enabled;
@@ -105,6 +111,16 @@ function SettingsContent() {
             {t("settings_tab_features") || "Funzionalità"}
           </button>
         )}
+        {canSeeCommercialTab && (
+          <button
+            onClick={() => setActiveTab("commercial")}
+            className={`inline-flex items-center gap-2 px-4 py-2 text-sm font-medium border-b-2 transition-colors cursor-pointer ${tab === "commercial" ? "text-black" : "text-black/60 hover:text-black border-transparent"}`}
+            style={tab === "commercial" ? { borderColor: "#c4956a" } : {}}
+          >
+            <Tags className="w-4 h-4" />
+            {t("settings_tab_commercial") || "Listini & Info"}
+          </button>
+        )}
         {canSeeManagementTab && (
           <button
             onClick={() => setActiveTab("management")}
@@ -140,6 +156,7 @@ function SettingsContent() {
       {tab === "general" && <GeneralTab />}
       {tab === "booking" && canSeeBookingTab && <BookingTab />}
       {tab === "features" && canSeeFeaturesTab && <FeaturesTab />}
+      {tab === "commercial" && canSeeCommercialTab && <CommercialInfoTab />}
       {tab === "management" && canSeeManagementTab && <ManagementTab />}
       {tab === "pos" && canSeePosTab && <PosTab />}
       {tab === "payments" && canSeePaymentsTab && <PaymentsTab />}
