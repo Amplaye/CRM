@@ -134,7 +134,7 @@ export function CommercialInfoTab() {
   const panel = "rgba(252,246,237,0.6)";
 
   return (
-    <div className="space-y-4 sm:space-y-6 max-w-4xl">
+    <div className="space-y-4 sm:space-y-6 w-full">
       <div>
         <h2 className="text-lg font-bold text-black flex items-center gap-2">
           <Tags className="w-5 h-5" style={{ color: border }} />
