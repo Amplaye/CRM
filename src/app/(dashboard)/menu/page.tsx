@@ -18,6 +18,7 @@ import {
   CheckCircle2,
   Pencil,
   ChevronRight,
+  ChevronLeft,
   AlertTriangle,
   Star,
   MinusCircle,
@@ -119,6 +120,12 @@ export default function MenuPage() {
   // category selection (so the two never fight); selecting a category clears it.
   const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null);
   const [selectedCollectionId, setSelectedCollectionId] = useState<string | null>(null);
+  // Mobile master-detail. The two panes sit side-by-side in a flex row; on a
+  // phone (< md) the viewport only fits one, so we show EITHER the category
+  // list OR the items of the tapped section (with a back button), never both —
+  // otherwise the items render in the right pane pushed off-screen ("si apre
+  // lateralmente"). Ignored at md+ where both panes are always visible.
+  const [mobilePane, setMobilePane] = useState<"list" | "detail">("list");
 
   // Modal state — replaces the right-pane editor from the old layout.
   // We open a centered modal for new/edit, so the table view stays put.
@@ -272,9 +279,11 @@ export default function MenuPage() {
   const selectCategory = (id: string) => {
     setSelectedCollectionId(null);
     setSelectedCategoryId(id);
+    setMobilePane("detail"); // drill into the items pane on phones
   };
   const selectCollection = (id: string) => {
     setSelectedCollectionId(id);
+    setMobilePane("detail"); // drill into the items pane on phones
   };
 
   // Map a dish's category_id → name. Used for the muted sub-label under a dish
@@ -380,7 +389,9 @@ export default function MenuPage() {
     <div className="p-0 h-[calc(100dvh-3.5rem)] md:h-[calc(100dvh-4rem)] flex overflow-hidden">
       {/* LEFT PANE: categories sidebar */}
       <aside
-        className="border-r flex flex-col shrink-0 w-full md:w-[340px]"
+        className={`border-r flex-col shrink-0 w-full md:w-[340px] md:flex ${
+          mobilePane === "detail" ? "hidden" : "flex"
+        }`}
         style={{ background: "rgba(252,246,237,0.85)", borderColor: "#c4956a" }}
       >
         <div className="p-5 border-b shrink-0" style={{ borderColor: "#c4956a" }}>
@@ -627,7 +638,9 @@ export default function MenuPage() {
 
       {/* RIGHT PANE: table of items for selected category */}
       <main
-        className="flex-1 overflow-hidden flex flex-col"
+        className={`flex-1 overflow-hidden flex-col md:flex ${
+          mobilePane === "detail" ? "flex" : "hidden"
+        }`}
         style={{ background: "rgba(252,246,237,0.55)" }}
       >
         {loading ? (
@@ -647,7 +660,16 @@ export default function MenuPage() {
               className="px-6 py-4 border-b flex items-center justify-between shrink-0"
               style={{ borderColor: "#c4956a", background: "rgba(252,246,237,0.95)" }}
             >
-              <div className="min-w-0">
+              <div className="flex items-center gap-2 min-w-0">
+                {/* Back to the category list — phones only (master-detail). */}
+                <button
+                  onClick={() => setMobilePane("list")}
+                  className="md:hidden cursor-pointer -ml-2 p-1.5 text-black hover:bg-zinc-100 rounded-lg shrink-0"
+                  aria-label={t("back") || "Indietro"}
+                >
+                  <ChevronLeft className="w-6 h-6" />
+                </button>
+                <div className="min-w-0">
                 <p className="text-[10px] uppercase font-black tracking-widest text-black">
                   {search.trim()
                     ? t("menu_search_results") || "Risultati ricerca"
@@ -698,6 +720,7 @@ export default function MenuPage() {
                     </>
                   )}
                 </p>
+                </div>
               </div>
               {isCollectionView ? (
                 <button
