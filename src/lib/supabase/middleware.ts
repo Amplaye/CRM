@@ -49,6 +49,9 @@ export async function updateSession(request: NextRequest) {
     // /m/<slug> is the public hosted menu (the QR target diners scan) — it must
     // be reachable without auth, same as /api.
     !request.nextUrl.pathname.startsWith('/m/') &&
+    // /r/<slug> is the public review-link resolver tapped from the post-dinner
+    // WhatsApp template button — a guest, never an authenticated user.
+    !request.nextUrl.pathname.startsWith('/r/') &&
     !request.nextUrl.pathname.startsWith('/api')
   ) {
     const url = request.nextUrl.clone()
