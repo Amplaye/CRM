@@ -657,7 +657,7 @@ export default function MenuPage() {
           <>
             {/* Header */}
             <div
-              className="px-6 py-4 border-b flex items-center justify-between shrink-0"
+              className="px-4 md:px-6 py-3 md:py-4 border-b flex items-center justify-between gap-2 shrink-0"
               style={{ borderColor: "#c4956a", background: "rgba(252,246,237,0.95)" }}
             >
               <div className="flex items-center gap-2 min-w-0">
@@ -678,7 +678,7 @@ export default function MenuPage() {
                     : t("menu_category") || "Categoria"}
                 </p>
                 <div className="flex items-center gap-2">
-                  <h2 className="text-2xl font-black text-black tracking-tight truncate flex items-center gap-2">
+                  <h2 className="text-xl md:text-2xl font-black text-black tracking-tight truncate flex items-center gap-2">
                     {!search.trim() && isCollectionView && (
                       <Star className="w-5 h-5 shrink-0" style={{ color: "#c4956a" }} fill="#c4956a" />
                     )}
@@ -725,11 +725,14 @@ export default function MenuPage() {
               {isCollectionView ? (
                 <button
                   onClick={() => setCollectionModal({ mode: "edit", collection: activeCollection! })}
-                  className="cursor-pointer px-4 py-2 text-white text-sm font-bold rounded-lg shadow-sm flex items-center"
+                  className="cursor-pointer shrink-0 px-3 md:px-4 py-2 text-white text-sm font-bold rounded-lg shadow-sm flex items-center"
                   style={{ background: "linear-gradient(135deg, #d4a574, #c4956a)" }}
+                  title={t("menu_collection_choose_dishes") || "Scegli piatti"}
                 >
-                  <Plus className="w-4 h-4 mr-2" />
-                  {t("menu_collection_choose_dishes") || "Scegli piatti"}
+                  <Plus className="w-5 h-5 md:w-4 md:h-4 md:mr-2" />
+                  <span className="hidden md:inline">
+                    {t("menu_collection_choose_dishes") || "Scegli piatti"}
+                  </span>
                 </button>
               ) : (
                 <button
@@ -739,11 +742,14 @@ export default function MenuPage() {
                       categoryId: isUncatView ? null : activeCategory?.id || null,
                     })
                   }
-                  className="cursor-pointer px-4 py-2 text-white text-sm font-bold rounded-lg shadow-sm flex items-center"
+                  className="cursor-pointer shrink-0 px-3 md:px-4 py-2 text-white text-sm font-bold rounded-lg shadow-sm flex items-center"
                   style={{ background: "linear-gradient(135deg, #d4a574, #c4956a)" }}
+                  title={t("menu_new_item") || "Nuovo piatto"}
                 >
-                  <Plus className="w-4 h-4 mr-2" />
-                  {t("menu_new_item") || "Nuovo piatto"}
+                  <Plus className="w-5 h-5 md:w-4 md:h-4 md:mr-2" />
+                  <span className="hidden md:inline">
+                    {t("menu_new_item") || "Nuovo piatto"}
+                  </span>
                 </button>
               )}
             </div>
@@ -799,7 +805,7 @@ export default function MenuPage() {
                     <li key={it.id}>
                       <div
                         onClick={() => setItemModal({ mode: "edit", item: it })}
-                        className="cursor-pointer flex gap-3 px-4 py-3.5 border-b active:bg-white/80 transition-colors"
+                        className="cursor-pointer flex items-center gap-3 px-4 py-3 border-b active:bg-white/80 transition-colors"
                         style={{ borderColor: "rgba(196,149,106,0.2)" }}
                       >
                         {/* Thumbnail */}
@@ -808,18 +814,18 @@ export default function MenuPage() {
                           <img
                             src={it.image_url}
                             alt=""
-                            className="w-16 h-16 rounded-xl object-cover shrink-0 border"
+                            className="w-14 h-14 rounded-lg object-cover shrink-0 border"
                             style={{ borderColor: "rgba(196,149,106,0.4)" }}
                           />
                         ) : (
                           <span
-                            className="w-16 h-16 rounded-xl shrink-0 flex items-center justify-center border"
+                            className="w-14 h-14 rounded-lg shrink-0 flex items-center justify-center border"
                             style={{
                               borderColor: "rgba(196,149,106,0.3)",
                               background: "rgba(252,246,237,0.6)",
                             }}
                           >
-                            <ImageIcon className="w-6 h-6 text-[#c4956a]" />
+                            <ImageIcon className="w-5 h-5 text-[#c4956a]/70" />
                           </span>
                         )}
 
