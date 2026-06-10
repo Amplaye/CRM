@@ -508,6 +508,8 @@ export const en = {
   settings_feature_reminders_hint: "Send a WhatsApp reminder the day before the booking.",
   settings_feature_followup: "Post-visit follow-up",
   settings_feature_followup_hint: "Send a thank-you message and ask for a review after the visit.",
+  settings_feature_commercial_info: "Auto-replies — Price lists & Info",
+  settings_feature_commercial_info_hint: "The bot answers questions about cakes, set menus, buffets and price lists on its own (from your \"commercial\" articles) and offers them when it senses an occasion or a large group.",
   res_mark_arrived: "Mark as arrived",
   res_mark_noshow: "Mark as no-show",
 
@@ -949,6 +951,7 @@ export const en = {
   know_policies: "Policies",
   know_menu: "Menu",
   know_troubleshooting: "Troubleshooting",
+  know_commerciale: "Commercial (price lists & info)",
   know_draft: "Draft",
   know_published: "Published",
   know_archived: "Archived",

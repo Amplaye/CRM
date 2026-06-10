@@ -24,6 +24,7 @@ export interface TenantFeatures {
   pet_friendly: boolean;     // pets allowed
   reminders_enabled: boolean; // send the day-before booking reminder (WhatsApp template)
   followup_enabled: boolean;  // send the post-visit thank-you / review request (WhatsApp template)
+  commercial_info_enabled: boolean; // bot answers commercial questions (price lists, set menus, buffets, cakes) from `commerciale` KB articles + proactively offers them
   management_enabled: boolean; // iammi-style controllo gestione (POS sales, food cost, P&L, inventory, invoices)
 }
 
@@ -42,6 +43,12 @@ export const DEFAULT_FEATURES: TenantFeatures = {
   pet_friendly: false,
   reminders_enabled: true,
   followup_enabled: false,
+  // OFF by default: a free self-serve module the owner opts into. When ON, the bot
+  // answers commercial questions (cake price list, set menus, buffets, dish lists)
+  // from the tenant's `commerciale` KB articles and proactively offers them on
+  // group/occasion/vague-intent signals. No commercial article is exposed to the
+  // bot while this is OFF (gated server-side in /api/ai/restaurant-info).
+  commercial_info_enabled: false,
   // OFF by default: financial management is an opt-in module an owner enables
   // (it surfaces POS/food-cost/inventory screens that only matter once a till is
   // connected — today the MockAdapter — and recipes/costs are entered).
@@ -64,6 +71,7 @@ export const FEATURE_FLAGS: ReadonlyArray<{ key: keyof TenantFeatures; labelKey:
   { key: "pet_friendly", labelKey: "settings_feature_pet_friendly", hintKey: "settings_feature_pet_friendly_hint" },
   { key: "reminders_enabled", labelKey: "settings_feature_reminders", hintKey: "settings_feature_reminders_hint" },
   { key: "followup_enabled", labelKey: "settings_feature_followup", hintKey: "settings_feature_followup_hint" },
+  { key: "commercial_info_enabled", labelKey: "settings_feature_commercial_info", hintKey: "settings_feature_commercial_info_hint" },
 ];
 
 /**

@@ -186,7 +186,7 @@ create table public.knowledge_articles (
   tenant_id uuid not null references public.tenants(id) on delete cascade,
   title text not null,
   content text not null default '',
-  category text not null default 'general' check (category in ('policies', 'menu', 'troubleshooting', 'general')),
+  category text not null default 'general' check (category in ('policies', 'menu', 'troubleshooting', 'general', 'commerciale')),
   risk_tags text[] not null default '{}',
   status text not null default 'draft' check (status in ('draft', 'published', 'archived')),
   version integer not null default 1,

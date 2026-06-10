@@ -51,7 +51,7 @@ export interface KnowledgeArticle {
   tenant_id: string;
   title: string;
   content: string;
-  category: "policies" | "menu" | "troubleshooting" | "general";
+  category: "policies" | "menu" | "troubleshooting" | "general" | "commerciale";
   risk_tags: string[];
   status: "draft" | "published" | "archived";
   version: number;

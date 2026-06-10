@@ -414,6 +414,7 @@ export default function KnowledgePage() {
                               <option value="policies">{t("know_policies")}</option>
                               <option value="menu">{t("know_menu")}</option>
                               <option value="troubleshooting">{t("know_troubleshooting")}</option>
+                              <option value="commerciale">{t("know_commerciale")}</option>
                            </select>
                         </div>
                         <div>

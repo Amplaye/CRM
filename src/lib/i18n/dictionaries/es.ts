@@ -511,6 +511,8 @@ export const es: Dictionary = {
   settings_feature_reminders_hint: "Envía un recordatorio por WhatsApp el día antes de la reserva.",
   settings_feature_followup: "Seguimiento tras la visita",
   settings_feature_followup_hint: "Envía un mensaje de agradecimiento y pide una reseña tras la visita.",
+  settings_feature_commercial_info: "Respuestas automáticas — Listas e Info",
+  settings_feature_commercial_info_hint: "El bot responde solo a preguntas sobre tartas, menús cerrados, bufés y listas de precios (desde tus artículos \"comercial\") y las ofrece cuando detecta una ocasión o un grupo grande.",
   res_mark_arrived: "Marcar como llegado",
   res_mark_noshow: "No se presentó",
 
@@ -952,6 +954,7 @@ export const es: Dictionary = {
   know_policies: "Políticas",
   know_menu: "Menú",
   know_troubleshooting: "Resolución de Problemas",
+  know_commerciale: "Comercial (listas e info)",
   know_draft: "Borrador",
   know_published: "Publicado",
   know_archived: "Archivado",

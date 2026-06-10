@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { createServiceRoleClient } from '@/lib/supabase/server';
 import { assertAiSecret } from '@/lib/ai-auth';
 import type { OpeningHours } from '@/lib/restaurant-rules';
-import { restaurantFacts } from '@/lib/types/tenant-settings';
+import { restaurantFacts, getFeatures } from '@/lib/types/tenant-settings';
 
 const DAY_NAMES_ES: Record<number, string> = {
   0: 'Domingo', 1: 'Lunes', 2: 'Martes', 3: 'Miércoles', 4: 'Jueves', 5: 'Viernes', 6: 'Sábado',
@@ -39,6 +39,27 @@ const TOPIC_MAP: Record<string, { categories?: string[]; titleKeywords?: string[
   takeaway: { titleKeywords: ['takeaway', 'delivery', 'servicios'] },
   delivery: { titleKeywords: ['takeaway', 'delivery', 'servicios'] },
   allergens: { titleKeywords: ['alérgeno', 'alergeno', 'intoleranc', 'gluten', 'celíac', 'celiac'] },
+  // Commercial topics (price lists / set menus / buffets / cakes). These only ever
+  // resolve when the tenant's `commercial_info_enabled` flag is ON — the gate below
+  // strips every `commerciale` article from the candidate set when the flag is OFF,
+  // so these keys simply find nothing then. Multilingual it/es/en/de keywords.
+  commerciale: { categories: ['commerciale'] },
+  commercial: { categories: ['commerciale'] },
+  comercial: { categories: ['commerciale'] },
+  torta: { categories: ['commerciale'], titleKeywords: ['torta', 'torte', 'cake', 'tarta', 'kuchen', 'torten'] },
+  torte: { categories: ['commerciale'] },
+  cake: { categories: ['commerciale'] },
+  buffet: { categories: ['commerciale'], titleKeywords: ['buffet'] },
+  banquet: { categories: ['commerciale'] },
+  listino: { categories: ['commerciale'] },
+  listini: { categories: ['commerciale'] },
+  catering: { categories: ['commerciale'] },
+  evento: { categories: ['commerciale'] },
+  eventi: { categories: ['commerciale'] },
+  event: { categories: ['commerciale'] },
+  gruppi: { categories: ['commerciale'] },
+  grupos: { categories: ['commerciale'] },
+  groups: { categories: ['commerciale'] },
   policies: { categories: ['policies'] },
   menu: { categories: ['menu'] },
   carta: { categories: ['menu'] },
@@ -75,7 +96,27 @@ export async function GET(request: Request) {
       .select('settings')
       .eq('id', tenantId)
       .maybeSingle();
-    const facts = restaurantFacts(tenantRow?.settings);
+    // Commercial module gate (per-tenant, free self-serve flag). When ON, the bot
+    // may answer commercial questions (price lists / set menus / buffets / cakes)
+    // from `commerciale` KB articles AND proactively offer them; the engine reads
+    // `commercial_offers` (titles → tappable button labels) and `facts.commercial_info`
+    // (whether to show the welcome hint). When OFF, no `commerciale` article is ever
+    // exposed (filtered out below) and offers stay empty — the bot stays silent on
+    // commercial topics. Generic: a second tenant flips the flag + writes its own
+    // articles → its own answers and buttons, zero code change.
+    const commercialOn = getFeatures(tenantRow?.settings).commercial_info_enabled;
+    let commercialOffers: { title: string }[] = [];
+    if (commercialOn) {
+      const { data: cArts } = await supabase
+        .from('knowledge_articles')
+        .select('title')
+        .eq('tenant_id', tenantId)
+        .eq('status', 'published')
+        .eq('category', 'commerciale')
+        .order('display_order', { ascending: true });
+      commercialOffers = (cArts || []).map((a: any) => ({ title: a.title }));
+    }
+    const facts = { ...restaurantFacts(tenantRow?.settings), commercial_info: commercialOffers.length > 0 };
 
     // HOURS fast-path: always derive from settings.opening_hours so there is
     // ONE source of truth. The KB article may exist for legacy/display, but
@@ -90,6 +131,7 @@ export async function GET(request: Request) {
         found: true,
         source: 'settings.opening_hours',
         facts,
+        commercial_offers: commercialOffers,
         articles: [{
           title: 'Horario del restaurante',
           category: 'general',
@@ -108,7 +150,10 @@ export async function GET(request: Request) {
     const { data, error } = await query;
     if (error) throw error;
 
-    const all = data || [];
+    // Gate: when the commercial module is OFF for this tenant, drop every
+    // `commerciale` article from the candidate set BEFORE any topic match, so the
+    // bot can never surface price lists/menus/buffets the owner hasn't enabled.
+    const all = (data || []).filter((a: any) => a.category !== 'commerciale' || commercialOn);
     let filtered = all;
 
     if (topicRaw) {
@@ -137,6 +182,7 @@ export async function GET(request: Request) {
           found: false,
           message: 'No tengo esa información específica registrada. ¿Quieres que te pase con el responsable?',
           facts,
+          commercial_offers: commercialOffers,
           articles: [],
         });
       }
@@ -147,6 +193,7 @@ export async function GET(request: Request) {
       topic: topicRaw || 'all',
       found: true,
       facts,
+      commercial_offers: commercialOffers,
       articles: filtered.map((a: any) => ({
         title: a.title,
         category: a.category,
