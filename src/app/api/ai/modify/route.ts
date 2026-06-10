@@ -342,6 +342,45 @@ export async function PUT(request: Request) {
 
     if (updateErr) throw updateErr;
 
+    // Large-group escalation mirrors the book route: a reservation that is
+    // pending owner review holds NO tables (the owner assigns them when
+    // approving from /pending). Release any existing assignment and return
+    // WITHOUT reassigning — otherwise atomic_book_tables would grab tables for
+    // a request that's only "in solicitud", showing it as occupied on the floor.
+    if (becameLargeGroup) {
+      await supabase.from('reservation_tables').delete().eq('reservation_id', reservationId);
+
+      await logAuditEvent({
+        tenant_id: payload.tenant_id,
+        action: "modify_reservation",
+        entity_id: reservationId,
+        idempotency_key: payload.idempotency_key,
+        source: "ai_agent",
+        details: {
+          previous: { date: existing.date, time: existing.time, party_size: existing.party_size, shift: existing.shift },
+          updates,
+          escalated: true,
+          reason: "became_large_group",
+        },
+      });
+
+      return NextResponse.json({
+        success: true,
+        reservation_id: reservationId,
+        status: 'escalated',
+        requires_review: true,
+        shift: newShift,
+        end_time: newEndTime,
+        tables_assigned: [],
+        previous_party_size: existing.party_size,
+        new_party_size: newPartySize,
+        final_date: newDate,
+        final_time: newTime,
+        final_zone: null,
+        message: `Reserva modificada a ${newPartySize} personas — pendiente de revisión por ser grupo grande.`,
+      });
+    }
+
     // Reassign tables if date, time, or party_size changed
     const dateChanged = newDate !== existing.date;
     const timeChanged = newTime !== existing.time;
