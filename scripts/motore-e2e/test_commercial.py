@@ -53,13 +53,21 @@ def turn(frm, body, want_keys=None):
                 if em.get("messageSid") != msgsid:
                     continue
                 par = rd["Process AI Response"][0]["data"]["main"][0][0]["json"]
+                # The proactive-offer guard returns early FROM the OpenAI node (it skips
+                # the LLM), and Process AI Response doesn't carry commercialOffered. Read
+                # the guard's authoritative output straight from the OpenAI node.
+                oaj = {}
+                try:
+                    oaj = rd["OpenAI"][0]["data"]["main"][0][0]["json"]
+                except Exception:
+                    pass
                 return {
                     "reply": par.get("cleanResponse", ""),
-                    "commercialOn": par.get("commercialOn"),
-                    "commercialOffers": par.get("commercialOffers"),
-                    "commercialOffered": par.get("commercialOffered"),
-                    "interactiveButtons": par.get("interactiveButtons"),
-                    "lang": par.get("lang"),
+                    "commercialOn": par.get("commercialOn", oaj.get("commercialOn")),
+                    "commercialOffers": par.get("commercialOffers", oaj.get("commercialOffers")),
+                    "commercialOffered": oaj.get("commercialOffered", par.get("commercialOffered")),
+                    "interactiveButtons": oaj.get("interactiveButtons", par.get("interactiveButtons")),
+                    "lang": par.get("lang", oaj.get("lang")),
                 }
             except Exception:
                 continue
@@ -75,11 +83,17 @@ test_ids = []
 try:
     print("① Setup PICNIC: flag ON + 2 commerciale test articles")
     set_flag(PICNIC, True)
+    # 4 articles on purpose: Meta reply-buttons cap at 3, so >3 must switch to a LIST
+    # (up to 10 rows) — otherwise the 4th offer ("Tartas"/torte) gets silently dropped.
     arts = [
         {"tenant_id": PICNIC, "title": "Tartas test", "category": "commerciale", "status": "published",
          "content": "LISTA DE TARTAS (test)\n- Tarta de helado 25€/kg\n- Milhojas 25€/kg\n- Tarta espatulada 32€/kg", "risk_tags": [], "version": 1, "author_id": "", "display_order": 900},
         {"tenant_id": PICNIC, "title": "Buffet test", "category": "commerciale", "status": "published",
          "content": "BUFFET (test)\nBUFFET DRINK 25€ por persona\nBUFFET FOOD 25€ por persona", "risk_tags": [], "version": 1, "author_id": "", "display_order": 901},
+        {"tenant_id": PICNIC, "title": "Menu fijo test", "category": "commerciale", "status": "published",
+         "content": "MENU FIJO (test)\nMenu grupo 30€ por persona", "risk_tags": [], "version": 1, "author_id": "", "display_order": 902},
+        {"tenant_id": PICNIC, "title": "Listino test", "category": "commerciale", "status": "published",
+         "content": "LISTINO (test)\nServicio evento privado bajo presupuesto", "risk_tags": [], "version": 1, "author_id": "", "display_order": 903},
     ]
     s, t = http(SB + "/rest/v1/knowledge_articles", data=json.dumps(arts).encode(),
                 headers={**H, "Prefer": "return=representation"}, method="POST")
@@ -96,15 +110,22 @@ try:
     r = turn("whatsapp:+99000111333", "Ciao, quanto costa la torta?")
     check("IT: detected italian + answered (25 in reply)", "25" in (r.get("reply") or "") or (r.get("lang") == "it"), "lang=%s reply=%s" % (r.get("lang"), repr((r.get("reply") or "")[:120])))
 
-    print("\n③ PROACTIVE — occasion word → tappable buttons")
-    r = turn("whatsapp:+99000222444", "Hola, es para un cumpleaños")
-    check("occasion: commercialOffered true", r.get("commercialOffered") is True, "offered=%s" % r.get("commercialOffered"))
-    check("occasion: interactiveButtons present", bool(r.get("interactiveButtons")), "buttons=%s" % json.dumps(r.get("interactiveButtons"), ensure_ascii=False))
+    def has_torte(btns):
+        return any("tarta" in (b.get("title", "").lower()) for b in (btns or []))
 
-    print("\n④ PROACTIVE — large group → tappable buttons")
+    print("\n③ PROACTIVE — occasion word → tappable options (4 offers → none dropped)")
+    r = turn("whatsapp:+99000222444", "Hola, es para un cumpleaños")
+    btns = r.get("interactiveButtons") or []
+    check("occasion: commercialOffered true", r.get("commercialOffered") is True, "offered=%s" % r.get("commercialOffered"))
+    check("occasion: ALL 4 offers present (no 3-button cap)", len(btns) == 4, "n=%d %s" % (len(btns), json.dumps(btns, ensure_ascii=False)))
+    check("occasion: 'Tartas' (torte) NOT dropped", has_torte(btns), json.dumps(btns, ensure_ascii=False))
+
+    print("\n④ PROACTIVE — large group → tappable options")
     r = turn("whatsapp:+99000333555", "Buenas, somos 12 personas para una comida")
+    btns = r.get("interactiveButtons") or []
     check("group: commercialOffered true", r.get("commercialOffered") is True, "offered=%s" % r.get("commercialOffered"))
-    check("group: buttons present", bool(r.get("interactiveButtons")), "buttons=%s" % json.dumps(r.get("interactiveButtons"), ensure_ascii=False))
+    check("group: ALL 4 offers present", len(btns) == 4, "n=%d %s" % (len(btns), json.dumps(btns, ensure_ascii=False)))
+    check("group: 'Tartas' (torte) NOT dropped", has_torte(btns), json.dumps(btns, ensure_ascii=False))
 
     print("\n⑤ GATE — flag OFF → no commercial answer, no proactive offer")
     set_flag(PICNIC, False)
