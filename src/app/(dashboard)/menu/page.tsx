@@ -664,10 +664,11 @@ export default function MenuPage() {
                 {/* Back to the category list — phones only (master-detail). */}
                 <button
                   onClick={() => setMobilePane("list")}
-                  className="md:hidden cursor-pointer -ml-2 p-1.5 text-black hover:bg-zinc-100 rounded-lg shrink-0"
+                  className="md:hidden cursor-pointer p-1.5 text-black bg-white hover:bg-[#c4956a]/10 rounded-lg border-2 shrink-0"
+                  style={{ borderColor: "#c4956a" }}
                   aria-label={t("back") || "Indietro"}
                 >
-                  <ChevronLeft className="w-6 h-6" />
+                  <ChevronLeft className="w-5 h-5" />
                 </button>
                 <div className="min-w-0">
                 <p className="text-[10px] uppercase font-black tracking-widest text-black">
@@ -1371,11 +1372,11 @@ function ItemEditModal({
       onClick={onClose}
     >
       <div
-        className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden"
+        className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90dvh] flex flex-col overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
         <div
-          className="flex items-center justify-between p-5 border-b shrink-0"
+          className="flex items-center justify-between p-4 md:p-5 border-b shrink-0"
           style={{ borderColor: "#c4956a" }}
         >
           <h2 className="text-lg font-bold text-black">
@@ -1391,7 +1392,7 @@ function ItemEditModal({
           </button>
         </div>
 
-        <div className="flex-1 overflow-y-auto p-6 space-y-5">
+        <div className="flex-1 overflow-y-auto p-4 md:p-6 space-y-5">
           {/* Dish photo — optional, shown big on the public /m/<slug> menu. */}
           <div>
             <label className="block text-xs font-bold text-black uppercase tracking-widest mb-1.5">
@@ -2303,7 +2304,7 @@ function ImportMenuModal({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40" onClick={onClose}>
       <div
-        className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl max-h-[90vh] flex flex-col overflow-hidden"
+        className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl max-h-[90dvh] flex flex-col overflow-hidden"
         onClick={(e) => e.stopPropagation()}
         onDragOver={stage === "idle" ? onDragOver : undefined}
         onDragLeave={stage === "idle" ? onDragLeave : undefined}
@@ -3305,7 +3306,7 @@ function CollectionEditModal({
       onClick={onClose}
     >
       <div
-        className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden"
+        className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90dvh] flex flex-col overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between p-5 border-b shrink-0" style={{ borderColor: "#c4956a" }}>
