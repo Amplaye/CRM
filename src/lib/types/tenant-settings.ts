@@ -149,6 +149,11 @@ export interface TenantSettings {
     party_size_threshold_large?: number;
     party_size_block_threshold?: number;
     closing_time_offset_min?: number;
+    /** Kill switch (Settings → Bookings). When true the WhatsApp engine stops
+     * handling requests and replies with bot_paused_message only. */
+    bot_paused?: boolean;
+    /** The auto-reply sent while bot_paused is true — redirects to the owner. */
+    bot_paused_message?: string;
     [key: string]: any;
   };
   /** Billing/subscription state, written by the Stripe/PayPal webhooks (Settings →

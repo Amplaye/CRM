@@ -85,6 +85,11 @@ export async function POST(req: NextRequest) {
     const dinnerOff = clampInt(body.last_dinner_offset_min, -1, 240, 60);
     const depositRequired = !!body.deposit_required;
     const depositAmount = String(body.deposit_amount ?? "").trim();
+    // Pause kill switch: when bot_paused is true the WhatsApp engine short-circuits
+    // and replies with bot_paused_message (which redirects to the owner). Preserve
+    // the previously saved message when the form omits it.
+    const botPaused = !!body.bot_paused;
+    const botPausedMessage = String(body.bot_paused_message ?? settings.bot_config?.bot_paused_message ?? "").trim();
 
     // Auto-confirm limit (moved here from Settings → Features): the owner-facing
     // MAX party size the assistant confirms instantly. The n8n bot + /api/ai/book
@@ -128,6 +133,8 @@ export async function POST(req: NextRequest) {
         late_grace_if_notified: lateGrace,
         party_size_threshold_large: largeThreshold,
         party_size_block_threshold: blockThreshold,
+        bot_paused: botPaused,
+        bot_paused_message: botPausedMessage,
       },
     };
 

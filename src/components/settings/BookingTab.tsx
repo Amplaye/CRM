@@ -1,6 +1,6 @@
 "use client";
 
-import { Save, ChevronDown, Phone, CalendarClock } from "lucide-react";
+import { Save, ChevronDown, Phone, CalendarClock, PowerOff } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
 import { useLanguage } from "@/lib/contexts/LanguageContext";
 import { useTenant } from "@/lib/contexts/TenantContext";
@@ -84,6 +84,10 @@ export function BookingTab() {
   const [dinnerOff, setDinnerOff] = useState(60);
   const [depositRequired, setDepositRequired] = useState(false);
   const [depositAmount, setDepositAmount] = useState("");
+  // Kill switch for the live test: when on, the WhatsApp engine stops handling
+  // requests and replies with botPausedMessage (which redirects to the owner).
+  const [botPaused, setBotPaused] = useState(false);
+  const [botPausedMessage, setBotPausedMessage] = useState("");
   // Owner-facing MAX party size that auto-confirms (= bot's large threshold − 1).
   const [autoConfirmMax, setAutoConfirmMax] = useState(DEFAULT_AUTO_CONFIRM_MAX);
   const [customMax, setCustomMax] = useState(false);
@@ -113,11 +117,18 @@ export function BookingTab() {
     const bc = s.bot_config || {};
     setLateTol(Number.isFinite(bc.late_tolerance_min) ? bc.late_tolerance_min : 15);
     setLateGrace(bc.late_grace_if_notified !== false);
+    setBotPaused(!!bc.bot_paused);
+    // Prefill the auto-reply with a localized default (owner number appended when
+    // we already have it) so the owner only has to paste the number tomorrow.
+    const savedPauseMsg = typeof bc.bot_paused_message === "string" ? bc.bot_paused_message : "";
+    const defOwner = (s.owner_phone || "").trim();
+    setBotPausedMessage(savedPauseMsg || (t("settings_booking_pause_msg_default") + (defOwner ? ` 📞 ${defOwner}` : "")));
     // Display the MAX (threshold − 1). No bot_config yet → bot uses 7 → show 6.
     const large = Number(bc.party_size_threshold_large);
     const max = Number.isFinite(large) && large > 0 ? large - 1 : DEFAULT_AUTO_CONFIRM_MAX;
     setAutoConfirmMax(max);
     setCustomMax(!AUTO_CONFIRM_PRESETS.includes(max));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tenant]);
 
   const handleSave = async () => {
@@ -142,6 +153,8 @@ export function BookingTab() {
           deposit_required: depositRequired,
           deposit_amount: depositAmount,
           auto_confirm_max: autoConfirmMax,
+          bot_paused: botPaused,
+          bot_paused_message: botPausedMessage,
         }),
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -187,6 +200,33 @@ export function BookingTab() {
           </button>
         </div>
       </div>
+
+      {/* Pause bot — emergency kill switch for the live test. Sits at the top so
+          the owner can flip it the moment the assistant misbehaves. */}
+      <section className="p-6 rounded-xl border-2" style={botPaused ? { background: "rgba(254,242,242,0.95)", borderColor: "#dc2626" } : SECTION}>
+        <div className="flex items-center justify-between gap-2 mb-1">
+          <h3 className="text-lg font-bold text-black flex items-center gap-2"><PowerOff className="w-4 h-4" />{t("settings_booking_pause_title")}</h3>
+          {botPaused && (
+            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-bold text-white" style={{ background: "#dc2626" }}>
+              {t("settings_booking_pause_active")}
+            </span>
+          )}
+        </div>
+        <p className="text-xs text-black mb-3">{t("settings_booking_pause_desc")}</p>
+        <Row label={t("settings_booking_pause_label")} hint={t("settings_booking_pause_hint")}>
+          <Toggle on={botPaused} onClick={() => setBotPaused((v) => !v)} />
+        </Row>
+        <Row htmlFor="bot_paused_message" label={t("settings_booking_pause_msg_label")} hint={t("settings_booking_pause_msg_hint")}>
+          <textarea id="bot_paused_message" name="bot_paused_message" rows={3}
+            value={botPausedMessage} onChange={(e) => setBotPausedMessage(e.target.value)}
+            placeholder={t("settings_booking_pause_msg_default")}
+            className="block w-full rounded-lg border-2 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-[#c4956a] sm:w-80"
+            style={INPUT_BORDER} />
+        </Row>
+        {botPaused && botPausedMessage.replace(/[^0-9]/g, "").length < 6 && (
+          <p className="text-xs font-medium mt-2" style={{ color: "#dc2626" }}>{t("settings_booking_pause_warn")}</p>
+        )}
+      </section>
 
       {/* Contacts */}
       <section className="p-6 rounded-xl border-2" style={SECTION}>
