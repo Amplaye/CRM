@@ -103,7 +103,7 @@ export default function LoginPage() {
         </div>
       </div>
 
-      <div className="mt-3 mx-auto w-full max-w-md relative z-10 flex justify-center">
+      <div className="absolute top-4 right-4 z-20">
         <div
           className="inline-flex items-center gap-1 p-1 rounded-full"
           style={{ background: "rgba(252,246,237,0.85)", border: "2px solid #c4956a" }}
@@ -116,7 +116,7 @@ export default function LoginPage() {
                 type="button"
                 onClick={() => setLanguage(code)}
                 aria-pressed={active}
-                className="flex items-center gap-1.5 px-3 py-1 rounded-full text-sm font-semibold transition-all"
+                className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-sm font-semibold transition-all"
                 style={
                   active
                     ? { background: "linear-gradient(135deg, #c4956a 0%, #b8845c 100%)", color: "#fff" }
@@ -131,7 +131,7 @@ export default function LoginPage() {
         </div>
       </div>
 
-      <div className="mt-[16px] mx-auto w-full max-w-md relative z-10">
+      <div className="mt-[20px] mx-auto w-full max-w-md relative z-10">
         <div className="py-5 sm:py-6 px-5 sm:px-10 rounded-2xl" style={{
           background: 'rgba(252,246,237,0.85)',
           border: '2px solid #c4956a',
