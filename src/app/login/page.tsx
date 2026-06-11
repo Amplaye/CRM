@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
-import { Loader2, Lock, Mail, Eye, EyeOff } from "lucide-react";
+import { Loader2, Lock, Mail, Eye, EyeOff, ChevronDown } from "lucide-react";
 import Link from "next/link";
 import { useLanguage } from "@/lib/contexts/LanguageContext";
 import { safeLocal } from "@/lib/safe-storage";
@@ -37,6 +37,7 @@ export default function LoginPage() {
   const router = useRouter();
   const supabase = createClient();
   const { language, setLanguage, t } = useLanguage();
+  const [langOpen, setLangOpen] = useState(false);
 
   const LANGS: { code: "es" | "it" | "en" | "de"; flag: string; label: string }[] = [
     { code: "es", flag: "🇪🇸", label: "ES" },
@@ -44,6 +45,15 @@ export default function LoginPage() {
     { code: "en", flag: "🇬🇧", label: "EN" },
     { code: "de", flag: "🇩🇪", label: "DE" },
   ];
+  const current = LANGS.find((l) => l.code === language) ?? LANGS[2];
+
+  // Close the language dropdown when clicking anywhere outside it.
+  useEffect(() => {
+    if (!langOpen) return;
+    const close = () => setLangOpen(false);
+    document.addEventListener("click", close);
+    return () => document.removeEventListener("click", close);
+  }, [langOpen]);
 
   useEffect(() => {
     if (new URLSearchParams(window.location.search).get("confirmed") === "1") {
@@ -104,30 +114,50 @@ export default function LoginPage() {
       </div>
 
       <div className="absolute top-4 right-4 z-20">
-        <div
-          className="inline-flex items-center gap-1 p-1 rounded-full"
-          style={{ background: "rgba(252,246,237,0.85)", border: "2px solid #c4956a" }}
-        >
-          {LANGS.map(({ code, flag, label }) => {
-            const active = language === code;
-            return (
-              <button
-                key={code}
-                type="button"
-                onClick={() => setLanguage(code)}
-                aria-pressed={active}
-                className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-sm font-semibold transition-all"
-                style={
-                  active
-                    ? { background: "linear-gradient(135deg, #c4956a 0%, #b8845c 100%)", color: "#fff" }
-                    : { background: "transparent", color: "#000" }
-                }
-              >
-                <span className="text-base leading-none">{flag}</span>
-                <span>{label}</span>
-              </button>
-            );
-          })}
+        <div className="relative">
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              setLangOpen((o) => !o);
+            }}
+            aria-haspopup="listbox"
+            aria-expanded={langOpen}
+            className="flex items-center gap-1.5 pl-3 pr-2 py-1.5 rounded-full text-sm font-semibold text-black transition-all"
+            style={{ background: "rgba(252,246,237,0.85)", border: "2px solid #c4956a" }}
+          >
+            <span className="text-base leading-none">{current.flag}</span>
+            <span>{current.label}</span>
+            <ChevronDown className={`h-4 w-4 transition-transform ${langOpen ? "rotate-180" : ""}`} />
+          </button>
+
+          {langOpen && (
+            <ul
+              role="listbox"
+              className="absolute right-0 mt-2 w-32 rounded-xl overflow-hidden shadow-lg"
+              style={{ background: "rgba(252,246,237,0.98)", border: "2px solid #c4956a" }}
+            >
+              {LANGS.map(({ code, flag, label }) => {
+                const active = language === code;
+                return (
+                  <li key={code} role="option" aria-selected={active}>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setLanguage(code);
+                        setLangOpen(false);
+                      }}
+                      className="w-full flex items-center gap-2 px-3 py-2 text-sm font-medium text-black transition-colors hover:bg-[#c4956a]/15"
+                      style={active ? { background: "rgba(196,149,106,0.2)" } : undefined}
+                    >
+                      <span className="text-base leading-none">{flag}</span>
+                      <span>{label}</span>
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
         </div>
       </div>
 
