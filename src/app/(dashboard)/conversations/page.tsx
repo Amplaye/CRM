@@ -71,7 +71,7 @@ export default function ConversationsPage() {
         // nothing meaningful changed. Conversations is the heaviest component
         // on this page; polling it every few seconds with a fresh array
         // reference was making the whole panel feel sluggish.
-        const sig = convos.map(c => `${c.id}:${c.updated_at}:${(c.guests as any)?.bot_paused_at || ""}:${getAudit(c)?.id || ""}`).join("|");
+        const sig = convos.map(c => `${c.id}:${c.updated_at}:${(c.guests as any)?.bot_paused_at || ""}:${(c.guests as any)?.bot_paused_hold ? 1 : 0}:${getAudit(c)?.id || ""}`).join("|");
         if (sig !== lastSig) {
           lastSig = sig;
           setConversations(convos);
@@ -131,16 +131,20 @@ export default function ConversationsPage() {
   // Only runs while a guest with an active pause flag is selected, to avoid
   // a useless interval on every render of the conversations page.
   const pausedAtRaw = (selectedGuest as any)?.bot_paused_at as string | null | undefined;
+  // Manual hold (Coexistence): the owner took over from the WhatsApp Business
+  // App. Unlike the 60s CRM-inbox cooldown, a hold never auto-resumes — the
+  // banner stays (no countdown) until "Completa col bot" is tapped.
+  const pauseHeld = !!(selectedGuest as any)?.bot_paused_hold;
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
-    if (!pausedAtRaw) return;
+    if (!pausedAtRaw || pauseHeld) return; // no ticking needed while held
     const id = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(id);
-  }, [pausedAtRaw]);
+  }, [pausedAtRaw, pauseHeld]);
   const COOLDOWN_MS = 60_000;
   const pauseElapsed = pausedAtRaw ? now - new Date(pausedAtRaw).getTime() : Infinity;
   const pauseRemainingSec = Math.max(0, Math.ceil((COOLDOWN_MS - pauseElapsed) / 1000));
-  const showPauseBanner = !!pausedAtRaw && pauseRemainingSec > 0;
+  const showPauseBanner = pauseHeld || (!!pausedAtRaw && pauseRemainingSec > 0);
 
   useEffect(() => {
     if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
@@ -402,17 +406,23 @@ export default function ConversationsPage() {
             <div className="px-4 md:px-6 py-2 flex items-center justify-between gap-3" style={{ background: 'rgba(255,196,0,0.15)', borderBottom: '1px solid rgba(196,149,106,0.4)' }}>
               <div className="flex items-center gap-2 text-[12px] text-black">
                 <Pause className="w-3.5 h-3.5" />
-                <span>
-                  <b>{t("conv_bot_paused")}</b> — {t("conv_bot_paused_hint")}{" "}
-                  <span className="font-mono font-bold tabular-nums" style={{ color: '#be2e0b' }}>
-                    {pauseRemainingSec}s
+                {pauseHeld ? (
+                  <span>
+                    <b>{t("conv_bot_held")}</b> — {t("conv_bot_held_hint")}
                   </span>
-                </span>
+                ) : (
+                  <span>
+                    <b>{t("conv_bot_paused")}</b> — {t("conv_bot_paused_hint")}{" "}
+                    <span className="font-mono font-bold tabular-nums" style={{ color: '#be2e0b' }}>
+                      {pauseRemainingSec}s
+                    </span>
+                  </span>
+                )}
               </div>
               <button onClick={handleResumeBot}
                 className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-bold text-white"
                 style={{ background: 'linear-gradient(135deg, #d4a574, #c4956a)' }}>
-                <Play className="w-3.5 h-3.5" /> {t("conv_resume_bot")}
+                <Play className="w-3.5 h-3.5" /> {pauseHeld ? t("conv_finish_with_bot") : t("conv_resume_bot")}
               </button>
             </div>
           )}

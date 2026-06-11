@@ -37,9 +37,12 @@ export async function POST(request: Request) {
     if (gErr) throw gErr;
     if (!guest) return NextResponse.json({ error: "guest not found" }, { status: 404 });
 
+    // Clear both the timestamp and the manual hold (set by owner-echo for the
+    // Coexistence takeover). Without clearing bot_paused_hold the engine would
+    // stay silent forever after a hold takeover.
     const { error: uErr } = await supabase
       .from("guests")
-      .update({ bot_paused_at: null })
+      .update({ bot_paused_at: null, bot_paused_hold: false })
       .eq("id", guest_id);
     if (uErr) throw uErr;
 
