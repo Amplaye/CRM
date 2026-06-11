@@ -18,8 +18,15 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
+  metadataBase: new URL("https://crm.baliflowagency.com"),
   title: "BaliFlow CRM",
   description: "BaliFlow CRM - Business Operations Dashboard",
+  openGraph: {
+    title: "BaliFlow CRM",
+    description: "BaliFlow CRM - Business Operations Dashboard",
+    siteName: "BaliFlow CRM",
+    type: "website",
+  },
 };
 
 // Do NOT disable zoom. Owners (often non-technical) fill this on their phone
