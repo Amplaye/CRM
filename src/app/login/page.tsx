@@ -36,7 +36,14 @@ export default function LoginPage() {
   const [confirmedNotice, setConfirmedNotice] = useState(false);
   const router = useRouter();
   const supabase = createClient();
-  const { setLanguage, t } = useLanguage();
+  const { language, setLanguage, t } = useLanguage();
+
+  const LANGS: { code: "es" | "it" | "en" | "de"; flag: string; label: string }[] = [
+    { code: "es", flag: "🇪🇸", label: "ES" },
+    { code: "it", flag: "🇮🇹", label: "IT" },
+    { code: "en", flag: "🇬🇧", label: "EN" },
+    { code: "de", flag: "🇩🇪", label: "DE" },
+  ];
 
   useEffect(() => {
     if (new URLSearchParams(window.location.search).get("confirmed") === "1") {
@@ -96,7 +103,35 @@ export default function LoginPage() {
         </div>
       </div>
 
-      <div className="mt-[20px] mx-auto w-full max-w-md relative z-10">
+      <div className="mt-3 mx-auto w-full max-w-md relative z-10 flex justify-center">
+        <div
+          className="inline-flex items-center gap-1 p-1 rounded-full"
+          style={{ background: "rgba(252,246,237,0.85)", border: "2px solid #c4956a" }}
+        >
+          {LANGS.map(({ code, flag, label }) => {
+            const active = language === code;
+            return (
+              <button
+                key={code}
+                type="button"
+                onClick={() => setLanguage(code)}
+                aria-pressed={active}
+                className="flex items-center gap-1.5 px-3 py-1 rounded-full text-sm font-semibold transition-all"
+                style={
+                  active
+                    ? { background: "linear-gradient(135deg, #c4956a 0%, #b8845c 100%)", color: "#fff" }
+                    : { background: "transparent", color: "#000" }
+                }
+              >
+                <span className="text-base leading-none">{flag}</span>
+                <span>{label}</span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      <div className="mt-[16px] mx-auto w-full max-w-md relative z-10">
         <div className="py-5 sm:py-6 px-5 sm:px-10 rounded-2xl" style={{
           background: 'rgba(252,246,237,0.85)',
           border: '2px solid #c4956a',
