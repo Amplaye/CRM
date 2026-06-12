@@ -134,23 +134,24 @@ describe("provider id resolution reads env, undefined when unset", () => {
 describe("billing catalog — bundle (pay everything together)", () => {
   it("only recurring, non-coming-soon add-ons are bundleable", () => {
     const ids = bundleableAddons().map((a) => a.id);
-    // both voice tiers are recurring; website_design is one-off; smart_inventory is coming soon.
-    expect(ids).toContain("voice_vapi");
-    expect(ids).toContain("voice_retell");
+    // every recurring add-on is currently coming soon (both voice tiers +
+    // smart_inventory); website_design is one-off — so nothing is bundleable.
+    expect(ids).not.toContain("voice_vapi");
+    expect(ids).not.toContain("voice_retell");
     expect(ids).not.toContain("website_design");
     expect(ids).not.toContain("smart_inventory");
+    expect(ids).toHaveLength(0);
   });
 
-  it("monthly bundle = plan + sum of monthly add-on prices", () => {
+  it("coming-soon voice add-ons contribute nothing to a monthly bundle", () => {
     const premium = getPlan("premium")!;
-    // 399 + voice_retell 199 = 598
-    expect(bundleTotal(premium, "monthly", ["voice_retell"])).toBe(598);
+    // voice_retell is coming soon → not billed; total is just the plan.
+    expect(bundleTotal(premium, "monthly", ["voice_retell"])).toBe(premium.monthly);
   });
 
-  it("yearly bundle bills add-ons ×10 (2 months free, matching the plan)", () => {
+  it("coming-soon voice add-ons contribute nothing to a yearly bundle", () => {
     const premium = getPlan("premium")!;
-    // 3990 + voice_retell 199×10 = 3990 + 1990 = 5980
-    expect(bundleTotal(premium, "yearly", ["voice_retell"])).toBe(5980);
+    expect(bundleTotal(premium, "yearly", ["voice_retell"])).toBe(premium.yearly);
   });
 
   it("ignores one-off / coming-soon / unknown ids in the total", () => {

@@ -137,6 +137,7 @@ export const ADDONS: Addon[] = [
     amount: 99,
     billing: "recurring",
     period: "monthly",
+    comingSoon: true,
   },
   {
     id: "voice_retell",
@@ -146,6 +147,7 @@ export const ADDONS: Addon[] = [
     amount: 199,
     billing: "recurring",
     period: "monthly",
+    comingSoon: true,
   },
   {
     id: "smart_inventory",
