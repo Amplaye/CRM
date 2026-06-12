@@ -425,8 +425,10 @@ export default function MenuPage() {
                   ["3", t("menu_template_3") || "Scuro"],
                   ["4", t("menu_template_4") || "Classico"],
                 ] as const).map(([num, label]) => (
+                  // Spell out "Plantilla/Template N · Name" so the owner reads it as a
+                  // template choice, not a bare number (was just "1/2/3/4").
                   <option key={num} value={num} title={label}>
-                    {num}
+                    {`${t("menu_template_word") || "Template"} ${num} · ${label}`}
                   </option>
                 ))}
               </select>
@@ -1799,6 +1801,16 @@ function ImportMenuModal({
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [tab, setTab] = useState<"file" | "url">("file");
   const [file, setFile] = useState<File | null>(null);
+  // Multi-image queue. The owner asked to add SEVERAL photos of the menu at once
+  // (antipasti page, mains page, desserts page…) WITHOUT the previously-picked
+  // ones disappearing when you add another. Images accumulate here; a PDF/Word/CSV
+  // stays single (it's already the whole menu). When the queue holds >1 image we
+  // process them as sequential APPEND jobs into the same menu — reusing the
+  // proven single-file pipeline (the Edge worker treats file_chunks as PDF pages,
+  // so we can't pass mixed images as one job; sequential append is the safe path).
+  const [queue, setQueue] = useState<File[]>([]);
+  // While a multi-image batch runs: which image we're on (1-based) and how many.
+  const [batch, setBatch] = useState<{ index: number; total: number } | null>(null);
   const [url, setUrl] = useState("");
   const [stage, setStage] = useState<"idle" | "uploading" | "processing" | "pairing" | "preview" | "saving" | "done">("idle");
   const [extracted, setExtracted] = useState<ExtractedMenu | null>(null);
@@ -1812,6 +1824,11 @@ function ImportMenuModal({
   const [dragging, setDragging] = useState(false);
   const [savedCounts, setSavedCounts] = useState<{ cats: number; items: number } | null>(null);
   const [jobId, setJobId] = useState<string | null>(null);
+  // Default to ADDING to the existing menu, not wiping it: the owner reported that
+  // a new upload erased the menu they'd already imported. They can still opt into
+  // a clean replace via the checkbox in the preview. Multi-image batches always
+  // append (each image piles onto the same menu).
+  const [replaceExisting, setReplaceExisting] = useState(false);
   // Progress bar. For multi-page menus the Edge Function reports real
   // processed/total page-chunks; for single-shot jobs (one OpenAI call, no
   // progress feed) we fall back to a decelerating time-based estimate. Either
@@ -2007,25 +2024,63 @@ function ImportMenuModal({
     !!VISION_MIME[f.type.toLowerCase()] ||
     ACCEPTED_EXTENSIONS.some((ext) => f.name.toLowerCase().endsWith(ext));
 
-  // Single entry point for a chosen file (picker OR drag-drop): validate type
-  // and size up front and surface a clear error instead of failing later in
-  // the upload with an opaque 4xx.
+  const isImageFile = (f: File) =>
+    f.type.toLowerCase().startsWith("image/") ||
+    [".jpg", ".jpeg", ".png", ".webp", ".gif"].some((ext) => f.name.toLowerCase().endsWith(ext));
+
+  // Validate one file up front (type + size); returns an error key or null.
+  const validateFile = (f: File): string | null => {
+    if (!isAcceptedFile(f)) return t("menu_import_bad_type") || "Unsupported file type.";
+    if (f.size > MAX_UPLOAD_BYTES) return t("menu_import_too_big") || `File too large (max ${MAX_UPLOAD_MB} MB).`;
+    return null;
+  };
+
+  // Accept one or MORE chosen files (picker/drag-drop). Images ACCUMULATE into a
+  // queue so picking a second batch never wipes the first (the owner's complaint).
+  // A non-image (PDF/Word/CSV) is the whole menu on its own → it replaces the
+  // queue with a single file. Mixing an image queue with a PDF isn't allowed:
+  // the last non-image picked wins and clears the image queue.
+  const acceptFiles = (list: FileList | File[] | null | undefined) => {
+    const files = list ? Array.from(list) : [];
+    if (files.length === 0) return;
+
+    const images: File[] = [];
+    let doc: File | null = null;
+    for (const f of files) {
+      const err = validateFile(f);
+      if (err) { setError(err); return; }
+      if (isImageFile(f)) images.push(f);
+      else doc = f; // keep the last valid doc
+    }
+
+    setError(null);
+    if (doc) {
+      // A document is self-contained: it becomes THE upload, queue cleared.
+      setQueue([]);
+      setFile(doc);
+      return;
+    }
+    // Images: append to whatever is already queued (dedupe by name+size+mtime).
+    setQueue((prev) => {
+      const seen = new Set(prev.map((p) => `${p.name}:${p.size}:${p.lastModified}`));
+      const merged = [...prev];
+      for (const img of images) {
+        const k = `${img.name}:${img.size}:${img.lastModified}`;
+        if (!seen.has(k)) { seen.add(k); merged.push(img); }
+      }
+      return merged;
+    });
+    setFile(null);
+  };
+
+  // Backwards-compatible single-file entry point (still used by some callers).
   const acceptFile = (f: File | null | undefined) => {
     if (!f) return;
-    if (!isAcceptedFile(f)) {
-      setError(t("menu_import_bad_type") || "Unsupported file type.");
-      setFile(null);
-      return;
-    }
-    if (f.size > MAX_UPLOAD_BYTES) {
-      setError(
-        t("menu_import_too_big") || `File too large (max ${MAX_UPLOAD_MB} MB).`
-      );
-      setFile(null);
-      return;
-    }
-    setError(null);
-    setFile(f);
+    acceptFiles([f]);
+  };
+
+  const removeFromQueue = (idx: number) => {
+    setQueue((prev) => prev.filter((_, i) => i !== idx));
   };
 
   // Drag-and-drop. preventDefault on dragOver AND drop is what stops the
@@ -2046,7 +2101,7 @@ function ImportMenuModal({
     e.stopPropagation();
     setDragging(false);
     setTab("file");
-    acceptFile(e.dataTransfer?.files?.[0]);
+    acceptFiles(e.dataTransfer?.files);
   };
 
   const switchTab = (next: "file" | "url") => {
@@ -2144,6 +2199,100 @@ function ImportMenuModal({
     }
   };
 
+  // Upload ONE file → job → poll until the worker finishes → return the extracted
+  // menu. Used by the multi-image batch path. Throws on failure/timeout so the
+  // batch loop can stop and report which image broke.
+  const uploadAndExtractOne = async (oneFile: File): Promise<ExtractedMenu> => {
+    const signRes = await fetch("/api/menu/upload-url", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ tenant_id: tenantId, file_name: oneFile.name }),
+    });
+    const signData = await signRes.json();
+    if (!signRes.ok || !signData?.path || !signData?.token) {
+      throw new Error(signData?.error || `HTTP ${signRes.status}`);
+    }
+    const { error: upErr } = await supabase.storage
+      .from("menu-imports")
+      .uploadToSignedUrl(signData.path, signData.token, oneFile, {
+        contentType: oneFile.type || "application/octet-stream",
+      });
+    if (upErr) throw new Error(upErr.message || "Upload failed");
+
+    const res = await fetch("/api/menu/import-job", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        tenant_id: tenantId,
+        storage_path: signData.path,
+        file_name: oneFile.name,
+        file_type: oneFile.type,
+      }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+    const id = data.jobId as string;
+
+    // Poll the same status endpoint as the single-file effect does.
+    const startedAt = Date.now();
+    const DEAD_AFTER_MS = 150_000;
+    // eslint-disable-next-line no-constant-condition
+    while (true) {
+      await new Promise((r) => setTimeout(r, 2000));
+      let jd: { status?: string; result?: ExtractedMenu; error?: string } | null = null;
+      try {
+        const jr = await fetch(`/api/menu/import-job/${id}`);
+        if (jr.ok) jd = await jr.json();
+      } catch {
+        // transient — keep polling
+      }
+      if (jd?.status === "done") return jd.result as ExtractedMenu;
+      if (jd?.status === "error") throw new Error(jd.error || "Estrazione fallita.");
+      if (Date.now() - startedAt > DEAD_AFTER_MS) throw new Error(t("menu_import_timeout") || "Timeout estrazione.");
+    }
+  };
+
+  // Multi-image batch: process every queued image in order, APPENDING each into
+  // the same menu. No per-image preview (that'd be N confirmations); we show
+  // "image X of N" progress and a final summary. The first image can optionally
+  // replace; the rest always append onto it.
+  const handleUploadBatch = async () => {
+    if (queue.length === 0) return;
+    setStage("uploading");
+    setError(null);
+    progressRef.current = 0;
+    setProgressPct(0);
+    let totalCats = 0;
+    let totalItems = 0;
+    try {
+      for (let i = 0; i < queue.length; i++) {
+        setBatch({ index: i + 1, total: queue.length });
+        setStage("processing");
+        const menu = await uploadAndExtractOne(queue[i]);
+        // First image honours the replace checkbox; subsequent images always add.
+        const mode = i === 0 && replaceExisting ? "replace" : "append";
+        const cr = await fetch("/api/menu/import-confirm", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ tenant_id: tenantId, extracted: menu, mode }),
+        });
+        const cd = await cr.json();
+        if (!cr.ok) throw new Error(cd.error || `HTTP ${cr.status}`);
+        totalCats += cd.categories_created || 0;
+        totalItems += cd.items_created || 0;
+      }
+      setBatch(null);
+      setSavedCounts({ cats: totalCats, items: totalItems });
+      setStage("done");
+    } catch (e: any) {
+      setBatch(null);
+      setError(
+        `${t("menu_import_failed") || "Importazione non riuscita"}: ${e?.message || "errore"}`
+      );
+      setStage("idle");
+    }
+  };
+
   const handleConfirm = async () => {
     if (!extracted) return;
     setStage("saving");
@@ -2152,8 +2301,10 @@ function ImportMenuModal({
       const res = await fetch("/api/menu/import-confirm", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        // Replace the current menu (a re-upload means "this is the menu now").
-        body: JSON.stringify({ tenant_id: tenantId, extracted, mode: "replace" }),
+        // Append by default (add to the existing menu); only wipe-and-replace when
+        // the owner explicitly ticks "replace". This stops a re-upload from
+        // silently deleting a menu they already built.
+        body: JSON.stringify({ tenant_id: tenantId, extracted, mode: replaceExisting ? "replace" : "append" }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -2377,10 +2528,11 @@ function ImportMenuModal({
                   <input
                     ref={fileInputRef}
                     type="file"
+                    multiple
                     accept="application/pdf,image/jpeg,image/jpg,image/png,image/webp,image/gif,.docx,text/csv,.csv"
                     onChange={(e) => {
-                      acceptFile(e.target.files?.[0]);
-                      // Reset so picking the same file again re-fires onChange.
+                      acceptFiles(e.target.files);
+                      // Reset so picking the same file(s) again re-fires onChange.
                       e.target.value = "";
                     }}
                     className="hidden"
@@ -2389,7 +2541,41 @@ function ImportMenuModal({
                     <div>
                       <Upload className="w-10 h-10 mx-auto mb-3 text-[#a87642]" />
                       <p className="text-sm font-bold text-[#a87642]">
-                        {t("menu_import_drop_active") || "Rilascia qui il file"}
+                        {t("menu_import_drop_active") || "Rilascia qui i file"}
+                      </p>
+                    </div>
+                  ) : queue.length > 0 ? (
+                    // Image queue: thumbnails that ACCUMULATE. Adding more never
+                    // clears these; each has its own remove button.
+                    <div onClick={(e) => e.stopPropagation()} className="cursor-default">
+                      <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
+                        {queue.map((img, idx) => (
+                          <div key={`${img.name}-${idx}`} className="relative group rounded-lg overflow-hidden border-2" style={{ borderColor: "#c4956a" }}>
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img src={URL.createObjectURL(img)} alt={img.name} className="w-full h-20 object-cover" />
+                            <button
+                              type="button"
+                              onClick={(e) => { e.stopPropagation(); removeFromQueue(idx); }}
+                              className="absolute top-1 right-1 w-5 h-5 rounded-full bg-black/70 text-white flex items-center justify-center hover:bg-red-600"
+                              title={t("menu_import_remove_image") || "Rimuovi"}
+                            >
+                              <X className="w-3 h-3" />
+                            </button>
+                            <span className="absolute bottom-0 left-0 right-0 px-1 py-0.5 text-[10px] font-bold text-white bg-black/50 truncate">{idx + 1}</span>
+                          </div>
+                        ))}
+                        <button
+                          type="button"
+                          onClick={() => fileInputRef.current?.click()}
+                          className="h-20 rounded-lg border-2 border-dashed flex flex-col items-center justify-center text-black hover:bg-[#fcf6ed]"
+                          style={{ borderColor: "#c4956a" }}
+                        >
+                          <Plus className="w-5 h-5" />
+                          <span className="text-[10px] font-bold mt-0.5">{t("menu_import_add_more") || "Aggiungi"}</span>
+                        </button>
+                      </div>
+                      <p className="text-xs text-black mt-3 font-medium">
+                        {(t("menu_import_queue_count") || "{n} immagini in coda — verranno aggiunte al menu").replace("{n}", String(queue.length))}
                       </p>
                     </div>
                   ) : file ? (
@@ -2410,7 +2596,7 @@ function ImportMenuModal({
                     <div>
                       <Upload className="w-10 h-10 mx-auto mb-3 text-black" />
                       <p className="text-sm font-bold text-black">
-                        {t("menu_import_drop") || "Clicca o trascina qui un PDF, un'immagine, un Word o un CSV"}
+                        {t("menu_import_drop") || "Clicca o trascina qui PDF o più immagini, un Word o un CSV"}
                       </p>
                       <p className="text-xs text-black mt-1">
                         {t("menu_import_formats") || `PDF, JPEG, PNG, WEBP, Word, CSV — max ${MAX_UPLOAD_MB} MB`}
@@ -2444,6 +2630,25 @@ function ImportMenuModal({
                   {error}
                 </div>
               )}
+
+              {/* Add vs replace. Default = add to the existing menu (the owner's
+                  ask). Only shown on the file tab where it applies. */}
+              {tab === "file" && (file || queue.length > 0) && (
+                <label className="mt-4 flex items-start gap-2 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={replaceExisting}
+                    onChange={(e) => setReplaceExisting(e.target.checked)}
+                    className="mt-0.5 w-4 h-4 rounded accent-[#c4956a]"
+                  />
+                  <span className="text-xs text-black">
+                    <span className="font-bold">{t("menu_import_replace_label") || "Sostituisci il menu esistente"}</span>
+                    {" — "}
+                    {t("menu_import_replace_hint") || "se lasci spento, i piatti vengono AGGIUNTI a quelli già presenti."}
+                  </span>
+                </label>
+              )}
+
               <div className="mt-6 flex justify-end gap-2">
                 <button
                   onClick={onClose}
@@ -2453,13 +2658,21 @@ function ImportMenuModal({
                   {t("cancel") || "Annulla"}
                 </button>
                 <button
-                  onClick={tab === "file" ? handleUpload : handleUrlImport}
-                  disabled={tab === "file" ? !file : !url.trim()}
+                  onClick={
+                    tab === "url"
+                      ? handleUrlImport
+                      : queue.length > 0
+                        ? handleUploadBatch
+                        : handleUpload
+                  }
+                  disabled={tab === "url" ? !url.trim() : queue.length === 0 && !file}
                   className="cursor-pointer disabled:cursor-not-allowed disabled:opacity-50 px-6 py-2 text-white text-sm font-bold rounded-lg shadow-sm flex items-center"
                   style={{ background: "linear-gradient(135deg, #d4a574, #c4956a)" }}
                 >
                   <Upload className="w-4 h-4 mr-2" />
-                  {t("menu_import_analyze") || "Analizza menu"}
+                  {queue.length > 1
+                    ? (t("menu_import_analyze_n") || "Analizza {n} immagini").replace("{n}", String(queue.length))
+                    : (t("menu_import_analyze") || "Analizza menu")}
                 </button>
               </div>
             </>
@@ -2484,6 +2697,13 @@ function ImportMenuModal({
               <p className="font-bold text-black">
                 {t("menu_import_analyzing") || "Sto leggendo il menu..."}
               </p>
+              {batch && (
+                <p className="text-sm font-bold text-[#a87642] mt-1">
+                  {(t("menu_import_batch_progress") || "Immagine {i} di {n}")
+                    .replace("{i}", String(batch.index))
+                    .replace("{n}", String(batch.total))}
+                </p>
+              )}
               <p className="text-xs text-black mt-1">
                 {t("menu_import_wait") || "Può richiedere fino a 2 minuti per menu grandi."}
               </p>

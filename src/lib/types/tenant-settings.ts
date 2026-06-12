@@ -147,6 +147,14 @@ export interface TenantSettings {
   vapi?: { assistantId?: string };
   retell?: { agentId?: string; llmId?: string };
   retell_kb?: { id?: string };
+  /** Persisted floor-plan zones (Sala → Plano editor). Zones used to be derived
+   * purely from the tables' `zone` column, so a zone whose tables were all
+   * deleted vanished forever. This array keeps a zone alive without tables and
+   * stores per-zone decoration: `walls` (drawn dividers, in the same 600×560 px
+   * canvas coordinate space as table positions) and `floor` (a floor-texture key
+   * resolved client-side to a CSS background). Legacy tenants have this unset →
+   * the UI falls back to table-derived zones, so nothing breaks. */
+  floor_zones?: { name: string; walls?: { x1: number; y1: number; x2: number; y2: number }[]; floor?: string }[];
   /** Cloned n8n workflow ids (present for tenants provisioned via the orchestrator). */
   n8n?: { workflow_ids?: string[] };
   /** Booking-policy thresholds the n8n bot (and /api/ai/book) read to decide

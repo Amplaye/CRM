@@ -376,6 +376,7 @@ const styles = `
   letter-spacing: -0.022em; margin: 0; text-wrap: balance;
   background: linear-gradient(176deg, #fbf3e2 0%, #e9cd9f 52%, #b07a32 100%);
   -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
+  padding-bottom: 0.14em; /* pad so descenders (g,y,p) aren't clipped by text-clip */
   filter: drop-shadow(0 8px 30px rgba(176,122,50,0.28));
 }
 .cin-crest { display: flex; align-items: center; justify-content: center; gap: 0.7rem; margin-top: 1.2rem; color: var(--brass); }
@@ -438,6 +439,7 @@ const styles = `
   letter-spacing: -0.018em; margin: 0; text-wrap: balance;
   background: linear-gradient(180deg, #f6efdd, #d3b988);
   -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
+  padding-bottom: 0.14em; /* pad so descenders (g,y,p) aren't clipped by text-clip */
 }
 .cin-course-rule {
   display: block; width: 3.6rem; height: 1px; margin: 1rem auto 0;
@@ -521,6 +523,7 @@ const styles = `
   color: transparent;
   background: linear-gradient(180deg, #f3e8cf, #b07a32);
   -webkit-background-clip: text; background-clip: text;
+  padding-bottom: 0.14em; /* pad so descenders (g,y,p) aren't clipped by text-clip */
   text-shadow: 0 1px 0 rgba(0,0,0,0.5);
   filter: drop-shadow(0 0 18px rgba(176,122,50,0.35));
   opacity: 0.92;

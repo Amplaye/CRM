@@ -121,8 +121,10 @@ export function Sidebar({ mobileOpen = false, onClose }: SidebarProps) {
   // Platform admins keep the BaliFlow logo so the tenant switcher stays neutral.
   const customLogo = globalRole !== "platform_admin" ? activeTenant?.settings?.branding?.logo_url : undefined;
 
-  // Staff (camerieri) see only the two pages they need: floor for walk-ins
-  // and reservations to mark arrivals/no-shows. Everything else is hidden.
+  // Staff (camerieri) see the pages they need day-to-day: floor for walk-ins,
+  // reservations to mark arrivals/no-shows, and the menu so they can look it up
+  // and add/remove dishes on the fly (the owner asked for this). Everything else
+  // — settings, billing, analytics, management — stays hidden.
   const isHost = activeRole === "host";
   const features = getFeatures(activeTenant?.settings);
   // The gestionale pages are gated by a PAID add-on (smart_inventory →
@@ -131,7 +133,7 @@ export function Sidebar({ mobileOpen = false, onClose }: SidebarProps) {
   // screen, so the feature sells itself instead of being invisible. `locked` is
   // computed per item from its gating flag.
   const visibleNavItems = (isHost
-    ? navItems.filter(i => i.href === "/floor" || i.href === "/reservations")
+    ? navItems.filter(i => i.href === "/floor" || i.href === "/reservations" || i.href === "/menu")
     : navItems
   // Feature flag: hide the Waitlist page for tenants that don't use it.
   ).filter(i => i.href !== "/waitlist" || features.waitlist_enabled)

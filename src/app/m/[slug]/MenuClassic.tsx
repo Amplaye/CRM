@@ -328,6 +328,7 @@ const styles = `
   background: linear-gradient(180deg, #fbf1df 0%, #e9cd9f 100%);
   -webkit-background-clip: text; background-clip: text;
   -webkit-text-fill-color: transparent;
+  padding-bottom: 0.14em; /* pad so descenders (g,y,p) aren't clipped by text-clip */
   text-shadow: 0 1px 0 rgba(0,0,0,0.04);
 }
 .menu-crest { display: flex; align-items: center; justify-content: center; gap: 0.7rem; margin-top: 1.15rem; color: var(--brass-soft); }
@@ -389,6 +390,7 @@ const styles = `
   font-family: var(--font-display), Georgia, serif; font-optical-sizing: auto;
   font-weight: 600; font-size: clamp(1.7rem, 7vw, 2.5rem); line-height: 1.05;
   letter-spacing: -0.015em; margin: 0; text-wrap: balance;
+  padding-bottom: 0.14em; /* pad so descenders (g,y,p) aren't clipped by tight line-height */
 }
 .menu-course-rule {
   display: block; width: 3.4rem; height: 2px; margin: 0.9rem auto 0;

@@ -24,6 +24,54 @@ interface TableData {
 
 type TableShape = "round" | "square" | "rectangle";
 
+// ─── Persisted floor-plan decoration (tenants.settings.floor_zones) ───
+// A wall segment, in the same 600×560 px coordinate space as table positions.
+type WallSeg = { x1: number; y1: number; x2: number; y2: number };
+// Per-zone metadata: keeps a zone alive without tables + stores its walls and
+// floor-texture choice. `name` matches the tables' `zone` value.
+type FloorZoneMeta = { name: string; walls?: WallSeg[]; floor?: string };
+
+// Floor textures: a key + a CSS background (no external images, so nothing to
+// load). `grid` true keeps the faint dot grid readable on light surfaces; the
+// strong textures (wood/marble) hide it so the pattern stays legible. The
+// optional `size` overrides the default backgroundSize for that texture.
+type FloorTexture = { key: string; labelKey: string; css: string; size?: string; grid: boolean };
+const FLOOR_TEXTURES: FloorTexture[] = [
+  { key: "neutral", labelKey: "floor_tex_neutral", css: "rgba(252,246,237,0.6)", grid: true },
+  {
+    key: "wood_light",
+    labelKey: "floor_tex_wood_light",
+    css: "repeating-linear-gradient(90deg, #e7cfa6 0px, #e7cfa6 26px, #dcc096 26px, #dcc096 28px), linear-gradient(180deg, #ecd8b4, #e2c79c)",
+    size: "auto, auto",
+    grid: false,
+  },
+  {
+    key: "wood_dark",
+    labelKey: "floor_tex_wood_dark",
+    css: "repeating-linear-gradient(90deg, #6e4a2f 0px, #6e4a2f 26px, #5d3d26 26px, #5d3d26 28px), linear-gradient(180deg, #745034, #5a3a23)",
+    size: "auto, auto",
+    grid: false,
+  },
+  {
+    key: "terracotta",
+    labelKey: "floor_tex_terracotta",
+    css: "repeating-linear-gradient(0deg, transparent 0px, transparent 44px, rgba(255,255,255,0.35) 44px, rgba(255,255,255,0.35) 48px), repeating-linear-gradient(90deg, transparent 0px, transparent 44px, rgba(255,255,255,0.35) 44px, rgba(255,255,255,0.35) 48px), linear-gradient(180deg, #c96f43, #b85e36)",
+    size: "auto, auto, auto",
+    grid: false,
+  },
+  {
+    key: "marble",
+    labelKey: "floor_tex_marble",
+    css: "linear-gradient(135deg, rgba(180,180,190,0.35) 0%, transparent 22%), linear-gradient(45deg, rgba(170,170,185,0.3) 0%, transparent 30%), linear-gradient(180deg, #f3f3f6, #e6e6ee)",
+    size: "auto, auto, auto",
+    grid: false,
+  },
+  { key: "sage", labelKey: "floor_tex_sage", css: "linear-gradient(180deg, #cdd8c2, #bccab0)", grid: true },
+];
+function floorTextureFor(key?: string): FloorTexture {
+  return FLOOR_TEXTURES.find((tx) => tx.key === key) || FLOOR_TEXTURES[0];
+}
+
 // Quick party-size buttons in the new-table builder
 const SEAT_QUICK_OPTIONS = [2, 4, 6, 8];
 
@@ -54,7 +102,7 @@ interface ResTableLink {
 
 export default function FloorPage() {
   const { t } = useLanguage();
-  const { activeTenant, activeRole } = useTenant();
+  const { activeTenant, activeRole, refreshActiveTenant } = useTenant();
   // Only Admin (owner) and platform_admin can rearrange the table plan.
   // Default-closed: if the role hasn't loaded yet, hide the button — better
   // than briefly flashing it for a Staff (host) viewer.
@@ -82,6 +130,10 @@ export default function FloorPage() {
   const [viewMode, setViewMode] = useState<"list" | "plan">("list");
   const [editingPlan, setEditingPlan] = useState(false);
   const [activeZone, setActiveZone] = useState<string>("inside");
+  // Wall-drawing mode: while ON, canvas clicks trace wall segments instead of
+  // dragging tables. Lives in the parent so the toolbar toggle and the canvas
+  // share it.
+  const [wallMode, setWallMode] = useState(false);
 
   // New-table builder (edit mode): pick a shape + party size, then add
   const [newTableShape, setNewTableShape] = useState<TableShape>("round");
@@ -307,11 +359,80 @@ export default function FloorPage() {
   }
 
   // ─── Plan view: zones, drag, add, delete ───
-  const zones = Array.from(new Set(tables.map((t) => t.zone || "Principal"))).sort();
+  // Persisted zone metadata (walls + floor texture). Zones used to be derived
+  // ONLY from the tables' `zone` column, so deleting every table in a zone made
+  // the zone vanish. We now keep a persisted list and show the UNION of both, so
+  // a zone with no tables stays visible — and we can hang per-zone decoration
+  // (walls/floor) off it. Legacy tenants have no floor_zones → pure table-derived
+  // behaviour, unchanged.
+  const persistedZones: FloorZoneMeta[] = Array.isArray(activeTenant?.settings?.floor_zones)
+    ? (activeTenant!.settings!.floor_zones as FloorZoneMeta[])
+    : [];
+  const zoneSet = new Set<string>(tables.map((t) => t.zone || "Principal"));
+  for (const z of persistedZones) if (z?.name) zoneSet.add(z.name);
+  const zones = Array.from(zoneSet).sort();
   if (zones.length === 0) zones.push("inside");
   // Make sure activeZone is valid
   const currentZone = zones.includes(activeZone) ? activeZone : zones[0];
   const zoneTables = tables.filter((t) => (t.zone || "Principal") === currentZone);
+  // Decoration for the active zone (default empty → canvas behaves as before).
+  const currentZoneMeta = persistedZones.find((z) => z.name === currentZone);
+  const currentWalls: WallSeg[] = currentZoneMeta?.walls || [];
+  const currentFloor: string = currentZoneMeta?.floor || "neutral";
+
+  // Persist the floor_zones array to tenants.settings, merging with whatever's
+  // already there, then refresh the tenant so the new value flows back as props.
+  const persistFloorZones = useCallback(
+    async (next: FloorZoneMeta[]) => {
+      if (!activeTenant) return;
+      const supabase = createClient();
+      const newSettings = { ...(activeTenant.settings || {}), floor_zones: next };
+      await supabase.from("tenants").update({ settings: newSettings }).eq("id", activeTenant.id);
+      await refreshActiveTenant();
+    },
+    [activeTenant, refreshActiveTenant]
+  );
+
+  // Upsert one zone's metadata (by name) and persist. Used by wall + floor edits.
+  const updateZoneMeta = useCallback(
+    async (zoneName: string, patch: Partial<FloorZoneMeta>) => {
+      const base: FloorZoneMeta[] = Array.isArray(activeTenant?.settings?.floor_zones)
+        ? (activeTenant!.settings!.floor_zones as FloorZoneMeta[])
+        : [];
+      const idx = base.findIndex((z) => z.name === zoneName);
+      const next = [...base];
+      if (idx >= 0) next[idx] = { ...next[idx], ...patch };
+      else next.push({ name: zoneName, ...patch });
+      await persistFloorZones(next);
+    },
+    [activeTenant, persistFloorZones]
+  );
+
+  // Append a wall segment to the current zone and persist.
+  const addWall = useCallback(
+    (seg: WallSeg) => {
+      updateZoneMeta(currentZone, { walls: [...currentWalls, seg] });
+    },
+    [updateZoneMeta, currentZone, currentWalls]
+  );
+  // Remove one wall (by index) from the current zone and persist.
+  const deleteWall = useCallback(
+    (index: number) => {
+      updateZoneMeta(currentZone, { walls: currentWalls.filter((_, i) => i !== index) });
+    },
+    [updateZoneMeta, currentZone, currentWalls]
+  );
+  // Drop every wall in the current zone.
+  const clearWalls = useCallback(() => {
+    updateZoneMeta(currentZone, { walls: [] });
+  }, [updateZoneMeta, currentZone]);
+  // Set the floor texture key for the current zone.
+  const setFloorTexture = useCallback(
+    (key: string) => {
+      updateZoneMeta(currentZone, { floor: key });
+    },
+    [updateZoneMeta, currentZone]
+  );
 
   // Capacity box: follows the current scope. In list view the user can pick
   // "all zones" (listZoneFilter === null); the plan view always shows one zone.
@@ -409,6 +530,8 @@ export default function FloorPage() {
     const trimmed = name.trim();
     // Create a placeholder table in the new zone so the zone exists
     // (zones are derived from existing tables). Use a small round 2p.
+    // Kept for retro-compat with tenants that have no floor_zones yet; the zone
+    // is ALSO registered in floor_zones below so it survives the table's removal.
     const supabase = createClient();
     const nextNum = nextTableNumber();
     await supabase.from("restaurant_tables").insert({
@@ -422,6 +545,11 @@ export default function FloorPage() {
       position_y: 60,
     });
     setActiveZone(trimmed);
+    // Register the zone in persisted floor_zones (idempotent) so it stays even
+    // if every table in it is later deleted.
+    if (!persistedZones.some((z) => z.name === trimmed)) {
+      await persistFloorZones([...persistedZones, { name: trimmed }]);
+    }
   }
 
   async function confirmDeleteZone() {
@@ -435,14 +563,20 @@ export default function FloorPage() {
       setTables((prev) => prev.filter((t) => (t.zone || "Principal") !== zoneName));
       setResTableLinks((prev) => prev.filter((l) => !idsToDelete.includes(l.table_id)));
       setDeleteZoneModal(null);
-      // Switch to a remaining zone if we just deleted the active one
+      // Switch to a remaining zone if we just deleted the active one. Use the
+      // full zone UNION (tables + persisted) so a metadata-only zone still wins.
       if (activeZone === zoneName) {
-        const remaining = Array.from(new Set(tables.map((t) => t.zone || "Principal"))).filter((z) => z !== zoneName);
+        const remaining = zones.filter((z) => z !== zoneName);
         if (remaining.length > 0) setActiveZone(remaining[0]);
       }
       if (idsToDelete.length > 0) {
         await supabase.from("reservation_tables").delete().in("table_id", idsToDelete);
         await supabase.from("restaurant_tables").delete().in("id", idsToDelete);
+      }
+      // Remove the zone (and its walls/floor) from persisted metadata so a
+      // deleted zone is gone for good — tables AND decoration.
+      if (persistedZones.some((z) => z.name === zoneName)) {
+        await persistFloorZones(persistedZones.filter((z) => z.name !== zoneName));
       }
     } catch (err) {
       console.error("Delete zone error:", err);
@@ -707,7 +841,7 @@ export default function FloorPage() {
           <div className="flex items-center gap-2">
             {viewMode === "plan" && canEditPlan && (
               <button
-                onClick={() => setEditingPlan((v) => !v)}
+                onClick={() => setEditingPlan((v) => { if (v) setWallMode(false); return !v; })}
                 className="inline-flex items-center gap-1 px-3 py-1.5 text-xs sm:text-sm font-semibold rounded-lg border-2 text-black hover:bg-[#c4956a]/10 transition-colors"
                 style={{ borderColor: "#c4956a", background: editingPlan ? "#c4956a" : "rgba(252,246,237,0.6)", color: editingPlan ? "#fff" : "#000" }}
               >
@@ -717,7 +851,7 @@ export default function FloorPage() {
             )}
             <div className="inline-flex rounded-lg border-2 overflow-hidden" style={{ borderColor: "#c4956a" }}>
               <button
-                onClick={() => { setViewMode("list"); setEditingPlan(false); }}
+                onClick={() => { setViewMode("list"); setEditingPlan(false); setWallMode(false); }}
                 className="inline-flex items-center gap-1 px-3 py-1.5 text-xs sm:text-sm font-semibold transition-colors"
                 style={{ background: viewMode === "list" ? "#c4956a" : "rgba(252,246,237,0.6)", color: viewMode === "list" ? "#fff" : "#000" }}
               >
@@ -955,6 +1089,68 @@ export default function FloorPage() {
               </div>
             )}
 
+            {/* Walls + floor-texture toolbar (edit mode): decorate the current zone */}
+            {editingPlan && (
+              <div className="mb-3 p-3 rounded-xl border-2 flex flex-wrap items-end gap-x-6 gap-y-3" style={{ borderColor: "#c4956a", background: "rgba(252,246,237,0.6)" }}>
+                {/* Walls */}
+                <div>
+                  <p className="text-[10px] font-semibold text-black uppercase tracking-wide mb-1">{t("floor_walls_mode") || "Walls"}</p>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => setWallMode((v) => !v)}
+                      aria-pressed={wallMode}
+                      className="flex items-center gap-1.5 h-11 px-4 rounded-lg border-2 text-sm font-semibold transition-colors"
+                      style={{ borderColor: "#c4956a", background: wallMode ? "#c4956a" : "rgba(252,246,237,0.85)", color: wallMode ? "#fff" : "#000" }}
+                    >
+                      <span style={{ display: "inline-block", width: 16, height: 4, borderRadius: 2, background: wallMode ? "#fff" : "#3a2f25" }} />
+                      {t("floor_walls_mode") || "Walls"}
+                    </button>
+                    {currentWalls.length > 0 && (
+                      <button
+                        onClick={clearWalls}
+                        className="flex items-center gap-1 h-11 px-3 rounded-lg border-2 text-sm font-semibold text-black transition-colors hover:bg-[#c4956a]/10"
+                        style={{ borderColor: "#c4956a", background: "rgba(252,246,237,0.85)" }}
+                        title={t("floor_walls_clear") || "Clear walls"}
+                      >
+                        <X className="w-4 h-4" />
+                        {t("floor_walls_clear") || "Clear walls"}
+                      </button>
+                    )}
+                  </div>
+                  {wallMode && (
+                    <p className="text-[10px] text-black mt-1 max-w-[260px]">{t("floor_walls_hint") || "Tap two points to draw a wall. Tap a wall to delete it."}</p>
+                  )}
+                </div>
+
+                {/* Floor texture */}
+                <div>
+                  <p className="text-[10px] font-semibold text-black uppercase tracking-wide mb-1">{t("floor_floor_texture") || "Floor"}</p>
+                  <div className="flex flex-wrap items-center gap-2">
+                    {FLOOR_TEXTURES.map((tx) => {
+                      const selected = currentFloor === tx.key;
+                      return (
+                        <button
+                          key={tx.key}
+                          onClick={() => setFloorTexture(tx.key)}
+                          aria-pressed={selected}
+                          className="flex items-center justify-center w-11 h-11 rounded-lg transition-transform"
+                          style={{
+                            background: tx.css,
+                            backgroundSize: tx.size || "20px 20px",
+                            border: selected ? "3px solid #c4956a" : "2px solid rgba(196,149,106,0.45)",
+                            boxShadow: selected ? "0 0 0 2px rgba(255,255,255,0.7) inset" : undefined,
+                          }}
+                          title={t(tx.labelKey as any) || tx.key}
+                        >
+                          {selected && <Check className="w-4 h-4" style={{ color: tx.key === "wood_dark" ? "#fff" : "#3a2f25" }} />}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* Canvas */}
             <PlanCanvas
               key={currentZone}
@@ -963,6 +1159,11 @@ export default function FloorPage() {
               shiftReservations={shiftReservations}
               activeStatuses={activeStatuses}
               editing={editingPlan}
+              wallMode={wallMode}
+              walls={currentWalls}
+              floorTexture={currentFloor}
+              onAddWall={addWall}
+              onDeleteWall={deleteWall}
               onTableMove={persistTablePosition}
               onTableRotate={rotateTable}
               onTableClick={(table) => {
@@ -1277,13 +1478,21 @@ interface PlanCanvasProps {
   shiftReservations: ReservationWithGuest[];
   activeStatuses: string[];
   editing: boolean;
+  /** When true, canvas clicks/drags draw wall segments instead of moving tables. */
+  wallMode: boolean;
+  /** Walls of the active zone (px in the 600×560 inner canvas). */
+  walls: WallSeg[];
+  /** Floor-texture key for the active zone. */
+  floorTexture: string;
+  onAddWall: (seg: WallSeg) => void;
+  onDeleteWall: (index: number) => void;
   onTableMove: (id: string, x: number, y: number) => void;
   onTableRotate: (id: string, rotation: number) => void;
   onTableClick: (table: TableData) => void;
   t: (key: any) => string;
 }
 
-function PlanCanvas({ tables, resTableLinks, shiftReservations, activeStatuses, editing, onTableMove, onTableRotate, onTableClick, t }: PlanCanvasProps) {
+function PlanCanvas({ tables, resTableLinks, shiftReservations, activeStatuses, editing, wallMode, walls, floorTexture, onAddWall, onDeleteWall, onTableMove, onTableRotate, onTableClick, t }: PlanCanvasProps) {
   // Local optimistic positions during drag
   const [localPositions, setLocalPositions] = useState<Record<string, { x: number; y: number }>>({});
   // Local optimistic rotation after the gira button — survives the realtime
@@ -1297,6 +1506,52 @@ function PlanCanvas({ tables, resTableLinks, shiftReservations, activeStatuses, 
   const movedRef = useRef(false);
   const pressStartRef = useRef<{ x: number; y: number } | null>(null);
   const canvasRef = useRef<HTMLDivElement>(null);
+  const innerRef = useRef<HTMLDivElement>(null);
+  // Wall drawing: `wallStart` is the fixed first endpoint (null = next click sets
+  // it); `wallCursor` follows the pointer to preview the segment. Both in inner
+  // canvas px.
+  const [wallStart, setWallStart] = useState<{ x: number; y: number } | null>(null);
+  const [wallCursor, setWallCursor] = useState<{ x: number; y: number } | null>(null);
+
+  // Pointer (clientX/clientY) → coordinates inside the 600×560 inner plane,
+  // accounting for canvas scroll. Same basis as table positions.
+  const toInnerCoords = useCallback((clientX: number, clientY: number): { x: number; y: number } => {
+    const inner = innerRef.current;
+    if (!inner) return { x: 0, y: 0 };
+    // getBoundingClientRect already reflects the inner plane's scrolled position,
+    // so the delta is the coordinate inside the 600×560 space.
+    const rect = inner.getBoundingClientRect();
+    return {
+      x: Math.max(0, Math.round(clientX - rect.left)),
+      y: Math.max(0, Math.round(clientY - rect.top)),
+    };
+  }, []);
+
+  // A click on the canvas while in wall mode: first click fixes the start, the
+  // second creates the segment (ignoring zero-length taps).
+  const handleWallPoint = useCallback(
+    (clientX: number, clientY: number) => {
+      const p = toInnerCoords(clientX, clientY);
+      if (!wallStart) {
+        setWallStart(p);
+        setWallCursor(p);
+        return;
+      }
+      const seg: WallSeg = { x1: wallStart.x, y1: wallStart.y, x2: p.x, y2: p.y };
+      if (Math.hypot(seg.x2 - seg.x1, seg.y2 - seg.y1) >= 8) onAddWall(seg);
+      setWallStart(null);
+      setWallCursor(null);
+    },
+    [wallStart, toInnerCoords, onAddWall]
+  );
+
+  // Reset any half-drawn wall when leaving wall mode or editing.
+  useEffect(() => {
+    if (!wallMode || !editing) {
+      setWallStart(null);
+      setWallCursor(null);
+    }
+  }, [wallMode, editing]);
 
   // Reset local positions when tables change from the server
   const tablesKey = tables.map((t) => t.id + ":" + t.position_x + ":" + t.position_y).join("|");
@@ -1341,7 +1596,7 @@ function PlanCanvas({ tables, resTableLinks, shiftReservations, activeStatuses, 
 
   // --- Shared drag helpers (mouse + touch) ---
   function startDrag(clientX: number, clientY: number, table: TableData, targetRect: DOMRect) {
-    if (!editing) return;
+    if (!editing || wallMode) return;
     dragOffsetRef.current = { x: clientX - targetRect.left, y: clientY - targetRect.top };
     pressStartRef.current = { x: clientX, y: clientY };
     movedRef.current = false;
@@ -1382,7 +1637,7 @@ function PlanCanvas({ tables, resTableLinks, shiftReservations, activeStatuses, 
 
   // --- Mouse handlers ---
   function handleMouseDown(e: React.MouseEvent, table: TableData) {
-    if (!editing) return;
+    if (!editing || wallMode) return; // wall mode: let the click reach the canvas
     e.preventDefault();
     e.stopPropagation();
     startDrag(e.clientX, e.clientY, table, (e.currentTarget as HTMLElement).getBoundingClientRect());
@@ -1398,7 +1653,7 @@ function PlanCanvas({ tables, resTableLinks, shiftReservations, activeStatuses, 
 
   // --- Touch handlers ---
   function handleTouchStart(e: React.TouchEvent, table: TableData) {
-    if (!editing) return;
+    if (!editing || wallMode) return; // wall mode: let the tap reach the canvas
     const touch = e.touches[0];
     startDrag(touch.clientX, touch.clientY, table, (e.currentTarget as HTMLElement).getBoundingClientRect());
   }
@@ -1407,11 +1662,19 @@ function PlanCanvas({ tables, resTableLinks, shiftReservations, activeStatuses, 
     endDrag();
   }
 
-  // Block canvas scroll while dragging a table (native listener with passive:false)
+  // Block canvas scroll while dragging a table (native listener with passive:false).
+  // Also drives the wall preview line: while drawing, the pointer move updates
+  // the cursor endpoint (and we block scroll so the preview tracks the finger).
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const onTouchMove = (e: TouchEvent) => {
+      if (wallMode && editing && wallStart) {
+        e.preventDefault();
+        const touch = e.touches[0];
+        setWallCursor(toInnerCoords(touch.clientX, touch.clientY));
+        return;
+      }
       if (!draggingId) return; // allow normal scroll when not dragging
       e.preventDefault();
       const touch = e.touches[0];
@@ -1421,33 +1684,101 @@ function PlanCanvas({ tables, resTableLinks, shiftReservations, activeStatuses, 
     return () => canvas.removeEventListener('touchmove', onTouchMove);
   });
 
-  // Lock overflow on canvas while dragging to prevent any scroll
-  const canvasOverflow = draggingId ? "hidden" : "auto";
+  // Lock overflow on canvas while dragging (or mid-wall) to prevent any scroll.
+  const canvasOverflow = draggingId || (wallMode && editing && wallStart) ? "hidden" : "auto";
+
+  // Resolve the active zone's floor texture → CSS background for the inner plane.
+  const tex = floorTextureFor(floorTexture);
+  // Strong textures hide the dot grid; light ones keep it for placement cues.
+  const innerBackground = tex.grid
+    ? `radial-gradient(rgba(196,149,106,0.25) 1px, transparent 1px), ${tex.css}`
+    : tex.css;
+  const innerBackgroundSize = tex.grid ? `20px 20px, ${tex.size || "auto"}` : (tex.size || "auto");
 
   return (
     <div
       ref={canvasRef}
-      onMouseMove={handleMouseMove}
+      onMouseMove={(e) => {
+        handleMouseMove(e);
+        if (wallMode && editing && wallStart) setWallCursor(toInnerCoords(e.clientX, e.clientY));
+      }}
       onMouseUp={handleMouseUp}
       onMouseLeave={handleMouseUp}
       onTouchEnd={handleTouchEnd}
       onTouchCancel={handleTouchEnd}
+      onClick={(e) => {
+        // In wall mode an empty-canvas click places a wall endpoint. Tables stop
+        // their own clicks; clicks on a wall handle delete that wall instead.
+        if (!wallMode || !editing) return;
+        const target = e.target as HTMLElement;
+        if (target.closest("[data-wall-handle]")) return;
+        handleWallPoint(e.clientX, e.clientY);
+      }}
       className="relative rounded-xl border-2"
       style={{
         overflow: canvasOverflow,
         background: "rgba(252,246,237,0.6)",
         borderColor: "#c4956a",
         height: "560px",
-        backgroundImage: "radial-gradient(rgba(196,149,106,0.25) 1px, transparent 1px)",
-        backgroundSize: "20px 20px",
+        cursor: wallMode && editing ? "crosshair" : undefined,
       }}
     >
-      {/* Inner container with min-width for horizontal scroll on mobile */}
-      <div className="relative" style={{ minWidth: "600px", minHeight: "560px" }}>
+      {/* Inner container with min-width for horizontal scroll on mobile.
+          Holds the per-zone floor texture as its background. */}
+      <div
+        ref={innerRef}
+        className="relative"
+        style={{
+          minWidth: "600px",
+          minHeight: "560px",
+          background: innerBackground,
+          backgroundSize: innerBackgroundSize,
+        }}
+      >
       {tables.length === 0 && (
         <div className="absolute inset-0 flex items-center justify-center text-sm text-black">
           {editing ? t("floor_plan_empty_edit") : t("floor_plan_empty")}
         </div>
+      )}
+
+      {/* Walls — drawn dividers for the zone. Below tables (zIndex 1) so tables
+          and merge lines stay on top. In edit mode each wall shows a midpoint
+          handle to delete it; while drawing, a dashed preview follows the
+          pointer. Always pointer-events:none except the delete handles. */}
+      {(walls.length > 0 || (wallMode && editing && wallStart)) && (
+        <svg
+          className="absolute"
+          style={{ top: 0, left: 0, width: "600px", height: "560px", overflow: "visible", zIndex: 1, pointerEvents: "none" }}
+        >
+          {walls.map((w, i) => (
+            <g key={`wall-${i}`}>
+              <line
+                x1={w.x1} y1={w.y1} x2={w.x2} y2={w.y2}
+                stroke="#3a2f25" strokeWidth={6} strokeLinecap="round"
+              />
+              {editing && (
+                <circle
+                  data-wall-handle="1"
+                  cx={(w.x1 + w.x2) / 2} cy={(w.y1 + w.y2) / 2} r={9}
+                  fill="#fff" stroke="#dc2626" strokeWidth={2}
+                  style={{ pointerEvents: "auto", cursor: "pointer" }}
+                  onClick={(e) => { e.stopPropagation(); onDeleteWall(i); }}
+                />
+              )}
+            </g>
+          ))}
+          {/* Live preview while placing the second endpoint */}
+          {wallMode && editing && wallStart && wallCursor && (
+            <line
+              x1={wallStart.x} y1={wallStart.y} x2={wallCursor.x} y2={wallCursor.y}
+              stroke="#3a2f25" strokeWidth={6} strokeLinecap="round"
+              strokeDasharray="8 6" strokeOpacity={0.6}
+            />
+          )}
+          {wallMode && editing && wallStart && (
+            <circle cx={wallStart.x} cy={wallStart.y} r={5} fill="#3a2f25" />
+          )}
+        </svg>
       )}
 
       {/* Merge connection lines — drawn under tables when the bot has joined

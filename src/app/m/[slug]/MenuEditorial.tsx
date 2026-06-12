@@ -356,6 +356,7 @@ const styles = `
   margin: clamp(1.4rem, 5vw, 2.6rem) 0 0;
   text-wrap: balance;
   color: var(--ink);
+  padding-bottom: 0.14em; /* pad so descenders (g,y,p) aren't clipped by tight line-height */
 }
 .ed-dek {
   display: flex; align-items: center; gap: 0.8rem; margin: clamp(1rem,3vw,1.6rem) 0 0;
@@ -420,6 +421,7 @@ const styles = `
   font-family: var(--font-display), Georgia, serif; font-optical-sizing: auto;
   font-weight: 600; font-size: clamp(1.9rem, 7vw, 3.3rem); line-height: 1;
   letter-spacing: -0.02em; margin: 0; text-wrap: balance;
+  padding-bottom: 0.14em; /* pad so descenders (g,y,p) aren't clipped by tight line-height */
 }
 .ed-chap-rule { grid-column: 1 / -1; height: 1px; margin-top: clamp(0.9rem,3vw,1.4rem); background: var(--hair); }
 
@@ -487,6 +489,7 @@ const styles = `
 .ed-card.no-img .ed-dish-name {
   font-style: italic; font-size: clamp(1.5rem, 5vw, 2.1rem); line-height: 1.04;
   letter-spacing: -0.02em;
+  padding-bottom: 0.14em; /* pad so descenders (g,y,p) aren't clipped by tight line-height */
 }
 .ed-leader { flex: 1; align-self: flex-end; margin-bottom: 0.42em; height: 0; border-bottom: 1.5px dotted rgba(124,82,38,0.4); }
 .ed-dish-price {

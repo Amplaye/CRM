@@ -39,6 +39,9 @@ export async function updateSession(request: NextRequest) {
 
   if (
     !user &&
+    // /welcome is the public entry choice (Create account vs Sign in) shown to
+    // first-time visitors before the login form.
+    !request.nextUrl.pathname.startsWith('/welcome') &&
     !request.nextUrl.pathname.startsWith('/login') &&
     !request.nextUrl.pathname.startsWith('/register') &&
     !request.nextUrl.pathname.startsWith('/forgot-password') &&
@@ -55,7 +58,9 @@ export async function updateSession(request: NextRequest) {
     !request.nextUrl.pathname.startsWith('/api')
   ) {
     const url = request.nextUrl.clone()
-    url.pathname = '/login'
+    // First touch point: let the visitor choose between creating an account and
+    // signing in, instead of dropping them straight onto the login form.
+    url.pathname = '/welcome'
     return NextResponse.redirect(url)
   }
 

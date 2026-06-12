@@ -472,6 +472,7 @@ const styles = `
   background: linear-gradient(180deg, #fbf1df 0%, #e7c794 100%);
   -webkit-background-clip: text; background-clip: text;
   -webkit-text-fill-color: transparent;
+  padding-bottom: 0.14em; /* pad so descenders (g,y,p) aren't clipped by text-clip */
 }
 .im-hero-restaurant {
   margin: 1.1rem 0 0; font-size: 0.7rem; letter-spacing: 0.34em;
@@ -554,6 +555,7 @@ const styles = `
   font-family: var(--font-display), Georgia, serif; font-optical-sizing: auto;
   font-weight: 600; font-size: clamp(2.1rem, 10vw, 3.1rem); line-height: 1.02;
   letter-spacing: -0.018em; margin: 0; text-wrap: balance;
+  padding-bottom: 0.14em; /* pad so descenders (g,y,p) aren't clipped by tight line-height */
   text-shadow: 0 2px 24px rgba(0,0,0,0.45);
 }
 .im-price {
@@ -591,6 +593,7 @@ const styles = `
   letter-spacing: -0.02em;
   background: linear-gradient(180deg, #fbf1df 0%, #e7c794 100%);
   -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
+  padding-bottom: 0.14em; /* pad so descenders (g,y,p) aren't clipped by text-clip */
 }
 .im-empty-msg { margin: 1.2rem 0 0; font-style: italic; color: rgba(247,239,226,0.7); font-size: 1rem; }
 

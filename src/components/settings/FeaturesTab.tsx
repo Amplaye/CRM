@@ -27,6 +27,10 @@ export function FeaturesTab() {
   // is not even rendered (absent from FEATURE_FLAGS); we just must not clobber it.
   const [features, setFeatures] = useState<TenantFeatures>(getRawFeatures(null));
   const [status, setStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
+  // Per-toggle feedback: the owner asked to see "Saved!" right next to the switch
+  // they just flipped (not only in the header), so a flip visibly "took". We track
+  // which key is mid-save / just-saved; the row reads it to render its own badge.
+  const [rowStatus, setRowStatus] = useState<{ key: keyof TenantFeatures; state: "saving" | "saved" | "error" } | null>(null);
 
   // Latest intended flags — lets rapid consecutive toggles accumulate without a
   // stale closure, and every persist write sends the complete object.
@@ -36,6 +40,7 @@ export function FeaturesTab() {
   // identity; without this guard that would clobber an in-flight optimistic flip.
   const initedFor = useRef<string | null>(null);
   const savedTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const rowSavedTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Re-read from DB on mount: TenantContext caches settings in sessionStorage, so
   // without this the form could show stale flags after an external write.
@@ -53,13 +58,17 @@ export function FeaturesTab() {
     setFeatures(f);
   }, [tenant]);
 
-  useEffect(() => () => { if (savedTimer.current) clearTimeout(savedTimer.current); }, []);
+  useEffect(() => () => {
+    if (savedTimer.current) clearTimeout(savedTimer.current);
+    if (rowSavedTimer.current) clearTimeout(rowSavedTimer.current);
+  }, []);
 
   // Persist the given flags immediately. Writes ONLY settings.features — booking
   // thresholds (auto-confirm) are owned by Settings → Bookings now.
-  const persist = async (next: TenantFeatures, prev: TenantFeatures) => {
+  const persist = async (next: TenantFeatures, prev: TenantFeatures, key: keyof TenantFeatures) => {
     if (!tenant) return;
     setStatus("saving");
+    setRowStatus({ key, state: "saving" });
     const newSettings = { ...(tenant.settings || {}), features: next };
     const { error } = await supabase
       .from("tenants")
@@ -72,12 +81,16 @@ export function FeaturesTab() {
       featuresRef.current = prev;
       setFeatures(prev);
       setStatus("error");
+      setRowStatus({ key, state: "error" });
       return;
     }
 
     setStatus("saved");
+    setRowStatus({ key, state: "saved" });
     if (savedTimer.current) clearTimeout(savedTimer.current);
     savedTimer.current = setTimeout(() => setStatus("idle"), 2000);
+    if (rowSavedTimer.current) clearTimeout(rowSavedTimer.current);
+    rowSavedTimer.current = setTimeout(() => setRowStatus(null), 2000);
     // Propagate to the rest of the app (sidebar waitlist, floor zones, …) without
     // a reload. The init guard above keeps this from resetting our local state.
     await refreshActiveTenant();
@@ -88,7 +101,7 @@ export function FeaturesTab() {
     const next = { ...prev, [key]: !prev[key] };
     featuresRef.current = next;
     setFeatures(next);
-    void persist(next, prev);
+    void persist(next, prev, key);
   };
 
   return (
@@ -117,19 +130,33 @@ export function FeaturesTab() {
                 <label className="text-sm font-bold text-black">{t(labelKey as keyof Dictionary)}</label>
                 <p className="text-xs text-black mt-0.5">{t(hintKey as keyof Dictionary)}</p>
               </div>
-              <button
-                type="button"
-                onClick={() => toggle(key)}
-                className="relative inline-flex items-center h-7 w-12 rounded-full transition-colors shrink-0 cursor-pointer"
-                style={{ background: on ? "#c4956a" : "#d4d4d4" }}
-                role="switch"
-                aria-checked={on}
-              >
-                <span
-                  className="inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform"
-                  style={{ transform: on ? "translateX(22px)" : "translateX(4px)" }}
-                />
-              </button>
+              <div className="flex items-center gap-2 shrink-0">
+                {/* Per-row save feedback, so the owner sees THIS toggle took effect. */}
+                <span className="h-5 flex items-center min-w-[64px] justify-end" aria-live="polite">
+                  {rowStatus?.key === key && rowStatus.state === "saving" && (
+                    <span className="text-xs font-medium text-black">…</span>
+                  )}
+                  {rowStatus?.key === key && rowStatus.state === "saved" && (
+                    <span className="text-xs font-semibold text-green-600">{t("settings_saved")}</span>
+                  )}
+                  {rowStatus?.key === key && rowStatus.state === "error" && (
+                    <span className="text-xs font-semibold text-red-600">{t("settings_save_error")}</span>
+                  )}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => toggle(key)}
+                  className="relative inline-flex items-center h-7 w-12 rounded-full transition-colors shrink-0 cursor-pointer"
+                  style={{ background: on ? "#c4956a" : "#d4d4d4" }}
+                  role="switch"
+                  aria-checked={on}
+                >
+                  <span
+                    className="inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform"
+                    style={{ transform: on ? "translateX(22px)" : "translateX(4px)" }}
+                  />
+                </button>
+              </div>
             </div>
           );
         })}

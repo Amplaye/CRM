@@ -343,10 +343,10 @@ export default function ConversationsPage() {
                       className="w-4 h-4 rounded accent-[#c4956a] flex-shrink-0 cursor-pointer" />
                     <div className={`relative w-9 h-9 rounded-full flex items-center justify-center text-white font-bold text-sm flex-shrink-0 ${conv.channel === 'whatsapp' ? 'bg-emerald-500' : 'bg-indigo-500'}`}>
                       {getGuestDisplay(conv).charAt(0).toUpperCase()}
-                      <span className="absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full bg-white flex items-center justify-center ring-1 ring-black/10">
+                      <span className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full bg-white flex items-center justify-center ring-1 ring-black/10">
                         {conv.channel === 'whatsapp'
-                          ? <MessageSquare className="w-2.5 h-2.5 text-emerald-600" />
-                          : <Phone className="w-2.5 h-2.5 text-indigo-600" />}
+                          ? <MessageSquare className="w-3 h-3 text-emerald-600" />
+                          : <Phone className="w-3 h-3 text-indigo-600" />}
                       </span>
                     </div>
                     <div className="flex-1 min-w-0">

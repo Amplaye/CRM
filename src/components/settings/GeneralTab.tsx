@@ -1,6 +1,6 @@
 "use client";
 
-import { Save, Plus, Trash2, Clock, Power, PowerOff, Upload, Image as ImageIcon } from "lucide-react";
+import { Save, Plus, Trash2, Clock, Power, PowerOff, Upload, Image as ImageIcon, Store, Phone, BarChart3 } from "lucide-react";
 import { useLanguage } from "@/lib/contexts/LanguageContext";
 import { useTenant } from "@/lib/contexts/TenantContext";
 import { useEffect, useRef, useState } from "react";
@@ -411,7 +411,12 @@ export function GeneralTab() {
     <div className="space-y-4 sm:space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h2 className="text-lg font-bold text-black">{t("settings_general")}</h2>
+          {/* Show the restaurant's OWN name big, not the generic "Profile" word
+              repeated (the owner found that redundant). Falls back to the section
+              label only before a name is set. */}
+          <h2 className="text-2xl sm:text-3xl font-black text-black truncate">
+            {name?.trim() || t("settings_name")}
+          </h2>
         </div>
         <div className="mt-3 sm:mt-0 flex items-center space-x-3">
           {saved && <span className="text-sm font-medium text-green-600">{t("settings_saved")}</span>}
@@ -426,9 +431,11 @@ export function GeneralTab() {
 
       <div className="space-y-6">
         <section className="p-6 rounded-xl border-2" style={{ background: "rgba(252,246,237,0.85)", borderColor: "#c4956a" }}>
-          <h3 className="text-lg font-bold text-black mb-4">{t("settings_general")}</h3>
           <div>
-            <label className="block text-sm font-medium text-black">{t("settings_name")}</label>
+            <label className="flex items-center gap-2 text-sm font-medium text-black">
+              <Store className="h-4 w-4 text-[#c4956a]" />
+              {t("settings_name")}
+            </label>
             <input type="text" value={name} onChange={e => setName(e.target.value)}
               className={`mt-1 ${inputStyle}`} style={inputBorder} />
           </div>
@@ -483,7 +490,10 @@ export function GeneralTab() {
         </section>
 
         <section className="p-6 rounded-xl border-2" style={{ background: "rgba(252,246,237,0.85)", borderColor: "#c4956a" }}>
-          <h3 className="text-lg font-bold text-black mb-4">{t("settings_analytics")}</h3>
+          <h3 className="flex items-center gap-2 text-lg font-bold text-black mb-4">
+            <BarChart3 className="h-5 w-5 text-[#c4956a]" />
+            {t("settings_analytics")}
+          </h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>
               <label className="block text-sm font-medium text-black">{t("settings_avg_spend")}</label>
@@ -532,7 +542,10 @@ export function GeneralTab() {
         </section>
 
         <section className="p-6 rounded-xl border-2" style={{ background: "rgba(252,246,237,0.85)", borderColor: "#c4956a" }}>
-          <h3 className="text-lg font-bold text-black mb-1">{t("settings_opening_hours")}</h3>
+          <h3 className="flex items-center gap-2 text-lg font-bold text-black mb-1">
+            <Clock className="h-5 w-5 text-[#c4956a]" />
+            {t("settings_opening_hours")}
+          </h3>
           <p className="text-xs text-black mb-4">{t("settings_opening_hours_desc")}</p>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
             {DAY_LABELS_KEYS.map((dayKey, dayIdx) => {
@@ -592,7 +605,10 @@ export function GeneralTab() {
         </section>
 
         <section className="p-6 rounded-xl border-2" style={{ background: "rgba(252,246,237,0.85)", borderColor: "#c4956a" }}>
-          <h3 className="text-lg font-bold text-black mb-1">{t("settings_voicemail_title")}</h3>
+          <h3 className="flex items-center gap-2 text-lg font-bold text-black mb-1">
+            <Phone className="h-5 w-5 text-[#c4956a]" />
+            {t("settings_voicemail_title")}
+          </h3>
           <p className="text-xs text-black mb-4">{t("settings_voicemail_desc")}</p>
 
           <div className="mb-5 p-3 rounded-lg border-2" style={{ borderColor: "#c4956a", background: "rgba(252,246,237,0.6)" }}>
