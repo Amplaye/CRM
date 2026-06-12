@@ -36,6 +36,7 @@ import { Dictionary } from "@/lib/i18n/dictionaries/en";
 import { useAuth } from "@/lib/contexts/AuthContext";
 import { createClient } from "@/lib/supabase/client";
 import { useNotificationCounts, NotificationCounts } from "@/lib/hooks/useNotificationCounts";
+import { useVisitedSections } from "@/lib/hooks/useVisitedSections";
 import { TenantSwitcher } from "./TenantSwitcher";
 import { useEffect, useMemo, useState } from "react";
 
@@ -136,6 +137,28 @@ export function Sidebar({ mobileOpen = false, onClose }: SidebarProps) {
   ).filter(i => i.href !== "/waitlist" || features.waitlist_enabled)
   .map(i => ({ ...i, locked: !!i.feature && !features[i.feature] }));
 
+  // Post-onboarding discovery dots: once a freshly-installed tenant has finished
+  // onboarding, every nav section the owner hasn't physically opened yet gets a
+  // small marker nudging them to explore it (reinforces the activity badges).
+  // The dot clears the instant the section is opened — locked (paid) sections
+  // included, since clicking them still counts as "visited" even while gated.
+  const onboardingCompleted = (activeTenant?.settings as any)?.onboarding?.completed === true;
+  const navHrefs = useMemo(() => visibleNavItems.map(i => i.href), [visibleNavItems]);
+  const { visited, mark: markVisited } = useVisitedSections(activeTenant?.id, navHrefs);
+  // Only nudge real owners/managers, never hosts or platform-only admins.
+  const showDiscoveryDots = onboardingCompleted && !isHost && !isPlatformOnly;
+
+  // Mark the *current* route as visited regardless of how the user got here
+  // (sidebar click, direct link, redirect, refresh) so the dot always clears
+  // once the section is actually on screen.
+  useEffect(() => {
+    if (!activeTenant?.id || !pathname) return;
+    const match = navHrefs.find(h => h === pathname || (h !== "/" && pathname.startsWith(h)));
+    // pathname "/" must only match the Analytics item (href "/"), never every route.
+    const current = pathname === "/" ? (navHrefs.includes("/") ? "/" : undefined) : match;
+    if (current) markVisited(current);
+  }, [pathname, activeTenant?.id, navHrefs, markVisited]);
+
   const adminNavItems = [
     { href: "/admin", icon: Shield, label: "Tenants" },
     { href: "/admin/bali", icon: Inbox, label: "Bali Inbox" },
@@ -175,18 +198,28 @@ export function Sidebar({ mobileOpen = false, onClose }: SidebarProps) {
             const label = t(`nav_${item.name.toLowerCase().replace(" ", "_")}` as keyof Dictionary) || item.name;
             // Locked (paid add-on not active): greyed, padlock, and a deep-link to
             // the upgrade screen instead of the (forbidden) feature page.
+            // Discovery dot: shown when a newly-onboarded owner hasn't opened
+            // this section yet. Suppressed when a numeric badge is already
+            // present so we never stack two markers on the same row.
+            const showDot = showDiscoveryDots && !visited.has(item.href);
             if (item.locked) {
               return (
                 <Link
                   key={item.name}
                   href="/settings?upgrade=management"
-                  onClick={handleNavClick}
+                  onClick={() => { markVisited(item.href); handleNavClick(); }}
                   title={t("billing_addon_locked_hint" as keyof Dictionary) || "Funzione a pagamento — sblocca dall'abbonamento"}
                   className="flex items-center px-3 py-2.5 md:py-2 text-sm font-medium rounded-md transition-colors text-black hover:bg-[#c4956a]/10 hover:text-black"
                 >
                   <item.icon className="mr-3 flex-shrink-0 h-5 w-5 text-black" aria-hidden="true" />
                   <span className="flex-1">{label}</span>
-                  <Lock className="ml-2 flex-shrink-0 h-3.5 w-3.5 text-black" aria-label="locked" />
+                  {showDot && (
+                    <span
+                      className="mr-2 flex-shrink-0 h-2 w-2 rounded-full bg-[#8b6540]"
+                      aria-label={t("nav_new_section" as keyof Dictionary) || "New section"}
+                    />
+                  )}
+                  <Lock className="ml-0 flex-shrink-0 h-3.5 w-3.5 text-black" aria-label="locked" />
                 </Link>
               );
             }
@@ -197,7 +230,7 @@ export function Sidebar({ mobileOpen = false, onClose }: SidebarProps) {
               <Link
                 key={item.name}
                 href={item.href}
-                onClick={handleNavClick}
+                onClick={() => { markVisited(item.href); handleNavClick(); }}
                 className={cn(
                   "flex items-center px-3 py-2.5 md:py-2 text-sm font-medium rounded-md transition-colors",
                   isActive
@@ -210,7 +243,7 @@ export function Sidebar({ mobileOpen = false, onClose }: SidebarProps) {
                   aria-hidden="true"
                 />
                 <span className="flex-1">{label}</span>
-                {badgeCount > 0 && (
+                {badgeCount > 0 ? (
                   <span
                     className={cn(
                       "ml-2 inline-flex items-center justify-center min-w-[1.25rem] h-5 px-1.5 rounded-full text-xs font-bold text-white",
@@ -220,7 +253,12 @@ export function Sidebar({ mobileOpen = false, onClose }: SidebarProps) {
                   >
                     {badgeCount > 99 ? "99+" : badgeCount}
                   </span>
-                )}
+                ) : showDot ? (
+                  <span
+                    className="ml-2 flex-shrink-0 h-2 w-2 rounded-full bg-[#8b6540]"
+                    aria-label={t("nav_new_section" as keyof Dictionary) || "New section"}
+                  />
+                ) : null}
               </Link>
             )
           })}

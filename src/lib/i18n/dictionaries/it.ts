@@ -14,6 +14,7 @@ export const it: Dictionary = {
   nav_incidents: "Incidenti",
   nav_knowledge_base: "Base di Conoscenza",
   nav_settings: "Impostazioni",
+  nav_new_section: "Sezione non ancora visitata",
   nav_admin: "Admin",
 
   // Topbar

@@ -12,6 +12,7 @@ export const en = {
   nav_incidents: "Incidents",
   nav_knowledge_base: "Knowledge Base",
   nav_settings: "Settings",
+  nav_new_section: "Unvisited section",
   nav_admin: "Admin",
 
   // Topbar
