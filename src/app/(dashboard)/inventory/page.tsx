@@ -176,7 +176,7 @@ export default function InventoryPage() {
   }
 
   if (!enabled) {
-    return <ManagementLocked />;
+    return <ManagementLocked section="inventory" />;
   }
 
   return (

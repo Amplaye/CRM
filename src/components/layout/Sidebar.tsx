@@ -208,7 +208,7 @@ export function Sidebar({ mobileOpen = false, onClose }: SidebarProps) {
               return (
                 <Link
                   key={item.name}
-                  href="/settings?upgrade=management"
+                  href={item.href}
                   onClick={() => { markVisited(item.href); handleNavClick(); }}
                   title={t("billing_addon_locked_hint" as keyof Dictionary) || "Funzione a pagamento — sblocca dall'abbonamento"}
                   className="flex items-center px-3 py-2.5 md:py-2 text-sm font-medium rounded-md transition-colors text-black hover:bg-[#c4956a]/10 hover:text-black"

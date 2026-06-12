@@ -121,7 +121,7 @@ export default function FoodCostPage() {
   }
 
   if (!enabled) {
-    return <ManagementLocked />;
+    return <ManagementLocked section="food_cost" />;
   }
 
   return (

@@ -120,7 +120,7 @@ export default function PlPage() {
   }, [activeTenant?.id, enabled, supabase, tz]);
 
   if (!enabled) {
-    return <ManagementLocked />;
+    return <ManagementLocked section="pl" />;
   }
 
   const fmt = (n: number | null) => (n == null ? "—" : `€ ${n.toLocaleString("it-IT", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`);
