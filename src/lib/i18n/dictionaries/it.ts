@@ -72,6 +72,9 @@ export const it: Dictionary = {
   // Waitlist
   waitlist_title: "Lista d'attesa",
   waitlist_subtitle: "Gestisci i clienti in attesa e gli abbinamenti automatici dell'IA.",
+  waitlist_today: "Oggi",
+  res_prev_day: "Giorno precedente",
+  res_next_day: "Giorno successivo",
   waitlist_add: "Aggiungi alla Lista",
   waitlist_ai_match: "Abbinamento IA Disponibile",
   waitlist_queue: "Coda Attuale",

@@ -72,6 +72,9 @@ export const de: Dictionary = {
   // Waitlist
   waitlist_title: "Warteliste",
   waitlist_subtitle: "Wartende Gäste verwalten und automatische KI-Zuweisungen.",
+  waitlist_today: "Heute",
+  res_prev_day: "Vorheriger Tag",
+  res_next_day: "Nächster Tag",
   waitlist_add: "Zur Warteliste hinzufügen",
   waitlist_ai_match: "KI-Treffer verfügbar",
   waitlist_queue: "Aktuelle Warteschlange",

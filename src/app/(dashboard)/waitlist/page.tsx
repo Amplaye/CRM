@@ -9,7 +9,7 @@ import { useAuth } from "@/lib/contexts/AuthContext";
 import {
   UserPlus, Sparkles, Send, Activity, X, MessageSquare,
   List, LayoutPanelTop, Check, Users, Clock, Calendar, Phone,
-  AlertTriangle,
+  AlertTriangle, ChevronLeft, ChevronRight,
 } from "lucide-react";
 import Link from "next/link";
 import { zoneLabel } from "@/lib/restaurant-rules";
@@ -69,6 +69,13 @@ export default function WaitlistPage() {
   const [saving, setSaving] = useState(false);
 
   const today = new Date().toISOString().split('T')[0];
+  const [date, setDate] = useState(today);
+
+  const shiftDate = (days: number) => {
+    const d = new Date(date + 'T12:00:00');
+    d.setDate(d.getDate() + days);
+    setDate(d.toISOString().split('T')[0]);
+  };
 
   const fetchEntries = async () => {
     if (!tenant) return;
@@ -76,7 +83,7 @@ export default function WaitlistPage() {
       .from("waitlist_entries")
       .select("*, guests(name, phone, email)")
       .eq("tenant_id", tenant.id)
-      .eq("date", today)
+      .eq("date", date)
       .in("status", ["waiting", "match_found", "contacted"]);
 
     if (error) {
@@ -129,7 +136,7 @@ export default function WaitlistPage() {
       if (debounceTimer) clearTimeout(debounceTimer);
       supabase.removeChannel(channel);
     };
-  }, [tenant, today]);
+  }, [tenant, date]);
 
   // Pulled out of startConfirm so we can re-run it on realtime changes.
   const loadOccupiedFor = async (entryId: string) => {
@@ -395,7 +402,7 @@ export default function WaitlistPage() {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-black tracking-tight">{t("waitlist_title")}</h1>
-          <p className="mt-1 text-sm text-black">{t("waitlist_subtitle")} ({today})</p>
+          <p className="mt-1 text-sm text-black">{t("waitlist_subtitle")} ({date})</p>
         </div>
         <button
           onClick={() => setIsCreating(true)}
@@ -404,6 +411,42 @@ export default function WaitlistPage() {
           <UserPlus className="-ml-1 mr-2 h-5 w-5" aria-hidden="true" />
           {t("waitlist_add")}
         </button>
+      </div>
+
+      {/* Day navigation — prev/next arrows + date picker (mobile-first, also on desktop) */}
+      <div className="flex items-center gap-2">
+        <button
+          onClick={() => shiftDate(-1)}
+          className="p-2 rounded-lg border-2 hover:bg-[#c4956a]/10"
+          style={{ borderColor: '#c4956a' }}
+          aria-label={t("res_prev_day")}
+        >
+          <ChevronLeft className="w-4 h-4 text-black" />
+        </button>
+        <input
+          type="date"
+          value={date}
+          onChange={(e) => setDate(e.target.value)}
+          className="flex-1 sm:flex-initial border-2 rounded-lg px-3 py-2 text-sm font-medium text-black focus:ring-1 focus:ring-[#c4956a] focus:outline-none"
+          style={{ borderColor: '#c4956a', background: 'rgba(252,246,237,0.6)' }}
+        />
+        <button
+          onClick={() => shiftDate(1)}
+          className="p-2 rounded-lg border-2 hover:bg-[#c4956a]/10"
+          style={{ borderColor: '#c4956a' }}
+          aria-label={t("res_next_day")}
+        >
+          <ChevronRight className="w-4 h-4 text-black" />
+        </button>
+        {date !== today && (
+          <button
+            onClick={() => setDate(today)}
+            className="px-3 py-2 rounded-lg border-2 text-sm font-semibold text-black hover:bg-[#c4956a]/10"
+            style={{ borderColor: '#c4956a', background: 'rgba(252,246,237,0.6)' }}
+          >
+            {t("waitlist_today")}
+          </button>
+        )}
       </div>
 
       {/* AI Match Alert Banner — waitlist-specific */}
@@ -731,7 +774,7 @@ export default function WaitlistPage() {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                 <div>
                   <label className="block text-xs font-bold text-black mb-1">{t("waitlist_date")}</label>
-                  <input required name="date" type="date" defaultValue={today} className="w-full border border-zinc-200 bg-white rounded-md px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-zinc-900" />
+                  <input required name="date" type="date" defaultValue={date} className="w-full border border-zinc-200 bg-white rounded-md px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-zinc-900" />
                 </div>
                 <div>
                   <label className="block text-xs font-bold text-black mb-1">{t("waitlist_party_size")}</label>

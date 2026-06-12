@@ -70,6 +70,9 @@ export const en = {
   // Waitlist
   waitlist_title: "Waitlist",
   waitlist_subtitle: "Manage standby guests and AI auto-matching.",
+  waitlist_today: "Today",
+  res_prev_day: "Previous day",
+  res_next_day: "Next day",
   waitlist_add: "Add to Waitlist",
   waitlist_ai_match: "AI Match Available",
   waitlist_queue: "Current Queue",
