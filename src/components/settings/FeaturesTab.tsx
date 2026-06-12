@@ -124,15 +124,15 @@ export function FeaturesTab() {
           const on = features[key];
           return (
             <div key={key}
-              className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-3 rounded-lg border-2"
+              className="flex items-center justify-between gap-4 p-3 rounded-lg border-2"
               style={{ borderColor: "#c4956a", background: "rgba(252,246,237,0.6)" }}>
-              <div className="flex-1">
+              <div className="flex-1 min-w-0">
                 <label className="text-sm font-bold text-black">{t(labelKey as keyof Dictionary)}</label>
                 <p className="text-xs text-black mt-0.5">{t(hintKey as keyof Dictionary)}</p>
               </div>
               <div className="flex items-center gap-2 shrink-0">
                 {/* Per-row save feedback, so the owner sees THIS toggle took effect. */}
-                <span className="h-5 flex items-center min-w-[64px] justify-end" aria-live="polite">
+                <span className="h-5 flex items-center justify-end" aria-live="polite">
                   {rowStatus?.key === key && rowStatus.state === "saving" && (
                     <span className="text-xs font-medium text-black">…</span>
                   )}
