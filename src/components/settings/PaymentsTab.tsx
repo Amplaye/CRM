@@ -363,7 +363,7 @@ export function PaymentsTab() {
                 key={addon.id}
                 className="rounded-lg border-2 p-4 flex flex-col"
                 style={{
-                  borderColor: checked ? "#c4956a" : "#eaddcb",
+                  borderColor: "#c4956a",
                   background: checked ? "rgba(196,149,106,0.10)" : "rgba(252,246,237,0.5)",
                   opacity: addon.comingSoon ? 0.6 : 1,
                 }}
