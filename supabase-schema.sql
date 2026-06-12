@@ -157,7 +157,8 @@ create table public.conversations (
   summary text not null default '',
   transcript jsonb not null default '[]'::jsonb,
   created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
+  updated_at timestamptz not null default now(),
+  deleted_at timestamptz -- soft delete: hidden from inbox, restorable from Trash for 30 days
 );
 
 -- ============================================

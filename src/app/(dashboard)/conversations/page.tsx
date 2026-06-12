@@ -44,6 +44,11 @@ export default function ConversationsPage() {
   const [channelFilter, setChannelFilter] = useState<"all" | "whatsapp" | "voice">("all");
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [deleting, setDeleting] = useState(false);
+  // Trash: soft-deleted conversations, restorable for 30 days
+  const [showTrash, setShowTrash] = useState(false);
+  const [trashedConvos, setTrashedConvos] = useState<ConvoWithGuest[]>([]);
+  const [trashLoading, setTrashLoading] = useState(false);
+  const [restoringId, setRestoringId] = useState<string | null>(null);
   const [replyText, setReplyText] = useState("");
   const [sending, setSending] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -63,6 +68,7 @@ export default function ConversationsPage() {
           .from("conversations")
           .select("*, guests(*), conversation_audits(*)")
           .eq("tenant_id", tenant.id)
+          .is("deleted_at", null)
           .order("updated_at", { ascending: false })
           .limit(50);
         if (error) { console.error(error); return; }
@@ -257,11 +263,52 @@ export default function ConversationsPage() {
     if (selectedIds.size === 0) return;
     setDeleting(true);
     const ids = Array.from(selectedIds);
+    // Soft delete: hide from the inbox but keep the row so it can be restored
+    // from the Trash for 30 days. The linked reservation is unaffected.
     setConversations(prev => prev.filter(c => !selectedIds.has(c.id)));
     if (selectedConvoId && selectedIds.has(selectedConvoId)) setSelectedConvoId(null);
     setSelectedIds(new Set());
-    await supabase.from("conversations").delete().in("id", ids);
+    await supabase.from("conversations").update({ deleted_at: new Date().toISOString() }).in("id", ids);
     setDeleting(false);
+  };
+
+  // Load soft-deleted conversations (most-recently-trashed first). We only show
+  // the last 30 days since the purge cron removes anything older for good.
+  const fetchTrashed = async () => {
+    if (!tenant) return;
+    setTrashLoading(true);
+    try {
+      const cutoff = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+      const { data, error } = await supabase
+        .from("conversations")
+        .select("*, guests(*), conversation_audits(*)")
+        .eq("tenant_id", tenant.id)
+        .not("deleted_at", "is", null)
+        .gte("deleted_at", cutoff)
+        .order("deleted_at", { ascending: false })
+        .limit(100);
+      if (error) { console.error(error); return; }
+      setTrashedConvos((data || []) as ConvoWithGuest[]);
+    } finally {
+      setTrashLoading(false);
+    }
+  };
+
+  const openTrash = () => {
+    setSelectedConvoId(null);
+    setSelectedIds(new Set());
+    setShowTrash(true);
+    fetchTrashed();
+  };
+
+  const restoreConvo = async (id: string) => {
+    setRestoringId(id);
+    // Optimistic: drop from the trash list immediately.
+    setTrashedConvos(prev => prev.filter(c => c.id !== id));
+    await supabase.from("conversations").update({ deleted_at: null }).eq("id", id);
+    // Pull it back into the active inbox.
+    await fetchConversationsRef.current?.();
+    setRestoringId(null);
   };
 
   const getGuestDisplay = (conv: ConvoWithGuest) => {
@@ -283,7 +330,22 @@ export default function ConversationsPage() {
       {/* INBOX LIST */}
       <div className={`flex flex-col border-r ${selectedConvo ? 'hidden md:flex md:w-[380px]' : 'w-full md:w-[380px]'}`} style={{ background: 'rgba(252,246,237,0.85)', borderColor: '#c4956a' }}>
         <div className="p-4 md:p-5 border-b" style={{ borderColor: '#c4956a' }}>
-          <h1 className="text-xl font-bold text-black">{t("conv_title")}</h1>
+          <div className="flex items-center justify-between gap-2">
+            <h1 className="text-xl font-bold text-black">{showTrash ? t("conv_trash_title") : t("conv_title")}</h1>
+            <button
+              onClick={() => { if (showTrash) { setShowTrash(false); } else { openTrash(); } }}
+              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold border transition-colors cursor-pointer ${showTrash ? 'text-white border-transparent' : 'text-black border-[#c4956a]/40 hover:bg-[#c4956a]/10'}`}
+              style={showTrash ? { background: 'linear-gradient(135deg, #d4a574, #c4956a)' } : undefined}
+              title={showTrash ? t("conv_trash_back") : t("conv_trash_open")}
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+              {showTrash ? t("conv_trash_back") : t("conv_trash_open")}
+            </button>
+          </div>
+          {showTrash ? (
+            <p className="mt-2 text-[11px] text-black/70">{t("conv_trash_hint")}</p>
+          ) : (
+          <>
           <div className="mt-3 relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-black" />
             <input type="text" value={searchQuery} onChange={e => setSearchQuery(e.target.value)} placeholder={t("conv_search")}
@@ -317,10 +379,45 @@ export default function ConversationsPage() {
               </button>
             </div>
           )}
+          </>
+          )}
         </div>
 
         <div className="flex-1 overflow-y-auto">
-          {loading ? (
+          {showTrash ? (
+            trashLoading ? (
+              <div className="p-4 space-y-3">{[1,2,3].map(i => <div key={i} className="h-16 bg-zinc-100 rounded-xl animate-pulse" />)}</div>
+            ) : trashedConvos.length === 0 ? (
+              <div className="p-12 text-center">
+                <Trash2 className="w-10 h-10 text-black/20 mx-auto mb-3" />
+                <p className="text-sm font-medium text-black">{t("conv_trash_empty")}</p>
+              </div>
+            ) : (
+              <div className="divide-y" style={{ borderColor: 'rgba(196,149,106,0.2)' }}>
+                {trashedConvos.map(conv => (
+                  <div key={conv.id} className="px-4 py-3 flex items-center gap-3">
+                    <div className={`relative w-9 h-9 rounded-full flex items-center justify-center text-white font-bold text-sm flex-shrink-0 opacity-70 ${conv.channel === 'whatsapp' ? 'bg-emerald-500' : 'bg-indigo-500'}`}>
+                      {getGuestDisplay(conv).charAt(0).toUpperCase()}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <span className="font-bold text-sm text-black truncate block">{getGuestDisplay(conv)}</span>
+                      <p className="text-xs text-black truncate mt-0.5">{getLastMessage(conv)}</p>
+                      {conv.deleted_at && (
+                        <p className="text-[10px] text-black/60 mt-0.5">{t("conv_trash_deleted_on")} {new Date(conv.deleted_at).toLocaleDateString()}</p>
+                      )}
+                    </div>
+                    <button
+                      onClick={() => restoreConvo(conv.id)}
+                      disabled={restoringId === conv.id}
+                      className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 hover:bg-emerald-100 transition-colors cursor-pointer disabled:opacity-50 flex-shrink-0"
+                    >
+                      <Play className="w-3 h-3" /> {t("conv_trash_restore")}
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )
+          ) : loading ? (
             <div className="p-4 space-y-3">{[1,2,3].map(i => <div key={i} className="h-16 bg-zinc-100 rounded-xl animate-pulse" />)}</div>
           ) : filtered.length === 0 ? (
             <div className="p-12 text-center">

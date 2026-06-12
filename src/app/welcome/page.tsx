@@ -58,7 +58,7 @@ export default function WelcomePage() {
             }}
             aria-haspopup="listbox"
             aria-expanded={langOpen}
-            className="flex items-center gap-1.5 pl-3 pr-2 py-1.5 rounded-full text-sm font-semibold text-black transition-all"
+            className="flex items-center gap-1.5 pl-3 pr-2 py-1.5 rounded-full text-sm font-semibold text-black transition-all cursor-pointer"
             style={{ background: "rgba(252,246,237,0.85)", border: "2px solid #c4956a" }}
           >
             <span className="text-base leading-none">{current.flag}</span>
@@ -82,7 +82,7 @@ export default function WelcomePage() {
                         setLanguage(code);
                         setLangOpen(false);
                       }}
-                      className="w-full flex items-center gap-2 px-3 py-2 text-sm font-medium text-black transition-colors hover:bg-[#c4956a]/15"
+                      className="w-full flex items-center gap-2 px-3 py-2 text-sm font-medium text-black transition-colors hover:bg-[#c4956a]/15 cursor-pointer"
                       style={active ? { background: "rgba(196,149,106,0.2)" } : undefined}
                     >
                       <span className="text-base leading-none">{flag}</span>
@@ -123,7 +123,7 @@ export default function WelcomePage() {
           {/* 1 — Create account → sign-up wizard */}
           <Link
             href="/register"
-            className="group flex flex-col rounded-2xl p-6 sm:p-7 transition-all hover:-translate-y-0.5 hover:shadow-lg cursor-pointer"
+            className="group flex flex-col items-center text-center rounded-2xl p-6 sm:p-7 transition-all hover:-translate-y-0.5 hover:shadow-lg cursor-pointer"
             style={{
               background: "linear-gradient(135deg, #c4956a 0%, #b8845c 100%)",
               boxShadow: "0 20px 60px rgba(196,149,106,0.25), 0 8px 24px rgba(196,149,106,0.15)",
@@ -143,7 +143,7 @@ export default function WelcomePage() {
           {/* 2 — Already with us? → existing login */}
           <Link
             href="/login"
-            className="group flex flex-col rounded-2xl p-6 sm:p-7 transition-all hover:-translate-y-0.5 hover:shadow-lg cursor-pointer"
+            className="group flex flex-col items-center text-center rounded-2xl p-6 sm:p-7 transition-all hover:-translate-y-0.5 hover:shadow-lg cursor-pointer"
             style={{
               background: "rgba(252,246,237,0.85)",
               border: "2px solid #c4956a",

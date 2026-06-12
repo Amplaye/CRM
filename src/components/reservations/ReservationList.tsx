@@ -108,7 +108,7 @@ export function ReservationList({ date, shiftFilter = "all", onRowClick, onCreat
 
   const handleCancel = async (e: React.MouseEvent, resId: string) => {
     e.stopPropagation();
-    if (!confirm("¿Cancelar esta reserva?")) return;
+    if (!confirm(t("res_cancel_confirm"))) return;
     const supabase = createClient();
     await supabase
       .from("reservations")
@@ -200,10 +200,21 @@ export function ReservationList({ date, shiftFilter = "all", onRowClick, onCreat
               <StatusPill status={res.status} />
             </div>
           </div>
-          {(res.notes || (res.table_names && res.table_names.length > 0)) && (
+          {(res.notes || (res.table_names && res.table_names.length > 0) || !['cancelled', 'no_show'].includes(res.status)) && (
             <div className="flex items-center gap-2 mt-1.5 pl-[60px]">
               {res.table_names && res.table_names.length > 0 && <span className="text-[10px] text-black">{res.table_names.join(", ")}</span>}
-              {res.notes && <p className="text-[11px] text-black truncate">{res.notes}</p>}
+              {res.notes && <p className="text-[11px] text-black truncate flex-1">{res.notes}</p>}
+              {!['cancelled', 'no_show'].includes(res.status) && (
+                <button
+                  onClick={(e) => handleCancel(e, res.id)}
+                  className="ml-auto flex items-center gap-1 px-2.5 py-1.5 text-[11px] font-semibold rounded-lg text-red-600 bg-red-50 ring-1 ring-red-200 active:scale-95 transition-all"
+                  title={t("res_cancel_action")}
+                  aria-label={t("res_cancel_action")}
+                >
+                  <XCircle className="w-4 h-4" />
+                  <span>{t("res_cancel_action")}</span>
+                </button>
+              )}
             </div>
           )}
         </div>
@@ -278,7 +289,7 @@ export function ReservationList({ date, shiftFilter = "all", onRowClick, onCreat
               </td>
               <td className="px-4 py-4 whitespace-nowrap text-center">
                 {!['cancelled', 'no_show'].includes(res.status) && (
-                  <button onClick={(e) => handleCancel(e, res.id)} className="text-red-400 hover:text-red-600 transition-colors cursor-pointer" title="Cancelar reserva">
+                  <button onClick={(e) => handleCancel(e, res.id)} className="text-red-400 hover:text-red-600 transition-colors cursor-pointer" title={t("res_cancel_action")}>
                     <XCircle className="w-5 h-5" />
                   </button>
                 )}

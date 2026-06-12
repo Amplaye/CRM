@@ -39,9 +39,44 @@ export async function GET(req: NextRequest) {
       results.push({ id: t.id, ok: false, error: e?.message });
     }
   }
+  // Hard-delete conversations that have been in the Trash for more than 30 days.
+  // (Soft delete sets conversations.deleted_at; the inbox hides them and the
+  // Trash view restores them within the window.) Reservations are unaffected —
+  // their FK to conversations is `on delete set null`.
+  let conversationsPurged = 0;
+  try {
+    const cutoff = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+    const { data: purgedConvos, error: convErr } = await supabase
+      .from("conversations")
+      .delete()
+      .not("deleted_at", "is", null)
+      .lt("deleted_at", cutoff)
+      .select("id");
+    if (convErr) {
+      await logSystemEvent({
+        tenant_id: null,
+        category: "system",
+        severity: "high",
+        title: "Trashed conversations purge failed",
+        metadata: { error: convErr.message },
+      });
+    } else {
+      conversationsPurged = purgedConvos?.length || 0;
+    }
+  } catch (e: any) {
+    await logSystemEvent({
+      tenant_id: null,
+      category: "system",
+      severity: "high",
+      title: "Trashed conversations purge failed",
+      metadata: { error: e?.message },
+    });
+  }
+
   return NextResponse.json({
     checked: (due || []).length,
     purged: results.filter((r) => r.ok).length,
+    conversationsPurged,
     results,
   });
 }

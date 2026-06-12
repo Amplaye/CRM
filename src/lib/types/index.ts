@@ -236,6 +236,7 @@ export interface Conversation {
   transcript: Array<{ role: "ai" | "user" | "system" | "staff"; content: string; timestamp: number }>;
   created_at: number;
   updated_at: number;
+  deleted_at?: string | null; // soft delete timestamp; null = active
 }
 
 export type AuditOutcome = "booked" | "cancelled" | "modified" | "info_only" | "abandoned" | "escalated" | "error" | "unclear";

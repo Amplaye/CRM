@@ -217,7 +217,7 @@ export function Sidebar({ mobileOpen = false, onClose }: SidebarProps) {
                   <span className="flex-1">{label}</span>
                   {showDot && (
                     <span
-                      className="mr-2 flex-shrink-0 h-2 w-2 rounded-full bg-[#8b6540]"
+                      className="mr-2 flex-shrink-0 h-1.5 w-1.5 rounded-full bg-[#c4956a]"
                       aria-label={t("nav_new_section" as keyof Dictionary) || "New section"}
                     />
                   )}
@@ -257,7 +257,7 @@ export function Sidebar({ mobileOpen = false, onClose }: SidebarProps) {
                   </span>
                 ) : showDot ? (
                   <span
-                    className="ml-2 flex-shrink-0 h-2 w-2 rounded-full bg-[#8b6540]"
+                    className="ml-2 flex-shrink-0 h-1.5 w-1.5 rounded-full bg-[#c4956a]"
                     aria-label={t("nav_new_section" as keyof Dictionary) || "New section"}
                   />
                 ) : null}

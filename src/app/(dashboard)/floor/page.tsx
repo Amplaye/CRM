@@ -129,6 +129,9 @@ export default function FloorPage() {
   // View mode + plan editor
   const [viewMode, setViewMode] = useState<"list" | "plan">("list");
   const [editingPlan, setEditingPlan] = useState(false);
+  // Inline table rename (list view): which table is being renamed + its draft name
+  const [renamingTableId, setRenamingTableId] = useState<string | null>(null);
+  const [renameValue, setRenameValue] = useState("");
   const [activeZone, setActiveZone] = useState<string>("inside");
   // Wall-drawing mode: while ON, canvas clicks trace wall segments instead of
   // dragging tables. Lives in the parent so the toolbar toggle and the canvas
@@ -495,6 +498,19 @@ export default function FloorPage() {
       position_y: 60,
     });
     // Real-time will refetch
+  }
+
+  // Rename a table in place. Only the label changes — the table id and all its
+  // reservation links stay intact, so no analytics or bookings are affected.
+  async function renameTable(tableId: string, rawName: string) {
+    const name = rawName.trim();
+    setRenamingTableId(null);
+    const existing = tables.find((t) => t.id === tableId);
+    if (!existing || !name || existing.name === name) return;
+    // Optimistic update; realtime will reconcile.
+    setTables((prev) => prev.map((t) => (t.id === tableId ? { ...t, name } : t)));
+    const supabase = createClient();
+    await supabase.from("restaurant_tables").update({ name }).eq("id", tableId);
   }
 
   async function confirmDeleteTable() {
@@ -919,9 +935,36 @@ export default function FloorPage() {
                     }
                   }}
                 >
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="font-bold text-black text-sm">{table.name}</span>
-                    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
+                  <div className="flex items-center justify-between mb-2 gap-2">
+                    {renamingTableId === table.id ? (
+                      <input
+                        autoFocus
+                        value={renameValue}
+                        maxLength={20}
+                        onClick={(e) => e.stopPropagation()}
+                        onChange={(e) => setRenameValue(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") renameTable(table.id, renameValue);
+                          if (e.key === "Escape") setRenamingTableId(null);
+                        }}
+                        onBlur={() => renameTable(table.id, renameValue)}
+                        className="w-24 border-2 rounded px-1.5 py-0.5 text-sm font-bold text-black outline-none"
+                        style={{ borderColor: "#c4956a", background: "#fff" }}
+                      />
+                    ) : (
+                      <span className="flex items-center gap-1 min-w-0">
+                        <span className="font-bold text-black text-sm truncate">{table.name}</span>
+                        <button
+                          onClick={(e) => { e.stopPropagation(); setRenamingTableId(table.id); setRenameValue(table.name); }}
+                          className="flex-shrink-0 p-0.5 text-[#a87642] hover:text-[#8b6540] transition-colors cursor-pointer"
+                          title={t("floor_rename_table")}
+                          aria-label={t("floor_rename_table")}
+                        >
+                          <Pencil className="w-3 h-3" />
+                        </button>
+                      </span>
+                    )}
+                    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium flex-shrink-0 ${
                       tStatus === "free" ? "bg-green-100 text-green-800"
                         : tRes?.status === "seated" ? "bg-blue-100 text-blue-800"
                           : "bg-red-100 text-red-800"

@@ -822,13 +822,15 @@ export default function MenuPage() {
                           />
                         ) : (
                           <span
-                            className="w-14 h-14 rounded-lg shrink-0 flex items-center justify-center border"
+                            className="w-14 h-14 rounded-lg shrink-0 flex flex-col items-center justify-center gap-0.5 border border-dashed"
                             style={{
-                              borderColor: "rgba(196,149,106,0.3)",
+                              borderColor: "rgba(196,149,106,0.5)",
                               background: "rgba(252,246,237,0.6)",
                             }}
+                            title={t("menu_item_photo_hint")}
                           >
-                            <ImageIcon className="w-5 h-5 text-[#c4956a]/70" />
+                            <ImageIcon className="w-4 h-4 text-[#c4956a]" />
+                            <span className="text-[8px] font-bold text-[#a87642] leading-none text-center px-0.5">{t("menu_no_photo")}</span>
                           </span>
                         )}
 
@@ -950,14 +952,19 @@ export default function MenuPage() {
                               />
                             ) : (
                               <span
-                                className="w-9 h-9 rounded-md shrink-0 flex items-center justify-center border"
-                                style={{ borderColor: "rgba(196,149,106,0.3)", background: "rgba(252,246,237,0.6)" }}
-                                title={t("menu_item_photo_add") || "Aggiungi una foto"}
+                                className="w-9 h-9 rounded-md shrink-0 flex items-center justify-center border border-dashed"
+                                style={{ borderColor: "rgba(196,149,106,0.5)", background: "rgba(252,246,237,0.6)" }}
+                                title={t("menu_item_photo_hint")}
                               >
                                 <ImageIcon className="w-4 h-4 text-[#c4956a]" />
                               </span>
                             )}
                             <span className="font-bold text-black truncate">{it.name}</span>
+                            {!it.image_url && (
+                              <span className="text-[9px] uppercase font-bold tracking-widest text-[#a87642] bg-[#c4956a]/15 px-1.5 py-0.5 rounded shrink-0" title={t("menu_item_photo_hint")}>
+                                {t("menu_no_photo")}
+                              </span>
+                            )}
                             {!it.available && (
                               <span className="text-[9px] uppercase font-bold tracking-widest text-orange-700 bg-orange-50 px-1.5 py-0.5 rounded">
                                 {t("menu_unavailable") || "Esaurito"}
@@ -1400,6 +1407,7 @@ function ItemEditModal({
             <label className="block text-xs font-bold text-black uppercase tracking-widest mb-1.5">
               {t("menu_item_photo") || "Foto piatto"}
             </label>
+            <p className="text-xs text-black/70 mb-2">{t("menu_item_photo_hint")}</p>
             <input
               ref={fileInputRef}
               type="file"

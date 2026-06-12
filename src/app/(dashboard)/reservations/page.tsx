@@ -13,6 +13,7 @@ interface ReservationWithGuest extends Reservation {
   guest_dietary_notes?: string;
   guest_accessibility_notes?: string;
   guest_family_notes?: string;
+  table_names?: string[];
 }
 import { useLanguage } from "@/lib/contexts/LanguageContext";
 import { useTenant } from "@/lib/contexts/TenantContext";
@@ -88,6 +89,12 @@ export default function ReservationsPage() {
   const [availableTables, setAvailableTables] = useState<RestaurantTable[]>([]);
   const [selectedTableIds, setSelectedTableIds] = useState<string[]>([]);
   const [occupiedTableIds, setOccupiedTableIds] = useState<Set<string>>(new Set());
+  // Change-table (in-place reassignment for the open reservation — keeps the row, so analytics stay intact)
+  const [changingTable, setChangingTable] = useState(false);
+  const [editTables, setEditTables] = useState<RestaurantTable[]>([]);
+  const [editOccupied, setEditOccupied] = useState<Set<string>>(new Set());
+  const [editCurrentTableIds, setEditCurrentTableIds] = useState<string[]>([]);
+  const [savingTable, setSavingTable] = useState(false);
   const [createShift, setCreateShift] = useState<"lunch" | "dinner">("dinner");
   const [createDate, setCreateDate] = useState(date);
   const supabase = createClient();
@@ -232,6 +239,80 @@ export default function ReservationsPage() {
     };
     fetchTables();
   }, [activeTenant, createDate, isCreating]);
+
+  // Load tables for the OPEN reservation so the owner can move it to another
+  // table without cancel+recreate (which would lose the row and its analytics).
+  useEffect(() => {
+    if (!activeTenant || !selectedRes || isHost) { setChangingTable(false); return; }
+    setChangingTable(false);
+    const resId = selectedRes.id;
+    const fetchForEdit = async () => {
+      const [tablesRes, occRes, mineRes] = await Promise.all([
+        supabase
+          .from("restaurant_tables")
+          .select("id, name, seats, status")
+          .eq("tenant_id", activeTenant.id)
+          .eq("status", "active")
+          .order("name"),
+        supabase
+          .from("reservations")
+          .select("id, reservation_tables(table_id)")
+          .eq("tenant_id", activeTenant.id)
+          .eq("date", selectedRes.date)
+          .in("status", ["confirmed", "seated", "pending_confirmation"]),
+        supabase
+          .from("reservation_tables")
+          .select("table_id")
+          .eq("reservation_id", resId),
+      ]);
+
+      const sorted = ((tablesRes.data || []) as RestaurantTable[]).sort((a, b) => {
+        const numA = parseInt(a.name.replace(/\D/g, '')) || 0;
+        const numB = parseInt(b.name.replace(/\D/g, '')) || 0;
+        return numA - numB;
+      });
+      setEditTables(sorted);
+
+      const mine = ((mineRes.data || []) as any[]).map(r => r.table_id).filter(Boolean);
+      setEditCurrentTableIds(mine);
+      setSelectedTableIds(mine);
+
+      // Occupied by OTHER reservations on the same day (exclude this reservation's own tables)
+      const occupied = new Set<string>();
+      for (const r of (occRes.data || []) as any[]) {
+        if (r.id === resId) continue;
+        for (const rt of (r.reservation_tables || [])) {
+          if (rt.table_id) occupied.add(rt.table_id);
+        }
+      }
+      setEditOccupied(occupied);
+    };
+    fetchForEdit();
+  }, [activeTenant, selectedRes, isHost]);
+
+  const handleChangeTable = async () => {
+    if (!activeTenant || !selectedRes) return;
+    setSavingTable(true);
+    try {
+      const resId = selectedRes.id;
+      // In-place reassignment: only the junction rows change. The reservation
+      // row (source, timestamps, party_size, status) is untouched, so booking
+      // analytics and history are preserved.
+      await supabase.from("reservation_tables").delete().eq("reservation_id", resId);
+      if (selectedTableIds.length > 0) {
+        const inserts = selectedTableIds.map(tableId => ({ reservation_id: resId, table_id: tableId }));
+        await supabase.from("reservation_tables").insert(inserts);
+      }
+      const newNames = selectedTableIds
+        .map(tid => editTables.find(x => x.id === tid)?.name)
+        .filter(Boolean) as string[];
+      setEditCurrentTableIds(selectedTableIds);
+      setSelectedRes(prev => prev ? { ...prev, table_names: newNames } as ReservationWithGuest : prev);
+      setChangingTable(false);
+    } finally {
+      setSavingTable(false);
+    }
+  };
 
   const toggleTable = (tableId: string) => {
     setSelectedTableIds(prev =>
@@ -554,7 +635,7 @@ export default function ReservationsPage() {
         const inputStyle: React.CSSProperties = { borderColor: '#c4956a', background: 'rgba(252,246,237,0.6)', maxWidth: '100%', boxSizing: 'border-box', WebkitAppearance: 'none' as const, MozAppearance: 'none' as const };
         return (
         <>
-        <div className="fixed inset-0 bg-black/40 z-30 sm:hidden" onClick={() => setSelectedRes(null)} />
+        <div className="fixed inset-0 bg-black/40 z-30 sm:hidden" onClick={() => { setSelectedRes(null); setChangingTable(false); setSelectedTableIds([]); }} />
         <div className="fixed top-14 left-0 right-0 bottom-0 sm:top-0 sm:left-auto sm:right-0 sm:w-[400px] border-l shadow-2xl z-40 flex flex-col overflow-hidden" style={{ background: 'rgb(252,246,237)', borderColor: '#c4956a' }}>
           <div className="mx-5 sm:mx-6 pt-2 pb-2 sm:py-4 flex items-center justify-between border-b" style={{ borderColor: '#c4956a' }}>
              <div className="min-w-0 flex-1 mr-3">
@@ -570,7 +651,7 @@ export default function ReservationsPage() {
                  </div>
                )}
              </div>
-             <button onClick={() => setSelectedRes(null)} className="p-1.5 border-2 border-red-400 text-red-500 hover:bg-red-50 rounded-lg transition-colors cursor-pointer flex-shrink-0">
+             <button onClick={() => { setSelectedRes(null); setChangingTable(false); setSelectedTableIds([]); }} className="p-1.5 border-2 border-red-400 text-red-500 hover:bg-red-50 rounded-lg transition-colors cursor-pointer flex-shrink-0">
                 <X className="h-4 w-4" />
              </button>
           </div>
@@ -685,6 +766,67 @@ export default function ReservationsPage() {
                    <div className="mt-2">
                      <TranslateNoteButton text={selectedRes.notes || ""} />
                    </div>
+                </div>
+
+                {/* Change table — in-place reassignment; keeps the reservation row + analytics */}
+                <div className="rounded-lg border-2 p-3" style={{ borderColor: '#c4956a', background: 'rgba(252,246,237,0.6)' }}>
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold text-black">{t("res_change_table_title")}</p>
+                      <p className="text-xs text-black mt-0.5">
+                        {editCurrentTableIds.length > 0
+                          ? (editCurrentTableIds
+                              .map(tid => editTables.find(x => x.id === tid)?.name)
+                              .filter(Boolean).join(", ") || (selectedRes.table_names || []).join(", "))
+                          : t("res_change_table_none")}
+                      </p>
+                    </div>
+                    {!changingTable && (
+                      <button type="button" onClick={() => { setSelectedTableIds(editCurrentTableIds); setChangingTable(true); }}
+                        className="flex-shrink-0 px-3 py-1.5 text-xs font-semibold rounded-lg border-2 border-[#c4956a] text-black hover:bg-[#c4956a]/10 transition-colors cursor-pointer">
+                        {t("res_change_table")}
+                      </button>
+                    )}
+                  </div>
+                  {changingTable && (
+                    <div className="mt-3">
+                      <p className="text-xs text-black mb-2">{t("res_change_table_subtitle")}</p>
+                      {editTables.length === 0 ? (
+                        <p className="text-xs text-black">{t("res_change_table_empty")}</p>
+                      ) : (
+                        <div className="grid grid-cols-4 gap-2">
+                          {editTables.map(table => {
+                            const isMine = editCurrentTableIds.includes(table.id);
+                            const isOccupied = editOccupied.has(table.id) && !isMine;
+                            const isSelected = selectedTableIds.includes(table.id);
+                            return (
+                              <button key={table.id} type="button" disabled={isOccupied}
+                                onClick={() => !isOccupied && toggleTable(table.id)}
+                                title={`${table.name} · ${table.seats}p`}
+                                className={`py-2 px-1 text-xs font-semibold rounded-lg border-2 transition-colors ${
+                                  isOccupied ? "border-red-400 text-red-400 opacity-50 cursor-not-allowed"
+                                    : isSelected ? "border-green-500 bg-green-500 text-white cursor-pointer"
+                                      : "border-[#c4956a] text-black cursor-pointer"
+                                }`}
+                                style={!isOccupied && !isSelected ? { background: 'rgba(252,246,237,0.6)' } : undefined}>
+                                {table.name}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      )}
+                      <div className="flex gap-2 mt-3">
+                        <button type="button" onClick={() => { setChangingTable(false); setSelectedTableIds(editCurrentTableIds); }}
+                          className="flex-1 px-3 py-2 text-xs font-semibold rounded-lg border-2 border-zinc-300 text-black hover:bg-zinc-100 transition-colors cursor-pointer">
+                          {t("res_edit_cancel") || "Annulla"}
+                        </button>
+                        <button type="button" onClick={handleChangeTable} disabled={savingTable}
+                          className="flex-1 px-3 py-2 text-xs font-bold rounded-lg text-white bg-zinc-900 hover:bg-zinc-800 transition-colors cursor-pointer disabled:opacity-50">
+                          {savingTable ? "…" : t("res_change_table_save")}
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
              </div>
              <div className="mx-5 sm:mx-6 py-2 sm:py-4 pb-4 sm:pb-4 border-t" style={{ borderColor: '#c4956a' }}>
