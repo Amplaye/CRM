@@ -26,7 +26,6 @@ export function FeaturesTab() {
   // back into the raw override (silently making it permanent). management_enabled
   // is not even rendered (absent from FEATURE_FLAGS); we just must not clobber it.
   const [features, setFeatures] = useState<TenantFeatures>(getRawFeatures(null));
-  const [status, setStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
   // Per-toggle feedback: the owner asked to see "Saved!" right next to the switch
   // they just flipped (not only in the header), so a flip visibly "took". We track
   // which key is mid-save / just-saved; the row reads it to render its own badge.
@@ -39,7 +38,6 @@ export function FeaturesTab() {
   // refreshActiveTenant() we fire after each save changes the tenant object
   // identity; without this guard that would clobber an in-flight optimistic flip.
   const initedFor = useRef<string | null>(null);
-  const savedTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const rowSavedTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Re-read from DB on mount: TenantContext caches settings in sessionStorage, so
@@ -59,7 +57,6 @@ export function FeaturesTab() {
   }, [tenant]);
 
   useEffect(() => () => {
-    if (savedTimer.current) clearTimeout(savedTimer.current);
     if (rowSavedTimer.current) clearTimeout(rowSavedTimer.current);
   }, []);
 
@@ -67,7 +64,6 @@ export function FeaturesTab() {
   // thresholds (auto-confirm) are owned by Settings → Bookings now.
   const persist = async (next: TenantFeatures, prev: TenantFeatures, key: keyof TenantFeatures) => {
     if (!tenant) return;
-    setStatus("saving");
     setRowStatus({ key, state: "saving" });
     const newSettings = { ...(tenant.settings || {}), features: next };
     const { error } = await supabase
@@ -80,15 +76,11 @@ export function FeaturesTab() {
       // Roll back the optimistic flip so the UI never lies about what's saved.
       featuresRef.current = prev;
       setFeatures(prev);
-      setStatus("error");
       setRowStatus({ key, state: "error" });
       return;
     }
 
-    setStatus("saved");
     setRowStatus({ key, state: "saved" });
-    if (savedTimer.current) clearTimeout(savedTimer.current);
-    savedTimer.current = setTimeout(() => setStatus("idle"), 2000);
     if (rowSavedTimer.current) clearTimeout(rowSavedTimer.current);
     rowSavedTimer.current = setTimeout(() => setRowStatus(null), 2000);
     // Propagate to the rest of the app (sidebar waitlist, floor zones, …) without
@@ -106,17 +98,9 @@ export function FeaturesTab() {
 
   return (
     <div className="space-y-4 sm:space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h2 className="text-lg font-bold text-black">{t("settings_features_title")}</h2>
-          <p className="mt-1 text-sm text-black">{t("settings_features_desc")}</p>
-        </div>
-        {/* Inline status — the toggle saves on its own, so no button, just feedback. */}
-        <div className="mt-3 sm:mt-0 h-5 flex items-center" aria-live="polite">
-          {status === "saving" && <span className="text-sm font-medium text-black">…</span>}
-          {status === "saved" && <span className="text-sm font-medium text-green-600">{t("settings_saved")}</span>}
-          {status === "error" && <span className="text-sm font-medium text-red-600">{t("settings_save_error")}</span>}
-        </div>
+      <div>
+        <h2 className="text-lg font-bold text-black">{t("settings_features_title")}</h2>
+        <p className="mt-1 text-sm text-black">{t("settings_features_desc")}</p>
       </div>
 
       <div className="space-y-3">
