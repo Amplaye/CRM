@@ -10,6 +10,11 @@ export async function middleware(request: NextRequest) {
 
 export const config = {
   matcher: [
-    '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
+    // `opengraph-image` is a code-generated metadata route served WITHOUT a file
+    // extension (e.g. /opengraph-image?<hash>), so the `.png$` rule below doesn't
+    // catch it — exclude it explicitly or the auth middleware 307s WhatsApp's
+    // crawler to /welcome and the link preview breaks. The .png metadata routes
+    // (twitter-image/icon/apple-icon) are already covered by the extension rule.
+    '/((?!_next/static|_next/image|favicon.ico|opengraph-image|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
   ],
 }
