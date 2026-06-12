@@ -475,24 +475,57 @@ export default function FloorPage() {
 
       // Create or find guest
       let guestId: string;
-      const guestName = quickSeatName.trim() || "Walk-in";
+      const typedName = quickSeatName.trim();
 
-      const { data: existingGuest } = await supabase
-        .from("guests")
-        .select("id")
-        .eq("tenant_id", activeTenant.id)
-        .eq("name", guestName)
-        .limit(1)
-        .maybeSingle();
+      if (typedName) {
+        // Named walk-in: reuse the existing guest with that exact name (so a
+        // returning regular keeps a single profile + history), or create one.
+        const { data: existingGuest } = await supabase
+          .from("guests")
+          .select("id")
+          .eq("tenant_id", activeTenant.id)
+          .eq("name", typedName)
+          .limit(1)
+          .maybeSingle();
 
-      if (existingGuest) {
-        guestId = existingGuest.id;
+        if (existingGuest) {
+          guestId = existingGuest.id;
+        } else {
+          const { data: newGuest, error: guestErr } = await supabase
+            .from("guests")
+            .insert({
+              tenant_id: activeTenant.id,
+              name: typedName,
+              phone: "",
+              visit_count: 0,
+              no_show_count: 0,
+              cancellation_count: 0,
+              tags: [],
+              notes: "",
+            })
+            .select("id")
+            .single();
+          if (guestErr || !newGuest) throw guestErr;
+          guestId = newGuest.id;
+        }
       } else {
+        // Anonymous walk-in: ALWAYS a fresh, numbered guest ("Walk-in 1",
+        // "Walk-in 2"…) so each can be managed/deleted on its own in the
+        // directory instead of collapsing into one shared "Walk-in" row.
+        // Numbering resets daily: it's the count of today's walk-ins + 1.
+        const { count: todayWalkIns } = await supabase
+          .from("reservations")
+          .select("id", { count: "exact", head: true })
+          .eq("tenant_id", activeTenant.id)
+          .eq("date", todayStr)
+          .eq("source", "walk_in");
+
+        const walkInName = `Walk-in ${(todayWalkIns || 0) + 1}`;
         const { data: newGuest, error: guestErr } = await supabase
           .from("guests")
           .insert({
             tenant_id: activeTenant.id,
-            name: guestName,
+            name: walkInName,
             phone: "",
             visit_count: 0,
             no_show_count: 0,
