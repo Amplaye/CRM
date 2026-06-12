@@ -148,7 +148,7 @@ export function RecipePanel({
       {ingredients.length === 0 ? (
         <p className="text-xs text-black">
           {t("recipe_no_ingredients" as keyof Dictionary) ||
-            "Nessun ingrediente: aggiungili dalla sezione Magazzino."}
+            "Nessun ingrediente: aggiungili dalla sezione Inventario."}
         </p>
       ) : (
         <>

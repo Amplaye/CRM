@@ -1070,7 +1070,7 @@ export const it: Dictionary = {
   // --- gestionale (controllo gestione) ---
   nav_food_cost: "Food cost",
   nav_pl: "Conto economico",
-  nav_inventory: "Magazzino",
+  nav_inventory: "Inventario",
   settings_tab_management: "Gestionale",
   settings_feature_management: "Modulo gestionale",
   settings_feature_management_hint: "Controllo vendite, food cost, conto economico, magazzino e fatture fornitori.",
@@ -1153,7 +1153,7 @@ export const it: Dictionary = {
   pl_all: "Intera giornata",
   recipe_title: "Ricetta & food cost",
   recipe_cost: "Costo",
-  recipe_no_ingredients: "Nessun ingrediente: aggiungili dal Magazzino.",
+  recipe_no_ingredients: "Nessun ingrediente: aggiungili dall'Inventario.",
   recipe_pick_ingredient: "Aggiungi ingrediente…",
   settings_management_title: "Controllo gestione",
   settings_management_desc: "Obiettivi e budget letti dalle schermate Food cost e Conto economico.",

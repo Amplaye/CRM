@@ -184,7 +184,7 @@ export default function InventoryPage() {
       <div className="border-b pb-5 flex items-start justify-between gap-4" style={{ borderColor: "#c4956a" }}>
         <div>
           <h1 className="text-2xl font-bold text-black flex items-center gap-2">
-            <Package className="w-6 h-6" /> {t("nav_inventory" as keyof Dictionary) || "Magazzino"}
+            <Package className="w-6 h-6" /> {t("nav_inventory" as keyof Dictionary) || "Inventario"}
           </h1>
           <p className="mt-1 text-sm text-black">
             {t("inventory_subtitle_editable" as keyof Dictionary) ||

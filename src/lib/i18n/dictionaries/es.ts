@@ -1070,7 +1070,7 @@ export const es: Dictionary = {
   // --- gestionale (controllo gestione) ---
   nav_food_cost: "Food cost",
   nav_pl: "Cuenta de resultados",
-  nav_inventory: "Almacén",
+  nav_inventory: "Inventario",
   settings_tab_management: "Gestión",
   settings_feature_management: "Módulo de gestión",
   settings_feature_management_hint: "Control de ventas, food cost, cuenta de resultados, almacén y facturas de proveedores.",
@@ -1153,7 +1153,7 @@ export const es: Dictionary = {
   pl_all: "Todo el día",
   recipe_title: "Receta y food cost",
   recipe_cost: "Coste",
-  recipe_no_ingredients: "Sin ingredientes: añádelos desde Almacén.",
+  recipe_no_ingredients: "Sin ingredientes: añádelos desde Inventario.",
   recipe_pick_ingredient: "Añadir ingrediente…",
   settings_management_title: "Control de gestión",
   settings_management_desc: "Objetivos y presupuestos que leen las pantallas Food cost y Cuenta de resultados.",

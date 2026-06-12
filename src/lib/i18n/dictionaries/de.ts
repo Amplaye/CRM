@@ -1070,7 +1070,7 @@ export const de: Dictionary = {
   // --- gestionale (controllo gestione) ---
   nav_food_cost: "Food Cost",
   nav_pl: "Erfolgsrechnung",
-  nav_inventory: "Lager",
+  nav_inventory: "Inventar",
   settings_tab_management: "Controlling",
   settings_feature_management: "Controlling-Modul",
   settings_feature_management_hint: "Umsatzkontrolle, Food Cost, Erfolgsrechnung, Lager und Lieferantenrechnungen.",
@@ -1153,7 +1153,7 @@ export const de: Dictionary = {
   pl_all: "Ganzer Tag",
   recipe_title: "Rezept & Food Cost",
   recipe_cost: "Kosten",
-  recipe_no_ingredients: "Keine Zutaten: im Lager hinzufügen.",
+  recipe_no_ingredients: "Keine Zutaten: im Inventar hinzufügen.",
   recipe_pick_ingredient: "Zutat hinzufügen…",
   settings_management_title: "Controlling",
   settings_management_desc: "Ziele und Budgets, die die Food-Cost- und Erfolgsrechnungs-Seiten lesen.",
