@@ -76,10 +76,10 @@ function SettingsContent() {
         <p className="mt-1 text-sm text-black">{t("settings_subtitle")}</p>
       </div>
 
-      <div className="flex gap-1">
+      <div className="flex gap-1 overflow-x-auto no-scrollbar flex-nowrap -mx-1 px-1">
         <button
           onClick={() => setActiveTab("general")}
-          className={`inline-flex items-center gap-2 pr-4 py-2 text-sm font-medium border-b-2 transition-colors cursor-pointer ${tab === "general" ? "text-black" : "text-black hover:text-black border-transparent"}`}
+          className={`inline-flex shrink-0 whitespace-nowrap items-center gap-2 pr-4 py-2 text-sm font-medium border-b-2 transition-colors cursor-pointer ${tab === "general" ? "text-black" : "text-black hover:text-black border-transparent"}`}
           style={tab === "general" ? { borderColor: "#c4956a" } : {}}
         >
           <SettingsIcon className="w-4 h-4" />
@@ -88,7 +88,7 @@ function SettingsContent() {
         {canSeeBookingTab && (
           <button
             onClick={() => setActiveTab("booking")}
-            className={`inline-flex items-center gap-2 px-4 py-2 text-sm font-medium border-b-2 transition-colors cursor-pointer ${tab === "booking" ? "text-black" : "text-black hover:text-black border-transparent"}`}
+            className={`inline-flex shrink-0 whitespace-nowrap items-center gap-2 px-4 py-2 text-sm font-medium border-b-2 transition-colors cursor-pointer ${tab === "booking" ? "text-black" : "text-black hover:text-black border-transparent"}`}
             style={tab === "booking" ? { borderColor: "#c4956a" } : {}}
           >
             <CalendarClock className="w-4 h-4" />
@@ -98,7 +98,7 @@ function SettingsContent() {
         {canSeeStaffTab && (
           <button
             onClick={() => setActiveTab("staff")}
-            className={`inline-flex items-center gap-2 px-4 py-2 text-sm font-medium border-b-2 transition-colors cursor-pointer ${tab === "staff" ? "text-black" : "text-black hover:text-black border-transparent"}`}
+            className={`inline-flex shrink-0 whitespace-nowrap items-center gap-2 px-4 py-2 text-sm font-medium border-b-2 transition-colors cursor-pointer ${tab === "staff" ? "text-black" : "text-black hover:text-black border-transparent"}`}
             style={tab === "staff" ? { borderColor: "#c4956a" } : {}}
           >
             <Users className="w-4 h-4" />
@@ -108,7 +108,7 @@ function SettingsContent() {
         {canSeeFeaturesTab && (
           <button
             onClick={() => setActiveTab("features")}
-            className={`inline-flex items-center gap-2 px-4 py-2 text-sm font-medium border-b-2 transition-colors cursor-pointer ${tab === "features" ? "text-black" : "text-black hover:text-black border-transparent"}`}
+            className={`inline-flex shrink-0 whitespace-nowrap items-center gap-2 px-4 py-2 text-sm font-medium border-b-2 transition-colors cursor-pointer ${tab === "features" ? "text-black" : "text-black hover:text-black border-transparent"}`}
             style={tab === "features" ? { borderColor: "#c4956a" } : {}}
           >
             <ToggleRight className="w-4 h-4" />
@@ -118,7 +118,7 @@ function SettingsContent() {
         {canSeeCommercialTab && (
           <button
             onClick={() => setActiveTab("commercial")}
-            className={`inline-flex items-center gap-2 px-4 py-2 text-sm font-medium border-b-2 transition-colors cursor-pointer ${tab === "commercial" ? "text-black" : "text-black hover:text-black border-transparent"}`}
+            className={`inline-flex shrink-0 whitespace-nowrap items-center gap-2 px-4 py-2 text-sm font-medium border-b-2 transition-colors cursor-pointer ${tab === "commercial" ? "text-black" : "text-black hover:text-black border-transparent"}`}
             style={tab === "commercial" ? { borderColor: "#c4956a" } : {}}
           >
             <Tags className="w-4 h-4" />
@@ -128,7 +128,7 @@ function SettingsContent() {
         {canSeeManagementTab && (
           <button
             onClick={() => setActiveTab("management")}
-            className={`inline-flex items-center gap-2 px-4 py-2 text-sm font-medium border-b-2 transition-colors cursor-pointer ${tab === "management" ? "text-black" : "text-black hover:text-black border-transparent"}`}
+            className={`inline-flex shrink-0 whitespace-nowrap items-center gap-2 px-4 py-2 text-sm font-medium border-b-2 transition-colors cursor-pointer ${tab === "management" ? "text-black" : "text-black hover:text-black border-transparent"}`}
             style={tab === "management" ? { borderColor: "#c4956a" } : {}}
           >
             <LineChart className="w-4 h-4" />
@@ -138,7 +138,7 @@ function SettingsContent() {
         {canSeePosTab && (
           <button
             onClick={() => setActiveTab("pos")}
-            className={`inline-flex items-center gap-2 px-4 py-2 text-sm font-medium border-b-2 transition-colors cursor-pointer ${tab === "pos" ? "text-black" : "text-black hover:text-black border-transparent"}`}
+            className={`inline-flex shrink-0 whitespace-nowrap items-center gap-2 px-4 py-2 text-sm font-medium border-b-2 transition-colors cursor-pointer ${tab === "pos" ? "text-black" : "text-black hover:text-black border-transparent"}`}
             style={tab === "pos" ? { borderColor: "#c4956a" } : {}}
           >
             <Plug className="w-4 h-4" />
@@ -148,7 +148,7 @@ function SettingsContent() {
         {canSeePaymentsTab && (
           <button
             onClick={() => setActiveTab("payments")}
-            className={`inline-flex items-center gap-2 px-4 py-2 text-sm font-medium border-b-2 transition-colors cursor-pointer ${tab === "payments" ? "text-black" : "text-black hover:text-black border-transparent"}`}
+            className={`inline-flex shrink-0 whitespace-nowrap items-center gap-2 px-4 py-2 text-sm font-medium border-b-2 transition-colors cursor-pointer ${tab === "payments" ? "text-black" : "text-black hover:text-black border-transparent"}`}
             style={tab === "payments" ? { borderColor: "#c4956a" } : {}}
           >
             <CreditCard className="w-4 h-4" />

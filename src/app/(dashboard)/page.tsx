@@ -413,7 +413,7 @@ export default function DashboardPage() {
           <h1 className="text-xl sm:text-2xl font-bold text-black tracking-tight">{t("nav_dashboard")}</h1>
           <p className="mt-0.5 text-xs sm:text-sm text-black">{t("dash_ai_performance")}</p>
         </div>
-        <div className="flex items-center flex-wrap gap-1.5 sm:gap-2">
+        <div className="flex items-center gap-1.5 sm:gap-2 overflow-x-auto no-scrollbar -mx-1 px-1">
           {/* View mode toggle */}
           <div className="inline-flex rounded-lg border-2 overflow-hidden flex-shrink-0" style={{ borderColor: "#c4956a" }}>
             {(["day", "month", "year"] as const).map(mode => (
@@ -450,7 +450,7 @@ export default function DashboardPage() {
                   setSelectedYear(d.getFullYear());
                 }
               }}
-              className="border-2 rounded-lg px-1.5 py-1 text-xs font-semibold text-black focus:outline-none focus:ring-1 focus:ring-[#c4956a] min-w-0 flex-1 max-w-[130px]"
+              className="border-2 rounded-lg px-1.5 py-1 text-xs font-semibold text-black focus:outline-none focus:ring-1 focus:ring-[#c4956a] flex-shrink-0 w-[130px]"
               style={{ borderColor: "#c4956a", background: "rgba(252,246,237,0.6)" }}
             />
           ) : viewMode === "month" ? (

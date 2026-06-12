@@ -33,8 +33,8 @@ export default function ForgotPasswordPage() {
   };
 
   return (
-    <div className="min-h-screen flex flex-col justify-center py-12 sm:px-6 lg:px-8 relative z-10">
-      <div className="sm:mx-auto sm:w-full sm:max-w-md">
+    <div className="min-h-screen flex flex-col justify-center px-4 py-12 sm:px-6 lg:px-8 relative z-10">
+      <div className="mx-auto w-full max-w-md">
         <div className="flex justify-center">
           <img src="/logo.png" alt="BaliFlow" className="w-64 h-auto" style={{
              mask: 'radial-gradient(67% 90%, black 50%, transparent 75%)',
@@ -46,8 +46,8 @@ export default function ForgotPasswordPage() {
         </p>
       </div>
 
-      <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
-        <div className="py-8 px-4 sm:rounded-lg sm:px-10 border-2" style={{ background: 'rgba(252,246,237,0.85)', borderColor: '#c4956a', boxShadow: '0 20px 60px rgba(196,149,106,0.25), 0 8px 24px rgba(196,149,106,0.15)' }}>
+      <div className="mt-8 mx-auto w-full max-w-md">
+        <div className="py-8 px-5 rounded-2xl sm:px-10 border-2" style={{ background: 'rgba(252,246,237,0.85)', borderColor: '#c4956a', boxShadow: '0 20px 60px rgba(196,149,106,0.25), 0 8px 24px rgba(196,149,106,0.15)' }}>
           {sent ? (
             <div className="text-center space-y-4">
               <CheckCircle className="mx-auto h-12 w-12 text-emerald-500" />

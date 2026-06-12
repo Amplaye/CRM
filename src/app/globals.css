@@ -296,3 +296,13 @@ tr.is-new-row::after {
     animation: none;
   }
 }
+
+/* Horizontally-scrollable rows (mobile settings tabs, analytics period nav)
+   without a visible scrollbar — content stays on one line and swipes sideways. */
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
