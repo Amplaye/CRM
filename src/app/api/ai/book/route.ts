@@ -5,6 +5,7 @@ import { logAuditEvent } from '@/lib/audit';
 import { logSystemEvent, resolveSystemEvents } from '@/lib/system-log';
 import { assertAiSecret } from '@/lib/ai-auth';
 import { formatDateFull } from '@/lib/format-date';
+import { cleanGuestNotes, zoneTag } from '@/lib/reservation-notes';
 import {
   getShift,
   getRotationMinutes,
@@ -269,11 +270,11 @@ export async function POST(request: Request) {
       // date+time+party_size and the new payload carries notes the existing row
       // doesn't have yet, treat it as an addendum: merge the notes into the
       // existing reservation instead of asking "is this an additional booking?".
-      const incomingNotes = (payload.notes || '').trim();
+      const incomingNotes = cleanGuestNotes(payload.notes);
       if (incomingNotes && nearby && nearby.length === 1) {
         const ex = nearby[0] as any;
         const sameSlot = ex.date === payload.date && (ex.time || '').slice(0, 5) === payload.time.slice(0, 5) && ex.party_size === payload.party_size;
-        const exNotes = (ex.notes || '').trim();
+        const exNotes = cleanGuestNotes(ex.notes);
         const exLc = exNotes.toLowerCase();
         const inLc = incomingNotes.toLowerCase();
         // New info only if the two note strings genuinely differ AND neither one
@@ -354,9 +355,18 @@ export async function POST(request: Request) {
 
     if (tablesErr) throw tablesErr;
 
-    // Normalize zone preference (accepts inside/outside, fuera/dentro, etc.)
+    // Normalize zone preference (accepts inside/outside, fuera/dentro, etc.).
+    // The preference is persisted in the `tags` column (zone:inside/outside) for
+    // table-less rows (escalated/waitlist), NOT appended to the guest's notes —
+    // it used to leak as a Spanish "Prefiere interior" line into the booking.
     const zonePref = normalizeZone(payload.zone || payload.zone_preference);
-    const zoneNote = zonePref ? `Prefiere ${zonePref === 'inside' ? 'interior' : 'exterior'}` : '';
+    // The guest's own note, with any internal Spanish routing annotations the
+    // caller (e.g. the n8n voice flow) tacked on already stripped.
+    const guestNotes = cleanGuestNotes(payload.notes);
+    // waitlist_entries has no `tags` column, so its zone preference still rides
+    // in notes (the waitlist page reads it back on conversion). Reservations use
+    // the `tags` column instead, keeping the guest's notes clean.
+    const zoneNoteLegacy = zonePref ? `Prefiere ${zonePref === 'inside' ? 'interior' : 'exterior'}` : '';
 
     // Get existing reservations that overlap
     const { data: existingRes, error: resErr } = await supabase
@@ -458,7 +468,7 @@ export async function POST(request: Request) {
             contact_preference: payload.source === 'ai_voice' ? 'call' : 'whatsapp',
             priority_score: 50,
             acceptable_time_range: { start: payload.time, end: payload.time },
-            notes: [(payload.notes || ''), zoneNote, 'Sin plazas disponibles en el turno, añadido a lista de espera'].filter(Boolean).join(' — '),
+            notes: [guestNotes, zoneNoteLegacy].filter(Boolean).join(' — '),
           })
           .select('id')
           .single();
@@ -497,9 +507,10 @@ export async function POST(request: Request) {
         source: normalizeBookingSource(payload.source),
         from_web: payload.from_web === true,
         created_by_type: 'ai',
-        notes: zoneNote
-          ? `${payload.notes || ''}${payload.notes ? ' — ' : ''}${zoneNote}`.trim()
-          : (payload.notes || ""),
+        notes: guestNotes,
+        // Escalated rows hold no tables yet, so the zone preference lives in
+        // tags (read back on approval from /pending). Keeps notes guest-only.
+        tags: zoneTag(zonePref),
         linked_conversation_id: payload.linked_conversation_id,
         end_time: endTime,
         shift,
@@ -571,10 +582,9 @@ export async function POST(request: Request) {
        source: normalizeBookingSource(payload.source),
        from_web: payload.from_web === true,
        created_by_type: 'ai',
-       // Don't auto-add "Prefiere X" here — the assigned tables already
-       // encode the zone. The marker is only useful for waitlist/escalated
-       // entries where tables aren't assigned yet.
-       notes: payload.notes || '',
+       // No zone marker here — the assigned tables already encode the zone, and
+       // notes stay guest-only (internal annotations stripped on the way in).
+       notes: guestNotes,
        linked_conversation_id: payload.linked_conversation_id,
        end_time: endTime,
        shift,
@@ -690,7 +700,7 @@ export async function POST(request: Request) {
           contact_preference: payload.source === 'ai_voice' ? 'call' : 'whatsapp',
           priority_score: 50,
           acceptable_time_range: { start: payload.time, end: payload.time },
-          notes: [(payload.notes || ''), zoneNote, 'Sin plazas disponibles en la zona, añadido a lista de espera'].filter(Boolean).join(' — '),
+          notes: [guestNotes, zoneNoteLegacy].filter(Boolean).join(' — '),
         })
         .select('id')
         .single();
@@ -762,7 +772,7 @@ export async function POST(request: Request) {
           contact_preference: payload.source === 'ai_voice' ? 'call' : 'whatsapp',
           priority_score: 50,
           acceptable_time_range: { start: payload.time, end: payload.time },
-          notes: [(payload.notes || ''), zoneNote, 'Sin plazas al confirmar, añadido a lista de espera'].filter(Boolean).join(' — '),
+          notes: [guestNotes, zoneNoteLegacy].filter(Boolean).join(' — '),
         })
         .select('id')
         .single();

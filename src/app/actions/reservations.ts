@@ -142,11 +142,9 @@ export async function createReservationAction(params: {
     if (atomicErr) throw atomicErr;
 
     if (!atomicResult?.success) {
-      // Not enough tables — flag as escalated so staff can review
-      await supabase.from('reservations').update({
-        status: 'escalated',
-        notes: (params.notes || '') + ' — No hay suficientes mesas, pendiente de revisión',
-      }).eq('id', newRes.id);
+      // Not enough tables — flag as escalated so staff can review. Status alone
+      // marks it; we don't write a Spanish note into the guest's notes.
+      await supabase.from('reservations').update({ status: 'escalated' }).eq('id', newRes.id);
     }
 
     // 4. Create Audit Event

@@ -9,6 +9,7 @@ import {
   tablesNeeded,
 } from '@/lib/restaurant-rules';
 import { isDate, isTime } from '@/lib/booking-validation';
+import { cleanGuestNotes, readZonePref, withZoneTag } from '@/lib/reservation-notes';
 
 interface ModifyPayload {
   tenant_id: string;
@@ -273,36 +274,22 @@ export async function PUT(request: Request) {
       //     the caller said in this turn — losing existing context would be wrong.
       //   - 'replace' (chat default): the chat state machine already shows the
       //     full notes back to the LLM, so what comes in is the full intended set.
-      //   Both modes always preserve the "Prefiere interior/exterior" marker.
+      //   Zone preference is NOT kept in notes anymore — it lives in `tags`
+      //   (handled separately), so notes stay guest-only.
       const mode = (payload.notes_mode === 'append') ? 'append' : 'replace';
-      const incoming = (payload.notes || '').trim();
-      const existingNotes = existing.notes ? String(existing.notes).trim() : '';
-      const zoneRe = /Prefiere\s+(interior|exterior)/i;
-      const existingZoneMatch = existingNotes ? existingNotes.match(zoneRe) : null;
+      const incoming = cleanGuestNotes(payload.notes);
+      const existingNotes = cleanGuestNotes(existing.notes);
 
       let nextNotes: string;
       if (mode === 'append' && existingNotes) {
-        // Strip the zone marker (we re-attach it later) and any leftover join
-        // separators from older versions, so the merged output reads naturally.
-        const stripped = existingNotes
-          .replace(zoneRe, '')
-          .replace(/\s+—\s+/g, '. ')
-          .replace(/^[\s.—]+|[\s.—]+$/g, '')
-          .trim();
         const joinSep = (s: string) => /[.!?]\s*$/.test(s) ? ' ' : '. ';
-        if (incoming && !stripped.toLowerCase().includes(incoming.toLowerCase())) {
-          nextNotes = stripped ? `${stripped}${joinSep(stripped)}${incoming}` : incoming;
+        if (incoming && !existingNotes.toLowerCase().includes(incoming.toLowerCase())) {
+          nextNotes = `${existingNotes}${joinSep(existingNotes)}${incoming}`;
         } else {
-          nextNotes = stripped || incoming;
+          nextNotes = existingNotes || incoming;
         }
       } else {
         nextNotes = incoming;
-      }
-
-      // Re-attach zone marker if it was there. Use a comma instead of " — "
-      // to keep notes natural-looking (no AI-style em-dashes).
-      if (existingZoneMatch && !zoneRe.test(nextNotes)) {
-        nextNotes = nextNotes ? `${nextNotes}. ${existingZoneMatch[0]}` : existingZoneMatch[0];
       }
       updates.notes = nextNotes;
     }
@@ -311,27 +298,23 @@ export async function PUT(request: Request) {
     // so the owner can re-confirm in real time. Skip if it was already a large group.
     const becameLargeGroup = newPartySize >= 7 && existing.party_size < 7;
     if (becameLargeGroup) {
+      // Status alone marks it for review — no Spanish "REVISAR" note in the
+      // guest's notes. Preserve the zone preference into tags before the tables
+      // (which encoded it) get released below.
       updates.status = 'escalated';
-      const reviewNote = 'GRUPO MODIFICADO A ' + newPartySize + ' PERSONAS — REVISAR';
-      updates.notes = updates.notes ? `${updates.notes} — ${reviewNote}` : reviewNote;
+      updates.tags = withZoneTag(existing.tags, readZonePref(existing.tags, existing.notes));
     }
 
     // Inverse: if a large-group reservation that was escalated/pending becomes
-    // small enough (<7), auto-promote it to confirmed and strip the
-    // "GRUPO ... — REVISAR" review note that was added on the way up.
+    // small enough (<7), auto-promote it to confirmed and scrub any legacy
+    // Spanish review markers a prior version may have left in the notes.
     const droppedBelowLargeGroup =
       newPartySize < 7 &&
       existing.party_size >= 7 &&
       (existing.status === 'escalated' || existing.status === 'pending_confirmation');
     if (droppedBelowLargeGroup && !becameLargeGroup) {
       updates.status = 'confirmed';
-      const cleaned = (updates.notes ?? existing.notes ?? '')
-        .replace(/\s*—?\s*GRUPO\s+MODIFICADO\s+A\s+\d+\s+PERSONAS\s+—\s+REVISAR/gi, '')
-        .replace(/\s*—?\s*GRUPO\s+GRANDE\s+—?\s*REVISAR/gi, '')
-        .replace(/\s+—\s+/g, ' — ')
-        .replace(/^[\s.—]+|[\s.—]+$/g, '')
-        .trim();
-      updates.notes = cleaned;
+      updates.notes = cleanGuestNotes(updates.notes ?? existing.notes ?? '');
     }
 
     // Update the reservation
@@ -456,7 +439,8 @@ export async function PUT(request: Request) {
       // Detect the reservation's ORIGINAL zone so a modification never
       // auto-switches the client from outside to inside (or vice versa).
       // Source of truth: the zone of the currently assigned tables.
-      // Fallback: "Prefiere interior|exterior" marker in notes.
+      // Fallback: the zone preference in `tags` (or, for legacy rows, the old
+      // "Prefiere interior|exterior" marker still sitting in notes).
       let originalZone: 'inside' | 'outside' | null = null;
       const { data: currentAssignments } = await supabase
         .from('reservation_tables')
@@ -475,24 +459,20 @@ export async function PUT(request: Request) {
           if (z === 'inside' || z === 'outside') originalZone = z;
         }
       }
-      if (!originalZone && existing.notes) {
-        const m = String(existing.notes).match(/Prefiere\s+(interior|exterior)/i);
-        if (m) {
-          originalZone = m[1].toLowerCase() === 'interior' ? 'inside' : 'outside';
-        }
+      if (!originalZone) {
+        originalZone = readZonePref(existing.tags, existing.notes);
       }
 
-      // The client explicitly requested a zone switch — honor it. The notes
-      // marker is rewritten below so future modifies/reads see the new zone.
+      // The client explicitly requested a zone switch — honor it. The zone tag
+      // is rewritten below so future modifies/reads see the new zone.
       const targetZone: 'inside' | 'outside' | null = requestedZone || originalZone;
 
       if (totalFreeSeats < newPartySize) {
         // Rollback the partial update (revert party_size/date/time) so the
         // UI stays in a consistent state, then escalate.
-        await supabase.from('reservations').update({
-          status: 'escalated',
-          notes: `${updates.notes || existing.notes || ''} — Sin capacidad tras modificación (${newPartySize} pax, ${totalFreeSeats} plazas libres)`.trim(),
-        }).eq('id', reservationId);
+        // Escalate via status only — the capacity detail goes back to the agent
+        // in the response below, never into the guest's notes (Spanish, internal).
+        await supabase.from('reservations').update({ status: 'escalated' }).eq('id', reservationId);
 
         return NextResponse.json({
           success: false,
@@ -513,12 +493,9 @@ export async function PUT(request: Request) {
       // the guest to the other zone.
       if (targetZone && freeSeatsByZone[targetZone] < newPartySize) {
         const zoneEs = targetZone === 'inside' ? 'interior' : 'exterior';
-        const zoneOtherEs = targetZone === 'inside' ? 'exterior' : 'interior';
-        const noteMismatch = `Ampliación a ${newPartySize} pax no cabe en ${zoneEs} (plazas libres: ${freeSeatsByZone[targetZone]}). En ${zoneOtherEs} hay ${freeSeatsByZone[targetZone === 'inside' ? 'outside' : 'inside']} plazas. Llamar al cliente para acordar.`;
-        await supabase.from('reservations').update({
-          status: 'escalated',
-          notes: `${updates.notes || existing.notes || ''} — ${noteMismatch}`.trim(),
-        }).eq('id', reservationId);
+        // Escalate via status only; the zone-capacity detail is returned to the
+        // agent below, not written into the guest's notes.
+        await supabase.from('reservations').update({ status: 'escalated' }).eq('id', reservationId);
 
         return NextResponse.json({
           success: false,
@@ -536,17 +513,14 @@ export async function PUT(request: Request) {
         }, { status: 409 });
       }
 
-      // If the client requested a zone switch, rewrite the "Prefiere ..." marker
-      // in notes so future reads (CRM UI, downstream modifies) see the new zone.
-      // The outer reservations.update() already ran with the original notes, so
-      // we need a second targeted update to persist the marker change.
+      // If the client requested a zone switch, persist the new preference in the
+      // `tags` column so future reads (CRM UI, downstream modifies, /pending) see
+      // it. The outer reservations.update() already ran, so we do a second
+      // targeted update for the tag change. Notes are left untouched (guest-only).
       if (zoneChanged && requestedZone) {
-        const newMarker = requestedZone === 'inside' ? 'Prefiere interior' : 'Prefiere exterior';
-        const baseNotes = (updates.notes !== undefined ? updates.notes : (existing.notes || '')) as string;
-        const stripped = String(baseNotes).replace(/Prefiere\s+(interior|exterior)/gi, '').replace(/\s+,\s+,/g, ',').replace(/^[\s,.\-—]+|[\s,.\-—]+$/g, '').trim();
-        const nextNotes = stripped ? `${stripped}. ${newMarker}` : newMarker;
-        updates.notes = nextNotes;
-        await supabase.from('reservations').update({ notes: nextNotes }).eq('id', reservationId);
+        const nextTags = withZoneTag(existing.tags, requestedZone);
+        updates.tags = nextTags;
+        await supabase.from('reservations').update({ tags: nextTags }).eq('id', reservationId);
       }
 
       // Remove old table assignments and let atomic_book_tables decide

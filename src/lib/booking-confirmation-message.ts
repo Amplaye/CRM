@@ -1,4 +1,7 @@
 import { formatDateFull } from "@/lib/format-date";
+import { cleanGuestNotes } from "@/lib/reservation-notes";
+
+export { cleanGuestNotes };
 
 type Lang = 'es' | 'it' | 'en' | 'de';
 
@@ -19,23 +22,6 @@ const TEMPLATES: Record<Lang, {
 
 function pickLang(maybe: unknown): Lang {
   return (['es', 'it', 'en', 'de'] as const).includes(maybe as Lang) ? (maybe as Lang) : 'es';
-}
-
-// Internal routing annotations the voice/chat book flow appends to a
-// reservation's notes (always in Spanish, regardless of guest language) — e.g.
-// "Grupo grande, pendiente de revision" or "Prefiere interior". They are for
-// staff, never for the guest, so we strip them from the confirmation. Notes are
-// joined with an em-dash ("celiaca — Grupo grande… — Prefiere interior"); we
-// drop any segment matching an internal marker and keep the guest's own text.
-const INTERNAL_NOTE_MARKER = /pendiente|pending|grupo\s+grande|large\s+group|prefiere|prefers|preferisce|bevorzugt|revisi[oó]n|revision/i;
-export function cleanGuestNotes(raw?: string | null): string {
-  if (!raw) return '';
-  return raw
-    .split(/\s*[—–]\s*/) // em/en dash with optional surrounding space
-    .map((s) => s.trim())
-    .filter((s) => s && !INTERNAL_NOTE_MARKER.test(s))
-    .join(' — ')
-    .trim();
 }
 
 export function buildBookingConfirmationMessage(params: {

@@ -7,6 +7,7 @@ import { useLanguage } from "@/lib/contexts/LanguageContext";
 import { AlertTriangle, Check, X, MessageSquare, Phone, Calendar, Users, Clock, List, LayoutPanelTop } from "lucide-react";
 import Link from "next/link";
 import { zoneLabel } from "@/lib/restaurant-rules";
+import { readZonePref } from "@/lib/reservation-notes";
 import { TranslateNoteButton } from "@/components/ui/TranslateNoteButton";
 import { useSeenSnapshotAndMark } from "@/lib/hooks/useLastSeen";
 import { formatDateFull } from "@/lib/format-date";
@@ -235,9 +236,9 @@ export default function PendingPage() {
         const assignedTableObjs = Array.from(selectedTables).map(tid => tables.find(x => x.id === tid)).filter(Boolean) as typeof tables;
         const assignedTableNames = assignedTableObjs.map(t => t.name).join(', ');
         const zoneFromTables = assignedTableObjs[0]?.zone;
-        const notesRaw = ((req as any).notes || '').toLowerCase();
-        const zoneFromNotes = notesRaw.includes('interior') ? 'inside' : notesRaw.includes('exterior') ? 'outside' : null;
-        const zone = zoneFromTables || zoneFromNotes || null;
+        // Zone preference now lives in the reservation's `tags` (zone:inside/outside);
+        // legacy rows fall back to the old "Prefiere ..." marker in notes.
+        const zone = zoneFromTables || readZonePref((req as any).tags, (req as any).notes) || null;
         const zoneLine = zone ? `\n📍 Zona: ${zone === 'inside' ? 'Interior' : 'Exterior'}` : '';
 
         if (guestPhone) {
