@@ -61,6 +61,24 @@ const TEMPLATES = [
     },
   },
   {
+    // The post-booking SUMMARY for VOICE auto-confirmed bookings: a voice-only
+    // caller has no open 24h WhatsApp window, so the summary must go out as an
+    // approved template. SAME var mapping as booking_reminder so the n8n send
+    // only swaps the template name. NO buttons — it's a confirmation, not a
+    // reminder, and the *MODIFICA*/*ANNULLA* keywords match the chat bot's.
+    name: "booking_confirmation",
+    category: "UTILITY",
+    // vars: 1=guest name, 2=date, 3=time, 4=party size, 5=restaurant name
+    bodies: {
+      es: "✅ ¡Reserva confirmada en {{5}}!\n📅 {{2}} a las {{3}}\n👥 {{4}} personas\n📝 A nombre de {{1}}\n\nPara modificar responde *MODIFICAR*, para cancelar responde *CANCELAR*.",
+      it: "✅ Prenotazione confermata da {{5}}!\n📅 {{2}} alle {{3}}\n👥 {{4}} persone\n📝 A nome di {{1}}\n\nPer modificare rispondi *MODIFICA*, per annullare rispondi *ANNULLA*.",
+      en: "✅ Booking confirmed at {{5}}!\n📅 {{2}} at {{3}}\n👥 {{4}} people\n📝 Under {{1}}\n\nTo modify reply *MODIFY*, to cancel reply *CANCEL*.",
+      de: "✅ Reservierung bei {{5}} bestätigt!\n📅 {{2}} um {{3}}\n👥 {{4}} Personen\n📝 Auf den Namen {{1}}\n\nZum Ändern antworte *ÄNDERN*, zum Stornieren antworte *STORNIEREN*.",
+    },
+    examples: ["María", "sábado 6 de junio de 2026", "21:00", "4", "Picnic"],
+    // No buttons — modify/cancel are keyword replies, not buttons.
+  },
+  {
     name: "post_visit_followup",
     category: "MARKETING",
     // vars: 1=guest name, 2=restaurant name
