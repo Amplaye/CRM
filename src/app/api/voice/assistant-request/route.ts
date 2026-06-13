@@ -30,6 +30,13 @@ export async function POST(req: NextRequest) {
     msg?.call?.assistantOverrides?.metadata?.dialled ||
     "";
 
+  // The number the customer is calling FROM, across Vapi payload shapes. Used to
+  // pick the GREETING language from the caller's country prefix (a +49 tourist
+  // calling an Italian venue is greeted in German); the conversation then follows
+  // whatever language they actually speak (the transcriber is multilingual).
+  const callerNumber: string =
+    msg?.call?.customer?.number || msg?.customer?.number || "";
+
   try {
     const supabase = createServiceRoleClient();
     const { data: tenants } = await supabase
@@ -46,8 +53,9 @@ export async function POST(req: NextRequest) {
     }
 
     // Date header vars are derived from the tenant's own tz/locale in the engine
-    // (same source as the web path).
-    const cfg = await buildTenantCallConfig(tenantId);
+    // (same source as the web path). The caller's number picks the greeting
+    // language from its country prefix (falls back to the venue's locale).
+    const cfg = await buildTenantCallConfig(tenantId, {}, new Date(), callerNumber);
     return NextResponse.json(
       { assistantId: cfg.assistantId, assistantOverrides: cfg.assistantOverrides },
       { status: 200 },

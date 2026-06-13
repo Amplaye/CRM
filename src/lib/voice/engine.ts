@@ -44,6 +44,63 @@ function langOf(locale?: string): "es" | "it" | "en" | "de" {
   return c === "it" || c === "en" || c === "de" ? c : "es";
 }
 
+/**
+ * The locale to GREET in, derived from the caller's phone number when we can
+ * recognise its country prefix — so a foreign tourist hears the opener in their
+ * own language even though the venue's default is another. Only the four
+ * supported languages are mapped (it/es/en/de); every other prefix (and any
+ * unrecognisable/blank number) falls back to the venue's own locale, which is
+ * also what web calls always use (no number).
+ *
+ * This sets only the OPENING language (greeting + the model's default). The
+ * transcriber stays multilingual, so the conversation still follows whatever
+ * language the caller actually speaks after the greeting.
+ *
+ * Prefixes are matched longest-first. We deliberately map only a handful of
+ * unambiguous, high-traffic country codes per language rather than the whole
+ * ITU list: a wrong guess greets a local in a foreign tongue, so we stay
+ * conservative and let anything uncertain fall through to the venue locale.
+ */
+const PHONE_PREFIX_LOCALE: Array<[string, string]> = [
+  // English-speaking (longer codes first so e.g. +1 doesn't shadow +1-...)
+  ["+44", "en-GB"], // UK
+  ["+353", "en-GB"], // Ireland
+  ["+1", "en-GB"], // US/Canada
+  ["+61", "en-GB"], // Australia
+  ["+64", "en-GB"], // New Zealand
+  // German-speaking
+  ["+49", "de-DE"], // Germany
+  ["+43", "de-DE"], // Austria
+  ["+41", "de-DE"], // Switzerland (de is the plurality language)
+  // Spanish-speaking
+  ["+34", "es-ES"], // Spain
+  ["+52", "es-ES"], // Mexico
+  ["+54", "es-ES"], // Argentina
+  ["+57", "es-ES"], // Colombia
+  ["+56", "es-ES"], // Chile
+  // Italian
+  ["+39", "it-IT"], // Italy
+];
+
+/**
+ * Pure: map a caller's phone number to a greeting locale, or undefined if the
+ * prefix isn't one we map (caller should then be greeted in the venue's locale).
+ * Tolerates "00"-prefixed international form and spaces/dashes in the number.
+ */
+export function localeFromPhonePrefix(rawNumber?: string): string | undefined {
+  if (!rawNumber) return undefined;
+  // Normalise: strip spaces/dashes/parens, turn a leading "00" into "+".
+  let n = rawNumber.replace(/[\s\-().]/g, "");
+  if (n.startsWith("00")) n = "+" + n.slice(2);
+  if (!n.startsWith("+")) return undefined; // no country code -> can't tell
+  // Longest prefix wins (sort by length desc once, here).
+  const sorted = [...PHONE_PREFIX_LOCALE].sort((a, b) => b[0].length - a[0].length);
+  for (const [prefix, locale] of sorted) {
+    if (n.startsWith(prefix)) return locale;
+  }
+  return undefined;
+}
+
 /** The four languages the system supports, with the tenant's primary first.
  * Gladia restricts auto-detection to exactly this set (so it never drifts to an
  * unrelated language like Hindi the way Deepgram "multi" did), while still
@@ -249,14 +306,21 @@ export function buildAssistantOverrides(
   tenantId: string,
   dateVars: VoiceDateVars = {},
   model: EngineModel = FALLBACK_ENGINE_MODEL,
+  greetLocale?: string,
 ): Record<string, any> {
+  // The language we OPEN in. When the caller's phone prefix is recognised we
+  // greet in their language (a foreign tourist hears their own tongue); else we
+  // fall back to the venue's own locale. This drives only the greeting + the
+  // model's starting language — the transcriber stays multilingual so the
+  // conversation follows whatever the caller actually speaks afterwards.
+  const openLocale = greetLocale || composed.locale;
   return {
-    firstMessage: greetingFor(composed.name, composed.locale),
+    firstMessage: greetingFor(composed.name, openLocale),
     metadata: { tenant_id: tenantId },
     // spoken_language drives the prompt's per-call default-language directive so
-    // the agent opens (and stays) in the venue's language instead of defaulting
-    // to the Spanish the prompt is written in.
-    variableValues: { ...dateVars, spoken_language: languageName(composed.locale) },
+    // the agent opens (and stays) in the caller's/venue's language instead of
+    // defaulting to the Spanish the prompt is written in.
+    variableValues: { ...dateVars, spoken_language: languageName(openLocale) },
     // Transcriber: Gladia solaria-1, restricted to the four supported languages.
     // Deepgram "multi" spanned 10 languages and drifted (it transcribed clear
     // Italian audio with spurious Hindi/Devanagari mid-sentence), which then
@@ -287,18 +351,27 @@ export function buildAssistantOverrides(
  * are computed from the TENANT's own timezone + language (single source — the
  * caller/widget only needs the tenant_id); `extraVars` (e.g. from_number) is
  * merged on top. `now` is injectable for testing.
+ *
+ * `callerNumber` is the number the customer is calling FROM (inbound phone). If
+ * its country prefix maps to one of the four supported languages we greet in
+ * that language (a foreign tourist hears their own tongue); otherwise — and on
+ * web calls, which have no caller number — we greet in the venue's own locale.
+ * Dates always stay in the venue's tz/locale (they're spoken in the venue's
+ * timezone); only the greeting + the model's opening language follow the caller.
  */
 export async function buildTenantCallConfig(
   tenantId: string,
   extraVars: VoiceDateVars = {},
   now: Date = new Date(),
+  callerNumber?: string,
 ): Promise<{ assistantId: string; assistantOverrides: Record<string, any> }> {
   const supabase = createServiceRoleClient();
   const composed = await composeTenantVoicePrompt(supabase, tenantId);
   const dateVars = { ...spelledDateVars(now, composed.timezone, composed.locale), ...extraVars };
   const model = await fetchEngineModel();
+  const greetLocale = localeFromPhonePrefix(callerNumber);
   return {
     assistantId: ENGINE_VAPI_ASSISTANT_ID,
-    assistantOverrides: buildAssistantOverrides(composed, tenantId, dateVars, model),
+    assistantOverrides: buildAssistantOverrides(composed, tenantId, dateVars, model, greetLocale),
   };
 }

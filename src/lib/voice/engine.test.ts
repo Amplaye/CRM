@@ -3,6 +3,7 @@ import {
   greetingFor,
   buildAssistantOverrides,
   spelledDateVars,
+  localeFromPhonePrefix,
   ENGINE_VAPI_ASSISTANT_ID,
 } from "./engine";
 
@@ -60,5 +61,53 @@ describe("voice engine — pure helpers", () => {
 
   it("exposes a non-empty engine assistant id", () => {
     expect(ENGINE_VAPI_ASSISTANT_ID).toMatch(/[0-9a-f-]{36}/);
+  });
+});
+
+describe("voice engine — greeting language from caller's phone prefix", () => {
+  it("maps each supported language's country codes", () => {
+    expect(localeFromPhonePrefix("+390612345678")).toBe("it-IT"); // Italy
+    expect(localeFromPhonePrefix("+34911223344")).toBe("es-ES"); // Spain
+    expect(localeFromPhonePrefix("+447911123456")).toBe("en-GB"); // UK
+    expect(localeFromPhonePrefix("+4915123456789")).toBe("de-DE"); // Germany
+    expect(localeFromPhonePrefix("+12025550123")).toBe("en-GB"); // US/Canada
+    expect(localeFromPhonePrefix("+5215555555555")).toBe("es-ES"); // Mexico
+    expect(localeFromPhonePrefix("+41441234567")).toBe("de-DE"); // Switzerland
+  });
+
+  it("tolerates spaces, dashes and 00-international form", () => {
+    expect(localeFromPhonePrefix("+44 791 112 3456")).toBe("en-GB");
+    expect(localeFromPhonePrefix("0049-151-2345678")).toBe("de-DE");
+    expect(localeFromPhonePrefix("(+39) 06 1234")).toBe("it-IT");
+  });
+
+  it("returns undefined for unknown prefixes, no country code, or blank", () => {
+    expect(localeFromPhonePrefix("+33123456789")).toBeUndefined(); // France: not mapped
+    expect(localeFromPhonePrefix("0612345678")).toBeUndefined(); // local, no country code
+    expect(localeFromPhonePrefix("")).toBeUndefined();
+    expect(localeFromPhonePrefix(undefined)).toBeUndefined();
+  });
+
+  it("greets + sets spoken_language from the caller's prefix, overriding the venue locale", () => {
+    // Italian venue (it-IT), German caller -> greet in German.
+    const ov = buildAssistantOverrides(
+      { systemPrompt: "S", name: "Oraz", locale: "it-IT" },
+      "t",
+      {},
+      undefined,
+      "de-DE",
+    );
+    expect(ov.firstMessage).toMatch(/Hallo/);
+    expect(ov.variableValues.spoken_language).toBe("Deutsch");
+  });
+
+  it("falls back to the venue locale for the greeting when no caller locale is given", () => {
+    // Web call (no caller number) at an Italian venue -> Italian greeting.
+    const ov = buildAssistantOverrides(
+      { systemPrompt: "S", name: "Oraz", locale: "it-IT" },
+      "t",
+    );
+    expect(ov.firstMessage).toMatch(/Ciao/);
+    expect(ov.variableValues.spoken_language).toBe("italiano");
   });
 });
