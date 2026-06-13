@@ -127,6 +127,19 @@ export function fillerFor(locale?: string): string {
   return { it: "Un attimo.", es: "Un momento.", en: "One moment.", de: "Einen Moment." }[langOf(locale)];
 }
 
+/** The idle nudge Vapi plays after a few seconds of caller silence ("are you
+ * still there?"), in the call's language. Fed to the engine's messagePlan idle
+ * message as the "{{idle_prompt}}" template, same per-call mechanism as the
+ * filler so it's never the wrong language. */
+export function idlePromptFor(locale?: string): string {
+  return {
+    it: "Sei ancora lì?",
+    es: "¿Sigues ahí?",
+    en: "Are you still there?",
+    de: "Bist du noch da?",
+  }[langOf(locale)];
+}
+
 const BCP47: Record<string, string> = { es: "es-ES", it: "it-IT", en: "en-GB", de: "de-DE" };
 
 /**
@@ -332,7 +345,12 @@ export function buildAssistantOverrides(
     // spoken_language drives the prompt's per-call default-language directive so
     // the agent opens (and stays) in the caller's/venue's language instead of
     // defaulting to the Spanish the prompt is written in.
-    variableValues: { ...dateVars, spoken_language: languageName(openLocale), filler: fillerFor(openLocale) },
+    variableValues: {
+      ...dateVars,
+      spoken_language: languageName(openLocale),
+      filler: fillerFor(openLocale),
+      idle_prompt: idlePromptFor(openLocale),
+    },
     // Transcriber: Gladia solaria-1, restricted to the four supported languages.
     // Deepgram "multi" spanned 10 languages and drifted (it transcribed clear
     // Italian audio with spurious Hindi/Devanagari mid-sentence), which then
