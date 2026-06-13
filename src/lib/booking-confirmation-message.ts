@@ -6,14 +6,36 @@ const TEMPLATES: Record<Lang, {
   title: string; date: string; time: string; people: string; zone: string;
   name: string; tablesLbl: string; notesLbl: string; interior: string; exterior: string; footer: string;
 }> = {
-  es: { title: '✅ *Reserva confirmada*', date: 'Fecha', time: 'Hora', people: 'Personas', zone: 'Zona', name: 'Nombre', tablesLbl: 'Mesas', notesLbl: 'Notas', interior: 'Interior', exterior: 'Exterior', footer: 'Para modificar escribe *MODIFICAR*.\nPara cancelar escribe *CANCELAR*.' },
-  it: { title: '✅ *Prenotazione confermata*', date: 'Data', time: 'Ora', people: 'Persone', zone: 'Zona', name: 'Nome', tablesLbl: 'Tavoli', notesLbl: 'Note', interior: 'Interno', exterior: 'Esterno', footer: 'Per modificare scrivi *MODIFICARE*.\nPer annullare scrivi *ANNULLA*.' },
-  en: { title: '✅ *Booking confirmed*', date: 'Date', time: 'Time', people: 'People', zone: 'Area', name: 'Name', tablesLbl: 'Tables', notesLbl: 'Notes', interior: 'Indoor', exterior: 'Outdoor', footer: 'To modify write *MODIFY*.\nTo cancel write *CANCEL*.' },
-  de: { title: '✅ *Reservierung bestätigt*', date: 'Datum', time: 'Uhrzeit', people: 'Personen', zone: 'Bereich', name: 'Name', tablesLbl: 'Tische', notesLbl: 'Notizen', interior: 'Innenbereich', exterior: 'Außenbereich', footer: 'Zum Ändern schreibe *ÄNDERN*.\nZum Stornieren schreibe *STORNIEREN*.' },
+  // Footers MIRROR the WhatsApp chat bot's cancelOnlyInstructions (n8n
+  // getPicnicTemplates) so a guest gets the SAME modify/cancel keywords whether
+  // they booked by chat or by voice. The keyword matters: the chat bot listens
+  // for *MODIFICA* / *ANNULLA*, so the old "scrivi *MODIFICARE*" sent the guest
+  // a word the bot would not recognise.
+  es: { title: '✅ *Reserva confirmada*', date: 'Fecha', time: 'Hora', people: 'Personas', zone: 'Zona', name: 'Nombre', tablesLbl: 'Mesas', notesLbl: 'Notas', interior: 'Interior', exterior: 'Exterior', footer: 'Para modificar responde *MODIFICAR*\nPara cancelar tu solicitud responde *CANCELAR*.' },
+  it: { title: '✅ *Prenotazione confermata*', date: 'Data', time: 'Ora', people: 'Persone', zone: 'Zona', name: 'Nome', tablesLbl: 'Tavoli', notesLbl: 'Note', interior: 'Interno', exterior: 'Esterno', footer: 'Per modificare rispondi *MODIFICA*\nPer annullare la richiesta rispondi *ANNULLA*.' },
+  en: { title: '✅ *Booking confirmed*', date: 'Date', time: 'Time', people: 'People', zone: 'Area', name: 'Name', tablesLbl: 'Tables', notesLbl: 'Notes', interior: 'Indoor', exterior: 'Outdoor', footer: 'To modify reply *MODIFY*\nTo cancel your request reply *CANCEL*.' },
+  de: { title: '✅ *Reservierung bestätigt*', date: 'Datum', time: 'Uhrzeit', people: 'Personen', zone: 'Bereich', name: 'Name', tablesLbl: 'Tische', notesLbl: 'Notizen', interior: 'Innenbereich', exterior: 'Außenbereich', footer: 'Zum Ändern antworte *ÄNDERN*\nZum Stornieren der Anfrage antworte *STORNIEREN*.' },
 };
 
 function pickLang(maybe: unknown): Lang {
   return (['es', 'it', 'en', 'de'] as const).includes(maybe as Lang) ? (maybe as Lang) : 'es';
+}
+
+// Internal routing annotations the voice/chat book flow appends to a
+// reservation's notes (always in Spanish, regardless of guest language) — e.g.
+// "Grupo grande, pendiente de revision" or "Prefiere interior". They are for
+// staff, never for the guest, so we strip them from the confirmation. Notes are
+// joined with an em-dash ("celiaca — Grupo grande… — Prefiere interior"); we
+// drop any segment matching an internal marker and keep the guest's own text.
+const INTERNAL_NOTE_MARKER = /pendiente|pending|grupo\s+grande|large\s+group|prefiere|prefers|preferisce|bevorzugt|revisi[oó]n|revision/i;
+export function cleanGuestNotes(raw?: string | null): string {
+  if (!raw) return '';
+  return raw
+    .split(/\s*[—–]\s*/) // em/en dash with optional surrounding space
+    .map((s) => s.trim())
+    .filter((s) => s && !INTERNAL_NOTE_MARKER.test(s))
+    .join(' — ')
+    .trim();
 }
 
 export function buildBookingConfirmationMessage(params: {
@@ -32,7 +54,8 @@ export function buildBookingConfirmationMessage(params: {
     ? `\n📍 ${T.zone}: ${params.zone === 'inside' ? T.interior : T.exterior}`
     : '';
   const tablesLine = params.tableNames ? `\n🪑 ${T.tablesLbl}: ${params.tableNames}` : '';
-  const notesLine = params.notes && params.notes.trim() ? `\n🗒️ ${T.notesLbl}: ${params.notes.trim()}` : '';
+  const cleanNotes = cleanGuestNotes(params.notes);
+  const notesLine = cleanNotes ? `\n📝 ${T.notesLbl}: ${cleanNotes}` : '';
   return `${T.title}\n📅 ${T.date}: ${formatDateFull(params.date, lang)}\n⏰ ${T.time}: ${params.time}\n👥 ${T.people}: ${params.partySize}${zoneLine}\n📝 ${T.name}: ${params.guestName || ''}${tablesLine}${notesLine}\n\n${T.footer}`;
 }
 
