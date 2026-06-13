@@ -118,6 +118,15 @@ function languageName(locale?: string): string {
   return { it: "italiano", es: "español", en: "English", de: "Deutsch" }[langOf(locale)];
 }
 
+/** The short "one moment" filler Vapi plays while a tool runs, in the call's
+ * language. The engine assistant's tool request-start messages are a single
+ * "{{filler}}" template, so this value (not Vapi's own language detection, which
+ * defaulted to English) decides the language — no more English "One moment." on
+ * an Italian call. */
+export function fillerFor(locale?: string): string {
+  return { it: "Un attimo.", es: "Un momento.", en: "One moment.", de: "Einen Moment." }[langOf(locale)];
+}
+
 const BCP47: Record<string, string> = { es: "es-ES", it: "it-IT", en: "en-GB", de: "de-DE" };
 
 /**
@@ -323,7 +332,7 @@ export function buildAssistantOverrides(
     // spoken_language drives the prompt's per-call default-language directive so
     // the agent opens (and stays) in the caller's/venue's language instead of
     // defaulting to the Spanish the prompt is written in.
-    variableValues: { ...dateVars, spoken_language: languageName(openLocale) },
+    variableValues: { ...dateVars, spoken_language: languageName(openLocale), filler: fillerFor(openLocale) },
     // Transcriber: Gladia solaria-1, restricted to the four supported languages.
     // Deepgram "multi" spanned 10 languages and drifted (it transcribed clear
     // Italian audio with spurious Hindi/Devanagari mid-sentence), which then
