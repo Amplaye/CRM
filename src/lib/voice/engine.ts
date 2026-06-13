@@ -370,7 +370,18 @@ export async function buildTenantCallConfig(
 ): Promise<{ assistantId: string; assistantOverrides: Record<string, any> }> {
   const supabase = createServiceRoleClient();
   const composed = await composeTenantVoicePrompt(supabase, tenantId);
-  const dateVars = { ...spelledDateVars(now, composed.timezone, composed.locale), ...extraVars };
+  // Populate {{from_number}} so the prompt's phone step is grounded in reality:
+  // the REAL caller line on inbound phone calls (the agent may then offer to use
+  // it for the WhatsApp confirmation), and an explicit EMPTY string on web calls
+  // (no caller id) so the placeholder never leaks into the prompt and the agent
+  // asks for the number instead of inventing one. Without this the variable was
+  // never substituted at all, so the model once filled book_table.telefono with
+  // the venue's OWN backup phone — sending the confirmation to the restaurant.
+  const dateVars = {
+    ...spelledDateVars(now, composed.timezone, composed.locale),
+    from_number: callerNumber || "",
+    ...extraVars,
+  };
   const model = await fetchEngineModel();
   const greetLocale = localeFromPhonePrefix(callerNumber);
   return {
