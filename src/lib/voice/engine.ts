@@ -152,7 +152,10 @@ export interface EngineModel {
 }
 
 // Fallback only — the real value comes from the dashboard via fetchEngineModel.
-const FALLBACK_ENGINE_MODEL: EngineModel = { provider: "openai", model: "gpt-5-mini" };
+// gpt-4.1 (NOT a mini, NOT a reasoning model): no audible reasoning pauses, clean
+// Italian, and it actually obeys "call tools silently" — gpt-5-mini broke all
+// three (garbled Italian, reasoning pauses, narrated before tools → Vapi silence).
+const FALLBACK_ENGINE_MODEL: EngineModel = { provider: "openai", model: "gpt-4.1" };
 
 let _engineModelCache: { value: EngineModel; at: number } | null = null;
 const ENGINE_MODEL_TTL_MS = 60_000;
