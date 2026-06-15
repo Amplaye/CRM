@@ -867,18 +867,18 @@ export default function FloorPage() {
             )}
             <div className="inline-flex rounded-lg border-2 overflow-hidden" style={{ borderColor: "#c4956a" }}>
               <button
-                onClick={() => { setViewMode("list"); setEditingPlan(false); setWallMode(false); }}
-                className="inline-flex items-center gap-1 px-3 py-1.5 text-xs sm:text-sm font-semibold transition-colors"
-                style={{ background: viewMode === "list" ? "#c4956a" : "rgba(252,246,237,0.6)", color: viewMode === "list" ? "#fff" : "#000" }}
-              >
-                <List className="w-4 h-4" /> {t("floor_view_list")}
-              </button>
-              <button
                 onClick={() => setViewMode("plan")}
                 className="inline-flex items-center gap-1 px-3 py-1.5 text-xs sm:text-sm font-semibold transition-colors"
                 style={{ background: viewMode === "plan" ? "#c4956a" : "rgba(252,246,237,0.6)", color: viewMode === "plan" ? "#fff" : "#000" }}
               >
                 <LayoutPanelTop className="w-4 h-4" /> {t("floor_view_plan")}
+              </button>
+              <button
+                onClick={() => { setViewMode("list"); setEditingPlan(false); setWallMode(false); }}
+                className="inline-flex items-center gap-1 px-3 py-1.5 text-xs sm:text-sm font-semibold transition-colors"
+                style={{ background: viewMode === "list" ? "#c4956a" : "rgba(252,246,237,0.6)", color: viewMode === "list" ? "#fff" : "#000" }}
+              >
+                <List className="w-4 h-4" /> {t("floor_view_list")}
               </button>
             </div>
           </div>

@@ -629,18 +629,18 @@ export default function WaitlistPage() {
                         </h3>
                         <div className="inline-flex rounded-lg border-2 overflow-hidden" style={{ borderColor: "#c4956a" }}>
                           <button
-                            onClick={() => setTablePickerView("grid")}
-                            className="inline-flex items-center gap-1 px-2 py-1 text-xs font-semibold transition-colors"
-                            style={{ background: tablePickerView === "grid" ? "#c4956a" : "rgba(252,246,237,0.6)", color: tablePickerView === "grid" ? "#fff" : "#000" }}
-                          >
-                            <List className="w-3 h-3" /> Lista
-                          </button>
-                          <button
                             onClick={() => setTablePickerView("plan")}
                             className="inline-flex items-center gap-1 px-2 py-1 text-xs font-semibold transition-colors"
                             style={{ background: tablePickerView === "plan" ? "#c4956a" : "rgba(252,246,237,0.6)", color: tablePickerView === "plan" ? "#fff" : "#000" }}
                           >
                             <LayoutPanelTop className="w-3 h-3" /> Plano
+                          </button>
+                          <button
+                            onClick={() => setTablePickerView("grid")}
+                            className="inline-flex items-center gap-1 px-2 py-1 text-xs font-semibold transition-colors"
+                            style={{ background: tablePickerView === "grid" ? "#c4956a" : "rgba(252,246,237,0.6)", color: tablePickerView === "grid" ? "#fff" : "#000" }}
+                          >
+                            <List className="w-3 h-3" /> Lista
                           </button>
                         </div>
                       </div>

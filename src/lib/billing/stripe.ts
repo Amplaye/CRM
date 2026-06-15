@@ -174,6 +174,7 @@ export interface PilotCheckoutParams {
   taxEnabled: boolean;           // Stripe Tax only if configured (STRIPE_TAX_ENABLED)
   requireTos: boolean;           // add a ToS acceptance checkbox (needs ToS url in Stripe branding)
   businessNameLabel: string;     // i18n-able label for the custom "business name" field
+  locale?: string;               // Stripe Checkout UI locale (es/it/en/de); omit = auto
   customerEmail?: string;        // prefill, optional
 }
 
@@ -212,6 +213,7 @@ export async function createPilotCheckoutSession(params: PilotCheckoutParams): P
     customer_email: params.customerEmail,
     metadata: params.metadata,
   };
+  if (params.locale) body.locale = params.locale;
   if (params.taxEnabled) body.automatic_tax = { enabled: true };
   // ToS checkbox only when a ToS url is configured in Stripe (else the API rejects).
   if (params.requireTos) body.consent_collection = { terms_of_service: "required" };

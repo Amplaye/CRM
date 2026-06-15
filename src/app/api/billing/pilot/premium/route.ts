@@ -1,17 +1,17 @@
 import { NextResponse } from "next/server";
 import { assertRateLimit } from "@/lib/rate-limit";
-import { createPilotCheckout, pilotLandingHtml } from "@/lib/billing/pilot";
+import { createPilotCheckout, pilotLandingHtml, resolvePilotLang } from "@/lib/billing/pilot";
 
 // /api/billing/pilot/premium  →  the premium pilot.
-//   GET  → a paste-anywhere landing page ("Pagar €150 y empezar"); the button POSTs.
+//   GET  → a paste-anywhere landing page; localized via ?lang= / Accept-Language.
 //   POST → "create-premium-pilot-checkout": returns the hosted Stripe Checkout url.
 //          Charges €150 today, saves the card, then the webhook starts the 14-day
 //          trial → €249 first month → €399/mo.
 // Public sales endpoint (the buyer has no account yet) — rate-limited by IP.
 export const dynamic = "force-dynamic";
 
-export async function GET() {
-  return new Response(pilotLandingHtml("premium"), {
+export async function GET(req: Request) {
+  return new Response(pilotLandingHtml("premium", resolvePilotLang(req)), {
     headers: { "Content-Type": "text/html; charset=utf-8" },
   });
 }
@@ -21,7 +21,7 @@ export async function POST(req: Request) {
   if (rl) return rl;
 
   const origin = req.headers.get("origin") || process.env.NEXT_PUBLIC_APP_URL || "https://crm.baliflowagency.com";
-  const result = await createPilotCheckout("premium", origin);
+  const result = await createPilotCheckout("premium", origin, resolvePilotLang(req));
   if (!result.ok) {
     return NextResponse.json({ error: result.error, reason: result.reason }, { status: result.status });
   }
