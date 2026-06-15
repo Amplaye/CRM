@@ -16,8 +16,11 @@
  * and broke every onboard; PICNIC has no Warmup either, so it was dropped),
  * lowered 16→15 on 2026-06-09 (No-Show Auto-Cancel became the single shared
  * `[ALL]` cron — it's no longer cloned per tenant, so a complete tenant now has
- * 15 own-prefixed workflows, not 16. See orchestrator.ts for the full note). */
-export const N8N_TEMPLATE_COUNT = 15;
+ * 15 own-prefixed workflows, not 16. See orchestrator.ts for the full note),
+ * lowered 15→14 on 2026-06-16 (Waitlist Reassurance likewise consolidated into
+ * the single shared `[ALL] Waitlist Reassurance — Multi-Tenant` cron — the
+ * endpoint already sweeps every tenant, so per-tenant clones were redundant). */
+export const N8N_TEMPLATE_COUNT = 14;
 
 /** Workflow functions that a tenant on the "motore unico" (shared engine) does
  * NOT run under its own `[Name]` prefix because a single shared workflow serves

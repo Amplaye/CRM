@@ -111,7 +111,6 @@ export const TEMPLATE_RESTAURANT_WORKFLOW_IDS = [
   "CFMJqjOcSr6mEqVq", // Voice Tool — Restaurant Info
   "Hm1IhFQTaqnlJMQR", // Reminders
   "dZeAkXEpRjOjn8n6", // Follow-up Post-Cena
-  "hcVLsbtGUWtPS2G1", // Waitlist Reassurance
   "nZdFqTRUrBlPOb3z", // Menu del Dia - 30min antes
   "z1Akph5impMRh28Y", // Pre-Turno Summary
   "IDx1EqaQTUq6YHEu", // Weekly AI Report
@@ -137,6 +136,16 @@ export const TEMPLATE_RESTAURANT_WORKFLOW_IDS = [
   // up under the tenant's own `[Name]` prefix, so the health card counted it as
   // missing ("15/16 incompleto"). No-show is now a shared concern: no per-tenant
   // clone, served by the single `[ALL]` workflow. PER_TENANT count drops 16→15.
+  //
+  // NOTE: "Waitlist Reassurance" (formerly id hcVLsbtGUWtPS2G1) was REMOVED
+  // 2026-06-16 for the SAME reason. The /api/ai/waitlist-reassurance endpoint
+  // already sweeps EVERY tenant in one call (no tenant_id filter), so each
+  // per-tenant clone was re-doing the whole-fleet sweep every 10 min — N×
+  // redundant work, a double-send race window, and N× the Trello noise when a
+  // transient n8n→Vercel blip hit (one blip = 6 bug cards on 2026-06-14).
+  // Consolidated into the single shared `[ALL] Waitlist Reassurance — Multi-
+  // Tenant` cron (id 9mPFJfnkUe0bRtv5). The 6 per-tenant clones were
+  // deactivated, not deleted. PER_TENANT count drops 15→14.
 ];
 
 // The n8n REST client (n8n) and the generic timeout-wrapped fetch
