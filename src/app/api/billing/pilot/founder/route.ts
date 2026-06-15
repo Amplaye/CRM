@@ -1,13 +1,20 @@
 import { NextResponse } from "next/server";
 import { assertRateLimit } from "@/lib/rate-limit";
-import { createPilotCheckout } from "@/lib/billing/pilot";
+import { createPilotCheckout, pilotLandingHtml } from "@/lib/billing/pilot";
 
-// POST /api/billing/pilot/founder  →  "create-founder-pilot-checkout"
-//
+// /api/billing/pilot/founder  →  the founder pilot.
+//   GET  → a paste-anywhere landing page ("Pagar €150 y empezar"); the button POSTs.
+//   POST → "create-founder-pilot-checkout": returns the hosted Stripe Checkout url.
+//          Charges €150 today, saves the card, then the webhook starts the 14-day
+//          trial → €149 first month → €299/mo.
 // Public sales endpoint (the buyer has no account yet) — rate-limited by IP.
-// Returns the hosted Stripe Checkout url. Charges €150 today, saves the card, and
-// the webhook then starts the 14-day trial → €149 first month → €299/mo.
 export const dynamic = "force-dynamic";
+
+export async function GET() {
+  return new Response(pilotLandingHtml("founder"), {
+    headers: { "Content-Type": "text/html; charset=utf-8" },
+  });
+}
 
 export async function POST(req: Request) {
   const rl = await assertRateLimit(req, "pilot:founder", { max: 10, windowSecs: 60 });
