@@ -20,6 +20,7 @@
 // "first month" prices are needed.
 
 import { createServiceRoleClient } from "@/lib/supabase/server";
+import { toOwnerLang, type OwnerLang } from "@/lib/owner-locale";
 import {
   stripeConfigured,
   createPilotCheckoutSession,
@@ -63,11 +64,117 @@ export const PILOT_PLANS: Record<
 export const PILOT_TERMS_URL =
   process.env.STRIPE_PILOT_TERMS_URL || "https://restaurants.baliflowagency.com/terminos-piloto";
 
-export const PILOT_CONSENT_TEXT =
-  "You are purchasing a 14-day BALI Flow Pilot for €150. Unless cancelled before " +
-  "the pilot ends, your selected subscription will start automatically. The €150 " +
-  "pilot fee will be credited against your first monthly payment. " +
-  `Términos del piloto: ${PILOT_TERMS_URL}`;
+// Pilot lang = the CRM's supported set (es/it/en/de), default es. The public pilot
+// pages have no tenant, so language is resolved from `?lang=` then Accept-Language.
+export type PilotLang = OwnerLang;
+
+/** Resolve the page language: explicit ?lang= wins, else the browser's first
+ * Accept-Language tag, else Spanish. Both go through toOwnerLang (validates + maps). */
+export function resolvePilotLang(req: Request): PilotLang {
+  const q = new URL(req.url).searchParams.get("lang");
+  if (q) return toOwnerLang(q);
+  const al = req.headers.get("accept-language") || "";
+  return toOwnerLang(al.split(",")[0]);
+}
+
+interface PilotStrings {
+  brand: string;
+  planName: Record<PilotPlan, string>;
+  sub: string;
+  todayLabel: string; firstLabel: string; afterLabel: string; perMonth: string; todayWord: string;
+  legal: string; // contains {terms}
+  termsLabel: string; businessNameLabel: string;
+  payBtn: string; payingBtn: string; errText: string; secureFoot: string;
+  resTitle: { success: string; cancel: string };
+  resHeading: { success: string; cancel: string };
+  resBody: { success: string; cancel: string };
+  resCta: string; resFoot: string;
+  consent: string; // contains {url}
+}
+
+export const PILOT_I18N: Record<PilotLang, PilotStrings> = {
+  es: {
+    brand: "Piloto · 14 días",
+    planName: { founder: "Plan Fundador", premium: "Plan Premium" },
+    sub: "Prueba BALI Flow durante 14 días.",
+    todayLabel: "Pago hoy (piloto 14 días)", firstLabel: "1ª mensualidad (día 14)", afterLabel: "Después",
+    perMonth: "/mes", todayWord: "hoy",
+    legal: "Estás contratando un Piloto de BALI Flow de 14 días por €150. Salvo cancelación antes de que termine el piloto, tu suscripción se activará automáticamente. Los €150 del piloto se descontarán de tu primera mensualidad. Consulta los {terms}.",
+    termsLabel: "Términos del piloto", businessNameLabel: "Nombre del negocio (opcional)",
+    payBtn: "Pagar €150 y empezar", payingBtn: "Redirigiendo…",
+    errText: "No se pudo iniciar el pago. Inténtalo de nuevo.", secureFoot: "Pago seguro con Stripe · BALI Flow",
+    resTitle: { success: "¡Pago completado!", cancel: "Pago no completado" },
+    resHeading: { success: "Tu Piloto ha comenzado 🎉", cancel: "No se ha completado el pago" },
+    resBody: {
+      success: "Hemos recibido tu pago de €150 y tu Piloto de BALI Flow de 14 días ya está activo. Durante el piloto no se te cobrará nada más; pasados los 14 días, salvo cancelación, comenzará tu suscripción y los €150 se descontarán de la primera mensualidad. Recibirás un recibo de Stripe por email y nos pondremos en contacto contigo para la puesta en marcha.",
+      cancel: "No se ha realizado ningún cargo. Si ha sido un error, vuelve a abrir el enlace de pago e inténtalo de nuevo. Si necesitas ayuda, escríbenos a info@baliflowagency.com.",
+    },
+    resCta: "Volver a BALI Flow", resFoot: "BALI Flow · Piloto",
+    consent: "Estás contratando un Piloto de BALI Flow de 14 días por €150. Salvo cancelación antes de que termine el piloto, tu suscripción comenzará automáticamente. Los €150 se descontarán de tu primera mensualidad. Términos del piloto: {url}",
+  },
+  en: {
+    brand: "Pilot · 14 days",
+    planName: { founder: "Founder Plan", premium: "Premium Plan" },
+    sub: "Try BALI Flow for 14 days.",
+    todayLabel: "Today (14-day pilot)", firstLabel: "1st month (day 14)", afterLabel: "Then",
+    perMonth: "/mo", todayWord: "today",
+    legal: "You are purchasing a 14-day BALI Flow Pilot for €150. Unless cancelled before the pilot ends, your subscription will start automatically. The €150 pilot fee will be credited against your first monthly payment. See the {terms}.",
+    termsLabel: "pilot terms", businessNameLabel: "Business name (optional)",
+    payBtn: "Pay €150 and start", payingBtn: "Redirecting…",
+    errText: "Couldn't start the payment. Please try again.", secureFoot: "Secure payment with Stripe · BALI Flow",
+    resTitle: { success: "Payment complete!", cancel: "Payment not completed" },
+    resHeading: { success: "Your pilot has started 🎉", cancel: "Payment was not completed" },
+    resBody: {
+      success: "We've received your €150 payment and your 14-day BALI Flow Pilot is now active. During the pilot you won't be charged anything else; after 14 days, unless cancelled, your subscription begins and the €150 will be credited against your first monthly payment. You'll get a Stripe receipt by email and we'll get in touch to set everything up.",
+      cancel: "No charge was made. If this was a mistake, reopen the payment link and try again. Need help? Email info@baliflowagency.com.",
+    },
+    resCta: "Back to BALI Flow", resFoot: "BALI Flow · Pilot",
+    consent: "You are purchasing a 14-day BALI Flow Pilot for €150. Unless cancelled before the pilot ends, your subscription will start automatically. The €150 pilot fee will be credited against your first monthly payment. Pilot terms: {url}",
+  },
+  it: {
+    brand: "Pilota · 14 giorni",
+    planName: { founder: "Piano Founder", premium: "Piano Premium" },
+    sub: "Prova BALI Flow per 14 giorni.",
+    todayLabel: "Oggi (pilota 14 giorni)", firstLabel: "1ª mensilità (giorno 14)", afterLabel: "Poi",
+    perMonth: "/mese", todayWord: "oggi",
+    legal: "Stai acquistando un Pilota BALI Flow di 14 giorni per €150. Salvo disdetta prima della fine del pilota, l'abbonamento partirà automaticamente. I €150 del pilota saranno scalati dalla prima mensilità. Consulta i {terms}.",
+    termsLabel: "Termini del pilota", businessNameLabel: "Nome dell'attività (facoltativo)",
+    payBtn: "Paga €150 e inizia", payingBtn: "Reindirizzamento…",
+    errText: "Impossibile avviare il pagamento. Riprova.", secureFoot: "Pagamento sicuro con Stripe · BALI Flow",
+    resTitle: { success: "Pagamento completato!", cancel: "Pagamento non completato" },
+    resHeading: { success: "Il tuo pilota è iniziato 🎉", cancel: "Pagamento non completato" },
+    resBody: {
+      success: "Abbiamo ricevuto il tuo pagamento di €150 e il tuo Pilota BALI Flow di 14 giorni è ora attivo. Durante il pilota non ti verrà addebitato altro; dopo 14 giorni, salvo disdetta, partirà l'abbonamento e i €150 saranno scalati dalla prima mensilità. Riceverai una ricevuta Stripe via email e ti contatteremo per l'attivazione.",
+      cancel: "Nessun addebito effettuato. Se è stato un errore, riapri il link di pagamento e riprova. Hai bisogno di aiuto? Scrivi a info@baliflowagency.com.",
+    },
+    resCta: "Torna a BALI Flow", resFoot: "BALI Flow · Pilota",
+    consent: "Stai acquistando un Pilota BALI Flow di 14 giorni per €150. Salvo disdetta prima della fine del pilota, l'abbonamento partirà automaticamente. I €150 saranno scalati dalla prima mensilità. Termini del pilota: {url}",
+  },
+  de: {
+    brand: "Pilot · 14 Tage",
+    planName: { founder: "Founder-Tarif", premium: "Premium-Tarif" },
+    sub: "Teste BALI Flow 14 Tage lang.",
+    todayLabel: "Heute (14-Tage-Pilot)", firstLabel: "1. Monat (Tag 14)", afterLabel: "Danach",
+    perMonth: "/Monat", todayWord: "heute",
+    legal: "Du erwirbst einen 14-tägigen BALI-Flow-Pilot für €150. Sofern nicht vor Ende des Pilots gekündigt, startet dein Abonnement automatisch. Die €150 werden auf deine erste Monatsrechnung angerechnet. Siehe die {terms}.",
+    termsLabel: "Pilot-Bedingungen", businessNameLabel: "Name des Unternehmens (optional)",
+    payBtn: "€150 zahlen und starten", payingBtn: "Weiterleitung…",
+    errText: "Zahlung konnte nicht gestartet werden. Bitte erneut versuchen.", secureFoot: "Sichere Zahlung mit Stripe · BALI Flow",
+    resTitle: { success: "Zahlung abgeschlossen!", cancel: "Zahlung nicht abgeschlossen" },
+    resHeading: { success: "Dein Pilot hat begonnen 🎉", cancel: "Zahlung wurde nicht abgeschlossen" },
+    resBody: {
+      success: "Wir haben deine Zahlung von €150 erhalten und dein 14-tägiger BALI-Flow-Pilot ist jetzt aktiv. Während des Pilots wird dir nichts weiter berechnet; nach 14 Tagen startet, sofern nicht gekündigt, dein Abonnement und die €150 werden auf die erste Monatsrechnung angerechnet. Du erhältst eine Stripe-Quittung per E-Mail und wir melden uns zur Einrichtung.",
+      cancel: "Es wurde nichts berechnet. War das ein Versehen, öffne den Zahlungslink erneut und versuche es nochmal. Brauchst du Hilfe? Schreib an info@baliflowagency.com.",
+    },
+    resCta: "Zurück zu BALI Flow", resFoot: "BALI Flow · Pilot",
+    consent: "Du erwirbst einen 14-tägigen BALI-Flow-Pilot für €150. Sofern nicht vor Ende des Pilots gekündigt, startet dein Abonnement automatisch. Die €150 werden auf deine erste Monatsrechnung angerechnet. Pilot-Bedingungen: {url}",
+  },
+};
+
+/** The localized Stripe Checkout consent text (with the terms URL inlined). */
+export function pilotConsentText(lang: PilotLang): string {
+  return PILOT_I18N[lang].consent.replace("{url}", PILOT_TERMS_URL);
+}
 
 /** Shared metadata stamped on every Stripe object for this flow (req 9). */
 export function pilotMetadata(plan: PilotPlan, extra?: Record<string, string>): Record<string, string> {
@@ -85,26 +192,31 @@ function taxEnabled(): boolean {
   return process.env.STRIPE_TAX_ENABLED === "true";
 }
 
-const PILOT_LANDING_COPY: Record<PilotPlan, { title: string; firstMonth: string; monthly: string }> = {
-  founder: { title: "Plan Fundador", firstMonth: "€149", monthly: "€299/mes" },
-  premium: { title: "Plan Premium", firstMonth: "€249", monthly: "€399/mes" },
+// Display amounts (the localized "/mo" suffix is appended from PILOT_I18N).
+const PILOT_AMOUNTS: Record<PilotPlan, { firstMonth: string; monthly: string }> = {
+  founder: { firstMonth: "€149", monthly: "€299" },
+  premium: { firstMonth: "€249", monthly: "€399" },
 };
 
-/** A self-contained, paste-anywhere landing page (Spanish) served on GET. It does
- * NOT create a Checkout Session by itself — that only happens when the visitor
- * clicks the button (a POST to the same URL) — so link-preview bots that fetch the
- * page don't litter Stripe/DB with throwaway sessions. The button reads {url} from
- * the POST JSON and redirects to Stripe. */
-export function pilotLandingHtml(plan: PilotPlan): string {
-  const c = PILOT_LANDING_COPY[plan];
-  // Static text only; `plan` is a validated union, so no user input is interpolated.
+/** A self-contained, paste-anywhere landing page served on GET, localized to one of
+ * the CRM's languages (es/it/en/de). It does NOT create a Checkout Session by itself
+ * — that only happens when the visitor clicks the button (a POST to the same URL) —
+ * so link-preview bots that fetch the page don't litter Stripe/DB with throwaway
+ * sessions. The button reads {url} from the POST JSON and redirects to Stripe. */
+export function pilotLandingHtml(plan: PilotPlan, lang: PilotLang = "es"): string {
+  const a = PILOT_AMOUNTS[plan];
+  const t = PILOT_I18N[lang];
+  const title = t.planName[plan];
+  const termsAnchor = `<a href="${PILOT_TERMS_URL}" target="_blank" rel="noopener" style="color:#b8845c;font-weight:600;">${t.termsLabel}</a>`;
+  const legalHtml = t.legal.replace("{terms}", termsAnchor);
+  // `plan`/`lang` are validated unions; all interpolated copy is from PILOT_I18N.
   return `<!doctype html>
-<html lang="es">
+<html lang="${lang}">
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <meta name="robots" content="noindex" />
-<title>BALI Flow — Piloto · ${c.title}</title>
+<title>BALI Flow — ${title}</title>
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;600;700;800&display=swap" rel="stylesheet" />
@@ -138,38 +250,35 @@ export function pilotLandingHtml(plan: PilotPlan): string {
 <body>
   <main class="card">
     <img class="logo" src="/logo-horizontal.png" alt="BALI Flow" />
-    <p class="brand">Piloto · 14 días</p>
-    <h1>${c.title}</h1>
-    <p class="sub">Prueba BALI Flow durante 14 días.</p>
-    <p class="price">€150 <small>hoy</small></p>
+    <p class="brand">${t.brand}</p>
+    <h1>${title}</h1>
+    <p class="sub">${t.sub}</p>
+    <p class="price">€150 <small>${t.todayWord}</small></p>
     <div class="rows">
-      <div class="row"><span>Pago hoy (piloto 14 días)</span><span>€150</span></div>
-      <div class="row"><span>1ª mensualidad (día 14)</span><span>${c.firstMonth}</span></div>
-      <div class="row"><span>Después</span><span>${c.monthly}</span></div>
+      <div class="row"><span>${t.todayLabel}</span><span>€150</span></div>
+      <div class="row"><span>${t.firstLabel}</span><span>${a.firstMonth}</span></div>
+      <div class="row"><span>${t.afterLabel}</span><span>${a.monthly}${t.perMonth}</span></div>
     </div>
-    <div class="legal">
-      Estás contratando un Piloto de BALI Flow de 14 días por €150. Salvo cancelación antes
-      de que termine el piloto, tu suscripción se activará automáticamente. Los €150 del
-      piloto se descontarán de tu primera mensualidad. Consulta los
-      <a href="${PILOT_TERMS_URL}" target="_blank" rel="noopener" style="color:#b8845c;font-weight:600;">Términos del piloto</a>.
-    </div>
-    <button id="pay" type="button">Pagar €150 y empezar</button>
+    <div class="legal">${legalHtml}</div>
+    <button id="pay" type="button">${t.payBtn}</button>
     <p class="err" id="err"></p>
-    <p class="foot">Pago seguro con Stripe · BALI Flow</p>
+    <p class="foot">${t.secureFoot}</p>
   </main>
   <script>
+    const PAY = ${JSON.stringify(t.payBtn)}, PAYING = ${JSON.stringify(t.payingBtn)}, ERR = ${JSON.stringify(t.errText)};
     const btn = document.getElementById('pay');
     const err = document.getElementById('err');
     btn.addEventListener('click', async () => {
-      btn.disabled = true; btn.textContent = 'Redirigiendo…'; err.textContent = '';
+      btn.disabled = true; btn.textContent = PAYING; err.textContent = '';
       try {
-        const r = await fetch(window.location.pathname, { method: 'POST', headers: { 'Accept': 'application/json' } });
+        // Preserve ?lang= so the Checkout consent + redirect stay in this language.
+        const r = await fetch(window.location.pathname + window.location.search, { method: 'POST', headers: { 'Accept': 'application/json' } });
         const d = await r.json();
         if (d && d.url) { window.location.href = d.url; return; }
-        throw new Error(d && d.reason ? d.reason : 'No se pudo iniciar el pago');
+        throw new Error('no_url');
       } catch (e) {
-        err.textContent = 'No se pudo iniciar el pago. Inténtalo de nuevo.';
-        btn.disabled = false; btn.textContent = 'Pagar €150 y empezar';
+        err.textContent = ERR;
+        btn.disabled = false; btn.textContent = PAY;
       }
     });
   </script>
@@ -177,23 +286,19 @@ export function pilotLandingHtml(plan: PilotPlan): string {
 </html>`;
 }
 
-/** Post-checkout result page (Spanish), served on GET at /api/billing/pilot/done.
- * Stripe redirects here after a successful payment (status=success) or when the
- * buyer abandons (status=cancel). Self-contained, same cream/bronze CRM look, black
- * text — so the customer never lands on the generic /welcome page after paying. */
-export function pilotResultHtml(status: "success" | "cancel"): string {
+/** Post-checkout result page, served on GET at /api/billing/pilot/done, localized to
+ * one of the CRM's languages. Stripe redirects here after a successful payment
+ * (status=success) or when the buyer abandons (status=cancel). Self-contained, same
+ * cream/bronze CRM look, black text — so the customer never lands on the generic
+ * /welcome page after paying. */
+export function pilotResultHtml(status: "success" | "cancel", lang: PilotLang = "es"): string {
   const ok = status === "success";
-  const title = ok ? "¡Pago completado!" : "Pago no completado";
-  const heading = ok ? "Tu Piloto ha comenzado 🎉" : "No se ha completado el pago";
-  const body = ok
-    ? "Hemos recibido tu pago de €150 y tu Piloto de BALI Flow de 14 días ya está activo. " +
-      "Durante el piloto no se te cobrará nada más; pasados los 14 días, salvo cancelación, " +
-      "comenzará tu suscripción y los €150 se descontarán de la primera mensualidad. Recibirás " +
-      "un recibo de Stripe por email y nos pondremos en contacto contigo para la puesta en marcha."
-    : "No se ha realizado ningún cargo. Si ha sido un error, vuelve a abrir el enlace de pago e " +
-      "inténtalo de nuevo. Si necesitas ayuda, escríbenos a info@baliflowagency.com.";
+  const t = PILOT_I18N[lang];
+  const title = t.resTitle[status];
+  const heading = t.resHeading[status];
+  const body = t.resBody[status];
   return `<!doctype html>
-<html lang="es">
+<html lang="${lang}">
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -225,8 +330,8 @@ export function pilotResultHtml(status: "success" | "cancel"): string {
     <div class="mark">${ok ? "✅" : "⚠️"}</div>
     <h1>${heading}</h1>
     <p class="msg">${body}</p>
-    <a class="cta" href="https://restaurants.baliflowagency.com">Volver a BALI Flow</a>
-    <p class="foot">BALI Flow · Piloto</p>
+    <a class="cta" href="https://restaurants.baliflowagency.com">${t.resCta}</a>
+    <p class="foot">${t.resFoot}</p>
   </main>
 </body>
 </html>`;
@@ -236,9 +341,21 @@ export type PilotCheckoutResult =
   | { ok: true; url: string; sessionId: string }
   | { ok: false; status: number; error: string; reason?: string };
 
+/** Append a query param to a URL string that may already have a query (and may
+ * contain Stripe's {CHECKOUT_SESSION_ID} placeholder, which must be left intact). */
+function withParam(url: string, key: string, value: string): string {
+  const sep = url.includes("?") ? "&" : "?";
+  return `${url}${sep}${key}=${encodeURIComponent(value)}`;
+}
+
 /** Build the Checkout Session for a pilot plan and record a pending row. Public
- * sales endpoint — no tenant auth (the buyer has no account yet). */
-export async function createPilotCheckout(plan: PilotPlan, origin: string): Promise<PilotCheckoutResult> {
+ * sales endpoint — no tenant auth (the buyer has no account yet). `lang` localizes
+ * the consent text, the Stripe Checkout UI, and the success/cancel result pages. */
+export async function createPilotCheckout(
+  plan: PilotPlan,
+  origin: string,
+  lang: PilotLang = "es",
+): Promise<PilotCheckoutResult> {
   if (!stripeConfigured()) {
     return { ok: false, status: 503, error: "not_configured", reason: "stripe_keys_missing" };
   }
@@ -249,11 +366,19 @@ export async function createPilotCheckout(plan: PilotPlan, origin: string): Prom
     return { ok: false, status: 503, error: "not_configured", reason: "stripe_price_missing" };
   }
 
-  const successUrl =
-    process.env.FRONTEND_SUCCESS_URL || `${origin}/pilot/success?session_id={CHECKOUT_SESSION_ID}`;
-  const cancelUrl = process.env.FRONTEND_CANCEL_URL || `${origin}/pilot/cancel`;
+  // The result page reads ?lang= to stay in the buyer's language after redirect.
+  const successUrl = withParam(
+    process.env.FRONTEND_SUCCESS_URL || `${origin}/api/billing/pilot/done?status=success&session_id={CHECKOUT_SESSION_ID}`,
+    "lang",
+    lang,
+  );
+  const cancelUrl = withParam(
+    process.env.FRONTEND_CANCEL_URL || `${origin}/api/billing/pilot/done?status=cancel`,
+    "lang",
+    lang,
+  );
 
-  const metadata = pilotMetadata(plan);
+  const metadata = pilotMetadata(plan, { lang });
 
   let session: { id: string; url: string };
   try {
@@ -261,11 +386,12 @@ export async function createPilotCheckout(plan: PilotPlan, origin: string): Prom
       pilotPriceId,
       successUrl,
       cancelUrl,
-      consentMessage: PILOT_CONSENT_TEXT,
+      locale: lang,
+      consentMessage: pilotConsentText(lang),
       metadata,
       taxEnabled: taxEnabled(),
       requireTos: process.env.STRIPE_REQUIRE_TOS === "true",
-      businessNameLabel: "Business name (optional)",
+      businessNameLabel: PILOT_I18N[lang].businessNameLabel,
     });
   } catch (e) {
     return { ok: false, status: 502, error: "stripe_error", reason: (e as Error)?.message };
