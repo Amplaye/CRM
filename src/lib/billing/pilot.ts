@@ -58,10 +58,16 @@ export const PILOT_PLANS: Record<
   },
 };
 
+/** The pilot terms page, linked from the Checkout consent text and the landing.
+ * Override per environment with STRIPE_PILOT_TERMS_URL. */
+export const PILOT_TERMS_URL =
+  process.env.STRIPE_PILOT_TERMS_URL || "https://restaurants.baliflowagency.com/terminos-piloto";
+
 export const PILOT_CONSENT_TEXT =
   "You are purchasing a 14-day BALI Flow Pilot for €150. Unless cancelled before " +
   "the pilot ends, your selected subscription will start automatically. The €150 " +
-  "pilot fee will be credited against your first monthly payment.";
+  "pilot fee will be credited against your first monthly payment. " +
+  `Términos del piloto: ${PILOT_TERMS_URL}`;
 
 /** Shared metadata stamped on every Stripe object for this flow (req 9). */
 export function pilotMetadata(plan: PilotPlan, extra?: Record<string, string>): Record<string, string> {
@@ -137,7 +143,8 @@ export function pilotLandingHtml(plan: PilotPlan): string {
     <div class="legal">
       Estás contratando un Piloto de BALI Flow de 14 días por €150. Salvo cancelación antes
       de que termine el piloto, tu suscripción se activará automáticamente. Los €150 del
-      piloto se descontarán de tu primera mensualidad.
+      piloto se descontarán de tu primera mensualidad. Consulta los
+      <a href="${PILOT_TERMS_URL}" target="_blank" rel="noopener" style="color:#0284c7;font-weight:600;">Términos del piloto</a>.
     </div>
     <button id="pay" type="button">Pagar €150 y empezar</button>
     <p class="err" id="err"></p>
