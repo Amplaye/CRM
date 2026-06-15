@@ -11,6 +11,13 @@ import { sendWhatsAppMeta } from '@/lib/whatsapp/meta';
 // don't notify twice.
 //
 // No "table might free up soon" guessing — just a polite status ping.
+
+// The sweep does up to 50 WhatsApp sends; serialised that overruns the
+// function window and n8n logs "connection closed unexpectedly". We batch
+// the language lookup and send in bounded-parallel below, and keep a generous
+// maxDuration as a safety net so the socket never gets cut mid-flight.
+export const maxDuration = 60;
+
 export async function POST(request: Request) {
   const unauth = assertAiSecret(request);
   if (unauth) return unauth;
@@ -30,24 +37,6 @@ export async function POST(request: Request) {
       .lte('created_at', thirtyMinAgo)
       .is('reassurance_sent_at', null)
       .limit(50);
-
-    // Resolve a guest's preferred language from the most recent conversation
-    // in the last 30 days. Falls back to 'es' if no conversation found.
-    const resolveLang = async (tenantId: string, guestId: string): Promise<'es' | 'it' | 'en' | 'de'> => {
-      const sinceISO = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
-      const { data } = await supabase
-        .from('conversations')
-        .select('language')
-        .eq('tenant_id', tenantId)
-        .eq('guest_id', guestId)
-        .in('language', ['es', 'it', 'en', 'de'])
-        .gte('created_at', sinceISO)
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .maybeSingle();
-      const lang = (data?.language as 'es' | 'it' | 'en' | 'de') || 'es';
-      return lang;
-    };
 
     if (error) {
       return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
@@ -73,16 +62,52 @@ export async function POST(request: Request) {
       }
     }
 
-    for (const e of entries as any[]) {
+    // Resolve each guest's preferred language from their most recent
+    // conversation in the last 30 days. Done in ONE query for the whole sweep
+    // (was a per-entry query — the main reason the loop overran). Rows come
+    // back newest-first, so the first hit per guest wins. Falls back to 'es'.
+    const langByGuest = new Map<string, 'es' | 'it' | 'en' | 'de'>();
+    const guestIds = [...new Set((entries as any[]).map((e) => e.guest_id).filter(Boolean))];
+    if (guestIds.length > 0) {
+      const sinceISO = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+      const { data: convs } = await supabase
+        .from('conversations')
+        .select('tenant_id, guest_id, language')
+        .in('tenant_id', tenantIds)
+        .in('guest_id', guestIds)
+        .in('language', ['es', 'it', 'en', 'de'])
+        .gte('created_at', sinceISO)
+        .order('created_at', { ascending: false });
+      for (const c of (convs || []) as any[]) {
+        const key = `${c.tenant_id}:${c.guest_id}`;
+        if (!langByGuest.has(key)) langByGuest.set(key, c.language);
+      }
+    }
+    const resolveLang = (tenantId: string, guestId: string): 'es' | 'it' | 'en' | 'de' =>
+      langByGuest.get(`${tenantId}:${guestId}`) || 'es';
+
+    const stamp = (id: string) =>
+      supabase
+        .from('waitlist_entries')
+        .update({ reassurance_sent_at: new Date().toISOString() })
+        .eq('id', id);
+
+    // Send in bounded-parallel batches so 50 entries don't serialise into a
+    // multi-minute run. Each batch resolves fully before the next starts.
+    const CONCURRENCY = 8;
+    const list = entries as any[];
+    for (let i = 0; i < list.length; i += CONCURRENCY) {
+      const batch = list.slice(i, i + CONCURRENCY);
+      await Promise.all(batch.map((e) => sendOne(e)));
+    }
+
+    async function sendOne(e: any) {
       const phone = e.guests?.phone;
       if (!phone) {
-        await supabase
-          .from('waitlist_entries')
-          .update({ reassurance_sent_at: new Date().toISOString() })
-          .eq('id', e.id);
-        continue;
+        await stamp(e.id);
+        return;
       }
-      const lang = await resolveLang(e.tenant_id, e.guest_id);
+      const lang = resolveLang(e.tenant_id, e.guest_id);
       const M = {
         es:
           `⏳ De momento todas las mesas del turno siguen ocupadas — te escribo apenas se libere una. ` +
@@ -102,12 +127,9 @@ export async function POST(request: Request) {
       const result = await sendWhatsAppMeta(phone, body, fromByTenant.get(e.tenant_id));
       if (!result.ok) {
         failures.push(`${e.id}: meta ${result.status} ${result.errorMessage || ''}`.trim());
-        continue;
+        return;
       }
-      await supabase
-        .from('waitlist_entries')
-        .update({ reassurance_sent_at: new Date().toISOString() })
-        .eq('id', e.id);
+      await stamp(e.id);
       sent++;
     }
 
