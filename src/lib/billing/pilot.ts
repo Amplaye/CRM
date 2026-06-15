@@ -118,21 +118,21 @@ export function pilotLandingHtml(plan: PilotPlan): string {
     border:2px solid #c4956a; box-shadow:0 20px 60px rgba(196,149,106,0.25), 0 8px 24px rgba(196,149,106,0.15); }
   .logo { display:block; height:34px; width:auto; margin:0 0 18px; }
   .brand { font-size:12px; letter-spacing:.1em; text-transform:uppercase; color:#b8845c; font-weight:700; margin:0 0 6px; }
-  h1 { font-size:24px; margin:0 0 4px; color:#18181b; }
-  .sub { color:#6b5b4a; font-size:15px; margin:0 0 22px; }
-  .price { font-size:44px; font-weight:800; margin:0; color:#18181b; }
-  .price small { font-size:17px; font-weight:600; color:#8a7763; }
+  h1 { font-size:24px; margin:0 0 4px; color:#000; }
+  .sub { color:#000; font-size:15px; margin:0 0 22px; }
+  .price { font-size:44px; font-weight:800; margin:0; color:#000; }
+  .price small { font-size:17px; font-weight:600; color:#000; }
   .rows { margin:20px 0; border-top:1px solid rgba(196,149,106,0.30); }
-  .row { display:flex; justify-content:space-between; padding:11px 0; border-bottom:1px solid rgba(196,149,106,0.30); font-size:15px; color:#44403c; }
-  .row span:last-child { font-weight:700; color:#18181b; }
-  .legal { background: rgba(196,149,106,0.10); border:1px solid rgba(196,149,106,0.30); border-radius:12px; padding:14px 16px; font-size:13px; color:#57534e; line-height:1.5; margin:18px 0; }
+  .row { display:flex; justify-content:space-between; padding:11px 0; border-bottom:1px solid rgba(196,149,106,0.30); font-size:15px; color:#000; }
+  .row span:last-child { font-weight:700; color:#000; }
+  .legal { background: rgba(196,149,106,0.10); border:1px solid rgba(196,149,106,0.30); border-radius:12px; padding:14px 16px; font-size:13px; color:#000; line-height:1.5; margin:18px 0; }
   button { width:100%; border:0; border-radius:10px; padding:15px; font-size:17px; font-weight:700; color:#fff;
     background:linear-gradient(135deg,#c4956a 0%,#b8845c 100%); cursor:pointer; transition:filter .15s, box-shadow .15s;
     box-shadow:0 4px 14px rgba(196,149,106,0.35); }
   button:hover { filter:brightness(0.96); box-shadow:0 6px 18px rgba(196,149,106,0.45); }
   button:disabled { filter:grayscale(0.4) opacity(0.6); cursor:default; box-shadow:none; }
   .err { color:#b91c1c; font-size:14px; text-align:center; margin-top:12px; min-height:18px; }
-  .foot { text-align:center; color:#a8a29e; font-size:12px; margin-top:16px; }
+  .foot { text-align:center; color:#000; font-size:12px; margin-top:16px; }
 </style>
 </head>
 <body>
@@ -173,6 +173,61 @@ export function pilotLandingHtml(plan: PilotPlan): string {
       }
     });
   </script>
+</body>
+</html>`;
+}
+
+/** Post-checkout result page (Spanish), served on GET at /api/billing/pilot/done.
+ * Stripe redirects here after a successful payment (status=success) or when the
+ * buyer abandons (status=cancel). Self-contained, same cream/bronze CRM look, black
+ * text — so the customer never lands on the generic /welcome page after paying. */
+export function pilotResultHtml(status: "success" | "cancel"): string {
+  const ok = status === "success";
+  const title = ok ? "¡Pago completado!" : "Pago no completado";
+  const heading = ok ? "Tu Piloto ha comenzado 🎉" : "No se ha completado el pago";
+  const body = ok
+    ? "Hemos recibido tu pago de €150 y tu Piloto de BALI Flow de 14 días ya está activo. " +
+      "Durante el piloto no se te cobrará nada más; pasados los 14 días, salvo cancelación, " +
+      "comenzará tu suscripción y los €150 se descontarán de la primera mensualidad. Recibirás " +
+      "un recibo de Stripe por email y nos pondremos en contacto contigo para la puesta en marcha."
+    : "No se ha realizado ningún cargo. Si ha sido un error, vuelve a abrir el enlace de pago e " +
+      "inténtalo de nuevo. Si necesitas ayuda, escríbenos a info@baliflowagency.com.";
+  return `<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="robots" content="noindex" />
+<title>BALI Flow — ${title}</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;600;700;800&display=swap" rel="stylesheet" />
+<style>
+  :root { color-scheme: light; }
+  * { box-sizing: border-box; }
+  body { margin:0; font-family: 'Geist', ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    background: linear-gradient(to top, #E1CAB2, #ECD7BF, #F4E4CD, #F7EEE0, #FCF6ED) fixed; color:#000;
+    display:flex; min-height:100vh; align-items:center; justify-content:center; padding:24px; }
+  .card { background: rgba(252,246,237,0.92); width:100%; max-width:440px; border-radius:18px; padding:32px; text-align:center;
+    border:2px solid #c4956a; box-shadow:0 20px 60px rgba(196,149,106,0.25), 0 8px 24px rgba(196,149,106,0.15); }
+  .logo { display:block; height:34px; width:auto; margin:0 auto 20px; }
+  .mark { font-size:46px; line-height:1; margin:0 0 10px; }
+  h1 { font-size:23px; margin:0 0 10px; color:#000; }
+  p.msg { color:#000; font-size:15px; line-height:1.6; margin:0 0 22px; }
+  a.cta { display:inline-block; text-decoration:none; border-radius:10px; padding:13px 22px; font-size:16px; font-weight:700;
+    color:#fff; background:linear-gradient(135deg,#c4956a 0%,#b8845c 100%); box-shadow:0 4px 14px rgba(196,149,106,0.35); }
+  .foot { color:#000; font-size:12px; margin-top:18px; }
+</style>
+</head>
+<body>
+  <main class="card">
+    <img class="logo" src="/logo-horizontal.png" alt="BALI Flow" />
+    <div class="mark">${ok ? "✅" : "⚠️"}</div>
+    <h1>${heading}</h1>
+    <p class="msg">${body}</p>
+    <a class="cta" href="https://restaurants.baliflowagency.com">Volver a BALI Flow</a>
+    <p class="foot">BALI Flow · Piloto</p>
+  </main>
 </body>
 </html>`;
 }
