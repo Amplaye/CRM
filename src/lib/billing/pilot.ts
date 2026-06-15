@@ -109,21 +109,23 @@ export function pilotLandingHtml(plan: PilotPlan): string {
   :root { color-scheme: light; }
   * { box-sizing: border-box; }
   body { margin:0; font-family: ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
-    background:#0f172a; color:#0f172a; display:flex; min-height:100vh; align-items:center; justify-content:center; padding:24px; }
+    background: linear-gradient(160deg,#ecfdf5 0%,#d1fae5 100%); color:#064e3b;
+    display:flex; min-height:100vh; align-items:center; justify-content:center; padding:24px; }
   .card { background:#fff; width:100%; max-width:440px; border-radius:20px; padding:32px;
-    box-shadow:0 20px 50px rgba(2,6,23,.35); }
-  .brand { font-size:13px; letter-spacing:.08em; text-transform:uppercase; color:#0ea5e9; font-weight:700; margin:0 0 6px; }
-  h1 { font-size:24px; margin:0 0 4px; }
+    box-shadow:0 20px 50px rgba(6,78,59,.18); border:1px solid #d1fae5; }
+  .logo { display:block; height:34px; width:auto; margin:0 0 18px; }
+  .brand { font-size:12px; letter-spacing:.1em; text-transform:uppercase; color:#059669; font-weight:700; margin:0 0 6px; }
+  h1 { font-size:24px; margin:0 0 4px; color:#064e3b; }
   .sub { color:#475569; font-size:15px; margin:0 0 22px; }
-  .price { font-size:44px; font-weight:800; margin:0; }
-  .price small { font-size:17px; font-weight:600; color:#475569; }
+  .price { font-size:44px; font-weight:800; margin:0; color:#064e3b; }
+  .price small { font-size:17px; font-weight:600; color:#64748b; }
   .rows { margin:20px 0; border-top:1px solid #e2e8f0; }
-  .row { display:flex; justify-content:space-between; padding:11px 0; border-bottom:1px solid #e2e8f0; font-size:15px; }
-  .row span:last-child { font-weight:700; }
-  .legal { background:#f1f5f9; border-radius:12px; padding:14px 16px; font-size:13px; color:#475569; line-height:1.5; margin:18px 0; }
+  .row { display:flex; justify-content:space-between; padding:11px 0; border-bottom:1px solid #e2e8f0; font-size:15px; color:#334155; }
+  .row span:last-child { font-weight:700; color:#064e3b; }
+  .legal { background:#f0fdf4; border:1px solid #d1fae5; border-radius:12px; padding:14px 16px; font-size:13px; color:#475569; line-height:1.5; margin:18px 0; }
   button { width:100%; border:0; border-radius:12px; padding:15px; font-size:17px; font-weight:700; color:#fff;
-    background:#0ea5e9; cursor:pointer; transition:background .15s; }
-  button:hover { background:#0284c7; }
+    background:#059669; cursor:pointer; transition:background .15s; }
+  button:hover { background:#047857; }
   button:disabled { background:#94a3b8; cursor:default; }
   .err { color:#dc2626; font-size:14px; text-align:center; margin-top:12px; min-height:18px; }
   .foot { text-align:center; color:#94a3b8; font-size:12px; margin-top:16px; }
@@ -131,7 +133,8 @@ export function pilotLandingHtml(plan: PilotPlan): string {
 </head>
 <body>
   <main class="card">
-    <p class="brand">BALI Flow · Piloto</p>
+    <img class="logo" src="/logo-horizontal.png" alt="BALI Flow" />
+    <p class="brand">Piloto · 14 días</p>
     <h1>${c.title}</h1>
     <p class="sub">Prueba BALI Flow durante 14 días.</p>
     <p class="price">€150 <small>hoy</small></p>
@@ -144,7 +147,7 @@ export function pilotLandingHtml(plan: PilotPlan): string {
       Estás contratando un Piloto de BALI Flow de 14 días por €150. Salvo cancelación antes
       de que termine el piloto, tu suscripción se activará automáticamente. Los €150 del
       piloto se descontarán de tu primera mensualidad. Consulta los
-      <a href="${PILOT_TERMS_URL}" target="_blank" rel="noopener" style="color:#0284c7;font-weight:600;">Términos del piloto</a>.
+      <a href="${PILOT_TERMS_URL}" target="_blank" rel="noopener" style="color:#047857;font-weight:600;">Términos del piloto</a>.
     </div>
     <button id="pay" type="button">Pagar €150 y empezar</button>
     <p class="err" id="err"></p>
