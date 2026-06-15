@@ -79,6 +79,90 @@ function taxEnabled(): boolean {
   return process.env.STRIPE_TAX_ENABLED === "true";
 }
 
+const PILOT_LANDING_COPY: Record<PilotPlan, { title: string; firstMonth: string; monthly: string }> = {
+  founder: { title: "Plan Fundador", firstMonth: "€149", monthly: "€299/mes" },
+  premium: { title: "Plan Premium", firstMonth: "€249", monthly: "€399/mes" },
+};
+
+/** A self-contained, paste-anywhere landing page (Spanish) served on GET. It does
+ * NOT create a Checkout Session by itself — that only happens when the visitor
+ * clicks the button (a POST to the same URL) — so link-preview bots that fetch the
+ * page don't litter Stripe/DB with throwaway sessions. The button reads {url} from
+ * the POST JSON and redirects to Stripe. */
+export function pilotLandingHtml(plan: PilotPlan): string {
+  const c = PILOT_LANDING_COPY[plan];
+  // Static text only; `plan` is a validated union, so no user input is interpolated.
+  return `<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="robots" content="noindex" />
+<title>BALI Flow — Piloto · ${c.title}</title>
+<style>
+  :root { color-scheme: light; }
+  * { box-sizing: border-box; }
+  body { margin:0; font-family: ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+    background:#0f172a; color:#0f172a; display:flex; min-height:100vh; align-items:center; justify-content:center; padding:24px; }
+  .card { background:#fff; width:100%; max-width:440px; border-radius:20px; padding:32px;
+    box-shadow:0 20px 50px rgba(2,6,23,.35); }
+  .brand { font-size:13px; letter-spacing:.08em; text-transform:uppercase; color:#0ea5e9; font-weight:700; margin:0 0 6px; }
+  h1 { font-size:24px; margin:0 0 4px; }
+  .sub { color:#475569; font-size:15px; margin:0 0 22px; }
+  .price { font-size:44px; font-weight:800; margin:0; }
+  .price small { font-size:17px; font-weight:600; color:#475569; }
+  .rows { margin:20px 0; border-top:1px solid #e2e8f0; }
+  .row { display:flex; justify-content:space-between; padding:11px 0; border-bottom:1px solid #e2e8f0; font-size:15px; }
+  .row span:last-child { font-weight:700; }
+  .legal { background:#f1f5f9; border-radius:12px; padding:14px 16px; font-size:13px; color:#475569; line-height:1.5; margin:18px 0; }
+  button { width:100%; border:0; border-radius:12px; padding:15px; font-size:17px; font-weight:700; color:#fff;
+    background:#0ea5e9; cursor:pointer; transition:background .15s; }
+  button:hover { background:#0284c7; }
+  button:disabled { background:#94a3b8; cursor:default; }
+  .err { color:#dc2626; font-size:14px; text-align:center; margin-top:12px; min-height:18px; }
+  .foot { text-align:center; color:#94a3b8; font-size:12px; margin-top:16px; }
+</style>
+</head>
+<body>
+  <main class="card">
+    <p class="brand">BALI Flow · Piloto</p>
+    <h1>${c.title}</h1>
+    <p class="sub">Prueba BALI Flow durante 14 días.</p>
+    <p class="price">€150 <small>hoy</small></p>
+    <div class="rows">
+      <div class="row"><span>Pago hoy (piloto 14 días)</span><span>€150</span></div>
+      <div class="row"><span>1ª mensualidad (día 14)</span><span>${c.firstMonth}</span></div>
+      <div class="row"><span>Después</span><span>${c.monthly}</span></div>
+    </div>
+    <div class="legal">
+      Estás contratando un Piloto de BALI Flow de 14 días por €150. Salvo cancelación antes
+      de que termine el piloto, tu suscripción se activará automáticamente. Los €150 del
+      piloto se descontarán de tu primera mensualidad.
+    </div>
+    <button id="pay" type="button">Pagar €150 y empezar</button>
+    <p class="err" id="err"></p>
+    <p class="foot">Pago seguro con Stripe · BALI Flow</p>
+  </main>
+  <script>
+    const btn = document.getElementById('pay');
+    const err = document.getElementById('err');
+    btn.addEventListener('click', async () => {
+      btn.disabled = true; btn.textContent = 'Redirigiendo…'; err.textContent = '';
+      try {
+        const r = await fetch(window.location.pathname, { method: 'POST', headers: { 'Accept': 'application/json' } });
+        const d = await r.json();
+        if (d && d.url) { window.location.href = d.url; return; }
+        throw new Error(d && d.reason ? d.reason : 'No se pudo iniciar el pago');
+      } catch (e) {
+        err.textContent = 'No se pudo iniciar el pago. Inténtalo de nuevo.';
+        btn.disabled = false; btn.textContent = 'Pagar €150 y empezar';
+      }
+    });
+  </script>
+</body>
+</html>`;
+}
+
 export type PilotCheckoutResult =
   | { ok: true; url: string; sessionId: string }
   | { ok: false; status: number; error: string; reason?: string };
