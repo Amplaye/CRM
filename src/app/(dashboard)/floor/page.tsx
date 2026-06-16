@@ -1582,15 +1582,15 @@ function PlanCanvas({ tables, resTableLinks, shiftReservations, activeStatuses, 
   const pressStartRef = useRef<{ x: number; y: number } | null>(null);
   const canvasRef = useRef<HTMLDivElement>(null);
   const innerRef = useRef<HTMLDivElement>(null);
-  // The floor is authored in a fixed 600×560 design space but the canvas is
-  // responsive (max 600, smaller on mobile) and never scrolls. We render all
-  // content in a 600×560 layer and CSS-scale it to fit; `scale` tracks the live
-  // factor so the design layer exactly fills the canvas.
-  const [scale, setScale] = useState(1);
+  // Live canvas size. The floor fills the FULL available width at a fixed height
+  // and never scrolls; tables/walls are positioned in real canvas px (undistorted)
+  // and clamped to these bounds. Stored positions stay within 600×560 — on a wider
+  // canvas there's just more empty floor to the right, exactly like before.
+  const [planeSize, setPlaneSize] = useState({ w: 600, h: 560 });
   useEffect(() => {
     const el = canvasRef.current;
     if (!el || typeof ResizeObserver === "undefined") return;
-    const update = () => setScale((el.clientWidth || 600) / 600);
+    const update = () => setPlaneSize({ w: el.clientWidth || 600, h: el.clientHeight || 560 });
     update();
     const ro = new ResizeObserver(update);
     ro.observe(el);
@@ -1611,20 +1611,15 @@ function PlanCanvas({ tables, resTableLinks, shiftReservations, activeStatuses, 
   // Set on wall-drag release to suppress the trailing synthetic canvas click.
   const wallJustDraggedRef = useRef(false);
 
-  // Pointer (clientX/clientY) → coordinates inside the 600×560 DESIGN space.
-  // The plane now scales responsively (width:100%, no scroll), so we normalise the
-  // pointer delta by the rendered size back to the fixed 600×560 basis that table
-  // and wall positions are stored in — otherwise walls would be confined to the
-  // first 600 rendered px on wider screens (the old "invisible collision").
+  // Pointer (clientX/clientY) → real px inside the plane (no scaling). Walls/tables
+  // live in this same px space, so placement spans the full visible floor width.
   const toInnerCoords = useCallback((clientX: number, clientY: number): { x: number; y: number } => {
     const inner = innerRef.current;
     if (!inner) return { x: 0, y: 0 };
     const rect = inner.getBoundingClientRect();
-    const sx = rect.width ? 600 / rect.width : 1;
-    const sy = rect.height ? 560 / rect.height : 1;
     return {
-      x: Math.max(0, Math.round((clientX - rect.left) * sx)),
-      y: Math.max(0, Math.round((clientY - rect.top) * sy)),
+      x: Math.max(0, Math.round(clientX - rect.left)),
+      y: Math.max(0, Math.round(clientY - rect.top)),
     };
   }, []);
 
@@ -1711,12 +1706,7 @@ function PlanCanvas({ tables, resTableLinks, shiftReservations, activeStatuses, 
   // --- Shared drag helpers (mouse + touch) ---
   function startDrag(clientX: number, clientY: number, table: TableData, targetRect: DOMRect) {
     if (!editing || wallMode) return;
-    // Grab offset in DESIGN space (the plane is scaled, so divide on-screen px by
-    // the render scale) — matches toInnerCoords so the table tracks the pointer.
-    const inner = innerRef.current?.getBoundingClientRect();
-    const sx = inner && inner.width ? 600 / inner.width : 1;
-    const sy = inner && inner.height ? 560 / inner.height : 1;
-    dragOffsetRef.current = { x: (clientX - targetRect.left) * sx, y: (clientY - targetRect.top) * sy };
+    dragOffsetRef.current = { x: clientX - targetRect.left, y: clientY - targetRect.top };
     pressStartRef.current = { x: clientX, y: clientY };
     movedRef.current = false;
     setDraggingId(table.id);
@@ -1730,11 +1720,10 @@ function PlanCanvas({ tables, resTableLinks, shiftReservations, activeStatuses, 
       if (dx + dy < 4) return;
       movedRef.current = true;
     }
-    // Pointer in design space minus the design-space grab offset, clamped to the
-    // 600×560 plane (no scroll now, so the table stays on the visible floor).
+    // Pointer in plane px minus the grab offset, clamped to the visible floor.
     const p = toInnerCoords(clientX, clientY);
-    const x = Math.max(0, Math.min(600, p.x - dragOffsetRef.current.x));
-    const y = Math.max(0, Math.min(560, p.y - dragOffsetRef.current.y));
+    const x = Math.max(0, Math.min(planeSize.w, p.x - dragOffsetRef.current.x));
+    const y = Math.max(0, Math.min(planeSize.h, p.y - dragOffsetRef.current.y));
     setLocalPositions((prev) => ({ ...prev, [draggingId]: { x, y } }));
   }
 
@@ -1755,8 +1744,8 @@ function PlanCanvas({ tables, resTableLinks, shiftReservations, activeStatuses, 
   }
 
   // --- Wall drag (reshape/move an existing wall, no wall-mode needed) ---
-  const clampX = (v: number) => Math.max(0, Math.min(600, v));
-  const clampY = (v: number) => Math.max(0, Math.min(560, v));
+  const clampX = (v: number) => Math.max(0, Math.min(planeSize.w, v));
+  const clampY = (v: number) => Math.max(0, Math.min(planeSize.h, v));
 
   function startWallDrag(clientX: number, clientY: number, index: number, part: "a" | "b" | "move") {
     if (!editing) return;
@@ -1779,8 +1768,8 @@ function PlanCanvas({ tables, resTableLinks, shiftReservations, activeStatuses, 
       let dx = p.x - grabX, dy = p.y - grabY;
       const minX = Math.min(orig.x1, orig.x2), maxX = Math.max(orig.x1, orig.x2);
       const minY = Math.min(orig.y1, orig.y2), maxY = Math.max(orig.y1, orig.y2);
-      dx = Math.max(-minX, Math.min(600 - maxX, dx));
-      dy = Math.max(-minY, Math.min(560 - maxY, dy));
+      dx = Math.max(-minX, Math.min(planeSize.w - maxX, dx));
+      dy = Math.max(-minY, Math.min(planeSize.h - maxY, dy));
       seg = { x1: orig.x1 + dx, y1: orig.y1 + dy, x2: orig.x2 + dx, y2: orig.y2 + dy };
     }
     setWallLocal((prev) => ({ ...prev, [index]: seg }));
@@ -1894,14 +1883,13 @@ function PlanCanvas({ tables, resTableLinks, shiftReservations, activeStatuses, 
         if (target.closest("[data-wall-handle]")) return;
         handleWallPoint(e.clientX, e.clientY);
       }}
-      className="relative rounded-xl border-2 mx-auto"
+      className="relative rounded-xl border-2"
       style={{
         overflow: "hidden",
         background: "rgba(252,246,237,0.6)",
         borderColor: "#c4956a",
         width: "100%",
-        maxWidth: "600px",
-        aspectRatio: "600 / 560",
+        height: "560px",
         cursor: wallMode && editing ? "crosshair" : undefined,
       }}
     >
@@ -1913,19 +1901,9 @@ function PlanCanvas({ tables, resTableLinks, shiftReservations, activeStatuses, 
           backgroundSize: innerBackgroundSize,
         }}
       />
-      {/* Design layer: fixed 600×560, CSS-scaled to fill the canvas. All content
-          (tables, walls, handles) is authored in this space, so existing px math
-          stays valid; toInnerCoords reads this layer's scaled rect. */}
-      <div
-        ref={innerRef}
-        className="absolute top-0 left-0"
-        style={{
-          width: "600px",
-          height: "560px",
-          transformOrigin: "top left",
-          transform: `scale(${scale})`,
-        }}
-      >
+      {/* Content layer fills the full plane. Tables/walls are positioned in real
+          plane px (see toInnerCoords), so they span the whole visible floor. */}
+      <div ref={innerRef} className="absolute inset-0">
       {tables.length === 0 && (
         <div className="absolute inset-0 flex items-center justify-center text-sm text-black">
           {editing ? t("floor_plan_empty_edit") : t("floor_plan_empty")}
@@ -1939,7 +1917,7 @@ function PlanCanvas({ tables, resTableLinks, shiftReservations, activeStatuses, 
       {(walls.length > 0 || (wallMode && editing && wallStart)) && (
         <svg
           className="absolute"
-          style={{ top: 0, left: 0, width: "600px", height: "560px", overflow: "visible", zIndex: 1, pointerEvents: "none" }}
+          style={{ top: 0, left: 0, width: "100%", height: "100%", overflow: "visible", zIndex: 1, pointerEvents: "none" }}
         >
           <defs>
             {/* Soft ground shadow cast by the wall. */}
@@ -2156,7 +2134,7 @@ function PlanCanvas({ tables, resTableLinks, shiftReservations, activeStatuses, 
         return (
           <svg
             className="absolute pointer-events-none"
-            style={{ top: 0, left: 0, width: "600px", height: "560px", overflow: "visible", zIndex: 5 }}
+            style={{ top: 0, left: 0, width: "100%", height: "100%", overflow: "visible", zIndex: 5 }}
           >
             {paths.map((p) => (
               <path
