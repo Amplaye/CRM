@@ -37,36 +37,57 @@ type FloorZoneMeta = { name: string; walls?: WallSeg[]; floor?: string };
 // optional `size` overrides the default backgroundSize for that texture.
 type FloorTexture = { key: string; labelKey: string; css: string; size?: string; grid: boolean };
 const FLOOR_TEXTURES: FloorTexture[] = [
-  { key: "neutral", labelKey: "floor_tex_neutral", css: "rgba(252,246,237,0.6)", grid: true },
   {
+    // Soft warm cream with a barely-there diagonal sheen for depth.
+    key: "neutral",
+    labelKey: "floor_tex_neutral",
+    css: "linear-gradient(135deg, rgba(255,255,255,0.5) 0%, transparent 40%), linear-gradient(160deg, #fbf4e9, #f3e8d4)",
+    size: "auto, auto",
+    grid: true,
+  },
+  {
+    // Light oak: grain striations + plank seams (vertical) + staggered end-joints
+    // (horizontal) over a warm gradient, so it reads as real flooring not stripes.
     key: "wood_light",
     labelKey: "floor_tex_wood_light",
-    css: "repeating-linear-gradient(90deg, #e7cfa6 0px, #e7cfa6 26px, #dcc096 26px, #dcc096 28px), linear-gradient(180deg, #ecd8b4, #e2c79c)",
-    size: "auto, auto",
+    css: "repeating-linear-gradient(91deg, rgba(120,82,45,0.10) 0px, rgba(120,82,45,0) 3px, rgba(120,82,45,0) 9px, rgba(255,240,210,0.18) 12px, rgba(120,82,45,0) 16px), linear-gradient(90deg, rgba(90,60,32,0.55) 0px, rgba(90,60,32,0) 2px) , repeating-linear-gradient(90deg, transparent 0px, transparent 78px, rgba(90,60,32,0.45) 78px, rgba(90,60,32,0.45) 80px), repeating-linear-gradient(0deg, transparent 0px, transparent 168px, rgba(90,60,32,0.30) 168px, rgba(90,60,32,0.30) 170px), linear-gradient(180deg, #ecd8b4, #e0c595)",
+    size: "120px 100%, 80px 100%, auto, auto, auto",
     grid: false,
   },
   {
+    // Dark walnut: same plank logic, deeper tones, warmer grain highlights.
     key: "wood_dark",
     labelKey: "floor_tex_wood_dark",
-    css: "repeating-linear-gradient(90deg, #6e4a2f 0px, #6e4a2f 26px, #5d3d26 26px, #5d3d26 28px), linear-gradient(180deg, #745034, #5a3a23)",
-    size: "auto, auto",
+    css: "repeating-linear-gradient(91deg, rgba(0,0,0,0.18) 0px, rgba(0,0,0,0) 3px, rgba(0,0,0,0) 9px, rgba(180,120,70,0.20) 12px, rgba(0,0,0,0) 16px), repeating-linear-gradient(90deg, transparent 0px, transparent 78px, rgba(0,0,0,0.55) 78px, rgba(0,0,0,0.55) 80px), repeating-linear-gradient(0deg, transparent 0px, transparent 168px, rgba(0,0,0,0.40) 168px, rgba(0,0,0,0.40) 170px), linear-gradient(180deg, #6b4630, #4d3120)",
+    size: "120px 100%, auto, auto, auto",
     grid: false,
   },
   {
+    // Terracotta tiles: real grout lines on both axes + a soft per-tile sheen and
+    // a baked-clay vertical tone gradient.
     key: "terracotta",
     labelKey: "floor_tex_terracotta",
-    css: "repeating-linear-gradient(0deg, transparent 0px, transparent 44px, rgba(255,255,255,0.35) 44px, rgba(255,255,255,0.35) 48px), repeating-linear-gradient(90deg, transparent 0px, transparent 44px, rgba(255,255,255,0.35) 44px, rgba(255,255,255,0.35) 48px), linear-gradient(180deg, #c96f43, #b85e36)",
-    size: "auto, auto, auto",
+    css: "radial-gradient(circle at 30% 25%, rgba(255,230,200,0.30) 0%, transparent 55%), repeating-linear-gradient(0deg, transparent 0px, transparent 44px, rgba(90,40,20,0.45) 44px, rgba(120,60,35,0.30) 46px, rgba(90,40,20,0.45) 48px), repeating-linear-gradient(90deg, transparent 0px, transparent 44px, rgba(90,40,20,0.45) 44px, rgba(120,60,35,0.30) 46px, rgba(90,40,20,0.45) 48px), linear-gradient(180deg, #cf7849, #b25530)",
+    size: "48px 48px, auto, auto, auto",
     grid: false,
   },
   {
+    // Polished marble: two soft diagonal veins + a faint cross vein over a cool
+    // off-white gradient with a corner highlight.
     key: "marble",
     labelKey: "floor_tex_marble",
-    css: "linear-gradient(135deg, rgba(180,180,190,0.35) 0%, transparent 22%), linear-gradient(45deg, rgba(170,170,185,0.3) 0%, transparent 30%), linear-gradient(180deg, #f3f3f6, #e6e6ee)",
-    size: "auto, auto, auto",
+    css: "linear-gradient(115deg, transparent 38%, rgba(150,150,165,0.35) 39%, transparent 41%, transparent 58%, rgba(140,140,158,0.25) 59%, transparent 61%), linear-gradient(60deg, transparent 70%, rgba(160,160,175,0.22) 72%, transparent 75%), radial-gradient(circle at 18% 12%, rgba(255,255,255,0.7) 0%, transparent 40%), linear-gradient(180deg, #f6f6f9, #e7e7ef)",
+    size: "auto, auto, auto, auto",
     grid: false,
   },
-  { key: "sage", labelKey: "floor_tex_sage", css: "linear-gradient(180deg, #cdd8c2, #bccab0)", grid: true },
+  {
+    // Sage with a gentle vertical falloff + top highlight for a matte painted look.
+    key: "sage",
+    labelKey: "floor_tex_sage",
+    css: "linear-gradient(135deg, rgba(255,255,255,0.35) 0%, transparent 38%), linear-gradient(180deg, #d2dcc7, #b6c5a8)",
+    size: "auto, auto",
+    grid: true,
+  },
 ];
 function floorTextureFor(key?: string): FloorTexture {
   return FLOOR_TEXTURES.find((tx) => tx.key === key) || FLOOR_TEXTURES[0];
