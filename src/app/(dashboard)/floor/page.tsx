@@ -418,6 +418,15 @@ export default function FloorPage() {
     },
     [updateZoneMeta, currentZone, currentWalls]
   );
+  // Replace one wall (by index) — used when a wall is dragged/reshaped.
+  const updateWall = useCallback(
+    (index: number, seg: WallSeg) => {
+      updateZoneMeta(currentZone, {
+        walls: currentWalls.map((w, i) => (i === index ? seg : w)),
+      });
+    },
+    [updateZoneMeta, currentZone, currentWalls]
+  );
   // Remove one wall (by index) from the current zone and persist.
   const deleteWall = useCallback(
     (index: number) => {
@@ -1160,9 +1169,11 @@ export default function FloorPage() {
                       </button>
                     )}
                   </div>
-                  {wallMode && (
-                    <p className="text-[10px] text-black mt-1 max-w-[260px]">{t("floor_walls_hint") || "Tap two points to draw a wall. Tap a wall to delete it."}</p>
-                  )}
+                  {wallMode ? (
+                    <p className="text-[10px] text-black mt-1 max-w-[260px]">{t("floor_walls_hint") || "Click the start point, then the end point to draw a wall. Press Esc to cancel."}</p>
+                  ) : currentWalls.length > 0 ? (
+                    <p className="text-[10px] text-black mt-1 max-w-[260px]">{t("floor_walls_edit_hint") || "Drag a wall to move it, drag its endpoints to reshape, or tap the red dot to delete."}</p>
+                  ) : null}
                 </div>
 
                 {/* Floor texture */}
@@ -1206,6 +1217,7 @@ export default function FloorPage() {
               walls={currentWalls}
               floorTexture={currentFloor}
               onAddWall={addWall}
+              onUpdateWall={updateWall}
               onDeleteWall={deleteWall}
               onTableMove={persistTablePosition}
               onTableRotate={rotateTable}
@@ -1528,6 +1540,7 @@ interface PlanCanvasProps {
   /** Floor-texture key for the active zone. */
   floorTexture: string;
   onAddWall: (seg: WallSeg) => void;
+  onUpdateWall: (index: number, seg: WallSeg) => void;
   onDeleteWall: (index: number) => void;
   onTableMove: (id: string, x: number, y: number) => void;
   onTableRotate: (id: string, rotation: number) => void;
@@ -1535,7 +1548,7 @@ interface PlanCanvasProps {
   t: (key: any) => string;
 }
 
-function PlanCanvas({ tables, resTableLinks, shiftReservations, activeStatuses, editing, wallMode, walls, floorTexture, onAddWall, onDeleteWall, onTableMove, onTableRotate, onTableClick, t }: PlanCanvasProps) {
+function PlanCanvas({ tables, resTableLinks, shiftReservations, activeStatuses, editing, wallMode, walls, floorTexture, onAddWall, onUpdateWall, onDeleteWall, onTableMove, onTableRotate, onTableClick, t }: PlanCanvasProps) {
   // Local optimistic positions during drag
   const [localPositions, setLocalPositions] = useState<Record<string, { x: number; y: number }>>({});
   // Local optimistic rotation after the gira button — survives the realtime
@@ -1555,6 +1568,13 @@ function PlanCanvas({ tables, resTableLinks, shiftReservations, activeStatuses, 
   // canvas px.
   const [wallStart, setWallStart] = useState<{ x: number; y: number } | null>(null);
   const [wallCursor, setWallCursor] = useState<{ x: number; y: number } | null>(null);
+  // Wall editing (no wall-mode needed): drag an endpoint ("a"/"b") or the whole
+  // segment ("move"). `wallDrag` holds which wall + which part is being dragged
+  // plus the grab offset; `wallLocal` is the optimistic geometry while dragging.
+  const [wallDrag, setWallDrag] = useState<
+    { index: number; part: "a" | "b" | "move"; grabX: number; grabY: number; orig: WallSeg } | null
+  >(null);
+  const [wallLocal, setWallLocal] = useState<Record<number, WallSeg>>({});
 
   // Pointer (clientX/clientY) → coordinates inside the 600×560 inner plane,
   // accounting for canvas scroll. Same basis as table positions.
@@ -1595,6 +1615,19 @@ function PlanCanvas({ tables, resTableLinks, shiftReservations, activeStatuses, 
       setWallCursor(null);
     }
   }, [wallMode, editing]);
+
+  // Escape cancels a half-drawn wall (start placed but no end yet).
+  useEffect(() => {
+    if (!(wallMode && editing && wallStart)) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setWallStart(null);
+        setWallCursor(null);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [wallMode, editing, wallStart]);
 
   // Reset local positions when tables change from the server
   const tablesKey = tables.map((t) => t.id + ":" + t.position_x + ":" + t.position_y).join("|");
@@ -1678,6 +1711,53 @@ function PlanCanvas({ tables, resTableLinks, shiftReservations, activeStatuses, 
     movedRef.current = false;
   }
 
+  // --- Wall drag (reshape/move an existing wall, no wall-mode needed) ---
+  const clampX = (v: number) => Math.max(0, Math.min(600, v));
+  const clampY = (v: number) => Math.max(0, Math.min(560, v));
+
+  function startWallDrag(clientX: number, clientY: number, index: number, part: "a" | "b" | "move") {
+    if (!editing) return;
+    const p = toInnerCoords(clientX, clientY);
+    setWallDrag({ index, part, grabX: p.x, grabY: p.y, orig: walls[index] });
+  }
+
+  function moveWallDrag(clientX: number, clientY: number) {
+    if (!wallDrag) return;
+    const p = toInnerCoords(clientX, clientY);
+    const { index, part, grabX, grabY, orig } = wallDrag;
+    let seg: WallSeg;
+    if (part === "a") {
+      seg = { ...orig, x1: clampX(p.x), y1: clampY(p.y) };
+    } else if (part === "b") {
+      seg = { ...orig, x2: clampX(p.x), y2: clampY(p.y) };
+    } else {
+      const dx = p.x - grabX, dy = p.y - grabY;
+      seg = {
+        x1: clampX(orig.x1 + dx), y1: clampY(orig.y1 + dy),
+        x2: clampX(orig.x2 + dx), y2: clampY(orig.y2 + dy),
+      };
+    }
+    setWallLocal((prev) => ({ ...prev, [index]: seg }));
+  }
+
+  function endWallDrag() {
+    if (!wallDrag) return;
+    const { index } = wallDrag;
+    const seg = wallLocal[index];
+    setWallDrag(null);
+    if (seg) {
+      onUpdateWall(index, seg);
+      // Keep the optimistic geometry until the parent prop reflects it, then it
+      // gets cleared by the walls-changed effect below.
+    }
+  }
+
+  // Drop optimistic wall geometry once the parent walls prop changes (persisted).
+  const wallsKey = walls.map((w) => `${w.x1},${w.y1},${w.x2},${w.y2}`).join("|");
+  useEffect(() => {
+    setWallLocal({});
+  }, [wallsKey]);
+
   // --- Mouse handlers ---
   function handleMouseDown(e: React.MouseEvent, table: TableData) {
     if (!editing || wallMode) return; // wall mode: let the click reach the canvas
@@ -1688,10 +1768,12 @@ function PlanCanvas({ tables, resTableLinks, shiftReservations, activeStatuses, 
 
   function handleMouseMove(e: React.MouseEvent) {
     moveDrag(e.clientX, e.clientY);
+    moveWallDrag(e.clientX, e.clientY);
   }
 
   function handleMouseUp() {
     endDrag();
+    endWallDrag();
   }
 
   // --- Touch handlers ---
@@ -1703,6 +1785,7 @@ function PlanCanvas({ tables, resTableLinks, shiftReservations, activeStatuses, 
 
   function handleTouchEnd() {
     endDrag();
+    endWallDrag();
   }
 
   // Block canvas scroll while dragging a table (native listener with passive:false).
@@ -1718,6 +1801,12 @@ function PlanCanvas({ tables, resTableLinks, shiftReservations, activeStatuses, 
         setWallCursor(toInnerCoords(touch.clientX, touch.clientY));
         return;
       }
+      if (wallDrag) {
+        e.preventDefault();
+        const touch = e.touches[0];
+        moveWallDrag(touch.clientX, touch.clientY);
+        return;
+      }
       if (!draggingId) return; // allow normal scroll when not dragging
       e.preventDefault();
       const touch = e.touches[0];
@@ -1728,7 +1817,7 @@ function PlanCanvas({ tables, resTableLinks, shiftReservations, activeStatuses, 
   });
 
   // Lock overflow on canvas while dragging (or mid-wall) to prevent any scroll.
-  const canvasOverflow = draggingId || (wallMode && editing && wallStart) ? "hidden" : "auto";
+  const canvasOverflow = draggingId || wallDrag || (wallMode && editing && wallStart) ? "hidden" : "auto";
 
   // Resolve the active zone's floor texture → CSS background for the inner plane.
   const tex = floorTextureFor(floorTexture);
@@ -1793,33 +1882,99 @@ function PlanCanvas({ tables, resTableLinks, shiftReservations, activeStatuses, 
           className="absolute"
           style={{ top: 0, left: 0, width: "600px", height: "560px", overflow: "visible", zIndex: 1, pointerEvents: "none" }}
         >
-          {walls.map((w, i) => (
-            <g key={`wall-${i}`}>
-              <line
-                x1={w.x1} y1={w.y1} x2={w.x2} y2={w.y2}
-                stroke="#3a2f25" strokeWidth={6} strokeLinecap="round"
-              />
-              {editing && (
-                <circle
-                  data-wall-handle="1"
-                  cx={(w.x1 + w.x2) / 2} cy={(w.y1 + w.y2) / 2} r={9}
-                  fill="#fff" stroke="#dc2626" strokeWidth={2}
-                  style={{ pointerEvents: "auto", cursor: "pointer" }}
-                  onClick={(e) => { e.stopPropagation(); onDeleteWall(i); }}
+          {walls.map((raw, i) => {
+            const w = wallLocal[i] ?? raw;
+            const mx = (w.x1 + w.x2) / 2, my = (w.y1 + w.y2) / 2;
+            // Delete button sits just off the midpoint, perpendicular to the wall,
+            // so it never overlaps the drag handles.
+            const dx = w.x2 - w.x1, dy = w.y2 - w.y1;
+            const len = Math.hypot(dx, dy) || 1;
+            const ox = (-dy / len) * 18, oy = (dx / len) * 18;
+            const active = wallDrag?.index === i;
+            return (
+              <g key={`wall-${i}`}>
+                {/* Wall body — wide invisible hit-area lets you grab and move the
+                    whole segment in edit mode (cursor: move). */}
+                <line
+                  x1={w.x1} y1={w.y1} x2={w.x2} y2={w.y2}
+                  stroke="#3a2f25" strokeWidth={6} strokeLinecap="round"
+                  opacity={active ? 0.9 : 1}
                 />
-              )}
-            </g>
-          ))}
+                {editing && (
+                  <>
+                    <line
+                      data-wall-handle="1"
+                      x1={w.x1} y1={w.y1} x2={w.x2} y2={w.y2}
+                      stroke="transparent" strokeWidth={22} strokeLinecap="round"
+                      style={{ pointerEvents: "auto", cursor: "move" }}
+                      onMouseDown={(e) => { e.stopPropagation(); e.preventDefault(); startWallDrag(e.clientX, e.clientY, i, "move"); }}
+                      onTouchStart={(e) => { e.stopPropagation(); const t0 = e.touches[0]; startWallDrag(t0.clientX, t0.clientY, i, "move"); }}
+                    />
+                    {/* Endpoint reshape handles */}
+                    {(["a", "b"] as const).map((part) => {
+                      const hx = part === "a" ? w.x1 : w.x2;
+                      const hy = part === "a" ? w.y1 : w.y2;
+                      return (
+                        <circle
+                          key={part}
+                          data-wall-handle="1"
+                          cx={hx} cy={hy} r={8}
+                          fill="#fff" stroke="#c4956a" strokeWidth={2.5}
+                          style={{ pointerEvents: "auto", cursor: "grab" }}
+                          onMouseDown={(e) => { e.stopPropagation(); e.preventDefault(); startWallDrag(e.clientX, e.clientY, i, part); }}
+                          onTouchStart={(e) => { e.stopPropagation(); const t0 = e.touches[0]; startWallDrag(t0.clientX, t0.clientY, i, part); }}
+                        />
+                      );
+                    })}
+                    {/* Delete button — only when not mid-drag, offset off the midpoint */}
+                    {!active && (
+                      <g
+                        data-wall-handle="1"
+                        style={{ pointerEvents: "auto", cursor: "pointer" }}
+                        onClick={(e) => { e.stopPropagation(); onDeleteWall(i); }}
+                        onMouseDown={(e) => e.stopPropagation()}
+                      >
+                        <circle cx={mx + ox} cy={my + oy} r={9} fill="#fff" stroke="#dc2626" strokeWidth={2} />
+                        <line x1={mx + ox - 4} y1={my + oy} x2={mx + ox + 4} y2={my + oy} stroke="#dc2626" strokeWidth={2} strokeLinecap="round" />
+                      </g>
+                    )}
+                  </>
+                )}
+              </g>
+            );
+          })}
           {/* Live preview while placing the second endpoint */}
           {wallMode && editing && wallStart && wallCursor && (
-            <line
-              x1={wallStart.x} y1={wallStart.y} x2={wallCursor.x} y2={wallCursor.y}
-              stroke="#3a2f25" strokeWidth={6} strokeLinecap="round"
-              strokeDasharray="8 6" strokeOpacity={0.6}
-            />
+            <g pointerEvents="none">
+              <line
+                x1={wallStart.x} y1={wallStart.y} x2={wallCursor.x} y2={wallCursor.y}
+                stroke="#3a2f25" strokeWidth={6} strokeLinecap="round"
+                strokeDasharray="8 6" strokeOpacity={0.65}
+              />
+              {/* Endpoint following the cursor */}
+              <circle cx={wallCursor.x} cy={wallCursor.y} r={6} fill="#fff" stroke="#3a2f25" strokeWidth={2} />
+              {/* Length label near the cursor */}
+              {(() => {
+                const L = Math.round(Math.hypot(wallCursor.x - wallStart.x, wallCursor.y - wallStart.y));
+                if (L < 8) return null;
+                return (
+                  <g>
+                    <rect x={wallCursor.x + 10} y={wallCursor.y - 22} width={String(L).length * 9 + 14} height={18} rx={5} fill="#3a2f25" opacity={0.9} />
+                    <text x={wallCursor.x + 17} y={wallCursor.y - 9} fontSize={11} fill="#fff" fontFamily="inherit">{L}</text>
+                  </g>
+                );
+              })()}
+            </g>
           )}
+          {/* Start marker — a pulsing ring so it's obvious the first point is set */}
           {wallMode && editing && wallStart && (
-            <circle cx={wallStart.x} cy={wallStart.y} r={5} fill="#3a2f25" />
+            <g pointerEvents="none">
+              <circle cx={wallStart.x} cy={wallStart.y} r={7} fill="#c4956a" />
+              <circle cx={wallStart.x} cy={wallStart.y} r={11} fill="none" stroke="#c4956a" strokeWidth={2} opacity={0.5}>
+                <animate attributeName="r" values="9;15;9" dur="1.4s" repeatCount="indefinite" />
+                <animate attributeName="opacity" values="0.5;0;0.5" dur="1.4s" repeatCount="indefinite" />
+              </circle>
+            </g>
           )}
         </svg>
       )}
