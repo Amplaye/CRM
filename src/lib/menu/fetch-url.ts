@@ -239,9 +239,32 @@ export async function fetchUrlContent(rawUrl: string): Promise<FetchResult> {
     if (html.length > MAX_BYTES) return { ok: false, reason: 'too_large' };
     const cleaned = extractVisibleText(html);
     if (cleaned.length < 200) {
-      // SPA shell (TheFork, Flipdish, etc.) → body is too thin for any AI
-      // extraction. We refuse early so the user gets a real error instead
-      // of an empty extracted menu.
+      // Thin HTML body — direct fetch saw no menu. Two real-world shapes hide
+      // here; handle the cheap/precise one before the expensive one.
+      //
+      // (a) A language-splash / "menu" landing page that just links to the
+      //     actual menu PDFs (e.g. segretodipulcinella.com/menu → three
+      //     menu-XXX.pdf links behind flag icons). Following the PDF is both
+      //     free and higher-fidelity than rendering, so we try it first.
+      const pdfLink = firstPdfLink(html, url);
+      if (pdfLink) {
+        const viaPdf = await fetchUrlContent(pdfLink);
+        // Only accept a binary result; if the "PDF" link itself turned out to
+        // be HTML we fall through rather than loop.
+        if (viaPdf.ok && viaPdf.kind === 'binary') return viaPdf;
+      }
+
+      // (b) A genuine SPA whose body is empty until JS runs (TheFork, Flipdish,
+      //     the misterrestaurant.io service-worker PWA, …). Render it headless
+      //     via Firecrawl, which executes the page's JS and returns the
+      //     populated content as markdown. Only fires if FIRECRAWL_API_KEY is
+      //     set — without it the behaviour is exactly as before.
+      const rendered = await tryRenderWithFirecrawl(url.toString());
+      if (rendered && rendered.length >= 200) {
+        return { ok: true, kind: 'text', text: rendered };
+      }
+      // Nothing worked → tell the user to screenshot/PDF the menu instead of
+      // returning an empty extraction.
       return {
         ok: false,
         reason: 'spa_no_content',
@@ -286,4 +309,71 @@ export function extractVisibleText(html: string): string {
   // Collapse whitespace.
   s = s.replace(/[\t\r]+/g, ' ').replace(/\n{3,}/g, '\n\n').replace(/ {2,}/g, ' ');
   return s.trim();
+}
+
+// Find the first link to a PDF in an HTML page and resolve it against the page
+// URL. Used when a thin "menu" landing page is really just a chooser that links
+// to the actual menu PDF(s) (language-splash pages, QR redirector pages, …).
+// Returns an absolute URL string, or null if the page links no PDF.
+//
+// We match href="...pdf" (optionally with a ?query) case-insensitively and take
+// the first hit — menu landing pages list languages in order, so the first PDF
+// is a fine default (the user reviews the extracted menu regardless). Kept as a
+// regex (not a DOM parse) to mirror extractVisibleText's lightweight approach.
+export function firstPdfLink(html: string, base: URL): string | null {
+  const re = /href\s*=\s*["']([^"']+?\.pdf(?:\?[^"']*)?)["']/gi;
+  const found = re.exec(html);
+  if (!found) return null;
+  try {
+    return new URL(found[1], base).toString();
+  } catch {
+    return null;
+  }
+}
+
+// Headless-render fallback for JS-driven menu pages (SPAs whose raw HTML is
+// empty). Delegates to Firecrawl so we don't bundle Chromium: it runs the
+// page's JS server-side and hands back the populated content as markdown,
+// which feeds the same text-extraction path as a static page.
+//
+// Returns the markdown (trimmed) on success, or null on ANY of: no API key
+// configured, network/HTTP error, non-success body, empty content. Every
+// failure is swallowed so the caller cleanly falls back to spa_no_content —
+// the render is strictly best-effort, never a hard dependency.
+const FIRECRAWL_ENDPOINT = 'https://api.firecrawl.dev/v2/scrape';
+const FIRECRAWL_TIMEOUT_MS = 30_000; // headless render is slow; allow generous headroom
+
+async function tryRenderWithFirecrawl(targetUrl: string): Promise<string | null> {
+  const apiKey = process.env.FIRECRAWL_API_KEY;
+  if (!apiKey) return null;
+
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), FIRECRAWL_TIMEOUT_MS);
+  try {
+    const res = await fetch(FIRECRAWL_ENDPOINT, {
+      method: 'POST',
+      signal: ctrl.signal,
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        url: targetUrl,
+        formats: ['markdown'],
+        onlyMainContent: true,
+      }),
+    });
+    if (!res.ok) return null;
+    const json = (await res.json().catch(() => null)) as
+      | { success?: boolean; data?: { markdown?: string } }
+      | null;
+    const md = json?.data?.markdown;
+    if (typeof md !== 'string') return null;
+    const trimmed = md.trim();
+    return trimmed.length > 0 ? trimmed : null;
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timer);
+  }
 }
