@@ -1211,7 +1211,10 @@ export default function FloorPage() {
               </div>
             )}
 
-            {/* Canvas */}
+            {/* Canvas — horizontally scrollable on tablet/mobile (< lg) so the
+                full-width floor plan stays usable on narrow screens; on lg+ it
+                fills the available width and never scrolls. */}
+            <div className="overflow-x-auto lg:overflow-visible -mx-1 px-1">
             <PlanCanvas
               key={currentZone}
               tables={zoneTables}
@@ -1243,6 +1246,7 @@ export default function FloorPage() {
               }}
               t={t}
             />
+            </div>
           </div>
         )}
       </div>
@@ -1870,7 +1874,7 @@ function PlanCanvas({ tables, resTableLinks, shiftReservations, activeStatuses, 
         if (target.closest("[data-wall-handle]")) return;
         handleWallPoint(e.clientX, e.clientY);
       }}
-      className="relative rounded-xl border-2"
+      className="relative rounded-xl border-2 min-w-[640px] lg:min-w-0"
       style={{
         overflow: "hidden",
         background: "rgba(252,246,237,0.6)",
