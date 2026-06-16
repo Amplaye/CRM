@@ -1757,7 +1757,7 @@ function PlanCanvas({ tables, resTableLinks, shiftReservations, activeStatuses, 
         if (target.closest("[data-wall-handle]")) return;
         handleWallPoint(e.clientX, e.clientY);
       }}
-      className="relative rounded-xl border-2"
+      className="relative rounded-xl border-2 floor-scroll"
       style={{
         overflow: canvasOverflow,
         background: "rgba(252,246,237,0.6)",
