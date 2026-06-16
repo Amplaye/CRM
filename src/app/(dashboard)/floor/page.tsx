@@ -51,7 +51,7 @@ const FLOOR_TEXTURES: FloorTexture[] = [
     key: "wood_light",
     labelKey: "floor_tex_wood_light",
     css: "url(/floors/parquet_oak.webp)",
-    size: "120px 120px",
+    size: "260px 260px",
     grid: false,
   },
   {
@@ -59,7 +59,7 @@ const FLOOR_TEXTURES: FloorTexture[] = [
     key: "wood_dark",
     labelKey: "floor_tex_wood_dark",
     css: "url(/floors/parquet_walnut.webp)",
-    size: "120px 120px",
+    size: "260px 260px",
     grid: false,
   },
   {
@@ -67,7 +67,7 @@ const FLOOR_TEXTURES: FloorTexture[] = [
     key: "terracotta",
     labelKey: "floor_tex_terracotta",
     css: "url(/floors/cotto.webp)",
-    size: "120px 120px",
+    size: "230px 230px",
     grid: false,
   },
   {
@@ -75,7 +75,7 @@ const FLOOR_TEXTURES: FloorTexture[] = [
     key: "marble",
     labelKey: "floor_tex_marble",
     css: "url(/floors/marble.webp)",
-    size: "200px 200px",
+    size: "360px 360px",
     grid: false,
   },
   {
@@ -83,7 +83,7 @@ const FLOOR_TEXTURES: FloorTexture[] = [
     key: "sage",
     labelKey: "floor_tex_sage",
     css: "url(/floors/sage.webp)",
-    size: "160px 160px",
+    size: "300px 300px",
     grid: false,
   },
 ];
@@ -1209,7 +1209,10 @@ export default function FloorPage() {
                           className="flex items-center justify-center w-11 h-11 rounded-lg transition-transform"
                           style={{
                             background: tx.css,
-                            backgroundSize: tx.size || "20px 20px",
+                            // Swatch shows the whole tile (its native size) so the
+                            // pattern is recognisable, independent of the larger
+                            // size used on the actual floor.
+                            backgroundSize: tx.key === "neutral" ? "auto" : "cover",
                             border: selected ? "3px solid #c4956a" : "2px solid rgba(196,149,106,0.45)",
                             boxShadow: selected ? "0 0 0 2px rgba(255,255,255,0.7) inset" : undefined,
                           }}
