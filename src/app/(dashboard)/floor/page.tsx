@@ -36,57 +36,80 @@ type FloorZoneMeta = { name: string; walls?: WallSeg[]; floor?: string };
 // strong textures (wood/marble) hide it so the pattern stays legible. The
 // optional `size` overrides the default backgroundSize for that texture.
 type FloorTexture = { key: string; labelKey: string; css: string; size?: string; grid: boolean };
+// Herringbone parquet, pure CSS — real interlocking spina-di-pesce. Recipe: two
+// diagonal board sets (+45° / −45°). Each set is split into two half-phase
+// `repeating-linear-gradient`s — one drawing board tone `a` on the first half of
+// every 2·W band, the other drawing tone `b` on the second half but shifted by
+// 2·W (half the 4·W motif). The opposite-diagonal pair fills the gaps the first
+// pair leaves transparent, so the boards weave into L-shaped chevrons instead of
+// plain stripes. `W` = plank width; the motif tiles at 4·W. Two faint grain
+// striations sit on top. Per-layer sizes/offsets are baked in, so the caller's
+// `size` is just "auto". Verified by screenshot before shipping.
+function herringbone(a: string, b: string, sheen: string, W = 22): string {
+  const P = `${4 * W}px`, O = `${2 * W}px`, w = `${W}px`, o = O;
+  return [
+    `repeating-linear-gradient(45deg, ${sheen} 0 1px, transparent 1px 8px)`,
+    `repeating-linear-gradient(-45deg, ${sheen} 0 1px, transparent 1px 8px)`,
+    `repeating-linear-gradient(45deg, ${a} 0 ${w}, transparent ${w} ${o}) 0 0/${P} ${P}`,
+    `repeating-linear-gradient(45deg, transparent 0 ${w}, ${b} ${w} ${o}) ${O} ${O}/${P} ${P}`,
+    `repeating-linear-gradient(-45deg, ${a} 0 ${w}, transparent ${w} ${o}) 0 0/${P} ${P}`,
+    `repeating-linear-gradient(-45deg, transparent 0 ${w}, ${b} ${w} ${o}) ${O} ${O}/${P} ${P}`,
+    a,
+  ].join(", ");
+}
+
 const FLOOR_TEXTURES: FloorTexture[] = [
   {
-    // Soft warm cream with a barely-there diagonal sheen for depth.
+    // Warm woven-linen: a fine micro-weave (two faint cross hatches) over a cream
+    // gradient — subtle, brand-cream, never busy.
     key: "neutral",
     labelKey: "floor_tex_neutral",
-    css: "linear-gradient(135deg, rgba(255,255,255,0.5) 0%, transparent 40%), linear-gradient(160deg, #fbf4e9, #f3e8d4)",
-    size: "auto, auto",
+    css: "repeating-linear-gradient(0deg, rgba(150,110,70,0.05) 0 1px, transparent 1px 5px), repeating-linear-gradient(90deg, rgba(150,110,70,0.05) 0 1px, transparent 1px 5px), radial-gradient(120% 90% at 20% 10%, rgba(255,255,255,0.7) 0%, transparent 45%), linear-gradient(160deg, #fbf4e9, #efe2cd)",
+    size: "5px 5px, 5px 5px, auto, auto",
     grid: true,
   },
   {
-    // Light oak: grain striations + plank seams (vertical) + staggered end-joints
-    // (horizontal) over a warm gradient, so it reads as real flooring not stripes.
+    // Light-oak herringbone parquet.
     key: "wood_light",
     labelKey: "floor_tex_wood_light",
-    css: "repeating-linear-gradient(91deg, rgba(120,82,45,0.10) 0px, rgba(120,82,45,0) 3px, rgba(120,82,45,0) 9px, rgba(255,240,210,0.18) 12px, rgba(120,82,45,0) 16px), linear-gradient(90deg, rgba(90,60,32,0.55) 0px, rgba(90,60,32,0) 2px) , repeating-linear-gradient(90deg, transparent 0px, transparent 78px, rgba(90,60,32,0.45) 78px, rgba(90,60,32,0.45) 80px), repeating-linear-gradient(0deg, transparent 0px, transparent 168px, rgba(90,60,32,0.30) 168px, rgba(90,60,32,0.30) 170px), linear-gradient(180deg, #ecd8b4, #e0c595)",
-    size: "120px 100%, 80px 100%, auto, auto, auto",
+    css: herringbone("#e6caa0", "#cfac74", "rgba(120,82,45,0.16)"),
+    size: "auto",
     grid: false,
   },
   {
-    // Dark walnut: same plank logic, deeper tones, warmer grain highlights.
+    // Walnut herringbone parquet — the brand-warm hero floor.
     key: "wood_dark",
     labelKey: "floor_tex_wood_dark",
-    css: "repeating-linear-gradient(91deg, rgba(0,0,0,0.18) 0px, rgba(0,0,0,0) 3px, rgba(0,0,0,0) 9px, rgba(180,120,70,0.20) 12px, rgba(0,0,0,0) 16px), repeating-linear-gradient(90deg, transparent 0px, transparent 78px, rgba(0,0,0,0.55) 78px, rgba(0,0,0,0.55) 80px), repeating-linear-gradient(0deg, transparent 0px, transparent 168px, rgba(0,0,0,0.40) 168px, rgba(0,0,0,0.40) 170px), linear-gradient(180deg, #6b4630, #4d3120)",
-    size: "120px 100%, auto, auto, auto",
+    css: herringbone("#805536", "#5f3a21", "rgba(196,149,106,0.26)"),
+    size: "auto",
     grid: false,
   },
   {
-    // Terracotta tiles: real grout lines on both axes + a soft per-tile sheen and
-    // a baked-clay vertical tone gradient.
+    // Cotto: hand-laid clay tiles with per-tile tone variation (offset radial
+    // glows on a 2-tile cell) + real grout on both axes.
     key: "terracotta",
     labelKey: "floor_tex_terracotta",
-    css: "radial-gradient(circle at 30% 25%, rgba(255,230,200,0.30) 0%, transparent 55%), repeating-linear-gradient(0deg, transparent 0px, transparent 44px, rgba(90,40,20,0.45) 44px, rgba(120,60,35,0.30) 46px, rgba(90,40,20,0.45) 48px), repeating-linear-gradient(90deg, transparent 0px, transparent 44px, rgba(90,40,20,0.45) 44px, rgba(120,60,35,0.30) 46px, rgba(90,40,20,0.45) 48px), linear-gradient(180deg, #cf7849, #b25530)",
-    size: "48px 48px, auto, auto, auto",
+    css: "radial-gradient(circle at 25% 30%, rgba(255,230,200,0.35) 0%, transparent 45%), radial-gradient(circle at 75% 80%, rgba(120,55,30,0.30) 0%, transparent 45%), repeating-linear-gradient(0deg, transparent 0 46px, rgba(80,38,18,0.55) 46px 50px), repeating-linear-gradient(90deg, transparent 0 46px, rgba(80,38,18,0.55) 46px 50px), linear-gradient(160deg, #d07a4a, #b0532e)",
+    size: "100px 100px, 100px 100px, 50px 50px, 50px 50px, auto",
     grid: false,
   },
   {
-    // Polished marble: two soft diagonal veins + a faint cross vein over a cool
-    // off-white gradient with a corner highlight.
+    // Calacatta marble: warm-grey/gold diagonal veining (two main veins + a thin
+    // branch) over a soft warm-white slab, with a corner sheen. Not cold blue.
     key: "marble",
     labelKey: "floor_tex_marble",
-    css: "linear-gradient(115deg, transparent 38%, rgba(150,150,165,0.35) 39%, transparent 41%, transparent 58%, rgba(140,140,158,0.25) 59%, transparent 61%), linear-gradient(60deg, transparent 70%, rgba(160,160,175,0.22) 72%, transparent 75%), radial-gradient(circle at 18% 12%, rgba(255,255,255,0.7) 0%, transparent 40%), linear-gradient(180deg, #f6f6f9, #e7e7ef)",
-    size: "auto, auto, auto, auto",
+    css: "linear-gradient(118deg, transparent 30%, rgba(150,128,96,0.30) 31%, transparent 33%, transparent 49%, rgba(120,100,72,0.22) 50%, transparent 52%), linear-gradient(70deg, transparent 64%, rgba(170,150,118,0.18) 66%, transparent 69%), linear-gradient(105deg, transparent 78%, rgba(150,128,96,0.16) 79%, transparent 81%), radial-gradient(110% 90% at 16% 8%, rgba(255,255,255,0.85) 0%, transparent 42%), linear-gradient(180deg, #f7f3ec, #ece4d6)",
+    size: "auto, auto, auto, auto, auto",
     grid: false,
   },
   {
-    // Sage with a gentle vertical falloff + top highlight for a matte painted look.
+    // Sage: matte painted concrete with a soft top highlight + a barely-there
+    // speckle, in a brand-friendly muted green.
     key: "sage",
     labelKey: "floor_tex_sage",
-    css: "linear-gradient(135deg, rgba(255,255,255,0.35) 0%, transparent 38%), linear-gradient(180deg, #d2dcc7, #b6c5a8)",
-    size: "auto, auto",
-    grid: true,
+    css: "radial-gradient(rgba(80,95,70,0.10) 1px, transparent 1.5px), linear-gradient(135deg, rgba(255,255,255,0.4) 0%, transparent 40%), linear-gradient(180deg, #d3ddc8, #b4c4a6)",
+    size: "16px 16px, auto, auto",
+    grid: false,
   },
 ];
 function floorTextureFor(key?: string): FloorTexture {
@@ -1077,11 +1100,11 @@ export default function FloorPage() {
             {/* New-table builder: choose shape + party size, then add */}
             {editingPlan && (
               <div className="mb-3 p-3 rounded-xl border-2" style={{ borderColor: "#c4956a", background: "rgba(252,246,237,0.6)" }}>
-                <p className="text-xs font-semibold text-black mb-2">{t("floor_add_table_title")}</p>
+                <p className="text-sm font-semibold text-black mb-2">{t("floor_add_table_title")}</p>
                 <div className="flex flex-wrap items-end gap-x-6 gap-y-3">
                   {/* Shape selector */}
                   <div>
-                    <p className="text-[10px] font-semibold text-black uppercase tracking-wide mb-1">{t("floor_shape")}</p>
+                    <p className="text-sm font-semibold text-black uppercase tracking-wide mb-1">{t("floor_shape")}</p>
                     <div className="flex gap-2">
                       {(["round", "square", "rectangle"] as TableShape[]).map((s) => {
                         const selected = newTableShape === s;
@@ -1113,7 +1136,7 @@ export default function FloorPage() {
 
                   {/* Party-size selector */}
                   <div>
-                    <p className="text-[10px] font-semibold text-black uppercase tracking-wide mb-1">{t("floor_party_size")}</p>
+                    <p className="text-sm font-semibold text-black uppercase tracking-wide mb-1">{t("floor_party_size")}</p>
                     <div className="flex items-center gap-2">
                       {SEAT_QUICK_OPTIONS.map((n) => {
                         const selected = newTableSeats === n;
@@ -1167,7 +1190,7 @@ export default function FloorPage() {
               <div className="mb-3 p-3 rounded-xl border-2 flex flex-wrap items-end gap-x-6 gap-y-3" style={{ borderColor: "#c4956a", background: "rgba(252,246,237,0.6)" }}>
                 {/* Walls */}
                 <div>
-                  <p className="text-[10px] font-semibold text-black uppercase tracking-wide mb-1">{t("floor_walls_mode") || "Walls"}</p>
+                  <p className="text-sm font-semibold text-black uppercase tracking-wide mb-1">{t("floor_walls_mode") || "Walls"}</p>
                   <div className="flex items-center gap-2">
                     <button
                       onClick={() => setWallMode((v) => !v)}
@@ -1191,15 +1214,15 @@ export default function FloorPage() {
                     )}
                   </div>
                   {wallMode ? (
-                    <p className="text-[10px] text-black mt-1 max-w-[260px]">{t("floor_walls_hint") || "Click the start point, then the end point to draw a wall. Press Esc to cancel."}</p>
+                    <p className="text-sm text-black mt-1.5 max-w-[340px]">{t("floor_walls_hint") || "Click the start point, then the end point to draw a wall. Press Esc to cancel."}</p>
                   ) : currentWalls.length > 0 ? (
-                    <p className="text-[10px] text-black mt-1 max-w-[260px]">{t("floor_walls_edit_hint") || "Drag a wall to move it, drag its endpoints to reshape, or tap the red dot to delete."}</p>
+                    <p className="text-sm text-black mt-1.5 max-w-[340px]">{t("floor_walls_edit_hint") || "Drag a wall to move it, drag its endpoints to reshape, or tap the red dot to delete."}</p>
                   ) : null}
                 </div>
 
                 {/* Floor texture */}
                 <div>
-                  <p className="text-[10px] font-semibold text-black uppercase tracking-wide mb-1">{t("floor_floor_texture") || "Floor"}</p>
+                  <p className="text-sm font-semibold text-black uppercase tracking-wide mb-1">{t("floor_floor_texture") || "Floor"}</p>
                   <div className="flex flex-wrap items-center gap-2">
                     {FLOOR_TEXTURES.map((tx) => {
                       const selected = currentFloor === tx.key;
@@ -1752,11 +1775,14 @@ function PlanCanvas({ tables, resTableLinks, shiftReservations, activeStatuses, 
     } else if (part === "b") {
       seg = { ...orig, x2: clampX(p.x), y2: clampY(p.y) };
     } else {
-      const dx = p.x - grabX, dy = p.y - grabY;
-      seg = {
-        x1: clampX(orig.x1 + dx), y1: clampY(orig.y1 + dy),
-        x2: clampX(orig.x2 + dx), y2: clampY(orig.y2 + dy),
-      };
+      // Move the whole wall: clamp the TRANSLATION (not each endpoint) so the wall
+      // keeps its length and slides along the canvas edges instead of squashing.
+      let dx = p.x - grabX, dy = p.y - grabY;
+      const minX = Math.min(orig.x1, orig.x2), maxX = Math.max(orig.x1, orig.x2);
+      const minY = Math.min(orig.y1, orig.y2), maxY = Math.max(orig.y1, orig.y2);
+      dx = Math.max(-minX, Math.min(600 - maxX, dx));
+      dy = Math.max(-minY, Math.min(560 - maxY, dy));
+      seg = { x1: orig.x1 + dx, y1: orig.y1 + dy, x2: orig.x2 + dx, y2: orig.y2 + dy };
     }
     setWallLocal((prev) => ({ ...prev, [index]: seg }));
   }
@@ -1903,6 +1929,12 @@ function PlanCanvas({ tables, resTableLinks, shiftReservations, activeStatuses, 
           className="absolute"
           style={{ top: 0, left: 0, width: "600px", height: "560px", overflow: "visible", zIndex: 1, pointerEvents: "none" }}
         >
+          <defs>
+            {/* Soft ground shadow cast by the wall. */}
+            <filter id="wall-shadow" x="-30%" y="-30%" width="160%" height="160%">
+              <feDropShadow dx="0" dy="2" stdDeviation="2.4" floodColor="#2a1d12" floodOpacity="0.38" />
+            </filter>
+          </defs>
           {walls.map((raw, i) => {
             const w = wallLocal[i] ?? raw;
             const mx = (w.x1 + w.x2) / 2, my = (w.y1 + w.y2) / 2;
@@ -1914,13 +1946,25 @@ function PlanCanvas({ tables, resTableLinks, shiftReservations, activeStatuses, 
             const active = wallDrag?.index === i;
             return (
               <g key={`wall-${i}`}>
-                {/* Wall body — wide invisible hit-area lets you grab and move the
-                    whole segment in edit mode (cursor: move). */}
-                <line
-                  x1={w.x1} y1={w.y1} x2={w.x2} y2={w.y2}
-                  stroke="#3a2f25" strokeWidth={6} strokeLinecap="round"
-                  opacity={active ? 0.9 : 1}
-                />
+                {/* Wall = stacked strokes for a faux-3D bevel that works at ANY
+                    orientation: a dark base (carries the ground shadow), the mid
+                    body tone, then a thin lit ridge down the centre — reads as a
+                    solid extruded wall rather than a flat line. */}
+                <g opacity={active ? 0.92 : 1}>
+                  <line
+                    x1={w.x1} y1={w.y1} x2={w.x2} y2={w.y2}
+                    stroke="#241a11" strokeWidth={11} strokeLinecap="round"
+                    filter="url(#wall-shadow)"
+                  />
+                  <line
+                    x1={w.x1} y1={w.y1} x2={w.x2} y2={w.y2}
+                    stroke="#463528" strokeWidth={8} strokeLinecap="round"
+                  />
+                  <line
+                    x1={w.x1} y1={w.y1} x2={w.x2} y2={w.y2}
+                    stroke="#9c8068" strokeWidth={2.5} strokeLinecap="round" strokeOpacity={0.85}
+                  />
+                </g>
                 {editing && (
                   <>
                     <line
@@ -1969,8 +2013,13 @@ function PlanCanvas({ tables, resTableLinks, shiftReservations, activeStatuses, 
             <g pointerEvents="none">
               <line
                 x1={wallStart.x} y1={wallStart.y} x2={wallCursor.x} y2={wallCursor.y}
-                stroke="#3a2f25" strokeWidth={6} strokeLinecap="round"
-                strokeDasharray="8 6" strokeOpacity={0.65}
+                stroke="#4a3a2c" strokeWidth={10} strokeLinecap="round"
+                strokeOpacity={0.45}
+              />
+              <line
+                x1={wallStart.x} y1={wallStart.y} x2={wallCursor.x} y2={wallCursor.y}
+                stroke="#3a2f25" strokeWidth={2} strokeLinecap="round"
+                strokeDasharray="7 6" strokeOpacity={0.8}
               />
               {/* Endpoint following the cursor */}
               <circle cx={wallCursor.x} cy={wallCursor.y} r={6} fill="#fff" stroke="#3a2f25" strokeWidth={2} />
