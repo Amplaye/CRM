@@ -197,15 +197,19 @@ export async function createPilotCheckoutSession(params: PilotCheckoutParams): P
       description: "BALI Flow — 14-day Pilot",
       metadata: params.metadata,
     },
-    // Collect billing details (stored on the auto-created customer).
+    // Collect billing details (stored on the auto-created customer). B2B-only:
+    // billing address, business name AND a tax/VAT id are all REQUIRED — we never
+    // run an automated checkout without valid business details. `required:
+    // if_supported` forces a tax id wherever the buyer's country supports one
+    // (Spain NIF, Italy P.IVA, etc.); the business-name custom field is mandatory.
     billing_address_collection: "required",
-    tax_id_collection: { enabled: true },
+    tax_id_collection: { enabled: true, required: "if_supported" },
     custom_fields: [
       {
         key: "business_name",
         label: { type: "custom", custom: params.businessNameLabel },
         type: "text",
-        optional: true,
+        optional: false,
       },
     ],
     // Consent / legal clarity text under the pay button.
