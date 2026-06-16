@@ -29,8 +29,8 @@ function draw(cfg){
   const x=c.getContext('2d'); x.clearRect(0,0,S,S);
   const wrap=(d)=>{for(let oy=-1;oy<=1;oy++)for(let ox=-1;ox<=1;ox++){x.save();x.translate(ox*S,oy*S);d();x.restore();}};
   if(cfg.fn==='herringbone'){
-    // Bigger boards (fewer pieces) read cleaner; grain is just 2 faint lines.
-    const W=S/6,L=W*2;
+    // Big boards (few pieces) read calm, not busy; grain is just 2 faint lines.
+    const W=S/4,L=W*2;
     x.fillStyle=cfg.a;x.fillRect(0,0,S,S);
     const board=(cx,cy,ang,tone)=>wrap(()=>{x.save();x.translate(cx,cy);x.rotate(ang);
       x.fillStyle=tone;x.fillRect(-L/2,-W/2,L,W);
