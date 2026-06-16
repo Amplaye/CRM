@@ -764,40 +764,40 @@ export default function WaitlistPage() {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                 <div>
                   <label className="block text-xs font-bold text-black mb-1">{t("waitlist_guest_name")}</label>
-                  <input required name="guestName" type="text" placeholder="John Doe" className="w-full border border-zinc-200 bg-white rounded-md px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-zinc-900" />
+                  <input required name="guestName" type="text" placeholder="John Doe" className="w-full border-2 border-[#c4956a] bg-[rgba(252,246,237,0.6)] rounded-lg px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-[#c4956a]" />
                 </div>
                 <div>
                   <label className="block text-xs font-bold text-black mb-1">{t("waitlist_guest_phone")}</label>
-                  <input required name="guestPhone" type="tel" placeholder="+44 77..." className="w-full border border-zinc-200 bg-white rounded-md px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-zinc-900" />
+                  <input required name="guestPhone" type="tel" placeholder="+44 77..." className="w-full border-2 border-[#c4956a] bg-[rgba(252,246,237,0.6)] rounded-lg px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-[#c4956a]" />
                 </div>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                 <div>
                   <label className="block text-xs font-bold text-black mb-1">{t("waitlist_date")}</label>
-                  <input required name="date" type="date" defaultValue={date} className="w-full border border-zinc-200 bg-white rounded-md px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-zinc-900" />
+                  <input required name="date" type="date" defaultValue={date} className="w-full border-2 border-[#c4956a] bg-[rgba(252,246,237,0.6)] rounded-lg px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-[#c4956a]" />
                 </div>
                 <div>
                   <label className="block text-xs font-bold text-black mb-1">{t("waitlist_party_size")}</label>
-                  <input required name="partySize" type="number" min="1" max="20" defaultValue="2" className="w-full border border-zinc-200 bg-white rounded-md px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-zinc-900" />
+                  <input required name="partySize" type="number" min="1" max="20" defaultValue="2" className="w-full border-2 border-[#c4956a] bg-[rgba(252,246,237,0.6)] rounded-lg px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-[#c4956a]" />
                 </div>
               </div>
 
-              <div className="border border-zinc-200 rounded-lg p-3 sm:p-4 bg-white shadow-sm">
+              <div className="border-2 rounded-lg p-3 sm:p-4 shadow-sm" style={{ borderColor: "rgba(196,149,106,0.4)", background: "rgba(252,246,237,0.4)" }}>
                 <h3 className="text-[10px] font-bold text-black uppercase tracking-widest mb-3">{t("waitlist_time_flex")}</h3>
                 <div className="space-y-3 sm:space-y-4">
                   <div>
                     <label className="block text-xs font-bold text-black mb-1">{t("waitlist_target_time")}</label>
-                    <input required name="targetTime" type="time" defaultValue="19:00" className="w-full border border-zinc-200 bg-zinc-50 rounded-md px-3 py-2 text-sm font-bold" />
+                    <input required name="targetTime" type="time" defaultValue="19:00" className="w-full border-2 border-[#c4956a] bg-[rgba(252,246,237,0.6)] rounded-lg px-3 py-2 text-sm font-bold focus:outline-none focus:ring-1 focus:ring-[#c4956a]" />
                   </div>
-                  <div className="grid grid-cols-2 gap-2 sm:gap-3 pt-2 border-t border-zinc-100">
+                  <div className="grid grid-cols-2 gap-2 sm:gap-3 pt-2 border-t" style={{ borderColor: "rgba(196,149,106,0.3)" }}>
                     <div className="min-w-0">
                       <label className="block text-[10px] font-bold text-black uppercase truncate">{t("waitlist_earliest_arrival")}</label>
-                      <input required name="timeRangeStart" type="time" defaultValue="18:30" className="w-full border border-zinc-200 rounded-md px-2 py-1.5 mt-1 text-sm font-medium focus:outline-none focus:ring-1 focus:ring-zinc-900" />
+                      <input required name="timeRangeStart" type="time" defaultValue="18:30" className="w-full border-2 border-[#c4956a] bg-[rgba(252,246,237,0.6)] rounded-lg px-2 py-1.5 mt-1 text-sm font-medium focus:outline-none focus:ring-1 focus:ring-[#c4956a]" />
                     </div>
                     <div className="min-w-0">
                       <label className="block text-[10px] font-bold text-black uppercase truncate">{t("waitlist_latest_seating")}</label>
-                      <input required name="timeRangeEnd" type="time" defaultValue="20:00" className="w-full border border-zinc-200 rounded-md px-2 py-1.5 mt-1 text-sm font-medium focus:outline-none focus:ring-1 focus:ring-zinc-900" />
+                      <input required name="timeRangeEnd" type="time" defaultValue="20:00" className="w-full border-2 border-[#c4956a] bg-[rgba(252,246,237,0.6)] rounded-lg px-2 py-1.5 mt-1 text-sm font-medium focus:outline-none focus:ring-1 focus:ring-[#c4956a]" />
                     </div>
                   </div>
                 </div>
@@ -805,7 +805,7 @@ export default function WaitlistPage() {
 
               <div>
                 <label className="block text-xs font-bold text-black mb-1">{t("waitlist_contact_pref")}</label>
-                <select required name="contactPreference" className="w-full border border-zinc-200 bg-white rounded-md px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-zinc-900">
+                <select required name="contactPreference" className="w-full border-2 border-[#c4956a] bg-[rgba(252,246,237,0.6)] rounded-lg px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-[#c4956a]">
                   <option value="whatsapp">{t("waitlist_contact_whatsapp_label")}</option>
                   <option value="sms">{t("waitlist_contact_sms_label")}</option>
                   <option value="call">{t("waitlist_contact_call_label")}</option>
@@ -817,7 +817,7 @@ export default function WaitlistPage() {
                 <textarea
                   name="notes"
                   rows={2}
-                  className="w-full border border-zinc-200 bg-white rounded-md px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-zinc-900"
+                  className="w-full border-2 border-[#c4956a] bg-[rgba(252,246,237,0.6)] rounded-lg px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-[#c4956a]"
                   placeholder={t("waitlist_notes_placeholder")}
                 />
               </div>

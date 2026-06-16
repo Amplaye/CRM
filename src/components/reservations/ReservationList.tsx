@@ -143,7 +143,7 @@ export function ReservationList({ date, shiftFilter = "all", onRowClick, onCreat
             <h3 className="text-sm font-medium text-black">{t("res_empty_title")}</h3>
             <p className="mt-1 text-sm text-black">{t("res_empty_subtitle")}</p>
             <div className="mt-6">
-               <button onClick={onCreate} className="inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium text-white bg-zinc-900 hover:bg-zinc-800 rounded-lg cursor-pointer">
+               <button onClick={onCreate} style={{ background: 'linear-gradient(135deg, #d4a574, #c4956a)' }} className="inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium text-white hover:brightness-105 transition-all rounded-lg cursor-pointer">
                   <Plus className="-ml-1 mr-2 h-4 w-4" aria-hidden="true" />
                   {t("res_new")}
                </button>
