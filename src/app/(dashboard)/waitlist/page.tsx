@@ -406,7 +406,8 @@ export default function WaitlistPage() {
         </div>
         <button
           onClick={() => setIsCreating(true)}
-          className="cursor-pointer inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-lg shadow-sm text-white bg-zinc-900 hover:bg-zinc-800 transition-colors"
+          style={{ background: 'linear-gradient(135deg, #d4a574, #c4956a)' }}
+          className="cursor-pointer inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-lg shadow-sm text-white hover:brightness-105 transition-all"
         >
           <UserPlus className="-ml-1 mr-2 h-5 w-5" aria-hidden="true" />
           {t("waitlist_add")}
@@ -826,7 +827,8 @@ export default function WaitlistPage() {
               <button
                 type="submit"
                 disabled={saving}
-                className="cursor-pointer w-full flex items-center justify-center bg-zinc-900 hover:bg-zinc-800 text-white font-medium py-2.5 px-4 rounded-lg transition-colors shadow-sm disabled:opacity-50 text-sm"
+                style={{ background: 'linear-gradient(135deg, #d4a574, #c4956a)' }}
+                className="cursor-pointer w-full flex items-center justify-center text-white font-medium py-2.5 px-4 rounded-lg hover:brightness-105 transition-all shadow-sm disabled:opacity-50 text-sm"
               >
                 {saving ? t("waitlist_registering") : t("waitlist_add_live")}
               </button>

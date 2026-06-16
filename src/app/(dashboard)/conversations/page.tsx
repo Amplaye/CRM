@@ -362,7 +362,7 @@ export default function ConversationsPage() {
               const isActive = channelFilter === opt.id;
               return (
                 <button key={opt.id} onClick={() => setChannelFilter(opt.id)}
-                  className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold transition-colors border ${isActive ? 'text-white border-transparent' : 'text-black border-[#c4956a]/40 hover:bg-[#c4956a]/10'}`}
+                  className={`flex items-center gap-1 px-3 py-1 rounded-full text-[11px] font-bold transition-all border-2 ${isActive ? 'text-white border-[#c4956a] shadow-md scale-105' : 'text-black border-[#c4956a]/40 hover:bg-[#c4956a]/10 hover:border-[#c4956a]/70'}`}
                   style={isActive ? { background: 'linear-gradient(135deg, #d4a574, #c4956a)' } : undefined}>
                   {Icon && <Icon className="w-3 h-3" />}
                   {opt.label}

@@ -1,6 +1,6 @@
 "use client";
 
-import { Bell, Menu, Phone, MessageSquare, ShieldAlert, LogOut, Globe, X } from "lucide-react";
+import { Bell, Menu, Phone, MessageSquare, ShieldAlert, LogOut, Globe, X, Calendar, ClipboardList, AlertTriangle } from "lucide-react";
 import { useLanguage } from "@/lib/contexts/LanguageContext";
 import { useTenant } from "@/lib/contexts/TenantContext";
 import { tenantHasLocaleSwitcher } from "@/lib/tenants/legacy-locale";
@@ -18,6 +18,23 @@ interface Notification {
   read: boolean;
   href: string;
   source?: "ai_voice" | "ai_chat" | "web" | "staff" | null;
+}
+
+// Per-type notification icon (lucide, consistent with the rest of the CRM) in a
+// soft tinted badge — replaces the old emoji glyphs.
+function NotifIcon({ type }: { type: Notification["type"] }) {
+  const map = {
+    incident: { Icon: AlertTriangle, bg: "bg-red-50", fg: "text-red-600", ring: "ring-red-200" },
+    waitlist: { Icon: ClipboardList, bg: "bg-amber-50", fg: "text-amber-600", ring: "ring-amber-200" },
+    reservation: { Icon: Calendar, bg: "bg-terracotta-50", fg: "text-terracotta-600", ring: "ring-terracotta-200" },
+    conversation: { Icon: MessageSquare, bg: "bg-indigo-50", fg: "text-indigo-600", ring: "ring-indigo-200" },
+  } as const;
+  const { Icon, bg, fg, ring } = map[type] ?? map.conversation;
+  return (
+    <span className={`inline-flex items-center justify-center h-7 w-7 rounded-lg ring-1 flex-shrink-0 ${bg} ${fg} ${ring}`}>
+      <Icon className="h-4 w-4" />
+    </span>
+  );
 }
 
 interface TopbarProps {
@@ -467,25 +484,24 @@ export function Topbar({ onMenuToggle }: TopbarProps) {
                 {notifications.length === 0 ? (
                   <div className="px-4 py-8 text-center text-sm text-black">{t("topbar_no_notifications")}</div>
                 ) : notifications.map((n) => {
-                  const icon = n.type === "incident" ? "⚠️" : n.type === "waitlist" ? "📋" : n.type === "reservation" ? "📅" : "💬";
                   const isFresh = freshIds.has(n.id);
                   return (
                     <div key={n.id} onClick={() => { router.push(n.href); setShowDropdown(false); }}
                       className={`px-4 py-3 border-b active:bg-[#c4956a]/20 transition-colors cursor-pointer ${isFresh ? 'is-new-notif' : ''}`}
                       style={{ borderColor: 'rgba(196,149,106,0.2)' }}>
                       <div className="flex items-start gap-2.5">
-                        <span className="text-base flex-shrink-0 mt-0.5">{icon}</span>
+                        <NotifIcon type={n.type} />
                         <div className="flex-1 min-w-0">
                           <p className="text-sm text-black flex items-center gap-1.5">
                             <span>{n.message}</span>
                             {n.source === 'ai_voice' && (
-                              <span title="AI Voice" className="inline-flex items-center justify-center h-4 w-4 rounded bg-indigo-50 text-indigo-600 ring-1 ring-indigo-200">
-                                <Phone className="h-2.5 w-2.5" />
+                              <span title="AI Voice" className="inline-flex items-center justify-center h-5 w-5 rounded-md bg-indigo-50 text-indigo-600 ring-1 ring-indigo-200">
+                                <Phone className="h-3 w-3" />
                               </span>
                             )}
                             {n.source === 'ai_chat' && (
-                              <span title="AI WhatsApp" className="inline-flex items-center justify-center h-4 w-4 rounded bg-terracotta-50 text-terracotta-600 ring-1 ring-terracotta-200">
-                                <MessageSquare className="h-2.5 w-2.5" />
+                              <span title="AI WhatsApp" className="inline-flex items-center justify-center h-5 w-5 rounded-md bg-terracotta-50 text-terracotta-600 ring-1 ring-terracotta-200">
+                                <MessageSquare className="h-3 w-3" />
                               </span>
                             )}
                           </p>
@@ -519,25 +535,24 @@ export function Topbar({ onMenuToggle }: TopbarProps) {
                 {notifications.length === 0 ? (
                   <div className="px-4 py-8 text-center text-sm text-black">{t("topbar_no_notifications")}</div>
                 ) : notifications.map((n) => {
-                  const icon = n.type === "incident" ? "⚠️" : n.type === "waitlist" ? "📋" : n.type === "reservation" ? "📅" : "💬";
                   const isFresh = freshIds.has(n.id);
                   return (
                     <div key={n.id} onClick={() => { router.push(n.href); setShowDropdown(false); }}
                       className={`group px-4 py-3 border-b hover:bg-[#c4956a]/10 transition-colors cursor-pointer ${isFresh ? 'is-new-notif' : ''}`}
                       style={{ borderColor: 'rgba(196,149,106,0.2)' }}>
                       <div className="flex items-start gap-2.5">
-                        <span className="text-base flex-shrink-0 mt-0.5">{icon}</span>
+                        <NotifIcon type={n.type} />
                         <div className="flex-1 min-w-0">
                           <p className="text-sm text-black flex items-center gap-1.5">
                             <span>{n.message}</span>
                             {n.source === 'ai_voice' && (
-                              <span title="AI Voice" className="inline-flex items-center justify-center h-4 w-4 rounded bg-indigo-50 text-indigo-600 ring-1 ring-indigo-200">
-                                <Phone className="h-2.5 w-2.5" />
+                              <span title="AI Voice" className="inline-flex items-center justify-center h-5 w-5 rounded-md bg-indigo-50 text-indigo-600 ring-1 ring-indigo-200">
+                                <Phone className="h-3 w-3" />
                               </span>
                             )}
                             {n.source === 'ai_chat' && (
-                              <span title="AI WhatsApp" className="inline-flex items-center justify-center h-4 w-4 rounded bg-terracotta-50 text-terracotta-600 ring-1 ring-terracotta-200">
-                                <MessageSquare className="h-2.5 w-2.5" />
+                              <span title="AI WhatsApp" className="inline-flex items-center justify-center h-5 w-5 rounded-md bg-terracotta-50 text-terracotta-600 ring-1 ring-terracotta-200">
+                                <MessageSquare className="h-3 w-3" />
                               </span>
                             )}
                           </p>

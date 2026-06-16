@@ -1,6 +1,6 @@
 "use client";
 
-import { Download, Upload, Search, X, CalendarCheck, User, LayoutGrid, List, Trash2, Phone, AlertOctagon, Accessibility, Users as UsersIcon } from "lucide-react";
+import { Download, Upload, Search, X, CalendarCheck, User, LayoutGrid, List, Trash2, Phone, AlertOctagon, Accessibility, Users as UsersIcon, Utensils } from "lucide-react";
 import { useLanguage } from "@/lib/contexts/LanguageContext";
 import { useEffect, useState, useRef, useMemo } from "react";
 import { useTenant } from "@/lib/contexts/TenantContext";
@@ -433,7 +433,7 @@ function GuestNotesEditor({ guest, onSaved }: { guest: Guest; onSaved: (updated:
 
       <div>
         <label className="flex items-center gap-1.5 text-xs font-semibold text-black mb-1">
-          <span>🍽️</span>
+          <Utensils className="w-3.5 h-3.5" />
           <span>{t("guests_dietary_label") || "Allergie / dieta"}</span>
           {savingField === "dietary_notes" && <span className="text-[10px] text-black">…</span>}
         </label>

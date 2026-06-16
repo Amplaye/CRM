@@ -1407,7 +1407,7 @@ function ItemEditModal({
             <label className="block text-xs font-bold text-black uppercase tracking-widest mb-1.5">
               {t("menu_item_photo") || "Foto piatto"}
             </label>
-            <p className="text-xs text-black/70 mb-2">{t("menu_item_photo_hint")}</p>
+            <p className="text-xs text-black mb-2">{t("menu_item_photo_hint")}</p>
             <input
               ref={fileInputRef}
               type="file"
