@@ -690,7 +690,7 @@ export const it: Dictionary = {
   floor_walls_clear: "Cancella pareti",
   floor_floor_texture: "Pavimento",
   floor_tex_neutral: "Neutro",
-  floor_tex_wood_light: "Parquet chiaro",
+  floor_tex_wood_light: "Listoni chiari",
   floor_tex_wood_dark: "Parquet scuro",
   floor_tex_terracotta: "Cotto",
   floor_tex_marble: "Marmo",
