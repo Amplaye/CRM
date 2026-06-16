@@ -495,12 +495,12 @@ export function Topbar({ onMenuToggle }: TopbarProps) {
                           <p className="text-sm text-black flex items-center gap-1.5">
                             <span>{n.message}</span>
                             {n.source === 'ai_voice' && (
-                              <span title="AI Voice" className="inline-flex items-center justify-center h-6 w-6 rounded bg-indigo-50 text-indigo-600 ring-1 ring-indigo-200">
+                              <span title="AI Voice" className="flex h-6 w-6 items-center justify-center rounded bg-indigo-50 text-indigo-600 ring-1 ring-indigo-200 flex-shrink-0">
                                 <Phone className="h-3 w-3" />
                               </span>
                             )}
                             {n.source === 'ai_chat' && (
-                              <span title="AI WhatsApp" className="inline-flex items-center justify-center h-6 w-6 rounded bg-terracotta-50 text-terracotta-600 ring-1 ring-terracotta-200">
+                              <span title="AI WhatsApp" className="flex h-6 w-6 items-center justify-center rounded bg-terracotta-50 text-terracotta-600 ring-1 ring-terracotta-200 flex-shrink-0">
                                 <MessageSquare className="h-3 w-3" />
                               </span>
                             )}
@@ -546,12 +546,12 @@ export function Topbar({ onMenuToggle }: TopbarProps) {
                           <p className="text-sm text-black flex items-center gap-1.5">
                             <span>{n.message}</span>
                             {n.source === 'ai_voice' && (
-                              <span title="AI Voice" className="inline-flex items-center justify-center h-6 w-6 rounded bg-indigo-50 text-indigo-600 ring-1 ring-indigo-200">
+                              <span title="AI Voice" className="flex h-6 w-6 items-center justify-center rounded bg-indigo-50 text-indigo-600 ring-1 ring-indigo-200 flex-shrink-0">
                                 <Phone className="h-3 w-3" />
                               </span>
                             )}
                             {n.source === 'ai_chat' && (
-                              <span title="AI WhatsApp" className="inline-flex items-center justify-center h-6 w-6 rounded bg-terracotta-50 text-terracotta-600 ring-1 ring-terracotta-200">
+                              <span title="AI WhatsApp" className="flex h-6 w-6 items-center justify-center rounded bg-terracotta-50 text-terracotta-600 ring-1 ring-terracotta-200 flex-shrink-0">
                                 <MessageSquare className="h-3 w-3" />
                               </span>
                             )}
