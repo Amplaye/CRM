@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { extractVisibleText, fetchUrlContent, normalizeFileHostUrl } from './fetch-url';
+import { extractVisibleText, fetchUrlContent, firstPdfLink, normalizeFileHostUrl } from './fetch-url';
 
 describe('normalizeFileHostUrl', () => {
   it('rewrites a Google Drive /file/d/<id>/view link to direct download', () => {
@@ -59,6 +59,42 @@ describe('extractVisibleText', () => {
 
   it('handles HTML comments', () => {
     expect(extractVisibleText('<!-- skip me --><p>visible</p>')).toBe('visible');
+  });
+});
+
+describe('firstPdfLink', () => {
+  const base = new URL('https://segretodipulcinella.com/menu/');
+
+  it('finds an absolute PDF link in a language-splash page', () => {
+    // Shape of the real segretodipulcinella.com/menu chooser: flags linking PDFs.
+    const html = `
+      <a href="https://devmrw.com/menu-pulcinella/menu-ESP.pdf"><img src="es.png"></a>
+      <a href="https://devmrw.com/menu-pulcinella/menu-ENG.pdf"><img src="en.png"></a>
+      <a href="https://devmrw.com/menu-pulcinella/menu-ITA.pdf"><img src="it.png"></a>`;
+    expect(firstPdfLink(html, base)).toBe('https://devmrw.com/menu-pulcinella/menu-ESP.pdf');
+  });
+
+  it('resolves a relative PDF link against the page URL', () => {
+    expect(firstPdfLink('<a href="../files/carta.pdf">Menu</a>', base)).toBe(
+      'https://segretodipulcinella.com/files/carta.pdf'
+    );
+  });
+
+  it('matches case-insensitively and tolerates a query string', () => {
+    expect(firstPdfLink('<a href="/Menu.PDF?v=3">x</a>', base)).toBe(
+      'https://segretodipulcinella.com/Menu.PDF?v=3'
+    );
+  });
+
+  it('ignores non-pdf links (fonts, images, other pages)', () => {
+    const html = `
+      <link href="https://fonts.googleapis.com/css2?family=Josefin+Sans">
+      <a href="/about">About</a><img src="logo.png">`;
+    expect(firstPdfLink(html, base)).toBeNull();
+  });
+
+  it('returns null when there are no links at all', () => {
+    expect(firstPdfLink('<p>Benvenuti</p>', base)).toBeNull();
   });
 });
 
