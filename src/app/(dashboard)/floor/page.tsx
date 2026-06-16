@@ -47,15 +47,15 @@ const FLOOR_TEXTURES: FloorTexture[] = [
     grid: true,
   },
   {
-    // Light-oak herringbone parquet (seamless image tile).
+    // Light: wide horizontal sand-coloured planks (seamless image tile).
     key: "wood_light",
     labelKey: "floor_tex_wood_light",
-    css: "url(/floors/parquet_oak.webp)",
+    css: "url(/floors/planks_sand.webp)",
     size: "260px 260px",
     grid: false,
   },
   {
-    // Walnut herringbone parquet (seamless image tile).
+    // Walnut horizontal parquet planks (seamless image tile).
     key: "wood_dark",
     labelKey: "floor_tex_wood_dark",
     css: "url(/floors/parquet_walnut.webp)",
@@ -63,27 +63,11 @@ const FLOOR_TEXTURES: FloorTexture[] = [
     grid: false,
   },
   {
-    // Cotto / terracotta tiles (seamless image tile).
-    key: "terracotta",
-    labelKey: "floor_tex_terracotta",
-    css: "url(/floors/cotto.webp)",
-    size: "230px 230px",
-    grid: false,
-  },
-  {
-    // Warm calacatta marble (seamless image tile).
+    // Marble with a few soft horizontal veins (seamless image tile).
     key: "marble",
     labelKey: "floor_tex_marble",
     css: "url(/floors/marble.webp)",
-    size: "360px 360px",
-    grid: false,
-  },
-  {
-    // Sage matte floor (seamless image tile).
-    key: "sage",
-    labelKey: "floor_tex_sage",
-    css: "url(/floors/sage.webp)",
-    size: "300px 300px",
+    size: "240px 240px",
     grid: false,
   },
 ];

@@ -687,7 +687,7 @@ export const en = {
   floor_walls_clear: "Clear walls",
   floor_floor_texture: "Floor",
   floor_tex_neutral: "Neutral",
-  floor_tex_wood_light: "Light parquet",
+  floor_tex_wood_light: "Light planks",
   floor_tex_wood_dark: "Dark parquet",
   floor_tex_terracotta: "Terracotta",
   floor_tex_marble: "Marble",
