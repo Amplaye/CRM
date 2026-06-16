@@ -62,7 +62,7 @@ export default function WaitlistPage() {
   const [occupiedTableIds, setOccupiedTableIds] = useState<Set<string>>(new Set());
   const [zoneFilter, setZoneFilter] = useState<string | null>(null);
   const [confirmInFlight, setConfirmInFlight] = useState(false);
-  const [tablePickerView, setTablePickerView] = useState<"grid" | "plan">("grid");
+  const [tablePickerView, setTablePickerView] = useState<"grid" | "plan">("plan");
 
   // Waitlist-specific: create-entry drawer
   const [isCreating, setIsCreating] = useState(false);

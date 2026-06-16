@@ -69,7 +69,7 @@ export default function PendingPage() {
     | null;
   const [warning, setWarning] = useState<ConfirmWarning>(null);
   // Table picker view mode: grid (buttons) or plan (visual canvas)
-  const [tablePickerView, setTablePickerView] = useState<"grid" | "plan">("grid");
+  const [tablePickerView, setTablePickerView] = useState<"grid" | "plan">("plan");
   // Event-request inline draft: the owner sets the real date/time/party_size
   // (agreed by phone) before assigning tables like a normal pending request.
   const [eventDraft, setEventDraft] = useState<{ id: string; date: string; time: string; party_size: number } | null>(null);

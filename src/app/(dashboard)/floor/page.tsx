@@ -127,7 +127,7 @@ export default function FloorPage() {
   const [freeTableLoading, setFreeTableLoading] = useState(false);
 
   // View mode + plan editor
-  const [viewMode, setViewMode] = useState<"list" | "plan">("list");
+  const [viewMode, setViewMode] = useState<"list" | "plan">("plan");
   const [editingPlan, setEditingPlan] = useState(false);
   // Inline table rename (list view): which table is being renamed + its draft name
   const [renamingTableId, setRenamingTableId] = useState<string | null>(null);
