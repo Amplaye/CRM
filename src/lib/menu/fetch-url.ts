@@ -239,9 +239,17 @@ export async function fetchUrlContent(rawUrl: string): Promise<FetchResult> {
     if (html.length > MAX_BYTES) return { ok: false, reason: 'too_large' };
     const cleaned = extractVisibleText(html);
     if (cleaned.length < 200) {
-      // SPA shell (TheFork, Flipdish, etc.) → body is too thin for any AI
-      // extraction. We refuse early so the user gets a real error instead
-      // of an empty extracted menu.
+      // SPA shell (TheFork, Flipdish, misterrestaurant.io hash-router, …): the
+      // raw HTML body is mostly empty until JS runs, so direct fetch sees no
+      // menu. Try a headless render via Firecrawl (it executes the page's JS
+      // and returns the populated content as markdown). Only fires if the key
+      // is configured — without it the behaviour is exactly as before.
+      const rendered = await tryRenderWithFirecrawl(url.toString());
+      if (rendered && rendered.length >= 200) {
+        return { ok: true, kind: 'text', text: rendered };
+      }
+      // No render available (or it too came back thin) → tell the user to
+      // screenshot/PDF the menu instead of returning an empty extraction.
       return {
         ok: false,
         reason: 'spa_no_content',
@@ -286,4 +294,51 @@ export function extractVisibleText(html: string): string {
   // Collapse whitespace.
   s = s.replace(/[\t\r]+/g, ' ').replace(/\n{3,}/g, '\n\n').replace(/ {2,}/g, ' ');
   return s.trim();
+}
+
+// Headless-render fallback for JS-driven menu pages (SPAs whose raw HTML is
+// empty). Delegates to Firecrawl so we don't bundle Chromium: it runs the
+// page's JS server-side and hands back the populated content as markdown,
+// which feeds the same text-extraction path as a static page.
+//
+// Returns the markdown (trimmed) on success, or null on ANY of: no API key
+// configured, network/HTTP error, non-success body, empty content. Every
+// failure is swallowed so the caller cleanly falls back to spa_no_content —
+// the render is strictly best-effort, never a hard dependency.
+const FIRECRAWL_ENDPOINT = 'https://api.firecrawl.dev/v2/scrape';
+const FIRECRAWL_TIMEOUT_MS = 30_000; // headless render is slow; allow generous headroom
+
+async function tryRenderWithFirecrawl(targetUrl: string): Promise<string | null> {
+  const apiKey = process.env.FIRECRAWL_API_KEY;
+  if (!apiKey) return null;
+
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), FIRECRAWL_TIMEOUT_MS);
+  try {
+    const res = await fetch(FIRECRAWL_ENDPOINT, {
+      method: 'POST',
+      signal: ctrl.signal,
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        url: targetUrl,
+        formats: ['markdown'],
+        onlyMainContent: true,
+      }),
+    });
+    if (!res.ok) return null;
+    const json = (await res.json().catch(() => null)) as
+      | { success?: boolean; data?: { markdown?: string } }
+      | null;
+    const md = json?.data?.markdown;
+    if (typeof md !== 'string') return null;
+    const trimmed = md.trim();
+    return trimmed.length > 0 ? trimmed : null;
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timer);
+  }
 }

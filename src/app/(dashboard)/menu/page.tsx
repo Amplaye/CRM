@@ -1271,16 +1271,17 @@ function ItemEditModal({
     current.includes(value) ? current.filter((v) => v !== value) : [...current, value];
 
   // Compress + upload a dish photo to the public "menu-images" bucket. We
-  // downscale to ~1400px on the long edge and re-encode as WebP (q0.82) on the
-  // client so a 4MB phone photo becomes ~150–250KB — Supabase Free shares one
-  // 1GB bucket across all tenants, so every photo must be light.
+  // downscale to ~2000px on the long edge and re-encode as WebP (q0.90) on the
+  // client so a 4MB phone photo becomes ~400–600KB — still light for the shared
+  // Supabase bucket, but crisp on a full-screen tablet view (the old 1400px /
+  // q0.82 looked grainy on dish photos).
   const compressToWebp = (file: File): Promise<Blob> =>
     new Promise((resolve, reject) => {
       const img = new Image();
       const url = URL.createObjectURL(file);
       img.onload = () => {
         URL.revokeObjectURL(url);
-        const MAX = 1400;
+        const MAX = 2000;
         let { width, height } = img;
         if (width > height && width > MAX) {
           height = Math.round((height * MAX) / width);
@@ -1294,11 +1295,15 @@ function ItemEditModal({
         canvas.height = height;
         const ctx = canvas.getContext("2d");
         if (!ctx) return reject(new Error("no 2d context"));
+        // High-quality resampling — the default bilinear downscale is what made
+        // shrunk dish photos look grainy more than the WebP quality did.
+        ctx.imageSmoothingEnabled = true;
+        ctx.imageSmoothingQuality = "high";
         ctx.drawImage(img, 0, 0, width, height);
         canvas.toBlob(
           (blob) => (blob ? resolve(blob) : reject(new Error("toBlob failed"))),
           "image/webp",
-          0.82
+          0.9
         );
       };
       img.onerror = () => {

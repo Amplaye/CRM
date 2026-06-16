@@ -303,7 +303,7 @@ async function resolveUrlJob(
       too_large: `File at this URL is too large (max ${MAX_UPLOAD_MB} MB).`,
       unsupported_type: 'Unsupported content type at this URL.',
       spa_no_content:
-        'This URL is a dynamic web page (TheFork, Flipdish, etc.). Please download the menu as PDF and upload it instead.',
+        'Questa pagina carica il menu via JavaScript e non riusciamo a leggerla. Apri il menu sul telefono, fai uno screenshot e caricalo qui come immagine (tab "File").',
       empty: 'No menu content found at this URL.',
     };
     return NextResponse.json(

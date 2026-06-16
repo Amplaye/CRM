@@ -28,8 +28,8 @@ export type ExtractedPhoto = {
 // the filter) can't lock the browser or blow the match-photos payload. Mirrors
 // the server MAX_IMAGES in /api/menu/match-photos.
 const MAX_PHOTOS = 60;
-const TARGET_MAX_EDGE = 1400; // same as manual upload compressToWebp
-const WEBP_QUALITY = 0.82;
+const TARGET_MAX_EDGE = 2000; // same as manual upload compressToWebp
+const WEBP_QUALITY = 0.9;
 
 /**
  * Encode a raw RGBA/RGB/grayscale pixel buffer (as unpdf yields) into a
@@ -49,6 +49,9 @@ async function canvasToWebp(src: HTMLCanvasElement): Promise<Blob | null> {
     dst.height = dh;
     const dctx = dst.getContext('2d');
     if (!dctx) return null;
+    // High-quality resampling so downscaled dish photos stay crisp, not grainy.
+    dctx.imageSmoothingEnabled = true;
+    dctx.imageSmoothingQuality = 'high';
     dctx.drawImage(src, 0, 0, dw, dh);
     outCanvas = dst;
   }
