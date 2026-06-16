@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { assertRateLimit } from "@/lib/rate-limit";
-import { createPilotCheckout, pilotLandingHtml, resolvePilotLang } from "@/lib/billing/pilot";
+import { createPilotCheckout, pilotLandingHtml, resolvePilotLang, resolvePilotCycle } from "@/lib/billing/pilot";
 
 // /api/billing/pilot/founder  →  the founder pilot.
 //   GET  → a paste-anywhere landing page; localized via ?lang= / Accept-Language.
@@ -11,7 +11,7 @@ import { createPilotCheckout, pilotLandingHtml, resolvePilotLang } from "@/lib/b
 export const dynamic = "force-dynamic";
 
 export async function GET(req: Request) {
-  return new Response(pilotLandingHtml("founder", resolvePilotLang(req)), {
+  return new Response(pilotLandingHtml("founder", resolvePilotCycle(req), resolvePilotLang(req)), {
     headers: { "Content-Type": "text/html; charset=utf-8" },
   });
 }
@@ -21,7 +21,7 @@ export async function POST(req: Request) {
   if (rl) return rl;
 
   const origin = req.headers.get("origin") || process.env.NEXT_PUBLIC_APP_URL || "https://crm.baliflowagency.com";
-  const result = await createPilotCheckout("founder", origin, resolvePilotLang(req));
+  const result = await createPilotCheckout("founder", resolvePilotCycle(req), origin, resolvePilotLang(req));
   if (!result.ok) {
     return NextResponse.json({ error: result.error, reason: result.reason }, { status: result.status });
   }

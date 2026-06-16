@@ -33,29 +33,40 @@ import {
 } from "./stripe";
 
 export type PilotPlan = "founder" | "premium";
+export type PilotCycle = "monthly" | "annual";
 
 export const PILOT_TRIAL_DAYS = 14;
 export const PILOT_FEE_CENTS = 15000;          // €150
-export const PILOT_FIRST_MONTH_CREDIT_CENTS = 15000; // €150
+export const PILOT_FIRST_MONTH_CREDIT_CENTS = 15000; // €150 — credited to the FIRST
+                                                     // invoice, monthly or annual.
 export const PILOT_CURRENCY = "eur";
 
-/** Per-plan config. Monthly prices come from env (never hard-coded ids). Amounts
- * are kept here only for display/audit; the truth is the Stripe price. */
+/** Resolve the billing cycle from a request (?cycle=annual|yearly → annual, else monthly). */
+export function resolvePilotCycle(req: Request): PilotCycle {
+  const c = (new URL(req.url).searchParams.get("cycle") || "").toLowerCase();
+  return c === "annual" || c === "yearly" || c === "year" ? "annual" : "monthly";
+}
+
+/** Per-plan, per-cycle config. Price ids come from env (never hard-coded). Amounts
+ * are kept here only for display; the truth is the Stripe price. The €150 pilot fee
+ * is credited to the first invoice in BOTH cycles. */
 export const PILOT_PLANS: Record<
   PilotPlan,
-  { label: string; monthlyPriceEnv: string; monthlyCents: number; firstInvoiceCents: number }
+  {
+    label: string;
+    priceEnv: Record<PilotCycle, string>;
+    recurringCents: Record<PilotCycle, number>;
+  }
 > = {
   founder: {
     label: "Founder",
-    monthlyPriceEnv: "STRIPE_FOUNDER_MONTHLY_PRICE_ID",
-    monthlyCents: 29900,
-    firstInvoiceCents: 29900 - PILOT_FIRST_MONTH_CREDIT_CENTS, // 14900
+    priceEnv: { monthly: "STRIPE_FOUNDER_MONTHLY_PRICE_ID", annual: "STRIPE_FOUNDER_ANNUAL_PRICE_ID" },
+    recurringCents: { monthly: 29900, annual: 299000 }, // €299/mo · €2990/yr
   },
   premium: {
     label: "Premium",
-    monthlyPriceEnv: "STRIPE_PREMIUM_MONTHLY_PRICE_ID",
-    monthlyCents: 39900,
-    firstInvoiceCents: 39900 - PILOT_FIRST_MONTH_CREDIT_CENTS, // 24900
+    priceEnv: { monthly: "STRIPE_PREMIUM_MONTHLY_PRICE_ID", annual: "STRIPE_PREMIUM_ANNUAL_PRICE_ID" },
+    recurringCents: { monthly: 39900, annual: 399000 }, // €399/mo · €3990/yr
   },
 };
 
@@ -79,9 +90,11 @@ export function resolvePilotLang(req: Request): PilotLang {
 
 interface PilotStrings {
   brand: string;
+  cycleWord: Record<PilotCycle, string>;
   planName: Record<PilotPlan, string>;
   sub: string;
-  todayLabel: string; firstLabel: string; afterLabel: string; perMonth: string; todayWord: string;
+  todayLabel: string; firstLabel: Record<PilotCycle, string>; afterLabel: string;
+  perMonth: string; perYear: string; todayWord: string;
   legal: string; // contains {terms}
   termsLabel: string; businessNameLabel: string;
   payBtn: string; payingBtn: string; errText: string; secureFoot: string;
@@ -95,79 +108,87 @@ interface PilotStrings {
 export const PILOT_I18N: Record<PilotLang, PilotStrings> = {
   es: {
     brand: "Piloto · 14 días",
+    cycleWord: { monthly: "Mensual", annual: "Anual" },
     planName: { founder: "Plan Fundador", premium: "Plan Premium" },
     sub: "Prueba BALI Flow durante 14 días.",
-    todayLabel: "Pago hoy (piloto 14 días)", firstLabel: "1ª mensualidad (día 14)", afterLabel: "Después",
-    perMonth: "/mes", todayWord: "hoy",
-    legal: "Estás contratando un Piloto de BALI Flow de 14 días por €150. Salvo cancelación antes de que termine el piloto, tu suscripción se activará automáticamente. Los €150 del piloto se descontarán de tu primera mensualidad. Consulta los {terms}.",
+    todayLabel: "Pago hoy (piloto 14 días)",
+    firstLabel: { monthly: "1ª mensualidad (día 14)", annual: "1ª anualidad (día 14)" },
+    afterLabel: "Después", perMonth: "/mes", perYear: "/año", todayWord: "hoy",
+    legal: "Estás contratando un Piloto de BALI Flow de 14 días por €150. Salvo cancelación antes de que termine el piloto, tu suscripción se activará automáticamente. Los €150 del piloto se descontarán de tu primer pago. Consulta los {terms}.",
     termsLabel: "Términos del piloto", businessNameLabel: "Nombre del negocio (opcional)",
     payBtn: "Pagar €150 y empezar", payingBtn: "Redirigiendo…",
     errText: "No se pudo iniciar el pago. Inténtalo de nuevo.", secureFoot: "Pago seguro con Stripe · BALI Flow",
     resTitle: { success: "¡Pago completado!", cancel: "Pago no completado" },
     resHeading: { success: "Tu Piloto ha comenzado 🎉", cancel: "No se ha completado el pago" },
     resBody: {
-      success: "Hemos recibido tu pago de €150 y tu Piloto de BALI Flow de 14 días ya está activo. Durante el piloto no se te cobrará nada más; pasados los 14 días, salvo cancelación, comenzará tu suscripción y los €150 se descontarán de la primera mensualidad. Recibirás un recibo de Stripe por email y nos pondremos en contacto contigo para la puesta en marcha.",
+      success: "Hemos recibido tu pago de €150 y tu Piloto de BALI Flow de 14 días ya está activo. Durante el piloto no se te cobrará nada más; pasados los 14 días, salvo cancelación, comenzará tu suscripción y los €150 se descontarán de tu primer pago. Recibirás un recibo de Stripe por email y nos pondremos en contacto contigo para la puesta en marcha.",
       cancel: "No se ha realizado ningún cargo. Si ha sido un error, vuelve a abrir el enlace de pago e inténtalo de nuevo. Si necesitas ayuda, escríbenos a info@baliflowagency.com.",
     },
     resCta: "Volver a BALI Flow", resFoot: "BALI Flow · Piloto",
-    consent: "Estás contratando un Piloto de BALI Flow de 14 días por €150. Salvo cancelación antes de que termine el piloto, tu suscripción comenzará automáticamente. Los €150 se descontarán de tu primera mensualidad. Términos del piloto: {url}",
+    consent: "Estás contratando un Piloto de BALI Flow de 14 días por €150. Salvo cancelación antes de que termine el piloto, tu suscripción comenzará automáticamente. Los €150 se descontarán de tu primer pago. Términos del piloto: {url}",
   },
   en: {
     brand: "Pilot · 14 days",
+    cycleWord: { monthly: "Monthly", annual: "Annual" },
     planName: { founder: "Founder Plan", premium: "Premium Plan" },
     sub: "Try BALI Flow for 14 days.",
-    todayLabel: "Today (14-day pilot)", firstLabel: "1st month (day 14)", afterLabel: "Then",
-    perMonth: "/mo", todayWord: "today",
-    legal: "You are purchasing a 14-day BALI Flow Pilot for €150. Unless cancelled before the pilot ends, your subscription will start automatically. The €150 pilot fee will be credited against your first monthly payment. See the {terms}.",
+    todayLabel: "Today (14-day pilot)",
+    firstLabel: { monthly: "1st month (day 14)", annual: "1st year (day 14)" },
+    afterLabel: "Then", perMonth: "/mo", perYear: "/yr", todayWord: "today",
+    legal: "You are purchasing a 14-day BALI Flow Pilot for €150. Unless cancelled before the pilot ends, your subscription will start automatically. The €150 pilot fee will be credited against your first payment. See the {terms}.",
     termsLabel: "pilot terms", businessNameLabel: "Business name (optional)",
     payBtn: "Pay €150 and start", payingBtn: "Redirecting…",
     errText: "Couldn't start the payment. Please try again.", secureFoot: "Secure payment with Stripe · BALI Flow",
     resTitle: { success: "Payment complete!", cancel: "Payment not completed" },
     resHeading: { success: "Your pilot has started 🎉", cancel: "Payment was not completed" },
     resBody: {
-      success: "We've received your €150 payment and your 14-day BALI Flow Pilot is now active. During the pilot you won't be charged anything else; after 14 days, unless cancelled, your subscription begins and the €150 will be credited against your first monthly payment. You'll get a Stripe receipt by email and we'll get in touch to set everything up.",
+      success: "We've received your €150 payment and your 14-day BALI Flow Pilot is now active. During the pilot you won't be charged anything else; after 14 days, unless cancelled, your subscription begins and the €150 will be credited against your first payment. You'll get a Stripe receipt by email and we'll get in touch to set everything up.",
       cancel: "No charge was made. If this was a mistake, reopen the payment link and try again. Need help? Email info@baliflowagency.com.",
     },
     resCta: "Back to BALI Flow", resFoot: "BALI Flow · Pilot",
-    consent: "You are purchasing a 14-day BALI Flow Pilot for €150. Unless cancelled before the pilot ends, your subscription will start automatically. The €150 pilot fee will be credited against your first monthly payment. Pilot terms: {url}",
+    consent: "You are purchasing a 14-day BALI Flow Pilot for €150. Unless cancelled before the pilot ends, your subscription will start automatically. The €150 pilot fee will be credited against your first payment. Pilot terms: {url}",
   },
   it: {
     brand: "Pilota · 14 giorni",
+    cycleWord: { monthly: "Mensile", annual: "Annuale" },
     planName: { founder: "Piano Founder", premium: "Piano Premium" },
     sub: "Prova BALI Flow per 14 giorni.",
-    todayLabel: "Oggi (pilota 14 giorni)", firstLabel: "1ª mensilità (giorno 14)", afterLabel: "Poi",
-    perMonth: "/mese", todayWord: "oggi",
-    legal: "Stai acquistando un Pilota BALI Flow di 14 giorni per €150. Salvo disdetta prima della fine del pilota, l'abbonamento partirà automaticamente. I €150 del pilota saranno scalati dalla prima mensilità. Consulta i {terms}.",
+    todayLabel: "Oggi (pilota 14 giorni)",
+    firstLabel: { monthly: "1ª mensilità (giorno 14)", annual: "1ª annualità (giorno 14)" },
+    afterLabel: "Poi", perMonth: "/mese", perYear: "/anno", todayWord: "oggi",
+    legal: "Stai acquistando un Pilota BALI Flow di 14 giorni per €150. Salvo disdetta prima della fine del pilota, l'abbonamento partirà automaticamente. I €150 del pilota saranno scalati dal tuo primo pagamento. Consulta i {terms}.",
     termsLabel: "Termini del pilota", businessNameLabel: "Nome dell'attività (facoltativo)",
     payBtn: "Paga €150 e inizia", payingBtn: "Reindirizzamento…",
     errText: "Impossibile avviare il pagamento. Riprova.", secureFoot: "Pagamento sicuro con Stripe · BALI Flow",
     resTitle: { success: "Pagamento completato!", cancel: "Pagamento non completato" },
     resHeading: { success: "Il tuo pilota è iniziato 🎉", cancel: "Pagamento non completato" },
     resBody: {
-      success: "Abbiamo ricevuto il tuo pagamento di €150 e il tuo Pilota BALI Flow di 14 giorni è ora attivo. Durante il pilota non ti verrà addebitato altro; dopo 14 giorni, salvo disdetta, partirà l'abbonamento e i €150 saranno scalati dalla prima mensilità. Riceverai una ricevuta Stripe via email e ti contatteremo per l'attivazione.",
+      success: "Abbiamo ricevuto il tuo pagamento di €150 e il tuo Pilota BALI Flow di 14 giorni è ora attivo. Durante il pilota non ti verrà addebitato altro; dopo 14 giorni, salvo disdetta, partirà l'abbonamento e i €150 saranno scalati dal tuo primo pagamento. Riceverai una ricevuta Stripe via email e ti contatteremo per l'attivazione.",
       cancel: "Nessun addebito effettuato. Se è stato un errore, riapri il link di pagamento e riprova. Hai bisogno di aiuto? Scrivi a info@baliflowagency.com.",
     },
     resCta: "Torna a BALI Flow", resFoot: "BALI Flow · Pilota",
-    consent: "Stai acquistando un Pilota BALI Flow di 14 giorni per €150. Salvo disdetta prima della fine del pilota, l'abbonamento partirà automaticamente. I €150 saranno scalati dalla prima mensilità. Termini del pilota: {url}",
+    consent: "Stai acquistando un Pilota BALI Flow di 14 giorni per €150. Salvo disdetta prima della fine del pilota, l'abbonamento partirà automaticamente. I €150 saranno scalati dal tuo primo pagamento. Termini del pilota: {url}",
   },
   de: {
     brand: "Pilot · 14 Tage",
+    cycleWord: { monthly: "Monatlich", annual: "Jährlich" },
     planName: { founder: "Founder-Tarif", premium: "Premium-Tarif" },
     sub: "Teste BALI Flow 14 Tage lang.",
-    todayLabel: "Heute (14-Tage-Pilot)", firstLabel: "1. Monat (Tag 14)", afterLabel: "Danach",
-    perMonth: "/Monat", todayWord: "heute",
-    legal: "Du erwirbst einen 14-tägigen BALI-Flow-Pilot für €150. Sofern nicht vor Ende des Pilots gekündigt, startet dein Abonnement automatisch. Die €150 werden auf deine erste Monatsrechnung angerechnet. Siehe die {terms}.",
+    todayLabel: "Heute (14-Tage-Pilot)",
+    firstLabel: { monthly: "1. Monat (Tag 14)", annual: "1. Jahr (Tag 14)" },
+    afterLabel: "Danach", perMonth: "/Monat", perYear: "/Jahr", todayWord: "heute",
+    legal: "Du erwirbst einen 14-tägigen BALI-Flow-Pilot für €150. Sofern nicht vor Ende des Pilots gekündigt, startet dein Abonnement automatisch. Die €150 werden auf deine erste Zahlung angerechnet. Siehe die {terms}.",
     termsLabel: "Pilot-Bedingungen", businessNameLabel: "Name des Unternehmens (optional)",
     payBtn: "€150 zahlen und starten", payingBtn: "Weiterleitung…",
     errText: "Zahlung konnte nicht gestartet werden. Bitte erneut versuchen.", secureFoot: "Sichere Zahlung mit Stripe · BALI Flow",
     resTitle: { success: "Zahlung abgeschlossen!", cancel: "Zahlung nicht abgeschlossen" },
     resHeading: { success: "Dein Pilot hat begonnen 🎉", cancel: "Zahlung wurde nicht abgeschlossen" },
     resBody: {
-      success: "Wir haben deine Zahlung von €150 erhalten und dein 14-tägiger BALI-Flow-Pilot ist jetzt aktiv. Während des Pilots wird dir nichts weiter berechnet; nach 14 Tagen startet, sofern nicht gekündigt, dein Abonnement und die €150 werden auf die erste Monatsrechnung angerechnet. Du erhältst eine Stripe-Quittung per E-Mail und wir melden uns zur Einrichtung.",
+      success: "Wir haben deine Zahlung von €150 erhalten und dein 14-tägiger BALI-Flow-Pilot ist jetzt aktiv. Während des Pilots wird dir nichts weiter berechnet; nach 14 Tagen startet, sofern nicht gekündigt, dein Abonnement und die €150 werden auf deine erste Zahlung angerechnet. Du erhältst eine Stripe-Quittung per E-Mail und wir melden uns zur Einrichtung.",
       cancel: "Es wurde nichts berechnet. War das ein Versehen, öffne den Zahlungslink erneut und versuche es nochmal. Brauchst du Hilfe? Schreib an info@baliflowagency.com.",
     },
     resCta: "Zurück zu BALI Flow", resFoot: "BALI Flow · Pilot",
-    consent: "Du erwirbst einen 14-tägigen BALI-Flow-Pilot für €150. Sofern nicht vor Ende des Pilots gekündigt, startet dein Abonnement automatisch. Die €150 werden auf deine erste Monatsrechnung angerechnet. Pilot-Bedingungen: {url}",
+    consent: "Du erwirbst einen 14-tägigen BALI-Flow-Pilot für €150. Sofern nicht vor Ende des Pilots gekündigt, startet dein Abonnement automatisch. Die €150 werden auf deine erste Zahlung angerechnet. Pilot-Bedingungen: {url}",
   },
 };
 
@@ -192,24 +213,31 @@ function taxEnabled(): boolean {
   return process.env.STRIPE_TAX_ENABLED === "true";
 }
 
-// Display amounts (the localized "/mo" suffix is appended from PILOT_I18N).
-const PILOT_AMOUNTS: Record<PilotPlan, { firstMonth: string; monthly: string }> = {
-  founder: { firstMonth: "€149", monthly: "€299" },
-  premium: { firstMonth: "€249", monthly: "€399" },
-};
+/** Format whole-euro cents as "€2990". */
+function eur(cents: number): string {
+  return `€${Math.round(cents / 100)}`;
+}
+
+/** Display amounts for a plan+cycle: the recurring price and the discounted first
+ * invoice (recurring − €150 pilot credit). */
+function pilotAmounts(plan: PilotPlan, cycle: PilotCycle): { first: string; recurring: string } {
+  const rec = PILOT_PLANS[plan].recurringCents[cycle];
+  return { recurring: eur(rec), first: eur(rec - PILOT_FIRST_MONTH_CREDIT_CENTS) };
+}
 
 /** A self-contained, paste-anywhere landing page served on GET, localized to one of
  * the CRM's languages (es/it/en/de). It does NOT create a Checkout Session by itself
  * — that only happens when the visitor clicks the button (a POST to the same URL) —
  * so link-preview bots that fetch the page don't litter Stripe/DB with throwaway
  * sessions. The button reads {url} from the POST JSON and redirects to Stripe. */
-export function pilotLandingHtml(plan: PilotPlan, lang: PilotLang = "es"): string {
-  const a = PILOT_AMOUNTS[plan];
+export function pilotLandingHtml(plan: PilotPlan, cycle: PilotCycle = "monthly", lang: PilotLang = "es"): string {
+  const a = pilotAmounts(plan, cycle);
   const t = PILOT_I18N[lang];
   const title = t.planName[plan];
+  const recurringSuffix = cycle === "annual" ? t.perYear : t.perMonth;
   const termsAnchor = `<a href="${PILOT_TERMS_URL}" target="_blank" rel="noopener" style="color:#b8845c;font-weight:600;">${t.termsLabel}</a>`;
   const legalHtml = t.legal.replace("{terms}", termsAnchor);
-  // `plan`/`lang` are validated unions; all interpolated copy is from PILOT_I18N.
+  // `plan`/`cycle`/`lang` are validated unions; all interpolated copy is from PILOT_I18N.
   return `<!doctype html>
 <html lang="${lang}">
 <head>
@@ -250,14 +278,14 @@ export function pilotLandingHtml(plan: PilotPlan, lang: PilotLang = "es"): strin
 <body>
   <main class="card">
     <img class="logo" src="/logo-horizontal.png" alt="BALI Flow" />
-    <p class="brand">${t.brand}</p>
+    <p class="brand">${t.brand} · ${t.cycleWord[cycle]}</p>
     <h1>${title}</h1>
     <p class="sub">${t.sub}</p>
     <p class="price">€150 <small>${t.todayWord}</small></p>
     <div class="rows">
       <div class="row"><span>${t.todayLabel}</span><span>€150</span></div>
-      <div class="row"><span>${t.firstLabel}</span><span>${a.firstMonth}</span></div>
-      <div class="row"><span>${t.afterLabel}</span><span>${a.monthly}${t.perMonth}</span></div>
+      <div class="row"><span>${t.firstLabel[cycle]}</span><span>${a.first}</span></div>
+      <div class="row"><span>${t.afterLabel}</span><span>${a.recurring}${recurringSuffix}</span></div>
     </div>
     <div class="legal">${legalHtml}</div>
     <button id="pay" type="button">${t.payBtn}</button>
@@ -349,10 +377,13 @@ function withParam(url: string, key: string, value: string): string {
 }
 
 /** Build the Checkout Session for a pilot plan and record a pending row. Public
- * sales endpoint — no tenant auth (the buyer has no account yet). `lang` localizes
- * the consent text, the Stripe Checkout UI, and the success/cancel result pages. */
+ * sales endpoint — no tenant auth (the buyer has no account yet). `cycle` picks the
+ * monthly vs annual recurring price; `lang` localizes the consent text, the Stripe
+ * Checkout UI, and the success/cancel result pages. The €150 credit is identical in
+ * both cycles (it lands on the first invoice, monthly or annual). */
 export async function createPilotCheckout(
   plan: PilotPlan,
+  cycle: PilotCycle = "monthly",
   origin: string,
   lang: PilotLang = "es",
 ): Promise<PilotCheckoutResult> {
@@ -361,8 +392,8 @@ export async function createPilotCheckout(
   }
   const cfg = PILOT_PLANS[plan];
   const pilotPriceId = process.env.STRIPE_PILOT_PRICE_ID;
-  const monthlyPriceId = process.env[cfg.monthlyPriceEnv];
-  if (!pilotPriceId || !monthlyPriceId) {
+  const recurringPriceId = process.env[cfg.priceEnv[cycle]];
+  if (!pilotPriceId || !recurringPriceId) {
     return { ok: false, status: 503, error: "not_configured", reason: "stripe_price_missing" };
   }
 
@@ -378,7 +409,7 @@ export async function createPilotCheckout(
     lang,
   );
 
-  const metadata = pilotMetadata(plan, { lang });
+  const metadata = pilotMetadata(plan, { lang, cycle });
 
   let session: { id: string; url: string };
   try {
@@ -457,19 +488,21 @@ export async function activatePilotFromSession(svc: Svc, sessionObj: Record<stri
     paymentMethod = typeof pi.payment_method === "string" ? pi.payment_method : undefined;
   }
 
+  // The billing cycle was stamped on the session metadata at checkout creation.
+  const cycle: PilotCycle = sessionObj.metadata?.cycle === "annual" ? "annual" : "monthly";
   const cfg = PILOT_PLANS[plan];
-  const monthlyPriceId = process.env[cfg.monthlyPriceEnv];
-  if (!monthlyPriceId) throw new Error(`${cfg.monthlyPriceEnv} not set`);
-  const metadata = pilotMetadata(plan, { stripe_checkout_session_id: sessionId });
+  const recurringPriceId = process.env[cfg.priceEnv[cycle]];
+  if (!recurringPriceId) throw new Error(`${cfg.priceEnv[cycle]} not set`);
+  const metadata = pilotMetadata(plan, { stripe_checkout_session_id: sessionId, cycle });
 
   // Make the saved card the customer default + stamp metadata.
   await updateCustomer(customerId, { defaultPaymentMethod: paymentMethod, metadata });
 
-  // Create the 14-day trialing subscription at the FULL monthly price.
+  // Create the 14-day trialing subscription at the FULL recurring price (monthly or annual).
   const couponId = process.env.STRIPE_PILOT_CREDIT_COUPON_ID || undefined;
   const sub = await createPilotSubscription({
     customerId,
-    monthlyPriceId,
+    monthlyPriceId: recurringPriceId, // param name is generic; carries the cycle's price
     trialPeriodDays: PILOT_TRIAL_DAYS,
     defaultPaymentMethod: paymentMethod,
     couponId,
@@ -478,14 +511,14 @@ export async function activatePilotFromSession(svc: Svc, sessionObj: Record<stri
     idempotencyKey: `pilot_sub_${sessionId}`,
   });
 
-  // Apply the €150 reduction to the FIRST real invoice. Coupon (if configured) is
-  // already attached above; otherwise use a customer-balance credit.
+  // Apply the €150 reduction to the FIRST real invoice (monthly or annual). Coupon
+  // (if configured) is already attached above; otherwise use a customer-balance credit.
   if (!couponId) {
     await addCustomerCredit(
       customerId,
       -PILOT_FIRST_MONTH_CREDIT_CENTS,
       PILOT_CURRENCY,
-      "BALI Flow pilot fee credited to first month",
+      "BALI Flow pilot fee credited to first payment",
       metadata,
       `pilot_credit_${sessionId}`,
     );
