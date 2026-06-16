@@ -28,20 +28,24 @@ describe("pilot money model", () => {
     expect(PILOT_TRIAL_DAYS).toBe(14);
   });
 
-  it("founder: €299/mo, first invoice €149 (= monthly − €150)", () => {
+  it("founder: monthly €299 (first €149) / annual €2990 (first €2840)", () => {
     const f = PILOT_PLANS.founder;
-    expect(f.monthlyCents).toBe(29900);
-    expect(f.firstInvoiceCents).toBe(14900);
-    expect(f.monthlyCents - PILOT_FIRST_MONTH_CREDIT_CENTS).toBe(f.firstInvoiceCents);
-    expect(f.monthlyPriceEnv).toBe("STRIPE_FOUNDER_MONTHLY_PRICE_ID");
+    expect(f.recurringCents.monthly).toBe(29900);
+    expect(f.recurringCents.annual).toBe(299000);
+    expect(f.recurringCents.monthly - PILOT_FIRST_MONTH_CREDIT_CENTS).toBe(14900);
+    expect(f.recurringCents.annual - PILOT_FIRST_MONTH_CREDIT_CENTS).toBe(284000);
+    expect(f.priceEnv.monthly).toBe("STRIPE_FOUNDER_MONTHLY_PRICE_ID");
+    expect(f.priceEnv.annual).toBe("STRIPE_FOUNDER_ANNUAL_PRICE_ID");
   });
 
-  it("premium: €399/mo, first invoice €249 (= monthly − €150)", () => {
+  it("premium: monthly €399 (first €249) / annual €3990 (first €3840)", () => {
     const p = PILOT_PLANS.premium;
-    expect(p.monthlyCents).toBe(39900);
-    expect(p.firstInvoiceCents).toBe(24900);
-    expect(p.monthlyCents - PILOT_FIRST_MONTH_CREDIT_CENTS).toBe(p.firstInvoiceCents);
-    expect(p.monthlyPriceEnv).toBe("STRIPE_PREMIUM_MONTHLY_PRICE_ID");
+    expect(p.recurringCents.monthly).toBe(39900);
+    expect(p.recurringCents.annual).toBe(399000);
+    expect(p.recurringCents.monthly - PILOT_FIRST_MONTH_CREDIT_CENTS).toBe(24900);
+    expect(p.recurringCents.annual - PILOT_FIRST_MONTH_CREDIT_CENTS).toBe(384000);
+    expect(p.priceEnv.monthly).toBe("STRIPE_PREMIUM_MONTHLY_PRICE_ID");
+    expect(p.priceEnv.annual).toBe("STRIPE_PREMIUM_ANNUAL_PRICE_ID");
   });
 
   it("the first-month credit never makes today's charge €0 (req 14)", () => {
@@ -83,6 +87,15 @@ describe("pilot i18n (es/it/en/de)", () => {
       expect(t.resBody.cancel, lang).toBeTruthy();
       expect(t.legal, lang).toContain("{terms}");
       expect(t.consent, lang).toContain("{url}");
+      // per-cycle strings present for both monthly and annual
+      expect(t.firstLabel.monthly, lang).toBeTruthy();
+      expect(t.firstLabel.annual, lang).toBeTruthy();
+      expect(t.cycleWord.monthly, lang).toBeTruthy();
+      expect(t.cycleWord.annual, lang).toBeTruthy();
+      expect(t.perMonth, lang).toBeTruthy();
+      expect(t.perYear, lang).toBeTruthy();
+      // consent/legal must be cycle-neutral (no "monthly"-specific wording)
+      expect(t.consent.toLowerCase(), lang).not.toMatch(/mensual|mensilità|monatsrechnung|monthly payment/);
     }
   });
 
@@ -94,14 +107,27 @@ describe("pilot i18n (es/it/en/de)", () => {
     }
   });
 
-  it("landing renders translated copy + correct amounts per language", () => {
-    const html = pilotLandingHtml("founder", "it");
+  it("landing renders translated copy + correct amounts per language (monthly)", () => {
+    const html = pilotLandingHtml("founder", "monthly", "it");
     expect(html).toContain('<html lang="it">');
     expect(html).toContain("Paga €150 e inizia");
     expect(html).toContain("Piano Founder");
     expect(html).toContain("€299/mese");
+    expect(html).toContain("€149"); // first month = 299 − 150
     expect(html).not.toContain("{terms}"); // placeholder resolved to an <a>
     expect(html).toContain(PILOT_TERMS_URL);
+  });
+
+  it("landing renders the ANNUAL cycle (amounts, suffix, cycle word)", () => {
+    const es = pilotLandingHtml("premium", "annual", "es");
+    expect(es).toContain("€3990/año");      // annual recurring
+    expect(es).toContain("€3840");          // first year = 3990 − 150
+    expect(es).toContain("Anual");          // cycle badge
+    expect(es).toContain("1ª anualidad (día 14)");
+    const en = pilotLandingHtml("founder", "annual", "en");
+    expect(en).toContain("€2990/yr");
+    expect(en).toContain("€2840");
+    expect(en).toContain("Annual");
   });
 
   it("result page renders translated success/cancel per language", () => {
