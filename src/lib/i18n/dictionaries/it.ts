@@ -48,7 +48,7 @@ export const it: Dictionary = {
   res_col_source: "Canale",
   res_col_phone: "Telefono",
   res_col_table: "Tavolo",
-  res_seat_action: "Far sedere",
+  res_seat_action: "Siedi",
   res_cancel_action: "Annulla",
   res_cancel_confirm: "Annullare questa prenotazione?",
   res_change_table: "Cambia tavolo",
