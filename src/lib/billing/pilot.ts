@@ -237,6 +237,16 @@ export function pilotLandingHtml(plan: PilotPlan, cycle: PilotCycle = "monthly",
   const recurringSuffix = cycle === "annual" ? t.perYear : t.perMonth;
   const termsAnchor = `<a href="${PILOT_TERMS_URL}" target="_blank" rel="noopener" style="color:#b8845c;font-weight:600;">${t.termsLabel}</a>`;
   const legalHtml = t.legal.replace("{terms}", termsAnchor);
+  // Language switch — plain GET links that reload THIS page in the chosen language
+  // (the server re-renders it translated), preserving the billing cycle. No client
+  // JS/state: clicking a pill just navigates to the same route with ?lang=.
+  const langSwitch = (["es", "it", "en", "de"] as const)
+    .map((code) => {
+      const on = code === lang ? " on" : "";
+      const aria = code === lang ? ' aria-current="true"' : "";
+      return `<a class="lang${on}"${aria} hreflang="${code}" href="/api/billing/pilot/${plan}?lang=${code}&cycle=${cycle}">${code.toUpperCase()}</a>`;
+    })
+    .join("");
   // `plan`/`cycle`/`lang` are validated unions; all interpolated copy is from PILOT_I18N.
   return `<!doctype html>
 <html lang="${lang}">
@@ -257,6 +267,12 @@ export function pilotLandingHtml(plan: PilotPlan, cycle: PilotCycle = "monthly",
   .card { background: rgba(252,246,237,0.92); width:100%; max-width:440px; border-radius:18px; padding:32px;
     border:2px solid #c4956a; box-shadow:0 20px 60px rgba(196,149,106,0.25), 0 8px 24px rgba(196,149,106,0.15); }
   .logo { display:block; height:34px; width:auto; margin:0 0 18px; }
+  .langs { display:flex; gap:6px; justify-content:flex-end; margin:0 0 14px; }
+  .langs a { font-size:12px; font-weight:700; letter-spacing:.04em; text-decoration:none; color:#9a7350;
+    padding:4px 9px; border-radius:999px; border:1px solid rgba(196,149,106,0.35); background:rgba(196,149,106,0.06);
+    transition:background .15s, color .15s, border-color .15s; }
+  .langs a:hover { background:rgba(196,149,106,0.16); }
+  .langs a.on { background:#c4956a; color:#fff; border-color:#c4956a; }
   .brand { font-size:12px; letter-spacing:.1em; text-transform:uppercase; color:#b8845c; font-weight:700; margin:0 0 6px; }
   h1 { font-size:24px; margin:0 0 4px; color:#000; }
   .sub { color:#000; font-size:15px; margin:0 0 22px; }
@@ -277,6 +293,7 @@ export function pilotLandingHtml(plan: PilotPlan, cycle: PilotCycle = "monthly",
 </head>
 <body>
   <main class="card">
+    <nav class="langs" aria-label="Language">${langSwitch}</nav>
     <img class="logo" src="/logo-horizontal.png" alt="BALI Flow" />
     <p class="brand">${t.brand} · ${t.cycleWord[cycle]}</p>
     <h1>${title}</h1>
