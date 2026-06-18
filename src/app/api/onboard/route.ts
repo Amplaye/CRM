@@ -140,6 +140,17 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "already_provisioned" }, { status: 409 });
   }
 
+  // 3.b. Validate the owner phone BEFORE provisioning. It becomes the WhatsApp
+  //   recipient for owner alerts (pre-turno, weekly report, nightly audit), so a
+  //   malformed value (e.g. "+34sdfsdf" or a bare "+34") silently breaks every
+  //   owner-facing n8n cron with a Meta 400 — one junk signup spammed Trello with
+  //   recurring bug cards. Reject a non-empty phone that isn't a plausible E.164
+  //   number (8–15 digits). Empty is still allowed (owner alerts just stay off).
+  const ownerPhoneRaw = (body.owner_phone || "").trim();
+  if (ownerPhoneRaw && !/^\+?\d{8,15}$/.test(ownerPhoneRaw.replace(/\s/g, ""))) {
+    return NextResponse.json({ error: "invalid_owner_phone" }, { status: 400 });
+  }
+
   // 4. Build the orchestrator input. KB articles are generated server-side from
   //    the fixed-field questionnaire (the client never ships free-text). The
   //    voice prompt is omitted on purpose → orchestrator builds it from the
@@ -182,7 +193,7 @@ export async function POST(req: Request) {
     restaurant_name: body.restaurant_name,
     slug,
     restaurant_phone: (body.restaurant_phone || "").trim(),
-    owner_phone: (body.owner_phone || "").trim(),
+    owner_phone: ownerPhoneRaw,
     timezone: body.timezone || "Atlantic/Canary",
     locale: localeFor(lang),
     language: lang,
