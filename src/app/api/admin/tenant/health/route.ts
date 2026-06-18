@@ -40,8 +40,10 @@ interface N8nProbe {
 // reminders work even without its own `[Name]` copies. Matched case-insensitively
 // and by prefix so a future rename of the suffix doesn't silently break this.
 const SHARED_ENGINE_PREFIXES = [
-  "[meta router] whatsapp",        // all inbound WhatsApp → the one chatbot engine
-  "[all] reminders — multi-tenant", // reminders for every tenant
+  "[meta router] whatsapp",                  // all inbound WhatsApp → the one chatbot engine
+  "[all] reminders — multi-tenant",          // reminders for every tenant
+  "[all] follow-up post-cena — multi-tenant", // post-dinner follow-up for every tenant
+  "[all] waitlist reassurance — multi-tenant", // waitlist reassurance for every tenant
 ];
 
 async function n8nProbe(restaurantName: string): Promise<N8nProbe | null> {
@@ -181,12 +183,12 @@ export async function GET(req: NextRequest) {
     n8nState = "ok";
     n8nDetail = `${probe.ownActive}/${N8N_TEMPLATE_COUNT} workflow attivi`;
   } else if (probe.ownActive >= N8N_MOTORE_UNICO_MIN_COUNT && probe.sharedEnginesLive) {
-    // Motore-unico tenant: a few per-tenant workflows (WhatsApp, Reminders,
-    // Web Call Token) are intentionally served by the shared engines instead of
-    // being cloned. That's not "incomplete" — confirm the shared engines are
-    // live and report it as healthy.
+    // Motore-unico tenant: several functions (WhatsApp, Reminders, Web Call
+    // Token, Follow-up Post-Cena, Waitlist Reassurance) are intentionally served
+    // by the shared engines instead of being cloned per tenant. That's not
+    // "incomplete" — confirm the shared engines are live and report it healthy.
     n8nState = "ok";
-    n8nDetail = `${probe.ownActive} propri + WhatsApp/Reminders dal motore unico (condivisi)`;
+    n8nDetail = `${probe.ownActive} propri + WhatsApp/Reminders/Follow-up/Waitlist dal motore unico (condivisi)`;
   } else {
     n8nState = "fail";
     n8nDetail = `${probe.ownActive}/${N8N_TEMPLATE_COUNT} workflow attivi (incompleto)`;

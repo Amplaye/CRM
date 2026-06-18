@@ -200,4 +200,49 @@ export async function syncSystemLogToTrello(
   return result;
 }
 
+// ── Reverse direction: Trello card → system_logs ──────────────────────────
+// When a human drags a card into "✅ Hecho" ON TRELLO, close the matching
+// system_logs row so the CRM Monitoring view agrees. This is the inbound half
+// of the mirror (the outbound half is resolveCard above).
+//
+// Loop-safety: our own resolveCard() also moves the card to Hecho via the API,
+// which makes Trello fire its webhook back at us. That's harmless here — we only
+// touch rows still `status='open'`, so an already-resolved log is a no-op and
+// the echo dies on the first bounce.
+export async function resolveSystemLogByTrelloCard(
+  cardId: string
+): Promise<{ resolved: boolean; logId?: string; reason?: string }> {
+  if (!cardId) return { resolved: false, reason: "no card id" };
+  const { createServiceRoleClient } = await import("@/lib/supabase/server");
+  const supabase = createServiceRoleClient();
+
+  // Find the open log that owns this card. trello_card_id was stamped into
+  // metadata by persistCardId when the card was created.
+  const { data: rows, error } = await supabase
+    .from("system_logs")
+    .select("id, status")
+    .eq("status", "open")
+    .contains("metadata", { trello_card_id: cardId })
+    .limit(1);
+
+  if (error) return { resolved: false, reason: error.message };
+  if (!rows || rows.length === 0) {
+    return { resolved: false, reason: "no open log for card" };
+  }
+
+  const logId = rows[0].id;
+  const { error: upErr } = await supabase
+    .from("system_logs")
+    .update({ status: "resolved", resolved_at: new Date().toISOString() })
+    .eq("id", logId)
+    .eq("status", "open"); // guard against a concurrent resolve
+  if (upErr) return { resolved: false, logId, reason: upErr.message };
+
+  return { resolved: true, logId };
+}
+
+// The "✅ Hecho" list id — exported so the inbound webhook can tell whether a
+// card-move action landed in the done column.
+export const TRELLO_DONE_LIST_ID = LIST_HECHO;
+
 export { archiveOldResolved };

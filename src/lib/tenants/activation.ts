@@ -25,17 +25,25 @@ export const N8N_TEMPLATE_COUNT = 14;
 /** Workflow functions that a tenant on the "motore unico" (shared engine) does
  * NOT run under its own `[Name]` prefix because a single shared workflow serves
  * every tenant. The health card must not red-flag their absence — that's the
- * intended architecture, not a broken tenant.
+ * intended architecture, not a broken tenant. A tenant's own `[Name]` copy of
+ * these may exist but sit INACTIVE: that's correct (activating it would double
+ * every reminder / follow-up). The live shared engine is the real worker.
  *   - "Chatbot WhatsApp": all WhatsApp goes through `[Meta Router] WhatsApp` →
  *      the one `[Picnic] Chatbot WhatsApp` engine (tenant injected at runtime).
  *   - "Reminders": served by `[ALL] Reminders — Multi-Tenant`.
  *   - "Web Call Token": superseded by the CRM `/api/voice/overrides` endpoint
  *      that the web widget calls directly (motore unico voce).
- * A migrated tenant therefore legitimately runs 15 − 3 = 12 own workflows. */
+ *   - "Follow-up Post-Cena": served by `[ALL] Follow-up Post-Cena — Multi-Tenant`
+ *      (the per-tenant clone was retired; the shared cron sweeps every tenant).
+ *   - "Waitlist Reassurance": served by `[ALL] Waitlist Reassurance — Multi-Tenant`
+ *      (consolidated 2026-06-16; per-tenant clones now redundant — see N8N_TEMPLATE_COUNT note).
+ * A migrated tenant therefore legitimately runs 14 − 5 = 9 own workflows. */
 export const MOTORE_UNICO_SHARED_WORKFLOWS = [
   "Chatbot WhatsApp",
   "Reminders",
   "Web Call Token",
+  "Follow-up Post-Cena",
+  "Waitlist Reassurance",
 ] as const;
 
 /** Lower bar for a tenant served by the shared engine (motore unico). */
