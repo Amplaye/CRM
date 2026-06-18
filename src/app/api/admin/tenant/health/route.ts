@@ -1,9 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServiceRoleClient } from "@/lib/supabase/server";
 import { assertPlatformAdmin } from "@/lib/admin-auth";
-import { N8N_TEMPLATE_COUNT, N8N_MOTORE_UNICO_MIN_COUNT } from "@/lib/tenants/activation";
 import { ENGINE_VAPI_ASSISTANT_ID } from "@/lib/voice/engine";
 import { getVoiceProvider } from "@/lib/types/tenant-settings";
+import {
+  resolveN8nTenantHealth,
+  type N8nTenantHealth,
+  type RawWorkflow,
+  type TenantWorkflow,
+} from "@/lib/tenants/n8n-health";
 
 // Activation health-check for a single tenant.
 //
@@ -25,28 +30,17 @@ interface Check {
   label: string;
   state: CheckState;
   detail: string;
+  /** Only on the n8n check: the per-workflow live breakdown for the UI list. */
+  workflows?: TenantWorkflow[];
 }
 
-interface N8nProbe {
-  /** Active workflows named `[<tenant>] …` — the tenant's own per-tenant set. */
-  ownActive: number;
-  /** Are the shared "motore unico" engines that cover the superseded per-tenant
-   * workflows (WhatsApp + Reminders) live? If so, a tenant missing those few own
-   * workflows is still fully operational. */
-  sharedEnginesLive: boolean;
-}
-
-// The shared workflows whose presence proves a motore-unico tenant's WhatsApp +
-// reminders work even without its own `[Name]` copies. Matched case-insensitively
-// and by prefix so a future rename of the suffix doesn't silently break this.
-const SHARED_ENGINE_PREFIXES = [
-  "[meta router] whatsapp",                  // all inbound WhatsApp → the one chatbot engine
-  "[all] reminders — multi-tenant",          // reminders for every tenant
-  "[all] follow-up post-cena — multi-tenant", // post-dinner follow-up for every tenant
-  "[all] waitlist reassurance — multi-tenant", // waitlist reassurance for every tenant
-];
-
-async function n8nProbe(restaurantName: string): Promise<N8nProbe | null> {
+// Live-truth n8n probe: fetch every workflow once, then let resolveN8nTenantHealth
+// classify this tenant's own workflows against the shared engines that are
+// actually live right now. No threshold, no hardcoded template count — the admin
+// mirrors n8n instead of re-deriving it, so a consolidation/rename on n8n can't
+// drift the card out of sync (the "10/14 incompleto" phantom). Returns null only
+// when n8n is unreachable.
+async function n8nProbe(restaurantName: string): Promise<N8nTenantHealth | null> {
   const apiKey = process.env.N8N_API_KEY;
   const baseUrl = process.env.N8N_BASE_URL || "https://n8n.srv1468837.hstgr.cloud";
   if (!apiKey) return null;
@@ -56,18 +50,8 @@ async function n8nProbe(restaurantName: string): Promise<N8nProbe | null> {
     });
     if (!res.ok) return null;
     const data = await res.json();
-    const all: Array<{ name?: string; active?: boolean }> = data?.data || [];
-    // Case-insensitive: a tenant named "PICNIC" has workflows named "[Picnic] …".
-    // A case-sensitive match returned 0 and falsely flagged a working legacy
-    // tenant as "0/13 incomplete".
-    const prefix = `[${restaurantName}]`.toLowerCase();
-    const isActiveNamed = (w: { name?: string; active?: boolean }, p: string) =>
-      typeof w.name === "string" && w.name.toLowerCase().startsWith(p) && w.active === true;
-    const ownActive = all.filter((w) => isActiveNamed(w, prefix)).length;
-    const sharedEnginesLive = SHARED_ENGINE_PREFIXES.every((p) =>
-      all.some((w) => isActiveNamed(w, p))
-    );
-    return { ownActive, sharedEnginesLive };
+    const all = (data?.data || []) as RawWorkflow[];
+    return resolveN8nTenantHealth(restaurantName, all);
   } catch {
     return null;
   }
@@ -162,38 +146,34 @@ export async function GET(req: NextRequest) {
   }
   checks.push({ key: "vapi", label: vapiLabel, state: vapiState, detail: vapiDetail });
 
-  // 4. n8n workflows — the AUTHORITATIVE signal is how many [Name]* workflows are
-  // active on n8n right now (live), not what the settings recorded. Legacy
-  // tenants have no recorded ids but plenty of live workflows. The recorded
-  // count is only a fallback hint when n8n is unreachable.
-  const recordedIds: string[] = Array.isArray(s?.n8n?.workflow_ids) ? s.n8n.workflow_ids : [];
+  // 4. n8n workflows — "verità viva": classify the tenant's own workflows against
+  // the shared engines that are live on n8n RIGHT NOW. No threshold, no template
+  // count. Red only if a CORE function (the ones that make the bot answer) is off
+  // and uncovered; accessory workflows off-by-design (reports, audits) don't fail
+  // the tenant. The per-workflow breakdown is returned so the card can list each.
   const probe = await n8nProbe(tenant.name);
   let n8nState: CheckState;
   let n8nDetail: string;
+  let n8nWorkflows: TenantWorkflow[] | undefined;
   if (probe === null) {
-    // Can't verify live → never hard-fail on the recorded count alone (a legacy
-    // tenant with 0 recorded ids may still be fully live). Worst case: warn.
     n8nState = "warn";
-    n8nDetail =
-      recordedIds.length > 0
-        ? `${recordedIds.length} registrati; stato n8n non verificabile ora`
-        : "stato n8n non verificabile ora";
-  } else if (probe.ownActive >= N8N_TEMPLATE_COUNT) {
-    // Self-hosted tenant — runs the full per-tenant set.
-    n8nState = "ok";
-    n8nDetail = `${probe.ownActive}/${N8N_TEMPLATE_COUNT} workflow attivi`;
-  } else if (probe.ownActive >= N8N_MOTORE_UNICO_MIN_COUNT && probe.sharedEnginesLive) {
-    // Motore-unico tenant: several functions (WhatsApp, Reminders, Web Call
-    // Token, Follow-up Post-Cena, Waitlist Reassurance) are intentionally served
-    // by the shared engines instead of being cloned per tenant. That's not
-    // "incomplete" — confirm the shared engines are live and report it healthy.
-    n8nState = "ok";
-    n8nDetail = `${probe.ownActive} propri + WhatsApp/Reminders/Follow-up/Waitlist dal motore unico (condivisi)`;
+    n8nDetail = "stato n8n non verificabile ora";
   } else {
-    n8nState = "fail";
-    n8nDetail = `${probe.ownActive}/${N8N_TEMPLATE_COUNT} workflow attivi (incompleto)`;
+    n8nWorkflows = probe.workflows;
+    const parts = [`${probe.active} attivi`];
+    if (probe.covered) parts.push(`${probe.covered} dal motore unico`);
+    if (probe.optional) parts.push(`${probe.optional} opzionali spenti`);
+    if (probe.ok) {
+      n8nState = "ok";
+      n8nDetail = parts.join(", ");
+    } else {
+      // A core function is down. Name them so the admin sees exactly what's broken.
+      const broken = probe.workflows.filter((w) => w.state === "down").map((w) => w.func);
+      n8nState = "fail";
+      n8nDetail = `funzioni core spente: ${broken.join(", ")}`;
+    }
   }
-  checks.push({ key: "n8n", label: "Automazioni (n8n)", state: n8nState, detail: n8nDetail });
+  checks.push({ key: "n8n", label: "Automazioni (n8n)", state: n8nState, detail: n8nDetail, workflows: n8nWorkflows });
 
   // 2 (filled last). Onboarding marker — what the dashboard guard reads to stop
   // redirecting the OWNER into the wizard. It says nothing about whether the bot

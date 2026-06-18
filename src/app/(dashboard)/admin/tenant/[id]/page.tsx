@@ -41,9 +41,22 @@ const STATUS_BADGE: Record<TenantStatus, string> = {
   archived: "bg-zinc-100 text-black border-zinc-300",
 };
 
+interface HealthWorkflow {
+  func: string;
+  name: string;
+  id?: string;
+  state: "active" | "covered" | "optional" | "down";
+  coveredBy?: string;
+}
 interface TenantHealth {
   overall: "ok" | "warn" | "fail";
-  checks: Array<{ key: string; label: string; state: "ok" | "warn" | "fail"; detail: string }>;
+  checks: Array<{
+    key: string;
+    label: string;
+    state: "ok" | "warn" | "fail";
+    detail: string;
+    workflows?: HealthWorkflow[];
+  }>;
 }
 
 interface TenantDetail {
@@ -401,6 +414,47 @@ export default function TenantDetailPage() {
               </div>
             ))}
           </div>
+
+          {/* Verità viva: the n8n check carries the per-workflow breakdown straight
+              from n8n. Listing each workflow with its live state is what removes
+              the "10/14" guesswork — the admin shows exactly what runs, what a
+              shared engine covers, and what (if anything) is genuinely down. */}
+          {(() => {
+            const n8n = health.checks.find((c) => c.key === "n8n");
+            if (!n8n?.workflows?.length) return null;
+            const order = { down: 0, active: 1, covered: 2, optional: 3 } as const;
+            const sorted = [...n8n.workflows].sort((a, b) => order[a.state] - order[b.state]);
+            const dot = (st: HealthWorkflow["state"]) =>
+              st === "active" ? "bg-emerald-500"
+              : st === "covered" ? "bg-sky-400"
+              : st === "optional" ? "bg-zinc-300"
+              : "bg-red-500";
+            const label = (w: HealthWorkflow) =>
+              w.state === "active" ? "attivo"
+              : w.state === "covered" ? `coperto da ${w.coveredBy || "motore unico"}`
+              : w.state === "optional" ? "opzionale — spento"
+              : "SPENTO (core)";
+            return (
+              <details className="mt-3 pt-3 border-t border-black/10">
+                <summary className="text-[11px] font-medium text-black cursor-pointer select-none">
+                  Workflow n8n in tempo reale ({n8n.workflows.length})
+                </summary>
+                <div className="mt-2 grid sm:grid-cols-2 gap-x-6 gap-y-1">
+                  {sorted.map((w) => (
+                    <div key={w.name} className="flex items-center gap-2 text-[11px]">
+                      <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${dot(w.state)}`} />
+                      <span className="text-black truncate" title={w.name}>
+                        {w.name.replace(/^\[[^\]]*\]\s*/, "")}
+                      </span>
+                      <span className={`ml-auto shrink-0 ${w.state === "down" ? "text-red-600 font-semibold" : "text-black/50"}`}>
+                        {label(w)}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </details>
+            );
+          })()}
           {health.overall === "fail" && (
             <p className="text-[11px] text-black mt-3 pt-3 border-t border-black/10">
               Per riparare: riapri l&apos;onboarding di questo cliente e premi invia — il provisioning si completa da dove si era interrotto, senza duplicati.
