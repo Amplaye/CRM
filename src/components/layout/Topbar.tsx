@@ -1,6 +1,6 @@
 "use client";
 
-import { Bell, Menu, Phone, MessageSquare, ShieldAlert, LogOut, Globe, X, Calendar, ClipboardList, AlertTriangle } from "lucide-react";
+import { Bell, Menu, Phone, MessageSquare, Globe, X, Calendar, ClipboardList, AlertTriangle } from "lucide-react";
 import { useLanguage } from "@/lib/contexts/LanguageContext";
 import { useTenant } from "@/lib/contexts/TenantContext";
 import { tenantHasLocaleSwitcher } from "@/lib/tenants/legacy-locale";
@@ -43,7 +43,7 @@ interface TopbarProps {
 
 export function Topbar({ onMenuToggle }: TopbarProps) {
   const { t, language, setLanguage } = useLanguage();
-  const { activeTenant, isImpersonating, switchTenant } = useTenant();
+  const { activeTenant } = useTenant();
   // PICNIC (the legacy template tenant) keeps an in-app CRM language switcher so
   // it can be demoed in any of the four languages; every real tenant's language
   // stays fixed to crm_locale. See src/lib/tenants/legacy-locale.ts.
@@ -405,7 +405,8 @@ export function Topbar({ onMenuToggle }: TopbarProps) {
 
   return (
     <header className="h-14 md:h-16 border-b flex items-center justify-between px-3 sm:px-4 md:px-6 lg:px-8" style={{ background: 'rgba(252,246,237,0.85)', borderColor: '#c4956a' }}>
-      {/* Left side - hamburger on mobile + support-mode badge */}
+      {/* Left side - hamburger on mobile. The impersonation indicator lives in the
+          full-width banner above the Topbar (see DashboardLayout). */}
       <div className="flex items-center gap-2 min-w-0">
         <button
           onClick={onMenuToggle}
@@ -413,20 +414,6 @@ export function Topbar({ onMenuToggle }: TopbarProps) {
         >
           <Menu className="h-5 w-5 text-black" />
         </button>
-        {isImpersonating && activeTenant && (
-          <div className="flex items-center gap-1.5 px-2 sm:px-2.5 py-1 rounded-md bg-amber-100 border border-amber-300 text-amber-900 text-[11px] sm:text-xs font-semibold min-w-0">
-            <ShieldAlert className="h-3.5 w-3.5 flex-shrink-0" />
-            <span className="hidden sm:inline">Supporto su</span>
-            <span className="truncate max-w-[10rem]">{activeTenant.name}</span>
-            <button
-              onClick={() => switchTenant(null)}
-              className="ml-1 p-0.5 hover:bg-amber-200 rounded transition-colors"
-              title="Esci dalla modalit&agrave; supporto"
-            >
-              <LogOut className="h-3 w-3" />
-            </button>
-          </div>
-        )}
       </div>
 
       {/* Right side - controls */}

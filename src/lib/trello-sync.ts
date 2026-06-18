@@ -154,7 +154,7 @@ async function archiveOldResolved() {
  * Single entry point used by the Supabase Database Webhook on `system_logs`.
  * - new open row  → create card in 🐛 Bugs activos
  * - row → resolved → move card to ✅ Hecho
- * Mirrors the /admin/debug "Open Errors" box: open count == active cards.
+ * Mirrors the /admin/monitoring "Open Errors" box: open count == active cards.
  */
 export async function syncSystemLogToTrello(
   type: "INSERT" | "UPDATE" | "DELETE",

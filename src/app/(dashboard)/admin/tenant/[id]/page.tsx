@@ -7,10 +7,31 @@ import Link from "next/link";
 import {
   ArrowLeft, Bot, AlertTriangle, MessageSquare, Calendar,
   Phone, TrendingUp, UserX, Zap, Clock, Lightbulb, DollarSign, ShieldCheck, Eye,
-  CheckCircle2, XCircle, AlertCircle, Package,
+  CheckCircle2, XCircle, AlertCircle, Package, LogIn, Sliders, StickyNote, Trash2, Save, CreditCard, ExternalLink,
 } from "lucide-react";
 import { TENANT_STATUSES, type TenantStatus } from "@/lib/tenants/status";
 import { getRawFeatures, type TenantFeatures } from "@/lib/types/tenant-settings";
+import { entitlementFor } from "@/lib/billing/entitlements";
+
+// All per-tenant feature flags the admin can toggle (Italian admin copy). The
+// management module shows its entitlement reason (manual / paid / grace) inline.
+const FEATURE_TOGGLES: Array<{ flag: keyof TenantFeatures; title: string; hint: string }> = [
+  { flag: "management_enabled", title: "Gestionale — Inventario, Food Cost, P&L", hint: "Pagine di controllo gestione (vendite POS, food cost, conto economico, inventario, fatture)." },
+  { flag: "waitlist_enabled", title: "Lista d'attesa", hint: "Raccoglie i clienti quando è pieno e avvisa al liberarsi di un tavolo." },
+  { flag: "double_shift", title: "Doppio turno", hint: "Aperto sia a pranzo che a cena." },
+  { flag: "multi_room", title: "Più sale", hint: "Sale / aree separate nella mappa tavoli." },
+  { flag: "multi_language", title: "Multilingua", hint: "Il bot risponde ai clienti in più lingue." },
+  { flag: "events_enabled", title: "Eventi / gruppi", hint: "Serate speciali, eventi privati, grandi gruppi." },
+  { flag: "terrace", title: "Terrazza", hint: "Posti all'aperto." },
+  { flag: "pet_friendly", title: "Pet friendly", hint: "Animali ammessi." },
+  { flag: "reminders_enabled", title: "Promemoria", hint: "Promemoria prenotazione il giorno prima (template WhatsApp)." },
+  { flag: "followup_enabled", title: "Follow-up post-visita", hint: "Ringraziamento / richiesta recensione dopo la visita (template marketing)." },
+  { flag: "commercial_info_enabled", title: "Info commerciali", hint: "Il bot risponde su listini, menù fissi, buffet dalle voci KB 'commerciale'." },
+];
+
+const POS_PROVIDERS = ["mock", "cassa_in_cloud", "tilby", "ipratico", "nempos", "deliverect", "loyverse"];
+
+interface ClientNote { id: string; content: string; author: string; created_at: string; }
 
 const STATUS_BADGE: Record<TenantStatus, string> = {
   active: "bg-emerald-50 text-emerald-700 border-emerald-200",
@@ -53,7 +74,7 @@ const sourceIcon = (s: string) => {
 };
 
 export default function TenantDetailPage() {
-  const { globalRole } = useTenant();
+  const { globalRole, switchTenant } = useTenant();
   const params = useParams();
   const tenantId = params?.id as string;
   const [data, setData] = useState<TenantDetail | null>(null);
@@ -67,6 +88,18 @@ export default function TenantDetailPage() {
   const [downloadUrl, setDownloadUrl] = useState<string | null>(null);
   const [actionMsg, setActionMsg] = useState<string | null>(null);
   const [featureSaving, setFeatureSaving] = useState<keyof TenantFeatures | null>(null);
+  // Settings editor (nested settings the admin can override)
+  const [sForm, setSForm] = useState<{
+    timezone: string; crm_locale: string; voiceProvider: string; posProvider: string;
+    botPaused: boolean; botPausedMessage: string;
+    foodCostTargetPct: string; laborBudgetMonthly: string; costMethod: string;
+  } | null>(null);
+  const [savingSettings, setSavingSettings] = useState(false);
+  const [settingsMsg, setSettingsMsg] = useState<string | null>(null);
+  // Client notes (folded in from the old /admin/clients page)
+  const [notes, setNotes] = useState<ClientNote[]>([]);
+  const [newNote, setNewNote] = useState("");
+  const [notesBusy, setNotesBusy] = useState(false);
 
   // Flip a single feature flag for this tenant (admin-only). Flags live in
   // settings.features (the nested object getFeatures() reads + the sidebar gates
@@ -186,6 +219,91 @@ export default function TenantDetailPage() {
     fetchDetail();
   }, [tenantId]);
 
+  // Initialize the settings-editor form once, from the loaded tenant settings.
+  useEffect(() => {
+    if (!data?.tenant || sForm) return;
+    const s = (data.tenant.settings || {}) as any;
+    setSForm({
+      timezone: s.timezone || "",
+      crm_locale: s.crm_locale || "",
+      voiceProvider: s.voice?.provider || "vapi",
+      posProvider: s.pos?.provider || "mock",
+      botPaused: !!s.bot_config?.bot_paused,
+      botPausedMessage: s.bot_config?.bot_paused_message || "",
+      foodCostTargetPct: s.management?.food_cost_target_pct != null ? String(s.management.food_cost_target_pct) : "",
+      laborBudgetMonthly: s.management?.labor_budget_monthly != null ? String(s.management.labor_budget_monthly) : "",
+      costMethod: s.management?.cost_method || "last",
+    });
+  }, [data?.tenant, sForm]);
+
+  // Load client notes for this tenant.
+  useEffect(() => {
+    if (!tenantId) return;
+    fetch(`/api/admin/client-notes?tenant_id=${tenantId}`)
+      .then((r) => (r.ok ? r.json() : { notes: [] }))
+      .then((j) => setNotes(j.notes || []))
+      .catch(() => {});
+  }, [tenantId]);
+
+  // Enter the CRM AS this tenant (sets the impersonation cookie, then reloads).
+  const enterAsTenant = () => { void switchTenant(tenantId); };
+
+  // Save the nested settings. CRITICAL: the PATCH route shallow-merges at the top
+  // level of `settings`, so each sub-object is read-modify-written (spread the
+  // existing value) or sibling keys (e.g. bot_config thresholds) would be lost.
+  const saveSettings = async () => {
+    if (!tenantId || !sForm || !data) return;
+    setSavingSettings(true); setSettingsMsg(null);
+    const s = (data.tenant.settings || {}) as any;
+    const settings: Record<string, any> = {
+      timezone: sForm.timezone || undefined,
+      crm_locale: sForm.crm_locale || undefined,
+      voice: { ...(s.voice || {}), provider: sForm.voiceProvider },
+      pos: { ...(s.pos || {}), provider: sForm.posProvider },
+      bot_config: { ...(s.bot_config || {}), bot_paused: sForm.botPaused, bot_paused_message: sForm.botPausedMessage || undefined },
+      management: {
+        ...(s.management || {}),
+        food_cost_target_pct: sForm.foodCostTargetPct === "" ? undefined : Number(sForm.foodCostTargetPct),
+        labor_budget_monthly: sForm.laborBudgetMonthly === "" ? undefined : Number(sForm.laborBudgetMonthly),
+        cost_method: sForm.costMethod,
+      },
+    };
+    try {
+      const res = await fetch("/api/admin/tenant", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tenant_id: tenantId, settings }),
+      });
+      const j = await res.json();
+      if (!res.ok) throw new Error(j.error || "Failed");
+      setData((prev) => (prev ? { ...prev, tenant: { ...prev.tenant, settings: j.settings || { ...s, ...settings } } } : prev));
+      setSettingsMsg("Salvato");
+    } catch (e: any) { setSettingsMsg(e.message); }
+    setSavingSettings(false);
+  };
+
+  const addNote = async () => {
+    if (!tenantId || !newNote.trim()) return;
+    setNotesBusy(true);
+    try {
+      const res = await fetch("/api/admin/client-notes", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tenant_id: tenantId, content: newNote.trim() }),
+      });
+      const j = await res.json();
+      if (res.ok && j.note) { setNotes((prev) => [j.note, ...prev]); setNewNote(""); }
+    } catch { /* ignore */ }
+    setNotesBusy(false);
+  };
+
+  const deleteNote = async (id: string) => {
+    setNotes((prev) => prev.filter((n) => n.id !== id));
+    await fetch("/api/admin/client-notes", {
+      method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id }),
+    }).catch(() => {});
+  };
+
   if (globalRole !== "platform_admin") {
     return <div className="p-8 text-center text-black">Unauthorized</div>;
   }
@@ -220,6 +338,15 @@ export default function TenantDetailPage() {
         </div>
         {/* Lifecycle control: only trial/active receive AI traffic. */}
         <div className="flex items-center gap-2">
+          {tenant.status !== "archived" && (
+            <button
+              onClick={enterAsTenant}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#c4956a] text-white text-xs font-bold hover:bg-[#8b6540] transition-colors"
+              title="Entra nel CRM operando come questo ristorante"
+            >
+              <LogIn className="w-3.5 h-3.5" /> Entra come ristorante
+            </button>
+          )}
           <label className="text-[10px] text-black uppercase tracking-wider hidden sm:block">Status</label>
           <select
             value={tenant.status}
@@ -291,15 +418,18 @@ export default function TenantDetailPage() {
         // switch they control (a paying tenant has access regardless of this).
         const features = getRawFeatures(tenant.settings as any);
         const FeatureToggle = ({
-          flag, icon, title, hint,
-        }: { flag: keyof TenantFeatures; icon: React.ReactNode; title: string; hint: string }) => {
+          flag, icon, title, hint, badge,
+        }: { flag: keyof TenantFeatures; icon: React.ReactNode; title: string; hint: string; badge?: React.ReactNode }) => {
           const on = features[flag];
           const saving = featureSaving === flag;
           return (
             <div className="flex items-start gap-3 p-3 rounded-lg" style={{ background: "rgba(196,149,106,0.06)" }}>
               <div className="mt-0.5">{icon}</div>
               <div className="flex-1 min-w-0">
-                <p className="text-xs font-medium text-black">{title}</p>
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <p className="text-xs font-medium text-black">{title}</p>
+                  {badge}
+                </div>
                 <p className="text-[10px] text-black mt-0.5">{hint}</p>
               </div>
               <button
@@ -328,13 +458,166 @@ export default function TenantDetailPage() {
               <h3 className="text-xs font-bold text-black uppercase tracking-wider">Funzionalità</h3>
             </div>
             <div className="space-y-2">
-              <FeatureToggle
-                flag="management_enabled"
-                icon={<Package className="w-3.5 h-3.5 text-[#c4956a]" />}
-                title="Gestionale — Inventario, Food Cost, P&L"
-                hint="Attiva le pagine di controllo gestione (vendite POS, food cost, conto economico, inventario, fatture) per questo ristorante."
-              />
+              {FEATURE_TOGGLES.map((f) => {
+                let badge: React.ReactNode = null;
+                if (f.flag === "management_enabled") {
+                  const ent = entitlementFor(tenant.settings as any, "smart_inventory");
+                  const map: Record<string, { label: string; cls: string }> = {
+                    manual: { label: "override manuale", cls: "bg-blue-50 text-blue-700 border-blue-200" },
+                    active: { label: "pagato", cls: "bg-emerald-50 text-emerald-700 border-emerald-200" },
+                    grace: { label: "grazia", cls: "bg-amber-50 text-amber-700 border-amber-200" },
+                    canceled: { label: "annullato", cls: "bg-zinc-100 text-zinc-600 border-zinc-300" },
+                    expired: { label: "scaduto", cls: "bg-zinc-100 text-zinc-600 border-zinc-300" },
+                    none: { label: "non attivo", cls: "bg-zinc-100 text-zinc-600 border-zinc-300" },
+                  };
+                  const b = map[ent.reason] || map.none;
+                  badge = <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full border ${b.cls}`}>{b.label}</span>;
+                }
+                return (
+                  <FeatureToggle
+                    key={f.flag}
+                    flag={f.flag}
+                    icon={<Package className="w-3.5 h-3.5 text-[#c4956a]" />}
+                    title={f.title}
+                    hint={f.hint}
+                    badge={badge}
+                  />
+                );
+              })}
             </div>
+          </div>
+        );
+      })()}
+
+      {/* Settings editor — key nested settings the admin can override per tenant.
+          Each sub-object is read-modify-written on save (the PATCH route merges
+          shallowly at the top level of settings). */}
+      {sForm && (
+        <div className="rounded-xl border-2 p-4" style={cardStyle}>
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-2">
+              <Sliders className="w-4 h-4 text-[#c4956a]" />
+              <h3 className="text-xs font-bold text-black uppercase tracking-wider">Impostazioni</h3>
+            </div>
+            <div className="flex items-center gap-2">
+              {settingsMsg && <span className="text-[11px] text-black">{settingsMsg}</span>}
+              <button onClick={saveSettings} disabled={savingSettings}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600 text-white text-xs font-bold hover:bg-emerald-700 transition-colors disabled:opacity-60">
+                <Save className="w-3.5 h-3.5" /> {savingSettings ? "..." : "Salva"}
+              </button>
+            </div>
+          </div>
+
+          {/* Kill switch — highest-value control, surfaced first */}
+          <div className="flex items-start gap-3 p-3 rounded-lg mb-3" style={{ background: sForm.botPaused ? "rgba(239,68,68,0.08)" : "rgba(196,149,106,0.06)" }}>
+            <div className="flex-1 min-w-0">
+              <p className="text-xs font-medium text-black">Bot in pausa (kill switch)</p>
+              <p className="text-[10px] text-black mt-0.5">Quando attivo, il motore WhatsApp smette di gestire le richieste e risponde solo col messaggio di pausa.</p>
+              {sForm.botPaused && (
+                <input
+                  value={sForm.botPausedMessage}
+                  onChange={(e) => setSForm({ ...sForm, botPausedMessage: e.target.value })}
+                  placeholder="Messaggio mostrato mentre il bot è in pausa"
+                  className="mt-2 w-full border-2 rounded-lg px-2 py-1.5 text-xs text-black focus:outline-none focus:ring-1 focus:ring-[#c4956a]"
+                  style={{ borderColor: "#c4956a", background: "rgba(252,246,237,0.6)" }}
+                />
+              )}
+            </div>
+            <button type="button" role="switch" aria-checked={sForm.botPaused}
+              onClick={() => setSForm({ ...sForm, botPaused: !sForm.botPaused })}
+              className={`relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full transition-colors ${sForm.botPaused ? "bg-red-500" : "bg-zinc-300"}`}>
+              <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${sForm.botPaused ? "translate-x-6" : "translate-x-1"}`} />
+            </button>
+          </div>
+
+          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            <label className="text-xs text-black">
+              Timezone
+              <input value={sForm.timezone} onChange={(e) => setSForm({ ...sForm, timezone: e.target.value })}
+                placeholder="Europe/Rome"
+                className="mt-1 w-full border-2 rounded-lg px-2 py-1.5 text-xs text-black focus:outline-none focus:ring-1 focus:ring-[#c4956a]"
+                style={{ borderColor: "#c4956a", background: "rgba(252,246,237,0.6)" }} />
+            </label>
+            <label className="text-xs text-black">
+              Lingua CRM
+              <select value={sForm.crm_locale} onChange={(e) => setSForm({ ...sForm, crm_locale: e.target.value })}
+                className="mt-1 w-full border-2 rounded-lg px-2 py-1.5 text-xs text-black focus:outline-none focus:ring-1 focus:ring-[#c4956a]"
+                style={{ borderColor: "#c4956a", background: "rgba(252,246,237,0.6)" }}>
+                <option value="">(default)</option>
+                <option value="it">it</option><option value="es">es</option><option value="en">en</option><option value="de">de</option>
+              </select>
+            </label>
+            <label className="text-xs text-black">
+              Voce (provider)
+              <select value={sForm.voiceProvider} onChange={(e) => setSForm({ ...sForm, voiceProvider: e.target.value })}
+                className="mt-1 w-full border-2 rounded-lg px-2 py-1.5 text-xs text-black focus:outline-none focus:ring-1 focus:ring-[#c4956a]"
+                style={{ borderColor: "#c4956a", background: "rgba(252,246,237,0.6)" }}>
+                <option value="vapi">vapi (base)</option><option value="retell">retell (premium)</option>
+              </select>
+            </label>
+            <label className="text-xs text-black">
+              POS (provider)
+              <select value={sForm.posProvider} onChange={(e) => setSForm({ ...sForm, posProvider: e.target.value })}
+                className="mt-1 w-full border-2 rounded-lg px-2 py-1.5 text-xs text-black focus:outline-none focus:ring-1 focus:ring-[#c4956a]"
+                style={{ borderColor: "#c4956a", background: "rgba(252,246,237,0.6)" }}>
+                {POS_PROVIDERS.map((p) => <option key={p} value={p}>{p}</option>)}
+              </select>
+            </label>
+            <label className="text-xs text-black">
+              Food cost target %
+              <input type="number" value={sForm.foodCostTargetPct} onChange={(e) => setSForm({ ...sForm, foodCostTargetPct: e.target.value })}
+                placeholder="30"
+                className="mt-1 w-full border-2 rounded-lg px-2 py-1.5 text-xs text-black focus:outline-none focus:ring-1 focus:ring-[#c4956a]"
+                style={{ borderColor: "#c4956a", background: "rgba(252,246,237,0.6)" }} />
+            </label>
+            <label className="text-xs text-black">
+              Budget personale / mese (€)
+              <input type="number" value={sForm.laborBudgetMonthly} onChange={(e) => setSForm({ ...sForm, laborBudgetMonthly: e.target.value })}
+                placeholder="5000"
+                className="mt-1 w-full border-2 rounded-lg px-2 py-1.5 text-xs text-black focus:outline-none focus:ring-1 focus:ring-[#c4956a]"
+                style={{ borderColor: "#c4956a", background: "rgba(252,246,237,0.6)" }} />
+            </label>
+            <label className="text-xs text-black">
+              Metodo costo
+              <select value={sForm.costMethod} onChange={(e) => setSForm({ ...sForm, costMethod: e.target.value })}
+                className="mt-1 w-full border-2 rounded-lg px-2 py-1.5 text-xs text-black focus:outline-none focus:ring-1 focus:ring-[#c4956a]"
+                style={{ borderColor: "#c4956a", background: "rgba(252,246,237,0.6)" }}>
+                <option value="last">ultimo prezzo</option><option value="avg">media ponderata</option>
+              </select>
+            </label>
+          </div>
+        </div>
+      )}
+
+      {/* Billing (this tenant) — read-only mirror; money actions go to Stripe. */}
+      {(() => {
+        const b = (tenant.settings as any)?.billing || {};
+        const hasBilling = b.plan || b.status || b.stripe_customer_id;
+        return (
+          <div className="rounded-xl border-2 p-4" style={cardStyle}>
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2">
+                <CreditCard className="w-4 h-4 text-[#c4956a]" />
+                <h3 className="text-xs font-bold text-black uppercase tracking-wider">Abbonamento</h3>
+              </div>
+              {b.stripe_customer_id && (
+                <a href={`https://dashboard.stripe.com/customers/${b.stripe_customer_id}`} target="_blank" rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1 text-xs font-medium text-black/70 hover:text-black transition-colors">
+                  Apri su Stripe <ExternalLink className="w-3 h-3" />
+                </a>
+              )}
+            </div>
+            {!hasBilling ? (
+              <p className="text-xs text-black">Nessun abbonamento attivo per questo cliente.</p>
+            ) : (
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 text-xs">
+                <div><p className="text-black/60">Piano</p><p className="font-medium text-black capitalize">{b.plan || "—"}</p></div>
+                <div><p className="text-black/60">Ciclo</p><p className="font-medium text-black">{b.cycle || "—"}</p></div>
+                <div><p className="text-black/60">Stato</p><p className="font-medium text-black">{b.status || "—"}</p></div>
+                <div><p className="text-black/60">Rinnovo</p><p className="font-medium text-black">{b.current_period_end ? new Date(b.current_period_end).toLocaleDateString() : "—"}</p></div>
+                <div><p className="text-black/60">Add-on</p><p className="font-medium text-black">{(b.addons && b.addons.length) ? b.addons.join(", ") : "—"}</p></div>
+              </div>
+            )}
           </div>
         );
       })()}
@@ -546,6 +829,42 @@ export default function TenantDetailPage() {
             )}
           </div>
         </div>
+      </div>
+
+      {/* Client notes — folded in from the old /admin/clients page */}
+      <div className="rounded-xl border-2 p-4" style={cardStyle}>
+        <div className="flex items-center gap-2 mb-3">
+          <StickyNote className="w-4 h-4 text-[#c4956a]" />
+          <h3 className="text-xs font-bold text-black uppercase tracking-wider">Note cliente</h3>
+        </div>
+        <div className="flex gap-2 mb-3">
+          <input value={newNote} onChange={(e) => setNewNote(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter") addNote(); }}
+            placeholder="Aggiungi una nota (rinnovo contratto, upsell, richiesta...)"
+            className="flex-1 border-2 rounded-lg px-2 py-1.5 text-xs text-black focus:outline-none focus:ring-1 focus:ring-[#c4956a]"
+            style={{ borderColor: "#c4956a", background: "rgba(252,246,237,0.6)" }} />
+          <button onClick={addNote} disabled={notesBusy || !newNote.trim()}
+            className="px-3 py-1.5 rounded-lg bg-[#c4956a] text-white text-xs font-bold hover:bg-[#8b6540] transition-colors disabled:opacity-50">
+            Aggiungi
+          </button>
+        </div>
+        {notes.length === 0 ? (
+          <p className="text-xs text-black">Nessuna nota.</p>
+        ) : (
+          <div className="space-y-2">
+            {notes.map((n) => (
+              <div key={n.id} className="group flex items-start justify-between gap-3 p-2.5 rounded-lg" style={{ background: "rgba(196,149,106,0.06)" }}>
+                <div className="min-w-0">
+                  <p className="text-xs text-black whitespace-pre-wrap break-words">{n.content}</p>
+                  <p className="text-[10px] text-black/60 mt-0.5">{new Date(n.created_at).toLocaleString()}</p>
+                </div>
+                <button onClick={() => deleteNote(n.id)} className="opacity-0 group-hover:opacity-100 text-black/50 hover:text-red-600 transition-opacity flex-shrink-0" title="Elimina nota">
+                  <Trash2 className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Danger Zone — platform_admin only (page already gates) */}

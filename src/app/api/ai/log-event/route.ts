@@ -5,7 +5,7 @@ import { isUserFlowRejection } from '@/lib/ai/user-case';
 
 // Lightweight trace endpoint for n8n wrappers (chat + voice + reminders).
 // Stores a structured event in system_logs so failures and decisions are
-// visible in /admin/debug without tailing n8n logs.
+// visible in /admin/monitoring without tailing n8n logs.
 //
 // Body shape (all fields optional except step):
 //   {
