@@ -5,6 +5,7 @@ import { createServerSupabaseClient, createServiceRoleClient } from "@/lib/supab
 import { tenantWhatsAppFrom } from "@/lib/whatsapp/from";
 import { sendWhatsAppMeta } from "@/lib/whatsapp/meta";
 import { verifyTenantMembership } from "@/lib/tenant-membership";
+import { isImpersonatingTenant } from "@/lib/impersonation";
 
 export async function POST(req: NextRequest) {
   // Accept either: (a) valid x-ai-secret (n8n/Vapi) or (b) a signed-in dashboard session.
@@ -35,6 +36,22 @@ export async function POST(req: NextRequest) {
       const member = await verifyTenantMembership(tenant_id);
       if (!member) {
         return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+      }
+
+      // Safety: when a platform admin is operating AS this tenant from the
+      // command center, do NOT fire real WhatsApp to the tenant's real guests
+      // (or owner). The admin is managing data, not acting for the restaurant.
+      // Secret callers (the actual bot via n8n/Vapi) are never suppressed.
+      if (await isImpersonatingTenant(tenant_id)) {
+        logSystemEvent({
+          tenant_id,
+          category: "system",
+          severity: "low",
+          title: "WhatsApp send suppressed during impersonation",
+          description: `Admin is operating as this tenant; outbound message to ${to} was not sent.`,
+          metadata: { to },
+        });
+        return NextResponse.json({ success: true, suppressed: true });
       }
     }
 

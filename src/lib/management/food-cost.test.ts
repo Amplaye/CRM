@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { dishCost, foodCostPct, margin, isLowMargin, dishCostTable } from "@/lib/management/food-cost";
+import { dishCost, foodCostPct, margin, isLowMargin, dishCostTable, effectiveQty } from "@/lib/management/food-cost";
 import type { Dish, RecipeLine } from "@/lib/management/types";
 
 const costs = new Map<string, number>([
@@ -19,6 +19,12 @@ describe("dishCost", () => {
     expect(dishCost(recipe, costs)).toEqual({ cost: 1.55, missing: [] });
   });
 
+  it("grosses up quantity by the line's yield loss (wastePct)", () => {
+    // 200 g of flour plated, but 20% is lost to trim → 250 g consumed → €0.25.
+    const recipe: RecipeLine[] = [{ ingredientId: "flour", qty: 200, wastePct: 20 }];
+    expect(dishCost(recipe, costs).cost).toBe(0.25);
+  });
+
   it("reports ingredients with no known cost and excludes them from the total", () => {
     const recipe: RecipeLine[] = [
       { ingredientId: "flour", qty: 200 }, // 0.20
@@ -27,6 +33,16 @@ describe("dishCost", () => {
     const r = dishCost(recipe, costs);
     expect(r.cost).toBe(0.2);
     expect(r.missing).toEqual(["basil"]);
+  });
+});
+
+describe("effectiveQty", () => {
+  it("grosses up by yield loss and ignores out-of-range waste", () => {
+    expect(effectiveQty(75, 25)).toBe(100); // 25% loss: need 100 to plate 75
+    expect(effectiveQty(100)).toBe(100); // no waste
+    expect(effectiveQty(100, 0)).toBe(100);
+    expect(effectiveQty(100, 100)).toBe(100); // ≥100% ignored (would divide by 0)
+    expect(effectiveQty(100, -5)).toBe(100); // negative ignored
   });
 });
 

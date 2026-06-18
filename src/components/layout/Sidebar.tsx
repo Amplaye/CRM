@@ -16,12 +16,8 @@ import {
   ClipboardList,
   X,
   Activity,
-  AlertOctagon,
   DollarSign,
-  Bug,
-  StickyNote,
   Inbox,
-  ShieldAlert,
   Calculator,
   PieChart,
   Package,
@@ -161,15 +157,15 @@ export function Sidebar({ mobileOpen = false, onClose }: SidebarProps) {
     if (current) markVisited(current);
   }, [pathname, activeTenant?.id, navHrefs, markVisited]);
 
+  // Command center: 4 focused sections. Usage&Costs is absorbed into Billing;
+  // Quick Debug + System Health + All Incidents are merged into Monitoring;
+  // Client Notes is folded into the per-tenant page; Login Monitor is reachable
+  // by URL but no longer in the nav (security audit log, rarely actioned).
   const adminNavItems = [
     { href: "/admin", icon: Shield, label: "Tenants" },
+    { href: "/admin/billing", icon: DollarSign, label: "Billing" },
+    { href: "/admin/monitoring", icon: Activity, label: "Monitoring" },
     { href: "/admin/bali", icon: Inbox, label: "Bali Inbox" },
-    { href: "/admin/costs", icon: DollarSign, label: "Usage & Costs" },
-    { href: "/admin/debug", icon: Bug, label: "Quick Debug" },
-    { href: "/admin/clients", icon: StickyNote, label: "Client Notes" },
-    { href: "/admin/health", icon: Activity, label: "System Health" },
-    { href: "/admin/security", icon: ShieldAlert, label: "Login Monitor" },
-    { href: "/admin/incidents", icon: AlertOctagon, label: "All Incidents" },
   ];
 
   const isAdmin = globalRole === "platform_admin";

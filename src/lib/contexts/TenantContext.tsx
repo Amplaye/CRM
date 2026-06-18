@@ -204,23 +204,37 @@ export const TenantProvider = ({ children }: { children: ReactNode }) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, activeTenant?.id, supabase]);
 
-  const switchTenant = (tenantId: string | null) => {
+  const switchTenant = async (tenantId: string | null) => {
     if (user) safeSession.remove(`tenant_ctx_${user.id}`);
+    const isAdmin = globalRole === "platform_admin";
+
     if (tenantId === null) {
       safeLocal.remove("active_tenant_id");
+      // Clear the server-side impersonation cookie BEFORE navigating, so guest
+      // side-effect suppression + audit stop cleanly. Await it (best-effort).
+      if (isAdmin) {
+        try {
+          await fetch("/api/admin/impersonate", { method: "DELETE" });
+        } catch { /* navigation proceeds regardless */ }
+      }
       window.location.href = "/admin";
       return;
     }
+
     const target = availableTenants.find(t => t.id === tenantId);
     if (target) {
       safeLocal.set("active_tenant_id", target.id);
-      // Fire-and-forget audit log; don't block UI on it.
-      if (globalRole === "platform_admin") {
-        void fetch("/api/admin/impersonate", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ tenant_id: target.id }),
-        }).catch(() => {});
+      // Set the signed httpOnly impersonation cookie and AWAIT it before the
+      // full reload, so the next request already carries the impersonation
+      // signal (drives WhatsApp suppression + audit). Also logs enter.
+      if (isAdmin) {
+        try {
+          await fetch("/api/admin/impersonate", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ tenant_id: target.id }),
+          });
+        } catch { /* navigation proceeds regardless */ }
       }
       window.location.href = "/";
     }

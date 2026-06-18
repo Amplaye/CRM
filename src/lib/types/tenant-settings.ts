@@ -118,6 +118,10 @@ export interface TenantSettings {
     food_cost_target_pct?: number;
     /** Monthly staff-cost budget, compared against entered labor_cost on the P&L. */
     labor_budget_monthly?: number;
+    /** How a priced goods receipt updates an ingredient's cost: `last` (the most
+     * recent price, the DB trigger default) or `avg` (weighted average over the
+     * pre-receipt stock and the new goods). Default `last`. */
+    cost_method?: "last" | "avg";
   };
   /** Per-restaurant branding shown in the CRM chrome. `logo_url` is a public URL
    * in the "branding" Storage bucket; when set, the sidebar uses it both top-left

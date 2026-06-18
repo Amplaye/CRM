@@ -7,9 +7,18 @@ import type { Dish, DishCostResult, DishCostRow, RecipeLine } from "@/lib/manage
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
 
+/** Quantity actually consumed to plate `qty`, given a yield-loss % (trim/cook-off).
+ * 25% waste means only 75% of what's bought reaches the plate, so consumption is
+ * qty / 0.75. Guards keep it total: a missing, ≤0 or ≥100 waste falls back to qty. */
+export function effectiveQty(qty: number, wastePct?: number): number {
+  if (!wastePct || wastePct <= 0 || wastePct >= 100) return qty;
+  return qty / (1 - wastePct / 100);
+}
+
 /** Cost of one dish from its recipe and a map of ingredientId → unit cost.
- * Ingredients with no known cost are reported in `missing` and contribute 0
- * (cost is understated, never inflated). */
+ * Each line's quantity is grossed up by its yield loss (wastePct). Ingredients
+ * with no known cost are reported in `missing` and contribute 0 (cost is
+ * understated, never inflated). */
 export function dishCost(recipe: RecipeLine[], costs: Map<string, number>): DishCostResult {
   let cost = 0;
   const missing: string[] = [];
@@ -19,7 +28,7 @@ export function dishCost(recipe: RecipeLine[], costs: Map<string, number>): Dish
       missing.push(line.ingredientId);
       continue;
     }
-    cost += unit * line.qty;
+    cost += unit * effectiveQty(line.qty, line.wastePct);
   }
   return { cost: round2(cost), missing };
 }

@@ -8,11 +8,11 @@ import { useTenant } from "@/lib/contexts/TenantContext";
 import { useAuth } from "@/lib/contexts/AuthContext";
 import { createClient } from "@/lib/supabase/client";
 import { useRouter, usePathname } from "next/navigation";
-import { Loader2 } from "lucide-react";
+import { Loader2, Eye, LogOut } from "lucide-react";
 
 export function DashboardLayout({ children }: { children: ReactNode }) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const { globalRole, activeTenant, activeRole, loading } = useTenant();
+  const { globalRole, activeTenant, activeRole, isImpersonating, switchTenant, loading } = useTenant();
   const { user } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
@@ -122,6 +122,22 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
       <div className="h-[100dvh] flex relative z-10 overflow-hidden">
         <Sidebar mobileOpen={mobileMenuOpen} onClose={() => setMobileMenuOpen(false)} />
         <div className="flex-1 flex flex-col min-w-0">
+          {isImpersonating && activeTenant && (
+            <div className="flex items-center justify-between gap-3 px-3 sm:px-4 md:px-6 py-2 bg-amber-500 text-white text-sm font-medium shadow-sm">
+              <span className="flex items-center gap-2 min-w-0">
+                <Eye className="w-4 h-4 shrink-0" />
+                <span className="truncate">
+                  Stai operando come <strong>{activeTenant.name}</strong> — ogni modifica è reale; i messaggi ai clienti sono sospesi.
+                </span>
+              </span>
+              <button
+                onClick={() => switchTenant(null)}
+                className="shrink-0 inline-flex items-center gap-1.5 rounded-md bg-white/20 hover:bg-white/30 px-2.5 py-1 font-semibold transition-colors"
+              >
+                <LogOut className="w-3.5 h-3.5" /> Esci
+              </button>
+            </div>
+          )}
           <Topbar onMenuToggle={() => setMobileMenuOpen(true)} />
           <main className="flex-1 overflow-y-auto">
              {children}

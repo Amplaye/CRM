@@ -31,6 +31,14 @@ interface PlatformTotals {
   totalAiRevenue7: number;
 }
 
+interface BillingSummary {
+  mrr: number;
+  arr: number;
+  trialsEndingSoon: number;
+  pastDue: number;
+  canceled30: number;
+}
+
 const healthBadge = (h: string) => {
   switch (h) {
     case "critical": return { dot: "bg-red-500", bg: "bg-red-50 text-red-700 border-red-200", label: "Critical" };
@@ -47,6 +55,7 @@ export default function AdminPage() {
   const [loading, setLoading] = useState(true);
   const [pendingWa, setPendingWa] = useState<Array<{ id: string; name: string; slug: string }>>([]);
   const [archived, setArchived] = useState<Array<{ id: string; name: string; archived_at: string; purge_after: string }>>([]);
+  const [billing, setBilling] = useState<BillingSummary | null>(null);
 
   const fetchData = async () => {
     setLoading(true);
@@ -83,7 +92,14 @@ export default function AdminPage() {
     } catch { /* non-blocking */ }
   };
 
-  useEffect(() => { fetchData(); fetchPendingWa(); fetchArchived(); }, []);
+  const fetchBilling = async () => {
+    try {
+      const res = await fetch("/api/admin/billing/summary");
+      if (res.ok) setBilling(await res.json());
+    } catch { /* non-blocking */ }
+  };
+
+  useEffect(() => { fetchData(); fetchPendingWa(); fetchArchived(); fetchBilling(); }, []);
 
   if (globalRole !== "platform_admin") {
     return (
@@ -163,6 +179,29 @@ export default function AdminPage() {
             <p className="text-xs text-black font-medium">Critical</p>
             <p className={`text-xl font-bold ${platform.totalCritical > 0 ? "text-red-600" : "text-black"}`}>{platform.totalCritical}</p>
           </div>
+        </div>
+      )}
+
+      {/* Billing health — clickable, deep-links into the Billing console */}
+      {billing && (
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-4">
+          <Link href="/admin/billing" className="rounded-xl p-3 sm:p-4 border-2 hover:bg-[#c4956a]/5 transition-colors" style={cardStyle}>
+            <p className="text-xs text-black font-medium">MRR</p>
+            <p className="text-xl font-bold text-[#22c55e]">€{billing.mrr.toLocaleString("es-ES")}</p>
+            <p className="text-[10px] text-black/70">ARR €{billing.arr.toLocaleString("es-ES")}</p>
+          </Link>
+          <Link href="/admin/billing" className="rounded-xl p-3 sm:p-4 border-2 hover:bg-[#c4956a]/5 transition-colors" style={cardStyle}>
+            <p className="text-xs text-black font-medium">Trial in scadenza ≤7g</p>
+            <p className={`text-xl font-bold ${billing.trialsEndingSoon > 0 ? "text-amber-600" : "text-black"}`}>{billing.trialsEndingSoon}</p>
+          </Link>
+          <Link href="/admin/billing" className="rounded-xl p-3 sm:p-4 border-2 hover:bg-[#c4956a]/5 transition-colors" style={cardStyle}>
+            <p className="text-xs text-black font-medium">Insoluti</p>
+            <p className={`text-xl font-bold ${billing.pastDue > 0 ? "text-red-600" : "text-black"}`}>{billing.pastDue}</p>
+          </Link>
+          <Link href="/admin/billing" className="rounded-xl p-3 sm:p-4 border-2 hover:bg-[#c4956a]/5 transition-colors" style={cardStyle}>
+            <p className="text-xs text-black font-medium">Disdette (30g)</p>
+            <p className="text-xl font-bold text-black">{billing.canceled30}</p>
+          </Link>
         </div>
       )}
 

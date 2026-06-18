@@ -8,6 +8,8 @@ import { getShift, getRotationMinutes, calculateEndTime, tablesNeeded } from "@/
 import { normalizeBookingSource } from "@/lib/booking-validation";
 import { sendReservationConfirmationWhatsApp } from "@/lib/whatsapp/confirm-on-update";
 import { verifyTenantMembership } from "@/lib/tenant-membership";
+import { isImpersonatingTenant } from "@/lib/impersonation";
+import { logSystemEvent } from "@/lib/system-log";
 
 /**
  * Creates a Reservation.
@@ -217,6 +219,11 @@ export async function updateReservationDetailsAction(params: {
     operatorId = "ai_agent";
   }
 
+  // Is a platform admin operating AS this tenant from the command center? If so
+  // we still let them edit (operatorId is their id), but guest-facing side
+  // effects (the confirmation WhatsApp) are suppressed and the trail is marked.
+  const impersonating = !params.adminTenantId && (await isImpersonatingTenant(params.tenantId));
+
   const supabase = createServiceRoleClient();
 
   try {
@@ -277,20 +284,31 @@ export async function updateReservationDetailsAction(params: {
     // a hand-confirmed booking reaches the guest silently. Best-effort: a send
     // failure (or an unsendable phone) must not fail the reservation update.
     if (params.data.status === "confirmed" && current.status !== "confirmed") {
-      const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "https://crm.baliflowagency.com";
-      void sendReservationConfirmationWhatsApp({
-        tenantId: params.tenantId,
-        reservation: {
-          guest_id: current.guest_id,
-          date: params.data.date || current.date,
-          time: params.data.time || current.time,
-          party_size: params.data.party_size || current.party_size,
-          notes: params.data.notes ?? current.notes,
-          language: (current as any).language ?? null,
-        },
-        baseUrl,
-        aiSecret: process.env.AI_WEBHOOK_SECRET,
-      });
+      if (impersonating) {
+        logSystemEvent({
+          tenant_id: params.tenantId,
+          category: "system",
+          severity: "low",
+          title: "Booking confirmation WhatsApp suppressed during impersonation",
+          description: `Admin confirmed reservation ${params.reservationId} while operating as this tenant; the guest was not messaged.`,
+          metadata: { reservation_id: params.reservationId },
+        });
+      } else {
+        const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "https://crm.baliflowagency.com";
+        void sendReservationConfirmationWhatsApp({
+          tenantId: params.tenantId,
+          reservation: {
+            guest_id: current.guest_id,
+            date: params.data.date || current.date,
+            time: params.data.time || current.time,
+            party_size: params.data.party_size || current.party_size,
+            notes: params.data.notes ?? current.notes,
+            language: (current as any).language ?? null,
+          },
+          baseUrl,
+          aiSecret: process.env.AI_WEBHOOK_SECRET,
+        });
+      }
     }
 
     // Log a booking-detail modification so the CRM notification bell picks it up
@@ -312,6 +330,7 @@ export async function updateReservationDetailsAction(params: {
             ...(sizeChanged ? { party_size: params.data.party_size } : {}),
             ...(notesChanged ? { notes: params.data.notes } : {}),
           },
+          ...(impersonating ? { impersonated_by_admin: operatorId, acting_as_tenant: params.tenantId } : {}),
         },
         created_at: new Date().toISOString(),
       });
