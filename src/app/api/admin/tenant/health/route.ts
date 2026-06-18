@@ -245,6 +245,27 @@ export async function GET(req: NextRequest) {
       : "nessun numero collegato",
   });
 
+  // 6. Owner phone — the WhatsApp recipient for owner alerts (pre-turno, weekly
+  // report, nightly audit). A junk value (e.g. "+34sdfsdf") or a bare prefix
+  // ("+34") makes every owner-facing n8n cron fail with a Meta 400, which spawns
+  // recurring n8n_error bug cards on Trello (the WoodWay incident). New tenants
+  // can't get here anymore — onboarding validates it — but legacy/edited tenants
+  // can, so surface it. Same resolution order the n8n code uses:
+  // bot_config.responsible_phone → owner_phone. Not a hard fail: the bot itself
+  // (guest WhatsApp + voice) still works, only owner alerts break.
+  const ownerPhone = String(s?.bot_config?.responsible_phone || s?.owner_phone || "").trim();
+  const ownerPhoneValid = /^\+?\d{8,15}$/.test(ownerPhone.replace(/\s/g, ""));
+  checks.push({
+    key: "owner_phone",
+    label: "Telefono del titolare",
+    state: ownerPhoneValid ? "ok" : "warn",
+    detail: ownerPhoneValid
+      ? `valido (${ownerPhone})`
+      : ownerPhone
+      ? `non valido ("${ownerPhone}") — avvisi WhatsApp al titolare disattivati`
+      : "mancante — avvisi WhatsApp al titolare disattivati",
+  });
+
   // Overall: fail if anything failed; warn if any warning; else ok.
   // The WhatsApp check is intentionally excluded from "fail" (sandbox is a valid
   // testing state), but a missing number still keeps the overall at "warn".
