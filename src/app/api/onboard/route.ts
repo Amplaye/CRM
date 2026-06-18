@@ -144,10 +144,11 @@ export async function POST(req: Request) {
   //   recipient for owner alerts (pre-turno, weekly report, nightly audit), so a
   //   malformed value (e.g. "+34sdfsdf" or a bare "+34") silently breaks every
   //   owner-facing n8n cron with a Meta 400 — one junk signup spammed Trello with
-  //   recurring bug cards. Reject a non-empty phone that isn't a plausible E.164
-  //   number (8–15 digits). Empty is still allowed (owner alerts just stay off).
+  //   recurring bug cards. It is REQUIRED and must look like an E.164 number
+  //   (8–15 digits). The wizard gates the same rule client-side; this is the
+  //   authoritative check (a direct API call can't bypass it).
   const ownerPhoneRaw = (body.owner_phone || "").trim();
-  if (ownerPhoneRaw && !/^\+?\d{8,15}$/.test(ownerPhoneRaw.replace(/\s/g, ""))) {
+  if (!/^\+?\d{8,15}$/.test(ownerPhoneRaw.replace(/\s/g, ""))) {
     return NextResponse.json({ error: "invalid_owner_phone" }, { status: 400 });
   }
 

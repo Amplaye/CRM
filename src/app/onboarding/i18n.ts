@@ -68,7 +68,7 @@ interface UiStrings {
   posLive: string;       // badge on the one till we can connect today (Loyverse)
   sumPos: string;        // summary label
   // step 1 fields
-  fName: string; fPhone: string; fWhatsapp: string; fReview: string;
+  fName: string; fPhone: string; fWhatsapp: string; fWhatsappReq: string; fReview: string;
   fTimezone: string; fLanguages: string; fLanguagesHint: string;
   fCrmLang: string; fCrmLangHint: string;
   primary: string; makePrimaryHint: string;
@@ -109,7 +109,7 @@ export const UI: Record<UiLang, UiStrings> = {
     posComingSoon: "Próximamente", posLive: "Disponible",
     sumPos: "Caja (TPV)",
     fName: "Nombre del restaurante", fPhone: "Teléfono público",
-    fWhatsapp: "Tu WhatsApp (avisos al personal)", fReview: "Enlace de reseñas Google (opcional)",
+    fWhatsapp: "Tu WhatsApp (avisos al personal)", fWhatsappReq: "Introduce un número válido con prefijo (ej. +34 612 345 678) — aquí llegan los avisos del dueño.", fReview: "Enlace de reseñas Google (opcional)",
     fTimezone: "Zona horaria", fLanguages: "Idiomas del asistente",
     fLanguagesHint: "Elige uno o varios. El primero (★) es el principal: define el saludo y la voz.",
     fCrmLang: "Idioma de tu panel (CRM)",
@@ -199,7 +199,7 @@ export const UI: Record<UiLang, UiStrings> = {
     posComingSoon: "In arrivo", posLive: "Disponibile",
     sumPos: "Cassa (POS)",
     fName: "Nome del ristorante", fPhone: "Telefono pubblico",
-    fWhatsapp: "Il tuo WhatsApp (avvisi al personale)", fReview: "Link recensioni Google (opzionale)",
+    fWhatsapp: "Il tuo WhatsApp (avvisi al personale)", fWhatsappReq: "Inserisci un numero valido con prefisso (es. +39 333 123 4567) — qui arrivano gli avvisi del titolare.", fReview: "Link recensioni Google (opzionale)",
     fTimezone: "Fuso orario", fLanguages: "Lingue dell'assistente",
     fLanguagesHint: "Scegline una o più. La prima (★) è la principale: definisce il saluto e la voce.",
     fCrmLang: "Lingua del tuo pannello (CRM)",
@@ -289,7 +289,7 @@ export const UI: Record<UiLang, UiStrings> = {
     posComingSoon: "Coming soon", posLive: "Available",
     sumPos: "Till (POS)",
     fName: "Restaurant name", fPhone: "Public phone",
-    fWhatsapp: "Your WhatsApp (staff alerts)", fReview: "Google reviews link (optional)",
+    fWhatsapp: "Your WhatsApp (staff alerts)", fWhatsappReq: "Enter a valid number with country code (e.g. +34 612 345 678) — the owner's alerts go here.", fReview: "Google reviews link (optional)",
     fTimezone: "Time zone", fLanguages: "Assistant languages",
     fLanguagesHint: "Pick one or more. The first one (★) is primary: it sets the greeting and the voice.",
     fCrmLang: "Your dashboard (CRM) language",
@@ -379,7 +379,7 @@ export const UI: Record<UiLang, UiStrings> = {
     posComingSoon: "Demnächst", posLive: "Verfügbar",
     sumPos: "Kasse (POS)",
     fName: "Name des Restaurants", fPhone: "Öffentliche Telefonnummer",
-    fWhatsapp: "Dein WhatsApp (Personal-Benachrichtigungen)", fReview: "Google-Bewertungslink (optional)",
+    fWhatsapp: "Dein WhatsApp (Personal-Benachrichtigungen)", fWhatsappReq: "Gültige Nummer mit Ländervorwahl eingeben (z. B. +49 151 23456789) — hierhin gehen die Inhaber-Benachrichtigungen.", fReview: "Google-Bewertungslink (optional)",
     fTimezone: "Zeitzone", fLanguages: "Sprachen des Assistenten",
     fLanguagesHint: "Wähle eine oder mehrere. Die erste (★) ist die primäre: sie bestimmt Begrüßung und Stimme.",
     fCrmLang: "Sprache deines Dashboards (CRM)",

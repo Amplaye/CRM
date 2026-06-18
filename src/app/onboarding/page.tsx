@@ -147,6 +147,11 @@ export default function OnboardingPage() {
   const [q, setQ] = useState<KbQuestionnaire>(() => defaultQuestionnaire());
 
   const [step, setStep] = useState<Step>(1);
+  // The owner phone is the WhatsApp recipient for every owner alert (pre-turno,
+  // weekly report, nightly audit). A junk value (e.g. "+34sdfsdf") silently broke
+  // those crons with a Meta 400, so it is required + format-validated here, before
+  // the owner can leave step 1 or submit. Server re-checks it in /api/onboard.
+  const validOwnerPhone = /^\+?\d{8,15}$/.test(ownerPhone.replace(/\s/g, ""));
   const [running, setRunning] = useState(false);
   const [progress, setProgress] = useState<Array<{ step: string; message: string; ok: boolean }>>([]);
   const [done, setDone] = useState<{ ok: boolean } | null>(null);
@@ -382,6 +387,7 @@ export default function OnboardingPage() {
             <Field label={t.fName} value={restaurantName} onChange={setRestaurantName} placeholder="Trattoria Rossa" />
             <Field label={t.fPhone} value={restaurantPhone} onChange={setRestaurantPhone} placeholder="+34 928 123 456" inputMode="tel" />
             <Field label={t.fWhatsapp} value={ownerPhone} onChange={setOwnerPhone} placeholder="+34 6XX XXX XXX" inputMode="tel" />
+            {!validOwnerPhone && <p className="-mt-2 text-xs text-red-600">{t.fWhatsappReq}</p>}
             <Field label={t.fReview} value={reviewUrl} onChange={setReviewUrl} placeholder="https://maps.google.com/..." inputMode="url" />
             <SelectField label={t.fTimezone} value={timezone} onChange={setTimezone} options={TIMEZONES} />
             <div className="hidden sm:block" aria-hidden />
@@ -552,9 +558,9 @@ export default function OnboardingPage() {
       <div className="mt-6 flex items-center justify-between gap-3">
         <button onClick={() => setStep((s) => (s - 1) as Step)} disabled={step === 1} className="flex items-center gap-1 px-4 py-2 rounded-lg border-2 border-[#c4956a] text-[#c4956a] cursor-pointer disabled:cursor-not-allowed disabled:opacity-30"><ChevronLeft className="w-4 h-4" /> {t.back}</button>
         {step < 4 ? (
-          <button onClick={() => setStep((s) => (s + 1) as Step)} className="flex items-center gap-1 px-5 py-2.5 rounded-lg bg-[#c4956a] text-white font-bold cursor-pointer hover:bg-[#b3855c] transition-colors">{t.next} <ChevronRight className="w-4 h-4" /></button>
+          <button onClick={() => setStep((s) => (s + 1) as Step)} disabled={step === 1 && !validOwnerPhone} className="flex items-center gap-1 px-5 py-2.5 rounded-lg bg-[#c4956a] text-white font-bold cursor-pointer hover:bg-[#b3855c] transition-colors disabled:cursor-not-allowed disabled:opacity-50">{t.next} <ChevronRight className="w-4 h-4" /></button>
         ) : (
-          <button onClick={submit} disabled={!restaurantName.trim()} className="flex items-center gap-1 px-5 py-2.5 rounded-lg bg-emerald-600 text-white font-bold cursor-pointer disabled:cursor-not-allowed disabled:opacity-50"><Check className="w-4 h-4" /> {t.createCrm}</button>
+          <button onClick={submit} disabled={!restaurantName.trim() || !validOwnerPhone} className="flex items-center gap-1 px-5 py-2.5 rounded-lg bg-emerald-600 text-white font-bold cursor-pointer disabled:cursor-not-allowed disabled:opacity-50"><Check className="w-4 h-4" /> {t.createCrm}</button>
         )}
       </div>
     </Shell>
