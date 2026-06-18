@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { plSummary, plByBand, periodFoodCost, revenueOf } from "@/lib/management/pl";
+import { plSummary, plByBand, periodFoodCost, revenueOf, plDelta } from "@/lib/management/pl";
 import type { RecipeLine, SaleRow } from "@/lib/management/types";
 
 function sale(p: Partial<SaleRow>): SaleRow {
@@ -43,6 +43,27 @@ describe("plSummary", () => {
     expect(s.fees).toBe(25);
     expect(s.operatingMargin).toBe(35); // 100 - 30 - 10 - 25
     expect(s.avgTicket).toBeNull(); // no covers
+  });
+
+  it("reports prime cost, per-cover costs and overhead", () => {
+    const s = plSummary([sale({ netTotal: 300, covers: 6, feesTotal: 0 })], 90, 60, 30);
+    expect(s.primeCost).toBe(150); // food 90 + labor 60
+    expect(s.primeCostPct).toBe(50); // 150 / 300
+    expect(s.foodCostPerCover).toBe(15); // 90 / 6
+    expect(s.laborPerCover).toBe(10); // 60 / 6
+    expect(s.overhead).toBe(30);
+    expect(s.overheadPct).toBe(10);
+    expect(s.operatingMargin).toBe(120); // 300 - 90 - 60 - 0 - 30
+  });
+});
+
+describe("plDelta", () => {
+  it("computes absolute and % change vs the previous period", () => {
+    expect(plDelta(120, 100)).toEqual({ abs: 20, pct: 20 });
+    expect(plDelta(80, 100)).toEqual({ abs: -20, pct: -20 });
+  });
+  it("null % when the previous value is zero", () => {
+    expect(plDelta(50, 0)).toEqual({ abs: 50, pct: null });
   });
 });
 

@@ -24,6 +24,9 @@ type Body = {
   tenant_id: string;
   invoice_id: string;
   lines?: LineUpdate[]; // edits + ingredient mappings; omitted → confirm as-is
+  /** When true, every mapped line with a quantity is also carried into stock as a
+   * 'receipt' movement (the invoices → warehouse seam), once each (received_at). */
+  receive_stock?: boolean;
 };
 
 export async function POST(req: NextRequest) {
@@ -62,7 +65,7 @@ export async function POST(req: NextRequest) {
   // Read back the lines that ended up mapped to an ingredient + have a price.
   const { data: lines, error: linesErr } = await supabase
     .from("supplier_invoice_items")
-    .select("id, ingredient_id, unit_price")
+    .select("id, ingredient_id, unit_price, quantity, received_at")
     .eq("invoice_id", body.invoice_id)
     .eq("tenant_id", body.tenant_id);
   if (linesErr) {
@@ -89,6 +92,38 @@ export async function POST(req: NextRequest) {
     costsApplied = costRows.length;
   }
 
+  // Carry goods into stock (the invoices → warehouse seam). For every mapped line
+  // with a quantity not yet received, insert a 'receipt' movement (the trigger
+  // tops up ingredients.stock_qty) and stamp received_at so a re-confirm can't
+  // double-receive the same line.
+  let stockReceived = 0;
+  if (body.receive_stock) {
+    const toReceive = (lines || []).filter(
+      (l) => l.ingredient_id && l.quantity != null && Number(l.quantity) > 0 && !l.received_at,
+    );
+    if (toReceive.length > 0) {
+      const nowIso = new Date().toISOString();
+      const movements = toReceive.map((l) => ({
+        tenant_id: body.tenant_id,
+        ingredient_id: l.ingredient_id,
+        qty_delta: Number(l.quantity),
+        kind: "receipt" as const,
+        reason: "invoice",
+        unit_cost: l.unit_price ?? null,
+        ref_id: l.id,
+      }));
+      const { error: movErr } = await supabase.from("stock_movements").insert(movements);
+      if (!movErr) {
+        await supabase
+          .from("supplier_invoice_items")
+          .update({ received_at: nowIso })
+          .in("id", toReceive.map((l) => l.id))
+          .eq("tenant_id", body.tenant_id);
+        stockReceived = toReceive.length;
+      }
+    }
+  }
+
   const { error: statusErr } = await supabase
     .from("supplier_invoices")
     .update({ status: "confirmed", updated_at: new Date().toISOString() })
@@ -98,5 +133,5 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Failed to confirm invoice", details: statusErr.message }, { status: 500 });
   }
 
-  return NextResponse.json({ ok: true, costs_applied: costsApplied });
+  return NextResponse.json({ ok: true, costs_applied: costsApplied, stock_received: stockReceived });
 }

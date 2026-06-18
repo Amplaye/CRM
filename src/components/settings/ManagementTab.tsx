@@ -18,6 +18,7 @@ export function ManagementTab() {
 
   const [targetPct, setTargetPct] = useState("30");
   const [laborBudget, setLaborBudget] = useState("");
+  const [costMethod, setCostMethod] = useState<"last" | "avg">("last");
   const [status, setStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
   const savedTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const initedFor = useRef<string | null>(null);
@@ -27,6 +28,12 @@ export function ManagementTab() {
   const [shift, setShift] = useState<"lunch" | "dinner" | "all">("all");
   const [cost, setCost] = useState("");
   const [laborStatus, setLaborStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
+
+  // overhead (fixed monthly cost) entry
+  const [ohMonth, setOhMonth] = useState("");
+  const [ohCategory, setOhCategory] = useState("");
+  const [ohAmount, setOhAmount] = useState("");
+  const [ohStatus, setOhStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
 
   useEffect(() => {
     refreshActiveTenant();
@@ -39,6 +46,7 @@ export function ManagementTab() {
     const m = (tenant.settings as any)?.management || {};
     setTargetPct(String(m.food_cost_target_pct ?? 30));
     setLaborBudget(m.labor_budget_monthly != null ? String(m.labor_budget_monthly) : "");
+    setCostMethod(m.cost_method === "avg" ? "avg" : "last");
   }, [tenant]);
 
   useEffect(() => () => { if (savedTimer.current) clearTimeout(savedTimer.current); }, []);
@@ -57,6 +65,7 @@ export function ManagementTab() {
       ...((tenant.settings as any)?.management || {}),
       food_cost_target_pct: pct,
       labor_budget_monthly: budget != null && Number.isFinite(budget) && budget >= 0 ? budget : null,
+      cost_method: costMethod,
     };
     const newSettings = { ...(tenant.settings || {}), management };
     const { error } = await supabase.from("tenants").update({ settings: newSettings }).eq("id", tenant.id);
@@ -89,6 +98,25 @@ export function ManagementTab() {
     setTimeout(() => setLaborStatus("idle"), 2000);
   };
 
+  const saveOverhead = async () => {
+    if (!tenant || !ohMonth || ohCategory.trim() === "" || ohAmount.trim() === "") return;
+    setOhStatus("saving");
+    const amount = Number(ohAmount.replace(",", "."));
+    // a month input gives "yyyy-mm"; the table stores the first day of the month.
+    const periodMonth = `${ohMonth}-01`;
+    const { error } = await supabase
+      .from("overhead_costs")
+      .upsert(
+        { tenant_id: tenant.id, period_month: periodMonth, category: ohCategory.trim(), amount: Number.isFinite(amount) ? amount : 0 },
+        { onConflict: "tenant_id,period_month,category" },
+      );
+    if (error) { setOhStatus("error"); return; }
+    setOhStatus("saved");
+    setOhCategory("");
+    setOhAmount("");
+    setTimeout(() => setOhStatus("idle"), 2000);
+  };
+
   const inputCls = "px-3 py-2 text-sm border-2 rounded-lg text-black";
   const inputStyle = { borderColor: "#c4956a", background: "rgba(252,246,237,0.6)" };
 
@@ -106,7 +134,7 @@ export function ManagementTab() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 p-4 rounded-lg border-2" style={inputStyle}>
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 p-4 rounded-lg border-2" style={inputStyle}>
         <label className="flex flex-col gap-1">
           <span className="text-sm font-bold text-black flex items-center gap-1.5">
             {t("settings_management_target" as keyof Dictionary) || "Target food cost %"}
@@ -129,6 +157,21 @@ export function ManagementTab() {
             />
           </span>
           <input type="number" value={laborBudget} onChange={(e) => setLaborBudget(e.target.value)} onBlur={saveTargets} placeholder="€" className={inputCls} style={inputStyle} />
+        </label>
+        <label className="flex flex-col gap-1">
+          <span className="text-sm font-bold text-black flex items-center gap-1.5">
+            {t("settings_management_cost_method" as keyof Dictionary) || "Metodo costo ingredienti"}
+            <InfoHotspot
+              align="end"
+              title={t("settings_management_cost_method" as keyof Dictionary) || "Metodo costo ingredienti"}
+              body={t("settings_management_cost_method_help" as keyof Dictionary) || "Come si aggiorna il costo di un ingrediente quando carichi merce a un prezzo: «Ultimo prezzo» usa l'ultimo pagato; «Media ponderata» fa la media tra la giacenza e il nuovo carico."}
+              example={t("settings_management_cost_method_example" as keyof Dictionary) || "Es: hai 10 kg a 1€ e carichi 5 kg a 1,50€. Ultimo prezzo → 1,50€/kg. Media ponderata → 1,17€/kg."}
+            />
+          </span>
+          <select value={costMethod} onChange={(e) => setCostMethod(e.target.value as "last" | "avg")} onBlur={saveTargets} className={inputCls + " cursor-pointer"} style={inputStyle}>
+            <option value="last">{t("settings_cost_method_last" as keyof Dictionary) || "Ultimo prezzo"}</option>
+            <option value="avg">{t("settings_cost_method_avg" as keyof Dictionary) || "Media ponderata"}</option>
+          </select>
         </label>
       </div>
 
@@ -169,6 +212,43 @@ export function ManagementTab() {
           <div className="h-9 flex items-center" aria-live="polite">
             {laborStatus === "saved" && <span className="text-sm text-green-600">{t("settings_saved" as keyof Dictionary) || "Salvato"}</span>}
             {laborStatus === "error" && <span className="text-sm text-red-600">{t("settings_save_error" as keyof Dictionary) || "Errore"}</span>}
+          </div>
+        </div>
+      </div>
+
+      <div className="p-4 rounded-lg border-2 space-y-3" style={inputStyle}>
+        <h3 className="text-sm font-bold text-black flex items-center gap-1.5">
+          {t("settings_management_overhead" as keyof Dictionary) || "Costi fissi mensili"}
+          <InfoHotspot
+            title={t("settings_management_overhead" as keyof Dictionary) || "Costi fissi mensili"}
+            body={t("settings_management_overhead_help" as keyof Dictionary) || "Spese fisse del mese (affitto, utenze, commercialista…). Il Conto economico le ripartisce sui giorni del periodo per darti il margine operativo reale, non solo food e personale."}
+            example={t("settings_management_overhead_example" as keyof Dictionary) || "Es: Giugno · Affitto · 2.000€. Su un periodo di 30 giorni il conto economico scala ~2.000€; su 7 giorni ~467€."}
+          />
+        </h3>
+        <div className="flex flex-wrap items-end gap-3">
+          <label className="flex flex-col gap-1">
+            <span className="text-xs text-black">{t("settings_management_month" as keyof Dictionary) || "Mese"}</span>
+            <input type="month" value={ohMonth} onChange={(e) => setOhMonth(e.target.value)} className={inputCls} style={inputStyle} />
+          </label>
+          <label className="flex flex-col gap-1">
+            <span className="text-xs text-black">{t("settings_management_overhead_category" as keyof Dictionary) || "Voce"}</span>
+            <input value={ohCategory} onChange={(e) => setOhCategory(e.target.value)} placeholder={t("settings_management_overhead_ph" as keyof Dictionary) || "Es. Affitto"} className={inputCls} style={inputStyle} />
+          </label>
+          <label className="flex flex-col gap-1">
+            <span className="text-xs text-black">{t("settings_management_cost" as keyof Dictionary) || "Costo €"}</span>
+            <input type="number" value={ohAmount} onChange={(e) => setOhAmount(e.target.value)} className={inputCls} style={inputStyle} />
+          </label>
+          <button
+            onClick={saveOverhead}
+            disabled={!ohMonth || ohCategory.trim() === "" || ohAmount.trim() === ""}
+            className="px-4 py-2 text-white text-sm font-bold rounded-lg disabled:opacity-40 cursor-pointer disabled:cursor-not-allowed"
+            style={{ background: "linear-gradient(135deg, #d4a574, #c4956a)" }}
+          >
+            {t("save" as keyof Dictionary) || "Salva"}
+          </button>
+          <div className="h-9 flex items-center" aria-live="polite">
+            {ohStatus === "saved" && <span className="text-sm text-green-600">{t("settings_saved" as keyof Dictionary) || "Salvato"}</span>}
+            {ohStatus === "error" && <span className="text-sm text-red-600">{t("settings_save_error" as keyof Dictionary) || "Errore"}</span>}
           </div>
         </div>
       </div>

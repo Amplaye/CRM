@@ -12,15 +12,18 @@ import {
   Loader2,
   Link2,
   Trash2,
+  ShoppingCart,
 } from "lucide-react";
 import { KPICard } from "@/components/ui/KPICard";
 import { InfoHotspot } from "@/components/ui/InfoHotspot";
 import { ManagementLocked } from "@/components/management/ManagementLocked";
+import { InventoryMovements } from "@/components/management/InventoryMovements";
 import { useLanguage } from "@/lib/contexts/LanguageContext";
 import { useTenant } from "@/lib/contexts/TenantContext";
 import { createClient } from "@/lib/supabase/client";
 import { Dictionary } from "@/lib/i18n/dictionaries/en";
 import { getFeatures } from "@/lib/types/tenant-settings";
+import { reorderList } from "@/lib/management/inventory-analysis";
 
 interface IngredientRow {
   id: string;
@@ -115,6 +118,24 @@ export default function InventoryPage() {
   const lowCount = rows.filter(isLow).length;
   const expiringCount = rows.filter(isExpiringSoon).length;
 
+  // Reorder suggestions: items at/below par, topped up to 2× par (pure helper).
+  const [showReorder, setShowReorder] = useState(false);
+  const reorder = useMemo(
+    () =>
+      reorderList(
+        rows.map((r) => ({
+          ingredientId: r.id,
+          name: r.name,
+          unit: r.unit,
+          stockQty: Number(r.stock_qty),
+          parLevel: Number(r.par_level),
+          unitCost: Number(r.current_unit_cost),
+        })),
+      ),
+    [rows],
+  );
+  const reorderTotal = reorder.reduce((s, l) => s + l.estimatedCost, 0);
+
   // Save stock: optimistic local update → POST (CRM + POS write-back when linked).
   async function saveStock(id: string, value: string) {
     const qty = Number(value.replace(",", "."));
@@ -202,11 +223,54 @@ export default function InventoryPage() {
 
       {creating && <NewIngredientForm onCreate={createIngredient} onCancel={() => setCreating(false)} t={t} />}
 
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <KPICard title={t("inventory_count" as keyof Dictionary) || "Ingredienti"} value={rows.length} icon={<Package className="w-5 h-5" />} />
         <KPICard title={t("inventory_low" as keyof Dictionary) || "Scorta bassa"} value={lowCount} icon={<AlertTriangle className="w-5 h-5" />} valueClassName={lowCount > 0 ? "text-red-600" : undefined} />
         <KPICard title={t("inventory_expiring" as keyof Dictionary) || "In scadenza"} value={expiringCount} icon={<Clock className="w-5 h-5" />} valueClassName={expiringCount > 0 ? "text-amber-600" : undefined} />
+        <KPICard title={t("inventory_reorder" as keyof Dictionary) || "Da riordinare"} value={reorder.length} icon={<ShoppingCart className="w-5 h-5" />} valueClassName={reorder.length > 0 ? "text-amber-600" : undefined} />
       </div>
+
+      {/* Reorder list — items at/below par, with a suggested top-up to 2× par. */}
+      {reorder.length > 0 && (
+        <div className="rounded-xl border-2" style={{ borderColor: "#c4956a", background: "rgba(252,246,237,0.6)" }}>
+          <button
+            onClick={() => setShowReorder((v) => !v)}
+            className="w-full flex items-center justify-between gap-2 px-4 py-3 cursor-pointer"
+          >
+            <span className="text-sm font-bold text-black flex items-center gap-2">
+              <ShoppingCart className="w-4 h-4" />
+              {(t("inventory_reorder_title" as keyof Dictionary) || "Lista riordino ({n} articoli · stima € {total})")
+                .replace("{n}", String(reorder.length))
+                .replace("{total}", reorderTotal.toLocaleString("it-IT", { maximumFractionDigits: 0 }))}
+            </span>
+            {showReorder ? <ChevronDown className="w-4 h-4 text-black" /> : <ChevronRight className="w-4 h-4 text-black" />}
+          </button>
+          {showReorder && (
+            <div className="px-4 pb-4">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="text-left text-black">
+                    <th className="py-1 font-bold">{t("inventory_col_name" as keyof Dictionary) || "Ingrediente"}</th>
+                    <th className="py-1 font-bold text-right">{t("inventory_col_stock" as keyof Dictionary) || "Giacenza"}</th>
+                    <th className="py-1 font-bold text-right">{t("inventory_reorder_suggested" as keyof Dictionary) || "Da ordinare"}</th>
+                    <th className="py-1 font-bold text-right">{t("inventory_reorder_est" as keyof Dictionary) || "Stima €"}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {reorder.map((l) => (
+                    <tr key={l.ingredientId} className="border-t text-black" style={{ borderColor: "#eaddcb" }}>
+                      <td className="py-1.5">{l.name}</td>
+                      <td className="py-1.5 text-right tabular-nums">{l.stockQty} {l.unit}</td>
+                      <td className="py-1.5 text-right tabular-nums font-bold">{l.suggestedQty} {l.unit}</td>
+                      <td className="py-1.5 text-right tabular-nums">€ {l.estimatedCost.toFixed(2)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
 
       <div className="rounded-xl border-2 overflow-hidden" style={{ borderColor: "#c4956a" }}>
         <table className="w-full text-sm">
@@ -417,6 +481,9 @@ function IngredientRowGroup({
                   <Trash2 className="w-4 h-4" /> {t("delete" as keyof Dictionary) || "Elimina"}
                 </button>
               </div>
+
+              {/* Audited stock actions + recent movement history. */}
+              <InventoryMovements ingredientId={r.id} unit={r.unit} currentUnitCost={Number(r.current_unit_cost)} />
             </div>
           </td>
         </tr>

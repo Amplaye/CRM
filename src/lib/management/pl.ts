@@ -4,7 +4,7 @@
 // lunch vs dinner (food cost apportioned by each band's revenue share, since food
 // cost is computed per dish over the whole period, not per bill).
 
-import type { PlSummary, RecipeLine, SaleRow } from "@/lib/management/types";
+import type { PlDelta, PlSummary, RecipeLine, SaleRow } from "@/lib/management/types";
 import { dishCost } from "@/lib/management/food-cost";
 import { shiftOf, type Shift } from "@/lib/management/time-buckets";
 
@@ -40,28 +40,45 @@ export function periodFoodCost(
   return { foodCost: round2(foodCost), linesWithRecipe: withRecipe, linesWithoutRecipe: without };
 }
 
-function summarize(sales: SaleRow[], foodCost: number, labor: number): PlSummary {
+function summarize(sales: SaleRow[], foodCost: number, labor: number, overhead = 0): PlSummary {
   const revenue = round2(sales.reduce((s, x) => s + revenueOf(x), 0));
   const covers = sales.reduce((s, x) => s + (x.covers ?? 0), 0);
   const fees = round2(sales.reduce((s, x) => s + (x.feesTotal ?? 0), 0));
-  const operatingMargin = round2(revenue - foodCost - labor - fees);
+  const primeCost = round2(foodCost + labor);
+  const operatingMargin = round2(revenue - foodCost - labor - fees - overhead);
+  const pctOf = (n: number) => (revenue > 0 ? round2((n / revenue) * 100) : null);
   return {
     revenue,
     covers,
     avgTicket: covers > 0 ? round2(revenue / covers) : null,
     fees,
     foodCost: round2(foodCost),
-    foodCostPct: revenue > 0 ? round2((foodCost / revenue) * 100) : null,
+    foodCostPct: pctOf(foodCost),
     labor: round2(labor),
-    laborPct: revenue > 0 ? round2((labor / revenue) * 100) : null,
+    laborPct: pctOf(labor),
+    primeCost,
+    primeCostPct: pctOf(primeCost),
+    foodCostPerCover: covers > 0 ? round2(foodCost / covers) : null,
+    laborPerCover: covers > 0 ? round2(labor / covers) : null,
+    overhead: round2(overhead),
+    overheadPct: pctOf(overhead),
     operatingMargin,
-    operatingMarginPct: revenue > 0 ? round2((operatingMargin / revenue) * 100) : null,
+    operatingMarginPct: pctOf(operatingMargin),
   };
 }
 
-/** P&L summary for a period. */
-export function plSummary(sales: SaleRow[], foodCost: number, labor: number): PlSummary {
-  return summarize(sales, foodCost, labor);
+/** P&L summary for a period. `overhead` is fixed cost (rent, utilities…) charged
+ * to the window; pass 0 (the default) when the tenant has entered none. */
+export function plSummary(sales: SaleRow[], foodCost: number, labor: number, overhead = 0): PlSummary {
+  return summarize(sales, foodCost, labor, overhead);
+}
+
+/** Signed difference between two numbers, with a % change vs the previous value. */
+export function plDelta(current: number, previous: number): PlDelta {
+  return {
+    abs: round2(current - previous),
+    pct: previous !== 0 ? round2(((current - previous) / Math.abs(previous)) * 100) : null,
+  };
 }
 
 /**

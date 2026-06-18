@@ -7,6 +7,7 @@ import { ChartFrame } from "@/components/ChartFrame";
 import { KPICard } from "@/components/ui/KPICard";
 import { RecipePanel } from "@/components/management/RecipePanel";
 import { ManagementLocked } from "@/components/management/ManagementLocked";
+import { MenuEngineeringMatrix } from "@/components/management/MenuEngineeringMatrix";
 import { useLanguage } from "@/lib/contexts/LanguageContext";
 import { useTenant } from "@/lib/contexts/TenantContext";
 import { createClient } from "@/lib/supabase/client";
@@ -14,6 +15,9 @@ import { Dictionary } from "@/lib/i18n/dictionaries/en";
 import { getFeatures } from "@/lib/types/tenant-settings";
 import { dishCostTable } from "@/lib/management/food-cost";
 import type { Dish, DishCostRow, RecipeLine } from "@/lib/management/types";
+import type { MenuEngineeringInput } from "@/lib/management/menu-engineering";
+
+const SALES_WINDOW_DAYS = 30;
 
 // Per-dish price-save state, so each row shows its own spinner / result.
 type SaveState = { status: "idle" | "saving" | "ok" | "error"; msg?: string };
@@ -30,6 +34,7 @@ export default function FoodCostPage() {
   const [dishes, setDishes] = useState<Dish[]>([]);
   const [recipesByDish, setRecipesByDish] = useState<Map<string, RecipeLine[]>>(new Map());
   const [costs, setCosts] = useState<Map<string, number>>(new Map());
+  const [unitsSold, setUnitsSold] = useState<Map<string, number>>(new Map());
   const [loading, setLoading] = useState(true);
 
   // UI state.
@@ -52,12 +57,33 @@ export default function FoodCostPage() {
     const byDish = new Map<string, RecipeLine[]>();
     for (const r of recipes || []) {
       const list = byDish.get(r.menu_item_id) || [];
-      list.push({ ingredientId: r.ingredient_id, qty: Number(r.qty) });
+      list.push({ ingredientId: r.ingredient_id, qty: Number(r.qty), wastePct: r.waste_pct != null ? Number(r.waste_pct) : 0 });
       byDish.set(r.menu_item_id, list);
     }
     setCosts(c);
     setRecipesByDish(byDish);
     setDishes((items || []).map((i: any) => ({ menuItemId: i.id, name: i.name, price: i.price })));
+
+    // Sales volume per dish over the window → menu-engineering popularity axis.
+    const from = new Date(Date.now() - SALES_WINDOW_DAYS * 86400000).toISOString().slice(0, 10);
+    const { data: salesRaw } = await supabase
+      .from("pos_sales")
+      .select("id")
+      .eq("tenant_id", activeTenant.id)
+      .gte("business_date", from);
+    const saleIds = (salesRaw || []).map((s: any) => s.id);
+    const sold = new Map<string, number>();
+    if (saleIds.length > 0) {
+      const { data: saleItems } = await supabase
+        .from("pos_sale_items")
+        .select("menu_item_id, quantity")
+        .in("sale_id", saleIds);
+      for (const it of saleItems || []) {
+        if (!it.menu_item_id) continue;
+        sold.set(it.menu_item_id, (sold.get(it.menu_item_id) || 0) + Number(it.quantity));
+      }
+    }
+    setUnitsSold(sold);
     setLoading(false);
   }, [activeTenant?.id, enabled, supabase]);
 
@@ -78,7 +104,17 @@ export default function FoodCostPage() {
   const lowMarginCount = rows.filter((r) => r.lowMargin).length;
   const worst = withPct[0];
   const noRecipeCount = rows.filter((r) => r.noRecipe).length;
+  const incompleteCount = rows.filter((r) => r.incompleteCost).length;
   const chartData = withPct.slice(0, 8).map((r) => ({ name: r.name, pct: r.foodCostPct as number, low: r.lowMargin }));
+
+  // Menu-engineering input: dishes with a known unit margin, with their sales volume.
+  const meInput: MenuEngineeringInput[] = useMemo(
+    () =>
+      rows
+        .filter((r) => r.margin != null && !r.noRecipe)
+        .map((r) => ({ menuItemId: r.menuItemId, name: r.name, margin: r.margin, unitsSold: unitsSold.get(r.menuItemId) || 0 })),
+    [rows, unitsSold],
+  );
 
   // Pagination: 25 dishes per page. KPIs and the chart stay computed over ALL
   // dishes (they summarise the whole menu); only the table is paged.
@@ -142,6 +178,19 @@ export default function FoodCostPage() {
         <KPICard title={t("food_cost_worst" as keyof Dictionary) || "Peggiore"} value={worst ? `${worst.name} (${(worst.foodCostPct || 0).toFixed(0)}%)` : "—"} icon={<AlertTriangle className="w-5 h-5" />} />
         <KPICard title={t("food_cost_no_recipe" as keyof Dictionary) || "Senza ricetta"} value={noRecipeCount} icon={<FileWarning className="w-5 h-5" />} />
       </div>
+
+      {incompleteCount > 0 && (
+        <div className="rounded-xl border-2 p-3 flex items-start gap-2 text-sm" style={{ borderColor: "#d97706", background: "rgba(217,119,6,0.08)" }}>
+          <AlertTriangle className="w-5 h-5 shrink-0 text-amber-600" />
+          <span className="text-black">
+            {(t("food_cost_incomplete_warning" as keyof Dictionary) ||
+              "{n} piatti hanno ingredienti senza costo: il loro food cost è sottostimato. Imposta i costi in Inventario.")
+              .replace("{n}", String(incompleteCount))}
+          </span>
+        </div>
+      )}
+
+      {meInput.length > 0 && <MenuEngineeringMatrix input={meInput} />}
 
       {chartData.length > 0 && (
         <div className="rounded-xl border-2 p-4" style={{ borderColor: "#c4956a", background: "rgba(252,246,237,0.6)" }}>

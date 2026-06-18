@@ -7,7 +7,7 @@ import { useTenant } from "@/lib/contexts/TenantContext";
 import { useLanguage } from "@/lib/contexts/LanguageContext";
 import { getFeatures } from "@/lib/types/tenant-settings";
 import { Dictionary } from "@/lib/i18n/dictionaries/en";
-import { dishCost, foodCostPct } from "@/lib/management/food-cost";
+import { dishCost, foodCostPct, effectiveQty } from "@/lib/management/food-cost";
 import type { RecipeLine } from "@/lib/management/types";
 
 // Recipe editor for a single dish, mounted in the Menu edit modal. Lists the
@@ -26,6 +26,7 @@ interface RecipeRow {
   id?: string;
   ingredient_id: string;
   qty: number;
+  waste_pct?: number;
 }
 
 export function RecipePanel({
@@ -62,7 +63,7 @@ export function RecipePanel({
           .order("name"),
         supabase
           .from("recipe_items")
-          .select("id, ingredient_id, qty")
+          .select("id, ingredient_id, qty, waste_pct")
           .eq("menu_item_id", menuItemId),
       ]);
       if (cancelled) return;
@@ -80,7 +81,7 @@ export function RecipePanel({
     return m;
   }, [ingredients]);
 
-  const recipeLines: RecipeLine[] = rows.map((r) => ({ ingredientId: r.ingredient_id, qty: Number(r.qty) }));
+  const recipeLines: RecipeLine[] = rows.map((r) => ({ ingredientId: r.ingredient_id, qty: Number(r.qty), wastePct: r.waste_pct != null ? Number(r.waste_pct) : 0 }));
   const { cost } = dishCost(recipeLines, costMap);
   const pct = foodCostPct(cost, price);
 
@@ -112,6 +113,18 @@ export function RecipePanel({
     if (!id || !Number.isFinite(qn) || qn <= 0) return;
     setStatus("saving");
     const { error } = await supabase.from("recipe_items").update({ qty: qn }).eq("id", id);
+    if (error) setStatus("error");
+    else flashSaved();
+  };
+
+  const updateWaste = async (id: string | undefined, ingredientId: string, value: string) => {
+    let wn = Number(value.replace(",", "."));
+    if (!Number.isFinite(wn) || wn < 0) wn = 0;
+    if (wn > 99) wn = 99;
+    setRows((prev) => prev.map((r) => (r.ingredient_id === ingredientId ? { ...r, waste_pct: wn } : r)));
+    if (!id) return;
+    setStatus("saving");
+    const { error } = await supabase.from("recipe_items").update({ waste_pct: wn }).eq("id", id);
     if (error) setStatus("error");
     else flashSaved();
   };
@@ -166,8 +179,18 @@ export function RecipePanel({
                     style={{ borderColor: "#c4956a" }}
                   />
                   <span className="w-8 text-xs text-black">{ing?.unit}</span>
+                  <label className="flex items-center gap-1" title={t("recipe_waste_hint" as keyof Dictionary) || "Scarto/calo %: quanto si perde in pulitura o cottura"}>
+                    <input
+                      type="number"
+                      value={r.waste_pct ?? 0}
+                      onChange={(e) => updateWaste(r.id, r.ingredient_id, e.target.value)}
+                      className="w-12 px-1.5 py-1 text-xs border-2 rounded text-right"
+                      style={{ borderColor: "#c4956a" }}
+                    />
+                    <span className="text-xs text-black">% {t("recipe_waste" as keyof Dictionary) || "scarto"}</span>
+                  </label>
                   <span className="w-20 text-right text-xs text-black">
-                    € {((Number(r.qty) || 0) * (costMap.get(r.ingredient_id) || 0)).toFixed(2)}
+                    € {(effectiveQty(Number(r.qty) || 0, r.waste_pct) * (costMap.get(r.ingredient_id) || 0)).toFixed(2)}
                   </span>
                   <button
                     onClick={() => removeRow(r.id, r.ingredient_id)}

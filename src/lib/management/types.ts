@@ -6,6 +6,10 @@
 export interface RecipeLine {
   ingredientId: string;
   qty: number;
+  /** Optional yield loss for THIS line, as a % (0–100): trim, peel, cook-off,
+   * plate spill. The kitchen actually consumes more than `qty` to plate `qty`,
+   * so the costed quantity is qty / (1 − wastePct/100). Absent/0 → no waste. */
+  wastePct?: number;
 }
 
 /** One dish for the food-cost table. */
@@ -61,6 +65,24 @@ export interface PlSummary {
   foodCostPct: number | null;
   labor: number;
   laborPct: number | null;
+  /** food + labor — the restaurant "prime cost", the headline controllable cost. */
+  primeCost: number;
+  primeCostPct: number | null;
+  /** food / labor cost per cover; null when there are no covers. */
+  foodCostPerCover: number | null;
+  laborPerCover: number | null;
+  /** fixed overhead (rent, utilities…) charged to the period; 0 when none entered. */
+  overhead: number;
+  overheadPct: number | null;
+  /** revenue − food − labor − fees − overhead. */
   operatingMargin: number;
   operatingMarginPct: number | null;
+}
+
+/** One signed difference between two PlSummary values (this period vs previous). */
+export interface PlDelta {
+  /** absolute change (this − previous). */
+  abs: number;
+  /** percentage change vs previous; null when previous is 0. */
+  pct: number | null;
 }
