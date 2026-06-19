@@ -103,6 +103,7 @@ export function GeneralTab() {
   const [, setNowTick] = useState(0);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [voicemailSaving, setVoicemailSaving] = useState(false);
 
   useEffect(() => {
     const id = setInterval(() => setNowTick((n) => n + 1), 15000);
@@ -244,6 +245,41 @@ export function GeneralTab() {
       console.error("[settings] logo remove failed", e);
     } finally {
       setLogoUploading(false);
+    }
+  };
+
+  // Persist a voicemail-secretary mode change on its own, the instant the user
+  // toggles it — no dependency on the "Salva" button. We write ONLY the
+  // vapi_voicemail key (merged onto the freshest settings) so this can't clobber
+  // unsaved edits in the rest of the form, then sync Vapi so the bot agrees.
+  const persistVoicemailMode = async (next: VoicemailConfig) => {
+    if (!tenant) return;
+    setVoicemailSaving(true);
+    try {
+      const newSettings = {
+        ...((tenant.settings as any) || {}),
+        vapi_voicemail: next,
+      };
+      const { error } = await supabase
+        .from("tenants")
+        .update({ settings: newSettings })
+        .eq("id", tenant.id);
+      if (error) {
+        console.error("Voicemail mode save failed:", error);
+        return;
+      }
+      try {
+        await fetch("/api/sync-vapi-voicemail", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ tenant_id: tenant.id }),
+        });
+      } catch (syncErr) {
+        console.error("Vapi voicemail sync after mode toggle failed:", syncErr);
+      }
+      await refreshActiveTenant();
+    } finally {
+      setVoicemailSaving(false);
     }
   };
 
@@ -633,12 +669,19 @@ export function GeneralTab() {
                       type="button"
                       role="radio"
                       aria-checked={selected}
-                      onClick={() => setVoicemail(prev => ({ ...prev, mode: value, enabled: value === "always" }))}
+                      disabled={voicemailSaving}
+                      onClick={() => {
+                        const next = { ...voicemail, mode: value, enabled: value === "always" };
+                        setVoicemail(next);
+                        void persistVoicemailMode(next);
+                      }}
                       className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border-2 text-xs font-bold transition-colors cursor-pointer whitespace-nowrap"
                       style={{
                         borderColor: selected ? "#c4956a" : "#e5d9c8",
                         background: selected ? "#c4956a" : "white",
                         color: selected ? "white" : "#1a1a1a",
+                        opacity: voicemailSaving && !selected ? 0.5 : 1,
+                        cursor: voicemailSaving ? "wait" : "pointer",
                       }}
                     >
                       <Icon className="w-3.5 h-3.5" style={{ color: selected ? "white" : "#c4956a" }} />
@@ -667,6 +710,9 @@ export function GeneralTab() {
                   {voicemailEffectiveActive ? t("settings_voicemail_status_on") : t("settings_voicemail_status_off")}
                   {voicemail.mode === "scheduled" && ` ${t("settings_voicemail_status_by_schedule")}`}
                 </span>
+                {voicemailSaving && (
+                  <span className="text-black/50 font-normal">· {t("saving")}</span>
+                )}
               </div>
             </div>
           </div>
