@@ -144,9 +144,9 @@ export function buildVoicemailBlock(active: boolean, vm: VoicemailConfig): strin
   if (active) {
     rules = [
       "  • Voicemail mode is ACTIVE. You are NOT the reservation assistant right now: do NOT take reservations, do NOT call any booking tool, do NOT ask about party size, date or time, do NOT start the booking flow — even if the caller asks.",
-      "  • Deliver the voicemail message to the caller in their language (the script is below). BUT if your opening line already spoke it in full, do NOT repeat it.",
-      "  • Then, whatever the caller says, reply with AT MOST one short warm line (e.g. thank them, remind them you've just sent them a WhatsApp) and call end_call immediately.",
-      "  • If they insist on booking by voice, tell them to continue on the WhatsApp you just sent — then end_call. Never begin a reservation.",
+      "  • Your opening line already spoke the voicemail message IN FULL. Do NOT repeat it and do NOT add anything else.",
+      "  • End the call YOURSELF right after that message — call the end_call tool IMMEDIATELY. Do NOT wait for the caller to say anything; this is an answering-machine message, the caller may stay silent, so you must hang up on your own.",
+      "  • The ONLY exception: if the caller speaks BEFORE you hang up, reply with at most one short warm line (e.g. tell them to continue on the WhatsApp you just sent) and then call end_call. Never begin a reservation, never keep the line open.",
     ].join("\n");
   } else if (forward) {
     rules = [
@@ -214,7 +214,14 @@ export function voicemailFirstMessage(
     // script": gpt-4.1 was drifting straight back into the reservation agent
     // after a neutral "Hola, {name}." opener (the caller heard the booking flow
     // instead of the message). Fall back to a bare greeting only if no script.
-    return (script && script[lang]) || { es: `Hola, ${n}.`, it: `Ciao, ${n}.`, en: `Hi, ${n}.`, de: `Hallo, ${n}.` }[lang];
+    const body = (script && script[lang]) || { es: `Hola, ${n}.`, it: `Ciao, ${n}.`, en: `Hi, ${n}.`, de: `Hallo, ${n}.` }[lang];
+    // Append a goodbye that matches the engine assistant's endCallPhrases, so
+    // Vapi hangs up DETERMINISTICALLY as soon as the opener finishes — without
+    // waiting for the model to decide to call end_call (it was leaving the line
+    // open after the message, since the caller stays silent on an answering
+    // machine). The phrase must be one of endCallPhrases in lib/voice (engine).
+    const bye = { es: "Adiós.", it: "Arrivederci.", en: "Goodbye.", de: "Auf Wiedersehen." }[lang];
+    return `${body} ${bye}`;
   }
   if (state === "forward") {
     return {

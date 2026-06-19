@@ -146,7 +146,8 @@ describe("voice engine — voicemail / segreteria overrides", () => {
       "t",
     );
     // The whole voicemail message is the opener — NOT the "soy Sofía…" greeting.
-    expect(ov.firstMessage).toBe("Hola, has llamado a BALI Rest. Te acabamos de enviar un WhatsApp.");
+    // A goodbye is appended so Vapi's endCallPhrases hang up deterministically.
+    expect(ov.firstMessage).toBe("Hola, has llamado a BALI Rest. Te acabamos de enviar un WhatsApp. Adiós.");
     expect(ov.firstMessage).not.toContain("Sofía");
     expect(ov.model.tools).toBeUndefined();
   });
@@ -156,7 +157,7 @@ describe("voice engine — voicemail / segreteria overrides", () => {
       { systemPrompt: "S", name: "BALI", locale: "es-ES", voicemailState: "active" },
       "t",
     );
-    expect(ov.firstMessage).toBe("Hola, BALI.");
+    expect(ov.firstMessage).toBe("Hola, BALI. Adiós.");
   });
 
   it("forward state opens with a filler and attaches the transferCall tool to the owner", () => {
@@ -178,6 +179,6 @@ describe("voice engine — voicemail / segreteria overrides", () => {
       undefined,
       "de-DE",
     );
-    expect(ov.firstMessage).toBe("Hallo, BALI.");
+    expect(ov.firstMessage).toBe("Hallo, BALI. Auf Wiedersehen.");
   });
 });
