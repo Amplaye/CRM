@@ -79,6 +79,15 @@ export interface VoicePromptInput {
    * empty, the agent falls back to asking (legacy behaviour).
    */
   zones?: Zone[];
+  /**
+   * Party size at/above which a booking is NOT auto-confirmed but escalated to
+   * the manager ("large group"). Comes from the tenant's bot_config
+   * (party_size_threshold_large) so the SPOKEN rule matches what the booking
+   * route + the KB policy actually enforce — a hardcoded 7 here made the bot tell
+   * a 7-person caller "the manager will confirm" while the route auto-confirmed
+   * (BALI's real threshold is 13). Defaults to 7 only if the tenant has none.
+   */
+  largeGroupThreshold?: number;
 }
 
 /**
@@ -88,7 +97,7 @@ export interface VoicePromptInput {
  *   {{DESC}}  short identity description (e.g. "restaurante")
  *   {{PHONE}} backup phone for the technical-failure fallback
  */
-function behaviourBody(name: string, desc: string, phone: string, timezone: string, zones: Zone[]): string {
+function behaviourBody(name: string, desc: string, phone: string, timezone: string, zones: Zone[], largeThreshold: number): string {
   const phoneClause = phone
     ? `say (in the caller's current language) "technical problem — shall I call you back on ${phone}, or try again?"`
     : `say (in the caller's current language) "technical problem — shall I try again?"`;
@@ -137,7 +146,7 @@ Times: always 12-hour spoken form ("half past eight in the evening"), never "20:
 
 ## BOOKING — one question per turn, in this order
 A yes/no question ends your turn: ask it, then stop and wait. Don't say the party/date/time back until the final recap, and don't pre-confirm before the check.
-1. How many people? 7 or more → LARGE GROUP (below).
+1. How many people? ${largeThreshold} or more → LARGE GROUP (below).
 2. Which day, and what time? "tonight / this evening / today" = today ({{today_iso}}), "tomorrow" = tomorrow ({{tomorrow_iso}}) — these ARE the day, so do NOT ask which day, just confirm the time. Ask the day only when none at all was given.
 ${zoneStep}
 4. Then call check_availability (people, date, time, zone) — silently, before you ask name or phone.
@@ -149,7 +158,7 @@ ${zoneStep}
 8. Recap ONCE, briefly: people, day + time,${multiZone ? " zone," : ""} name, their number, any note → "shall I confirm?", and wait for yes. This is the ONLY recap — after it, never re-read the whole booking back again.
 9. On yes, call book_table in the same turn (idioma = es/it/en/de). Never say "confirming…" without actually calling it.
 
-LARGE GROUP (7+): no availability check. Say a group that size is confirmed personally by the manager; take day, time,${largeGroupZone} name, phone and any request, then book_table (it escalates — they'll get the summary on WhatsApp).
+LARGE GROUP (${largeThreshold}+): no availability check. Say a group that size is confirmed personally by the manager; take day, time,${largeGroupZone} name, phone and any request, then book_table (it escalates — they'll get the summary on WhatsApp).
 
 ## NAME & PHONE
 Name: ALWAYS confirm it once before moving on — read it back and STOP, waiting for their yes (e.g. "Steward, giusto?"). A name is short and easily misheard, so this read-back is required every time, NOT only when you're unsure — never skip it and never bundle it with the next question in the same breath. Write it using the spelling conventions of the call's language (on a Spanish call "Sofía", not the English "Sophia"; on an Italian call "Luca", not "Luka"). If it sounds foreign or could be written more than one way, ask them to spell it out once — briefly — then read back your spelling and wait for the yes. Only on their confirmation do you go to the next step.
@@ -195,8 +204,14 @@ export function buildVoicePrompt(input: VoicePromptInputResolved): string {
   const phone = (input.restaurant_phone || "").trim();
   const timezone = (input.timezone || "").trim();
   const zones = (input.zones || []).filter((z): z is Zone => z === "inside" || z === "outside");
+  // Large-group threshold from the tenant (bot_config.party_size_threshold_large);
+  // default 7 matches getBookingAction's default so prompt and route never diverge.
+  const largeThreshold =
+    Number.isFinite(input.largeGroupThreshold) && (input.largeGroupThreshold as number) > 0
+      ? Math.floor(input.largeGroupThreshold as number)
+      : 7;
   return [
-    behaviourBody(name, desc, phone, timezone, zones),
+    behaviourBody(name, desc, phone, timezone, zones, largeThreshold),
     "",
     "## Hours",
     formatSchedule(input.opening_hours),

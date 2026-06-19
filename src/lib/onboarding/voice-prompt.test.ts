@@ -35,6 +35,19 @@ describe("buildVoicePrompt — agency golden-source template, filled with client
     expect(p).toContain("LARGE GROUP (7+)");
   });
 
+  it("uses the tenant's large-group threshold in the spoken rule (not a hardcoded 7)", () => {
+    // BALI's real threshold is 13 (KB: groups 1-12 auto, 13+ pending). A hardcoded
+    // 7 made the bot tell a 7-person caller "the manager will confirm" while the
+    // booking route auto-confirmed — voice and CRM disagreed.
+    const p13 = buildVoicePrompt({ restaurant_name: "X", language: "es", opening_hours: hours, largeGroupThreshold: 13 });
+    expect(p13).toContain("LARGE GROUP (13+)");
+    expect(p13).toContain("13 or more");
+    expect(p13).not.toContain("LARGE GROUP (7+)");
+    // Falls back to 7 when the tenant has no threshold configured.
+    const pDefault = buildVoicePrompt({ restaurant_name: "X", language: "es", opening_hours: hours });
+    expect(pDefault).toContain("LARGE GROUP (7+)");
+  });
+
   it("renders a per-day schedule (English labels) including closed days and multiple slots", () => {
     const p = buildVoicePrompt({ restaurant_name: "X", language: "es", opening_hours: hours });
     expect(p).toContain("Monday: 12:30-15:30");

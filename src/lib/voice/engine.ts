@@ -312,6 +312,7 @@ export async function composeTenantVoicePrompt(
     restaurant_phone?: string;
     description?: string;
     vapi_voicemail?: VoicemailConfig;
+    bot_config?: { party_size_threshold_large?: number | string };
   };
 
   // The venue's real seating zones, derived from its tables — so the agent only
@@ -336,6 +337,9 @@ export async function composeTenantVoicePrompt(
     timezone: settings.timezone,
     description: settings.description,
     zones: [...zones],
+    // Large-group threshold from the tenant's bot_config so the spoken rule
+    // matches the booking route + KB (BALI = 13, not the old hardcoded 7).
+    largeGroupThreshold: Number(settings.bot_config?.party_size_threshold_large) || undefined,
   });
 
   const { data: articles, error: aErr } = await supabase
