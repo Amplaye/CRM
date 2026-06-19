@@ -115,7 +115,13 @@ const TEMPLATES = [
     // so the follow-up that the voicemail script promises ("we've just sent you
     // a WhatsApp, continue there") MUST be a pre-approved template. Replying to
     // it opens the 24h window and the normal WhatsApp agent takes over.
-    name: "call_followup",
+    //
+    // NAME HISTORY: this was "call_followup", first submitted (by mistake) as
+    // MARKETING. Meta locks a deleted template's name to its old category for
+    // ~28 days, refusing to recreate it as UTILITY — so we renamed to
+    // "missed_call_followup", which is genuinely UTILITY (the user initiated the
+    // call) and approves at the cheaper utility rate with no marketing limits.
+    name: "missed_call_followup",
     category: "UTILITY",
     // vars: 1=restaurant name
     bodies: {

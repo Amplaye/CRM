@@ -69,7 +69,7 @@ export async function POST(req: NextRequest) {
       const isRealNumber = recipient.length >= 10 && !/^0+$/.test(recipient);
       if (isRealNumber) {
         after(async () => {
-          const r = await sendWhatsAppTemplate(recipient, "call_followup", cfg.lang, [cfg.restaurantName]);
+          const r = await sendWhatsAppTemplate(recipient, "missed_call_followup", cfg.lang, [cfg.restaurantName]);
           if (!r.ok) {
             // Template may still be in Meta review, or the number is unreachable.
             console.error(`[voicemail] call_followup WhatsApp to ${recipient} failed: ${r.errorMessage}`);
