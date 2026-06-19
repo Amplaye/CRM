@@ -116,19 +116,29 @@ const TEMPLATES = [
     // a WhatsApp, continue there") MUST be a pre-approved template. Replying to
     // it opens the 24h window and the normal WhatsApp agent takes over.
     //
-    // NAME HISTORY: this was "call_followup", first submitted (by mistake) as
-    // MARKETING. Meta locks a deleted template's name to its old category for
-    // ~28 days, refusing to recreate it as UTILITY — so we renamed to
-    // "missed_call_followup", which is genuinely UTILITY (the user initiated the
-    // call) and approves at the cheaper utility rate with no marketing limits.
-    name: "missed_call_followup",
+    // NAME HISTORY: started as "call_followup" (mistakenly submitted MARKETING).
+    // Meta locks a deleted template name to its old category for ~28 days, so we
+    // couldn't recreate that name as UTILITY. Renamed to "missed_call_followup",
+    // but Meta's CONTENT classifier reclassified the promotional-sounding copy
+    // back to MARKETING during review (then that name got locked too after a
+    // delete). Final: "missed_call_notice" with sober, transactional copy that
+    // reads as UTILITY (the user placed the call — this is a service notice).
+    name: "missed_call_notice",
     category: "UTILITY",
     // vars: 1=restaurant name
+    // WORDING IS LOAD-BEARING: Meta's classifier reclassifies a template to
+    // MARKETING (overriding the requested UTILITY) when the copy reads as
+    // promotional — waving-hand/smiley emojis, an exclamatory greeting, and
+    // "feel free to message us / if you'd like to book" invitation phrasing all
+    // tripped it (it/en/es got bumped to MARKETING; only the soberer de stayed
+    // UTILITY). A missed-call notice IS genuinely transactional, so keep the
+    // copy factual: state that the call couldn't be answered and that they can
+    // reply here to continue. No emojis, no exclamation, no invitation framing.
     bodies: {
-      es: "¡Hola! 👋 Acabas de llamar a {{1}} y ahora no podíamos atenderte. Si quieres reservar o tienes cualquier duda, escríbenos por aquí y te atendemos enseguida. 😊",
-      it: "Ciao! 👋 Hai appena chiamato {{1}} e non siamo riusciti a risponderti. Se vuoi prenotare o hai qualche domanda, scrivici qui e ti rispondiamo subito. 😊",
-      en: "Hi! 👋 You just called {{1}} and we couldn't take your call. If you'd like to book or have any questions, message us here and we'll reply right away. 😊",
-      de: "Hallo! 👋 Du hast gerade {{1}} angerufen und wir konnten nicht rangehen. Wenn du reservieren möchtest oder Fragen hast, schreib uns hier — wir antworten sofort. 😊",
+      es: "Has llamado a {{1}} y no hemos podido atender tu llamada. Puedes responder a este mensaje para continuar por aquí.",
+      it: "Hai chiamato {{1}} e non siamo riusciti a rispondere alla tua chiamata. Puoi rispondere a questo messaggio per continuare da qui.",
+      en: "You called {{1}} and we couldn't answer your call. You can reply to this message to continue here.",
+      de: "Du hast {{1}} angerufen und wir konnten deinen Anruf nicht entgegennehmen. Du kannst auf diese Nachricht antworten, um hier fortzufahren.",
     },
     examples: ["BALI Rest"],
     // No buttons — a free reply opens the conversation with the WhatsApp agent.
