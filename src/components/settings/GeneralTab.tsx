@@ -1,6 +1,6 @@
 "use client";
 
-import { Save, Plus, Trash2, Clock, Power, PowerOff, Upload, Image as ImageIcon, Store, Phone, BarChart3 } from "lucide-react";
+import { Save, Plus, Trash2, Clock, Power, PowerOff, Upload, Image as ImageIcon, Store, Phone, BarChart3, Check } from "lucide-react";
 import { useLanguage } from "@/lib/contexts/LanguageContext";
 import { useTenant } from "@/lib/contexts/TenantContext";
 import { useEffect, useRef, useState } from "react";
@@ -104,6 +104,7 @@ export function GeneralTab() {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [voicemailSaving, setVoicemailSaving] = useState(false);
+  const [voicemailSaved, setVoicemailSaved] = useState(false);
 
   useEffect(() => {
     const id = setInterval(() => setNowTick((n) => n + 1), 15000);
@@ -255,6 +256,7 @@ export function GeneralTab() {
   const persistVoicemailMode = async (next: VoicemailConfig) => {
     if (!tenant) return;
     setVoicemailSaving(true);
+    setVoicemailSaved(false);
     try {
       const newSettings = {
         ...((tenant.settings as any) || {}),
@@ -278,6 +280,8 @@ export function GeneralTab() {
         console.error("Vapi voicemail sync after mode toggle failed:", syncErr);
       }
       await refreshActiveTenant();
+      setVoicemailSaved(true);
+      setTimeout(() => setVoicemailSaved(false), 3000);
     } finally {
       setVoicemailSaving(false);
     }
@@ -712,6 +716,11 @@ export function GeneralTab() {
                 </span>
                 {voicemailSaving && (
                   <span className="text-black/50 font-normal">· {t("saving")}</span>
+                )}
+                {!voicemailSaving && voicemailSaved && (
+                  <span className="flex items-center gap-1 font-semibold" style={{ color: "#16a34a" }}>
+                    <Check className="w-3.5 h-3.5" /> {t("settings_saved")}
+                  </span>
                 )}
               </div>
             </div>
