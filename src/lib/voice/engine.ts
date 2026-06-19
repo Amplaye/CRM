@@ -45,6 +45,8 @@ export interface VoiceDateVars {
   current_date?: string; // e.g. "lunes 1 de junio de 2026"
   tomorrow_date?: string;
   current_time?: string; // e.g. "11:15"
+  today_iso?: string; // e.g. "2026-06-19" (venue tz) — ready-made ISO for tools
+  tomorrow_iso?: string; // e.g. "2026-06-20" (venue tz)
   from_number?: string; // caller's number; empty/placeholder on web calls
 }
 
@@ -169,7 +171,22 @@ export function spelledDateVars(now: Date, timezone?: string, locale?: string): 
   const current_time = new Intl.DateTimeFormat("en-GB", {
     hour: "2-digit", minute: "2-digit", hour12: false, timeZone: tz,
   }).format(now);
-  return { current_date: full(now), tomorrow_date: full(tomorrow), current_time };
+  // ISO yyyy-mm-dd of today/tomorrow IN THE VENUE'S TIMEZONE — the tools want
+  // ISO and the model (esp. gpt-4.1-mini) was unreliable at deriving it from the
+  // spelled-out date, so it sent the date as words ("venerdì 19 giugno") and the
+  // tool rejected it as missing_date. We hand it the ISO ready-made. Built via
+  // en-CA (which formats as yyyy-mm-dd) in the tenant tz so it never drifts a day.
+  const isoIn = (d: Date) =>
+    new Intl.DateTimeFormat("en-CA", {
+      year: "numeric", month: "2-digit", day: "2-digit", timeZone: tz,
+    }).format(d);
+  return {
+    current_date: full(now),
+    tomorrow_date: full(tomorrow),
+    current_time,
+    today_iso: isoIn(now),
+    tomorrow_iso: isoIn(tomorrow),
+  };
 }
 
 /** The assistant's own name (the voice persona), spoken in the greeting. */

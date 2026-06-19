@@ -65,11 +65,14 @@ describe("buildVoicePrompt — agency golden-source template, filled with client
 
   it("opens with the date/time header both providers fill at call time (prevents date hallucination)", () => {
     const p = buildVoicePrompt({ restaurant_name: "X", language: "es", opening_hours: hours, timezone: "Atlantic/Canary" });
-    expect(p.startsWith("TODAY {{current_date}} · TOMORROW {{tomorrow_date}} · NOW {{current_time}}")).toBe(true);
+    expect(p.startsWith("TODAY {{current_date}} (ISO {{today_iso}}) · TOMORROW {{tomorrow_date}} (ISO {{tomorrow_iso}}) · NOW {{current_time}}")).toBe(true);
     expect(p).toContain("Atlantic/Canary");
-    expect(p).toContain("NEVER invent another date");
-    // The header tells the agent never to speak ISO, and never to speak the year.
-    expect(p).toContain("FORBIDDEN to speak ISO aloud");
+    expect(p).toContain("Never invent another date");
+    // The header gives ready-made ISO for today/tomorrow so the model never sends
+    // a worded date to the tools, and still forbids speaking ISO/the year aloud.
+    expect(p).toContain("{{today_iso}}");
+    expect(p).toContain("{{tomorrow_iso}}");
+    expect(p).toContain("NEVER say the ISO");
     expect(p).toContain("NEVER say the year");
   });
 
@@ -89,6 +92,6 @@ describe("buildVoicePrompt — agency golden-source template, filled with client
 
   it("omits the timezone from the header when not provided", () => {
     const p = buildVoicePrompt({ restaurant_name: "X", language: "es", opening_hours: hours });
-    expect(p.startsWith("TODAY {{current_date}} · TOMORROW {{tomorrow_date}} · NOW {{current_time}}\n")).toBe(true);
+    expect(p.startsWith("TODAY {{current_date}} (ISO {{today_iso}}) · TOMORROW {{tomorrow_date}} (ISO {{tomorrow_iso}}) · NOW {{current_time}}\n")).toBe(true);
   });
 });

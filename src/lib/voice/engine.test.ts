@@ -55,8 +55,20 @@ describe("voice engine — pure helpers", () => {
     expect(vars.current_date).toMatch(/2026/);
     expect(vars.tomorrow_date).toMatch(/marted/); // martedì
     expect(vars.current_time).toMatch(/^\d{2}:\d{2}$/);
-    // never ISO
+    // never ISO in the SPOKEN date
     expect(vars.current_date).not.toMatch(/2026-06-01/);
+    // ...but ready-made ISO IS provided separately for the tools (the model was
+    // unreliable at deriving it and sent worded dates → tool missing_date).
+    expect(vars.today_iso).toBe("2026-06-01");
+    expect(vars.tomorrow_iso).toBe("2026-06-02");
+  });
+
+  it("computes today_iso/tomorrow_iso in the venue timezone, not UTC (no day drift)", () => {
+    // 22:30 UTC on 2026-06-01 is already 2026-06-02 00:30 in Rome (+2) — the ISO
+    // must follow the venue's wall clock so 'tonight' books the right day.
+    const vars = spelledDateVars(new Date("2026-06-01T22:30:00Z"), "Europe/Rome", "it-IT");
+    expect(vars.today_iso).toBe("2026-06-02");
+    expect(vars.tomorrow_iso).toBe("2026-06-03");
   });
 
   it("exposes a non-empty engine assistant id", () => {
