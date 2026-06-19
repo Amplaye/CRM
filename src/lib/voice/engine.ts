@@ -446,7 +446,17 @@ export async function buildTenantCallConfig(
   extraVars: VoiceDateVars = {},
   now: Date = new Date(),
   callerNumber?: string,
-): Promise<{ assistantId: string; assistantOverrides: Record<string, any> }> {
+): Promise<{
+  assistantId: string;
+  assistantOverrides: Record<string, any>;
+  /** Resolved voicemail state for this call — lets the webhook fire the
+   * call_followup WhatsApp when the segreteria ("active") answered. */
+  voicemailState?: VoicemailState;
+  /** The venue name (template variable for the follow-up message). */
+  restaurantName: string;
+  /** Language to send the follow-up template in (caller prefix, else venue). */
+  lang: "es" | "it" | "en" | "de";
+}> {
   const supabase = createServiceRoleClient();
   const composed = await composeTenantVoicePrompt(supabase, tenantId, now);
   // Populate {{from_number}} so the prompt's phone step is grounded in reality:
@@ -466,5 +476,8 @@ export async function buildTenantCallConfig(
   return {
     assistantId: ENGINE_VAPI_ASSISTANT_ID,
     assistantOverrides: buildAssistantOverrides(composed, tenantId, dateVars, model, greetLocale),
+    voicemailState: composed.voicemailState,
+    restaurantName: composed.name,
+    lang: langOf(greetLocale || composed.locale),
   };
 }

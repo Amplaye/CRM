@@ -109,6 +109,24 @@ const TEMPLATES = [
       de: ["JA"],
     },
   },
+  {
+    // Sent right after the voice "segreteria" (voicemail) answers a call: the
+    // caller has no open 24h WhatsApp window (they CALLED, they didn't message),
+    // so the follow-up that the voicemail script promises ("we've just sent you
+    // a WhatsApp, continue there") MUST be a pre-approved template. Replying to
+    // it opens the 24h window and the normal WhatsApp agent takes over.
+    name: "call_followup",
+    category: "UTILITY",
+    // vars: 1=restaurant name
+    bodies: {
+      es: "¡Hola! 👋 Acabas de llamar a {{1}} y ahora no podíamos atenderte. Si quieres reservar o tienes cualquier duda, escríbenos por aquí y te atendemos enseguida. 😊",
+      it: "Ciao! 👋 Hai appena chiamato {{1}} e non siamo riusciti a risponderti. Se vuoi prenotare o hai qualche domanda, scrivici qui e ti rispondiamo subito. 😊",
+      en: "Hi! 👋 You just called {{1}} and we couldn't take your call. If you'd like to book or have any questions, message us here and we'll reply right away. 😊",
+      de: "Hallo! 👋 Du hast gerade {{1}} angerufen und wir konnten nicht rangehen. Wenn du reservieren möchtest oder Fragen hast, schreib uns hier — wir antworten sofort. 😊",
+    },
+    examples: ["BALI Rest"],
+    // No buttons — a free reply opens the conversation with the WhatsApp agent.
+  },
 ];
 
 // Meta language codes differ from our 2-letter codes for some locales.

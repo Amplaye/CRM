@@ -1,6 +1,7 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse, after } from "next/server";
 import { createServiceRoleClient } from "@/lib/supabase/server";
 import { buildTenantCallConfig } from "@/lib/voice/engine";
+import { sendWhatsAppTemplate, toMetaRecipient } from "@/lib/whatsapp/meta";
 
 // Inbound phone voice engine endpoint (Vapi "assistant-request" server event).
 // A phone number points its server.url here; on an incoming call Vapi POSTs the
@@ -56,6 +57,27 @@ export async function POST(req: NextRequest) {
     // (same source as the web path). The caller's number picks the greeting
     // language from its country prefix (falls back to the venue's locale).
     const cfg = await buildTenantCallConfig(tenantId, {}, new Date(), callerNumber);
+
+    // When the voicemail/segreteria answered, its script TELLS the caller we've
+    // just sent them a WhatsApp ("continue there"). Make that promise true: fire
+    // the approved call_followup template to their number AFTER we respond to
+    // Vapi (after() → zero added latency on call start). The caller has no open
+    // 24h window (they called, didn't message), so it MUST be a template;
+    // replying to it opens the window and the normal WhatsApp agent takes over.
+    if (cfg.voicemailState === "active") {
+      const recipient = toMetaRecipient(callerNumber);
+      const isRealNumber = recipient.length >= 10 && !/^0+$/.test(recipient);
+      if (isRealNumber) {
+        after(async () => {
+          const r = await sendWhatsAppTemplate(recipient, "call_followup", cfg.lang, [cfg.restaurantName]);
+          if (!r.ok) {
+            // Template may still be in Meta review, or the number is unreachable.
+            console.error(`[voicemail] call_followup WhatsApp to ${recipient} failed: ${r.errorMessage}`);
+          }
+        });
+      }
+    }
+
     return NextResponse.json(
       { assistantId: cfg.assistantId, assistantOverrides: cfg.assistantOverrides },
       { status: 200 },
