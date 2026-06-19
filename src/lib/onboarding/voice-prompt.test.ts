@@ -20,7 +20,14 @@ describe("buildVoicePrompt — agency golden-source template, filled with client
     // The #1 LANGUAGE rule: speak only the caller's language, never mix, and
     // never read the (now neutral, JSON) tool results aloud.
     expect(p).toContain("THREE RULES ABOVE ALL");
+    // {{spoken_language}} is the OPENING language only — the agent then follows
+    // the caller. Guard against a regression that re-pins it for the whole call
+    // ("speak only {{spoken_language}} greeting to goodbye"), which made the model
+    // bleed the opening language into the caller's on a cross-prefix call.
     expect(p).toContain("{{spoken_language}}");
+    expect(p).not.toContain("greeting to goodbye");
+    expect(p).toContain("switch COMPLETELY");
+    expect(p).toContain("never MIX");
     expect(p).toContain("TOOL RESULTS ARE DATA");
     // The key behavioural sections must be present.
     expect(p).toContain("PHONE");
@@ -39,7 +46,7 @@ describe("buildVoicePrompt — agency golden-source template, filled with client
     const it = buildVoicePrompt({ restaurant_name: "Da Mario", language: "it", opening_hours: hours });
     expect(it).toContain("Da Mario");
     expect(it).toContain("BOOKING");
-    expect(it).toContain("Never mix two languages");
+    expect(it).toContain("never MIX");
   });
 
   it("parametrises the backup phone in the technical-failure fallback", () => {

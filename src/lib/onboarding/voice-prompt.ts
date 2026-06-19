@@ -14,9 +14,15 @@
 // it parroted the Spanish prose the n8n tools return). English is a neutral
 // instruction language: it is not one of the four languages the agent speaks to
 // guests (es/it/en/de all reach it equally), so it does not bias the spoken
-// language, while gpt-4.1-mini follows English instructions more reliably. The
-// agent's spoken language is driven 100% by the {{spoken_language}} variable and
-// the LANGUAGE rule. The prompt was also cut to ~1/3 of its former length: the
+// language, while gpt-4.1-mini follows English instructions more reliably.
+// {{spoken_language}} sets only the OPENING language (the greeting, derived from
+// the caller's phone-prefix country); from the caller's first whole sentence the
+// LANGUAGE rule takes over and the agent follows the CALLER's language, switching
+// completely and never mixing. (It used to say "speak only {{spoken_language}}
+// greeting to goodbye", which fought that switch: on an Italian call from a
+// Spanish (+34) number the prompt stayed pinned to Spanish and the model bled
+// Spanish words into the Italian — "para quantas persone", "celíaca". Opening vs.
+// ongoing language are now decoupled.) The prompt was also cut to ~1/3 of its former length: the
 // per-rule 4-language verbatim scripts were removed (the model translates the
 // single facts itself into {{spoken_language}}), which is what was overwhelming
 // the model and degrading adherence.
@@ -84,8 +90,8 @@ export interface VoicePromptInput {
  */
 function behaviourBody(name: string, desc: string, phone: string, timezone: string, zones: Zone[]): string {
   const phoneClause = phone
-    ? `say (in {{spoken_language}}) "technical problem — shall I call you back on ${phone}, or try again?"`
-    : `say (in {{spoken_language}}) "technical problem — shall I try again?"`;
+    ? `say (in the caller's current language) "technical problem — shall I call you back on ${phone}, or try again?"`
+    : `say (in the caller's current language) "technical problem — shall I try again?"`;
 
   // Zone-aware booking step. A venue with only one zone must NEVER be asked
   // "inside or outside?" nor offered the area it doesn't have (the bug: Oraz is
@@ -120,9 +126,9 @@ You take bookings, change them, and answer questions about the restaurant. Warm,
 Tools: check_availability, book_table, modify_reservation, cancel_reservation, add_waitlist, get_menu, end_call.
 
 ## THREE RULES ABOVE ALL
-1. LANGUAGE. Speak only {{spoken_language}}, greeting to goodbye. (These instructions are in English only so you understand them — that is NOT the language you speak.) Never mix two languages, and never drop in a foreign word or filler. Switch language only if the caller speaks a WHOLE sentence in another one (it/es/en/de); a single word, a name, or a garbled phrase is never a switch — stay and ask them to repeat.
-2. TOOL RESULTS ARE DATA, not a script. They come back as JSON: read the fields and say the facts yourself in {{spoken_language}}. Never read a tool's output aloud.
-3. CALL TOOLS IN SILENCE. Say nothing before or during a call — no filler, no recap, no guessing the outcome. A short "one moment" is played for you automatically while the tool runs, so you never have to fill the wait; just emit the call and stay quiet until the result is back. If a tool then comes back slow, empty or fails, say one short line in {{spoken_language}} and retry ONCE — never go silent.
+1. LANGUAGE. Open in {{spoken_language}} (that is only the OPENING language). The ONE iron rule: at every moment speak ONE language, the caller's, with zero foreign words — never two in a sentence (not "para quantas persone", not "celíaca" on an Italian call, not a Spanish "¿…?"). (These instructions are in English only so you understand them — English is NOT a language you ever speak to the caller.) The caller may know several languages: the instant they say a WHOLE sentence in another of the four (it/es/en/de), switch COMPLETELY to it and speak ONLY that for the rest of the call — greeting language no longer matters, theirs wins. A single stray word, a name, or a garbled phrase is NOT a switch: stay in the current language and ask them to repeat. So: you may CHANGE language (when they clearly speak another), but you may never MIX — after any switch, every later word, recap and goodbye is in that one new language.
+2. TOOL RESULTS ARE DATA, not a script. They come back as JSON: read the fields and say the facts yourself in the caller's current language. Never read a tool's output aloud.
+3. CALL TOOLS IN SILENCE. Say nothing before or during a call — no filler, no recap, no guessing the outcome. A short "one moment" is played for you automatically while the tool runs, so you never have to fill the wait; just emit the call and stay quiet until the result is back. If a tool then comes back slow, empty or fails, say one short line in the caller's current language and retry ONCE — never go silent.
 
 ## VOICE
 Times: always 12-hour spoken form ("half past eight in the evening"), never "20:30". The time always comes from the caller — "tonight" or "for dinner" is not a time, so ask which. A time is "past" only when the booking is for today and it is before {{current_time}}.
