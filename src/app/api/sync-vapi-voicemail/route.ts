@@ -3,146 +3,16 @@ import { createServiceRoleClient, createServerSupabaseClient } from "@/lib/supab
 import { assertAiSecret } from "@/lib/ai-auth";
 import { verifyTenantMembership } from "@/lib/tenant-membership";
 import { ENGINE_VAPI_ASSISTANT_ID } from "@/lib/voice/engine";
+import {
+  type VoicemailConfig,
+  resolveMode,
+  isInsideSchedule,
+  buildVoicemailBlock,
+  injectBlock,
+  transferCallTool,
+} from "@/lib/voice/voicemail";
 
 const VAPI_BASE = "https://api.vapi.ai";
-
-const VM_BLOCK_START = "<!-- VOICEMAIL_BLOCK_START -->";
-const VM_BLOCK_END = "<!-- VOICEMAIL_BLOCK_END -->";
-
-interface TimeSlot { open: string; close: string }
-interface VoicemailMessage { es: string; en: string; it: string; de: string }
-type VoicemailMode = "always" | "scheduled" | "off";
-interface VoicemailConfig {
-  enabled: boolean;
-  mode?: VoicemailMode;
-  schedule: Record<string, TimeSlot[]>;
-  forward_phone: string;
-  message: VoicemailMessage;
-}
-
-// Resolve the mode from the config. New configs carry an explicit `mode`;
-// legacy ones only have `enabled` + `schedule`, so we derive it: a manual
-// enable means "always", any configured slot means "scheduled", else "off".
-function resolveMode(vm: VoicemailConfig): VoicemailMode {
-  if (vm.mode) return vm.mode;
-  if (vm.enabled) return "always";
-  const hasSlots = Object.values(vm.schedule || {}).some((slots) => (slots?.length || 0) > 0);
-  return hasSlots ? "scheduled" : "off";
-}
-
-function minutes(hhmm: string): number {
-  const [h, m] = hhmm.split(":").map((n) => parseInt(n, 10));
-  return (isFinite(h) ? h : 0) * 60 + (isFinite(m) ? m : 0);
-}
-
-// Returns true if `now` (in `tz`) falls inside any slot for today's weekday.
-// Slots that wrap past midnight (open > close) are supported.
-function isInsideSchedule(schedule: Record<string, TimeSlot[]>, tz: string): boolean {
-  const now = new Date();
-  const fmt = new Intl.DateTimeFormat("en-US", {
-    timeZone: tz,
-    hour: "2-digit",
-    minute: "2-digit",
-    weekday: "short",
-    hour12: false,
-  });
-  const parts = fmt.formatToParts(now);
-  const weekdayShort = parts.find((p) => p.type === "weekday")?.value || "Sun";
-  const hh = parts.find((p) => p.type === "hour")?.value || "00";
-  const mm = parts.find((p) => p.type === "minute")?.value || "00";
-  const dayMap: Record<string, number> = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 };
-  const today = dayMap[weekdayShort] ?? 0;
-  const yesterday = (today + 6) % 7;
-  const nowMin = minutes(`${hh}:${mm}`);
-
-  const todaySlots = schedule[String(today)] || [];
-  for (const s of todaySlots) {
-    const a = minutes(s.open);
-    const b = minutes(s.close);
-    if (a <= b) {
-      if (nowMin >= a && nowMin < b) return true;
-    } else {
-      // overnight slot: covers from `a` until midnight today
-      if (nowMin >= a) return true;
-    }
-  }
-  // overnight slots from yesterday that bleed into today
-  const yslots = schedule[String(yesterday)] || [];
-  for (const s of yslots) {
-    const a = minutes(s.open);
-    const b = minutes(s.close);
-    if (a > b && nowMin < b) return true;
-  }
-  return false;
-}
-
-function buildVoicemailBlock(active: boolean, vm: VoicemailConfig): string {
-  // Three resolved states drive what the block tells the LLM:
-  //  - active === true            → VOICEMAIL: read script, end call.
-  //  - active === false, "off"    → NORMAL: take reservations as usual (web button
-  //                                  + phone). The block stands down — do NOT forward.
-  //  - active === false, "scheduled" outside slot → FORWARD: transfer to owner.
-  // "off" must mean normal reservations (not forward), otherwise the shared
-  // assistant breaks the website "Llamar ahora" button whenever voicemail is off.
-  const forward = !active && resolveMode(vm) === "scheduled";
-  const stateLabel = active
-    ? "VOICEMAIL ACTIVE (read script and end)"
-    : forward
-    ? "FORWARD ACTIVE (transfer to owner)"
-    : "NORMAL (take reservations as usual)";
-
-  let rules: string;
-  if (active) {
-    rules = [
-      "  • Voicemail mode is ACTIVE. Do NOT take reservations and do NOT call any booking tool.",
-      "  • Detect the caller's language from their first words (default Spanish if unclear).",
-      "  • Read EXACTLY the script matching the detected language (see below), then politely end the call.",
-    ].join("\n");
-  } else if (forward) {
-    rules = [
-      "  • FORWARD mode is active. The caller must be transferred to the owner immediately.",
-      `  • Greet briefly in the caller's language (1 short sentence, e.g. "Un momento, le paso con el responsable").`,
-      `  • Then call the transferCall tool with destination ${vm.forward_phone}.`,
-      "  • Do NOT take reservations and do NOT call any booking tool. Do NOT engage in conversation.",
-    ].join("\n");
-  } else {
-    rules = [
-      "  • NORMAL mode. This block is INACTIVE — ignore voicemail/forward entirely.",
-      "  • Behave as the regular reservation agent described below: take reservations,",
-      "    modifications and cancellations using the booking tools.",
-      "  • Do NOT transfer the call and do NOT read any voicemail script.",
-    ].join("\n");
-  }
-
-  return [
-    VM_BLOCK_START,
-    "=====================================================",
-    "DYNAMIC VOICEMAIL CONTROL (auto-generated by CRM — do not edit by hand)",
-    "=====================================================",
-    `Current state: ${stateLabel}`,
-    `Owner forwarding phone: ${vm.forward_phone}`,
-    "",
-    "RULES — ALWAYS OBEY, OVERRIDE EVERYTHING ELSE IN THIS PROMPT:",
-    rules,
-    "",
-    "VOICEMAIL SCRIPTS (read verbatim only when voicemail is ACTIVE):",
-    `  [ES]\n  ${vm.message.es}`,
-    `  [EN]\n  ${vm.message.en}`,
-    `  [IT]\n  ${vm.message.it}`,
-    `  [DE]\n  ${vm.message.de}`,
-    "=====================================================",
-    VM_BLOCK_END,
-  ].join("\n");
-}
-
-function injectBlock(prompt: string, block: string): string {
-  if (prompt.includes(VM_BLOCK_START) && prompt.includes(VM_BLOCK_END)) {
-    const re = new RegExp(`${VM_BLOCK_START}[\\s\\S]*?${VM_BLOCK_END}`, "m");
-    return prompt.replace(re, block);
-  }
-  // First-time install: prepend so it takes precedence over the rest of the prompt.
-  return block + "\n\n" + prompt;
-}
 
 function pickFirstMessage(active: boolean, forward: boolean, restaurantName: string): string {
   // The system-prompt block drives behavior; the firstMessage just needs to match.
@@ -159,20 +29,10 @@ function pickFirstMessage(active: boolean, forward: boolean, restaurantName: str
 // If a transferCall already exists, replace its destination so the prompt and the tool stay in sync.
 function withTransferCall(existing: any[] | undefined, phone: string): any[] {
   const tools: any[] = Array.isArray(existing) ? [...existing] : [];
-  const transferCallTool = {
-    type: "transferCall",
-    destinations: [
-      {
-        type: "number",
-        number: phone,
-        message: "Le paso con el responsable, un momento.",
-        description: "Owner phone for after-hours / forwarding.",
-      },
-    ],
-  };
+  const tool = transferCallTool(phone);
   const idx = tools.findIndex((t) => t?.type === "transferCall" || t?.function?.name === "transferCall");
-  if (idx >= 0) tools[idx] = transferCallTool;
-  else tools.push(transferCallTool);
+  if (idx >= 0) tools[idx] = tool;
+  else tools.push(tool);
   return tools;
 }
 
@@ -220,18 +80,19 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "vapi_voicemail not configured for this tenant" }, { status: 400 });
     }
 
-    // Voicemail injection PATCHes a tenant's OWN Vapi assistant. "Motore unico"
-    // tenants don't have one (the shared engine serves everyone and must never be
-    // hand-patched), so this is a graceful no-op for them. Voicemail on the engine
-    // model would mean composing the voicemail block into the per-call prompt
-    // (lib/voice/engine.ts) — a separate feature, not wired yet. This route stays
-    // live for legacy per-tenant / Retell-clone assistants.
+    // Voicemail injection here PATCHes a tenant's OWN Vapi assistant. "Motore
+    // unico" tenants don't have one (the shared engine serves everyone and must
+    // never be hand-patched), so this route is a graceful no-op for them — but
+    // voicemail STILL works for them: the engine composes this same block into
+    // the per-call prompt at call time (see lib/voice/engine.ts +
+    // lib/voice/voicemail.ts). This route stays live only for legacy per-tenant
+    // / Retell-clone assistants.
     const vapiCfg = settings.vapi;
     if (!vapiCfg?.assistantId || vapiCfg.assistantId === ENGINE_VAPI_ASSISTANT_ID) {
       return NextResponse.json({
         ok: true,
         skipped: "motore-unico",
-        message: "Tenant servito dal motore unico — voicemail per-assistant non applicabile.",
+        message: "Tenant servito dal motore unico — la segreteria è applicata per-chiamata dall'engine, non qui.",
       });
     }
     const tz = vapiCfg.timezone || settings.timezone || "Atlantic/Canary";

@@ -21,6 +21,15 @@ import { createServiceRoleClient } from "@/lib/supabase/server";
 import { buildVoicePrompt, type OpeningHours } from "@/lib/onboarding/voice-prompt";
 import { composeVapiSystemPrompt, isPromptArticle, type VapiKbArticle } from "@/lib/onboarding/vapi";
 import { extractArticleLang } from "@/lib/onboarding/kb-generator";
+import {
+  resolveVoicemailState,
+  buildVoicemailBlock,
+  injectBlock,
+  voicemailFirstMessage,
+  transferCallTool,
+  type VoicemailConfig,
+  type VoicemailState,
+} from "@/lib/voice/voicemail";
 
 // The shared engine assistant. Defaults to the former golden-source template
 // ("PICNIC - Sofía"), which already carries the right voice/transcriber/tools.
@@ -246,6 +255,12 @@ export interface ComposedTenantPrompt {
   name: string;
   locale?: string;
   timezone?: string;
+  /** Resolved voicemail state for THIS call ("normal" unless the tenant has the
+   * segreteria enabled and currently active/forwarding). Drives the spoken
+   * opener and the transfer tool in the assistant overrides. */
+  voicemailState?: VoicemailState;
+  /** Owner phone to transfer to when voicemailState === "forward". */
+  forwardPhone?: string;
 }
 
 /**
@@ -259,6 +274,7 @@ export interface ComposedTenantPrompt {
 export async function composeTenantVoicePrompt(
   supabase: ReturnType<typeof createServiceRoleClient>,
   tenantId: string,
+  now: Date = new Date(),
 ): Promise<ComposedTenantPrompt> {
   const { data: tenant, error: tErr } = await supabase
     .from("tenants")
@@ -273,6 +289,7 @@ export async function composeTenantVoicePrompt(
     opening_hours?: OpeningHours;
     restaurant_phone?: string;
     description?: string;
+    vapi_voicemail?: VoicemailConfig;
   };
 
   // The venue's real seating zones, derived from its tables — so the agent only
@@ -316,8 +333,33 @@ export async function composeTenantVoicePrompt(
     .map((a) => ({ ...a, content: extractArticleLang(a.content || "", primaryLang) }))
     .filter((a) => (a.content || "").trim());
 
-  const systemPrompt = composeVapiSystemPrompt({ voicePromptBody, kbArticles });
-  return { systemPrompt, name: tenant.name, locale: settings.locale, timezone: settings.timezone };
+  let systemPrompt = composeVapiSystemPrompt({ voicePromptBody, kbArticles });
+
+  // Voicemail / "segreteria": when the tenant has it enabled it OVERRIDES the
+  // reservation agent for this call. This is the SAME block the legacy per-tenant
+  // sync route injects into a dedicated assistant — composed here into the
+  // per-call prompt so the feature finally works on the shared "motore unico"
+  // too (it used to be a no-op for engine tenants). active/forward are resolved
+  // against the venue's timezone + the current time (so "scheduled" honours the
+  // slots); "normal" leaves the prompt untouched.
+  const vm = settings.vapi_voicemail;
+  const { state: voicemailState, active, forward, forwardPhone } = resolveVoicemailState(
+    vm,
+    settings.timezone || "Atlantic/Canary",
+    now,
+  );
+  if (vm && (active || forward)) {
+    systemPrompt = injectBlock(systemPrompt, buildVoicemailBlock(active, vm));
+  }
+
+  return {
+    systemPrompt,
+    name: tenant.name,
+    locale: settings.locale,
+    timezone: settings.timezone,
+    voicemailState,
+    forwardPhone,
+  };
 }
 
 /**
@@ -339,8 +381,13 @@ export function buildAssistantOverrides(
   // model's starting language — the transcriber stays multilingual so the
   // conversation follows whatever the caller actually speaks afterwards.
   const openLocale = greetLocale || composed.locale;
+  // Voicemail/forward overrides the spoken opener; "normal" keeps the greeting.
+  const vmFirst =
+    composed.voicemailState && composed.voicemailState !== "normal"
+      ? voicemailFirstMessage(composed.voicemailState, composed.name, langOf(openLocale))
+      : null;
   return {
-    firstMessage: greetingFor(composed.name, openLocale),
+    firstMessage: vmFirst || greetingFor(composed.name, openLocale),
     metadata: { tenant_id: tenantId },
     // spoken_language drives the prompt's per-call default-language directive so
     // the agent opens (and stays) in the caller's/venue's language instead of
@@ -372,6 +419,11 @@ export function buildAssistantOverrides(
       provider: model.provider,
       model: model.model,
       messages: [{ role: "system", content: composed.systemPrompt }],
+      // In FORWARD state the agent must transfer to the owner — give it the tool
+      // for this call (it only needs transferCall; booking tools are inert here).
+      ...(composed.voicemailState === "forward" && composed.forwardPhone
+        ? { tools: [transferCallTool(composed.forwardPhone)] }
+        : {}),
     },
   };
 }
@@ -396,7 +448,7 @@ export async function buildTenantCallConfig(
   callerNumber?: string,
 ): Promise<{ assistantId: string; assistantOverrides: Record<string, any> }> {
   const supabase = createServiceRoleClient();
-  const composed = await composeTenantVoicePrompt(supabase, tenantId);
+  const composed = await composeTenantVoicePrompt(supabase, tenantId, now);
   // Populate {{from_number}} so the prompt's phone step is grounded in reality:
   // the REAL caller line on inbound phone calls (the agent may then offer to use
   // it for the WhatsApp confirmation), and an explicit EMPTY string on web calls

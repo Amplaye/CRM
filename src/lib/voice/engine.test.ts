@@ -111,3 +111,44 @@ describe("voice engine — greeting language from caller's phone prefix", () => 
     expect(ov.variableValues.spoken_language).toBe("italiano");
   });
 });
+
+describe("voice engine — voicemail / segreteria overrides", () => {
+  it("normal/undefined state keeps the reservation greeting and adds no tools", () => {
+    const ov = buildAssistantOverrides({ systemPrompt: "S", name: "BALI", locale: "es-ES" }, "t");
+    expect(ov.firstMessage).toContain("Sofía"); // the regular reservation greeting
+    expect(ov.model.tools).toBeUndefined();
+  });
+
+  it("active voicemail replaces the opener with the short localized one, no booking tools added", () => {
+    const ov = buildAssistantOverrides(
+      { systemPrompt: "S", name: "BALI", locale: "es-ES", voicemailState: "active" },
+      "t",
+    );
+    // The voicemail opener — NOT the "soy Sofía, la asistente…" reservation greeting.
+    expect(ov.firstMessage).toBe("Hola, BALI.");
+    expect(ov.firstMessage).not.toContain("Sofía");
+    expect(ov.model.tools).toBeUndefined();
+  });
+
+  it("forward state opens with a filler and attaches the transferCall tool to the owner", () => {
+    const ov = buildAssistantOverrides(
+      { systemPrompt: "S", name: "BALI", locale: "es-ES", voicemailState: "forward", forwardPhone: "+34611222333" },
+      "t",
+    );
+    expect(ov.firstMessage).toMatch(/momento/i);
+    expect(ov.model.tools).toHaveLength(1);
+    expect(ov.model.tools[0].type).toBe("transferCall");
+    expect(ov.model.tools[0].destinations[0].number).toBe("+34611222333");
+  });
+
+  it("greets the voicemail opener in the caller's language (German caller)", () => {
+    const ov = buildAssistantOverrides(
+      { systemPrompt: "S", name: "BALI", locale: "es-ES", voicemailState: "active" },
+      "t",
+      {},
+      undefined,
+      "de-DE",
+    );
+    expect(ov.firstMessage).toBe("Hallo, BALI.");
+  });
+});

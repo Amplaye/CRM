@@ -75,10 +75,10 @@ const DEFAULT_VOICEMAIL: VoicemailConfig = {
   schedule: { "0": [], "1": [], "2": [], "3": [], "4": [], "5": [], "6": [] },
   forward_phone: "",
   message: {
-    es: "Hola, ha llamado al contestador del restaurante. Ahora estamos cerrados. Si quiere reservar puede escribirnos por WhatsApp al mismo número o llamar durante el horario de apertura. Gracias.",
-    en: "Hi, you've reached the restaurant's answering machine. We are closed right now. To book a table please message us on WhatsApp at this same number or call us during opening hours. Thank you.",
-    it: "Ciao, ha chiamato la segreteria del ristorante. Adesso siamo chiusi. Per prenotare può scriverci su WhatsApp allo stesso numero o richiamare negli orari di apertura. Grazie.",
-    de: "Hallo, Sie haben den Anrufbeantworter des Restaurants erreicht. Wir haben gerade geschlossen. Für eine Reservierung schreiben Sie uns bitte auf WhatsApp unter derselben Nummer oder rufen Sie während der Öffnungszeiten an. Danke.",
+    es: "Hola, has llamado al restaurante. Ahora mismo no podemos atenderte, pero si quieres reservar o tienes cualquier duda, te acabamos de enviar un WhatsApp y puedes continuar por ahí. ¡Te atenderemos súper rápido, muchas gracias!",
+    en: "Hi, thanks for calling. We can't take your call right now, but if you'd like to book a table or have any questions, we've just sent you a WhatsApp message and you can carry on from there. We'll get back to you super fast — thank you so much!",
+    it: "Ciao, hai chiamato il ristorante. In questo momento non possiamo risponderti, ma se vuoi prenotare o hai qualche domanda ti abbiamo appena inviato un messaggio WhatsApp e puoi continuare da lì. Ti rispondiamo super veloci, grazie mille!",
+    de: "Hallo, danke für deinen Anruf. Wir können gerade nicht rangehen, aber wenn du reservieren möchtest oder eine Frage hast, haben wir dir gerade eine WhatsApp geschickt — dort kannst du einfach weitermachen. Wir antworten dir super schnell, vielen Dank!",
   },
 };
 
