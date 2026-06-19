@@ -119,15 +119,32 @@ describe("voice engine — voicemail / segreteria overrides", () => {
     expect(ov.model.tools).toBeUndefined();
   });
 
-  it("active voicemail replaces the opener with the short localized one, no booking tools added", () => {
+  it("active voicemail speaks the FULL script as the opener (deterministic), no booking tools", () => {
+    const ov = buildAssistantOverrides(
+      {
+        systemPrompt: "S",
+        name: "BALI",
+        locale: "es-ES",
+        voicemailState: "active",
+        voicemailScript: {
+          es: "Hola, has llamado a BALI Rest. Te acabamos de enviar un WhatsApp.",
+          it: "x", en: "x", de: "x",
+        },
+      },
+      "t",
+    );
+    // The whole voicemail message is the opener — NOT the "soy Sofía…" greeting.
+    expect(ov.firstMessage).toBe("Hola, has llamado a BALI Rest. Te acabamos de enviar un WhatsApp.");
+    expect(ov.firstMessage).not.toContain("Sofía");
+    expect(ov.model.tools).toBeUndefined();
+  });
+
+  it("active voicemail with no script falls back to a bare localized opener", () => {
     const ov = buildAssistantOverrides(
       { systemPrompt: "S", name: "BALI", locale: "es-ES", voicemailState: "active" },
       "t",
     );
-    // The voicemail opener — NOT the "soy Sofía, la asistente…" reservation greeting.
     expect(ov.firstMessage).toBe("Hola, BALI.");
-    expect(ov.firstMessage).not.toContain("Sofía");
-    expect(ov.model.tools).toBeUndefined();
   });
 
   it("forward state opens with a filler and attaches the transferCall tool to the owner", () => {

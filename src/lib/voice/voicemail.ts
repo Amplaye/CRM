@@ -143,9 +143,10 @@ export function buildVoicemailBlock(active: boolean, vm: VoicemailConfig): strin
   let rules: string;
   if (active) {
     rules = [
-      "  • Voicemail mode is ACTIVE. Do NOT take reservations and do NOT call any booking tool.",
-      "  • Detect the caller's language from their first words (default Spanish if unclear).",
-      "  • Read EXACTLY the script matching the detected language (see below), then politely end the call.",
+      "  • Voicemail mode is ACTIVE. You are NOT the reservation assistant right now: do NOT take reservations, do NOT call any booking tool, do NOT ask about party size, date or time, do NOT start the booking flow — even if the caller asks.",
+      "  • Deliver the voicemail message to the caller in their language (the script is below). BUT if your opening line already spoke it in full, do NOT repeat it.",
+      "  • Then, whatever the caller says, reply with AT MOST one short warm line (e.g. thank them, remind them you've just sent them a WhatsApp) and call end_call immediately.",
+      "  • If they insist on booking by voice, tell them to continue on the WhatsApp you just sent — then end_call. Never begin a reservation.",
     ].join("\n");
   } else if (forward) {
     rules = [
@@ -200,10 +201,20 @@ export function injectBlock(prompt: string, block: string): string {
  * "forward" it is a neutral filler while the transfer happens. Returns null for
  * "normal" so the caller keeps its own reservation greeting.
  */
-export function voicemailFirstMessage(state: VoicemailState, name: string, lang: VmLang): string | null {
+export function voicemailFirstMessage(
+  state: VoicemailState,
+  name: string,
+  lang: VmLang,
+  script?: VoicemailMessage,
+): string | null {
   const n = name || (lang === "es" ? "el restaurante" : "the restaurant");
   if (state === "active") {
-    return { es: `Hola, ${n}.`, it: `Ciao, ${n}.`, en: `Hi, ${n}.`, de: `Hallo, ${n}.` }[lang];
+    // Speak the FULL voicemail script as the very first line. This is
+    // DETERMINISTIC — it does not depend on the model choosing to "read the
+    // script": gpt-4.1 was drifting straight back into the reservation agent
+    // after a neutral "Hola, {name}." opener (the caller heard the booking flow
+    // instead of the message). Fall back to a bare greeting only if no script.
+    return (script && script[lang]) || { es: `Hola, ${n}.`, it: `Ciao, ${n}.`, en: `Hi, ${n}.`, de: `Hallo, ${n}.` }[lang];
   }
   if (state === "forward") {
     return {

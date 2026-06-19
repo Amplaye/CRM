@@ -29,6 +29,7 @@ import {
   transferCallTool,
   type VoicemailConfig,
   type VoicemailState,
+  type VoicemailMessage,
 } from "@/lib/voice/voicemail";
 
 // The shared engine assistant. Defaults to the former golden-source template
@@ -261,6 +262,10 @@ export interface ComposedTenantPrompt {
   voicemailState?: VoicemailState;
   /** Owner phone to transfer to when voicemailState === "forward". */
   forwardPhone?: string;
+  /** The voicemail script per language — spoken IN FULL as the opener when
+   * active, so the message is delivered deterministically (not dependent on the
+   * model choosing to read it). */
+  voicemailScript?: VoicemailMessage;
 }
 
 /**
@@ -359,6 +364,7 @@ export async function composeTenantVoicePrompt(
     timezone: settings.timezone,
     voicemailState,
     forwardPhone,
+    voicemailScript: vm?.message,
   };
 }
 
@@ -384,7 +390,7 @@ export function buildAssistantOverrides(
   // Voicemail/forward overrides the spoken opener; "normal" keeps the greeting.
   const vmFirst =
     composed.voicemailState && composed.voicemailState !== "normal"
-      ? voicemailFirstMessage(composed.voicemailState, composed.name, langOf(openLocale))
+      ? voicemailFirstMessage(composed.voicemailState, composed.name, langOf(openLocale), composed.voicemailScript)
       : null;
   return {
     firstMessage: vmFirst || greetingFor(composed.name, openLocale),

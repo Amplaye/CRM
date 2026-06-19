@@ -80,7 +80,7 @@ describe("voicemail — buildVoicemailBlock", () => {
   it("ACTIVE block forbids bookings and carries all four scripts", () => {
     const b = buildVoicemailBlock(true, cfg({ mode: "always" }));
     expect(b).toContain("VOICEMAIL ACTIVE");
-    expect(b).toContain("Do NOT take reservations");
+    expect(b).toContain("do NOT take reservations");
     expect(b).toContain("ES_SCRIPT");
     expect(b).toContain("IT_SCRIPT");
     expect(b).toContain(VM_BLOCK_START);
@@ -116,9 +116,18 @@ describe("voicemail — injectBlock", () => {
 });
 
 describe("voicemail — firstMessage + transfer tool", () => {
-  it("active = a short localized opener; normal = null", () => {
+  it("active speaks the FULL script when provided, else a bare greeting; normal = null", () => {
+    const script = {
+      es: "Hola, has llamado a BALI. Te hemos enviado un WhatsApp.",
+      it: "Ciao, hai chiamato BALI. Ti abbiamo inviato un WhatsApp.",
+      en: "Hi, you called BALI. We've sent you a WhatsApp.",
+      de: "Hallo, du hast BALI angerufen. Wir haben dir eine WhatsApp geschickt.",
+    };
+    // Active speaks the full script (deterministic delivery, not model-dependent).
+    expect(voicemailFirstMessage("active", "BALI", "es", script)).toBe(script.es);
+    expect(voicemailFirstMessage("active", "BALI", "it", script)).toBe(script.it);
+    // No script → falls back to a bare localized greeting.
     expect(voicemailFirstMessage("active", "BALI", "es")).toBe("Hola, BALI.");
-    expect(voicemailFirstMessage("active", "BALI", "it")).toBe("Ciao, BALI.");
     expect(voicemailFirstMessage("forward", "BALI", "it")).toMatch(/attimo/i);
     expect(voicemailFirstMessage("normal", "BALI", "es")).toBeNull();
   });
