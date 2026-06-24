@@ -99,11 +99,15 @@ export async function syncRetellPrompt({
  * so a sync never hard-fails on the publish step.
  */
 export async function publishRetellAgent(agentId: string, key: string): Promise<void> {
-  const res = await rfetch(`${RETELL_BASE}/publish-agent/${agentId}`, {
+  // Endpoint renamed: the legacy /publish-agent/:id is deprecated (removed
+  // 2026-07-20) in favour of the unified /publish-agent-version/:id, which
+  // takes the same agent_id in the path and no request body.
+  // https://docs.retellai.com/deprecation-notice/2026/07-20_agent_version_endpoints
+  const res = await rfetch(`${RETELL_BASE}/publish-agent-version/${agentId}`, {
     method: "POST",
     headers: authHeaders(key),
   });
   if (!res.ok && res.status !== 404 && res.status !== 409) {
-    throw new Error(`Retell publish-agent ${agentId} -> ${res.status}: ${(await res.text()).slice(0, 300)}`);
+    throw new Error(`Retell publish-agent-version ${agentId} -> ${res.status}: ${(await res.text()).slice(0, 300)}`);
   }
 }
