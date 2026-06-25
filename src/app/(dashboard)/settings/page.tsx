@@ -1,7 +1,7 @@
 "use client";
 
 import { Suspense, useState, useEffect } from "react";
-import { Settings as SettingsIcon, Users, ToggleRight, CalendarClock, LineChart, Plug, CreditCard, Tags } from "lucide-react";
+import { Settings as SettingsIcon, Users, ToggleRight, CalendarClock, LineChart, Plug, CreditCard, Tags, MessageCircle } from "lucide-react";
 import { useSearchParams, useRouter, usePathname } from "next/navigation";
 import { useLanguage } from "@/lib/contexts/LanguageContext";
 import { useTenant } from "@/lib/contexts/TenantContext";
@@ -13,9 +13,10 @@ import { ManagementTab } from "@/components/settings/ManagementTab";
 import { PosTab } from "@/components/settings/PosTab";
 import { PaymentsTab } from "@/components/settings/PaymentsTab";
 import { CommercialInfoTab } from "@/components/settings/CommercialInfoTab";
+import { WhatsAppTab } from "@/components/settings/WhatsAppTab";
 import { getFeatures } from "@/lib/types/tenant-settings";
 
-type Tab = "general" | "booking" | "features" | "commercial" | "management" | "pos" | "payments" | "staff";
+type Tab = "general" | "booking" | "features" | "commercial" | "management" | "pos" | "payments" | "staff" | "whatsapp";
 
 function SettingsContent() {
   const { t } = useLanguage();
@@ -24,7 +25,7 @@ function SettingsContent() {
   const router = useRouter();
   const pathname = usePathname();
 
-  const TABS: Tab[] = ["general", "booking", "staff", "features", "commercial", "management", "pos", "payments"];
+  const TABS: Tab[] = ["general", "booking", "staff", "features", "commercial", "management", "pos", "payments", "whatsapp"];
   const initial = (searchParams.get("tab") as Tab) || "general";
   const [tab, setTab] = useState<Tab>(TABS.includes(initial) ? initial : "general");
 
@@ -59,6 +60,9 @@ function SettingsContent() {
   // Payments = plan/subscription + add-ons. Billing authority lives with the owner
   // (or Bali Flow staff impersonating); not gated on management, every owner can buy.
   const canSeePaymentsTab = activeRole === "owner" || globalRole === "platform_admin";
+  // WhatsApp = self-service Meta connection. Owner-level (or Bali Flow staff
+  // impersonating); every restaurant connects its own number, no add-on gate.
+  const canSeeWhatsAppTab = activeRole === "owner" || globalRole === "platform_admin";
 
   const setActiveTab = (next: Tab) => {
     setTab(next);
@@ -145,6 +149,16 @@ function SettingsContent() {
             {t("settings_tab_pos") || "Cassa"}
           </button>
         )}
+        {canSeeWhatsAppTab && (
+          <button
+            onClick={() => setActiveTab("whatsapp")}
+            className={`inline-flex shrink-0 whitespace-nowrap items-center gap-2 px-4 py-2 text-sm font-medium border-b-2 transition-colors cursor-pointer ${tab === "whatsapp" ? "text-black" : "text-black hover:text-black border-transparent"}`}
+            style={tab === "whatsapp" ? { borderColor: "#c4956a" } : {}}
+          >
+            <MessageCircle className="w-4 h-4" />
+            {t("settings_tab_whatsapp") || "WhatsApp"}
+          </button>
+        )}
         {canSeePaymentsTab && (
           <button
             onClick={() => setActiveTab("payments")}
@@ -164,6 +178,7 @@ function SettingsContent() {
       {tab === "management" && canSeeManagementTab && <ManagementTab />}
       {tab === "pos" && canSeePosTab && <PosTab />}
       {tab === "payments" && canSeePaymentsTab && <PaymentsTab />}
+      {tab === "whatsapp" && canSeeWhatsAppTab && <WhatsAppTab />}
       {tab === "staff" && canSeeStaffTab && <StaffTab />}
     </div>
   );

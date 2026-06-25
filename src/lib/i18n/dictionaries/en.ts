@@ -1283,6 +1283,32 @@ export const en = {
   billing_addon_website_design_desc: "Your website from scratch, true to your brand and ready to take bookings.",
   billing_addon_smart_inventory: "Smart inventory",
   billing_addon_smart_inventory_desc: "Links bookings and stock so the kitchen anticipates each service.",
+
+  // WhatsApp Business connection (Settings → WhatsApp)
+  settings_tab_whatsapp: "WhatsApp",
+  settings_wa_title: "WhatsApp Business",
+  settings_wa_subtitle: "Connect your own WhatsApp number so the assistant replies and reminders go out from your restaurant.",
+  settings_wa_status_label: "Status",
+  settings_wa_status_not_connected: "Not connected",
+  settings_wa_status_pending: "Almost there",
+  settings_wa_status_connected: "Connected",
+  settings_wa_status_error: "Needs attention",
+  settings_wa_number_label: "Number",
+  settings_wa_q_usage: "Is this number already used on WhatsApp?",
+  settings_wa_usage_business_app: "Yes — in the WhatsApp Business app",
+  settings_wa_usage_normal: "Yes — in the normal WhatsApp app",
+  settings_wa_usage_new: "No — it's a brand-new number",
+  settings_wa_connect_btn: "Connect WhatsApp",
+  settings_wa_connecting: "Connecting…",
+  settings_wa_connect_hint: "A Meta window opens — log in with the restaurant's Facebook account and pick the WhatsApp number.",
+  settings_wa_not_configured: "WhatsApp onboarding isn't enabled yet. The BALI Flow team will finish the Meta setup for you.",
+  settings_wa_test_title: "Send a test message",
+  settings_wa_test_placeholder: "Your phone, e.g. +34600111222",
+  settings_wa_test_btn: "Send test",
+  settings_wa_test_sending: "Sending…",
+  settings_wa_test_sent: "Test message sent. Check WhatsApp.",
+  settings_wa_test_24h_hint: "Message your business number first (say \"hi\"), then send the test — Meta only allows free text within 24h of the last incoming message.",
+  settings_wa_error_generic: "Something went wrong. Please try again or contact BALI Flow.",
 };
 
 export type Dictionary = typeof en;
