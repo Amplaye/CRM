@@ -1,9 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { CreditCard, Check, Loader2, CheckCircle2, XCircle, Sparkles, Building2, Layers, MessageCircle } from "lucide-react";
+import { CreditCard, Check, Loader2, CheckCircle2, XCircle, Sparkles, Building2, Layers, MessageCircle, Gift, Lock } from "lucide-react";
 import { useLanguage } from "@/lib/contexts/LanguageContext";
 import { useTenant } from "@/lib/contexts/TenantContext";
+import { hasActivePlan } from "@/lib/billing/entitlements";
 import { Dictionary } from "@/lib/i18n/dictionaries/en";
 import {
   PLANS,
@@ -177,6 +178,10 @@ export function PaymentsTab() {
 
   const cardStyle = { borderColor: "#c4956a", background: "rgba(252,246,237,0.6)" };
   const anyProvider = providers.stripe || providers.paypal;
+  // Tenant with no active paid plan = the free "entry package" (menu + settings
+  // only). Surface it here so the owner sees what they have today and what a plan
+  // unlocks — the missing link between the freemium locks and this pricing list.
+  const onEntryPackage = !hasActivePlan(tenant?.settings);
   const selectedList = Array.from(selectedAddons);
   const bundlePlanObj = PLANS.find((p) => p.id === bundlePlan) || PLANS[0];
   const bundleSum = bundleTotal(bundlePlanObj, cycle, selectedList);
@@ -225,6 +230,52 @@ export function PaymentsTab() {
               </div>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* Entry package — shown when the tenant has no active paid plan. The free
+          tier they're on right now: what's included + what a plan unlocks. */}
+      {onEntryPackage && (
+        <div
+          className="rounded-xl border-2 p-5"
+          style={{ borderColor: "#c4956a", background: "linear-gradient(135deg, rgba(196,149,106,0.12), rgba(252,246,237,0.6))" }}
+        >
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <h3 className="text-base font-bold text-black flex items-center gap-2">
+              <Gift className="w-5 h-5" style={{ color: "#c4956a" }} />
+              {t(tk("settings_payments_entry_title")) || "Pacchetto Entry"}
+            </h3>
+            <span className="text-[11px] font-bold px-2.5 py-1 rounded-full text-white" style={{ background: "#c4956a" }}>
+              {t(tk("settings_payments_entry_badge")) || "Gratis · Piano attuale"}
+            </span>
+          </div>
+          <p className="mt-2 text-sm text-black">
+            {t(tk("settings_payments_entry_desc")) || "Stai usando BaliFlow gratis. Hai pieno accesso al menu digitale e alle impostazioni del tuo locale."}
+          </p>
+          <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="rounded-lg border-2 p-3" style={{ borderColor: "#eaddcb", background: "rgba(255,255,255,0.5)" }}>
+              <div className="text-xs font-bold text-black flex items-center gap-1.5">
+                <Check className="w-4 h-4 shrink-0" style={{ color: "#2f9e6b" }} />
+                {t(tk("settings_payments_entry_included_label")) || "Già incluso"}
+              </div>
+              <p className="mt-1.5 text-sm text-black">
+                {t(tk("settings_payments_entry_included")) || "Menu digitale pubblico, editor del menu e impostazioni del locale"}
+              </p>
+            </div>
+            <div className="rounded-lg border-2 p-3" style={{ borderColor: "#eaddcb", background: "rgba(255,255,255,0.5)" }}>
+              <div className="text-xs font-bold text-black flex items-center gap-1.5">
+                <Lock className="w-4 h-4 shrink-0" style={{ color: "#c4956a" }} />
+                {t(tk("settings_payments_entry_unlock_label")) || "Sblocca con un piano"}
+              </div>
+              <p className="mt-1.5 text-sm text-black">
+                {t(tk("settings_payments_entry_unlock")) || "Prenotazioni, sala, ospiti, conversazioni, lista d'attesa e analisi"}
+              </p>
+            </div>
+          </div>
+          <p className="mt-4 text-sm font-bold flex items-center gap-1.5" style={{ color: "#8b6540" }}>
+            <Sparkles className="w-4 h-4" />
+            {t(tk("settings_payments_entry_cta")) || "Scegli Premium o Business qui sotto per sbloccare tutto"}
+          </p>
         </div>
       )}
 
