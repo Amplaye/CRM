@@ -94,6 +94,10 @@ export default function TenantDetailPage() {
   const [loading, setLoading] = useState(true);
   const [insights, setInsights] = useState<any[]>([]);
   const [health, setHealth] = useState<TenantHealth | null>(null);
+  const [waSetup, setWaSetup] = useState<{
+    setup: { phone_number_usage: string; setup_status: string; last_error: string | null } | null;
+    connection: { phone_number_id: string | null; waba_id: string | null; connection_status: string; last_error: string | null } | null;
+  } | null>(null);
   const [statusSaving, setStatusSaving] = useState(false);
   const [danger, setDanger] = useState<null | "archive" | "purge">(null);
   const [confirmText, setConfirmText] = useState("");
@@ -212,10 +216,11 @@ export default function TenantDetailPage() {
     const fetchDetail = async () => {
       setLoading(true);
       try {
-        const [detailRes, insightRes, healthRes] = await Promise.all([
+        const [detailRes, insightRes, healthRes, waRes] = await Promise.all([
           fetch(`/api/admin/tenant?id=${tenantId}`),
           fetch(`/api/insights?tenant_id=${tenantId}`),
           fetch(`/api/admin/tenant/health?id=${tenantId}`),
+          fetch(`/api/whatsapp/setup?tenant_id=${tenantId}`),
         ]);
         const json = await detailRes.json();
         if (json.error) throw new Error(json.error);
@@ -226,6 +231,10 @@ export default function TenantDetailPage() {
           const h = await healthRes.json();
           if (!h.error) setHealth(h);
         } catch { /* health is best-effort; never blocks the page */ }
+        try {
+          const w = await waRes.json();
+          if (w?.ok) setWaSetup({ setup: w.setup, connection: w.connection });
+        } catch { /* WhatsApp setup is best-effort */ }
       } catch (err) { console.error(err); }
       setLoading(false);
     };
@@ -462,6 +471,48 @@ export default function TenantDetailPage() {
           )}
         </div>
       )}
+
+      {/* WhatsApp — stato della connessione Meta Embedded Signup di questo cliente.
+          Mostra a colpo d'occhio se il numero è collegato, in corso o da seguire a
+          mano (test WABA / business non verificato). Sola lettura: l'override
+          manuale del concierge passa da /api/admin/whatsapp/manual. */}
+      {(() => {
+        const conn = waSetup?.connection;
+        const st = waSetup?.setup;
+        const connected = conn?.connection_status === "connected" && !!conn?.phone_number_id;
+        const failed = st?.setup_status === "failed_needs_manual_help" || conn?.connection_status === "error";
+        const started = !!st && st.setup_status !== "not_started";
+        const color = connected ? "#10b981" : failed ? "#ef4444" : started ? "#eab308" : "#a8a29e";
+        const label = connected
+          ? "WhatsApp collegato — invia dal numero del cliente"
+          : failed
+            ? "WhatsApp da seguire a mano — onboarding bloccato"
+            : started
+              ? "WhatsApp in corso — collegamento non ancora completato"
+              : "WhatsApp non collegato";
+        return (
+          <div className="rounded-xl p-4 border-2" style={{ background: `${color}11`, borderColor: color }}>
+            <div className="flex items-center gap-2 mb-2">
+              <MessageSquare className="w-5 h-5" style={{ color }} />
+              <h2 className="text-sm font-bold text-black">{label}</h2>
+            </div>
+            <div className="grid sm:grid-cols-2 gap-x-6 gap-y-1 text-xs text-black">
+              <div><span className="font-medium">Stato connessione:</span> {conn?.connection_status || "—"}</div>
+              <div><span className="font-medium">Stato onboarding:</span> {st?.setup_status || "not_started"}</div>
+              <div><span className="font-medium">phone_number_id:</span> <span className="font-mono">{conn?.phone_number_id || "—"}</span></div>
+              <div><span className="font-medium">waba_id:</span> <span className="font-mono">{conn?.waba_id || "—"}</span></div>
+              {st?.phone_number_usage && st.phone_number_usage !== "unknown" && (
+                <div><span className="font-medium">Numero:</span> {st.phone_number_usage}</div>
+              )}
+            </div>
+            {(conn?.last_error || st?.last_error) && (
+              <p className="text-[11px] text-red-600 mt-2 pt-2 border-t border-black/10">
+                {conn?.last_error || st?.last_error}
+              </p>
+            )}
+          </div>
+        );
+      })()}
 
       {/* Funzionalità (feature flags) — admin attiva/disattiva moduli per cliente.
           Il modulo Gestionale (POS, food cost, P&L, inventario) è opt-in: finché è
