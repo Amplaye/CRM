@@ -4,7 +4,17 @@ import { Save, ChevronDown, Phone, CalendarClock, PowerOff } from "lucide-react"
 import { useEffect, useState, type ReactNode } from "react";
 import { useLanguage } from "@/lib/contexts/LanguageContext";
 import { useTenant } from "@/lib/contexts/TenantContext";
+import { isE164 } from "@/lib/booking-validation";
 import type { CancellationNotice } from "@/lib/onboarding/kb-generator";
+
+// A phone field is OK if empty (optional) or a valid E.164 number. We strip the
+// pretty-print separators a user might type (spaces, dashes, parens) before the
+// check so "+34 600 000 000" passes but "+34sdfsdf" (letters) does not.
+function isPhoneOk(raw: string): boolean {
+  const v = raw.trim();
+  if (!v) return true;
+  return isE164(v.replace(/[\s\-().]/g, ""));
+}
 
 // Settings → Bookings. Lets an owner change, after onboarding, the contact
 // details and booking rules they set in the wizard. The heavy lifting (writing
@@ -30,6 +40,7 @@ const DEFAULT_AUTO_CONFIRM_MAX = 6;
 
 const INPUT = "block w-full rounded-lg border-2 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-[#c4956a] sm:w-56";
 const INPUT_BORDER = { borderColor: "#c4956a", background: "rgba(252,246,237,0.6)" };
+const INPUT_BORDER_ERR = { borderColor: "#dc2626", background: "rgba(254,242,242,0.6)" };
 const SELECT_CLS = "appearance-none w-full bg-white border rounded-lg pl-3 pr-9 py-2 text-sm cursor-pointer focus:outline-none focus:ring-2 focus:ring-[#c4956a]/40 focus:border-[#c4956a]";
 const SECTION = { background: "rgba(252,246,237,0.85)", borderColor: "#c4956a" } as const;
 
@@ -131,8 +142,17 @@ export function BookingTab() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tenant]);
 
+  const ownerPhoneOk = isPhoneOk(ownerPhone);
+  const restaurantPhoneOk = isPhoneOk(restaurantPhone);
+
   const handleSave = async () => {
     if (!tenant) return;
+    // Block garbage like "+34sdfsdf": a phone must be empty or a real E.164
+    // number. We don't want the assistant handing guests a fake number.
+    if (!ownerPhoneOk || !restaurantPhoneOk) {
+      setError(true);
+      return;
+    }
     setSaving(true);
     setSaved(false);
     setError(false);
@@ -216,13 +236,15 @@ export function BookingTab() {
         <Row label={t("settings_booking_pause_label")} hint={t("settings_booking_pause_hint")}>
           <Toggle on={botPaused} onClick={() => setBotPaused((v) => !v)} />
         </Row>
-        <Row htmlFor="bot_paused_message" label={t("settings_booking_pause_msg_label")} hint={t("settings_booking_pause_msg_hint")}>
+        <div className="py-3 border-b last:border-b-0" style={{ borderColor: "rgba(196,149,106,0.25)" }}>
+          <label htmlFor="bot_paused_message" className="text-sm font-bold text-black">{t("settings_booking_pause_msg_label")}</label>
+          <p className="text-xs text-black mt-0.5 mb-2">{t("settings_booking_pause_msg_hint")}</p>
           <textarea id="bot_paused_message" name="bot_paused_message" rows={3}
             value={botPausedMessage} onChange={(e) => setBotPausedMessage(e.target.value)}
             placeholder={t("settings_booking_pause_msg_default")}
-            className="block w-full rounded-lg border-2 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-[#c4956a] sm:w-80"
+            className="block w-full rounded-lg border-2 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-[#c4956a]"
             style={INPUT_BORDER} />
-        </Row>
+        </div>
         {botPaused && botPausedMessage.replace(/[^0-9]/g, "").length < 6 && (
           <p className="text-xs font-medium mt-2" style={{ color: "#dc2626" }}>{t("settings_booking_pause_warn")}</p>
         )}
@@ -233,10 +255,22 @@ export function BookingTab() {
         <h3 className="text-lg font-bold text-black mb-1 flex items-center gap-2"><Phone className="w-4 h-4" />{t("settings_booking_contacts")}</h3>
         <p className="text-xs text-black mb-3">{t("settings_booking_contacts_desc")}</p>
         <Row htmlFor="owner_phone" label={t("settings_booking_owner_phone")} hint={t("settings_booking_owner_phone_hint")}>
-          <input id="owner_phone" name="owner_phone" type="tel" autoComplete="tel" value={ownerPhone} onChange={(e) => setOwnerPhone(e.target.value)} placeholder="+34 600 000 000" className={INPUT} style={INPUT_BORDER} />
+          <div className="w-full sm:w-56">
+            <input id="owner_phone" name="owner_phone" type="tel" inputMode="tel" autoComplete="tel" value={ownerPhone}
+              onChange={(e) => setOwnerPhone(e.target.value)} placeholder="+34 600 000 000"
+              aria-invalid={!ownerPhoneOk}
+              className={INPUT} style={ownerPhoneOk ? INPUT_BORDER : INPUT_BORDER_ERR} />
+            {!ownerPhoneOk && <p className="text-xs font-medium mt-1" style={{ color: "#dc2626" }}>{t("settings_booking_phone_invalid")}</p>}
+          </div>
         </Row>
         <Row htmlFor="restaurant_phone" label={t("settings_booking_public_phone")} hint={t("settings_booking_public_phone_hint")}>
-          <input id="restaurant_phone" name="restaurant_phone" type="tel" autoComplete="tel" value={restaurantPhone} onChange={(e) => setRestaurantPhone(e.target.value)} placeholder="+34 828 000 000" className={INPUT} style={INPUT_BORDER} />
+          <div className="w-full sm:w-56">
+            <input id="restaurant_phone" name="restaurant_phone" type="tel" inputMode="tel" autoComplete="tel" value={restaurantPhone}
+              onChange={(e) => setRestaurantPhone(e.target.value)} placeholder="+34 828 000 000"
+              aria-invalid={!restaurantPhoneOk}
+              className={INPUT} style={restaurantPhoneOk ? INPUT_BORDER : INPUT_BORDER_ERR} />
+            {!restaurantPhoneOk && <p className="text-xs font-medium mt-1" style={{ color: "#dc2626" }}>{t("settings_booking_phone_invalid")}</p>}
+          </div>
         </Row>
         <Row htmlFor="review_url" label={t("settings_booking_review_url")} hint={t("settings_booking_review_url_hint")}>
           <input id="review_url" name="review_url" type="url" autoComplete="url" value={reviewUrl} onChange={(e) => setReviewUrl(e.target.value)} placeholder="https://g.page/..." className={INPUT} style={INPUT_BORDER} />

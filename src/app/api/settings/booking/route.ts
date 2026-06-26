@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServiceRoleClient, createServerSupabaseClient } from "@/lib/supabase/server";
 import { verifyTenantMembership } from "@/lib/tenant-membership";
+import { isE164 } from "@/lib/booking-validation";
 import { getFeatures } from "@/lib/types/tenant-settings";
 import {
   reservationArticleFromForm,
@@ -75,6 +76,13 @@ export async function POST(req: NextRequest) {
     // --- sanitize inputs ---
     const ownerPhone = String(body.owner_phone ?? settings.owner_phone ?? "").trim();
     const restaurantPhone = String(body.restaurant_phone ?? settings.restaurant_phone ?? "").trim();
+    // Reject non-phone garbage server-side too (the UI blocks it, but never trust
+    // the client): a phone is either empty or a real E.164 number once the pretty
+    // separators are stripped. This keeps the assistant from quoting a fake number.
+    const phoneClean = (p: string) => p.replace(/[\s\-().]/g, "");
+    if ((ownerPhone && !isE164(phoneClean(ownerPhone))) || (restaurantPhone && !isE164(phoneClean(restaurantPhone)))) {
+      return NextResponse.json({ error: "Invalid phone number" }, { status: 400 });
+    }
     const reviewUrl = String(body.review_url ?? settings.review_url ?? "").trim();
     const cancellation: CancellationNotice = CANCELLATION_VALUES.includes(body.cancellation_notice)
       ? body.cancellation_notice

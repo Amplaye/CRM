@@ -501,6 +501,7 @@ export const de: Dictionary = {
   settings_booking_owner_phone_hint: "Wohin der Assistent dich über neue Reservierungen und große Gruppen informiert.",
   settings_booking_public_phone: "Öffentliche Telefonnummer",
   settings_booking_public_phone_hint: "Die Restaurantnummer, die der Assistent den Gästen in Nachrichten gibt.",
+  settings_booking_phone_invalid: "Gib eine gültige Nummer mit Ländervorwahl ein, z. B. +34 600 000 000.",
   settings_booking_review_url: "Google-Bewertungslink",
   settings_booking_review_url_hint: "Wird Gästen nach dem Besuch gesendet, um eine Bewertung zu erbitten.",
   settings_booking_rules: "Reservierungsregeln",
