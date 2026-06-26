@@ -498,6 +498,7 @@ export const en = {
   settings_booking_owner_phone_hint: "Where the assistant sends you new-booking and large-group alerts.",
   settings_booking_public_phone: "Public phone",
   settings_booking_public_phone_hint: "The restaurant number the assistant gives guests in messages.",
+  settings_booking_phone_invalid: "Enter a valid number with country code, e.g. +34 600 000 000.",
   settings_booking_review_url: "Google review link",
   settings_booking_review_url_hint: "Sent to guests after their visit to ask for a review.",
   settings_booking_rules: "Booking rules",

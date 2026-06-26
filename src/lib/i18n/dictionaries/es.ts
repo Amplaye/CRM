@@ -501,6 +501,7 @@ export const es: Dictionary = {
   settings_booking_owner_phone_hint: "Donde el asistente te avisa de nuevas reservas y grupos grandes.",
   settings_booking_public_phone: "Teléfono público",
   settings_booking_public_phone_hint: "El número del restaurante que el asistente da a los clientes en los mensajes.",
+  settings_booking_phone_invalid: "Introduce un número válido con prefijo internacional, p. ej. +34 600 000 000.",
   settings_booking_review_url: "Enlace de reseñas de Google",
   settings_booking_review_url_hint: "Se envía a los clientes tras la visita para pedir una reseña.",
   settings_booking_rules: "Reglas de reserva",
