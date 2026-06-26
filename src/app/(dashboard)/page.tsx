@@ -1,5 +1,8 @@
 "use client";
 
+import { LockedPreview } from "@/components/billing/LockedPreview";
+import { hasActivePlan } from "@/lib/billing/entitlements";
+
 import { useEffect, useState, useMemo } from "react";
 import {
   Bot, TrendingUp, TrendingDown,
@@ -403,6 +406,10 @@ export default function DashboardPage() {
     viewMode === "day" ? `${selectedDay} ${monthNames[selectedMonth]} ${selectedYear}` :
     viewMode === "month" ? `${monthNames[selectedMonth]} ${selectedYear}` :
     String(selectedYear);
+
+  // Plan gate: entry-package tenants (no active plan) see a locked preview, not
+  // the real analytics. Cosmetic — the data APIs/RLS are the real backstop.
+  if (!hasActivePlan(tenant?.settings)) return <LockedPreview section="analytics" />;
 
   return (
     <div className="p-4 sm:p-6 lg:p-8 w-full max-w-full overflow-x-hidden space-y-5 sm:space-y-7">

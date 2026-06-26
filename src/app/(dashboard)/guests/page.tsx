@@ -1,5 +1,8 @@
 "use client";
 
+import { LockedPreview } from "@/components/billing/LockedPreview";
+import { hasActivePlan } from "@/lib/billing/entitlements";
+
 import { Download, Upload, Search, X, CalendarCheck, User, LayoutGrid, List, Trash2, Phone, AlertOctagon, Accessibility, Users as UsersIcon, Utensils } from "lucide-react";
 import { useLanguage } from "@/lib/contexts/LanguageContext";
 import { useEffect, useState, useRef, useMemo } from "react";
@@ -147,6 +150,9 @@ export default function GuestsPage() {
       return name.includes(s);
     });
   }, [guests, search]);
+
+  // Plan gate: entry-package tenants (no active plan) see a locked preview.
+  if (!hasActivePlan(activeTenant?.settings)) return <LockedPreview section="guests" />;
 
   return (
     <div className="p-4 sm:p-6 lg:p-8 w-full space-y-4 sm:space-y-6">

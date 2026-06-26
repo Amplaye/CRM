@@ -3,6 +3,7 @@ import { createServiceRoleClient } from "@/lib/supabase/server";
 import { sendWhatsAppTemplate } from "@/lib/whatsapp/meta";
 import { tenantWhatsAppFrom } from "@/lib/whatsapp/from";
 import { getFeatures, type TenantSettings } from "@/lib/types/tenant-settings";
+import { hasActivePlan } from "@/lib/billing/entitlements";
 import { logSystemEvent } from "@/lib/system-log";
 
 // Post-visit follow-up cron (thank-you + review request).
@@ -52,7 +53,8 @@ export async function GET(req: NextRequest) {
   for (const r of (rows || []) as unknown as Row[]) {
     const settings = r.tenants?.settings;
     // Opt-in gate — default OFF.
-    if (!getFeatures(settings).followup_enabled) { skipped++; continue; }
+    // Entry-package tenants (no active plan) don't get post-visit follow-ups.
+    if (!hasActivePlan(settings) || !getFeatures(settings).followup_enabled) { skipped++; continue; }
 
     const phone = r.guests?.phone;
     if (!phone) { skipped++; continue; }

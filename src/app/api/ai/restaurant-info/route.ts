@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createServiceRoleClient } from '@/lib/supabase/server';
 import { assertAiSecret } from '@/lib/ai-auth';
+import { assertActivePlan } from '@/lib/billing/guard';
 import type { OpeningHours } from '@/lib/restaurant-rules';
 import { restaurantFacts, getFeatures } from '@/lib/types/tenant-settings';
 
@@ -83,6 +84,9 @@ export async function GET(request: Request) {
     if (!tenantId) {
       return NextResponse.json({ success: false, error: 'Missing tenant_id' }, { status: 400 });
     }
+
+    const noPlan = await assertActivePlan(tenantId);
+    if (noPlan) return noPlan;
 
     const supabase = createServiceRoleClient();
 

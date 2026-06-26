@@ -1,5 +1,8 @@
 "use client";
 
+import { LockedPreview } from "@/components/billing/LockedPreview";
+import { hasActivePlan } from "@/lib/billing/entitlements";
+
 import { useEffect, useState, useRef } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { useTenant } from "@/lib/contexts/TenantContext";
@@ -396,6 +399,9 @@ export default function WaitlistPage() {
   };
 
   const matchFoundEntry = entries.find(e => e.status === "match_found");
+
+  // Plan gate: entry-package tenants (no active plan) see a locked preview.
+  if (!hasActivePlan(tenant?.settings)) return <LockedPreview section="waitlist" />;
 
   return (
     <div className="p-4 sm:p-6 lg:p-8 w-full space-y-4 sm:space-y-6 lg:space-y-8">

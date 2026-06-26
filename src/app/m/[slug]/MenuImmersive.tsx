@@ -44,6 +44,7 @@ type Props = {
   emptyLabel: string;
   featuredLabel: string;
   sections: MenuViewSection[];
+  logoUrl?: string;
 };
 
 function priceText(it: MenuViewItem): string | null {
@@ -68,6 +69,7 @@ export default function MenuImmersive({
   emptyLabel,
   featuredLabel,
   sections,
+  logoUrl,
 }: Props) {
   const valid = sections.filter((s) => s.items.length > 0);
   const empty = valid.length === 0;
@@ -170,6 +172,7 @@ export default function MenuImmersive({
       {/* ── Top chrome: current category + chapter filter bar ──────────── */}
       <header className="im-top">
         <div className="im-top-meta">
+          {logoUrl && <img className="im-logo" src={logoUrl} alt="" />}
           <span className="im-wordmark">{restaurantName}</span>
           <span className="im-dot-sep" aria-hidden>·</span>
           <span className="im-now">
@@ -340,7 +343,7 @@ const styles = `
   --ink: #0c0a07;
   --ink-2: #14110b;
   --cream: #f7efe2;
-  --brass: #b07a32;
+  --brass: var(--accent, #b07a32);
   --brass-soft: #d8b483;
   --brass-glow: #e7c794;
   position: fixed; inset: 0;
@@ -367,6 +370,10 @@ const styles = `
   display: flex; align-items: center; justify-content: center; gap: 0.5rem;
   padding: 0 1rem 0.55rem;
   font-size: 0.66rem; letter-spacing: 0.06em;
+}
+.im-logo {
+  height: 1.5rem; width: auto; max-width: 6rem; object-fit: contain;
+  border-radius: 4px; flex: none;
 }
 .im-wordmark {
   font-family: var(--font-display), Georgia, serif;

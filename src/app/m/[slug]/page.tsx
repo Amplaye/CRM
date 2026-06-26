@@ -1,5 +1,6 @@
+import type { CSSProperties } from "react";
 import { notFound } from "next/navigation";
-import { Fraunces, Manrope } from "next/font/google";
+import { Fraunces, Manrope, Playfair_Display, Cormorant_Garamond } from "next/font/google";
 import { createServiceRoleClient } from "@/lib/supabase/server";
 import {
   allergenLabel,
@@ -12,13 +13,33 @@ import MenuView, { type MenuViewSection } from "./MenuView";
 
 // The public menu has its own premium typographic voice, loaded only on this
 // route (next/font works in any server component). Fraunces — a high-contrast,
-// optically-sized display serif with real character — carries the wordmark,
-// course numbers and dish names; Manrope is the clean grotesque for body copy.
-// MenuView reads both via CSS variables.
+// optically-sized display serif with real character — is the DEFAULT wordmark/
+// heading face; Manrope is the clean grotesque for body copy. MenuView reads both
+// via CSS variables.
+//
+// menu_branding.font lets the owner pick a different display serif. All three
+// expose the SAME `--font-display` variable, so applying the chosen font's
+// `.variable` className on the wrapper both loads its stylesheet and rebinds the
+// variable — one class swap re-skins the headings across all 4 templates. (Only
+// the selected font's CSS links into a given render; the other two never ship.)
 const fraunces = Fraunces({
   variable: "--font-display",
   subsets: ["latin"],
   weight: ["400", "500", "600", "700", "900"],
+  style: ["normal", "italic"],
+  display: "swap",
+});
+const playfair = Playfair_Display({
+  variable: "--font-display",
+  subsets: ["latin"],
+  weight: ["400", "500", "600", "700", "900"],
+  style: ["normal", "italic"],
+  display: "swap",
+});
+const cormorant = Cormorant_Garamond({
+  variable: "--font-display",
+  subsets: ["latin"],
+  weight: ["400", "500", "600", "700"],
   style: ["normal", "italic"],
   display: "swap",
 });
@@ -28,6 +49,10 @@ const manrope = Manrope({
   weight: ["400", "500", "600", "700"],
   display: "swap",
 });
+
+/** Map the saved menu_branding.font choice to its loaded next/font object.
+ * Unknown / unset → Fraunces (the default display serif). */
+const DISPLAY_FONTS = { fraunces, playfair, cormorant } as const;
 
 // Public hosted menu page. No auth, no cookies, no JS framework needed for
 // the content path. The CRM owner shares /m/<slug> as a QR target so the
@@ -52,6 +77,12 @@ type TenantRow = {
     crm_locale?: string;
     /** Saved public-menu template: "1"|"2"|"3"|"4". Defaults to "1". */
     menu_style?: string;
+    /** Owner's public-menu branding (Idea 2): accent colour, logo, display font. */
+    menu_branding?: {
+      brand_color?: string;
+      logo_url?: string;
+      font?: "fraunces" | "playfair" | "cormorant";
+    };
   };
 };
 
@@ -247,8 +278,18 @@ export default async function PublicMenuPage({
 
   const sections = [...collectionSections, ...categorySections];
 
+  // Owner branding (Idea 2): a custom accent colour cascades into all 4 templates
+  // via the --accent CSS var (each template's primary accent reads
+  // `var(--accent, <its default>)`), the chosen display font is applied as a class
+  // that rebinds --font-display, and the logo is threaded to MenuView.
+  const mb = tenant.settings?.menu_branding;
+  const displayFont = DISPLAY_FONTS[mb?.font ?? "fraunces"] ?? fraunces;
+  const wrapStyle = mb?.brand_color
+    ? ({ ["--accent" as string]: mb.brand_color } as CSSProperties)
+    : undefined;
+
   return (
-    <div className={`${fraunces.variable} ${manrope.variable}`}>
+    <div className={`${displayFont.variable} ${manrope.variable}`} style={wrapStyle}>
       <MenuView
         style={style}
         restaurantName={tenant.name}
@@ -256,6 +297,7 @@ export default async function PublicMenuPage({
         emptyLabel={ui.updating}
         featuredLabel={ui.featured}
         sections={sections}
+        logoUrl={mb?.logo_url}
       />
     </div>
   );

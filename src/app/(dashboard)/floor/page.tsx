@@ -1,5 +1,8 @@
 "use client";
 
+import { LockedPreview } from "@/components/billing/LockedPreview";
+import { hasActivePlan } from "@/lib/billing/entitlements";
+
 import { useEffect, useState, useCallback, useRef } from "react";
 import { Calendar, Users, LayoutGrid, AlertTriangle, ChevronLeft, ChevronRight, List, LayoutPanelTop, Plus, Pencil, Check, X, Armchair, RotateCw } from "lucide-react";
 import { useRouter } from "next/navigation";
@@ -744,6 +747,9 @@ export default function FloorPage() {
       </div>
     );
   }
+
+  // Plan gate: entry-package tenants (no active plan) see a locked preview.
+  if (!hasActivePlan(activeTenant?.settings)) return <LockedPreview section="floor" />;
 
   return (
     <div className="p-4 sm:p-6 lg:p-8 w-full space-y-4 sm:space-y-6 lg:space-y-8">

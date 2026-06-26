@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createServiceRoleClient } from '@/lib/supabase/server';
 import { assertAiSecret } from '@/lib/ai-auth';
+import { assertActivePlan } from '@/lib/billing/guard';
 import { assertRateLimit } from '@/lib/rate-limit';
 import {
   getShift,
@@ -76,6 +77,9 @@ export async function GET(request: Request) {
     if (!tenant_id || !date || !party_size) {
       return NextResponse.json({ success: false, error: 'Missing required params' }, { status: 400 });
     }
+
+    const noPlan = await assertActivePlan(tenant_id);
+    if (noPlan) return noPlan;
 
     let zone: 'inside' | 'outside' | null = null;
     if (zoneParam.includes('inside') || zoneParam.includes('interior') || zoneParam.includes('dentro') || zoneParam.includes('interno')) zone = 'inside';

@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { createServiceRoleClient } from '@/lib/supabase/server';
 import { logAuditEvent } from '@/lib/audit';
 import { assertAiSecret } from '@/lib/ai-auth';
+import { assertActivePlan } from '@/lib/billing/guard';
 import { getTenantFeatures } from '@/lib/tenants/features';
 
 export async function POST(request: Request) {
@@ -34,6 +35,9 @@ export async function POST(request: Request) {
         }
       }
     }
+
+    const noPlan = await assertActivePlan(payload.tenant_id);
+    if (noPlan) return noPlan;
 
     const supabase = createServiceRoleClient();
 

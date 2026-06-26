@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServiceRoleClient } from "@/lib/supabase/server";
 import { verifyTenantMembership } from "@/lib/tenant-membership";
+import { assertActivePlan } from "@/lib/billing/guard";
 import { ownerLangFromSettings, type OwnerLang } from "@/lib/owner-locale";
 
 interface Insight {
@@ -90,6 +91,9 @@ export async function GET(req: NextRequest) {
     if (!member) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
+
+    const noPlan = await assertActivePlan(tenantId);
+    if (noPlan) return noPlan;
 
     const supabase = createServiceRoleClient();
 

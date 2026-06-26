@@ -128,6 +128,21 @@ export interface TenantSettings {
    * (replacing the BaliFlow logo) and bottom-left (replacing the owner's initials
    * avatar). Unset → BaliFlow defaults. Uploaded/edited in Settings → General. */
   branding?: { logo_url?: string };
+  /** Public-menu branding (Idea 2 — a FREE self-serve hook). Lets the owner brand
+   * the hosted /m/<slug> menu independently of the CRM chrome: an accent colour
+   * (cascaded into all 4 templates via the `--accent` CSS var), a display font, and
+   * a menu logo. Distinct from `branding.logo_url` (the CRM-chrome logo): the menu
+   * logo lives at the SEPARATE bucket path `${tenant.id}/menu-logo.webp`. All unset
+   * → each template keeps its built-in palette/serif and shows no logo. Edited in
+   * the menu dashboard; NOT plan-gated. */
+  menu_branding?: {
+    /** Accent colour as hex "#rrggbb". Overrides the template's primary accent. */
+    brand_color?: string;
+    /** Public URL of the menu logo in the "branding" bucket (menu-logo path). */
+    logo_url?: string;
+    /** Display serif for the menu wordmark/headings. Unset → Fraunces (default). */
+    font?: "fraunces" | "playfair" | "cormorant";
+  };
   /** Offboarding bookkeeping, written by the archive flow (src/lib/tenants/delete-tenant.ts). */
   archive?: { prev_status: TenantStatus; export_path?: string };
   /** Which voice platform serves this tenant's calls. Vapi is the BASE tier

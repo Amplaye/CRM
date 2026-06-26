@@ -27,6 +27,7 @@ import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
 import { useTenant } from "@/lib/contexts/TenantContext";
 import { getFeatures } from "@/lib/types/tenant-settings";
+import { hasActivePlan } from "@/lib/billing/entitlements";
 import { useLanguage } from "@/lib/contexts/LanguageContext";
 import { Dictionary } from "@/lib/i18n/dictionaries/en";
 import { useAuth } from "@/lib/contexts/AuthContext";
@@ -56,6 +57,11 @@ const navItems: Array<{ name: string; href: string; icon: any; badgeKey?: keyof 
   { name: "Inventory", href: "/inventory", icon: Package, feature: "management_enabled" },
   { name: "Settings", href: "/settings", icon: Settings },
 ];
+
+// The ONLY sections an "entry-package" tenant (no active plan) can use: the menu
+// editor + its public menu, and Settings (to buy a plan / manage account).
+// Everything else is shown plan-locked. Keep in sync with the page-level guards.
+const FREE_HREFS = new Set(["/menu", "/settings"]);
 
 interface SidebarProps {
   mobileOpen?: boolean;
@@ -123,17 +129,31 @@ export function Sidebar({ mobileOpen = false, onClose }: SidebarProps) {
   // — settings, billing, analytics, management — stays hidden.
   const isHost = activeRole === "host";
   const features = getFeatures(activeTenant?.settings);
-  // The gestionale pages are gated by a PAID add-on (smart_inventory →
-  // management_enabled). Unlike a plain hide, we keep them VISIBLE but LOCKED when
-  // not entitled: a greyed item with a padlock that deep-links to the upgrade
-  // screen, so the feature sells itself instead of being invisible. `locked` is
-  // computed per item from its gating flag.
+  // PLAN gate: a tenant with no active subscription sees only the entry package
+  // (menu + settings); every other core section is shown LOCKED. This is separate
+  // from — and stacks on top of — the gestionale add-on gate below. (Hosts only
+  // exist on a paid tenant, so planActive is always true for them; no host
+  // exception needed.)
+  const planActive = hasActivePlan(activeTenant?.settings);
+  // Two kinds of lock, both shown as a greyed item + padlock that deep-links to
+  // the upgrade screen (so the feature sells itself instead of being invisible):
+  //   • "addon" — the gestionale pages, gated by the paid smart_inventory add-on
+  //     (→ management_enabled). Checked first so its hint wins.
+  //   • "plan"  — any non-free section while the tenant has no active plan.
   const visibleNavItems = (isHost
     ? navItems.filter(i => i.href === "/floor" || i.href === "/reservations" || i.href === "/menu")
     : navItems
   // Feature flag: hide the Waitlist page for tenants that don't use it.
   ).filter(i => i.href !== "/waitlist" || features.waitlist_enabled)
-  .map(i => ({ ...i, locked: !!i.feature && !features[i.feature] }));
+  .map(i => {
+    const featureLocked = !!i.feature && !features[i.feature];
+    const planLocked = !planActive && !FREE_HREFS.has(i.href);
+    return {
+      ...i,
+      locked: featureLocked || planLocked,
+      lockKind: (featureLocked ? "addon" : "plan") as "addon" | "plan",
+    };
+  });
 
   // Post-onboarding discovery dots: once a freshly-installed tenant has finished
   // onboarding, every nav section the owner hasn't physically opened yet gets a
@@ -206,7 +226,11 @@ export function Sidebar({ mobileOpen = false, onClose }: SidebarProps) {
                   key={item.name}
                   href={item.href}
                   onClick={() => { markVisited(item.href); handleNavClick(); }}
-                  title={t("billing_addon_locked_hint" as keyof Dictionary) || "Funzione a pagamento — sblocca dall'abbonamento"}
+                  title={
+                    item.lockKind === "plan"
+                      ? t("plan_locked_hint") || "Disponibile con un piano attivo"
+                      : t("billing_addon_locked_hint" as keyof Dictionary) || "Funzione a pagamento — sblocca dall'abbonamento"
+                  }
                   className="flex items-center px-3 py-2.5 md:py-2 text-sm font-medium rounded-md transition-colors text-black hover:bg-[#c4956a]/10 hover:text-black"
                 >
                   <item.icon className="mr-3 flex-shrink-0 h-5 w-5 text-black" aria-hidden="true" />

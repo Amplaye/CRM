@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createServiceRoleClient } from '@/lib/supabase/server';
 import { assertAiSecret } from '@/lib/ai-auth';
+import { assertActivePlan } from '@/lib/billing/guard';
 
 export async function POST(request: Request) {
   const unauth = assertAiSecret(request);
@@ -10,6 +11,9 @@ export async function POST(request: Request) {
     if (!tenant_id || !guest_phone) {
       return NextResponse.json({ confirmed: false, error: "Missing params" }, { status: 400 });
     }
+
+    const noPlan = await assertActivePlan(tenant_id);
+    if (noPlan) return noPlan;
 
     const supabase = createServiceRoleClient();
     const phoneDigits = guest_phone.replace(/\D/g, '');

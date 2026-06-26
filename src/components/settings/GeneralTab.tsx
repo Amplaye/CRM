@@ -5,6 +5,7 @@ import { useLanguage } from "@/lib/contexts/LanguageContext";
 import { useTenant } from "@/lib/contexts/TenantContext";
 import { useEffect, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { uploadBrandingLogo, removeBrandingLogo } from "@/lib/branding/upload-logo";
 
 interface TimeSlot { open: string; close: string }
 type OpeningHours = Record<string, TimeSlot[]>;
@@ -165,41 +166,10 @@ export function GeneralTab() {
     }
   }, [tenant]);
 
-  // Compress a picked logo to a square-ish WebP (~256px) and upload it to the
-  // public "branding" bucket, then persist settings.branding.logo_url right away
-  // so the sidebar updates without waiting for the Save button. Mirrors the
-  // dish-photo upload in the Menu editor (Supabase Free shares one bucket, so
-  // we keep logos tiny).
-  const compressLogo = (file: File): Promise<Blob> =>
-    new Promise((resolve, reject) => {
-      const img = new Image();
-      const url = URL.createObjectURL(file);
-      img.onload = () => {
-        URL.revokeObjectURL(url);
-        const MAX = 256;
-        let { width, height } = img;
-        if (width > height && width > MAX) {
-          height = Math.round((height * MAX) / width);
-          width = MAX;
-        } else if (height >= width && height > MAX) {
-          width = Math.round((width * MAX) / height);
-          height = MAX;
-        }
-        const canvas = document.createElement("canvas");
-        canvas.width = width;
-        canvas.height = height;
-        const ctx = canvas.getContext("2d");
-        if (!ctx) return reject(new Error("no 2d context"));
-        ctx.drawImage(img, 0, 0, width, height);
-        canvas.toBlob((blob) => (blob ? resolve(blob) : reject(new Error("toBlob failed"))), "image/webp", 0.9);
-      };
-      img.onerror = () => {
-        URL.revokeObjectURL(url);
-        reject(new Error("image decode failed"));
-      };
-      img.src = url;
-    });
-
+  // Logo upload/compress lives in the shared @/lib/branding/upload-logo helper
+  // (reused by the menu-branding panel). Here we still persist
+  // settings.branding.logo_url right away so the sidebar updates without waiting
+  // for the Save button.
   const persistLogo = async (nextUrl: string) => {
     if (!tenant) return;
     const merged = {
@@ -215,15 +185,7 @@ export function GeneralTab() {
     if (!tenant || !file || !file.type.startsWith("image/")) return;
     setLogoUploading(true);
     try {
-      const blob = await compressLogo(file);
-      const path = `${tenant.id}/logo.webp`;
-      const { error: upErr } = await supabase.storage
-        .from("branding")
-        .upload(path, blob, { contentType: "image/webp", upsert: true });
-      if (upErr) throw upErr;
-      const { data: pub } = supabase.storage.from("branding").getPublicUrl(path);
-      // Cache-bust so an overwritten logo refreshes immediately in the sidebar.
-      const nextUrl = `${pub.publicUrl}?v=${blob.size}`;
+      const nextUrl = await uploadBrandingLogo(supabase, tenant.id, file, "logo.webp");
       setLogoUrl(nextUrl);
       await persistLogo(nextUrl);
     } catch (e) {
@@ -239,7 +201,7 @@ export function GeneralTab() {
     if (!tenant) return;
     setLogoUploading(true);
     try {
-      await supabase.storage.from("branding").remove([`${tenant.id}/logo.webp`]).catch(() => {});
+      await removeBrandingLogo(supabase, tenant.id, "logo.webp");
       setLogoUrl("");
       await persistLogo("");
     } catch (e) {

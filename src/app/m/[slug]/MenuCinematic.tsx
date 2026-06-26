@@ -43,6 +43,7 @@ type Props = {
   emptyLabel: string;
   featuredLabel: string;
   sections: MenuViewSection[];
+  logoUrl?: string;
 };
 
 function priceText(it: MenuViewItem): string | null {
@@ -61,6 +62,7 @@ export default function MenuCinematic({
   emptyLabel,
   featuredLabel,
   sections,
+  logoUrl,
 }: Props) {
   const [activeKey, setActiveKey] = useState<string>(sections[0]?.key ?? "");
   const tabBarRef = useRef<HTMLDivElement | null>(null);
@@ -118,6 +120,9 @@ export default function MenuCinematic({
       {/* ── Hero ───────────────────────────────────────────────────────────── */}
       <header className="cin-hero">
         <div className="cin-hero-inner">
+          {logoUrl && (
+            <img className="cin-logo cin-reveal" src={logoUrl} alt="" style={{ animationDelay: "40ms" }} />
+          )}
           <p className="cin-eyebrow cin-reveal" style={{ animationDelay: "80ms" }}>
             <span className="cin-eyebrow-line" aria-hidden />
             {menuLabel}
@@ -309,7 +314,7 @@ const styles = `
   --cream: #efe6d4;
   --cream-soft: #cfc2a6;
   --muted: #9b8e74;
-  --brass: #d8b483;
+  --brass: var(--accent, #d8b483);
   --brass-deep: #b07a32;
   --brass-lo: #8a5f28;
   --gold-text: #e9cd9f;
@@ -362,6 +367,10 @@ const styles = `
   padding: clamp(3.4rem, 13vw, 6rem) 1.25rem clamp(1.6rem, 6vw, 2.6rem);
 }
 .cin-hero-inner { max-width: 42rem; margin: 0 auto; }
+.cin-logo {
+  display: block; height: clamp(2.6rem, 10vw, 4rem); width: auto; max-width: 70%;
+  object-fit: contain; margin: 0 auto clamp(1.1rem, 4vw, 1.8rem);
+}
 .cin-eyebrow {
   display: flex; align-items: center; justify-content: center; gap: 0.85rem;
   font-size: 0.6rem; letter-spacing: 0.44em; text-transform: uppercase;

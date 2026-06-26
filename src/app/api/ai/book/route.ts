@@ -4,6 +4,7 @@ import { CreateBookingRequest } from '@/lib/types';
 import { logAuditEvent } from '@/lib/audit';
 import { logSystemEvent, resolveSystemEvents } from '@/lib/system-log';
 import { assertAiSecret } from '@/lib/ai-auth';
+import { assertActivePlan } from '@/lib/billing/guard';
 import { formatDateFull } from '@/lib/format-date';
 import { cleanGuestNotes, zoneTag } from '@/lib/reservation-notes';
 import {
@@ -88,6 +89,9 @@ export async function POST(request: Request) {
     // match on the last 9 digits so an already-stored row (either format) wins.
     const canonicalPhone = normalizePhone(payload.guest_phone);
     const lookupTail = phoneTail(payload.guest_phone);
+
+    const noPlan = await assertActivePlan(payload.tenant_id);
+    if (noPlan) return noPlan;
 
     const supabase = createServiceRoleClient();
 

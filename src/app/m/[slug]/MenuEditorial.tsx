@@ -44,6 +44,7 @@ type Props = {
   emptyLabel: string;
   featuredLabel: string;
   sections: MenuViewSection[];
+  logoUrl?: string;
 };
 
 function priceText(it: MenuViewItem): string | null {
@@ -79,6 +80,7 @@ export default function MenuEditorial({
   emptyLabel,
   featuredLabel,
   sections,
+  logoUrl,
 }: Props) {
   const empty = sections.length === 0;
   const [activeKey, setActiveKey] = useState<string>(sections[0]?.key ?? "");
@@ -129,6 +131,7 @@ export default function MenuEditorial({
             {menuLabel}
           </span>
         </div>
+        {logoUrl && <img className="ed-logo" src={logoUrl} alt="" />}
         <h1 className="ed-title">{restaurantName}</h1>
         <p className="ed-dek">
           <span className="ed-dek-line" aria-hidden />
@@ -309,7 +312,7 @@ const styles = `
   --ink: #1c150d;
   --ink-2: #4a3f30;
   --ink-3: #7a6c57;
-  --bronze: #7e5226;
+  --bronze: var(--accent, #7e5226);
   --bronze-bright: #a4682c;
   --olive: #5c6c4b;
   --hair: rgba(28,21,13,0.14);
@@ -346,6 +349,10 @@ const styles = `
 }
 .ed-issue { white-space: nowrap; }
 .ed-issue-end { color: var(--ink-3); }
+.ed-logo {
+  display: block; height: clamp(2.4rem, 9vw, 3.6rem); width: auto; max-width: 60%;
+  object-fit: contain; margin: clamp(1.2rem, 4vw, 2rem) 0 0;
+}
 .ed-title {
   font-family: var(--font-display), Georgia, serif;
   font-optical-sizing: auto;

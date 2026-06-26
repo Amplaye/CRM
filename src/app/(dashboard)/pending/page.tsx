@@ -1,5 +1,8 @@
 "use client";
 
+import { LockedPreview } from "@/components/billing/LockedPreview";
+import { hasActivePlan } from "@/lib/billing/entitlements";
+
 import { useEffect, useState, useRef, useCallback } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { useTenant } from "@/lib/contexts/TenantContext";
@@ -429,6 +432,9 @@ export default function PendingPage() {
   };
 
   const req = confirmingId ? pending.find(p => p.id === confirmingId) : null;
+
+  // Plan gate: entry-package tenants (no active plan) see a locked preview.
+  if (!hasActivePlan(tenant?.settings)) return <LockedPreview section="pending" />;
 
   return (
     <div className="p-4 sm:p-6 lg:p-8 w-full space-y-4 sm:space-y-6 lg:space-y-8">

@@ -3,6 +3,7 @@ import { createServiceRoleClient } from "@/lib/supabase/server";
 import { sendWhatsAppTemplate } from "@/lib/whatsapp/meta";
 import { tenantWhatsAppFrom } from "@/lib/whatsapp/from";
 import { getFeatures, type TenantSettings } from "@/lib/types/tenant-settings";
+import { hasActivePlan } from "@/lib/billing/entitlements";
 import { logSystemEvent } from "@/lib/system-log";
 import { formatDateFull } from "@/lib/format-date";
 
@@ -72,7 +73,8 @@ export async function GET(req: NextRequest) {
 
     // Per-tenant gate: reminders feature must be on for this tenant.
     const settings = r.tenants?.settings;
-    if (!getFeatures(settings).reminders_enabled) { skipped++; continue; }
+    // Entry-package tenants (no active plan) don't get reservation reminders.
+    if (!hasActivePlan(settings) || !getFeatures(settings).reminders_enabled) { skipped++; continue; }
 
     const phone = r.guests?.phone;
     if (!phone) { skipped++; results.push({ id: r.id, ok: false, reason: "no_phone" }); continue; }

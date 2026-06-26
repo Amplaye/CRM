@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { createServiceRoleClient } from '@/lib/supabase/server';
 import { logAuditEvent } from '@/lib/audit';
 import { assertAiSecret } from '@/lib/ai-auth';
+import { assertActivePlan } from '@/lib/billing/guard';
 import { isE164, normalizePhone, phoneTail } from '@/lib/booking-validation';
 
 /**
@@ -45,6 +46,9 @@ export async function POST(request: Request) {
     }
     const canonicalPhone = normalizePhone(payload.guest_phone);
     const lookupTail = phoneTail(payload.guest_phone);
+
+    const noPlan = await assertActivePlan(payload.tenant_id);
+    if (noPlan) return noPlan;
 
     const supabase = createServiceRoleClient();
 

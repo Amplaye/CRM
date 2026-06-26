@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createServiceRoleClient } from '@/lib/supabase/server';
 import { assertAiSecret } from '@/lib/ai-auth';
+import { assertActivePlan } from '@/lib/billing/guard';
 import {
   getShift,
   getRotationMinutes,
@@ -38,6 +39,9 @@ export async function POST(request: Request) {
     if (!tenant_id || !date) {
       return NextResponse.json({ success: false, error: "Missing tenant_id or date" }, { status: 400 });
     }
+
+    const noPlan = await assertActivePlan(tenant_id);
+    if (noPlan) return noPlan;
 
     const supabase = createServiceRoleClient();
 

@@ -22,11 +22,13 @@ import {
   AlertTriangle,
   Star,
   MinusCircle,
+  Palette,
 } from "lucide-react";
 import { useLanguage } from "@/lib/contexts/LanguageContext";
 import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { useTenant } from "@/lib/contexts/TenantContext";
+import { uploadBrandingLogo, removeBrandingLogo } from "@/lib/branding/upload-logo";
 import type {
   MenuCategory,
   MenuItem,
@@ -107,6 +109,85 @@ export default function MenuPage() {
       return;
     }
     await refreshActiveTenant();
+  };
+
+  // ── Public-menu branding (Idea 2 — FREE hook) ────────────────────────────
+  // Accent colour + display font + logo for the hosted /m/<slug> menu, saved to
+  // tenants.settings.menu_branding. Each control persists immediately (same
+  // optimistic pattern as the template picker). NOT plan-gated — this is the free
+  // hook that gets restaurants onto the menu before they buy a plan.
+  type MenuFont = "fraunces" | "playfair" | "cormorant";
+  type MenuBrand = { brand_color?: string; logo_url?: string; font?: MenuFont };
+  const savedBrand = tenant?.settings?.menu_branding as MenuBrand | undefined;
+  const [brandOpen, setBrandOpen] = useState(false);
+  const [brandColor, setBrandColor] = useState<string>(savedBrand?.brand_color ?? "");
+  const [brandFont, setBrandFont] = useState<MenuFont>(savedBrand?.font ?? "fraunces");
+  const [brandLogoUrl, setBrandLogoUrl] = useState<string>(savedBrand?.logo_url ?? "");
+  const [savingBrand, setSavingBrand] = useState(false);
+  const [brandUploading, setBrandUploading] = useState(false);
+  const brandLogoInputRef = useRef<HTMLInputElement>(null);
+
+  // A small curated palette of warm tints that read well against every template's
+  // cream/walnut paper — keeps an owner from picking a clashing neon (the v1
+  // accent override only repaints the PRIMARY accent, not its soft/glow derivates).
+  const BRAND_SWATCHES = ["#b07a32", "#7e5226", "#a8421f", "#8a5f28", "#5c6c4b", "#7c4a52", "#2f5d62"];
+
+  useEffect(() => {
+    const b = tenant?.settings?.menu_branding as MenuBrand | undefined;
+    setBrandColor(b?.brand_color ?? "");
+    setBrandFont(b?.font ?? "fraunces");
+    setBrandLogoUrl(b?.logo_url ?? "");
+  }, [tenant?.settings?.menu_branding]);
+
+  // Persist a partial change to menu_branding. ALWAYS spread the full existing
+  // settings first (multi-tenant invariant: never drop other keys), and rebuild
+  // the whole branding object so an unset field becomes undefined rather than
+  // lingering. `null` in the patch clears a field.
+  const saveBrand = async (patch: { brand_color?: string | null; font?: MenuFont; logo_url?: string | null }) => {
+    if (!tenant) return;
+    const cur = (tenant.settings?.menu_branding as MenuBrand) || {};
+    const next: MenuBrand = { brand_color: cur.brand_color, logo_url: cur.logo_url, font: cur.font };
+    if ("brand_color" in patch) next.brand_color = patch.brand_color || undefined;
+    if ("logo_url" in patch) next.logo_url = patch.logo_url || undefined;
+    if ("font" in patch) next.font = patch.font;
+    setSavingBrand(true);
+    const { error } = await supabase
+      .from("tenants")
+      .update({ settings: { ...tenant.settings, menu_branding: next } })
+      .eq("id", tenant.id);
+    setSavingBrand(false);
+    if (error) {
+      alert(`Errore salvataggio branding: ${error.message}`);
+      return;
+    }
+    await refreshActiveTenant();
+  };
+
+  const handleMenuLogoPick = async (file: File | null) => {
+    if (!tenant || !file || !file.type.startsWith("image/")) return;
+    setBrandUploading(true);
+    try {
+      const url = await uploadBrandingLogo(supabase, tenant.id, file, "menu-logo.webp");
+      setBrandLogoUrl(url);
+      await saveBrand({ logo_url: url });
+    } catch (e) {
+      alert(`Errore caricamento logo: ${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      setBrandUploading(false);
+      if (brandLogoInputRef.current) brandLogoInputRef.current.value = "";
+    }
+  };
+
+  const handleMenuLogoRemove = async () => {
+    if (!tenant) return;
+    setBrandUploading(true);
+    try {
+      await removeBrandingLogo(supabase, tenant.id, "menu-logo.webp");
+      setBrandLogoUrl("");
+      await saveBrand({ logo_url: null });
+    } finally {
+      setBrandUploading(false);
+    }
   };
 
   const [categories, setCategories] = useState<MenuCategory[]>([]);
@@ -445,8 +526,164 @@ export default function MenuPage() {
                   <Eye className="w-4 h-4" />
                 </a>
               )}
+              <button
+                type="button"
+                onClick={() => setBrandOpen((v) => !v)}
+                aria-expanded={brandOpen}
+                className={`cursor-pointer inline-flex items-center justify-center w-9 h-7 rounded-lg border-2 transition-all duration-150 hover:-translate-y-0.5 ${
+                  brandOpen ? "bg-[#c4956a]/20 text-[#7e5226]" : "text-black hover:bg-[#c4956a]/10"
+                }`}
+                style={{ borderColor: "#c4956a" }}
+                title={t("menu_branding_title") || "Branding del menù"}
+                aria-label={t("menu_branding_title") || "Branding del menù"}
+              >
+                <Palette className="w-4 h-4" />
+              </button>
             </div>
           </div>
+
+          {brandOpen && (
+            <div
+              className="mt-3 rounded-xl border-2 p-3 space-y-3"
+              style={{ borderColor: "#c4956a", background: "rgba(252,246,237,0.6)" }}
+            >
+              <div className="flex items-center justify-between">
+                <p className="text-xs font-bold text-black">
+                  {t("menu_branding_title") || "Branding del menù"}
+                </p>
+                {savingBrand && <Loader2 className="w-3.5 h-3.5 animate-spin text-[#a87642]" />}
+              </div>
+
+              {/* Accent colour — curated warm swatches + custom picker + reset */}
+              <div className="space-y-1.5">
+                <label className="block text-[11px] font-semibold text-black">
+                  {t("menu_branding_color") || "Colore"}
+                </label>
+                <div className="flex flex-wrap items-center gap-1.5">
+                  {BRAND_SWATCHES.map((hex) => {
+                    const on = brandColor.toLowerCase() === hex.toLowerCase();
+                    return (
+                      <button
+                        key={hex}
+                        type="button"
+                        onClick={() => {
+                          setBrandColor(hex);
+                          saveBrand({ brand_color: hex });
+                        }}
+                        className={`w-6 h-6 rounded-full border-2 transition-transform hover:scale-110 ${
+                          on ? "ring-2 ring-offset-1 ring-[#1c150d]" : ""
+                        }`}
+                        style={{ background: hex, borderColor: "rgba(0,0,0,0.15)" }}
+                        title={hex}
+                        aria-label={hex}
+                      />
+                    );
+                  })}
+                  <input
+                    type="color"
+                    value={brandColor || "#b07a32"}
+                    onChange={(e) => setBrandColor(e.target.value)}
+                    onBlur={(e) => saveBrand({ brand_color: e.target.value })}
+                    className="w-6 h-6 cursor-pointer rounded border border-black/15 bg-transparent p-0"
+                    title={t("menu_branding_color") || "Colore"}
+                    aria-label={t("menu_branding_color") || "Colore"}
+                  />
+                  {brandColor && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setBrandColor("");
+                        saveBrand({ brand_color: null });
+                      }}
+                      className="ml-0.5 inline-flex items-center justify-center w-6 h-6 rounded-full text-black hover:bg-black/5"
+                      title={t("menu_branding_color_reset") || "Predefinito"}
+                      aria-label={t("menu_branding_color_reset") || "Predefinito"}
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Display font */}
+              <div className="space-y-1.5">
+                <label className="block text-[11px] font-semibold text-black">
+                  {t("menu_branding_font") || "Font"}
+                </label>
+                <select
+                  value={brandFont}
+                  onChange={(e) => {
+                    const f = e.target.value as MenuFont;
+                    setBrandFont(f);
+                    saveBrand({ font: f });
+                  }}
+                  disabled={savingBrand}
+                  className="w-full cursor-pointer h-8 rounded-lg border-2 px-2.5 text-sm font-semibold text-[#1c150d] focus:outline-none focus:ring-1 focus:ring-[#c4956a]"
+                  style={{ borderColor: "#c4956a", background: "rgba(252,246,237,0.8)" }}
+                >
+                  <option value="fraunces">{t("menu_branding_font_fraunces") || "Fraunces"}</option>
+                  <option value="playfair">{t("menu_branding_font_playfair") || "Playfair Display"}</option>
+                  <option value="cormorant">{t("menu_branding_font_cormorant") || "Cormorant"}</option>
+                </select>
+              </div>
+
+              {/* Logo */}
+              <div className="space-y-1.5">
+                <label className="block text-[11px] font-semibold text-black">
+                  {t("menu_branding_logo") || "Logo"}
+                </label>
+                <div className="flex items-center gap-2">
+                  <div
+                    className="w-10 h-10 shrink-0 rounded-lg border-2 overflow-hidden flex items-center justify-center"
+                    style={{ borderColor: "#c4956a", background: "rgba(252,246,237,0.8)" }}
+                  >
+                    {brandLogoUrl ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={brandLogoUrl} alt="logo" className="w-full h-full object-contain" />
+                    ) : (
+                      <ImageIcon className="w-4 h-4 text-[#a87642]" />
+                    )}
+                  </div>
+                  <input
+                    ref={brandLogoInputRef}
+                    type="file"
+                    accept="image/png,image/jpeg,image/webp"
+                    className="hidden"
+                    onChange={(e) => handleMenuLogoPick(e.target.files?.[0] ?? null)}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => brandLogoInputRef.current?.click()}
+                    disabled={brandUploading}
+                    className="cursor-pointer inline-flex items-center gap-1.5 h-8 px-2.5 rounded-lg border-2 text-xs font-bold text-black hover:bg-[#c4956a]/10 disabled:opacity-60"
+                    style={{ borderColor: "#c4956a" }}
+                  >
+                    {brandUploading ? (
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    ) : (
+                      <Upload className="w-3.5 h-3.5" />
+                    )}
+                    {brandUploading
+                      ? t("menu_branding_logo_uploading") || "Caricamento…"
+                      : brandLogoUrl
+                        ? t("menu_branding_logo_change") || "Cambia"
+                        : t("menu_branding_logo_upload") || "Carica"}
+                  </button>
+                  {brandLogoUrl && !brandUploading && (
+                    <button
+                      type="button"
+                      onClick={handleMenuLogoRemove}
+                      className="cursor-pointer inline-flex items-center justify-center w-8 h-8 rounded-lg text-black hover:bg-black/5"
+                      title={t("menu_branding_logo_remove") || "Rimuovi"}
+                      aria-label={t("menu_branding_logo_remove") || "Rimuovi"}
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
 
           <div className="mt-4 relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-black" />

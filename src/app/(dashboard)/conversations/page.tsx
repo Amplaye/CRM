@@ -1,5 +1,8 @@
 "use client";
 
+import { LockedPreview } from "@/components/billing/LockedPreview";
+import { hasActivePlan } from "@/lib/billing/entitlements";
+
 import { useTenant } from "@/lib/contexts/TenantContext";
 import { useEffect, useState, useRef } from "react";
 import { useSearchParams } from "next/navigation";
@@ -323,6 +326,9 @@ export default function ConversationsPage() {
   };
 
   const getMsgCount = (conv: ConvoWithGuest) => Array.isArray(conv.transcript) ? conv.transcript.length : 0;
+
+  // Plan gate: entry-package tenants (no active plan) see a locked preview.
+  if (!hasActivePlan(tenant?.settings)) return <LockedPreview section="conversations" />;
 
   return (
     <div className="flex h-[calc(100dvh-3.5rem)] md:h-[calc(100dvh-4rem)]">

@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { createServiceRoleClient } from '@/lib/supabase/server';
 import { logAuditEvent } from '@/lib/audit';
 import { assertAiSecret } from '@/lib/ai-auth';
+import { assertActivePlan } from '@/lib/billing/guard';
 
 export async function DELETE(request: Request) {
   const unauth = assertAiSecret(request);
@@ -15,6 +16,9 @@ export async function DELETE(request: Request) {
      if (!tenant_id || !reservation_id) {
         return NextResponse.json({ success: false, error: "Missing required params" }, { status: 400 });
      }
+
+     const noPlan = await assertActivePlan(tenant_id);
+     if (noPlan) return noPlan;
 
      const validSources = ['reminder_24h', 'reminder_4h', 'chat_spontaneous', 'voice_spontaneous', 'auto_noshow', 'staff', 'web'];
 

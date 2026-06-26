@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { entitlementFor, hasAddon, hasManagement, GRACE_DAYS } from "./entitlements";
+import { entitlementFor, hasAddon, hasManagement, hasActivePlan, GRACE_DAYS } from "./entitlements";
 import { getFeatures, getRawFeatures } from "@/lib/types/tenant-settings";
 import type { TenantSettings } from "@/lib/types/tenant-settings";
 
@@ -138,5 +138,70 @@ describe("getFeatures vs getRawFeatures — management_enabled derivation", () =
     expect(d.waitlist_enabled).toBe(r.waitlist_enabled);
     expect(d.terrace).toBe(r.terrace);
     expect(d.reminders_enabled).toBe(r.reminders_enabled);
+  });
+});
+
+// hasActivePlan is the PLAN-level gate that opens the core CRM for paying tenants.
+// Same grace math as the add-on gate, but keyed on billing.plan (the subscription
+// itself). Get it wrong and either an entry-package tenant sees paid sections for
+// free, or a paying customer gets locked out of their own CRM. Cover every branch
+// with an injected clock so the grace window is deterministic.
+describe("hasActivePlan — plan-level gate", () => {
+  const periodEnd = new Date(NOW).toISOString();
+  /** Build settings with a plan subscription (premium by default). */
+  const plan = (over: Partial<NonNullable<TenantSettings["billing"]>> = {}): TenantSettings => ({
+    billing: { plan: "premium", status: "active", ...over },
+  });
+
+  it("no billing at all → false (entry-package tenant)", () => {
+    expect(hasActivePlan({}, at(NOW))).toBe(false);
+    expect(hasActivePlan(null, at(NOW))).toBe(false);
+    expect(hasActivePlan(undefined, at(NOW))).toBe(false);
+  });
+
+  it("billing present but NO plan → false", () => {
+    // e.g. a tenant who bought only an add-on but never a base plan.
+    const s: TenantSettings = { billing: { addons: ["smart_inventory"], status: "active" } };
+    expect(hasActivePlan(s, at(NOW))).toBe(false);
+  });
+
+  it("active plan → true", () => {
+    expect(hasActivePlan(plan({ status: "active" }), at(NOW))).toBe(true);
+  });
+
+  it("trialing plan → true", () => {
+    expect(hasActivePlan(plan({ status: "trialing" }), at(NOW))).toBe(true);
+  });
+
+  it("business plan, active → true", () => {
+    expect(hasActivePlan(plan({ plan: "business", status: "active" }), at(NOW))).toBe(true);
+  });
+
+  it("past_due inside the 7-day grace → true", () => {
+    const s = plan({ status: "past_due", current_period_end: periodEnd });
+    expect(hasActivePlan(s, at(NOW + 3 * DAY))).toBe(true);
+    expect(hasActivePlan(s, at(NOW + GRACE_DAYS * DAY))).toBe(true); // boundary
+  });
+
+  it("past_due past the grace window → false", () => {
+    const s = plan({ status: "past_due", current_period_end: periodEnd });
+    expect(hasActivePlan(s, at(NOW + (GRACE_DAYS + 1) * DAY))).toBe(false);
+  });
+
+  it("past_due with no period_end → lenient (true)", () => {
+    const s = plan({ status: "past_due", current_period_end: undefined });
+    expect(hasActivePlan(s, at(NOW + 999 * DAY))).toBe(true);
+  });
+
+  it("canceled → false", () => {
+    expect(hasActivePlan(plan({ status: "canceled" }), at(NOW))).toBe(false);
+  });
+
+  it("incomplete → false", () => {
+    expect(hasActivePlan(plan({ status: "incomplete" }), at(NOW))).toBe(false);
+  });
+
+  it("plan set but status missing → false (no active subscription yet)", () => {
+    expect(hasActivePlan({ billing: { plan: "premium" } }, at(NOW))).toBe(false);
   });
 });

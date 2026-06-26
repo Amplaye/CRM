@@ -1,5 +1,8 @@
 "use client";
 
+import { LockedPreview } from "@/components/billing/LockedPreview";
+import { hasActivePlan } from "@/lib/billing/entitlements";
+
 import { FileText, Plus, Search, Archive, BookOpen, Clock, User, ChevronRight, ChevronLeft, Save, X, History, Trash2, Filter, AlertTriangle, Settings2, GripVertical } from "lucide-react";
 import { useLanguage } from "@/lib/contexts/LanguageContext";
 import { useEffect, useState, useRef, useCallback } from "react";
@@ -294,6 +297,9 @@ export default function KnowledgePage() {
     el.addEventListener('touchmove', onTouchMove, { passive: false });
     return () => el.removeEventListener('touchmove', onTouchMove);
   });
+
+  // Plan gate: entry-package tenants (no active plan) see a locked preview.
+  if (!hasActivePlan(tenant?.settings)) return <LockedPreview section="knowledge" />;
 
   return (
     <div className="p-0 h-[calc(100dvh-3.5rem)] md:h-[calc(100dvh-4rem)] flex overflow-hidden">

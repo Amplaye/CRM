@@ -67,6 +67,21 @@ export interface Entitlement {
 type Clock = () => number;
 const realNow: Clock = () => Date.now();
 
+/** The past-due grace-window math, shared by the add-on gate (entitlementFor) and
+ * the plan gate (hasActivePlan). Given a billing block, returns whether `now` is
+ * still inside the GRACE_DAYS window after current_period_end, plus the computed
+ * grace-end instant. A missing/unparseable period end is treated leniently as
+ * Infinity (still in grace) — the webhook will stamp a concrete date on its next
+ * event, and we'd rather not lock out a paying customer over a missing field. */
+function inGrace(
+  billing: TenantSettings["billing"],
+  now: number,
+): { within: boolean; graceEnd: number } {
+  const periodEnd = billing?.current_period_end ? Date.parse(billing.current_period_end) : NaN;
+  const graceEnd = Number.isNaN(periodEnd) ? Infinity : periodEnd + GRACE_DAYS * 24 * 60 * 60 * 1000;
+  return { within: now <= graceEnd, graceEnd };
+}
+
 /**
  * Resolve whether a paid add-on is currently unlocked for a tenant, with the
  * grace + manual-override rules applied. Pure function of the tenant's settings
@@ -97,11 +112,8 @@ export function entitlementFor(
 
   // 3. Past-due → grace window past the period end.
   if (status === "past_due") {
-    const periodEnd = billing?.current_period_end ? Date.parse(billing.current_period_end) : NaN;
-    // No period end recorded → be lenient and treat as still in grace (the
-    // webhook will set a concrete date on the next event).
-    const graceEnd = Number.isNaN(periodEnd) ? Infinity : periodEnd + GRACE_DAYS * 24 * 60 * 60 * 1000;
-    if (now() <= graceEnd) {
+    const { within, graceEnd } = inGrace(billing, now());
+    if (within) {
       return {
         active: true,
         reason: "grace",
@@ -131,4 +143,33 @@ export function hasManagement(
   now: Clock = realNow,
 ): boolean {
   return hasAddon(settings, "smart_inventory", now);
+}
+
+/** Does the tenant have an ACTIVE paid plan (premium or business) right now?
+ *
+ * This is the PLAN-level gate that opens the core CRM (analytics, reservations,
+ * floor, waitlist, pending, guests, conversations, knowledge). It mirrors the
+ * billing branch of entitlementFor but keys on the subscription itself
+ * (`billing.plan`) instead of an add-on id:
+ *   - no plan recorded             → false (entry-package tenant: menu + settings only)
+ *   - active / trialing            → true
+ *   - past_due inside grace window → true (declined card, same 7-day leniency)
+ *   - canceled / incomplete / else → false
+ *
+ * Deliberately standalone (NOT folded into getFeatures): the plan gate is
+ * cross-cutting — it locks many sections at once — so it isn't a TenantFeatures
+ * flag, and it must stay orthogonal to the management add-on gate (a Business
+ * tenant without smart_inventory must still see the gestionale as add-on-locked,
+ * not unlocked). Page guards use this for a cosmetic lock; the real protection is
+ * the matching API 403s + RLS (tenant_has_active_plan). */
+export function hasActivePlan(
+  settings: TenantSettings | null | undefined,
+  now: Clock = realNow,
+): boolean {
+  const billing = settings?.billing;
+  if (!billing?.plan) return false;
+  const status = billing.status;
+  if (status === "active" || status === "trialing") return true;
+  if (status === "past_due") return inGrace(billing, now()).within;
+  return false;
 }

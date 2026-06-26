@@ -1,5 +1,8 @@
 "use client";
 
+import { LockedPreview } from "@/components/billing/LockedPreview";
+import { hasActivePlan } from "@/lib/billing/entitlements";
+
 import { ReservationList } from "@/components/reservations/ReservationList";
 import { ReservationTimeline } from "@/components/reservations/ReservationTimeline";
 import { Plus, Download, Upload, X, Save, Clock, Menu, Phone, ChevronLeft, ChevronRight, AlertOctagon, Accessibility, Users as UsersIcon } from "lucide-react";
@@ -485,6 +488,9 @@ export default function ReservationsPage() {
       setSaving(false);
     }
   };
+
+  // Plan gate: entry-package tenants (no active plan) see a locked preview.
+  if (!hasActivePlan(activeTenant?.settings)) return <LockedPreview section="reservations" />;
 
   return (
     <div className="p-4 sm:p-6 lg:p-8 w-full space-y-4 sm:space-y-6 lg:space-y-8">

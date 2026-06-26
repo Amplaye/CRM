@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { createServiceRoleClient } from '@/lib/supabase/server';
 import { logAuditEvent } from '@/lib/audit';
 import { assertAiSecret } from '@/lib/ai-auth';
+import { assertActivePlan } from '@/lib/billing/guard';
 import {
   getShift,
   getRotationMinutes,
@@ -78,6 +79,9 @@ export async function PUT(request: Request) {
     if (payload.current_time && !isTime(payload.current_time)) {
       return NextResponse.json({ success: false, error: 'current_time must be HH:MM' }, { status: 400 });
     }
+
+    const noPlan = await assertActivePlan(payload.tenant_id);
+    if (noPlan) return noPlan;
 
     const supabase = createServiceRoleClient();
 

@@ -44,6 +44,7 @@ type Props = {
   emptyLabel: string;
   featuredLabel: string;
   sections: MenuViewSection[];
+  logoUrl?: string;
 };
 
 function priceText(it: MenuViewItem): string | null {
@@ -63,6 +64,7 @@ export default function MenuClassic({
   emptyLabel,
   featuredLabel,
   sections,
+  logoUrl,
 }: Props) {
   const [activeKey, setActiveKey] = useState<string>(sections[0]?.key ?? "");
   const tabBarRef = useRef<HTMLDivElement | null>(null);
@@ -114,6 +116,9 @@ export default function MenuClassic({
       {/* ── Hero ───────────────────────────────────────────────────────── */}
       <header className="menu-hero">
         <div className="menu-hero-inner">
+          {logoUrl && (
+            <img className="menu-logo menu-reveal" src={logoUrl} alt="" style={{ animationDelay: "40ms" }} />
+          )}
           <p className="menu-eyebrow menu-reveal" style={{ animationDelay: "80ms" }}>
             <span className="menu-eyebrow-line" aria-hidden />
             {menuLabel}
@@ -270,7 +275,7 @@ const styles = `
   --paper-deep: #efe3cf;
   --ink: #1c150d;
   --ink-soft: #4a3f30;
-  --brass: #b07a32;
+  --brass: var(--accent, #b07a32);
   --brass-deep: #7e5226;
   --brass-soft: #d8b483;
   --walnut: #2a1d11;
@@ -308,6 +313,10 @@ const styles = `
   box-shadow: inset 0 -1px 0 rgba(216,180,131,0.18), 0 18px 40px -28px rgba(42,29,17,0.9);
 }
 .menu-hero-inner { max-width: 40rem; margin: 0 auto; }
+.menu-logo {
+  display: block; height: clamp(2.6rem, 10vw, 4rem); width: auto; max-width: 70%;
+  object-fit: contain; margin: 0 auto clamp(1rem, 4vw, 1.6rem);
+}
 .menu-eyebrow {
   display: flex; align-items: center; justify-content: center; gap: 0.85rem;
   font-size: 0.62rem; letter-spacing: 0.42em; text-transform: uppercase;

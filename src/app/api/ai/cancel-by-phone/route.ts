@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { createServiceRoleClient } from '@/lib/supabase/server';
 import { logAuditEvent } from '@/lib/audit';
 import { assertAiSecret } from '@/lib/ai-auth';
+import { assertActivePlan } from '@/lib/billing/guard';
 
 /**
  * Cancel a reservation by guest phone number.
@@ -25,6 +26,9 @@ export async function POST(request: Request) {
     if (!tenant_id || !guest_phone) {
       return NextResponse.json({ cancelled: false, error: "Missing tenant_id or guest_phone" }, { status: 400 });
     }
+
+    const noPlan = await assertActivePlan(tenant_id);
+    if (noPlan) return noPlan;
 
     const validSources = ['reminder_24h', 'reminder_4h', 'chat_spontaneous', 'voice_spontaneous', 'auto_noshow', 'staff', 'web'];
     const source = cancellation_source && validSources.includes(cancellation_source)

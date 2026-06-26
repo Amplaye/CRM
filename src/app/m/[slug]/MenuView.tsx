@@ -48,6 +48,9 @@ type Props = {
   emptyLabel: string;
   featuredLabel: string;
   sections: MenuViewSection[];
+  /** Optional owner-uploaded menu logo (menu_branding.logo_url). When set, each
+   * template renders it in the header next to / above the wordmark. */
+  logoUrl?: string;
 };
 
 export default function MenuView({ style, ...rest }: Props) {
