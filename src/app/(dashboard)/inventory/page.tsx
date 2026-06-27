@@ -17,6 +17,8 @@ import {
 import { KPICard } from "@/components/ui/KPICard";
 import { InfoHotspot } from "@/components/ui/InfoHotspot";
 import { ManagementLocked } from "@/components/management/ManagementLocked";
+import { WipComingSoon } from "@/components/management/WipComingSoon";
+import { canSeeWip } from "@/lib/billing/wip";
 import { InventoryMovements } from "@/components/management/InventoryMovements";
 import { useLanguage } from "@/lib/contexts/LanguageContext";
 import { useTenant } from "@/lib/contexts/TenantContext";
@@ -194,6 +196,12 @@ export default function InventoryPage() {
       archived: false,
     });
     if (!error) await load();
+  }
+
+  // Work-in-progress: section hidden for everyone but the WIP allowlist, even via
+  // direct URL (the sidebar already hides it). Checked before the add-on gate.
+  if (!canSeeWip(activeTenant?.id)) {
+    return <WipComingSoon />;
   }
 
   if (!enabled) {

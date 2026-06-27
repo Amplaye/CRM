@@ -7,6 +7,8 @@ import { ChartFrame } from "@/components/ChartFrame";
 import { KPICard } from "@/components/ui/KPICard";
 import { RecipePanel } from "@/components/management/RecipePanel";
 import { ManagementLocked } from "@/components/management/ManagementLocked";
+import { WipComingSoon } from "@/components/management/WipComingSoon";
+import { canSeeWip } from "@/lib/billing/wip";
 import { MenuEngineeringMatrix } from "@/components/management/MenuEngineeringMatrix";
 import { useLanguage } from "@/lib/contexts/LanguageContext";
 import { useTenant } from "@/lib/contexts/TenantContext";
@@ -154,6 +156,11 @@ export default function FoodCostPage() {
       setDishes((ds) => ds.map((d) => (d.menuItemId === menuItemId ? { ...d, price: prev } : d)));
       setSaveStates((s) => ({ ...s, [menuItemId]: { status: "error", msg: e?.message || "Errore" } }));
     }
+  }
+
+  // Work-in-progress: hidden for everyone but the WIP allowlist (incl. direct URL).
+  if (!canSeeWip(activeTenant?.id)) {
+    return <WipComingSoon />;
   }
 
   if (!enabled) {

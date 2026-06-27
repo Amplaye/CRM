@@ -11,6 +11,8 @@ import { createClient } from "@/lib/supabase/client";
 import { Dictionary } from "@/lib/i18n/dictionaries/en";
 import { getFeatures } from "@/lib/types/tenant-settings";
 import { ManagementLocked } from "@/components/management/ManagementLocked";
+import { WipComingSoon } from "@/components/management/WipComingSoon";
+import { canSeeWip } from "@/lib/billing/wip";
 import { plSummary, plByBand, periodFoodCost, plDelta } from "@/lib/management/pl";
 import type { PlDelta, PlSummary, RecipeLine, SaleRow } from "@/lib/management/types";
 import type { Shift } from "@/lib/management/time-buckets";
@@ -161,6 +163,8 @@ export default function PlPage() {
     return () => { cancelled = true; };
   }, [activeTenant?.id, enabled, supabase, tz, windowDays]);
 
+  // Work-in-progress: hidden for everyone but the WIP allowlist (incl. direct URL).
+  if (!canSeeWip(activeTenant?.id)) return <WipComingSoon />;
   if (!enabled) return <ManagementLocked section="pl" />;
 
   const fmt = (n: number | null) => (n == null ? "—" : `€ ${n.toLocaleString("it-IT", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`);

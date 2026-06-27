@@ -1280,6 +1280,8 @@ export const en = {
   settings_payments_entry_unlock_label: "Unlock with a plan",
   settings_payments_entry_unlock: "Reservations, floor, guests, conversations, waitlist and analytics",
   settings_payments_entry_cta: "Pick Premium or Business below to unlock everything",
+  wip_section_title: "In progress",
+  wip_section_desc: "This section is still under development and will be available soon.",
   billing_plan_premium: "Premium",
   billing_plan_premium_tagline: "Everything to run your floor, in every venue.",
   billing_plan_business: "Business",

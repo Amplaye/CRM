@@ -1283,6 +1283,8 @@ export const de: Dictionary = {
   settings_payments_entry_unlock_label: "Mit einem Plan freischalten",
   settings_payments_entry_unlock: "Reservierungen, Saal, Gäste, Konversationen, Warteliste und Analysen",
   settings_payments_entry_cta: "Wähle unten Premium oder Business, um alles freizuschalten",
+  wip_section_title: "In Bearbeitung",
+  wip_section_desc: "Dieser Bereich befindet sich noch in Entwicklung und ist bald verfügbar.",
   billing_plan_premium: "Premium",
   billing_plan_premium_tagline: "Alles für deinen Service, in jedem Lokal.",
   billing_plan_business: "Business",

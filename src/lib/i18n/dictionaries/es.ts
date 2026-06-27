@@ -1283,6 +1283,8 @@ export const es: Dictionary = {
   settings_payments_entry_unlock_label: "Desbloquea con un plan",
   settings_payments_entry_unlock: "Reservas, sala, clientes, conversaciones, lista de espera y analíticas",
   settings_payments_entry_cta: "Elige Premium o Business abajo para desbloquear todo",
+  wip_section_title: "En desarrollo",
+  wip_section_desc: "Esta sección aún está en desarrollo y estará disponible pronto.",
   billing_plan_premium: "Premium",
   billing_plan_premium_tagline: "Todo para gestionar tu sala, en cada local.",
   billing_plan_business: "Business",

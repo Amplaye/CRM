@@ -28,6 +28,7 @@ import { twMerge } from "tailwind-merge";
 import { useTenant } from "@/lib/contexts/TenantContext";
 import { getFeatures } from "@/lib/types/tenant-settings";
 import { hasActivePlan } from "@/lib/billing/entitlements";
+import { isWipHref, canSeeWip } from "@/lib/billing/wip";
 import { useLanguage } from "@/lib/contexts/LanguageContext";
 import { Dictionary } from "@/lib/i18n/dictionaries/en";
 import { useAuth } from "@/lib/contexts/AuthContext";
@@ -145,6 +146,9 @@ export function Sidebar({ mobileOpen = false, onClose }: SidebarProps) {
     : navItems
   // Feature flag: hide the Waitlist page for tenants that don't use it.
   ).filter(i => i.href !== "/waitlist" || features.waitlist_enabled)
+  // Work-in-progress: hide the gestionale sections still under development
+  // (inventory, P&L, food cost) for everyone except the WIP allowlist.
+  .filter(i => !isWipHref(i.href) || canSeeWip(activeTenant?.id))
   .map(i => {
     const featureLocked = !!i.feature && !features[i.feature];
     const planLocked = !planActive && !FREE_HREFS.has(i.href);

@@ -1283,6 +1283,8 @@ export const it: Dictionary = {
   settings_payments_entry_unlock_label: "Sblocca con un piano",
   settings_payments_entry_unlock: "Prenotazioni, sala, ospiti, conversazioni, lista d'attesa e analisi",
   settings_payments_entry_cta: "Scegli Premium o Business qui sotto per sbloccare tutto",
+  wip_section_title: "In lavorazione",
+  wip_section_desc: "Questa sezione è ancora in fase di sviluppo e sarà disponibile a breve.",
   billing_plan_premium: "Premium",
   billing_plan_premium_tagline: "Tutto per gestire la sala, in ogni locale.",
   billing_plan_business: "Business",
