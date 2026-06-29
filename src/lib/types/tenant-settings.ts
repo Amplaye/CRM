@@ -213,6 +213,16 @@ export interface TenantSettings {
     stripe_subscription_id?: string;
     paypal_subscription_id?: string;
   };
+  /** Platform-admin MANUAL overrides for paid entitlements, applied on top of —
+   * and winning over — `billing` (so a provider webhook can't undo them). Used to
+   * hand-activate or hand-suspend paid services when payment is in dispute.
+   * Tri-state per key: `true` = force on, `false` = force off, absent = follow
+   * billing. `plan` overrides core-CRM access (hasActivePlan); `addons[id]`
+   * overrides a single add-on (entitlementFor / hasAddon). */
+  manual_entitlements?: {
+    plan?: boolean;
+    addons?: Record<string, boolean>;
+  };
   [key: string]: any;
 }
 

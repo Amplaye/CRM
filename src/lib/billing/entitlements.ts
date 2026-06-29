@@ -93,6 +93,15 @@ export function entitlementFor(
   addon: AddonId,
   now: Clock = realNow,
 ): Entitlement {
+  // 0. Admin manual entitlement override — the strongest signal, wins over both
+  // billing AND the legacy feature-flag override below. Set by the platform admin
+  // in the Tenant Control Center to hand-activate or hand-suspend a paid add-on
+  // during a payment dispute; a provider webhook (which only writes `billing`)
+  // can't undo it. true = force on, false = force off, absent = fall through.
+  const override = settings?.manual_entitlements?.addons?.[addon];
+  if (override === true) return { active: true, reason: "manual" };
+  if (override === false) return { active: false, reason: "canceled" };
+
   // 1. Manual override — the raw feature flag wins over any billing state.
   const flagKey = ADDON_FEATURE[addon];
   if (flagKey && settings?.features?.[flagKey] === true) {
@@ -166,6 +175,13 @@ export function hasActivePlan(
   settings: TenantSettings | null | undefined,
   now: Clock = realNow,
 ): boolean {
+  // Admin manual override wins over billing (see manual_entitlements docs): the
+  // platform admin can hand-grant or hand-revoke core-CRM access in a payment
+  // dispute without a provider webhook later clobbering it.
+  const override = settings?.manual_entitlements?.plan;
+  if (override === true) return true;
+  if (override === false) return false;
+
   const billing = settings?.billing;
   if (!billing?.plan) return false;
   const status = billing.status;

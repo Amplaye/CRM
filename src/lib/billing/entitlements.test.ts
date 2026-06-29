@@ -205,3 +205,65 @@ describe("hasActivePlan — plan-level gate", () => {
     expect(hasActivePlan({ billing: { plan: "premium" } }, at(NOW))).toBe(false);
   });
 });
+
+// Admin manual entitlement override (manual_entitlements) — the strongest signal,
+// wins over both billing and the legacy feature-flag override. Used to hand-grant
+// or hand-revoke a paid service during a payment dispute.
+describe("manual_entitlements — admin override wins over billing", () => {
+  it("addons override true → add-on unlocked even with no subscription", () => {
+    const s: TenantSettings = { manual_entitlements: { addons: { smart_inventory: true } } };
+    const e = entitlementFor(s, "smart_inventory", at(NOW));
+    expect(e.active).toBe(true);
+    expect(e.reason).toBe("manual");
+    expect(hasManagement(s, at(NOW))).toBe(true);
+  });
+
+  it("addons override false → add-on LOCKED even when paid & active", () => {
+    const s: TenantSettings = {
+      billing: { addons: ["smart_inventory"], status: "active" },
+      manual_entitlements: { addons: { smart_inventory: false } },
+    };
+    const e = entitlementFor(s, "smart_inventory", at(NOW));
+    expect(e.active).toBe(false);
+    expect(hasAddon(s, "smart_inventory", at(NOW))).toBe(false);
+  });
+
+  it("override beats the legacy feature-flag override too", () => {
+    const s: TenantSettings = {
+      features: { management_enabled: true } as any,
+      manual_entitlements: { addons: { smart_inventory: false } },
+    };
+    expect(entitlementFor(s, "smart_inventory", at(NOW)).active).toBe(false);
+  });
+
+  it("getFeatures reflects the override for management_enabled", () => {
+    const on: TenantSettings = { manual_entitlements: { addons: { smart_inventory: true } } };
+    const off: TenantSettings = {
+      billing: { addons: ["smart_inventory"], status: "active" },
+      manual_entitlements: { addons: { smart_inventory: false } },
+    };
+    expect(getFeatures(on).management_enabled).toBe(true);
+    expect(getFeatures(off).management_enabled).toBe(false);
+  });
+
+  it("plan override true → core CRM unlocked with no billing", () => {
+    expect(hasActivePlan({ manual_entitlements: { plan: true } }, at(NOW))).toBe(true);
+  });
+
+  it("plan override false → core CRM LOCKED even with an active plan", () => {
+    const s: TenantSettings = {
+      billing: { plan: "business", status: "active" },
+      manual_entitlements: { plan: false },
+    };
+    expect(hasActivePlan(s, at(NOW))).toBe(false);
+  });
+
+  it("override absent → falls through to billing (no effect)", () => {
+    const s: TenantSettings = {
+      billing: { plan: "premium", status: "active" },
+      manual_entitlements: { addons: {} },
+    };
+    expect(hasActivePlan(s, at(NOW))).toBe(true);
+    expect(entitlementFor(billing({ status: "active" }), "smart_inventory", at(NOW)).active).toBe(true);
+  });
+});

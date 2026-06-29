@@ -11,7 +11,7 @@ import {
 } from "lucide-react";
 import { TENANT_STATUSES, type TenantStatus } from "@/lib/tenants/status";
 import { getRawFeatures, type TenantFeatures } from "@/lib/types/tenant-settings";
-import { entitlementFor } from "@/lib/billing/entitlements";
+import { entitlementFor, hasActivePlan } from "@/lib/billing/entitlements";
 
 // All per-tenant feature flags the admin can toggle (Italian admin copy). The
 // management module shows its entitlement reason (manual / paid / grace) inline.
@@ -27,6 +27,17 @@ const FEATURE_TOGGLES: Array<{ flag: keyof TenantFeatures; title: string; hint: 
   { flag: "reminders_enabled", title: "Promemoria", hint: "Promemoria prenotazione il giorno prima (template WhatsApp)." },
   { flag: "followup_enabled", title: "Follow-up post-visita", hint: "Ringraziamento / richiesta recensione dopo la visita (template marketing)." },
   { flag: "commercial_info_enabled", title: "Info commerciali", hint: "Il bot risponde su listini, menù fissi, buffet dalle voci KB 'commerciale'." },
+];
+
+// Paid services the admin can manually force on/off per tenant (payment disputes).
+// `key` is "plan" (core-CRM access) or an add-on id. The override lives in
+// settings.manual_entitlements and WINS over billing.
+const ENTITLEMENT_OVERRIDES: Array<{ key: string; title: string; hint: string }> = [
+  { key: "plan", title: "Accesso CRM (piano)", hint: "Prenotazioni, sala, ospiti, conversazioni, analisi — l'intero CRM." },
+  { key: "smart_inventory", title: "Gestionale", hint: "Inventario, food cost, conto economico, POS, fatture." },
+  { key: "voice_vapi", title: "Voce — Vapi", hint: "Segretaria vocale AI (tier base)." },
+  { key: "voice_retell", title: "Voce — Retell", hint: "Segretaria vocale AI (tier premium)." },
+  { key: "website_design", title: "Sito web", hint: "Pacchetto realizzazione sito." },
 ];
 
 const POS_PROVIDERS = ["mock", "cassa_in_cloud", "tilby", "ipratico", "nempos", "deliverect", "loyverse"];
@@ -105,6 +116,7 @@ export default function TenantDetailPage() {
   const [downloadUrl, setDownloadUrl] = useState<string | null>(null);
   const [actionMsg, setActionMsg] = useState<string | null>(null);
   const [featureSaving, setFeatureSaving] = useState<keyof TenantFeatures | null>(null);
+  const [ovSaving, setOvSaving] = useState<string | null>(null);
   // Settings editor (nested settings the admin can override)
   const [sForm, setSForm] = useState<{
     timezone: string; crm_locale: string; voiceProvider: string; posProvider: string;
@@ -146,6 +158,41 @@ export default function TenantDetailPage() {
       console.error(err);
     }
     setFeatureSaving(null);
+  };
+
+  // Set a manual entitlement override for this tenant. `value`: true = force on,
+  // false = force off, null = auto (remove the override → follow billing). Writes
+  // the WHOLE manual_entitlements object (the PATCH route merges shallowly at the
+  // top level of settings, so nested objects must be sent complete).
+  const setOverride = async (key: string, value: boolean | null) => {
+    if (!tenantId) return;
+    setOvSaving(key);
+    const cur = ((data?.tenant.settings as any)?.manual_entitlements || {}) as { plan?: boolean; addons?: Record<string, boolean> };
+    const next: { plan?: boolean; addons?: Record<string, boolean> } = {
+      ...(cur.plan !== undefined ? { plan: cur.plan } : {}),
+      addons: { ...(cur.addons || {}) },
+    };
+    if (key === "plan") {
+      if (value === null) delete next.plan; else next.plan = value;
+    } else {
+      if (value === null) delete next.addons![key]; else next.addons![key] = value;
+    }
+    if (next.addons && Object.keys(next.addons).length === 0) delete next.addons;
+    try {
+      const res = await fetch("/api/admin/tenant", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tenant_id: tenantId, settings: { manual_entitlements: next } }),
+      });
+      const j = await res.json();
+      if (!res.ok) throw new Error(j.error || "Failed");
+      setData((prev) =>
+        prev ? { ...prev, tenant: { ...prev.tenant, settings: { ...(prev.tenant.settings || {}), manual_entitlements: next } } } : prev
+      );
+    } catch (err) {
+      console.error(err);
+    }
+    setOvSaving(null);
   };
 
   const runArchive = async () => {
@@ -723,6 +770,73 @@ export default function TenantDetailPage() {
                 <div><p className="text-black/60">Add-on</p><p className="font-medium text-black">{(b.addons && b.addons.length) ? b.addons.join(", ") : "—"}</p></div>
               </div>
             )}
+          </div>
+        );
+      })()}
+
+      {/* Manual entitlement overrides — force a paid service ON or OFF regardless
+          of billing (payment disputes). Auto = follow the subscription. */}
+      {(() => {
+        const ov = ((tenant.settings as any)?.manual_entitlements || {}) as { plan?: boolean; addons?: Record<string, boolean> };
+        const currentOf = (key: string): boolean | undefined =>
+          key === "plan" ? ov.plan : ov.addons?.[key];
+        const effectiveOf = (key: string): boolean =>
+          key === "plan" ? hasActivePlan(tenant.settings as any) : entitlementFor(tenant.settings as any, key as any).active;
+        const SEG: Array<{ v: boolean | null; label: string; on: string }> = [
+          { v: null, label: "Auto", on: "bg-zinc-700 text-white" },
+          { v: true, label: "Attivo", on: "bg-emerald-500 text-white" },
+          { v: false, label: "Disattivo", on: "bg-red-500 text-white" },
+        ];
+        return (
+          <div className="rounded-xl border-2 p-4" style={cardStyle}>
+            <div className="flex items-center gap-2 mb-1">
+              <ShieldCheck className="w-4 h-4 text-[#c4956a]" />
+              <h3 className="text-xs font-bold text-black uppercase tracking-wider">Override servizi a pagamento</h3>
+            </div>
+            <p className="text-[10px] text-black/70 mb-3">
+              Forza manualmente un servizio attivo o disattivo, ignorando lo stato del pagamento. <b>Auto</b> segue l&apos;abbonamento. L&apos;override vince su Stripe/PayPal.
+            </p>
+            <div className="space-y-2">
+              {ENTITLEMENT_OVERRIDES.map((s) => {
+                const current = currentOf(s.key);
+                const effective = effectiveOf(s.key);
+                const saving = ovSaving === s.key;
+                return (
+                  <div key={s.key} className="flex items-start gap-3 p-3 rounded-lg" style={{ background: "rgba(196,149,106,0.06)" }}>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <p className="text-xs font-medium text-black">{s.title}</p>
+                        <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full border ${
+                          effective ? "bg-emerald-50 text-emerald-700 border-emerald-200" : "bg-zinc-100 text-zinc-600 border-zinc-300"
+                        }`}>
+                          {effective ? "attivo" : "bloccato"}
+                          {current === undefined ? " · auto" : current ? " · forzato ON" : " · forzato OFF"}
+                        </span>
+                      </div>
+                      <p className="text-[10px] text-black mt-0.5">{s.hint}</p>
+                    </div>
+                    <div className="inline-flex flex-shrink-0 rounded-lg border overflow-hidden" style={{ borderColor: "#e6d8c5" }}>
+                      {SEG.map((seg) => {
+                        const active = current === undefined ? seg.v === null : current === seg.v;
+                        return (
+                          <button
+                            key={String(seg.v)}
+                            type="button"
+                            disabled={saving}
+                            onClick={() => setOverride(s.key, seg.v)}
+                            className={`px-2.5 py-1 text-[11px] font-medium transition-colors disabled:opacity-50 ${
+                              active ? seg.on : "bg-white text-black/70 hover:bg-zinc-50"
+                            }`}
+                          >
+                            {seg.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
           </div>
         );
       })()}
