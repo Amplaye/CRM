@@ -10,32 +10,16 @@ import { useTenant } from "@/lib/contexts/TenantContext";
 import { Guest, Reservation } from "@/lib/types";
 import { createClient } from "@/lib/supabase/client";
 import { useSeenSnapshotAndMark } from "@/lib/hooks/useLastSeen";
+import { guestsToCsv, parseCsv as parseGuestCsv, rowsToGuestInputs, planImport, type ImportPlan } from "@/lib/guests/porting";
 
-const downloadCSV = (data: string[][], filename: string) => {
-  const csv = data.map(row => row.map(cell => `"${(cell || '').replace(/"/g, '""')}"`).join(',')).join('\n');
-  const blob = new Blob([csv], { type: 'text/csv' });
+const downloadText = (text: string, filename: string) => {
+  const blob = new Blob([text], { type: "text/csv;charset=utf-8" });
   const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
+  const a = document.createElement("a");
   a.href = url;
   a.download = filename;
   a.click();
   URL.revokeObjectURL(url);
-};
-
-const parseCSV = (text: string): string[][] => {
-  const lines = text.split('\n').filter(l => l.trim());
-  return lines.map(line => {
-    const result: string[] = [];
-    let current = '';
-    let inQuotes = false;
-    for (const char of line) {
-      if (char === '"') { inQuotes = !inQuotes; }
-      else if (char === ',' && !inQuotes) { result.push(current.trim()); current = ''; }
-      else { current += char; }
-    }
-    result.push(current.trim());
-    return result;
-  });
 };
 
 export default function GuestsPage() {
@@ -53,34 +37,74 @@ export default function GuestsPage() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [deleting, setDeleting] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  // Import preview/confirm flow (parse → plan → confirm → write).
+  const [importPlan, setImportPlan] = useState<{ plan: ImportPlan; fileName: string } | null>(null);
+  const [importing, setImporting] = useState(false);
+  const [importResult, setImportResult] = useState<string | null>(null);
 
+  // Full export: EVERY guest field (name, phone, email, tags, allergie/note
+  // dietetiche, accessibilità, famiglia, spesa…), so it's a lossless backup and
+  // can be re-imported elsewhere without losing data.
   const handleExport = () => {
-    const headers = ['Name', 'Phone', 'Visits', 'No-Shows', 'Notes'];
-    const rows = guests.map(g => [g.name, g.phone, String(g.visit_count), String(g.no_show_count), g.notes || '']);
-    downloadCSV([headers, ...rows], 'guests_export.csv');
+    const stamp = new Date().toISOString().slice(0, 10);
+    const safe = (activeTenant?.name || "guests").replace(/[^\w.-]+/g, "_");
+    downloadText(guestsToCsv(guests), `${safe}_clienti_${stamp}.csv`);
   };
 
+  // Import: parse the file, auto-detect the columns (EN/IT/ES/DE), plan inserts vs
+  // updates by matching phone against the current book, then show a preview. The
+  // actual writes happen only after the owner confirms (runImport).
   const handleImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !activeTenant) return;
+    setImportResult(null);
     const text = await file.text();
-    const rows = parseCSV(text);
-    if (rows.length < 2) return;
-    const headers = rows[0].map(h => h.toLowerCase());
-    const nameIdx = headers.indexOf('name');
-    const phoneIdx = headers.indexOf('phone');
-    if (nameIdx === -1 || phoneIdx === -1) { alert('CSV must have Name and Phone columns'); return; }
-    let imported = 0;
-    for (let i = 1; i < rows.length; i++) {
-      const row = rows[i];
-      const name = row[nameIdx]?.trim();
-      const phone = row[phoneIdx]?.trim();
-      if (!name || !phone) continue;
-      const { error } = await supabase.from('guests').insert({ tenant_id: activeTenant.id, name, phone, visit_count: 0, no_show_count: 0, cancellation_count: 0, tags: [], notes: '' });
-      if (!error) imported++;
+    const rows = parseGuestCsv(text);
+    if (fileInputRef.current) fileInputRef.current.value = "";
+    if (rows.length < 2) { setImportResult("File vuoto o senza righe dati."); return; }
+    const { guests: incoming, skipped, mapping } = rowsToGuestInputs(rows);
+    if (mapping.name === undefined && mapping.phone === undefined) {
+      setImportResult("Non ho riconosciuto colonne Nome o Telefono nel file. Intestazioni supportate: Nome/Name/Nombre, Telefono/Phone, Email, Allergie, Note…");
+      return;
     }
-    alert(`Imported ${imported} guests`);
-    if (fileInputRef.current) fileInputRef.current.value = '';
+    const plan = planImport(incoming, guests as any, skipped);
+    setImportPlan({ plan, fileName: file.name });
+  };
+
+  // Execute the confirmed plan: batched inserts + per-row updates, tenant-scoped
+  // (RLS enforces the tenant). Refetches the book at the end.
+  const runImport = async () => {
+    if (!importPlan || !activeTenant) return;
+    setImporting(true);
+    const { toInsert, toUpdate, skipped } = importPlan.plan;
+    let inserted = 0, updated = 0, failed = 0;
+    const BATCH = 400;
+    for (let i = 0; i < toInsert.length; i += BATCH) {
+      const batch = toInsert.slice(i, i + BATCH).map((g) => ({
+        tenant_id: activeTenant.id,
+        name: g.name, phone: g.phone, email: g.email,
+        notes: g.notes || "", dietary_notes: g.dietary_notes,
+        accessibility_notes: g.accessibility_notes, family_notes: g.family_notes,
+        tags: g.tags, estimated_spend: g.estimated_spend,
+        visit_count: 0, no_show_count: 0, cancellation_count: 0,
+      }));
+      const { error } = await supabase.from("guests").insert(batch);
+      if (error) failed += batch.length; else inserted += batch.length;
+    }
+    for (const u of toUpdate) {
+      const { error } = await supabase.from("guests").update(u.fields).eq("id", u.id);
+      if (error) failed++; else updated++;
+    }
+    // Refetch so the list reflects the import immediately (realtime also fires).
+    const { data } = await supabase.from("guests").select("*").eq("tenant_id", activeTenant.id);
+    setGuests((data || []) as Guest[]);
+    setImporting(false);
+    setImportPlan(null);
+    setImportResult(
+      `Import completato: ${inserted} nuovi, ${updated} aggiornati` +
+      (failed ? `, ${failed} falliti` : "") +
+      (skipped ? `. ${skipped} righe saltate (senza nome/telefono)` : "") + ".",
+    );
   };
 
   useEffect(() => {
@@ -156,6 +180,53 @@ export default function GuestsPage() {
 
   return (
     <div className="p-4 sm:p-6 lg:p-8 w-full space-y-4 sm:space-y-6">
+      {/* Import preview / confirm modal */}
+      {importPlan && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => !importing && setImportPlan(null)}>
+          <div className="w-full max-w-md rounded-2xl bg-white p-5 shadow-xl" onClick={(e) => e.stopPropagation()} style={{ border: '2px solid #c4956a' }}>
+            <div className="flex items-center gap-2 mb-3">
+              <Upload className="h-5 w-5 text-[#c4956a]" />
+              <h3 className="text-base font-bold text-black">Anteprima import</h3>
+            </div>
+            <p className="text-xs text-black mb-3 truncate">File: <span className="font-medium">{importPlan.fileName}</span></p>
+            <div className="space-y-2 mb-4">
+              <div className="flex items-center justify-between rounded-lg px-3 py-2" style={{ background: 'rgba(16,185,129,0.08)' }}>
+                <span className="text-sm text-black">Nuovi clienti</span>
+                <span className="text-sm font-bold text-emerald-700">{importPlan.plan.toInsert.length}</span>
+              </div>
+              <div className="flex items-center justify-between rounded-lg px-3 py-2" style={{ background: 'rgba(59,130,246,0.08)' }}>
+                <span className="text-sm text-black">Aggiornati (telefono già presente)</span>
+                <span className="text-sm font-bold text-blue-700">{importPlan.plan.toUpdate.length}</span>
+              </div>
+              {(importPlan.plan.skipped > 0 || importPlan.plan.duplicatesInFile > 0) && (
+                <div className="flex items-center justify-between rounded-lg px-3 py-2" style={{ background: 'rgba(120,120,120,0.08)' }}>
+                  <span className="text-sm text-black">Saltati / doppioni nel file</span>
+                  <span className="text-sm font-bold text-zinc-600">{importPlan.plan.skipped + importPlan.plan.duplicatesInFile}</span>
+                </div>
+              )}
+            </div>
+            <p className="text-[11px] text-black mb-4">
+              I clienti con lo stesso telefono vengono aggiornati (i campi vuoti non sovrascrivono i dati esistenti); i contatori visite/no-show restano invariati.
+            </p>
+            <div className="flex gap-2 justify-end">
+              <button onClick={() => setImportPlan(null)} disabled={importing}
+                className="px-4 py-2 rounded-lg border-2 text-xs font-bold text-black disabled:opacity-60" style={{ borderColor: '#c4956a' }}>
+                Annulla
+              </button>
+              <button onClick={runImport} disabled={importing || (importPlan.plan.toInsert.length + importPlan.plan.toUpdate.length === 0)}
+                className="px-4 py-2 rounded-lg bg-[#c4956a] text-white text-xs font-bold hover:opacity-90 disabled:opacity-60">
+                {importing ? "Importazione…" : `Importa ${importPlan.plan.toInsert.length + importPlan.plan.toUpdate.length}`}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {importResult && (
+        <div className="rounded-lg border-2 px-3 py-2 flex items-center justify-between" style={{ borderColor: '#c4956a', background: 'rgba(252,246,237,0.6)' }}>
+          <span className="text-xs text-black">{importResult}</span>
+          <button onClick={() => setImportResult(null)} className="text-black"><X className="h-3.5 w-3.5" /></button>
+        </div>
+      )}
       <div className={`transition-all duration-300 ${selectedGuest ? 'pr-0 sm:pr-[400px]' : ''}`}>
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6">
