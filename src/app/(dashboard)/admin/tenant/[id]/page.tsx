@@ -122,9 +122,14 @@ export default function TenantDetailPage() {
     timezone: string; crm_locale: string; voiceProvider: string; posProvider: string;
     botPaused: boolean; botPausedMessage: string;
     foodCostTargetPct: string; laborBudgetMonthly: string; costMethod: string;
+    country: string; retentionDays: string; aiDisclosure: string; privacyUrl: string;
   } | null>(null);
   const [savingSettings, setSavingSettings] = useState(false);
   const [settingsMsg, setSettingsMsg] = useState<string | null>(null);
+  // DSAR (data-subject request) tool — export / erase one guest's data.
+  const [dsarQuery, setDsarQuery] = useState("");
+  const [dsarBusy, setDsarBusy] = useState(false);
+  const [dsarMsg, setDsarMsg] = useState<string | null>(null);
   // Client notes (folded in from the old /admin/clients page)
   const [notes, setNotes] = useState<ClientNote[]>([]);
   const [newNote, setNewNote] = useState("");
@@ -302,6 +307,11 @@ export default function TenantDetailPage() {
       foodCostTargetPct: s.management?.food_cost_target_pct != null ? String(s.management.food_cost_target_pct) : "",
       laborBudgetMonthly: s.management?.labor_budget_monthly != null ? String(s.management.labor_budget_monthly) : "",
       costMethod: s.management?.cost_method || "last",
+      country: s.compliance?.country || "",
+      retentionDays: s.compliance?.retention_days != null ? String(s.compliance.retention_days) : "",
+      // Tri-state: "" = region default, "on" = force on, "off" = force off.
+      aiDisclosure: s.compliance?.ai_disclosure === true ? "on" : s.compliance?.ai_disclosure === false ? "off" : "",
+      privacyUrl: s.compliance?.privacy_url || "",
     });
   }, [data?.tenant, sForm]);
 
@@ -336,6 +346,13 @@ export default function TenantDetailPage() {
         labor_budget_monthly: sForm.laborBudgetMonthly === "" ? undefined : Number(sForm.laborBudgetMonthly),
         cost_method: sForm.costMethod,
       },
+      compliance: {
+        ...(s.compliance || {}),
+        country: sForm.country || undefined,
+        retention_days: sForm.retentionDays === "" ? undefined : Number(sForm.retentionDays),
+        ai_disclosure: sForm.aiDisclosure === "on" ? true : sForm.aiDisclosure === "off" ? false : undefined,
+        privacy_url: sForm.privacyUrl.trim() || undefined,
+      },
     };
     try {
       const res = await fetch("/api/admin/tenant", {
@@ -349,6 +366,53 @@ export default function TenantDetailPage() {
       setSettingsMsg("Salvato");
     } catch (e: any) { setSettingsMsg(e.message); }
     setSavingSettings(false);
+  };
+
+  // DSAR: resolve the free-text query to a guest_id (UUID) or phone param.
+  const dsarParam = () => {
+    const q = dsarQuery.trim();
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(q);
+    return isUuid ? `guest_id=${encodeURIComponent(q)}` : `phone=${encodeURIComponent(q)}`;
+  };
+
+  const runDsarExport = async () => {
+    if (!tenantId || !dsarQuery.trim()) return;
+    setDsarBusy(true); setDsarMsg(null);
+    try {
+      const res = await fetch(`/api/admin/compliance/dsar?tenant_id=${tenantId}&${dsarParam()}`);
+      const j = await res.json();
+      if (!res.ok) throw new Error(j.error || "Export fallito");
+      // Trigger a client-side download of the export JSON.
+      const blob = new Blob([JSON.stringify(j, null, 2)], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url; a.download = `dsar-${j.guest?.id || "subject"}.json`;
+      document.body.appendChild(a); a.click(); a.remove();
+      URL.revokeObjectURL(url);
+      setDsarMsg("Export scaricato");
+    } catch (e: any) { setDsarMsg(e.message); }
+    setDsarBusy(false);
+  };
+
+  const runDsarErase = async (mode: "anonymize" | "delete") => {
+    if (!tenantId || !dsarQuery.trim()) return;
+    const label = mode === "delete" ? "ELIMINARE definitivamente" : "anonimizzare";
+    if (!window.confirm(`Confermi di voler ${label} tutti i dati di questo cliente? L'operazione non è reversibile.`)) return;
+    setDsarBusy(true); setDsarMsg(null);
+    try {
+      const q = dsarQuery.trim();
+      const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(q);
+      const res = await fetch("/api/admin/compliance/dsar", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tenant_id: tenantId, mode, ...(isUuid ? { guest_id: q } : { phone: q }) }),
+      });
+      const j = await res.json();
+      if (!res.ok) throw new Error(j.error || "Operazione fallita");
+      const a = j.affected || {};
+      setDsarMsg(`Fatto (${mode}): prenotazioni ${a.reservations || 0}, conversazioni ${a.conversations || 0}, lista d'attesa ${a.waitlist_entries || 0}, consensi anonimizzati ${a.consent_tombstoned || 0}.`);
+    } catch (e: any) { setDsarMsg(e.message); }
+    setDsarBusy(false);
   };
 
   const addNote = async () => {
@@ -738,8 +802,94 @@ export default function TenantDetailPage() {
               </select>
             </label>
           </div>
+
+          {/* Data protection (GDPR / revFADP) — one country drives the region defaults
+              (privacy notice, AI-disclosure duty, residency, retention). Saved with Salva. */}
+          <div className="mt-4 pt-4 border-t" style={{ borderColor: "rgba(196,149,106,0.3)" }}>
+            <div className="flex items-center gap-2 mb-2">
+              <ShieldCheck className="w-4 h-4 text-[#c4956a]" />
+              <h4 className="text-[11px] font-bold text-black uppercase tracking-wider">Protezione dati (GDPR)</h4>
+            </div>
+            <p className="text-[10px] text-black mb-3">
+              Il paese pilota informativa privacy, obbligo di disclosure AI, residenza dati e retention.
+              La retention agisce SOLO se il paese o i giorni sono impostati.
+            </p>
+            <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3">
+              <label className="text-xs text-black">
+                Paese
+                <select value={sForm.country} onChange={(e) => setSForm({ ...sForm, country: e.target.value })}
+                  className="mt-1 w-full border-2 rounded-lg px-2 py-1.5 text-xs text-black focus:outline-none focus:ring-1 focus:ring-[#c4956a]"
+                  style={{ borderColor: "#c4956a", background: "rgba(252,246,237,0.6)" }}>
+                  <option value="">(non impostato — EU-strict)</option>
+                  <option value="ES">Spagna (GDPR + LOPDGDD)</option>
+                  <option value="IT">Italia (GDPR + Codice Privacy)</option>
+                  <option value="DE">Germania (GDPR + BDSG)</option>
+                  <option value="CH">Svizzera (revFADP)</option>
+                </select>
+              </label>
+              <label className="text-xs text-black">
+                Retention transcript (giorni)
+                <input type="number" value={sForm.retentionDays} onChange={(e) => setSForm({ ...sForm, retentionDays: e.target.value })}
+                  placeholder="default paese (30)"
+                  className="mt-1 w-full border-2 rounded-lg px-2 py-1.5 text-xs text-black focus:outline-none focus:ring-1 focus:ring-[#c4956a]"
+                  style={{ borderColor: "#c4956a", background: "rgba(252,246,237,0.6)" }} />
+              </label>
+              <label className="text-xs text-black">
+                Disclosure AI
+                <select value={sForm.aiDisclosure} onChange={(e) => setSForm({ ...sForm, aiDisclosure: e.target.value })}
+                  className="mt-1 w-full border-2 rounded-lg px-2 py-1.5 text-xs text-black focus:outline-none focus:ring-1 focus:ring-[#c4956a]"
+                  style={{ borderColor: "#c4956a", background: "rgba(252,246,237,0.6)" }}>
+                  <option value="">default paese (UE: ON)</option>
+                  <option value="on">forza ON</option>
+                  <option value="off">forza OFF</option>
+                </select>
+              </label>
+              <label className="text-xs text-black">
+                URL informativa privacy
+                <input value={sForm.privacyUrl} onChange={(e) => setSForm({ ...sForm, privacyUrl: e.target.value })}
+                  placeholder="https://…/privacy"
+                  className="mt-1 w-full border-2 rounded-lg px-2 py-1.5 text-xs text-black focus:outline-none focus:ring-1 focus:ring-[#c4956a]"
+                  style={{ borderColor: "#c4956a", background: "rgba(252,246,237,0.6)" }} />
+              </label>
+            </div>
+          </div>
         </div>
       )}
+
+      {/* DSAR — export or erase one guest's data (GDPR Art. 15/17/20 · revFADP). */}
+      <div className="rounded-xl border-2 p-4" style={cardStyle}>
+        <div className="flex items-center gap-2 mb-3">
+          <ShieldCheck className="w-4 h-4 text-[#c4956a]" />
+          <h3 className="text-xs font-bold text-black uppercase tracking-wider">Richiesta dati cliente (DSAR)</h3>
+        </div>
+        <p className="text-[10px] text-black mb-3">
+          Esporta o cancella tutti i dati di un singolo cliente. Inserisci l&apos;ID ospite (UUID) o il numero di telefono.
+          &quot;Anonimizza&quot; mantiene le prenotazioni (senza dati personali); &quot;Elimina&quot; cancella tutto. Il registro consensi resta come prova (anonimizzato).
+        </p>
+        <div className="flex flex-wrap items-center gap-2">
+          <input
+            value={dsarQuery}
+            onChange={(e) => setDsarQuery(e.target.value)}
+            placeholder="UUID ospite o telefono (+34…)"
+            className="flex-1 min-w-[220px] border-2 rounded-lg px-2 py-1.5 text-xs text-black focus:outline-none focus:ring-1 focus:ring-[#c4956a]"
+            style={{ borderColor: "#c4956a", background: "rgba(252,246,237,0.6)" }}
+          />
+          <button onClick={runDsarExport} disabled={dsarBusy || !dsarQuery.trim()}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#c4956a] text-white text-xs font-bold hover:opacity-90 transition disabled:opacity-60">
+            {dsarBusy ? "..." : "Esporta"}
+          </button>
+          <button onClick={() => runDsarErase("anonymize")} disabled={dsarBusy || !dsarQuery.trim()}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border-2 text-xs font-bold text-black hover:bg-amber-50 transition disabled:opacity-60"
+            style={{ borderColor: "#c4956a" }}>
+            Anonimizza
+          </button>
+          <button onClick={() => runDsarErase("delete")} disabled={dsarBusy || !dsarQuery.trim()}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-red-600 text-white text-xs font-bold hover:bg-red-700 transition disabled:opacity-60">
+            <Trash2 className="w-3.5 h-3.5" /> Elimina
+          </button>
+        </div>
+        {dsarMsg && <p className="text-[11px] text-black mt-2">{dsarMsg}</p>}
+      </div>
 
       {/* Billing (this tenant) — read-only mirror; money actions go to Stripe. */}
       {(() => {

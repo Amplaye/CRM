@@ -213,6 +213,26 @@ export interface TenantSettings {
     stripe_subscription_id?: string;
     paypal_subscription_id?: string;
   };
+  /** Data-protection / GDPR-FADP config. A single `country` drives region-specific
+   * behaviour (privacy-notice defaults, AI-disclosure duty, data residency, default
+   * retention, which DPA template applies) via src/lib/compliance/regions.ts, so one
+   * codebase serves ES/IT/DE/CH without forking. `retention_days`, `ai_disclosure`
+   * and `privacy_url` are optional overrides on top of the region defaults. When the
+   * whole block is absent the tenant is treated as EU-strict (disclosure ON) but the
+   * retention job stays INERT (it only ever deletes for tenants that have explicitly
+   * opted in via `country` or `retention_days`), so nothing is purged by surprise. */
+  compliance?: {
+    /** ISO 3166-1 alpha-2 of the tenant's market. Unset → EU-strict defaults. */
+    country?: "ES" | "IT" | "DE" | "CH";
+    /** Override the region-default retention (days) for closed conversation
+     * transcripts. 0/undefined → region default; a positive number wins. */
+    retention_days?: number;
+    /** Force the "you're talking to an AI assistant" first-contact disclosure
+     * on/off. Unset → region default (ON in the EU per AI Act Art. 50). */
+    ai_disclosure?: boolean;
+    /** Public privacy-notice URL surfaced at first contact (transparency duty). */
+    privacy_url?: string;
+  };
   /** Platform-admin MANUAL overrides for paid entitlements, applied on top of —
    * and winning over — `billing` (so a provider webhook can't undo them). Used to
    * hand-activate or hand-suspend paid services when payment is in dispute.

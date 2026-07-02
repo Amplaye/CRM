@@ -2,6 +2,7 @@
   "crons": [
     { "path": "/api/cron/purge-tenants", "schedule": "0 3 * * *" },
     { "path": "/api/cron/pos-sync", "schedule": "30 2 * * *" },
-    { "path": "/api/cron/reconcile-provisioning", "schedule": "15 4 * * *" }
+    { "path": "/api/cron/reconcile-provisioning", "schedule": "15 4 * * *" },
+    { "path": "/api/cron/data-retention", "schedule": "45 4 * * *" }
   ]
 }
