@@ -17,13 +17,28 @@ import { buildTenantCallConfig } from "@/lib/voice/engine";
 // created client-side with the public key, exactly as before.
 
 const ALLOW_ORIGINS = [
+  "https://picnic-8dn.pages.dev",
   "https://picnic-web-tau.vercel.app",
   "http://localhost:3000",
   "http://localhost:5173",
 ];
 
+// Cloudflare Pages mints a per-deployment preview subdomain
+// (e.g. https://f1d7b3f3.picnic-8dn.pages.dev) that serves the same widget.
+// Allow the production host in the list above plus any *.picnic-8dn.pages.dev
+// preview, so a fresh deploy never breaks the call button via CORS.
+function isAllowedOrigin(origin: string): boolean {
+  if (ALLOW_ORIGINS.includes(origin)) return true;
+  try {
+    const host = new URL(origin).hostname;
+    return host === "picnic-8dn.pages.dev" || host.endsWith(".picnic-8dn.pages.dev");
+  } catch {
+    return false;
+  }
+}
+
 function corsHeaders(origin: string | null): Record<string, string> {
-  const allow = origin && ALLOW_ORIGINS.includes(origin) ? origin : ALLOW_ORIGINS[0];
+  const allow = origin && isAllowedOrigin(origin) ? origin : ALLOW_ORIGINS[0];
   return {
     "Access-Control-Allow-Origin": allow,
     "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
