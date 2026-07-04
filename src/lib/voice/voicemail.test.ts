@@ -123,11 +123,12 @@ describe("voicemail — firstMessage + transfer tool", () => {
       en: "Hi, you called BALI. We've sent you a WhatsApp.",
       de: "Hallo, du hast BALI angerufen. Wir haben dir eine WhatsApp geschickt.",
     };
-    // Active speaks the full script (deterministic delivery, not model-dependent).
-    expect(voicemailFirstMessage("active", "BALI", "es", script)).toBe(script.es);
-    expect(voicemailFirstMessage("active", "BALI", "it", script)).toBe(script.it);
+    // Active speaks the full script (deterministic delivery, not model-dependent),
+    // closed by the endCallPhrases goodbye so Vapi hangs up by itself (d55f588).
+    expect(voicemailFirstMessage("active", "BALI", "es", script)).toBe(`${script.es} Adiós.`);
+    expect(voicemailFirstMessage("active", "BALI", "it", script)).toBe(`${script.it} Arrivederci.`);
     // No script → falls back to a bare localized greeting.
-    expect(voicemailFirstMessage("active", "BALI", "es")).toBe("Hola, BALI.");
+    expect(voicemailFirstMessage("active", "BALI", "es")).toBe("Hola, BALI. Adiós.");
     expect(voicemailFirstMessage("forward", "BALI", "it")).toMatch(/attimo/i);
     expect(voicemailFirstMessage("normal", "BALI", "es")).toBeNull();
   });
