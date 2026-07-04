@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Lock, Calculator, PieChart, Package, FileText } from "lucide-react";
+import { Lock, Calculator, PieChart, Package, FileText, Banknote } from "lucide-react";
 import { useLanguage } from "@/lib/contexts/LanguageContext";
 import { Dictionary } from "@/lib/i18n/dictionaries/en";
 
@@ -14,13 +14,14 @@ import { Dictionary } from "@/lib/i18n/dictionaries/en";
 //
 // `section` tailors the centred card (icon + title) to the page it gates.
 
-type Section = "food_cost" | "pl" | "inventory" | "management";
+type Section = "food_cost" | "pl" | "inventory" | "management" | "cassa";
 
 const SECTION_ICON: Record<Section, typeof Calculator> = {
   food_cost: Calculator,
   pl: PieChart,
   inventory: Package,
   management: FileText,
+  cassa: Banknote,
 };
 
 const SECTION_TITLE_KEY: Record<Section, keyof Dictionary> = {
@@ -28,6 +29,7 @@ const SECTION_TITLE_KEY: Record<Section, keyof Dictionary> = {
   pl: "nav_pl" as keyof Dictionary,
   inventory: "nav_inventory" as keyof Dictionary,
   management: "management_locked_title" as keyof Dictionary,
+  cassa: "nav_cassa" as keyof Dictionary,
 };
 
 // A purely decorative skeleton of a dashboard — bars, KPI tiles, rows — that

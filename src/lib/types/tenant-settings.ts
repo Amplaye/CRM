@@ -111,6 +111,11 @@ export interface TenantSettings {
     provider?: "mock" | "cassa_in_cloud" | "tilby" | "ipratico" | "nempos" | "deliverect" | "loyverse";
     declared?: "none" | "cassa_in_cloud" | "tilby" | "ipratico" | "nempos" | "deliverect" | "loyverse";
   };
+  /** Native cassa (built-in POS) preferences. `cover_charge` is the coperto per
+   * person in €; each new bill snapshots it as cassa_orders.cover_unit, so a
+   * price change never rewrites bills already open. Edited from the /cassa
+   * screen (owner/manager) via /api/cassa/settings. */
+  cassa?: { cover_charge?: number };
   /** Controllo-gestione preferences (Settings → Gestionale). Targets/budgets the
    * food-cost and P&L screens read; not policy the bot enforces. */
   management?: {

@@ -21,6 +21,7 @@ import {
   Calculator,
   PieChart,
   Package,
+  Banknote,
   Lock,
 } from "lucide-react";
 import { clsx, type ClassValue } from "clsx";
@@ -44,6 +45,8 @@ export function cn(...inputs: ClassValue[]) {
 
 const navItems: Array<{ name: string; href: string; icon: any; badgeKey?: keyof NotificationCounts; badgeStyle?: "alert" | "info"; feature?: keyof ReturnType<typeof getFeatures> }> = [
   { name: "Tables", href: "/floor", icon: LayoutGrid },
+  // Cassa nativa (built-in POS) — part of the gestionale add-on.
+  { name: "Cassa", href: "/cassa", icon: Banknote, feature: "management_enabled" },
   { name: "Reservations", href: "/reservations", icon: Calendar, badgeKey: "reservations", badgeStyle: "info" },
   { name: "Waitlist", href: "/waitlist", icon: Clock, badgeKey: "waitlist", badgeStyle: "alert" },
   { name: "Pending", href: "/pending", icon: ClipboardList, badgeKey: "pending", badgeStyle: "alert" },
@@ -142,7 +145,9 @@ export function Sidebar({ mobileOpen = false, onClose }: SidebarProps) {
   //     (→ management_enabled). Checked first so its hint wins.
   //   • "plan"  — any non-free section while the tenant has no active plan.
   const visibleNavItems = (isHost
-    ? navItems.filter(i => i.href === "/floor" || i.href === "/reservations" || i.href === "/menu")
+    // Hosts (camerieri) also get the cassa — taking orders and cashing bills
+    // IS their job; the add-on/feature gate below still applies to it.
+    ? navItems.filter(i => i.href === "/floor" || i.href === "/reservations" || i.href === "/menu" || i.href === "/cassa")
     : navItems
   // Feature flag: hide the Waitlist page for tenants that don't use it.
   ).filter(i => i.href !== "/waitlist" || features.waitlist_enabled)
