@@ -2,11 +2,14 @@ import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { extractInvoice } from "@/lib/invoices/extract";
 import { assertManagement } from "@/lib/billing/guard";
+import { suggestLineMatches } from "@/lib/management/ingredient-match";
 
 // Upload a supplier-invoice photo/PDF → OCR it synchronously (an invoice is a
 // single page, so unlike the menu importer we don't need the async job) → store
-// a supplier_invoices header + its lines with status 'parsed'. The owner then
-// reviews/corrects and confirms via /api/invoices/confirm.
+// a supplier_invoices header + its lines with status 'parsed'. Each stored line
+// is auto-matched against the tenant's warehouse (fuzzy name match); confident
+// matches are persisted onto the line so the review step arrives pre-filled.
+// The owner then reviews/corrects and confirms via /api/invoices/confirm.
 //
 // Auth: signed-in dashboard user; RLS scopes the writes to tenants the user can
 // manage (members have full access to supplier_invoices/_items).
@@ -92,12 +95,55 @@ export async function POST(req: NextRequest) {
     tax_rate: l.taxRate,
     raw_payload: l as any,
   }));
+  let stored: Array<{ id: string; description: string | null; quantity: number | null; unit: string | null; unit_price: number | null; line_total: number | null }> = [];
   if (rows.length > 0) {
-    const { error: linesErr } = await supabase.from("supplier_invoice_items").insert(rows);
+    const { data: inserted, error: linesErr } = await supabase
+      .from("supplier_invoice_items")
+      .insert(rows)
+      .select("id, description, quantity, unit, unit_price, line_total");
     if (linesErr) {
       return NextResponse.json({ error: "Failed to store lines", details: linesErr.message }, { status: 500 });
     }
+    stored = inserted || [];
   }
 
-  return NextResponse.json({ ok: true, invoice_id: invoice.id, extracted });
+  // Auto-match every line against the warehouse so the review arrives pre-filled.
+  // High-confidence matches are persisted immediately (the owner can still change
+  // them); the full suggestion set (incl. new-ingredient proposals) goes back to
+  // the UI.
+  const { data: ingredients } = await supabase
+    .from("ingredients")
+    .select("id, name, unit")
+    .eq("tenant_id", tenantId)
+    .eq("archived", false);
+  const matches = suggestLineMatches(
+    stored.map((l) => ({ id: l.id, description: l.description || "", unit: l.unit })),
+    (ingredients || []) as Array<{ id: string; name: string; unit: string }>,
+  );
+  const byLine = new Map(matches.map((m) => [m.lineId, m]));
+  for (const m of matches) {
+    if (m.confidence === "high" && m.ingredientId) {
+      await supabase
+        .from("supplier_invoice_items")
+        .update({ ingredient_id: m.ingredientId })
+        .eq("id", m.lineId)
+        .eq("tenant_id", tenantId);
+    }
+  }
+
+  return NextResponse.json({
+    ok: true,
+    invoice_id: invoice.id,
+    extracted,
+    supplier_name: extracted.supplierName,
+    lines: stored.map((l) => ({
+      id: l.id,
+      description: l.description,
+      quantity: l.quantity,
+      unit: l.unit,
+      unit_price: l.unit_price,
+      line_total: l.line_total,
+      suggestion: byLine.get(l.id) || null,
+    })),
+  });
 }

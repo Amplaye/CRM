@@ -18,6 +18,10 @@ type LineUpdate = {
   unit_price?: number | null;
   quantity?: number | null;
   description?: string | null;
+  /** Create a brand-new warehouse ingredient for this line and map to it — the
+   * "the warehouse builds itself from invoices" path. Ignored when the line
+   * already carries an ingredient_id. */
+  create_ingredient?: { name: string; unit: string } | null;
 };
 
 type Body = {
@@ -44,6 +48,48 @@ export async function POST(req: NextRequest) {
   // Paid add-on gate: confirming an invoice (writes ingredient costs) is gestionale.
   const gate = await assertManagement(body.tenant_id);
   if (gate) return gate;
+
+  // The invoice header carries the supplier — stamped onto auto-created
+  // ingredients so the reorder list can group by supplier from day one.
+  const { data: invoiceHeader } = await supabase
+    .from("supplier_invoices")
+    .select("supplier_name")
+    .eq("id", body.invoice_id)
+    .eq("tenant_id", body.tenant_id)
+    .maybeSingle();
+
+  // Auto-create requested ingredients (dedup by name within this request, so two
+  // lines of the same product don't create twins).
+  let ingredientsCreated = 0;
+  const createdByName = new Map<string, string>();
+  for (const l of body.lines || []) {
+    if (!l.id || l.ingredient_id || !l.create_ingredient) continue;
+    const name = (l.create_ingredient.name || "").trim().slice(0, 120);
+    if (!name) continue;
+    const key = name.toLowerCase();
+    let newId = createdByName.get(key);
+    if (!newId) {
+      const { data: created, error: createErr } = await supabase
+        .from("ingredients")
+        .insert({
+          tenant_id: body.tenant_id,
+          name,
+          unit: (l.create_ingredient.unit || "pz").trim().slice(0, 10) || "pz",
+          current_unit_cost: 0, // the cost-history insert below sets the real price
+          stock_qty: 0,
+          par_level: 0,
+          supplier_name: invoiceHeader?.supplier_name || null,
+          archived: false,
+        })
+        .select("id")
+        .single();
+      if (createErr || !created) continue; // line simply stays unmapped
+      newId = created.id as string;
+      createdByName.set(key, newId);
+      ingredientsCreated++;
+    }
+    l.ingredient_id = newId;
+  }
 
   // Apply per-line edits + ingredient mappings.
   for (const l of body.lines || []) {
@@ -133,5 +179,10 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Failed to confirm invoice", details: statusErr.message }, { status: 500 });
   }
 
-  return NextResponse.json({ ok: true, costs_applied: costsApplied, stock_received: stockReceived });
+  return NextResponse.json({
+    ok: true,
+    costs_applied: costsApplied,
+    stock_received: stockReceived,
+    ingredients_created: ingredientsCreated,
+  });
 }

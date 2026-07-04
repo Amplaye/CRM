@@ -7,8 +7,10 @@
 // To ship a section: delete its href from WIP_HREFS. Once nobody needs early
 // access any more, empty WIP_TENANT_ALLOWLIST too and this whole gate is inert.
 
-/** Dashboard hrefs gated as work-in-progress (gestionale: inventory, P&L, food cost). */
-export const WIP_HREFS = new Set<string>(["/inventory", "/pl", "/food-cost"]);
+/** Dashboard hrefs gated as work-in-progress (gestionale: P&L, food cost).
+ * /inventory shipped 2026-07-04 (automated inventory: invoice capture, auto par
+ * levels, supplier orders, shrinkage) and left this gate. */
+export const WIP_HREFS = new Set<string>(["/pl", "/food-cost"]);
 
 /** Tenant ids allowed to use WIP sections while they're still being built. */
 export const WIP_TENANT_ALLOWLIST = new Set<string>([

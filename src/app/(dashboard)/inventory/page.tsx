@@ -13,19 +13,27 @@ import {
   Link2,
   Trash2,
   ShoppingCart,
+  Copy,
+  MessageCircle,
+  TrendingDown,
+  Wand2,
 } from "lucide-react";
 import { KPICard } from "@/components/ui/KPICard";
 import { InfoHotspot } from "@/components/ui/InfoHotspot";
 import { ManagementLocked } from "@/components/management/ManagementLocked";
-import { WipComingSoon } from "@/components/management/WipComingSoon";
-import { canSeeWip } from "@/lib/billing/wip";
 import { InventoryMovements } from "@/components/management/InventoryMovements";
 import { useLanguage } from "@/lib/contexts/LanguageContext";
 import { useTenant } from "@/lib/contexts/TenantContext";
 import { createClient } from "@/lib/supabase/client";
 import { Dictionary } from "@/lib/i18n/dictionaries/en";
 import { getFeatures } from "@/lib/types/tenant-settings";
-import { reorderList } from "@/lib/management/inventory-analysis";
+import {
+  reorderList,
+  suggestParLevels,
+  shrinkageSummary,
+  type MovementLite,
+} from "@/lib/management/inventory-analysis";
+import { InvoiceCapture } from "@/components/management/InvoiceCapture";
 
 interface IngredientRow {
   id: string;
@@ -50,6 +58,9 @@ type SaveState = { status: "idle" | "saving" | "ok" | "error"; msg?: string };
 
 const EXPIRY_SOON_DAYS = 5;
 
+/** Human quantity: 12 kg, 3,5 l, 0,25 kg — decimals only when they matter. */
+const fmtQty = (n: number) => (n >= 10 ? n.toFixed(0) : n >= 1 ? n.toFixed(1) : n.toFixed(2)).replace(".", ",");
+
 export default function InventoryPage() {
   const { t } = useLanguage();
   const { activeTenant } = useTenant();
@@ -67,15 +78,37 @@ export default function InventoryPage() {
   const [editingStock, setEditingStock] = useState<string | null>(null);
   const [draftStock, setDraftStock] = useState("");
 
+  // Last 30 days of the stock ledger — feeds the automatic par levels and the
+  // waste/shrinkage panel. Loaded together with the ingredients.
+  const [movements, setMovements] = useState<MovementLite[]>([]);
+
   const load = useCallback(async () => {
     if (!activeTenant?.id || !enabled) return;
-    const { data } = await supabase
-      .from("ingredients")
-      .select("id, name, unit, current_unit_cost, stock_qty, par_level, supplier_name, expiry_date, pos_external_product_id")
-      .eq("tenant_id", activeTenant.id)
-      .eq("archived", false)
-      .order("name");
+    const since = new Date(Date.now() - 30 * 86400000).toISOString();
+    const [{ data }, { data: mv }] = await Promise.all([
+      supabase
+        .from("ingredients")
+        .select("id, name, unit, current_unit_cost, stock_qty, par_level, supplier_name, expiry_date, pos_external_product_id")
+        .eq("tenant_id", activeTenant.id)
+        .eq("archived", false)
+        .order("name"),
+      supabase
+        .from("stock_movements")
+        .select("ingredient_id, qty_delta, kind, created_at")
+        .eq("tenant_id", activeTenant.id)
+        .gte("created_at", since)
+        .order("created_at", { ascending: false })
+        .limit(5000),
+    ]);
     setRows((data || []) as IngredientRow[]);
+    setMovements(
+      ((mv || []) as Array<{ ingredient_id: string; qty_delta: number; kind: string; created_at: string }>).map((m) => ({
+        ingredientId: m.ingredient_id,
+        qtyDelta: Number(m.qty_delta),
+        kind: m.kind,
+        createdAt: m.created_at,
+      })),
+    );
     setLoading(false);
   }, [activeTenant?.id, enabled, supabase]);
 
@@ -138,6 +171,87 @@ export default function InventoryPage() {
   );
   const reorderTotal = reorder.reduce((s, l) => s + l.estimatedCost, 0);
 
+  // Reorder lines grouped by supplier → each group becomes a ready-to-send
+  // order (copy / WhatsApp), so "fare l'ordine" is one tap, not a transcription.
+  const reorderBySupplier = useMemo(() => {
+    const supplierOf = new Map(rows.map((r) => [r.id, r.supplier_name?.trim() || ""]));
+    const groups = new Map<string, typeof reorder>();
+    for (const l of reorder) {
+      const key = supplierOf.get(l.ingredientId) || "";
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key)!.push(l);
+    }
+    return [...groups.entries()].sort((a, b) => a[0].localeCompare(b[0]));
+  }, [reorder, rows]);
+
+  const orderText = useCallback(
+    (supplier: string, lines: typeof reorder) => {
+      const header =
+        (supplier ? `${t("inventory_order_for" as keyof Dictionary) || "Ordine per"} ${supplier}` : t("inventory_order_generic" as keyof Dictionary) || "Ordine fornitore") +
+        (activeTenant?.name ? ` — ${activeTenant.name}` : "");
+      const body = lines.map((l) => `• ${fmtQty(l.suggestedQty)} ${l.unit} ${l.name}`).join("\n");
+      return `${header}\n${body}`;
+    },
+    [activeTenant?.name, t],
+  );
+
+  const [copiedSupplier, setCopiedSupplier] = useState<string | null>(null);
+  const copyOrder = async (supplier: string, lines: typeof reorder) => {
+    try {
+      await navigator.clipboard.writeText(orderText(supplier, lines));
+      setCopiedSupplier(supplier);
+      setTimeout(() => setCopiedSupplier(null), 2500);
+    } catch {
+      /* clipboard unavailable — the WhatsApp button still works */
+    }
+  };
+
+  // Automatic par levels: what the kitchen actually consumed in the last 30 days
+  // (POS sales + waste) → suggested minimum stock covering 3 days of usage.
+  const parSuggestions = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const s of suggestParLevels(movements, { now: new Date() })) map.set(s.ingredientId, s.suggestedPar);
+    return map;
+  }, [movements]);
+
+  // Only suggest when it changes something: par never set, or drifted >25%.
+  const actionablePar = useMemo(
+    () =>
+      rows.filter((r) => {
+        const s = parSuggestions.get(r.id);
+        if (!s || !(s > 0)) return false;
+        const cur = Number(r.par_level);
+        return cur <= 0 || Math.abs(s - cur) / cur > 0.25;
+      }),
+    [rows, parSuggestions],
+  );
+
+  const [applyingPar, setApplyingPar] = useState(false);
+  const applyAllPar = async () => {
+    if (applyingPar || actionablePar.length === 0) return;
+    setApplyingPar(true);
+    const updates = actionablePar.map((r) => ({ id: r.id, par: parSuggestions.get(r.id)! }));
+    setRows((rs) => rs.map((r) => { const u = updates.find((x) => x.id === r.id); return u ? { ...r, par_level: u.par } : r; }));
+    await Promise.all(
+      updates.map((u) =>
+        supabase.from("ingredients").update({ par_level: u.par, updated_at: new Date().toISOString() }).eq("id", u.id),
+      ),
+    );
+    setApplyingPar(false);
+  };
+
+  // Waste & count corrections of the month, valued in € — where money leaks.
+  const shrinkage = useMemo(
+    () =>
+      shrinkageSummary(
+        movements,
+        rows.map((r) => ({ id: r.id, name: r.name, unit: r.unit, unitCost: Number(r.current_unit_cost) })),
+        { now: new Date() },
+      ),
+    [movements, rows],
+  );
+  const [showShrinkage, setShowShrinkage] = useState(false);
+
   // Save stock: optimistic local update → POST (CRM + POS write-back when linked).
   async function saveStock(id: string, value: string) {
     const qty = Number(value.replace(",", "."));
@@ -198,12 +312,6 @@ export default function InventoryPage() {
     if (!error) await load();
   }
 
-  // Work-in-progress: section hidden for everyone but the WIP allowlist, even via
-  // direct URL (the sidebar already hides it). Checked before the add-on gate.
-  if (!canSeeWip(activeTenant?.id)) {
-    return <WipComingSoon />;
-  }
-
   if (!enabled) {
     return <ManagementLocked section="inventory" />;
   }
@@ -220,13 +328,22 @@ export default function InventoryPage() {
               "Giacenze, scorta minima e scadenze. Tocca la giacenza per correggerla (si aggiorna anche sulla cassa se l'ingrediente è collegato), o espandi una riga per modificare tutto."}
           </p>
         </div>
-        <button
-          onClick={() => setCreating((v) => !v)}
-          className="shrink-0 inline-flex items-center gap-1.5 px-4 py-2 text-white text-sm font-bold rounded-lg cursor-pointer"
-          style={{ background: "linear-gradient(135deg, #d4a574, #c4956a)" }}
-        >
-          <Plus className="w-4 h-4" /> {t("inventory_new" as keyof Dictionary) || "Nuovo ingrediente"}
-        </button>
+        <div className="shrink-0 flex flex-wrap items-center gap-2 justify-end">
+          {activeTenant?.id && (
+            <InvoiceCapture
+              tenantId={activeTenant.id}
+              ingredients={rows.map((r) => ({ id: r.id, name: r.name, unit: r.unit }))}
+              onDone={() => void load()}
+            />
+          )}
+          <button
+            onClick={() => setCreating((v) => !v)}
+            className="inline-flex items-center gap-1.5 px-4 py-2 text-white text-sm font-bold rounded-lg cursor-pointer"
+            style={{ background: "linear-gradient(135deg, #d4a574, #c4956a)" }}
+          >
+            <Plus className="w-4 h-4" /> {t("inventory_new" as keyof Dictionary) || "Nuovo ingrediente"}
+          </button>
+        </div>
       </div>
 
       {creating && <NewIngredientForm onCreate={createIngredient} onCancel={() => setCreating(false)} t={t} />}
@@ -254,27 +371,113 @@ export default function InventoryPage() {
             {showReorder ? <ChevronDown className="w-4 h-4 text-black" /> : <ChevronRight className="w-4 h-4 text-black" />}
           </button>
           {showReorder && (
+            <div className="px-4 pb-4 space-y-4">
+              {reorderBySupplier.map(([supplier, lines]) => (
+                <div key={supplier || "__none__"}>
+                  <div className="flex flex-wrap items-center justify-between gap-2 mb-1">
+                    <span className="text-sm font-bold text-black">
+                      {supplier || (t("inventory_no_supplier" as keyof Dictionary) || "Senza fornitore")}
+                    </span>
+                    <span className="flex items-center gap-1.5">
+                      <button
+                        onClick={() => void copyOrder(supplier, lines)}
+                        className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-bold rounded-lg border-2 cursor-pointer text-black"
+                        style={{ borderColor: "#c4956a" }}
+                      >
+                        {copiedSupplier === supplier ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
+                        {copiedSupplier === supplier
+                          ? (t("inventory_order_copied" as keyof Dictionary) || "Copiato!")
+                          : (t("inventory_order_copy" as keyof Dictionary) || "Copia ordine")}
+                      </button>
+                      <a
+                        href={`https://wa.me/?text=${encodeURIComponent(orderText(supplier, lines))}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-bold rounded-lg border-2 cursor-pointer"
+                        style={{ borderColor: "#059669", color: "#047857" }}
+                      >
+                        <MessageCircle className="w-3.5 h-3.5" /> WhatsApp
+                      </a>
+                    </span>
+                  </div>
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="text-left text-black">
+                        <th className="py-1 font-bold">{t("inventory_col_name" as keyof Dictionary) || "Ingrediente"}</th>
+                        <th className="py-1 font-bold text-right">{t("inventory_col_stock" as keyof Dictionary) || "Giacenza"}</th>
+                        <th className="py-1 font-bold text-right">{t("inventory_reorder_suggested" as keyof Dictionary) || "Da ordinare"}</th>
+                        <th className="py-1 font-bold text-right">{t("inventory_reorder_est" as keyof Dictionary) || "Stima €"}</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {lines.map((l) => (
+                        <tr key={l.ingredientId} className="border-t text-black" style={{ borderColor: "#eaddcb" }}>
+                          <td className="py-1.5">{l.name}</td>
+                          <td className="py-1.5 text-right tabular-nums">{l.stockQty} {l.unit}</td>
+                          <td className="py-1.5 text-right tabular-nums font-bold">{l.suggestedQty} {l.unit}</td>
+                          <td className="py-1.5 text-right tabular-nums">€ {l.estimatedCost.toFixed(2)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Automatic par levels — learned from the last 30 days of real usage. */}
+      {actionablePar.length > 0 && (
+        <div className="rounded-xl border-2 px-4 py-3 flex flex-wrap items-center justify-between gap-3" style={{ borderColor: "#c4956a", background: "rgba(252,246,237,0.6)" }}>
+          <span className="text-sm text-black flex items-center gap-2">
+            <Wand2 className="w-4 h-4" style={{ color: "#c4956a" }} />
+            <span>
+              <strong>
+                {(t("inventory_autopar_title" as keyof Dictionary) || "Scorte minime automatiche: {n} da aggiornare").replace("{n}", String(actionablePar.length))}
+              </strong>{" "}
+              {t("inventory_autopar_body" as keyof Dictionary) || "— calcolate dai consumi reali degli ultimi 30 giorni (coprono 3 giorni di lavoro)."}
+            </span>
+          </span>
+          <button
+            onClick={() => void applyAllPar()}
+            disabled={applyingPar}
+            className="inline-flex items-center gap-1.5 px-4 py-2 text-white text-sm font-bold rounded-lg cursor-pointer disabled:opacity-60"
+            style={{ background: "linear-gradient(135deg, #d4a574, #c4956a)" }}
+          >
+            {applyingPar ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
+            {t("inventory_autopar_apply" as keyof Dictionary) || "Applica tutte"}
+          </button>
+        </div>
+      )}
+
+      {/* Shrinkage — waste, count corrections and adjustments of the month in €. */}
+      {shrinkage.lines.length > 0 && (
+        <div className="rounded-xl border-2" style={{ borderColor: "#eaddcb", background: "rgba(252,246,237,0.4)" }}>
+          <button onClick={() => setShowShrinkage((v) => !v)} className="w-full flex items-center justify-between gap-2 px-4 py-3 cursor-pointer">
+            <span className="text-sm font-bold text-black flex items-center gap-2">
+              <TrendingDown className="w-4 h-4 text-red-600" />
+              {(t("inventory_shrinkage_title" as keyof Dictionary) || "Sprechi e differenze (30 gg): {total} €")
+                .replace("{total}", shrinkage.totalCost.toLocaleString("it-IT", { maximumFractionDigits: 0 }))}
+            </span>
+            {showShrinkage ? <ChevronDown className="w-4 h-4 text-black" /> : <ChevronRight className="w-4 h-4 text-black" />}
+          </button>
+          {showShrinkage && (
             <div className="px-4 pb-4">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="text-left text-black">
-                    <th className="py-1 font-bold">{t("inventory_col_name" as keyof Dictionary) || "Ingrediente"}</th>
-                    <th className="py-1 font-bold text-right">{t("inventory_col_stock" as keyof Dictionary) || "Giacenza"}</th>
-                    <th className="py-1 font-bold text-right">{t("inventory_reorder_suggested" as keyof Dictionary) || "Da ordinare"}</th>
-                    <th className="py-1 font-bold text-right">{t("inventory_reorder_est" as keyof Dictionary) || "Stima €"}</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {reorder.map((l) => (
-                    <tr key={l.ingredientId} className="border-t text-black" style={{ borderColor: "#eaddcb" }}>
-                      <td className="py-1.5">{l.name}</td>
-                      <td className="py-1.5 text-right tabular-nums">{l.stockQty} {l.unit}</td>
-                      <td className="py-1.5 text-right tabular-nums font-bold">{l.suggestedQty} {l.unit}</td>
-                      <td className="py-1.5 text-right tabular-nums">€ {l.estimatedCost.toFixed(2)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+              <p className="text-xs text-black mb-2">
+                {t("inventory_shrinkage_help" as keyof Dictionary) ||
+                  "Somma di scarti, rettifiche e differenze delle conte fisiche: qui si vede quanto magazzino sparisce senza essere venduto."}
+              </p>
+              <ul className="space-y-1">
+                {shrinkage.lines.slice(0, 10).map((l) => (
+                  <li key={l.ingredientId} className="text-sm text-black flex items-center justify-between gap-2">
+                    <span>{l.name}</span>
+                    <span className="tabular-nums">
+                      {fmtQty(Math.abs(l.qty))} {l.unit} · <span className={l.cost < 0 ? "text-red-600 font-bold" : "text-emerald-700"}>{l.cost.toFixed(2)} €</span>
+                    </span>
+                  </li>
+                ))}
+              </ul>
             </div>
           )}
         </div>
@@ -315,6 +518,7 @@ export default function InventoryPage() {
                   onCancelStock={() => setEditingStock(null)}
                   saveState={saveStates[r.id]}
                   posProducts={posProducts}
+                  parSuggestion={parSuggestions.get(r.id)}
                   onPatch={(patch) => patchIngredient(r.id, patch)}
                   onArchive={() => archiveIngredient(r.id)}
                   t={t}
@@ -332,7 +536,7 @@ export default function InventoryPage() {
 // editor row for every other field, including the POS-product link picker.
 function IngredientRowGroup({
   r, isOpen, onToggle, low, soon, editingStock, draftStock, setDraftStock,
-  onStartStockEdit, onCommitStock, onCancelStock, saveState, posProducts, onPatch, onArchive, t,
+  onStartStockEdit, onCommitStock, onCancelStock, saveState, posProducts, parSuggestion, onPatch, onArchive, t,
 }: {
   r: IngredientRow;
   isOpen: boolean;
@@ -347,6 +551,8 @@ function IngredientRowGroup({
   onCancelStock: () => void;
   saveState?: SaveState;
   posProducts: PosProduct[] | null;
+  /** data-driven par level from the last 30 days of consumption, if any. */
+  parSuggestion?: number;
   onPatch: (patch: Partial<IngredientRow>) => void;
   onArchive: () => void;
   t: (k: keyof Dictionary) => string;
@@ -434,6 +640,17 @@ function IngredientRowGroup({
                 <label className="flex flex-col gap-1">
                   <span className="text-xs font-bold text-black">{t("inventory_col_par" as keyof Dictionary) || "Scorta min."}</span>
                   <input type="number" step="0.01" defaultValue={r.par_level} onBlur={(e) => { const v = Number(e.target.value.replace(",", ".")); if (Number.isFinite(v) && v !== Number(r.par_level)) onPatch({ par_level: v }); }} className={inputCls} style={inputStyle} />
+                  {parSuggestion != null && Math.abs(parSuggestion - Number(r.par_level)) > 0.0005 && (
+                    <button
+                      onClick={() => onPatch({ par_level: parSuggestion })}
+                      className="text-left text-xs cursor-pointer underline decoration-dotted underline-offset-2"
+                      style={{ color: "#8b6540" }}
+                    >
+                      {(t("inventory_autopar_row" as keyof Dictionary) || "Dai consumi: {v} {unit} — usa")
+                        .replace("{v}", fmtQty(parSuggestion))
+                        .replace("{unit}", r.unit)}
+                    </button>
+                  )}
                 </label>
                 <label className="flex flex-col gap-1">
                   <span className="text-xs font-bold text-black">{t("inventory_unit_cost" as keyof Dictionary) || "Costo unitario €"}</span>
