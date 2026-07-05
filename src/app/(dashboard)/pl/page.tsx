@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { PieChart as PieIcon, Users, Calculator, Wallet, TrendingUp, Download, AlertTriangle } from "lucide-react";
+import Link from "next/link";
+import { PieChart as PieIcon, Users, Calculator, Wallet, TrendingUp, Download, AlertTriangle, Settings } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend } from "recharts";
 import { ChartFrame } from "@/components/ChartFrame";
 import { useLanguage } from "@/lib/contexts/LanguageContext";
@@ -361,6 +362,21 @@ export default function PlPage() {
               </div>
             </div>
           </div>
+
+          {/* The P&L only gets real when staff + fixed costs are in: point straight
+              to the one place where they're entered. */}
+          {summary && summary.revenue > 0 && (summary.labor === 0 || summary.overhead === 0) && (
+            <Link
+              href="/settings"
+              className="rounded-xl border p-3 flex items-start gap-2 text-sm cursor-pointer"
+              style={{ borderColor: "rgba(196,149,106,0.5)", background: "rgba(196,149,106,0.08)" }}
+            >
+              <Settings className="w-5 h-5 shrink-0" style={{ color: "#8b6540" }} />
+              <span className="text-black">
+                {t("pl_missing_costs")} <span className="font-bold underline underline-offset-2" style={{ color: "#8b6540" }}>{t("nav_settings")} →</span>
+              </span>
+            </Link>
+          )}
 
           {laborOver && (
             <div className="rounded-xl border p-3 flex items-start gap-2 text-sm" style={{ borderColor: "rgba(220,38,38,0.4)", background: "rgba(220,38,38,0.06)" }}>

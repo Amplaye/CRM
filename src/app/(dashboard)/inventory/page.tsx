@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Package,
   AlertTriangle,
@@ -19,6 +19,7 @@ import {
   Wand2,
   Search,
   X,
+  Banknote,
 } from "lucide-react";
 import { InfoHotspot } from "@/components/ui/InfoHotspot";
 import { ManagementLocked } from "@/components/management/ManagementLocked";
@@ -72,6 +73,17 @@ const BRONZE_BG = { background: "linear-gradient(135deg, #d4a574, #c4956a)" } as
 const fmtQty = (n: number) => (n >= 10 ? n.toFixed(0) : n >= 1 ? n.toFixed(1) : n.toFixed(2)).replace(".", ",");
 const fmtEur = (n: number) => n.toLocaleString("it-IT", { maximumFractionDigits: 0 });
 
+const isLow = (r: IngredientRow) => Number(r.par_level) > 0 && Number(r.stock_qty) <= Number(r.par_level);
+const daysToExpiry = (r: IngredientRow): number | null => {
+  if (!r.expiry_date) return null;
+  const ms = new Date(r.expiry_date + "T00:00:00").getTime() - Date.now();
+  return Math.floor(ms / 86400000);
+};
+const isExpiringSoon = (r: IngredientRow) => {
+  const d = daysToExpiry(r);
+  return d != null && d <= EXPIRY_SOON_DAYS;
+};
+
 export default function InventoryPage() {
   const { t } = useLanguage();
   const { activeTenant } = useTenant();
@@ -90,6 +102,12 @@ export default function InventoryPage() {
   // Inline stock edit (the headline editable field, with POS write-back).
   const [editingStock, setEditingStock] = useState<string | null>(null);
   const [draftStock, setDraftStock] = useState("");
+
+  // Mirror of `rows` for stable callbacks: row cards are memoized, so their
+  // handlers must not close over `rows` (a new identity per load would defeat
+  // the memo and re-render every card on each keystroke/expand).
+  const rowsRef = useRef<IngredientRow[]>([]);
+  useEffect(() => { rowsRef.current = rows; }, [rows]);
 
   // Last 30 days of the stock ledger — feeds the automatic par levels and the
   // waste/shrinkage panel. Loaded together with the ingredients.
@@ -152,19 +170,12 @@ export default function InventoryPage() {
     }
   }, [posProducts, activeTenant?.id]);
 
-  const isLow = (r: IngredientRow) => Number(r.par_level) > 0 && Number(r.stock_qty) <= Number(r.par_level);
-  const daysToExpiry = (r: IngredientRow): number | null => {
-    if (!r.expiry_date) return null;
-    const ms = new Date(r.expiry_date + "T00:00:00").getTime() - Date.now();
-    return Math.floor(ms / 86400000);
-  };
-  const isExpiringSoon = (r: IngredientRow) => {
-    const d = daysToExpiry(r);
-    return d != null && d <= EXPIRY_SOON_DAYS;
-  };
-
-  const lowCount = rows.filter(isLow).length;
-  const expiringCount = rows.filter(isExpiringSoon).length;
+  const lowCount = useMemo(() => rows.filter(isLow).length, [rows]);
+  const expiringCount = useMemo(() => rows.filter(isExpiringSoon).length, [rows]);
+  const stockValue = useMemo(
+    () => rows.reduce((s, r) => s + Number(r.stock_qty) * Number(r.current_unit_cost), 0),
+    [rows],
+  );
 
   // Reorder suggestions: items at/below par, topped up to 2× par (pure helper).
   const reorder = useMemo(
@@ -200,7 +211,7 @@ export default function InventoryPage() {
   const orderText = useCallback(
     (supplier: string, lines: typeof reorder) => {
       const header =
-        (supplier ? `${t("inventory_order_for" as keyof Dictionary) || "Ordine per"} ${supplier}` : t("inventory_order_generic" as keyof Dictionary) || "Ordine fornitore") +
+        (supplier ? `${t("inventory_order_for")} ${supplier}` : t("inventory_order_generic")) +
         (activeTenant?.name ? ` — ${activeTenant.name}` : "");
       const body = lines.map((l) => `• ${fmtQty(l.suggestedQty)} ${l.unit} ${l.name}`).join("\n");
       return `${header}\n${body}`;
@@ -266,12 +277,26 @@ export default function InventoryPage() {
   const [showShrinkage, setShowShrinkage] = useState(false);
   const [showOrders, setShowOrders] = useState(false);
 
+  // ── Stable per-row handlers (row cards are React.memo) ────────────────────
+  const toggleRow = useCallback((id: string) => {
+    void ensurePosProducts();
+    setExpanded((cur) => (cur === id ? null : id));
+  }, [ensurePosProducts]);
+
+  const startStockEdit = useCallback((id: string) => {
+    const cur = rowsRef.current.find((r) => r.id === id);
+    setDraftStock(cur ? String(cur.stock_qty) : "");
+    setEditingStock(id);
+  }, []);
+
+  const cancelStockEdit = useCallback(() => setEditingStock(null), []);
+
   // Save stock: optimistic local update → POST (CRM + POS write-back when linked).
-  async function saveStock(id: string, value: string) {
+  const commitStock = useCallback(async (id: string, value: string) => {
     const qty = Number(value.replace(",", "."));
     setEditingStock(null);
     if (!Number.isFinite(qty) || qty < 0) return;
-    const prev = rows.find((r) => r.id === id)?.stock_qty ?? null;
+    const prev = rowsRef.current.find((r) => r.id === id)?.stock_qty ?? null;
     if (prev != null && Math.abs(Number(prev) - qty) < 0.0005) return;
 
     setRows((rs) => rs.map((r) => (r.id === id ? { ...r, stock_qty: qty } : r)));
@@ -284,16 +309,16 @@ export default function InventoryPage() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data?.error || "save failed");
-      setSaveStates((s) => ({ ...s, [id]: { status: "ok", msg: data?.pos?.detail || (t("settings_saved" as keyof Dictionary) || "Salvato") } }));
+      setSaveStates((s) => ({ ...s, [id]: { status: "ok", msg: data?.pos?.detail || t("settings_saved") } }));
       setTimeout(() => setSaveStates((s) => ({ ...s, [id]: { status: "idle" } })), 4000);
     } catch (e: any) {
       setRows((rs) => rs.map((r) => (r.id === id ? { ...r, stock_qty: Number(prev) } : r)));
       setSaveStates((s) => ({ ...s, [id]: { status: "error", msg: e?.message || "Errore" } }));
     }
-  }
+  }, [t]);
 
   // Patch any other ingredient field directly (CRM-only — no POS write needed).
-  async function patchIngredient(id: string, patch: Partial<IngredientRow>) {
+  const patchIngredient = useCallback(async (id: string, patch: Partial<IngredientRow>) => {
     setRows((rs) => rs.map((r) => (r.id === id ? { ...r, ...patch } : r)));
     const { error } = await supabase.from("ingredients").update({ ...patch, updated_at: new Date().toISOString() }).eq("id", id);
     if (error) {
@@ -302,14 +327,14 @@ export default function InventoryPage() {
       setSaveStates((s) => ({ ...s, [id]: { status: "ok" } }));
       setTimeout(() => setSaveStates((s) => ({ ...s, [id]: { status: "idle" } })), 1500);
     }
-  }
+  }, [supabase]);
 
-  async function archiveIngredient(id: string) {
-    if (!confirm(t("inventory_confirm_delete" as keyof Dictionary) || "Eliminare questo ingrediente?")) return;
+  const archiveIngredient = useCallback(async (id: string) => {
+    if (!confirm(t("inventory_confirm_delete"))) return;
     setExpanded(null);
     setRows((rs) => rs.filter((r) => r.id !== id));
     await supabase.from("ingredients").update({ archived: true, updated_at: new Date().toISOString() }).eq("id", id);
-  }
+  }, [supabase, t]);
 
   async function createIngredient(name: string, unit: string) {
     if (!activeTenant?.id || !name.trim()) return;
@@ -336,18 +361,24 @@ export default function InventoryPage() {
       if (filter === "reorder") return reorderIds.has(r.id);
       return true;
     });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rows, query, filter, reorderIds]);
+
+  // Stable identity for the InvoiceCapture prop (it re-renders on every parent
+  // render otherwise).
+  const captureIngredients = useMemo(
+    () => rows.map((r) => ({ id: r.id, name: r.name, unit: r.unit })),
+    [rows],
+  );
 
   if (!enabled) {
     return <ManagementLocked section="inventory" />;
   }
 
   const chips: Array<{ key: Filter; label: string; count: number; tone?: "red" | "amber" }> = [
-    { key: "all", label: t("inventory_filter_all" as keyof Dictionary) || "Tutti", count: rows.length },
-    { key: "low", label: t("inventory_low" as keyof Dictionary) || "Scorta bassa", count: lowCount, tone: "red" },
-    { key: "expiring", label: t("inventory_expiring" as keyof Dictionary) || "In scadenza", count: expiringCount, tone: "amber" },
-    { key: "reorder", label: t("inventory_reorder" as keyof Dictionary) || "Da riordinare", count: reorder.length, tone: "amber" },
+    { key: "all", label: t("inventory_filter_all"), count: rows.length },
+    { key: "low", label: t("inventory_low"), count: lowCount, tone: "red" },
+    { key: "expiring", label: t("inventory_expiring"), count: expiringCount, tone: "amber" },
+    { key: "reorder", label: t("inventory_reorder"), count: reorder.length, tone: "amber" },
   ];
 
   const allGood = !loading && reorder.length === 0 && actionablePar.length === 0 && lowCount === 0 && expiringCount === 0;
@@ -358,23 +389,18 @@ export default function InventoryPage() {
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold text-black flex items-center gap-2">
-            <Package className="w-6 h-6" /> {t("nav_inventory" as keyof Dictionary) || "Inventario"}
+            <Package className="w-6 h-6" /> {t("nav_inventory")}
           </h1>
           <p className="mt-1 text-sm" style={{ color: "#8b6540" }}>
-            {t("inventory_subtitle_v2" as keyof Dictionary) ||
-              "Si aggiorna da solo con le vendite della cassa e le fatture fotografate. Tocca una quantità per correggerla."}
+            {t("inventory_subtitle_v2")}
           </p>
         </div>
         <div className="shrink-0 flex flex-wrap items-center gap-2 justify-end">
           {activeTenant?.id && (
-            <InvoiceCapture
-              tenantId={activeTenant.id}
-              ingredients={rows.map((r) => ({ id: r.id, name: r.name, unit: r.unit }))}
-              onDone={() => void load()}
-            />
+            <InvoiceCapture tenantId={activeTenant.id} ingredients={captureIngredients} onDone={load} />
           )}
           <button onClick={() => setCreating((v) => !v)} className={BRONZE_BTN} style={BRONZE_BG}>
-            <Plus className="w-4 h-4" /> {t("inventory_new" as keyof Dictionary) || "Nuovo ingrediente"}
+            <Plus className="w-4 h-4" /> {t("inventory_new")}
           </button>
         </div>
       </div>
@@ -383,29 +409,33 @@ export default function InventoryPage() {
 
       {/* ── Smart strip: everything the system worked out on its own ───────── */}
       {allGood ? (
-        <div className={`${CARD} px-4 py-3 flex items-center gap-2`} style={{ ...CARD_STYLE, background: "rgba(16,185,129,0.07)", borderColor: "rgba(5,150,105,0.3)" }}>
-          <Check className="w-5 h-5 text-emerald-600 shrink-0" />
-          <span className="text-sm font-bold text-emerald-700">
-            {t("inventory_all_good" as keyof Dictionary) || "Tutto a posto: niente da riordinare, nessuna scadenza vicina."}
+        <div className={`${CARD} px-4 py-3 flex flex-wrap items-center gap-x-4 gap-y-1`} style={{ ...CARD_STYLE, background: "rgba(16,185,129,0.07)", borderColor: "rgba(5,150,105,0.3)" }}>
+          <span className="flex items-center gap-2 text-sm font-bold text-emerald-700">
+            <Check className="w-5 h-5 shrink-0" /> {t("inventory_all_good")}
           </span>
+          {stockValue > 0 && (
+            <span className="text-sm text-black">
+              {t("inventory_value_title")}: <strong className="tabular-nums">€ {fmtEur(stockValue)}</strong>
+            </span>
+          )}
         </div>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
           {/* Reorder card */}
           <SmartCard
             icon={<ShoppingCart className="w-5 h-5" />}
             active={reorder.length > 0}
             tone="amber"
-            title={t("inventory_reorder" as keyof Dictionary) || "Da riordinare"}
+            title={t("inventory_reorder")}
             big={reorder.length > 0 ? `${reorder.length}` : "0"}
             sub={
               reorder.length > 0
-                ? (t("inventory_reorder_est_short" as keyof Dictionary) || "stima € {total}").replace("{total}", fmtEur(reorderTotal))
-                : t("inventory_nothing" as keyof Dictionary) || "niente da fare"
+                ? t("inventory_reorder_est_short").replace("{total}", fmtEur(reorderTotal))
+                : t("inventory_nothing")
             }
             action={
               reorder.length > 0
-                ? { label: showOrders ? (t("close" as keyof Dictionary) || "Chiudi") : (t("inventory_prepare_orders" as keyof Dictionary) || "Prepara ordini"), onClick: () => setShowOrders((v) => !v) }
+                ? { label: showOrders ? t("close") : t("inventory_prepare_orders"), onClick: () => setShowOrders((v) => !v) }
                 : undefined
             }
           />
@@ -414,45 +444,38 @@ export default function InventoryPage() {
             icon={<Wand2 className="w-5 h-5" />}
             active={actionablePar.length > 0}
             tone="bronze"
-            title={t("inventory_autopar_short" as keyof Dictionary) || "Scorte minime auto"}
+            title={t("inventory_autopar_short")}
             big={`${actionablePar.length}`}
-            sub={
-              actionablePar.length > 0
-                ? t("inventory_autopar_sub" as keyof Dictionary) || "calcolate dai consumi reali"
-                : t("inventory_uptodate" as keyof Dictionary) || "già aggiornate"
-            }
+            sub={actionablePar.length > 0 ? t("inventory_autopar_sub") : t("inventory_uptodate")}
             action={
               actionablePar.length > 0
-                ? {
-                    label: applyingPar ? "…" : t("inventory_autopar_apply" as keyof Dictionary) || "Applica tutte",
-                    onClick: () => void applyAllPar(),
-                  }
+                ? { label: applyingPar ? "…" : t("inventory_autopar_apply"), onClick: () => void applyAllPar() }
                 : undefined
             }
-            info={{
-              title: t("inventory_autopar_short" as keyof Dictionary) || "Scorte minime automatiche",
-              body:
-                t("inventory_autopar_body" as keyof Dictionary) ||
-                "Calcolate dai consumi reali degli ultimi 30 giorni (coprono 3 giorni di lavoro).",
-            }}
+            info={{ title: t("inventory_autopar_short"), body: t("inventory_autopar_body") }}
           />
           {/* Shrinkage card */}
           <SmartCard
             icon={<TrendingDown className="w-5 h-5" />}
             active={shrinkage.lines.length > 0 && shrinkage.totalCost < 0}
             tone="red"
-            title={t("inventory_shrinkage_short" as keyof Dictionary) || "Sprechi 30 gg"}
+            title={t("inventory_shrinkage_short")}
             big={`€ ${fmtEur(Math.abs(shrinkage.totalCost))}`}
-            sub={
-              shrinkage.lines.length > 0
-                ? t("inventory_shrinkage_sub" as keyof Dictionary) || "scarti, rettifiche e differenze"
-                : t("inventory_nothing" as keyof Dictionary) || "niente da fare"
-            }
+            sub={shrinkage.lines.length > 0 ? t("inventory_shrinkage_sub") : t("inventory_nothing")}
             action={
               shrinkage.lines.length > 0
-                ? { label: showShrinkage ? (t("close" as keyof Dictionary) || "Chiudi") : (t("details" as keyof Dictionary) || "Dettagli"), onClick: () => setShowShrinkage((v) => !v) }
+                ? { label: showShrinkage ? t("close") : t("details"), onClick: () => setShowShrinkage((v) => !v) }
                 : undefined
             }
+          />
+          {/* Stock value card — always informative, never a to-do */}
+          <SmartCard
+            icon={<Banknote className="w-5 h-5" />}
+            active={false}
+            tone="bronze"
+            title={t("inventory_value_title")}
+            big={`€ ${fmtEur(stockValue)}`}
+            sub={t("inventory_value_sub")}
           />
         </div>
       )}
@@ -462,7 +485,7 @@ export default function InventoryPage() {
         <div className={`${CARD} p-4 space-y-4`} style={CARD_STYLE}>
           <div className="text-sm font-bold text-black flex items-center gap-2">
             <ShoppingCart className="w-4 h-4" />
-            {(t("inventory_reorder_title" as keyof Dictionary) || "Lista riordino ({n} articoli · stima € {total})")
+            {t("inventory_reorder_title")
               .replace("{n}", String(reorder.length))
               .replace("{total}", fmtEur(reorderTotal))}
           </div>
@@ -471,7 +494,7 @@ export default function InventoryPage() {
               <div key={supplier || "__none__"} className="rounded-xl border p-3" style={{ borderColor: "#eaddcb", background: "rgba(252,246,237,0.6)" }}>
                 <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
                   <span className="text-sm font-bold text-black">
-                    {supplier || (t("inventory_no_supplier" as keyof Dictionary) || "Senza fornitore")}
+                    {supplier || t("inventory_no_supplier")}
                   </span>
                   <span className="flex items-center gap-1.5">
                     <button
@@ -480,9 +503,7 @@ export default function InventoryPage() {
                       style={{ borderColor: "#c4956a" }}
                     >
                       {copiedSupplier === supplier ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
-                      {copiedSupplier === supplier
-                        ? (t("inventory_order_copied" as keyof Dictionary) || "Copiato!")
-                        : (t("inventory_order_copy" as keyof Dictionary) || "Copia")}
+                      {copiedSupplier === supplier ? t("inventory_order_copied") : t("inventory_order_copy")}
                     </button>
                     <a
                       href={`https://wa.me/?text=${encodeURIComponent(orderText(supplier, lines))}`}
@@ -516,8 +537,7 @@ export default function InventoryPage() {
       {showShrinkage && shrinkage.lines.length > 0 && (
         <div className={`${CARD} p-4`} style={CARD_STYLE}>
           <p className="text-xs mb-2" style={{ color: "#8b6540" }}>
-            {t("inventory_shrinkage_help" as keyof Dictionary) ||
-              "Somma di scarti, rettifiche e differenze delle conte fisiche: qui si vede quanto magazzino sparisce senza essere venduto."}
+            {t("inventory_shrinkage_help")}
           </p>
           <ul className="space-y-1.5">
             {shrinkage.lines.slice(0, 10).map((l) => (
@@ -539,7 +559,7 @@ export default function InventoryPage() {
           <input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder={t("inventory_search_ph" as keyof Dictionary) || "Cerca ingrediente o fornitore…"}
+            placeholder={t("inventory_search_ph")}
             className="w-full pl-9 pr-8 py-2 text-sm rounded-xl border bg-white/70 text-black outline-none focus:border-[#c4956a]"
             style={{ borderColor: "#eaddcb" }}
           />
@@ -588,9 +608,7 @@ export default function InventoryPage() {
           ))
         ) : visible.length === 0 ? (
           <div className={`${CARD} p-8 text-center text-sm text-black`} style={CARD_STYLE}>
-            {rows.length === 0
-              ? t("inventory_empty" as keyof Dictionary) || "Nessun ingrediente. Fotografa una fattura o aggiungine uno."
-              : t("inventory_no_match" as keyof Dictionary) || "Nessun risultato con questi filtri."}
+            {rows.length === 0 ? t("inventory_empty") : t("inventory_no_match")}
           </div>
         ) : (
           visible.map((r) => (
@@ -598,20 +616,18 @@ export default function InventoryPage() {
               key={r.id}
               r={r}
               isOpen={expanded === r.id}
-              onToggle={() => { const open = expanded === r.id; setExpanded(open ? null : r.id); if (!open) void ensurePosProducts(); }}
-              low={isLow(r)}
-              daysToExpiry={daysToExpiry(r)}
-              editingStock={editingStock === r.id}
-              draftStock={draftStock}
-              setDraftStock={setDraftStock}
-              onStartStockEdit={() => { setEditingStock(r.id); setDraftStock(String(r.stock_qty)); }}
-              onCommitStock={() => saveStock(r.id, draftStock)}
-              onCancelStock={() => setEditingStock(null)}
+              editing={editingStock === r.id}
+              draft={editingStock === r.id ? draftStock : ""}
               saveState={saveStates[r.id]}
               posProducts={posProducts}
               parSuggestion={parSuggestions.get(r.id)}
-              onPatch={(patch) => patchIngredient(r.id, patch)}
-              onArchive={() => archiveIngredient(r.id)}
+              onToggle={toggleRow}
+              onStartEdit={startStockEdit}
+              onDraftChange={setDraftStock}
+              onCommit={commitStock}
+              onCancel={cancelStockEdit}
+              onPatch={patchIngredient}
+              onArchive={archiveIngredient}
               t={t}
             />
           ))
@@ -684,29 +700,31 @@ function StockBar({ stock, par }: { stock: number; par: number }) {
 
 // One ingredient card: status dot + name + supplier, visual stock gauge, tappable
 // quantity (POS write-back), expiry badge; expands into the full editor.
-function IngredientCard({
-  r, isOpen, onToggle, low, daysToExpiry, editingStock, draftStock, setDraftStock,
-  onStartStockEdit, onCommitStock, onCancelStock, saveState, posProducts, parSuggestion, onPatch, onArchive, t,
+// Memoized — all handlers are id-based and referentially stable, so expanding or
+// typing in one card never re-renders the rest of the list.
+const IngredientCard = memo(function IngredientCard({
+  r, isOpen, editing, draft, saveState, posProducts, parSuggestion,
+  onToggle, onStartEdit, onDraftChange, onCommit, onCancel, onPatch, onArchive, t,
 }: {
   r: IngredientRow;
   isOpen: boolean;
-  onToggle: () => void;
-  low: boolean;
-  daysToExpiry: number | null;
-  editingStock: boolean;
-  draftStock: string;
-  setDraftStock: (v: string) => void;
-  onStartStockEdit: () => void;
-  onCommitStock: () => void;
-  onCancelStock: () => void;
+  editing: boolean;
+  draft: string;
   saveState?: SaveState;
   posProducts: PosProduct[] | null;
   parSuggestion?: number;
-  onPatch: (patch: Partial<IngredientRow>) => void;
-  onArchive: () => void;
+  onToggle: (id: string) => void;
+  onStartEdit: (id: string) => void;
+  onDraftChange: (v: string) => void;
+  onCommit: (id: string, value: string) => void;
+  onCancel: () => void;
+  onPatch: (id: string, patch: Partial<IngredientRow>) => void;
+  onArchive: (id: string) => void;
   t: (k: keyof Dictionary) => string;
 }) {
-  const soon = daysToExpiry != null && daysToExpiry <= EXPIRY_SOON_DAYS;
+  const low = isLow(r);
+  const days = daysToExpiry(r);
+  const soon = days != null && days <= EXPIRY_SOON_DAYS;
   const statusColor = low ? "#dc2626" : soon ? "#d97706" : "#059669";
   const inputCls = "px-2.5 py-1.5 text-sm border rounded-lg text-black bg-white";
   const inputStyle = { borderColor: "#dfcdb4" };
@@ -714,13 +732,13 @@ function IngredientCard({
   return (
     <div className={CARD} style={{ ...CARD_STYLE, borderColor: isOpen ? "#c4956a" : low ? "rgba(220,38,38,0.35)" : "#eaddcb" }}>
       {/* Main row */}
-      <div className="flex items-center gap-3 px-3 sm:px-4 py-3 cursor-pointer select-none" onClick={onToggle}>
+      <div className="flex items-center gap-3 px-3 sm:px-4 py-3 cursor-pointer select-none" onClick={() => onToggle(r.id)}>
         <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: statusColor }} aria-hidden />
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-1.5">
             <span className="font-bold text-black truncate">{r.name}</span>
             {r.pos_external_product_id && (
-              <span title={t("inventory_linked_hint" as keyof Dictionary) || "Collegato a un prodotto della cassa"}>
+              <span title={t("inventory_linked_hint")}>
                 <Link2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
               </span>
             )}
@@ -739,36 +757,34 @@ function IngredientCard({
         {soon && (
           <span className="hidden sm:inline-flex items-center gap-1 text-xs font-bold px-2 py-1 rounded-full shrink-0" style={{ background: "rgba(217,119,6,0.12)", color: "#b45309" }}>
             <Clock className="w-3 h-3" />
-            {daysToExpiry! <= 0
-              ? t("inventory_expired" as keyof Dictionary) || "scaduto"
-              : `${daysToExpiry} ${t("pl_days_short" as keyof Dictionary) || "gg"}`}
+            {days! <= 0 ? t("inventory_expired") : `${days} ${t("pl_days_short")}`}
           </span>
         )}
         {low && (
           <span className="hidden sm:inline-flex items-center gap-1 text-xs font-bold px-2 py-1 rounded-full shrink-0" style={{ background: "rgba(220,38,38,0.1)", color: "#dc2626" }}>
-            <AlertTriangle className="w-3 h-3" /> {t("inventory_low_badge" as keyof Dictionary) || "bassa"}
+            <AlertTriangle className="w-3 h-3" /> {t("inventory_low_badge")}
           </span>
         )}
 
         {/* Quantity — the headline tappable value */}
         <div onClick={(e) => e.stopPropagation()} className="shrink-0">
-          {editingStock ? (
+          {editing ? (
             <input
               autoFocus
               type="number"
               step="0.01"
-              value={draftStock}
-              onChange={(e) => setDraftStock(e.target.value)}
-              onBlur={onCommitStock}
-              onKeyDown={(e) => { if (e.key === "Enter") onCommitStock(); if (e.key === "Escape") onCancelStock(); }}
+              value={draft}
+              onChange={(e) => onDraftChange(e.target.value)}
+              onBlur={() => onCommit(r.id, draft)}
+              onKeyDown={(e) => { if (e.key === "Enter") onCommit(r.id, draft); if (e.key === "Escape") onCancel(); }}
               className="w-24 px-2 py-1.5 text-right text-sm font-bold border-2 rounded-lg text-black"
               style={{ borderColor: "#c4956a" }}
             />
           ) : (
             <button
-              onClick={onStartStockEdit}
+              onClick={() => onStartEdit(r.id)}
               className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg cursor-pointer hover:bg-[#c4956a]/10"
-              title={t("inventory_edit_stock_hint" as keyof Dictionary) || "Modifica giacenza"}
+              title={t("inventory_edit_stock_hint")}
             >
               {saveState?.status === "saving" && <Loader2 className="w-3.5 h-3.5 animate-spin text-black" />}
               {saveState?.status === "ok" && <Check className="w-3.5 h-3.5 text-emerald-600" />}
@@ -792,39 +808,39 @@ function IngredientCard({
         <div className="px-3 sm:px-4 pb-4 space-y-4 border-t pt-4" style={{ borderColor: "#f0e5d4" }}>
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
             <label className="flex flex-col gap-1">
-              <span className="text-xs font-bold text-black">{t("inventory_col_name" as keyof Dictionary) || "Ingrediente"}</span>
-              <input defaultValue={r.name} onBlur={(e) => { const v = e.target.value.trim(); if (v && v !== r.name) onPatch({ name: v }); }} className={inputCls} style={inputStyle} />
+              <span className="text-xs font-bold text-black">{t("inventory_col_name")}</span>
+              <input defaultValue={r.name} onBlur={(e) => { const v = e.target.value.trim(); if (v && v !== r.name) onPatch(r.id, { name: v }); }} className={inputCls} style={inputStyle} />
             </label>
             <label className="flex flex-col gap-1">
-              <span className="text-xs font-bold text-black">{t("inventory_unit" as keyof Dictionary) || "Unità (kg, l, pz)"}</span>
-              <input defaultValue={r.unit} onBlur={(e) => { const v = e.target.value.trim(); if (v && v !== r.unit) onPatch({ unit: v }); }} className={inputCls} style={inputStyle} />
+              <span className="text-xs font-bold text-black">{t("inventory_unit")}</span>
+              <input defaultValue={r.unit} onBlur={(e) => { const v = e.target.value.trim(); if (v && v !== r.unit) onPatch(r.id, { unit: v }); }} className={inputCls} style={inputStyle} />
             </label>
             <label className="flex flex-col gap-1">
-              <span className="text-xs font-bold text-black">{t("inventory_col_par" as keyof Dictionary) || "Scorta min."}</span>
-              <input type="number" step="0.01" defaultValue={r.par_level} onBlur={(e) => { const v = Number(e.target.value.replace(",", ".")); if (Number.isFinite(v) && v !== Number(r.par_level)) onPatch({ par_level: v }); }} className={inputCls} style={inputStyle} />
+              <span className="text-xs font-bold text-black">{t("inventory_col_par")}</span>
+              <input type="number" step="0.01" defaultValue={r.par_level} onBlur={(e) => { const v = Number(e.target.value.replace(",", ".")); if (Number.isFinite(v) && v !== Number(r.par_level)) onPatch(r.id, { par_level: v }); }} className={inputCls} style={inputStyle} />
               {parSuggestion != null && Math.abs(parSuggestion - Number(r.par_level)) > 0.0005 && (
                 <button
-                  onClick={() => onPatch({ par_level: parSuggestion })}
+                  onClick={() => onPatch(r.id, { par_level: parSuggestion })}
                   className="text-left text-xs cursor-pointer underline decoration-dotted underline-offset-2"
                   style={{ color: "#8b6540" }}
                 >
-                  {(t("inventory_autopar_row" as keyof Dictionary) || "Dai consumi: {v} {unit} — usa")
+                  {t("inventory_autopar_row")
                     .replace("{v}", fmtQty(parSuggestion))
                     .replace("{unit}", r.unit)}
                 </button>
               )}
             </label>
             <label className="flex flex-col gap-1">
-              <span className="text-xs font-bold text-black">{t("inventory_unit_cost" as keyof Dictionary) || "Costo unitario €"}</span>
-              <input type="number" step="0.0001" defaultValue={r.current_unit_cost} onBlur={(e) => { const v = Number(e.target.value.replace(",", ".")); if (Number.isFinite(v) && v !== Number(r.current_unit_cost)) onPatch({ current_unit_cost: v }); }} className={inputCls} style={inputStyle} />
+              <span className="text-xs font-bold text-black">{t("inventory_unit_cost")}</span>
+              <input type="number" step="0.0001" defaultValue={r.current_unit_cost} onBlur={(e) => { const v = Number(e.target.value.replace(",", ".")); if (Number.isFinite(v) && v !== Number(r.current_unit_cost)) onPatch(r.id, { current_unit_cost: v }); }} className={inputCls} style={inputStyle} />
             </label>
             <label className="flex flex-col gap-1">
-              <span className="text-xs font-bold text-black">{t("inventory_col_supplier" as keyof Dictionary) || "Fornitore"}</span>
-              <input defaultValue={r.supplier_name || ""} onBlur={(e) => { const v = e.target.value.trim() || null; if (v !== r.supplier_name) onPatch({ supplier_name: v }); }} className={inputCls} style={inputStyle} />
+              <span className="text-xs font-bold text-black">{t("inventory_col_supplier")}</span>
+              <input defaultValue={r.supplier_name || ""} onBlur={(e) => { const v = e.target.value.trim() || null; if (v !== r.supplier_name) onPatch(r.id, { supplier_name: v }); }} className={inputCls} style={inputStyle} />
             </label>
             <label className="flex flex-col gap-1">
-              <span className="text-xs font-bold text-black">{t("inventory_col_expiry" as keyof Dictionary) || "Scadenza"}</span>
-              <input type="date" defaultValue={r.expiry_date || ""} onBlur={(e) => { const v = e.target.value || null; if (v !== r.expiry_date) onPatch({ expiry_date: v }); }} className={inputCls} style={inputStyle} />
+              <span className="text-xs font-bold text-black">{t("inventory_col_expiry")}</span>
+              <input type="date" defaultValue={r.expiry_date || ""} onBlur={(e) => { const v = e.target.value || null; if (v !== r.expiry_date) onPatch(r.id, { expiry_date: v }); }} className={inputCls} style={inputStyle} />
             </label>
           </div>
 
@@ -832,26 +848,26 @@ function IngredientCard({
           <div className="flex flex-wrap items-end gap-3 pt-2 border-t" style={{ borderColor: "#f0e5d4" }}>
             <label className="flex flex-col gap-1 min-w-[260px]">
               <span className="text-xs font-bold text-black flex items-center gap-1">
-                <Link2 className="w-3.5 h-3.5" /> {t("inventory_pos_link" as keyof Dictionary) || "Prodotto cassa collegato (per sincronizzare la giacenza)"}
+                <Link2 className="w-3.5 h-3.5" /> {t("inventory_pos_link")}
                 <InfoHotspot
                   side="top"
-                  title={t("inventory_pos_link" as keyof Dictionary) || "Prodotto cassa collegato"}
-                  body={t("inventory_pos_link_help" as keyof Dictionary) || "Collega questo articolo di magazzino allo stesso prodotto sulla cassa, così la giacenza resta sincronizzata: quando viene venduto alla cassa scala da sola, e se la correggi qui si aggiorna anche sulla cassa. Utile per i prodotti venduti così come sono (una bottiglia, una lattina, un prodotto confezionato)."}
-                  example={t("inventory_pos_link_example" as keyof Dictionary) || "Es: «Vino rosso (bottiglia)» collegato al prodotto cassa «Vino rosso». Vendi 2 bottiglie alla cassa → la giacenza passa da 10 a 8 da sola, senza scriverlo a mano."}
+                  title={t("inventory_pos_link")}
+                  body={t("inventory_pos_link_help")}
+                  example={t("inventory_pos_link_example")}
                 />
               </span>
               {posProducts === null ? (
                 <span className="text-xs text-black">…</span>
               ) : posProducts.length === 0 ? (
-                <span className="text-xs text-black">{t("inventory_pos_none" as keyof Dictionary) || "Nessuna cassa collegata (vai in Impostazioni → Cassa)."}</span>
+                <span className="text-xs text-black">{t("inventory_pos_none")}</span>
               ) : (
                 <select
                   value={r.pos_external_product_id || ""}
-                  onChange={(e) => onPatch({ pos_external_product_id: e.target.value || null })}
+                  onChange={(e) => onPatch(r.id, { pos_external_product_id: e.target.value || null })}
                   className={inputCls + " cursor-pointer"}
                   style={inputStyle}
                 >
-                  <option value="">{t("inventory_pos_unlinked" as keyof Dictionary) || "— Non collegato —"}</option>
+                  <option value="">{t("inventory_pos_unlinked")}</option>
                   {posProducts.map((p) => (
                     <option key={p.externalProductId} value={p.externalProductId}>
                       {p.name}{p.price != null ? ` (€${p.price})` : ""}
@@ -861,11 +877,11 @@ function IngredientCard({
               )}
             </label>
             <button
-              onClick={onArchive}
+              onClick={() => onArchive(r.id)}
               className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-bold rounded-lg border cursor-pointer text-red-600 bg-white"
               style={{ borderColor: "rgba(220,38,38,0.5)" }}
             >
-              <Trash2 className="w-4 h-4" /> {t("delete" as keyof Dictionary) || "Elimina"}
+              <Trash2 className="w-4 h-4" /> {t("delete")}
             </button>
           </div>
 
@@ -875,7 +891,7 @@ function IngredientCard({
       )}
     </div>
   );
-}
+});
 
 function NewIngredientForm({ onCreate, onCancel, t }: { onCreate: (name: string, unit: string) => void; onCancel: () => void; t: (k: keyof Dictionary) => string }) {
   const [name, setName] = useState("");
@@ -885,18 +901,18 @@ function NewIngredientForm({ onCreate, onCancel, t }: { onCreate: (name: string,
   return (
     <div className={`${CARD} p-4 flex flex-wrap items-end gap-3`} style={CARD_STYLE}>
       <label className="flex flex-col gap-1">
-        <span className="text-xs font-bold text-black">{t("inventory_col_name" as keyof Dictionary) || "Ingrediente"}</span>
-        <input autoFocus value={name} onChange={(e) => setName(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") onCreate(name, unit); }} className={inputCls} style={inputStyle} placeholder={t("inventory_new_name_ph" as keyof Dictionary) || "Es. Farina 00"} />
+        <span className="text-xs font-bold text-black">{t("inventory_col_name")}</span>
+        <input autoFocus value={name} onChange={(e) => setName(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") onCreate(name, unit); }} className={inputCls} style={inputStyle} placeholder={t("inventory_new_name_ph")} />
       </label>
       <label className="flex flex-col gap-1">
-        <span className="text-xs font-bold text-black">{t("inventory_unit" as keyof Dictionary) || "Unità (kg, l, pz)"}</span>
+        <span className="text-xs font-bold text-black">{t("inventory_unit")}</span>
         <input value={unit} onChange={(e) => setUnit(e.target.value)} className={inputCls + " w-28"} style={inputStyle} />
       </label>
       <button onClick={() => onCreate(name, unit)} disabled={!name.trim()} className={BRONZE_BTN + " disabled:cursor-not-allowed disabled:opacity-40"} style={BRONZE_BG}>
-        {t("save" as keyof Dictionary) || "Salva"}
+        {t("save")}
       </button>
       <button onClick={onCancel} className="px-4 py-2 text-sm font-bold rounded-xl border cursor-pointer text-black bg-white" style={{ borderColor: "#dfcdb4" }}>
-        {t("cancel" as keyof Dictionary) || "Annulla"}
+        {t("cancel")}
       </button>
     </div>
   );

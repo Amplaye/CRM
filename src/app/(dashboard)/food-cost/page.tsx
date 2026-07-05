@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, useCallback } from "react";
+import { memo, useEffect, useMemo, useState, useCallback, useRef } from "react";
 import { Calculator, AlertTriangle, ChevronDown, ChevronRight, ChevronLeft, Check, Loader2, Search, X, Sparkles, BarChart3 } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ReferenceLine, Cell } from "recharts";
 import { ChartFrame } from "@/components/ChartFrame";
@@ -58,6 +58,11 @@ export default function FoodCostPage() {
   const [filter, setFilter] = useState<Filter>("all");
   const [query, setQuery] = useState("");
   const [showAnalysis, setShowAnalysis] = useState(false);
+
+  // Mirror of `dishes` so per-row handlers stay referentially stable (rows are
+  // memoized; closing over `dishes` would rebuild every handler per save).
+  const dishesRef = useRef<Dish[]>([]);
+  useEffect(() => { dishesRef.current = dishes; }, [dishes]);
 
   const load = useCallback(async () => {
     if (!activeTenant?.id || !enabled) return;
@@ -150,12 +155,25 @@ export default function FoodCostPage() {
   useEffect(() => { if (page > pageCount - 1) setPage(pageCount - 1); }, [pageCount, page]);
   useEffect(() => { setPage(0); }, [filter, query]);
 
+  // ── Stable per-row handlers (dish cards are React.memo) ───────────────────
+  const toggleRow = useCallback((id: string) => {
+    setExpanded((cur) => (cur === id ? null : id));
+  }, []);
+
+  const startEdit = useCallback((id: string) => {
+    const cur = dishesRef.current.find((d) => d.menuItemId === id);
+    setDraftPrice(cur?.price != null ? String(cur.price) : "");
+    setEditing(id);
+  }, []);
+
+  const cancelEdit = useCallback(() => setEditing(null), []);
+
   // Save a new price: optimistic local update → POST (CRM + POS write-back).
   const savePrice = useCallback(async (menuItemId: string, value: string) => {
     const price = Number(value.replace(",", "."));
     setEditing(null);
     if (!Number.isFinite(price) || price < 0) return;
-    const prev = dishes.find((d) => d.menuItemId === menuItemId)?.price ?? null;
+    const prev = dishesRef.current.find((d) => d.menuItemId === menuItemId)?.price ?? null;
     if (prev != null && Math.abs(prev - price) < 0.005) return; // unchanged
 
     setDishes((ds) => ds.map((d) => (d.menuItemId === menuItemId ? { ...d, price } : d)));
@@ -171,7 +189,7 @@ export default function FoodCostPage() {
       // CRM saved for sure; pos.detail tells whether the till got it too.
       setSaveStates((s) => ({
         ...s,
-        [menuItemId]: { status: "ok", msg: data?.pos?.detail || (t("settings_saved" as keyof Dictionary) || "Salvato") },
+        [menuItemId]: { status: "ok", msg: data?.pos?.detail || t("settings_saved") },
       }));
       setTimeout(() => setSaveStates((s) => ({ ...s, [menuItemId]: { status: "idle" } })), 4000);
     } catch (e: any) {
@@ -179,7 +197,11 @@ export default function FoodCostPage() {
       setDishes((ds) => ds.map((d) => (d.menuItemId === menuItemId ? { ...d, price: prev } : d)));
       setSaveStates((s) => ({ ...s, [menuItemId]: { status: "error", msg: e?.message || "Errore" } }));
     }
-  }, [dishes, t]);
+  }, [t]);
+
+  const applySuggested = useCallback((menuItemId: string, price: number) => {
+    void savePrice(menuItemId, String(price));
+  }, [savePrice]);
 
   // Work-in-progress: hidden for everyone but the WIP allowlist (incl. direct URL).
   if (!canSeeWip(activeTenant?.id)) {
@@ -193,9 +215,9 @@ export default function FoodCostPage() {
   const avgColor = avgPct == null ? "#000" : avgPct > targetPct ? "#dc2626" : avgPct > targetPct - 5 ? "#d97706" : "#059669";
 
   const chips: Array<{ key: Filter; label: string; count: number; color?: string }> = [
-    { key: "all", label: t("inventory_filter_all" as keyof Dictionary) || "Tutti", count: rows.length },
-    { key: "low", label: t("food_cost_low_margin" as keyof Dictionary) || "Sotto margine", count: lowMarginCount, color: "#dc2626" },
-    { key: "norecipe", label: t("food_cost_no_recipe" as keyof Dictionary) || "Senza ricetta", count: noRecipeCount, color: "#d97706" },
+    { key: "all", label: t("inventory_filter_all"), count: rows.length },
+    { key: "low", label: t("food_cost_low_margin"), count: lowMarginCount, color: "#dc2626" },
+    { key: "norecipe", label: t("food_cost_no_recipe"), count: noRecipeCount, color: "#d97706" },
     { key: "ok", label: "OK", count: okCount, color: "#059669" },
   ];
 
@@ -205,11 +227,10 @@ export default function FoodCostPage() {
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold text-black flex items-center gap-2">
-            <Calculator className="w-6 h-6" /> {t("nav_food_cost" as keyof Dictionary) || "Food cost"}
+            <Calculator className="w-6 h-6" /> {t("nav_food_cost")}
           </h1>
           <p className="mt-1 text-sm" style={{ color: "#8b6540" }}>
-            {t("food_cost_subtitle_v2" as keyof Dictionary) ||
-              "Costo e margine di ogni piatto, calcolati da ricette e prezzi d'acquisto. Tocca un prezzo per cambiarlo anche in cassa."}
+            {t("food_cost_subtitle_v2")}
           </p>
         </div>
         <button
@@ -218,7 +239,7 @@ export default function FoodCostPage() {
           style={{ borderColor: "#c4956a" }}
         >
           <BarChart3 className="w-4 h-4" />
-          {t("food_cost_analysis" as keyof Dictionary) || "Analisi menu"}
+          {t("food_cost_analysis")}
           {showAnalysis ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
         </button>
       </div>
@@ -227,14 +248,14 @@ export default function FoodCostPage() {
       <div className={`${CARD} p-5 flex flex-wrap items-center gap-x-8 gap-y-4`} style={CARD_STYLE}>
         <div>
           <div className="text-xs font-bold uppercase tracking-wide" style={{ color: "#8b6540" }}>
-            {t("food_cost_avg" as keyof Dictionary) || "Food cost medio"}
+            {t("food_cost_avg")}
           </div>
           <div className="flex items-baseline gap-2">
             <span className="text-4xl font-bold tabular-nums" style={{ color: avgColor }}>
               {avgPct != null ? `${avgPct.toFixed(1)}%` : "—"}
             </span>
             <span className="text-sm" style={{ color: "#8b6540" }}>
-              {(t("food_cost_target" as keyof Dictionary) || "obiettivo {n}%").replace("{n}", String(targetPct))}
+              {t("food_cost_target").replace("{n}", String(targetPct))}
             </span>
           </div>
           {/* average vs target gauge */}
@@ -246,8 +267,8 @@ export default function FoodCostPage() {
           </div>
         </div>
         <div className="flex items-center gap-6">
-          <HeroStat label={t("food_cost_low_margin" as keyof Dictionary) || "Sotto margine"} value={lowMarginCount} color={lowMarginCount > 0 ? "#dc2626" : "#059669"} />
-          <HeroStat label={t("food_cost_no_recipe" as keyof Dictionary) || "Senza ricetta"} value={noRecipeCount} color={noRecipeCount > 0 ? "#d97706" : "#059669"} />
+          <HeroStat label={t("food_cost_low_margin")} value={lowMarginCount} color={lowMarginCount > 0 ? "#dc2626" : "#059669"} />
+          <HeroStat label={t("food_cost_no_recipe")} value={noRecipeCount} color={noRecipeCount > 0 ? "#d97706" : "#059669"} />
           <HeroStat label="OK" value={okCount} color="#059669" />
         </div>
       </div>
@@ -256,9 +277,7 @@ export default function FoodCostPage() {
         <div className="rounded-xl border p-3 flex items-start gap-2 text-sm" style={{ borderColor: "rgba(217,119,6,0.4)", background: "rgba(217,119,6,0.08)" }}>
           <AlertTriangle className="w-5 h-5 shrink-0 text-amber-600" />
           <span className="text-black">
-            {(t("food_cost_incomplete_warning" as keyof Dictionary) ||
-              "{n} piatti hanno ingredienti senza costo: il loro food cost è sottostimato. Imposta i costi in Inventario.")
-              .replace("{n}", String(incompleteCount))}
+            {t("food_cost_incomplete_warning").replace("{n}", String(incompleteCount))}
           </span>
         </div>
       )}
@@ -269,7 +288,7 @@ export default function FoodCostPage() {
           {meInput.length > 0 && <MenuEngineeringMatrix input={meInput} />}
           {chartData.length > 0 && (
             <div className={`${CARD} p-4`} style={CARD_STYLE}>
-              <h2 className="text-sm font-bold text-black mb-3">{t("food_cost_chart_title" as keyof Dictionary) || "Peggiori 8 — food cost %"} (target {targetPct}%)</h2>
+              <h2 className="text-sm font-bold text-black mb-3">{t("food_cost_chart_title")} (target {targetPct}%)</h2>
               <div style={{ height: 260 }}>
                 <ChartFrame>
                   <BarChart data={chartData} margin={{ top: 8, right: 16, bottom: 8, left: 0 }}>
@@ -298,7 +317,7 @@ export default function FoodCostPage() {
           <input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder={t("food_cost_search_ph" as keyof Dictionary) || "Cerca piatto…"}
+            placeholder={t("food_cost_search_ph")}
             className="w-full pl-9 pr-8 py-2 text-sm rounded-xl border bg-white/70 text-black outline-none focus:border-[#c4956a]"
             style={{ borderColor: "#eaddcb" }}
           />
@@ -349,9 +368,7 @@ export default function FoodCostPage() {
           ))
         ) : filtered.length === 0 ? (
           <div className={`${CARD} p-8 text-center text-sm text-black`} style={CARD_STYLE}>
-            {rows.length === 0
-              ? t("food_cost_empty" as keyof Dictionary) || "Nessun piatto."
-              : t("inventory_no_match" as keyof Dictionary) || "Nessun risultato con questi filtri."}
+            {rows.length === 0 ? t("food_cost_empty") : t("inventory_no_match")}
           </div>
         ) : (
           pageRows.map((r) => (
@@ -360,16 +377,16 @@ export default function FoodCostPage() {
               r={r}
               targetPct={targetPct}
               isOpen={expanded === r.menuItemId}
-              onToggle={() => setExpanded(expanded === r.menuItemId ? null : r.menuItemId)}
               editing={editing === r.menuItemId}
-              draftPrice={draftPrice}
-              setDraftPrice={setDraftPrice}
-              onStartEdit={() => { setEditing(r.menuItemId); setDraftPrice(r.price != null ? String(r.price) : ""); }}
-              onCommit={() => savePrice(r.menuItemId, draftPrice)}
-              onCancel={() => setEditing(null)}
-              onApplySuggested={(p) => void savePrice(r.menuItemId, String(p))}
+              draft={editing === r.menuItemId ? draftPrice : ""}
               saveState={saveStates[r.menuItemId]}
               tenantId={activeTenant!.id}
+              onToggle={toggleRow}
+              onStartEdit={startEdit}
+              onDraftChange={setDraftPrice}
+              onCommit={savePrice}
+              onCancel={cancelEdit}
+              onApplySuggested={applySuggested}
               onRecipeChanged={load}
               t={t}
             />
@@ -380,7 +397,7 @@ export default function FoodCostPage() {
       {filtered.length > PER_PAGE && (
         <div className="flex items-center justify-between text-sm">
           <span className="text-black">
-            {(t("food_cost_pagination" as keyof Dictionary) || "Piatti {from}–{to} di {total}")
+            {t("food_cost_pagination")
               .replace("{from}", String(safePage * PER_PAGE + 1))
               .replace("{to}", String(Math.min((safePage + 1) * PER_PAGE, filtered.length)))
               .replace("{total}", String(filtered.length))}
@@ -392,7 +409,7 @@ export default function FoodCostPage() {
               className="flex items-center gap-1 px-3 py-1.5 rounded-lg border cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed bg-white/70"
               style={{ borderColor: "#c4956a", color: "#8b6540" }}
             >
-              <ChevronLeft className="w-4 h-4" /> {t("back" as keyof Dictionary) || "Indietro"}
+              <ChevronLeft className="w-4 h-4" /> {t("back")}
             </button>
             <span className="text-black tabular-nums">{safePage + 1} / {pageCount}</span>
             <button
@@ -401,7 +418,7 @@ export default function FoodCostPage() {
               className="flex items-center gap-1 px-3 py-1.5 rounded-lg border cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed bg-white/70"
               style={{ borderColor: "#c4956a", color: "#8b6540" }}
             >
-              {t("next" as keyof Dictionary) || "Avanti"} <ChevronRight className="w-4 h-4" />
+              {t("next")} <ChevronRight className="w-4 h-4" />
             </button>
           </div>
         </div>
@@ -421,22 +438,25 @@ function HeroStat({ label, value, color }: { label: string; value: number; color
 
 // One dish card: status dot, name, tappable price, food-cost gauge, margin and a
 // one-tap suggested price when the dish is under target. Expands into the recipe.
-function DishCard({
-  r, targetPct, isOpen, onToggle, editing, draftPrice, setDraftPrice, onStartEdit, onCommit, onCancel, onApplySuggested, saveState, tenantId, onRecipeChanged, t,
+// Memoized — id-based stable handlers, so expanding one card doesn't re-render
+// the other 24 on the page.
+const DishCard = memo(function DishCard({
+  r, targetPct, isOpen, editing, draft, saveState, tenantId,
+  onToggle, onStartEdit, onDraftChange, onCommit, onCancel, onApplySuggested, onRecipeChanged, t,
 }: {
   r: DishCostRow;
   targetPct: number;
   isOpen: boolean;
-  onToggle: () => void;
   editing: boolean;
-  draftPrice: string;
-  setDraftPrice: (v: string) => void;
-  onStartEdit: () => void;
-  onCommit: () => void;
-  onCancel: () => void;
-  onApplySuggested: (price: number) => void;
+  draft: string;
   saveState?: SaveState;
   tenantId: string;
+  onToggle: (id: string) => void;
+  onStartEdit: (id: string) => void;
+  onDraftChange: (v: string) => void;
+  onCommit: (id: string, value: string) => void;
+  onCancel: () => void;
+  onApplySuggested: (id: string, price: number) => void;
   onRecipeChanged: () => void | Promise<void>;
   t: (k: keyof Dictionary) => string;
 }) {
@@ -446,7 +466,7 @@ function DishCard({
 
   return (
     <div className={CARD} style={{ ...CARD_STYLE, borderColor: isOpen ? "#c4956a" : r.lowMargin ? "rgba(220,38,38,0.35)" : "#eaddcb" }}>
-      <div className="flex items-center gap-3 px-3 sm:px-4 py-3 cursor-pointer select-none" onClick={onToggle}>
+      <div className="flex items-center gap-3 px-3 sm:px-4 py-3 cursor-pointer select-none" onClick={() => onToggle(r.menuItemId)}>
         <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: statusColor }} aria-hidden />
 
         {/* Name + gauge */}
@@ -455,11 +475,11 @@ function DishCard({
             <span className="font-bold text-black truncate">{r.name}</span>
             {r.noRecipe && (
               <span className="text-xs font-bold px-2 py-0.5 rounded-full shrink-0" style={{ background: "rgba(217,119,6,0.12)", color: "#b45309" }}>
-                {t("food_cost_no_recipe_tag" as keyof Dictionary) || "no ricetta"}
+                {t("food_cost_no_recipe_tag")}
               </span>
             )}
             {r.incompleteCost && (
-              <span title={t("food_cost_incomplete_tag" as keyof Dictionary) || "Alcuni ingredienti non hanno un costo"}>
+              <span title={t("food_cost_incomplete_tag")}>
                 <AlertTriangle className="w-3.5 h-3.5 text-amber-600 shrink-0" />
               </span>
             )}
@@ -479,7 +499,7 @@ function DishCard({
             )}
             {!r.noRecipe && (
               <span className="text-xs tabular-nums" style={{ color: "#8b6540" }}>
-                {(t("food_cost_cost_short" as keyof Dictionary) || "costa")} € {r.cost.toFixed(2)}
+                {t("food_cost_cost_short")} € {r.cost.toFixed(2)}
               </span>
             )}
           </div>
@@ -488,19 +508,19 @@ function DishCard({
         {/* Suggested price — the one-tap fix for a dish under target */}
         {suggested != null && suggested > (r.price ?? 0) && (
           <button
-            onClick={(e) => { e.stopPropagation(); onApplySuggested(suggested); }}
+            onClick={(e) => { e.stopPropagation(); onApplySuggested(r.menuItemId, suggested); }}
             className="hidden md:inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-bold rounded-lg cursor-pointer shrink-0 text-white"
             style={{ background: "#059669" }}
-            title={t("food_cost_suggested_hint" as keyof Dictionary) || "Porta il prezzo al target (aggiorna anche la cassa)"}
+            title={t("food_cost_suggested_hint")}
           >
             <Sparkles className="w-3.5 h-3.5" />
-            {(t("food_cost_suggested" as keyof Dictionary) || "Porta a € {p}").replace("{p}", suggested.toFixed(2))}
+            {t("food_cost_suggested").replace("{p}", suggested.toFixed(2))}
           </button>
         )}
 
         {/* Margin */}
         <div className="hidden sm:block text-right shrink-0 w-20">
-          <div className="text-xs" style={{ color: "#8b6540" }}>{t("food_cost_col_margin" as keyof Dictionary) || "Margine"}</div>
+          <div className="text-xs" style={{ color: "#8b6540" }}>{t("food_cost_col_margin")}</div>
           <div className="text-sm font-bold tabular-nums text-black">{r.margin != null ? `€ ${r.margin.toFixed(2)}` : "—"}</div>
         </div>
 
@@ -511,18 +531,18 @@ function DishCard({
               autoFocus
               type="number"
               step="0.01"
-              value={draftPrice}
-              onChange={(e) => setDraftPrice(e.target.value)}
-              onBlur={onCommit}
-              onKeyDown={(e) => { if (e.key === "Enter") onCommit(); if (e.key === "Escape") onCancel(); }}
+              value={draft}
+              onChange={(e) => onDraftChange(e.target.value)}
+              onBlur={() => onCommit(r.menuItemId, draft)}
+              onKeyDown={(e) => { if (e.key === "Enter") onCommit(r.menuItemId, draft); if (e.key === "Escape") onCancel(); }}
               className="w-24 px-2 py-1.5 text-right text-sm font-bold border-2 rounded-lg text-black"
               style={{ borderColor: "#c4956a" }}
             />
           ) : (
             <button
-              onClick={onStartEdit}
+              onClick={() => onStartEdit(r.menuItemId)}
               className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg cursor-pointer hover:bg-[#c4956a]/10"
-              title={t("food_cost_edit_price_hint" as keyof Dictionary) || "Modifica prezzo (aggiorna anche la cassa)"}
+              title={t("food_cost_edit_price_hint")}
             >
               {saveState?.status === "saving" && <Loader2 className="w-3.5 h-3.5 animate-spin text-black" />}
               {saveState?.status === "ok" && <Check className="w-3.5 h-3.5 text-emerald-600" />}
@@ -543,12 +563,12 @@ function DishCard({
           {/* mobile-only suggested price (hidden in the row on small screens) */}
           {suggested != null && suggested > (r.price ?? 0) && (
             <button
-              onClick={() => onApplySuggested(suggested)}
+              onClick={() => onApplySuggested(r.menuItemId, suggested)}
               className="md:hidden mb-3 inline-flex items-center gap-1 px-3 py-2 text-xs font-bold rounded-lg cursor-pointer text-white"
               style={{ background: "#059669" }}
             >
               <Sparkles className="w-3.5 h-3.5" />
-              {(t("food_cost_suggested" as keyof Dictionary) || "Porta a € {p}").replace("{p}", suggested.toFixed(2))}
+              {t("food_cost_suggested").replace("{p}", suggested.toFixed(2))}
             </button>
           )}
           {/* RecipePanel writes recipe_items directly; refresh the table after
@@ -560,4 +580,4 @@ function DishCard({
       )}
     </div>
   );
-}
+});
