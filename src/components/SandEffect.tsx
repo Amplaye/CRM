@@ -62,7 +62,16 @@ export function SandEffect() {
     resize();
     window.addEventListener("resize", resize);
 
-    const animate = () => {
+    // Drifting dust doesn't need 60fps: capping at ~30 halves the continuous
+    // canvas cost so the decorative layer never competes with real work.
+    const FRAME_MS = 33;
+    let lastFrame = 0;
+    const animate = (ts = 0) => {
+      if (ts - lastFrame < FRAME_MS) {
+        animationId = requestAnimationFrame(animate);
+        return;
+      }
+      lastFrame = ts;
       ctx.clearRect(0, 0, canvas.width, canvas.height);
 
       for (const p of particles) {

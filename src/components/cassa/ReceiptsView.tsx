@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Printer, Ban, ChevronDown, ChevronUp, ReceiptText } from "lucide-react";
+import { Printer, Ban, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, ReceiptText } from "lucide-react";
 import { useLanguage } from "@/lib/contexts/LanguageContext";
 import { fmtEur } from "@/lib/cassa/totals";
 import type { CassaOrderFull } from "@/lib/cassa/types";
@@ -15,13 +15,17 @@ import type { Dictionary } from "@/lib/i18n/dictionaries/en";
 interface ReceiptsViewProps {
   receipts: CassaOrderFull[];
   businessDate: string;
+  /** Viewing the current business day (void allowed, "next" arrow disabled). */
+  isToday: boolean;
+  /** Move the viewed journal day by ±1. */
+  onShiftDay: (delta: 1 | -1) => void;
   canVoid: boolean;
   busy: boolean;
   onReprint: (order: CassaOrderFull) => void;
   onVoid: (order: CassaOrderFull, reason: string) => void;
 }
 
-export function ReceiptsView({ receipts, businessDate, canVoid, busy, onReprint, onVoid }: ReceiptsViewProps) {
+export function ReceiptsView({ receipts, businessDate, isToday, onShiftDay, canVoid, busy, onReprint, onVoid }: ReceiptsViewProps) {
   const { t } = useLanguage();
   const [openId, setOpenId] = useState<string | null>(null);
 
@@ -29,9 +33,28 @@ export function ReceiptsView({ receipts, businessDate, canVoid, busy, onReprint,
     <div className="rounded-xl border-2 overflow-hidden" style={{ borderColor: "#c4956a", background: "rgba(252,246,237,0.6)" }}>
       <div className="px-4 py-3 border-b-2 flex items-center gap-2" style={{ borderColor: "#c4956a" }}>
         <ReceiptText className="w-5 h-5 text-black" />
-        <h2 className="font-bold text-black">
+        <h2 className="font-bold text-black flex-1">
           {t("cassa_receipts_today")} · {businessDate.split("-").reverse().join("/")}
         </h2>
+        {/* Day navigation: consult past journals (re-print an old receipt for a
+            customer). Void stays possible only on the current day. */}
+        <button
+          onClick={() => onShiftDay(-1)}
+          className="w-9 h-9 rounded-lg border-2 flex items-center justify-center text-black hover:bg-[#c4956a]/10 cursor-pointer"
+          style={{ borderColor: "#c4956a" }}
+          aria-label="previous day"
+        >
+          <ChevronLeft className="w-4 h-4" />
+        </button>
+        <button
+          onClick={() => onShiftDay(1)}
+          disabled={isToday}
+          className="w-9 h-9 rounded-lg border-2 flex items-center justify-center text-black hover:bg-[#c4956a]/10 disabled:opacity-30 cursor-pointer"
+          style={{ borderColor: "#c4956a" }}
+          aria-label="next day"
+        >
+          <ChevronRight className="w-4 h-4" />
+        </button>
       </div>
 
       {receipts.length === 0 ? (

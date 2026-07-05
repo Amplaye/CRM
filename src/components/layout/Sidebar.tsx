@@ -45,8 +45,8 @@ export function cn(...inputs: ClassValue[]) {
 
 const navItems: Array<{ name: string; href: string; icon: any; badgeKey?: keyof NotificationCounts; badgeStyle?: "alert" | "info"; feature?: keyof ReturnType<typeof getFeatures> }> = [
   { name: "Tables", href: "/floor", icon: LayoutGrid },
-  // Cassa nativa (built-in POS) — part of the gestionale add-on.
-  { name: "Cassa", href: "/cassa", icon: Banknote, feature: "management_enabled" },
+  // Cassa nativa (built-in POS) is NOT here: it gets the pinned CTA at the
+  // bottom of the sidebar (the till is the most-used tool, it must pop).
   { name: "Reservations", href: "/reservations", icon: Calendar, badgeKey: "reservations", badgeStyle: "info" },
   { name: "Waitlist", href: "/waitlist", icon: Clock, badgeKey: "waitlist", badgeStyle: "alert" },
   { name: "Pending", href: "/pending", icon: ClipboardList, badgeKey: "pending", badgeStyle: "alert" },
@@ -145,9 +145,9 @@ export function Sidebar({ mobileOpen = false, onClose }: SidebarProps) {
   //     (→ management_enabled). Checked first so its hint wins.
   //   • "plan"  — any non-free section while the tenant has no active plan.
   const visibleNavItems = (isHost
-    // Hosts (camerieri) also get the cassa — taking orders and cashing bills
-    // IS their job; the add-on/feature gate below still applies to it.
-    ? navItems.filter(i => i.href === "/floor" || i.href === "/reservations" || i.href === "/menu" || i.href === "/cassa")
+    // Hosts (camerieri) see the day-to-day pages; the cassa reaches them via
+    // the pinned bottom CTA (taking orders and cashing bills IS their job).
+    ? navItems.filter(i => i.href === "/floor" || i.href === "/reservations" || i.href === "/menu")
     : navItems
   // Feature flag: hide the Waitlist page for tenants that don't use it.
   ).filter(i => i.href !== "/waitlist" || features.waitlist_enabled)
@@ -315,6 +315,43 @@ export function Sidebar({ mobileOpen = false, onClose }: SidebarProps) {
           )}
         </nav>
       </div>
+
+      {/* Cassa — pinned CTA at the bottom so the till is always one tap away
+          and impossible to miss. Same gates as the old nav item: management
+          add-on + active plan; locked state stays visible and sells the upgrade. */}
+      {!isPlatformOnly && (() => {
+        const cassaFeatureLocked = !features.management_enabled;
+        const cassaLocked = cassaFeatureLocked || !planActive;
+        const cassaActive = pathname?.startsWith("/cassa");
+        return (
+          <div className="px-3 py-2.5 border-t shrink-0" style={{ borderColor: "#c4956a" }}>
+            <Link
+              href="/cassa"
+              onClick={() => { markVisited("/cassa"); handleNavClick(); }}
+              title={
+                cassaLocked
+                  ? (cassaFeatureLocked
+                      ? t("billing_addon_locked_hint" as keyof Dictionary) || "Funzione a pagamento — sblocca dall'abbonamento"
+                      : t("plan_locked_hint") || "Disponibile con un piano attivo")
+                  : undefined
+              }
+              className={cn(
+                "flex items-center justify-center gap-2.5 h-12 rounded-xl text-base font-bold tracking-wide transition-all",
+                cassaLocked
+                  ? "border-2 border-dashed text-black opacity-70 hover:opacity-100 hover:bg-[#c4956a]/10"
+                  : "text-white shadow-lg hover:brightness-105 active:scale-[0.98]",
+                !cassaLocked && cassaActive && "ring-2 ring-[#8b6540] ring-offset-1"
+              )}
+              style={cassaLocked
+                ? { borderColor: "#c4956a" }
+                : { background: "linear-gradient(135deg, #d4a574, #c4956a)", boxShadow: "0 4px 14px rgba(196,149,106,0.5)" }}
+            >
+              {cassaLocked ? <Lock className="w-4.5 h-4.5" /> : <Banknote className="w-5.5 h-5.5" />}
+              {(t("nav_cassa" as keyof Dictionary) || "Cassa").toUpperCase()}
+            </Link>
+          </div>
+        );
+      })()}
 
       <div className="p-3 md:p-4 border-t" style={{ borderColor: '#c4956a', background: 'rgba(252,246,237,0.85)' }}>
          <div className="flex items-center justify-between gap-3">

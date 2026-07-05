@@ -69,6 +69,8 @@ export default function CassaPage() {
   const [coverCharge, setCoverCharge] = useState(0);
   const [businessDate, setBusinessDate] = useState("");
   const [receipts, setReceipts] = useState<CassaOrderFull[]>([]);
+  // Journal day being viewed — defaults to the business day, arrows go back.
+  const [receiptsDate, setReceiptsDate] = useState("");
   const [payOpen, setPayOpen] = useState(false);
   const [payResult, setPayResult] = useState<{ receiptNumber: number | null; receiptYear: number | null; change: number } | null>(null);
   const [paidOrder, setPaidOrder] = useState<CassaOrderFull | null>(null);
@@ -118,7 +120,9 @@ export default function CassaPage() {
         .order("created_at", { ascending: true }),
       supabase
         .from("menu_items")
-        .select("*")
+        // Only what the picker uses — skipping description/allergens/images
+        // keeps the payload light on tablets with a big menu.
+        .select("id, category_id, name, price, available, sort_order, vat_rate, station, variants, created_at")
         .eq("tenant_id", tenantId)
         .order("sort_order", { ascending: true })
         .order("created_at", { ascending: true }),
@@ -168,38 +172,50 @@ export default function CassaPage() {
   }, [tenantId]);
 
   const loadReceipts = useCallback(async () => {
-    if (!tenantId || !businessDate) return;
+    const day = receiptsDate || businessDate;
+    if (!tenantId || !day) return;
     try {
       const data = await api<{ orders: CassaOrderFull[] }>(
-        `/api/cassa/orders?tenant_id=${tenantId}&scope=day&date=${businessDate}`,
+        `/api/cassa/orders?tenant_id=${tenantId}&scope=day&date=${day}`,
       );
       setReceipts(data.orders);
     } catch (err) {
       console.error("Cassa receipts load error:", err);
     }
-  }, [tenantId, businessDate]);
+  }, [tenantId, businessDate, receiptsDate]);
 
   useEffect(() => {
     if (!tenantId || !enabled) return;
     let cancelled = false;
     (async () => {
       setLoading(true);
-      await Promise.all([loadStatic(), loadOrders(), loadSession()]);
+      // Paint the sala as soon as tables+orders are in (direct supabase reads);
+      // the session header hydrates in the background — /api/cassa/session is
+      // a lambda and its cold start shouldn't hold the whole page hostage.
+      await Promise.all([loadStatic(), loadOrders()]);
       if (!cancelled) setLoading(false);
     })();
+    void loadSession();
+    // Coalesce realtime bursts (a comanda inserts N rows → N events) into one
+    // refetch instead of hammering supabase + the session lambda per event.
+    let refreshTimer: ReturnType<typeof setTimeout> | null = null;
     const channel = supabase
       .channel(`cassa-${tenantId}`)
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "cassa_orders", filter: `tenant_id=eq.${tenantId}` },
         () => {
-          loadOrders();
-          loadSession();
+          if (refreshTimer) clearTimeout(refreshTimer);
+          refreshTimer = setTimeout(() => {
+            loadOrders();
+            loadSession();
+          }, 400);
         },
       )
       .subscribe();
     return () => {
       cancelled = true;
+      if (refreshTimer) clearTimeout(refreshTimer);
       supabase.removeChannel(channel);
     };
   }, [tenantId, enabled, supabase, loadStatic, loadOrders, loadSession]);
@@ -744,8 +760,18 @@ export default function CassaPage() {
         ) : view === "receipts" ? (
           <ReceiptsView
             receipts={receipts}
-            businessDate={businessDate}
-            canVoid={canManage}
+            businessDate={receiptsDate || businessDate}
+            isToday={!receiptsDate || receiptsDate === businessDate}
+            onShiftDay={(delta) => {
+              const cur = receiptsDate || businessDate;
+              if (!cur) return;
+              const d = new Date(`${cur}T12:00:00`);
+              d.setDate(d.getDate() + delta);
+              const next = d.toISOString().slice(0, 10);
+              // Never navigate past the current business day.
+              setReceiptsDate(next >= businessDate ? "" : next);
+            }}
+            canVoid={canManage && (!receiptsDate || receiptsDate === businessDate)}
             busy={busy}
             onReprint={(order) => enqueuePrint(buildReceiptPayload(order))}
             onVoid={voidReceipt}
@@ -776,9 +802,16 @@ export default function CassaPage() {
         )}
       </div>
 
-      {payOpen && activeOrder && (
+      {/* Keep the sheet mounted after success: paying removes the order from
+          openOrders (→ activeOrder null), so gate on paidOrder too or the
+          "Incassato / resto / stampa" screen unmounts the instant it should show. */}
+      {payOpen && (activeOrder || paidOrder) && (
         <PayModal
-          total={computeTotals(activeOrder, activeOrder.items).total}
+          total={
+            activeOrder
+              ? computeTotals(activeOrder, activeOrder.items).total
+              : paidOrder!.total
+          }
           busy={busy}
           result={payResult}
           onConfirm={confirmPay}

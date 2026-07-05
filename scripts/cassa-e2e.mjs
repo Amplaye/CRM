@@ -87,19 +87,46 @@ async function main() {
 
     // ---- CHARGE CASH ----------------------------------------------------------
     log("\n⑤ Incasso in contanti…");
-    await page.getByRole("button", { name: /(Incassa|Charge|Cobrar|Kassieren) · /i }).first().click();
-    await page.waitForTimeout(2000); // auto-fires the comanda, then the pay sheet opens
+    const chargeRe = /(Incassa|Charge|Cobrar|Kassieren) · /i;
+    // The ticket "Incassa" and the pay-sheet confirm share the same label, so
+    // scope the first click to the ticket column — otherwise Playwright's retry
+    // (the button is briefly disabled while the comanda fires) can land on the
+    // pay-sheet overlay that has meanwhile opened.
+    const ticketPanel = page.locator(".lg\\:w-\\[380px\\]");
+    await ticketPanel.getByRole("button", { name: chargeRe }).click();
+    // Wait for the pay sheet (fixed inset-0 z-50 overlay) to actually be up.
+    const paySheet = page.locator("div.fixed.inset-0.z-50").last();
+    await paySheet.waitFor({ state: "visible", timeout: 15000 });
+    // "Esatto" pre-fills Ricevuto = importo so the cash path is unambiguous.
+    await paySheet.getByRole("button", { name: /^(Esatto|Exact|Exacto|Genau)$/i }).click().catch(() => {});
     await page.screenshot({ path: `${SHOT}-3-paymodal.png`, fullPage: true });
-    // Confirm inside the modal (button shows "Incassa · 1.00 €")
-    await page.getByRole("button", { name: /(Incassa|Charge|Cobrar|Kassieren) · /i }).last().click();
-    await page.waitForTimeout(3000);
-    const paid = await page.locator("body").innerText();
-    const rcpt = paid.match(/N\.\s*(\d+)\/(\d{4})/);
-    if (/Incassato|Paid|Cobrado|Kassiert/i.test(paid)) ok(`incassato${rcpt ? ` — scontrino N. ${rcpt[1]}/${rcpt[2]}` : ""}`);
-    else fail("conferma di incasso non visibile");
+    // The confirm button is briefly disabled while the comanda finishes firing
+    // (page-level busy). Wait for it to become enabled, then click.
+    const confirmBtn = paySheet.getByRole("button", { name: chargeRe });
+    await confirmBtn.waitFor({ state: "visible", timeout: 15000 });
+    await page.waitForFunction(
+      (el) => el && !el.disabled,
+      await confirmBtn.elementHandle(),
+      { timeout: 15000 },
+    ).catch(() => {});
+    await confirmBtn.click();
+    // The pay POST (claim → receipt no. → payments → pos_sales mirror → stock)
+    // can take a few seconds on prod — wait for the success screen, not a
+    // fixed 3s (which raced it and then the still-open sheet blocked step ⑥).
+    const successMsg = page.getByText(/\b(Incassato|Paid|Cobrado|Kassiert)\b/);
+    try {
+      await successMsg.first().waitFor({ state: "visible", timeout: 25000 });
+      const paid = await page.locator("body").innerText();
+      const rcpt = paid.match(/N\.\s*(\d+)\/(\d{4})/);
+      ok(`incassato${rcpt ? ` — scontrino N. ${rcpt[1]}/${rcpt[2]}` : ""}`);
+    } catch {
+      fail("conferma di incasso non visibile");
+    }
     await page.screenshot({ path: `${SHOT}-4-paid.png`, fullPage: true });
     await page.getByRole("button", { name: /^(Fatto|Done|Listo|Fertig)$/i }).first().click().catch(() => {});
-    await page.waitForTimeout(1500);
+    // The sheet must be fully gone or its overlay swallows the tab clicks below.
+    await paySheet.waitFor({ state: "hidden", timeout: 10000 }).catch(() => {});
+    await page.waitForTimeout(500);
 
     // ---- DAY JOURNAL → VOID ----------------------------------------------------
     log("\n⑥ Scontrini del giorno + annullo…");
