@@ -1,10 +1,9 @@
 "use client";
 
 import { useEffect, useMemo, useState, useCallback } from "react";
-import { Calculator, AlertTriangle, TrendingDown, FileWarning, ChevronDown, ChevronRight, ChevronLeft, Check, Loader2 } from "lucide-react";
+import { Calculator, AlertTriangle, ChevronDown, ChevronRight, ChevronLeft, Check, Loader2, Search, X, Sparkles, BarChart3 } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ReferenceLine, Cell } from "recharts";
 import { ChartFrame } from "@/components/ChartFrame";
-import { KPICard } from "@/components/ui/KPICard";
 import { RecipePanel } from "@/components/management/RecipePanel";
 import { ManagementLocked } from "@/components/management/ManagementLocked";
 import { WipComingSoon } from "@/components/management/WipComingSoon";
@@ -23,6 +22,17 @@ const SALES_WINDOW_DAYS = 30;
 
 // Per-dish price-save state, so each row shows its own spinner / result.
 type SaveState = { status: "idle" | "saving" | "ok" | "error"; msg?: string };
+type Filter = "all" | "low" | "norecipe" | "ok";
+
+const CARD = "rounded-2xl border bg-white/70";
+const CARD_STYLE = { borderColor: "#eaddcb" } as const;
+
+/** Price that brings a dish exactly to the target food cost %, rounded UP to
+ * 50 cents so the suggestion is always safe and menu-friendly. */
+function suggestedPrice(cost: number, targetPct: number): number {
+  if (!(cost > 0) || !(targetPct > 0)) return 0;
+  return Math.ceil((cost / (targetPct / 100)) * 2) / 2;
+}
 
 export default function FoodCostPage() {
   const { t } = useLanguage();
@@ -45,6 +55,9 @@ export default function FoodCostPage() {
   const [draftPrice, setDraftPrice] = useState("");
   const [saveStates, setSaveStates] = useState<Record<string, SaveState>>({});
   const [page, setPage] = useState(0); // 0-based; 25 dishes per page
+  const [filter, setFilter] = useState<Filter>("all");
+  const [query, setQuery] = useState("");
+  const [showAnalysis, setShowAnalysis] = useState(false);
 
   const load = useCallback(async () => {
     if (!activeTenant?.id || !enabled) return;
@@ -104,8 +117,8 @@ export default function FoodCostPage() {
   const withPct = rows.filter((r) => r.foodCostPct != null);
   const avgPct = withPct.length ? withPct.reduce((s, r) => s + (r.foodCostPct || 0), 0) / withPct.length : null;
   const lowMarginCount = rows.filter((r) => r.lowMargin).length;
-  const worst = withPct[0];
   const noRecipeCount = rows.filter((r) => r.noRecipe).length;
+  const okCount = withPct.length - lowMarginCount;
   const incompleteCount = rows.filter((r) => r.incompleteCost).length;
   const chartData = withPct.slice(0, 8).map((r) => ({ name: r.name, pct: r.foodCostPct as number, low: r.lowMargin }));
 
@@ -118,17 +131,27 @@ export default function FoodCostPage() {
     [rows, unitsSold],
   );
 
-  // Pagination: 25 dishes per page. KPIs and the chart stay computed over ALL
-  // dishes (they summarise the whole menu); only the table is paged.
+  // Filter + search, then paginate. KPIs and analysis stay computed over ALL dishes.
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    return rows.filter((r) => {
+      if (q && !r.name.toLowerCase().includes(q)) return false;
+      if (filter === "low") return r.lowMargin;
+      if (filter === "norecipe") return r.noRecipe;
+      if (filter === "ok") return !r.noRecipe && !r.lowMargin && r.foodCostPct != null;
+      return true;
+    });
+  }, [rows, query, filter]);
+
   const PER_PAGE = 25;
-  const pageCount = Math.max(1, Math.ceil(rows.length / PER_PAGE));
+  const pageCount = Math.max(1, Math.ceil(filtered.length / PER_PAGE));
   const safePage = Math.min(page, pageCount - 1);
-  const pageRows = rows.slice(safePage * PER_PAGE, safePage * PER_PAGE + PER_PAGE);
-  // Snap back to a valid page if the row count shrinks under us.
+  const pageRows = filtered.slice(safePage * PER_PAGE, safePage * PER_PAGE + PER_PAGE);
   useEffect(() => { if (page > pageCount - 1) setPage(pageCount - 1); }, [pageCount, page]);
+  useEffect(() => { setPage(0); }, [filter, query]);
 
   // Save a new price: optimistic local update → POST (CRM + POS write-back).
-  async function savePrice(menuItemId: string, value: string) {
+  const savePrice = useCallback(async (menuItemId: string, value: string) => {
     const price = Number(value.replace(",", "."));
     setEditing(null);
     if (!Number.isFinite(price) || price < 0) return;
@@ -156,7 +179,7 @@ export default function FoodCostPage() {
       setDishes((ds) => ds.map((d) => (d.menuItemId === menuItemId ? { ...d, price: prev } : d)));
       setSaveStates((s) => ({ ...s, [menuItemId]: { status: "error", msg: e?.message || "Errore" } }));
     }
-  }
+  }, [dishes, t]);
 
   // Work-in-progress: hidden for everyone but the WIP allowlist (incl. direct URL).
   if (!canSeeWip(activeTenant?.id)) {
@@ -167,27 +190,70 @@ export default function FoodCostPage() {
     return <ManagementLocked section="food_cost" />;
   }
 
+  const avgColor = avgPct == null ? "#000" : avgPct > targetPct ? "#dc2626" : avgPct > targetPct - 5 ? "#d97706" : "#059669";
+
+  const chips: Array<{ key: Filter; label: string; count: number; color?: string }> = [
+    { key: "all", label: t("inventory_filter_all" as keyof Dictionary) || "Tutti", count: rows.length },
+    { key: "low", label: t("food_cost_low_margin" as keyof Dictionary) || "Sotto margine", count: lowMarginCount, color: "#dc2626" },
+    { key: "norecipe", label: t("food_cost_no_recipe" as keyof Dictionary) || "Senza ricetta", count: noRecipeCount, color: "#d97706" },
+    { key: "ok", label: "OK", count: okCount, color: "#059669" },
+  ];
+
   return (
-    <div className="p-4 sm:p-6 lg:p-8 w-full space-y-6">
-      <div className="border-b pb-5" style={{ borderColor: "#c4956a" }}>
-        <h1 className="text-2xl font-bold text-black flex items-center gap-2">
-          <Calculator className="w-6 h-6" /> {t("nav_food_cost" as keyof Dictionary) || "Food cost"}
-        </h1>
-        <p className="mt-1 text-sm text-black">
-          {t("food_cost_subtitle_editable" as keyof Dictionary) ||
-            "Costo e margine per piatto. Tocca il prezzo per modificarlo (si aggiorna anche sulla cassa) o espandi una riga per la ricetta."}
-        </p>
+    <div className="p-4 sm:p-6 lg:p-8 w-full space-y-5">
+      {/* Header */}
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-bold text-black flex items-center gap-2">
+            <Calculator className="w-6 h-6" /> {t("nav_food_cost" as keyof Dictionary) || "Food cost"}
+          </h1>
+          <p className="mt-1 text-sm" style={{ color: "#8b6540" }}>
+            {t("food_cost_subtitle_v2" as keyof Dictionary) ||
+              "Costo e margine di ogni piatto, calcolati da ricette e prezzi d'acquisto. Tocca un prezzo per cambiarlo anche in cassa."}
+          </p>
+        </div>
+        <button
+          onClick={() => setShowAnalysis((v) => !v)}
+          className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-bold rounded-xl border cursor-pointer text-black bg-white/70"
+          style={{ borderColor: "#c4956a" }}
+        >
+          <BarChart3 className="w-4 h-4" />
+          {t("food_cost_analysis" as keyof Dictionary) || "Analisi menu"}
+          {showAnalysis ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+        </button>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <KPICard title={t("food_cost_avg" as keyof Dictionary) || "Food cost medio"} value={avgPct != null ? `${avgPct.toFixed(1)}%` : "—"} icon={<Calculator className="w-5 h-5" />} />
-        <KPICard title={t("food_cost_low_margin" as keyof Dictionary) || "Piatti sotto-margine"} value={lowMarginCount} icon={<TrendingDown className="w-5 h-5" />} />
-        <KPICard title={t("food_cost_worst" as keyof Dictionary) || "Peggiore"} value={worst ? `${worst.name} (${(worst.foodCostPct || 0).toFixed(0)}%)` : "—"} icon={<AlertTriangle className="w-5 h-5" />} />
-        <KPICard title={t("food_cost_no_recipe" as keyof Dictionary) || "Senza ricetta"} value={noRecipeCount} icon={<FileWarning className="w-5 h-5" />} />
+      {/* Hero: average food cost vs target + counters */}
+      <div className={`${CARD} p-5 flex flex-wrap items-center gap-x-8 gap-y-4`} style={CARD_STYLE}>
+        <div>
+          <div className="text-xs font-bold uppercase tracking-wide" style={{ color: "#8b6540" }}>
+            {t("food_cost_avg" as keyof Dictionary) || "Food cost medio"}
+          </div>
+          <div className="flex items-baseline gap-2">
+            <span className="text-4xl font-bold tabular-nums" style={{ color: avgColor }}>
+              {avgPct != null ? `${avgPct.toFixed(1)}%` : "—"}
+            </span>
+            <span className="text-sm" style={{ color: "#8b6540" }}>
+              {(t("food_cost_target" as keyof Dictionary) || "obiettivo {n}%").replace("{n}", String(targetPct))}
+            </span>
+          </div>
+          {/* average vs target gauge */}
+          <div className="mt-2 relative h-2 rounded-full w-48 overflow-hidden" style={{ background: "rgba(196,149,106,0.18)" }}>
+            {avgPct != null && (
+              <div className="absolute inset-y-0 left-0 rounded-full" style={{ width: `${Math.min(100, (avgPct / 60) * 100)}%`, background: avgColor }} />
+            )}
+            <div className="absolute inset-y-0" style={{ left: `${Math.min(100, (targetPct / 60) * 100)}%`, width: 2, background: "rgba(0,0,0,0.35)" }} />
+          </div>
+        </div>
+        <div className="flex items-center gap-6">
+          <HeroStat label={t("food_cost_low_margin" as keyof Dictionary) || "Sotto margine"} value={lowMarginCount} color={lowMarginCount > 0 ? "#dc2626" : "#059669"} />
+          <HeroStat label={t("food_cost_no_recipe" as keyof Dictionary) || "Senza ricetta"} value={noRecipeCount} color={noRecipeCount > 0 ? "#d97706" : "#059669"} />
+          <HeroStat label="OK" value={okCount} color="#059669" />
+        </div>
       </div>
 
       {incompleteCount > 0 && (
-        <div className="rounded-xl border-2 p-3 flex items-start gap-2 text-sm" style={{ borderColor: "#d97706", background: "rgba(217,119,6,0.08)" }}>
+        <div className="rounded-xl border p-3 flex items-start gap-2 text-sm" style={{ borderColor: "rgba(217,119,6,0.4)", background: "rgba(217,119,6,0.08)" }}>
           <AlertTriangle className="w-5 h-5 shrink-0 text-amber-600" />
           <span className="text-black">
             {(t("food_cost_incomplete_warning" as keyof Dictionary) ||
@@ -197,88 +263,133 @@ export default function FoodCostPage() {
         </div>
       )}
 
-      {meInput.length > 0 && <MenuEngineeringMatrix input={meInput} />}
-
-      {chartData.length > 0 && (
-        <div className="rounded-xl border-2 p-4" style={{ borderColor: "#c4956a", background: "rgba(252,246,237,0.6)" }}>
-          <h2 className="text-sm font-bold text-black mb-3">{t("food_cost_chart_title" as keyof Dictionary) || "Peggiori 8 — food cost %"} (target {targetPct}%)</h2>
-          <div style={{ height: 260 }}>
-            <ChartFrame>
-              <BarChart data={chartData} margin={{ top: 8, right: 16, bottom: 8, left: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#e7d8c5" />
-                <XAxis dataKey="name" tick={{ fontSize: 11 }} interval={0} angle={-20} textAnchor="end" height={60} />
-                <YAxis tick={{ fontSize: 11 }} unit="%" />
-                <Tooltip formatter={(v: any) => `${Number(v).toFixed(1)}%`} />
-                <ReferenceLine y={targetPct} stroke="#c4956a" strokeDasharray="4 4" />
-                <Bar dataKey="pct" radius={[4, 4, 0, 0]}>
-                  {chartData.map((d, i) => (
-                    <Cell key={i} fill={d.low ? "#dc2626" : "#c4956a"} />
-                  ))}
-                </Bar>
-              </BarChart>
-            </ChartFrame>
-          </div>
+      {/* Analysis: menu-engineering matrix + worst-8 chart, collapsed by default */}
+      {showAnalysis && (
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+          {meInput.length > 0 && <MenuEngineeringMatrix input={meInput} />}
+          {chartData.length > 0 && (
+            <div className={`${CARD} p-4`} style={CARD_STYLE}>
+              <h2 className="text-sm font-bold text-black mb-3">{t("food_cost_chart_title" as keyof Dictionary) || "Peggiori 8 — food cost %"} (target {targetPct}%)</h2>
+              <div style={{ height: 260 }}>
+                <ChartFrame>
+                  <BarChart data={chartData} margin={{ top: 8, right: 16, bottom: 8, left: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#e7d8c5" />
+                    <XAxis dataKey="name" tick={{ fontSize: 11 }} interval={0} angle={-20} textAnchor="end" height={60} />
+                    <YAxis tick={{ fontSize: 11 }} unit="%" />
+                    <Tooltip formatter={(v: any) => `${Number(v).toFixed(1)}%`} />
+                    <ReferenceLine y={targetPct} stroke="#c4956a" strokeDasharray="4 4" />
+                    <Bar dataKey="pct" radius={[4, 4, 0, 0]}>
+                      {chartData.map((d, i) => (
+                        <Cell key={i} fill={d.low ? "#dc2626" : "#c4956a"} />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                </ChartFrame>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
-      <div className="rounded-xl border-2 overflow-hidden" style={{ borderColor: "#c4956a" }}>
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="text-left" style={{ background: "rgba(196,149,106,0.15)" }}>
-              <th className="px-3 py-2 w-8" aria-hidden />
-              <th className="px-4 py-2 font-bold text-black">{t("food_cost_col_dish" as keyof Dictionary) || "Piatto"}</th>
-              <th className="px-4 py-2 font-bold text-black text-right">{t("food_cost_col_price" as keyof Dictionary) || "Prezzo"}</th>
-              <th className="px-4 py-2 font-bold text-black text-right">{t("food_cost_col_cost" as keyof Dictionary) || "Costo"}</th>
-              <th className="px-4 py-2 font-bold text-black text-right">{t("food_cost_col_pct" as keyof Dictionary) || "Food cost %"}</th>
-              <th className="px-4 py-2 font-bold text-black text-right">{t("food_cost_col_margin" as keyof Dictionary) || "Margine"}</th>
-            </tr>
-          </thead>
-          <tbody>
-            {loading ? (
-              <tr><td colSpan={6} className="px-4 py-6 text-center text-black">…</td></tr>
-            ) : rows.length === 0 ? (
-              <tr><td colSpan={6} className="px-4 py-6 text-center text-black">{t("food_cost_empty" as keyof Dictionary) || "Nessun piatto."}</td></tr>
-            ) : (
-              pageRows.map((r) => {
-                const isOpen = expanded === r.menuItemId;
-                const ss = saveStates[r.menuItemId];
-                return (
-                  <FoodCostRowGroup
-                    key={r.menuItemId}
-                    r={r}
-                    isOpen={isOpen}
-                    onToggle={() => setExpanded(isOpen ? null : r.menuItemId)}
-                    editing={editing === r.menuItemId}
-                    draftPrice={draftPrice}
-                    setDraftPrice={setDraftPrice}
-                    onStartEdit={() => { setEditing(r.menuItemId); setDraftPrice(r.price != null ? String(r.price) : ""); }}
-                    onCommit={() => savePrice(r.menuItemId, draftPrice)}
-                    onCancel={() => setEditing(null)}
-                    saveState={ss}
-                    tenantId={activeTenant!.id}
-                    onRecipeChanged={load}
-                    t={t}
-                  />
-                );
-              })
-            )}
-          </tbody>
-        </table>
+      {/* Search + filter chips */}
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="relative flex-1 min-w-[200px] max-w-sm">
+          <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2" style={{ color: "#8b6540" }} />
+          <input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder={t("food_cost_search_ph" as keyof Dictionary) || "Cerca piatto…"}
+            className="w-full pl-9 pr-8 py-2 text-sm rounded-xl border bg-white/70 text-black outline-none focus:border-[#c4956a]"
+            style={{ borderColor: "#eaddcb" }}
+          />
+          {query && (
+            <button onClick={() => setQuery("")} className="absolute right-2.5 top-1/2 -translate-y-1/2 cursor-pointer" aria-label="clear">
+              <X className="w-4 h-4" style={{ color: "#8b6540" }} />
+            </button>
+          )}
+        </div>
+        <div className="flex flex-wrap gap-1.5">
+          {chips.map((c) => {
+            const active = filter === c.key;
+            return (
+              <button
+                key={c.key}
+                onClick={() => setFilter(active && c.key !== "all" ? "all" : c.key)}
+                className="px-3 py-1.5 text-sm font-bold rounded-full border cursor-pointer transition-colors"
+                style={
+                  active
+                    ? { background: "#c4956a", borderColor: "#c4956a", color: "#fff" }
+                    : { borderColor: "#eaddcb", background: "rgba(255,255,255,0.7)", color: "#000" }
+                }
+              >
+                {c.label}
+                <span
+                  className="ml-1.5 text-xs px-1.5 py-0.5 rounded-full tabular-nums"
+                  style={
+                    active
+                      ? { background: "rgba(255,255,255,0.3)", color: "#fff" }
+                      : c.color && c.count > 0
+                        ? { background: c.color, color: "#fff" }
+                        : { color: "#8b6540" }
+                  }
+                >
+                  {c.count}
+                </span>
+              </button>
+            );
+          })}
+        </div>
       </div>
 
-      {rows.length > PER_PAGE && (
+      {/* Dish list */}
+      <div className="space-y-2">
+        {loading ? (
+          [...Array(6)].map((_, i) => (
+            <div key={i} className={`${CARD} h-16 animate-pulse`} style={{ ...CARD_STYLE, background: "rgba(252,246,237,0.6)" }} />
+          ))
+        ) : filtered.length === 0 ? (
+          <div className={`${CARD} p-8 text-center text-sm text-black`} style={CARD_STYLE}>
+            {rows.length === 0
+              ? t("food_cost_empty" as keyof Dictionary) || "Nessun piatto."
+              : t("inventory_no_match" as keyof Dictionary) || "Nessun risultato con questi filtri."}
+          </div>
+        ) : (
+          pageRows.map((r) => (
+            <DishCard
+              key={r.menuItemId}
+              r={r}
+              targetPct={targetPct}
+              isOpen={expanded === r.menuItemId}
+              onToggle={() => setExpanded(expanded === r.menuItemId ? null : r.menuItemId)}
+              editing={editing === r.menuItemId}
+              draftPrice={draftPrice}
+              setDraftPrice={setDraftPrice}
+              onStartEdit={() => { setEditing(r.menuItemId); setDraftPrice(r.price != null ? String(r.price) : ""); }}
+              onCommit={() => savePrice(r.menuItemId, draftPrice)}
+              onCancel={() => setEditing(null)}
+              onApplySuggested={(p) => void savePrice(r.menuItemId, String(p))}
+              saveState={saveStates[r.menuItemId]}
+              tenantId={activeTenant!.id}
+              onRecipeChanged={load}
+              t={t}
+            />
+          ))
+        )}
+      </div>
+
+      {filtered.length > PER_PAGE && (
         <div className="flex items-center justify-between text-sm">
           <span className="text-black">
             {(t("food_cost_pagination" as keyof Dictionary) || "Piatti {from}–{to} di {total}")
               .replace("{from}", String(safePage * PER_PAGE + 1))
-              .replace("{to}", String(Math.min((safePage + 1) * PER_PAGE, rows.length)))
-              .replace("{total}", String(rows.length))}
+              .replace("{to}", String(Math.min((safePage + 1) * PER_PAGE, filtered.length)))
+              .replace("{total}", String(filtered.length))}
           </span>
           <div className="flex items-center gap-2">
             <button
               onClick={() => setPage((p) => Math.max(0, p - 1))}
               disabled={safePage === 0}
-              className="flex items-center gap-1 px-3 py-1.5 rounded-lg border-2 cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
+              className="flex items-center gap-1 px-3 py-1.5 rounded-lg border cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed bg-white/70"
               style={{ borderColor: "#c4956a", color: "#8b6540" }}
             >
               <ChevronLeft className="w-4 h-4" /> {t("back" as keyof Dictionary) || "Indietro"}
@@ -287,7 +398,7 @@ export default function FoodCostPage() {
             <button
               onClick={() => setPage((p) => Math.min(pageCount - 1, p + 1))}
               disabled={safePage >= pageCount - 1}
-              className="flex items-center gap-1 px-3 py-1.5 rounded-lg border-2 cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
+              className="flex items-center gap-1 px-3 py-1.5 rounded-lg border cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed bg-white/70"
               style={{ borderColor: "#c4956a", color: "#8b6540" }}
             >
               {t("next" as keyof Dictionary) || "Avanti"} <ChevronRight className="w-4 h-4" />
@@ -299,13 +410,22 @@ export default function FoodCostPage() {
   );
 }
 
-// One dish: the main row (expandable, with inline price edit) + an optional
-// expanded row hosting the recipe editor. Split out so the price-edit state and
-// the recipe panel are scoped per dish.
-function FoodCostRowGroup({
-  r, isOpen, onToggle, editing, draftPrice, setDraftPrice, onStartEdit, onCommit, onCancel, saveState, tenantId, onRecipeChanged, t,
+function HeroStat({ label, value, color }: { label: string; value: number; color: string }) {
+  return (
+    <div>
+      <div className="text-xs font-bold uppercase tracking-wide" style={{ color: "#8b6540" }}>{label}</div>
+      <div className="text-2xl font-bold tabular-nums" style={{ color }}>{value}</div>
+    </div>
+  );
+}
+
+// One dish card: status dot, name, tappable price, food-cost gauge, margin and a
+// one-tap suggested price when the dish is under target. Expands into the recipe.
+function DishCard({
+  r, targetPct, isOpen, onToggle, editing, draftPrice, setDraftPrice, onStartEdit, onCommit, onCancel, onApplySuggested, saveState, tenantId, onRecipeChanged, t,
 }: {
   r: DishCostRow;
+  targetPct: number;
   isOpen: boolean;
   onToggle: () => void;
   editing: boolean;
@@ -314,25 +434,78 @@ function FoodCostRowGroup({
   onStartEdit: () => void;
   onCommit: () => void;
   onCancel: () => void;
+  onApplySuggested: (price: number) => void;
   saveState?: SaveState;
   tenantId: string;
   onRecipeChanged: () => void | Promise<void>;
   t: (k: keyof Dictionary) => string;
 }) {
+  const statusColor = r.noRecipe ? "#d97706" : r.lowMargin ? "#dc2626" : r.foodCostPct == null ? "#d97706" : "#059669";
+  const pctColor = r.foodCostPct == null ? "#8b6540" : r.lowMargin ? "#dc2626" : "#059669";
+  const suggested = r.lowMargin && r.cost > 0 ? suggestedPrice(r.cost, targetPct) : null;
+
   return (
-    <>
-      <tr className="border-t" style={{ borderColor: "#eaddcb", background: r.lowMargin ? "rgba(220,38,38,0.06)" : undefined }}>
-        <td className="px-3 py-2 align-middle">
-          <button onClick={onToggle} className="p-0.5 text-black hover:text-black cursor-pointer" aria-label="toggle recipe" aria-expanded={isOpen}>
-            {isOpen ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+    <div className={CARD} style={{ ...CARD_STYLE, borderColor: isOpen ? "#c4956a" : r.lowMargin ? "rgba(220,38,38,0.35)" : "#eaddcb" }}>
+      <div className="flex items-center gap-3 px-3 sm:px-4 py-3 cursor-pointer select-none" onClick={onToggle}>
+        <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: statusColor }} aria-hidden />
+
+        {/* Name + gauge */}
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2">
+            <span className="font-bold text-black truncate">{r.name}</span>
+            {r.noRecipe && (
+              <span className="text-xs font-bold px-2 py-0.5 rounded-full shrink-0" style={{ background: "rgba(217,119,6,0.12)", color: "#b45309" }}>
+                {t("food_cost_no_recipe_tag" as keyof Dictionary) || "no ricetta"}
+              </span>
+            )}
+            {r.incompleteCost && (
+              <span title={t("food_cost_incomplete_tag" as keyof Dictionary) || "Alcuni ingredienti non hanno un costo"}>
+                <AlertTriangle className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+              </span>
+            )}
+          </div>
+          <div className="flex items-center gap-2 mt-1">
+            {r.foodCostPct != null && (
+              <>
+                <div className="relative h-1.5 rounded-full w-24 sm:w-36 overflow-hidden" style={{ background: "rgba(196,149,106,0.18)" }}>
+                  <div
+                    className="absolute inset-y-0 left-0 rounded-full"
+                    style={{ width: `${Math.min(100, (r.foodCostPct / 60) * 100)}%`, background: pctColor }}
+                  />
+                  <div className="absolute inset-y-0" style={{ left: `${Math.min(100, (targetPct / 60) * 100)}%`, width: 2, background: "rgba(0,0,0,0.3)" }} />
+                </div>
+                <span className="text-xs font-bold tabular-nums" style={{ color: pctColor }}>{r.foodCostPct.toFixed(0)}%</span>
+              </>
+            )}
+            {!r.noRecipe && (
+              <span className="text-xs tabular-nums" style={{ color: "#8b6540" }}>
+                {(t("food_cost_cost_short" as keyof Dictionary) || "costa")} € {r.cost.toFixed(2)}
+              </span>
+            )}
+          </div>
+        </div>
+
+        {/* Suggested price — the one-tap fix for a dish under target */}
+        {suggested != null && suggested > (r.price ?? 0) && (
+          <button
+            onClick={(e) => { e.stopPropagation(); onApplySuggested(suggested); }}
+            className="hidden md:inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-bold rounded-lg cursor-pointer shrink-0 text-white"
+            style={{ background: "#059669" }}
+            title={t("food_cost_suggested_hint" as keyof Dictionary) || "Porta il prezzo al target (aggiorna anche la cassa)"}
+          >
+            <Sparkles className="w-3.5 h-3.5" />
+            {(t("food_cost_suggested" as keyof Dictionary) || "Porta a € {p}").replace("{p}", suggested.toFixed(2))}
           </button>
-        </td>
-        <td className="px-4 py-2 text-black">
-          {r.name}
-          {r.noRecipe && <span className="ml-2 text-xs text-amber-600">({t("food_cost_no_recipe_tag" as keyof Dictionary) || "no ricetta"})</span>}
-          {r.incompleteCost && <span className="ml-2 text-xs text-amber-600">⚠</span>}
-        </td>
-        <td className="px-4 py-2 text-right text-black">
+        )}
+
+        {/* Margin */}
+        <div className="hidden sm:block text-right shrink-0 w-20">
+          <div className="text-xs" style={{ color: "#8b6540" }}>{t("food_cost_col_margin" as keyof Dictionary) || "Margine"}</div>
+          <div className="text-sm font-bold tabular-nums text-black">{r.margin != null ? `€ ${r.margin.toFixed(2)}` : "—"}</div>
+        </div>
+
+        {/* Price — tappable, writes back to the till */}
+        <div onClick={(e) => e.stopPropagation()} className="shrink-0">
           {editing ? (
             <input
               autoFocus
@@ -342,47 +515,49 @@ function FoodCostRowGroup({
               onChange={(e) => setDraftPrice(e.target.value)}
               onBlur={onCommit}
               onKeyDown={(e) => { if (e.key === "Enter") onCommit(); if (e.key === "Escape") onCancel(); }}
-              className="w-24 px-2 py-1 text-right text-sm border-2 rounded"
+              className="w-24 px-2 py-1.5 text-right text-sm font-bold border-2 rounded-lg text-black"
               style={{ borderColor: "#c4956a" }}
             />
           ) : (
-            <div className="flex items-center justify-end gap-1.5">
+            <button
+              onClick={onStartEdit}
+              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg cursor-pointer hover:bg-[#c4956a]/10"
+              title={t("food_cost_edit_price_hint" as keyof Dictionary) || "Modifica prezzo (aggiorna anche la cassa)"}
+            >
               {saveState?.status === "saving" && <Loader2 className="w-3.5 h-3.5 animate-spin text-black" />}
               {saveState?.status === "ok" && <Check className="w-3.5 h-3.5 text-emerald-600" />}
-              <button
-                onClick={onStartEdit}
-                className="px-2 py-0.5 rounded hover:bg-[#c4956a]/15 cursor-pointer underline decoration-dotted underline-offset-2"
-                title={t("food_cost_edit_price_hint" as keyof Dictionary) || "Modifica prezzo (aggiorna anche la cassa)"}
-              >
-                {r.price != null ? `€ ${r.price.toFixed(2)}` : "—"}
-              </button>
-            </div>
+              <span className="text-base font-bold tabular-nums text-black">{r.price != null ? `€ ${r.price.toFixed(2)}` : "—"}</span>
+            </button>
           )}
-        </td>
-        <td className="px-4 py-2 text-right text-black">{r.noRecipe ? "—" : `€ ${r.cost.toFixed(2)}`}</td>
-        <td className={`px-4 py-2 text-right font-bold ${r.lowMargin ? "text-red-600" : "text-black"}`}>{r.foodCostPct != null ? `${r.foodCostPct.toFixed(1)}%` : "—"}</td>
-        <td className="px-4 py-2 text-right text-black">{r.margin != null ? `€ ${r.margin.toFixed(2)}` : "—"}</td>
-      </tr>
+        </div>
+
+        {isOpen ? <ChevronDown className="w-4 h-4 shrink-0 text-black" /> : <ChevronRight className="w-4 h-4 shrink-0 text-black" />}
+      </div>
+
       {saveState && (saveState.status === "ok" || saveState.status === "error") && saveState.msg && (
-        <tr style={{ background: saveState.status === "error" ? "rgba(220,38,38,0.06)" : "rgba(16,185,129,0.06)" }}>
-          <td />
-          <td colSpan={5} className={`px-4 pb-2 text-xs ${saveState.status === "error" ? "text-red-600" : "text-emerald-700"}`}>
-            {saveState.msg}
-          </td>
-        </tr>
+        <div className={`px-4 pb-2 text-xs ${saveState.status === "error" ? "text-red-600" : "text-emerald-700"}`}>{saveState.msg}</div>
       )}
+
       {isOpen && (
-        <tr>
-          <td />
-          <td colSpan={5} className="px-2 pb-3">
-            {/* RecipePanel writes recipe_items directly; refresh the table after
-                edits so cost/% reflect the new recipe. */}
-            <div onBlur={() => { void onRecipeChanged(); }}>
-              <RecipePanel tenantId={tenantId} menuItemId={r.menuItemId} price={r.price} />
-            </div>
-          </td>
-        </tr>
+        <div className="px-3 sm:px-4 pb-4 border-t pt-3" style={{ borderColor: "#f0e5d4" }}>
+          {/* mobile-only suggested price (hidden in the row on small screens) */}
+          {suggested != null && suggested > (r.price ?? 0) && (
+            <button
+              onClick={() => onApplySuggested(suggested)}
+              className="md:hidden mb-3 inline-flex items-center gap-1 px-3 py-2 text-xs font-bold rounded-lg cursor-pointer text-white"
+              style={{ background: "#059669" }}
+            >
+              <Sparkles className="w-3.5 h-3.5" />
+              {(t("food_cost_suggested" as keyof Dictionary) || "Porta a € {p}").replace("{p}", suggested.toFixed(2))}
+            </button>
+          )}
+          {/* RecipePanel writes recipe_items directly; refresh the table after
+              edits so cost/% reflect the new recipe. */}
+          <div onBlur={() => { void onRecipeChanged(); }}>
+            <RecipePanel tenantId={tenantId} menuItemId={r.menuItemId} price={r.price} />
+          </div>
+        </div>
       )}
-    </>
+    </div>
   );
 }

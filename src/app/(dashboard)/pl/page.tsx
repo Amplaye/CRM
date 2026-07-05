@@ -1,10 +1,9 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { PieChart as PieIcon, Users, Calculator, Wallet, TrendingUp, Layers, Download, Building2 } from "lucide-react";
+import { PieChart as PieIcon, Users, Calculator, Wallet, TrendingUp, Download, AlertTriangle } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend } from "recharts";
 import { ChartFrame } from "@/components/ChartFrame";
-import { KPICard } from "@/components/ui/KPICard";
 import { useLanguage } from "@/lib/contexts/LanguageContext";
 import { useTenant } from "@/lib/contexts/TenantContext";
 import { createClient } from "@/lib/supabase/client";
@@ -19,6 +18,9 @@ import type { Shift } from "@/lib/management/time-buckets";
 
 const PERIODS = [7, 30, 90] as const;
 type PeriodDays = (typeof PERIODS)[number];
+
+const CARD = "rounded-2xl border bg-white/70";
+const CARD_STYLE = { borderColor: "#eaddcb" } as const;
 
 const dateStr = (d: Date) => d.toISOString().slice(0, 10);
 const daysInMonth = (year: number, month0: number) => new Date(year, month0 + 1, 0).getDate();
@@ -168,7 +170,6 @@ export default function PlPage() {
   if (!enabled) return <ManagementLocked section="pl" />;
 
   const fmt = (n: number | null) => (n == null ? "—" : `€ ${n.toLocaleString("it-IT", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`);
-  const pct = (n: number | null) => (n == null ? "—" : `${n.toFixed(1)}%`);
 
   // A small +/-% chip vs the previous period.
   const DeltaChip = ({ d, goodWhenUp = true }: { d: PlDelta | null; goodWhenUp?: boolean }) => {
@@ -176,7 +177,10 @@ export default function PlPage() {
     const up = d.pct > 0;
     const good = up === goodWhenUp;
     return (
-      <span className="text-xs font-bold ml-2" style={{ color: good ? "#059669" : "#dc2626" }}>
+      <span
+        className="text-xs font-bold px-1.5 py-0.5 rounded-full tabular-nums"
+        style={{ color: good ? "#047857" : "#dc2626", background: good ? "rgba(5,150,105,0.1)" : "rgba(220,38,38,0.08)" }}
+      >
         {up ? "▲" : "▼"} {Math.abs(d.pct).toFixed(1)}%
       </span>
     );
@@ -213,115 +217,288 @@ export default function PlPage() {
       ]
     : [];
 
+  const marginColor = (summary?.operatingMargin ?? 0) >= 0 ? "#059669" : "#dc2626";
+  const laborOver = laborBudget != null && summary != null && summary.labor > laborBudget;
+
+  // The statement rows: label, value, % of revenue, delta, semantics.
+  const stmt = summary
+    ? [
+        {
+          key: "revenue",
+          label: t("pl_revenue" as keyof Dictionary) || "Ricavi",
+          value: summary.revenue,
+          pct: summary.revenue > 0 ? 100 : null,
+          delta: prev ? plDelta(summary.revenue, prev.revenue) : null,
+          goodWhenUp: true,
+          kind: "revenue" as const,
+        },
+        {
+          key: "food",
+          label: t("pl_food_cost" as keyof Dictionary) || "Food cost",
+          value: -summary.foodCost,
+          pct: summary.foodCostPct,
+          delta: prev ? plDelta(summary.foodCost, prev.foodCost) : null,
+          goodWhenUp: false,
+          kind: "cost" as const,
+          warn: summary.foodCostPct != null && summary.foodCostPct > 35,
+        },
+        {
+          key: "labor",
+          label: t("pl_labor" as keyof Dictionary) || "Personale",
+          value: -summary.labor,
+          pct: summary.laborPct,
+          delta: prev ? plDelta(summary.labor, prev.labor) : null,
+          goodWhenUp: false,
+          kind: "cost" as const,
+          warn: laborOver,
+        },
+        {
+          key: "prime",
+          label: t("pl_prime_cost" as keyof Dictionary) || "Prime cost",
+          value: -summary.primeCost,
+          pct: summary.primeCostPct,
+          delta: prev ? plDelta(summary.primeCost, prev.primeCost) : null,
+          goodWhenUp: false,
+          kind: "subtotal" as const,
+          warn: summary.primeCostPct != null && summary.primeCostPct > 65,
+        },
+        {
+          key: "fees",
+          label: t("pl_fees" as keyof Dictionary) || "Commissioni",
+          value: -summary.fees,
+          pct: summary.revenue > 0 ? Math.round((summary.fees / summary.revenue) * 1000) / 10 : null,
+          delta: prev ? plDelta(summary.fees, prev.fees) : null,
+          goodWhenUp: false,
+          kind: "cost" as const,
+        },
+        {
+          key: "overhead",
+          label: t("pl_overhead" as keyof Dictionary) || "Costi fissi",
+          value: -summary.overhead,
+          pct: summary.overheadPct,
+          delta: prev ? plDelta(summary.overhead, prev.overhead) : null,
+          goodWhenUp: false,
+          kind: "cost" as const,
+        },
+        {
+          key: "margin",
+          label: t("pl_operating_margin" as keyof Dictionary) || "Margine operativo",
+          value: summary.operatingMargin,
+          pct: summary.operatingMarginPct,
+          delta: prev ? plDelta(summary.operatingMargin, prev.operatingMargin) : null,
+          goodWhenUp: true,
+          kind: "result" as const,
+        },
+      ]
+    : [];
+
   return (
-    <div className="p-4 sm:p-6 lg:p-8 w-full space-y-6">
-      <div className="border-b pb-5 flex flex-wrap items-start justify-between gap-4" style={{ borderColor: "#c4956a" }}>
+    <div className="p-4 sm:p-6 lg:p-8 w-full space-y-5">
+      {/* Header */}
+      <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold text-black flex items-center gap-2">
             <PieIcon className="w-6 h-6" /> {t("nav_pl" as keyof Dictionary) || "Conto economico"}
           </h1>
-          <p className="mt-1 text-sm text-black">{t("pl_subtitle_compare" as keyof Dictionary) || "Confronto con il periodo precedente."}</p>
+          <p className="mt-1 text-sm" style={{ color: "#8b6540" }}>
+            {t("pl_subtitle_v2" as keyof Dictionary) || "Calcolato in automatico da cassa, ricette e costi. Confronto con il periodo precedente."}
+          </p>
         </div>
         <div className="flex items-center gap-2">
-          <div className="inline-flex rounded-lg border-2 overflow-hidden" style={{ borderColor: "#c4956a" }}>
+          <div className="inline-flex rounded-xl border overflow-hidden bg-white/70" style={{ borderColor: "#c4956a" }}>
             {PERIODS.map((p) => (
               <button
                 key={p}
                 onClick={() => setWindowDays(p)}
-                className={`px-3 py-1.5 text-sm cursor-pointer ${windowDays === p ? "text-white font-bold" : "text-black"}`}
+                className={`px-3.5 py-2 text-sm cursor-pointer ${windowDays === p ? "text-white font-bold" : "text-black"}`}
                 style={windowDays === p ? { background: "#c4956a" } : undefined}
               >
                 {p}{t("pl_days_short" as keyof Dictionary) || "gg"}
               </button>
             ))}
           </div>
-          <button onClick={exportCsv} className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg border-2 cursor-pointer text-black" style={{ borderColor: "#c4956a" }}>
+          <button onClick={exportCsv} className="inline-flex items-center gap-1.5 px-3.5 py-2 text-sm font-bold rounded-xl border cursor-pointer text-black bg-white/70" style={{ borderColor: "#c4956a" }}>
             <Download className="w-4 h-4" /> CSV
           </button>
         </div>
       </div>
 
-      {/* Hero: revenue + operating margin, each with a vs-previous chip. */}
-      <div className="rounded-xl border-2 p-6 grid grid-cols-1 sm:grid-cols-2 gap-4" style={{ borderColor: "#c4956a", background: "rgba(252,246,237,0.85)" }}>
-        <div>
-          <div className="text-sm font-medium text-black">{t("pl_revenue" as keyof Dictionary) || "Ricavi"}</div>
-          <div className="text-4xl font-bold text-black flex items-center">
-            {fmt(summary?.revenue ?? null)}
-            <DeltaChip d={summary && prev ? plDelta(summary.revenue, prev.revenue) : null} />
-          </div>
-        </div>
-        <div>
-          <div className="text-sm font-medium text-black">{t("pl_operating_margin" as keyof Dictionary) || "Margine operativo"}</div>
-          <div className="text-4xl font-bold flex items-center" style={{ color: (summary?.operatingMargin ?? 0) >= 0 ? "#059669" : "#dc2626" }}>
-            {fmt(summary?.operatingMargin ?? null)}
-            {summary?.operatingMarginPct != null && <span className="text-lg ml-2">({summary.operatingMarginPct.toFixed(0)}%)</span>}
-            <DeltaChip d={summary && prev ? plDelta(summary.operatingMargin, prev.operatingMargin) : null} />
-          </div>
-        </div>
-      </div>
-
-      {/* KPI strip */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <KPICard title={t("pl_covers" as keyof Dictionary) || "Coperti"} value={summary?.covers ?? 0} icon={<Users className="w-5 h-5" />} />
-        <KPICard title={t("pl_avg_ticket" as keyof Dictionary) || "Scontrino medio"} value={summary?.avgTicket != null ? `€ ${summary.avgTicket.toFixed(2)}` : "—"} icon={<TrendingUp className="w-5 h-5" />} />
-        <KPICard title={t("pl_food_cost_pct" as keyof Dictionary) || "Food cost %"} value={pct(summary?.foodCostPct ?? null)} icon={<Calculator className="w-5 h-5" />} />
-        <KPICard
-          title={t("pl_labor" as keyof Dictionary) || "Costo personale"}
-          value={summary ? `€ ${summary.labor.toFixed(0)}${laborBudget ? ` / ${laborBudget}` : ""}` : "—"}
-          icon={<Wallet className="w-5 h-5" />}
-          valueClassName={laborBudget && summary && summary.labor > laborBudget ? "text-red-600" : undefined}
-        />
-      </div>
-
-      {/* Prime cost / overhead / per-cover strip */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <KPICard title={t("pl_prime_cost_pct" as keyof Dictionary) || "Prime cost %"} value={pct(summary?.primeCostPct ?? null)} icon={<Layers className="w-5 h-5" />} valueClassName={summary && summary.primeCostPct != null && summary.primeCostPct > 65 ? "text-red-600" : undefined} />
-        <KPICard title={t("pl_overhead" as keyof Dictionary) || "Costi fissi"} value={fmt(summary?.overhead ?? null)} icon={<Building2 className="w-5 h-5" />} />
-        <KPICard title={t("pl_food_per_cover" as keyof Dictionary) || "Food / coperto"} value={summary?.foodCostPerCover != null ? `€ ${summary.foodCostPerCover.toFixed(2)}` : "—"} icon={<Calculator className="w-5 h-5" />} />
-        <KPICard title={t("pl_labor_per_cover" as keyof Dictionary) || "Personale / coperto"} value={summary?.laborPerCover != null ? `€ ${summary.laborPerCover.toFixed(2)}` : "—"} icon={<Wallet className="w-5 h-5" />} />
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {byDay.length > 0 && (
-          <div className="rounded-xl border-2 p-4" style={{ borderColor: "#c4956a", background: "rgba(252,246,237,0.6)" }}>
-            <h2 className="text-sm font-bold text-black mb-3">{t("pl_chart_rev_cost" as keyof Dictionary) || "Ricavi vs costi (food + personale)"}</h2>
-            <div style={{ height: 260 }}>
-              <ChartFrame>
-                <BarChart data={byDay} margin={{ top: 8, right: 16, bottom: 8, left: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#e7d8c5" />
-                  <XAxis dataKey="day" tick={{ fontSize: 11 }} />
-                  <YAxis tick={{ fontSize: 11 }} />
-                  <Tooltip formatter={(v: any) => `€ ${Number(v).toFixed(0)}`} />
-                  <Legend />
-                  <Bar dataKey="revenue" name={t("pl_revenue" as keyof Dictionary) || "Ricavi"} fill="#c4956a" radius={[4, 4, 0, 0]} />
-                  <Bar dataKey="cost" name={t("pl_costs" as keyof Dictionary) || "Costi"} fill="#dc2626" radius={[4, 4, 0, 0]} />
-                </BarChart>
-              </ChartFrame>
+      {loading && !summary ? (
+        <>
+          <div className={`${CARD} h-28 animate-pulse`} style={{ ...CARD_STYLE, background: "rgba(252,246,237,0.6)" }} />
+          <div className={`${CARD} h-80 animate-pulse`} style={{ ...CARD_STYLE, background: "rgba(252,246,237,0.6)" }} />
+        </>
+      ) : (
+        <>
+          {/* Hero: revenue + operating margin */}
+          <div className={`${CARD} p-5 sm:p-6 grid grid-cols-1 sm:grid-cols-2 gap-5`} style={CARD_STYLE}>
+            <div>
+              <div className="text-xs font-bold uppercase tracking-wide" style={{ color: "#8b6540" }}>
+                {t("pl_revenue" as keyof Dictionary) || "Ricavi"}
+              </div>
+              <div className="mt-1 flex items-center gap-2 flex-wrap">
+                <span className="text-4xl font-bold text-black tabular-nums">{fmt(summary?.revenue ?? null)}</span>
+                <DeltaChip d={summary && prev ? plDelta(summary.revenue, prev.revenue) : null} />
+              </div>
+              <div className="mt-1 text-sm" style={{ color: "#8b6540" }}>
+                {summary?.covers ?? 0} {t("pl_covers" as keyof Dictionary)?.toLowerCase() || "coperti"}
+                {summary?.avgTicket != null && ` · € ${summary.avgTicket.toFixed(2)} ${t("pl_avg_ticket_short" as keyof Dictionary) || "a coperto"}`}
+              </div>
+            </div>
+            <div className="sm:border-l sm:pl-6" style={{ borderColor: "#f0e5d4" }}>
+              <div className="text-xs font-bold uppercase tracking-wide" style={{ color: "#8b6540" }}>
+                {t("pl_operating_margin" as keyof Dictionary) || "Margine operativo"}
+              </div>
+              <div className="mt-1 flex items-center gap-2 flex-wrap">
+                <span className="text-4xl font-bold tabular-nums" style={{ color: marginColor }}>{fmt(summary?.operatingMargin ?? null)}</span>
+                {summary?.operatingMarginPct != null && (
+                  <span className="text-lg font-bold" style={{ color: marginColor }}>({summary.operatingMarginPct.toFixed(0)}%)</span>
+                )}
+                <DeltaChip d={summary && prev ? plDelta(summary.operatingMargin, prev.operatingMargin) : null} />
+              </div>
+              <div className="mt-1 text-sm" style={{ color: "#8b6540" }}>
+                {(t("pl_margin_hint" as keyof Dictionary) || "quello che resta dopo food, personale, commissioni e fissi")}
+              </div>
             </div>
           </div>
-        )}
 
-        {bandChart.length > 0 && (
-          <div className="rounded-xl border-2 p-4" style={{ borderColor: "#c4956a", background: "rgba(252,246,237,0.6)" }}>
-            <h2 className="text-sm font-bold text-black mb-3">{t("pl_chart_bands" as keyof Dictionary) || "Margine: pranzo vs cena"}</h2>
-            <div style={{ height: 260 }}>
-              <ChartFrame>
-                <BarChart data={bandChart} margin={{ top: 8, right: 16, bottom: 8, left: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#e7d8c5" />
-                  <XAxis dataKey="band" tick={{ fontSize: 12 }} />
-                  <YAxis tick={{ fontSize: 11 }} />
-                  <Tooltip formatter={(v: any) => `€ ${Number(v).toFixed(0)}`} />
-                  <Legend />
-                  <Bar dataKey="revenue" name={t("pl_revenue" as keyof Dictionary) || "Ricavi"} fill="#c4956a" radius={[4, 4, 0, 0]} />
-                  <Bar dataKey="margin" name={t("pl_operating_margin" as keyof Dictionary) || "Margine"} fill="#059669" radius={[4, 4, 0, 0]} />
-                </BarChart>
-              </ChartFrame>
+          {laborOver && (
+            <div className="rounded-xl border p-3 flex items-start gap-2 text-sm" style={{ borderColor: "rgba(220,38,38,0.4)", background: "rgba(220,38,38,0.06)" }}>
+              <AlertTriangle className="w-5 h-5 shrink-0 text-red-600" />
+              <span className="text-black">
+                {(t("pl_labor_over" as keyof Dictionary) || "Costo del personale € {n} oltre il budget mensile di € {b}.")
+                  .replace("{n}", String(Math.round(summary!.labor)))
+                  .replace("{b}", String(laborBudget))}
+              </span>
+            </div>
+          )}
+
+          {/* ── The statement: from revenue down to operating margin ─────────── */}
+          <div className={`${CARD} overflow-hidden`} style={CARD_STYLE}>
+            <div className="px-4 sm:px-5 py-3 border-b flex items-center justify-between" style={{ borderColor: "#f0e5d4" }}>
+              <span className="text-sm font-bold text-black">
+                {(t("pl_statement_title" as keyof Dictionary) || "Da ricavi a margine — ultimi {n} giorni").replace("{n}", String(windowDays))}
+              </span>
+              <span className="text-xs" style={{ color: "#8b6540" }}>
+                {t("pl_statement_hint" as keyof Dictionary) || "barre = % dei ricavi · △▽ = vs periodo precedente"}
+              </span>
+            </div>
+            <div>
+              {stmt.map((row) => {
+                const isResult = row.kind === "result";
+                const isRevenue = row.kind === "revenue";
+                const isSubtotal = row.kind === "subtotal";
+                const barPct = row.pct != null ? Math.min(100, Math.abs(row.pct)) : 0;
+                const barColor = isRevenue
+                  ? "#c4956a"
+                  : isResult
+                    ? row.value >= 0 ? "#059669" : "#dc2626"
+                    : (row as any).warn
+                      ? "#dc2626"
+                      : isSubtotal
+                        ? "#b45309"
+                        : "#d4a574";
+                const valueColor = isResult ? (row.value >= 0 ? "#059669" : "#dc2626") : (row as any).warn ? "#dc2626" : "#000";
+                return (
+                  <div
+                    key={row.key}
+                    className="px-4 sm:px-5 py-3 grid items-center gap-x-3"
+                    style={{
+                      gridTemplateColumns: "minmax(90px, 160px) 1fr auto",
+                      borderTop: "1px solid #f6eee0",
+                      background: isResult ? (row.value >= 0 ? "rgba(5,150,105,0.06)" : "rgba(220,38,38,0.05)") : isSubtotal ? "rgba(196,149,106,0.06)" : undefined,
+                    }}
+                  >
+                    <span className={`text-sm ${isResult || isRevenue || isSubtotal ? "font-bold" : "font-medium"} text-black`}>
+                      {!isRevenue && !isResult && <span style={{ color: "#8b6540" }}>{isSubtotal ? "= " : "− "}</span>}
+                      {isResult && <span style={{ color: "#8b6540" }}>= </span>}
+                      {row.label}
+                      {(row as any).warn && <AlertTriangle className="inline w-3.5 h-3.5 ml-1 text-red-600" />}
+                    </span>
+                    <div className="hidden sm:block relative h-2.5 rounded-full overflow-hidden" style={{ background: "rgba(196,149,106,0.13)" }}>
+                      <div className="absolute inset-y-0 left-0 rounded-full" style={{ width: `${barPct}%`, background: barColor, opacity: isResult || isRevenue ? 1 : 0.85 }} />
+                    </div>
+                    <div className="flex items-center justify-end gap-2 min-w-[150px]">
+                      {row.pct != null && !isRevenue && (
+                        <span className="text-xs tabular-nums w-12 text-right" style={{ color: (row as any).warn ? "#dc2626" : "#8b6540" }}>
+                          {Math.abs(row.pct).toFixed(0)}%
+                        </span>
+                      )}
+                      <span className={`tabular-nums text-right ${isResult || isRevenue ? "text-base font-bold" : "text-sm font-bold"}`} style={{ color: valueColor, minWidth: 84 }}>
+                        {row.value < 0 ? `− € ${Math.abs(row.value).toLocaleString("it-IT", { maximumFractionDigits: 0 })}` : fmt(row.value)}
+                      </span>
+                      <span className="w-16 text-right">
+                        <DeltaChip d={row.delta} goodWhenUp={row.goodWhenUp} />
+                      </span>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           </div>
-        )}
-      </div>
 
-      {loading && <p className="text-sm text-black">…</p>}
+          {/* Per-cover tiles */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+            <MiniStat icon={<Users className="w-4 h-4" />} label={t("pl_covers" as keyof Dictionary) || "Coperti"} value={String(summary?.covers ?? 0)} />
+            <MiniStat icon={<TrendingUp className="w-4 h-4" />} label={t("pl_avg_ticket" as keyof Dictionary) || "Scontrino medio"} value={summary?.avgTicket != null ? `€ ${summary.avgTicket.toFixed(2)}` : "—"} />
+            <MiniStat icon={<Calculator className="w-4 h-4" />} label={t("pl_food_per_cover" as keyof Dictionary) || "Food / coperto"} value={summary?.foodCostPerCover != null ? `€ ${summary.foodCostPerCover.toFixed(2)}` : "—"} />
+            <MiniStat icon={<Wallet className="w-4 h-4" />} label={t("pl_labor_per_cover" as keyof Dictionary) || "Personale / coperto"} value={summary?.laborPerCover != null ? `€ ${summary.laborPerCover.toFixed(2)}` : "—"} />
+          </div>
+
+          {/* Charts */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            {byDay.length > 0 && (
+              <div className={`${CARD} p-4`} style={CARD_STYLE}>
+                <h2 className="text-sm font-bold text-black mb-3">{t("pl_chart_rev_cost" as keyof Dictionary) || "Ricavi vs costi (food + personale)"}</h2>
+                <div style={{ height: 260 }}>
+                  <ChartFrame>
+                    <BarChart data={byDay} margin={{ top: 8, right: 16, bottom: 8, left: 0 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#e7d8c5" />
+                      <XAxis dataKey="day" tick={{ fontSize: 11 }} />
+                      <YAxis tick={{ fontSize: 11 }} />
+                      <Tooltip formatter={(v: any) => `€ ${Number(v).toFixed(0)}`} />
+                      <Legend />
+                      <Bar dataKey="revenue" name={t("pl_revenue" as keyof Dictionary) || "Ricavi"} fill="#c4956a" radius={[4, 4, 0, 0]} />
+                      <Bar dataKey="cost" name={t("pl_costs" as keyof Dictionary) || "Costi"} fill="#dc2626" radius={[4, 4, 0, 0]} />
+                    </BarChart>
+                  </ChartFrame>
+                </div>
+              </div>
+            )}
+
+            {bandChart.length > 0 && (
+              <div className={`${CARD} p-4`} style={CARD_STYLE}>
+                <h2 className="text-sm font-bold text-black mb-3">{t("pl_chart_bands" as keyof Dictionary) || "Margine: pranzo vs cena"}</h2>
+                <div style={{ height: 260 }}>
+                  <ChartFrame>
+                    <BarChart data={bandChart} margin={{ top: 8, right: 16, bottom: 8, left: 0 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#e7d8c5" />
+                      <XAxis dataKey="band" tick={{ fontSize: 12 }} />
+                      <YAxis tick={{ fontSize: 11 }} />
+                      <Tooltip formatter={(v: any) => `€ ${Number(v).toFixed(0)}`} />
+                      <Legend />
+                      <Bar dataKey="revenue" name={t("pl_revenue" as keyof Dictionary) || "Ricavi"} fill="#c4956a" radius={[4, 4, 0, 0]} />
+                      <Bar dataKey="margin" name={t("pl_operating_margin" as keyof Dictionary) || "Margine"} fill="#059669" radius={[4, 4, 0, 0]} />
+                    </BarChart>
+                  </ChartFrame>
+                </div>
+              </div>
+            )}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+function MiniStat({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) {
+  return (
+    <div className={`${CARD} px-4 py-3 flex items-center gap-3`} style={CARD_STYLE}>
+      <div className="p-2 rounded-lg shrink-0" style={{ background: "rgba(196,149,106,0.12)", color: "#8b6540" }}>{icon}</div>
+      <div className="min-w-0">
+        <div className="text-xs truncate" style={{ color: "#8b6540" }}>{label}</div>
+        <div className="text-lg font-bold text-black tabular-nums">{value}</div>
+      </div>
     </div>
   );
 }
