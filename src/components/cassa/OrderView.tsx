@@ -372,7 +372,7 @@ export function OrderView({
           </div>
         </div>
 
-        <div className="flex gap-1.5 overflow-x-auto no-scrollbar pb-2">
+        <div className="flex flex-wrap gap-1.5 pb-2">
           <button
             onClick={() => setCatId("all")}
             className={`shrink-0 h-9 px-3 rounded-lg border-2 text-xs font-bold cursor-pointer ${catId === "all" && !search ? "text-white" : "text-black hover:bg-[#c4956a]/10"}`}
