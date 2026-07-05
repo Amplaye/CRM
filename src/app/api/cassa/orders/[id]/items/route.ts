@@ -4,13 +4,31 @@ import { requireCassaAccess, isAccess, loadOrder, recomputeOrder } from "@/lib/c
 // Lines of a bill.
 //
 // POST  /api/cassa/orders/[id]/items { tenant_id, items: [{ menu_item_id?, name,
-//        unit_price, qty, course?, notes? }] }
+//        unit_price, qty, course?, notes?, vat_rate?, station?, variants? }] }
 //        → fire a comanda: append the batch as the next firing round.
+//        unit_price arrives INCLUSIVE of variant deltas; variants[] is the
+//        display snapshot for tickets/receipts. vat_rate/station are snapshots
+//        of the menu item at fire time.
 // PATCH /api/cassa/orders/[id]/items { tenant_id, item_id, action: "cancel" }
 //        → storno riga: a sent line is never deleted, it's flagged cancelled
 //          so the kitchen/audit trail stays truthful.
 
 const MAX_LINES_PER_COMANDA = 100;
+const MAX_VARIANTS_PER_LINE = 10;
+
+/** Sanitize the [{name, price_delta}] snapshot; null = reject the line. */
+function parseVariants(raw: unknown): Array<{ name: string; price_delta: number }> | null {
+  if (raw == null) return [];
+  if (!Array.isArray(raw) || raw.length > MAX_VARIANTS_PER_LINE) return null;
+  const out: Array<{ name: string; price_delta: number }> = [];
+  for (const v of raw) {
+    const name = typeof (v as any)?.name === "string" ? (v as any).name.trim().slice(0, 60) : "";
+    const delta = Number((v as any)?.price_delta ?? 0);
+    if (!name || !Number.isFinite(delta) || Math.abs(delta) > 1000) return null;
+    out.push({ name, price_delta: Math.round(delta * 100) / 100 });
+  }
+  return out;
+}
 
 export async function POST(req: Request, ctx: { params: Promise<{ id: string }> }) {
   const { id } = await ctx.params;
@@ -50,6 +68,11 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
     if (!Number.isFinite(qty) || qty <= 0 || qty > 999) {
       return NextResponse.json({ error: "invalid_items" }, { status: 400 });
     }
+    const variants = parseVariants(it?.variants);
+    if (variants === null) {
+      return NextResponse.json({ error: "invalid_items" }, { status: 400 });
+    }
+    const vatRaw = Number(it?.vat_rate);
     rows.push({
       tenant_id: body.tenant_id,
       order_id: id,
@@ -60,6 +83,9 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
       course: Math.min(9, Math.max(1, Math.round(Number(it?.course) || 1))),
       comanda_no: comandaNo,
       notes: typeof it?.notes === "string" && it.notes.trim() ? it.notes.trim().slice(0, 200) : null,
+      vat_rate: Number.isFinite(vatRaw) && vatRaw >= 0 && vatRaw <= 100 ? Math.round(vatRaw * 100) / 100 : null,
+      station: typeof it?.station === "string" && it.station.trim() ? it.station.trim().slice(0, 40) : null,
+      variants,
     });
   }
 

@@ -3,6 +3,7 @@
 // to EXTERNAL tills; these are the CRM's own point-of-sale records.
 
 import type { CassaPaymentMethod } from "./totals";
+import type { MenuItemVariant } from "@/lib/types";
 
 export type CassaOrderStatus = "open" | "paid" | "cancelled" | "void";
 export type CassaChannel = "sala" | "asporto" | "delivery";
@@ -43,12 +44,19 @@ export interface CassaOrderItemRow {
   order_id: string;
   menu_item_id: string | null;
   name: string;
+  /** Snapshot INCLUSIVE of the chosen variants' price deltas. */
   unit_price: number;
   qty: number;
   course: number;
   /** Which firing round (comanda) the line was sent with: 1 = first send, 2 = second… */
   comanda_no: number;
   notes: string | null;
+  /** % IVA snapshotted at fire time (null on pre-v2 rows → treated as 10). */
+  vat_rate: number | null;
+  /** Prep station (reparto) snapshotted at fire time: "cucina", "bar"… */
+  station: string | null;
+  /** Chosen variants, for the ticket/receipt display (deltas already in unit_price). */
+  variants: MenuItemVariant[];
   status: CassaItemStatus;
   created_at: string;
 }
@@ -95,8 +103,12 @@ export interface CassaDraftLine {
   key: string;
   menu_item_id: string | null;
   name: string;
+  /** Base price + the chosen variants' deltas. */
   unit_price: number;
   qty: number;
   course: number;
   notes: string | null;
+  vat_rate: number;
+  station: string | null;
+  variants: MenuItemVariant[];
 }

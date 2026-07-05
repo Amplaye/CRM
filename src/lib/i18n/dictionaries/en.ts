@@ -1428,6 +1428,21 @@ export const en = {
   cassa_save: "Save",
   cassa_setup_needed_title: "Database migration missing",
   cassa_setup_needed_body: "Run this file in the Supabase SQL editor:",
+  // Cassa v2: variants, per-item VAT, prep stations
+  cassa_choose_variants: "Choose the variants, then add to the ticket.",
+  cassa_station_cucina: "Kitchen",
+  cassa_station_bar: "Bar",
+  cassa_station_pizzeria: "Pizzeria",
+  cassa_vat: "VAT",
+  cassa_vat_taxable: "Taxable",
+  cassa_vat_tax: "Tax",
+  menu_item_vat: "VAT %",
+  menu_item_station: "Order station",
+  menu_station_none: "None",
+  menu_item_variants: "Variants",
+  menu_item_variants_hint: "Options the till can add to the dish (e.g. double portion, extra topping) with a ± price on top of the base price.",
+  menu_variant_name_placeholder: "E.g. Double portion",
+  menu_variant_add: "Add variant",
 };
 
 export type Dictionary = typeof en;

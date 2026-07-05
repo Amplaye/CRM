@@ -23,6 +23,8 @@ export interface CassaLineLike {
   qty: number;
   /** "cancelled" lines (storno riga) are excluded from every total. */
   status?: string | null;
+  /** % IVA snapshotted on the line; null/absent falls back to DEFAULT_VAT_RATE. */
+  vat_rate?: number | null;
 }
 
 /** The minimal order shape the math needs. */
@@ -165,6 +167,77 @@ export function businessDateOf(timezone: string | null | undefined, at: Date = n
   }
 }
 
+// ---------------------------------------------------------------------------
+// IVA (scorporo) — prices are VAT-INCLUSIVE, the receipt shows the breakdown
+// ---------------------------------------------------------------------------
+
+/** Restaurant service (somministrazione) default when an item has no rate. */
+export const DEFAULT_VAT_RATE = 10;
+
+/** The coperto is part of the service, so it carries the somministrazione rate. */
+export const COVER_VAT_RATE = 10;
+
+export interface VatLine {
+  /** % rate, e.g. 10. */
+  rate: number;
+  /** VAT-inclusive amount that fell under this rate (after discount). */
+  gross: number;
+  /** Imponibile: gross / (1 + rate/100). */
+  net: number;
+  /** Imposta: gross − net. */
+  tax: number;
+}
+
+function normalizeRate(rate: number | null | undefined): number {
+  const r = Number(rate);
+  return Number.isFinite(r) && r >= 0 && r <= 100 ? Math.round(r * 100) / 100 : DEFAULT_VAT_RATE;
+}
+
+/**
+ * Per-rate VAT breakdown of a (VAT-inclusive) bill. The order discount is
+ * spread across the rates proportionally to their gross, with the remainder
+ * cents assigned largest-share-first so the rows always sum EXACTLY to the
+ * bill total. Rates ascending; empty when the bill is zero.
+ */
+export function vatBreakdown(order: CassaOrderLike, lines: CassaLineLike[]): VatLine[] {
+  // 1) gross per rate (line prices already include IVA and any variant delta)
+  const grossC = new Map<number, number>();
+  for (const l of lines) {
+    if (!isActiveLine(l)) continue;
+    const cents = Math.round((Number(l.qty) || 0) * toCents(l.unit_price));
+    if (cents === 0) continue;
+    const rate = normalizeRate(l.vat_rate);
+    grossC.set(rate, (grossC.get(rate) || 0) + cents);
+  }
+  const covers = Math.max(0, Math.round(Number(order.covers) || 0));
+  const coverC = covers * Math.max(0, toCents(order.cover_unit));
+  if (coverC > 0) grossC.set(COVER_VAT_RATE, (grossC.get(COVER_VAT_RATE) || 0) + coverC);
+
+  const baseC = [...grossC.values()].reduce((s, c) => s + c, 0);
+  if (baseC <= 0) return [];
+
+  // 2) spread the discount proportionally (largest remainder keeps the sum exact)
+  const discountC = toCents(computeTotals(order, lines).discountAmount);
+  const rates = [...grossC.entries()].sort((a, b) => a[0] - b[0]);
+  const shares = rates.map(([rate, cents]) => {
+    const exact = (discountC * cents) / baseC;
+    return { rate, cents, cut: Math.floor(exact), frac: exact - Math.floor(exact) };
+  });
+  let leftover = discountC - shares.reduce((s, x) => s + x.cut, 0);
+  for (const s of [...shares].sort((a, b) => b.frac - a.frac)) {
+    if (leftover <= 0) break;
+    s.cut += 1;
+    leftover -= 1;
+  }
+
+  // 3) scorporo per rate on the discounted gross
+  return shares.map(({ rate, cents, cut }) => {
+    const gross = cents - cut;
+    const net = Math.round(gross / (1 + rate / 100));
+    return { rate, gross: fromCents(gross), net: fromCents(net), tax: fromCents(gross - net) };
+  });
+}
+
 /** Group active lines by course (portata) for the kitchen ticket, courses ascending. */
 export function comandaCourses<T extends CassaLineLike & { course?: number | null }>(
   lines: T[],
@@ -179,6 +252,24 @@ export function comandaCourses<T extends CassaLineLike & { course?: number | nul
   return [...byCourse.entries()]
     .sort((a, b) => a[0] - b[0])
     .map(([course, ls]) => ({ course, lines: ls }));
+}
+
+/** Group active lines by prep station (reparto) for per-printer comande.
+ * Lines with no station land in the `null` group; groups keep first-seen order
+ * with the no-station group last. */
+export function comandaStations<T extends CassaLineLike & { station?: string | null }>(
+  lines: T[],
+): Array<{ station: string | null; lines: T[] }> {
+  const byStation = new Map<string | null, T[]>();
+  for (const l of lines) {
+    if (!isActiveLine(l)) continue;
+    const s = typeof l.station === "string" && l.station.trim() ? l.station : null;
+    if (!byStation.has(s)) byStation.set(s, []);
+    byStation.get(s)!.push(l);
+  }
+  return [...byStation.entries()]
+    .sort((a, b) => (a[0] === null ? 1 : 0) - (b[0] === null ? 1 : 0))
+    .map(([station, ls]) => ({ station, lines: ls }));
 }
 
 // ---------------------------------------------------------------------------

@@ -3,7 +3,7 @@
 import { useEffect } from "react";
 import { useLanguage } from "@/lib/contexts/LanguageContext";
 import type { Dictionary } from "@/lib/i18n/dictionaries/en";
-import { fmtEur, type CassaTotals } from "@/lib/cassa/totals";
+import { fmtEur, type CassaTotals, type VatLine } from "@/lib/cassa/totals";
 
 // Browser-print rendering for the three cassa documents: comanda (kitchen
 // ticket, no prices), preconto and scontrino (non-fiscal courtesy receipt).
@@ -20,6 +20,8 @@ export interface PrintLine {
   name: string;
   notes?: string | null;
   course?: number;
+  /** Chosen variant names ("Doppia porzione"…), printed indented under the line. */
+  variants?: string[];
   total?: number; // omitted on comande — the kitchen doesn't need prices
 }
 
@@ -30,6 +32,9 @@ export type PrintPayload =
       tableLabel: string;
       when: string;
       comandaNo: number | null;
+      /** Prep station (reparto) this sheet is for — printed big so the right
+       * printer/counter grabs it; null = single sheet for everything. */
+      station?: string | null;
       covers?: number;
       courses: Array<{ course: number; lines: PrintLine[] }>;
     }
@@ -42,6 +47,8 @@ export type PrintPayload =
       covers: number;
       lines: PrintLine[];
       totals: CassaTotals;
+      /** Scorporo IVA per rate — printed on the scontrino only. */
+      vat?: VatLine[];
       receipt?: { number: number | null; year: number | null } | null;
       payments?: Array<{ method: string; amount: number; received?: number | null }>;
       change?: number;
@@ -54,6 +61,12 @@ const METHOD_KEYS: Record<string, string> = {
   meal_voucher: "cassa_method_voucher",
   bank_transfer: "cassa_method_bank",
   other: "cassa_method_other",
+};
+
+const STATION_KEYS: Record<string, keyof Dictionary> = {
+  cucina: "cassa_station_cucina",
+  bar: "cassa_station_bar",
+  pizzeria: "cassa_station_pizzeria",
 };
 
 export function PrintSheet({ payload, onDone }: { payload: PrintPayload | null; onDone: () => void }) {
@@ -100,6 +113,11 @@ export function PrintSheet({ payload, onDone }: { payload: PrintPayload | null; 
             {t("cassa_comanda").toUpperCase()}
             {payload.comandaNo ? ` #${payload.comandaNo}` : ""}
           </div>
+          {payload.station ? (
+            <div style={{ textAlign: "center", fontSize: 14, fontWeight: 700, margin: "2px 0", border: "1px solid #000", padding: "1px 0" }}>
+              {(STATION_KEYS[payload.station] ? t(STATION_KEYS[payload.station]) : payload.station).toUpperCase()}
+            </div>
+          ) : null}
           <div style={{ display: "flex", justifyContent: "space-between" }}>
             <span style={{ fontWeight: 700, fontSize: 14 }}>{payload.tableLabel}</span>
             <span>{payload.when}</span>
@@ -114,6 +132,9 @@ export function PrintSheet({ payload, onDone }: { payload: PrintPayload | null; 
                   <div style={{ fontSize: 13 }}>
                     <span style={{ fontWeight: 700 }}>{l.qty}×</span> {l.name}
                   </div>
+                  {(l.variants || []).map((v, j) => (
+                    <div key={j} style={{ paddingLeft: 14 }}>+ {v}</div>
+                  ))}
                   {l.notes ? <div style={{ paddingLeft: 14, fontStyle: "italic" }}>» {l.notes}</div> : null}
                 </div>
               ))}
@@ -136,11 +157,16 @@ export function PrintSheet({ payload, onDone }: { payload: PrintPayload | null; 
           {payload.covers > 0 ? <div>{t("cassa_covers")}: {payload.covers}</div> : null}
           {sep}
           {payload.lines.map((l, i) => (
-            <div key={i} style={{ display: "flex", justifyContent: "space-between", gap: 6 }}>
-              <span style={{ flex: 1 }}>
-                {l.qty}× {l.name}
-              </span>
-              <span>{l.total != null ? fmtEur(l.total) : ""}</span>
+            <div key={i}>
+              <div style={{ display: "flex", justifyContent: "space-between", gap: 6 }}>
+                <span style={{ flex: 1 }}>
+                  {l.qty}× {l.name}
+                </span>
+                <span>{l.total != null ? fmtEur(l.total) : ""}</span>
+              </div>
+              {(l.variants || []).map((v, j) => (
+                <div key={j} style={{ paddingLeft: 14, fontSize: 11 }}>+ {v}</div>
+              ))}
             </div>
           ))}
           {sep}
@@ -179,6 +205,23 @@ export function PrintSheet({ payload, onDone }: { payload: PrintPayload | null; 
                   <span>{fmtEur(payload.change)}</span>
                 </div>
               )}
+            </>
+          )}
+          {payload.vat && payload.vat.length > 0 && (
+            <>
+              {sep}
+              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, fontWeight: 700 }}>
+                <span style={{ width: "28%" }}>{t("cassa_vat")}</span>
+                <span style={{ width: "36%", textAlign: "right" }}>{t("cassa_vat_taxable")}</span>
+                <span style={{ width: "36%", textAlign: "right" }}>{t("cassa_vat_tax")}</span>
+              </div>
+              {payload.vat.map((v, i) => (
+                <div key={i} style={{ display: "flex", justifyContent: "space-between", fontSize: 11 }}>
+                  <span style={{ width: "28%" }}>{v.rate}%</span>
+                  <span style={{ width: "36%", textAlign: "right" }}>{fmtEur(v.net)}</span>
+                  <span style={{ width: "36%", textAlign: "right" }}>{fmtEur(v.tax)}</span>
+                </div>
+              ))}
             </>
           )}
           {sep}

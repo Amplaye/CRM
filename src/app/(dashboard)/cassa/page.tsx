@@ -7,14 +7,17 @@ import { useLanguage } from "@/lib/contexts/LanguageContext";
 import { createClient } from "@/lib/supabase/client";
 import { getFeatures } from "@/lib/types/tenant-settings";
 import { ManagementLocked } from "@/components/management/ManagementLocked";
-import type { MenuCategory, MenuItem } from "@/lib/types";
+import type { MenuCategory, MenuItem, MenuItemVariant } from "@/lib/types";
 import {
   computeTotals,
   comandaCourses,
+  comandaStations,
+  vatBreakdown,
   fmtEur,
   toCents,
   fromCents,
   isActiveLine,
+  DEFAULT_VAT_RATE,
   type SessionSummary,
 } from "@/lib/cassa/totals";
 import type {
@@ -69,7 +72,9 @@ export default function CassaPage() {
   const [payOpen, setPayOpen] = useState(false);
   const [payResult, setPayResult] = useState<{ receiptNumber: number | null; receiptYear: number | null; change: number } | null>(null);
   const [paidOrder, setPaidOrder] = useState<CassaOrderFull | null>(null);
-  const [printPayload, setPrintPayload] = useState<PrintPayload | null>(null);
+  // FIFO of sheets to print: a multi-station comanda queues one sheet per
+  // reparto and PrintSheet consumes the head, one print dialog after the other.
+  const [printQueue, setPrintQueue] = useState<PrintPayload[]>([]);
   const [busy, setBusy] = useState(false);
   const [setupNeeded, setSetupNeeded] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -269,29 +274,38 @@ export default function CassaPage() {
   const setDrafts = (orderId: string, next: CassaDraftLine[]) =>
     setDraftsMap((prev) => ({ ...prev, [orderId]: next }));
 
-  const addItem = (item: MenuItem, course: number) => {
+  const enqueuePrint = (p: PrintPayload | PrintPayload[]) =>
+    setPrintQueue((q) => [...q, ...(Array.isArray(p) ? p : [p])]);
+
+  const addItem = (item: MenuItem, course: number, variants: MenuItemVariant[] = []) => {
     if (!activeOrderId) return;
     const cur = draftsMap[activeOrderId] || [];
+    // Same dish, same course, plain (no notes/variants) → just bump the qty.
     const match = cur.find(
-      (d) => d.menu_item_id === item.id && d.course === course && !d.notes,
+      (d) => d.menu_item_id === item.id && d.course === course && !d.notes && d.variants.length === 0,
     );
-    if (match) {
+    if (match && variants.length === 0) {
       setDrafts(
         activeOrderId,
         cur.map((d) => (d.key === match.key ? { ...d, qty: d.qty + 1 } : d)),
       );
     } else {
       draftKeySeq.current += 1;
+      const priceC =
+        toCents(item.price ?? 0) + variants.reduce((s, v) => s + toCents(v.price_delta), 0);
       setDrafts(activeOrderId, [
         ...cur,
         {
           key: `d${draftKeySeq.current}`,
           menu_item_id: item.id,
           name: item.name,
-          unit_price: item.price ?? 0,
+          unit_price: fromCents(priceC),
           qty: 1,
           course,
           notes: null,
+          vat_rate: Number(item.vat_rate ?? DEFAULT_VAT_RATE),
+          station: item.station ?? null,
+          variants,
         },
       ]);
     }
@@ -302,7 +316,18 @@ export default function CassaPage() {
     draftKeySeq.current += 1;
     setDrafts(activeOrderId, [
       ...(draftsMap[activeOrderId] || []),
-      { key: `d${draftKeySeq.current}`, menu_item_id: null, name, unit_price: price, qty: 1, course, notes: null },
+      {
+        key: `d${draftKeySeq.current}`,
+        menu_item_id: null,
+        name,
+        unit_price: price,
+        qty: 1,
+        course,
+        notes: null,
+        vat_rate: DEFAULT_VAT_RATE,
+        station: null,
+        variants: [],
+      },
     ]);
   };
 
@@ -355,6 +380,9 @@ export default function CassaPage() {
               qty: d.qty,
               course: d.course,
               notes: d.notes,
+              vat_rate: d.vat_rate,
+              station: d.station,
+              variants: d.variants,
             })),
           }),
         },
@@ -377,18 +405,31 @@ export default function CassaPage() {
     if (active.length === 0) return;
     const last = Math.max(...active.map((i) => i.comanda_no));
     const lines = active.filter((i) => i.comanda_no === last);
-    setPrintPayload({
-      kind: "comanda",
-      venue: venueName,
-      tableLabel: activeOrder.table_name,
-      when: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-      comandaNo: last,
-      covers: activeOrder.covers,
-      courses: comandaCourses(lines).map((g) => ({
-        course: g.course,
-        lines: g.lines.map((l) => ({ qty: l.qty, name: (l as CassaOrderItemRow).name, notes: (l as CassaOrderItemRow).notes, course: g.course })),
+    // One sheet per reparto (cucina/bar/…): the bar shouldn't see the kitchen's
+    // dishes. A single unassigned group prints the classic single sheet.
+    const groups = comandaStations(lines);
+    const soloSheet = groups.length === 1 && groups[0].station === null;
+    enqueuePrint(
+      groups.map(({ station, lines: ls }) => ({
+        kind: "comanda" as const,
+        venue: venueName,
+        tableLabel: activeOrder.table_name,
+        when: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+        comandaNo: last,
+        station: soloSheet ? null : station,
+        covers: activeOrder.covers,
+        courses: comandaCourses(ls).map((g) => ({
+          course: g.course,
+          lines: g.lines.map((l) => ({
+            qty: l.qty,
+            name: (l as CassaOrderItemRow).name,
+            notes: (l as CassaOrderItemRow).notes,
+            variants: ((l as CassaOrderItemRow).variants || []).map((v) => v.name),
+            course: g.course,
+          })),
+        })),
       })),
-    });
+    );
   };
 
   const storno = async (item: CassaOrderItemRow) => {
@@ -498,8 +539,14 @@ export default function CassaPage() {
         ? new Date(order.closed_at).toLocaleString([], { dateStyle: "short", timeStyle: "short" })
         : "",
       covers: order.covers,
-      lines: active.map((i) => ({ qty: i.qty, name: i.name, total: fromCents(Math.round(i.qty * toCents(i.unit_price))) })),
+      lines: active.map((i) => ({
+        qty: i.qty,
+        name: i.name,
+        variants: (i.variants || []).map((v) => v.name),
+        total: fromCents(Math.round(i.qty * toCents(i.unit_price))),
+      })),
       totals,
+      vat: vatBreakdown(order, order.items),
       receipt: { number: order.receipt_number, year: order.receipt_year },
       payments: (order.payments || []).map((p) => ({ method: p.method, amount: p.amount, received: p.received })),
       change: fromCents(changeC),
@@ -516,14 +563,19 @@ export default function CassaPage() {
     }
     const order = { ...activeOrder, items: itemsNow };
     const active = itemsNow.filter(isActiveLine);
-    setPrintPayload({
+    enqueuePrint({
       kind: "bill",
       variant: "preconto",
       venue: venueName,
       tableLabel: order.table_name,
       when: new Date().toLocaleString([], { dateStyle: "short", timeStyle: "short" }),
       covers: order.covers,
-      lines: active.map((i) => ({ qty: i.qty, name: i.name, total: fromCents(Math.round(i.qty * toCents(i.unit_price))) })),
+      lines: active.map((i) => ({
+        qty: i.qty,
+        name: i.name,
+        variants: (i.variants || []).map((v) => v.name),
+        total: fromCents(Math.round(i.qty * toCents(i.unit_price))),
+      })),
       totals: computeTotals(order, itemsNow),
     });
   };
@@ -695,7 +747,7 @@ export default function CassaPage() {
             businessDate={businessDate}
             canVoid={canManage}
             busy={busy}
-            onReprint={(order) => setPrintPayload(buildReceiptPayload(order))}
+            onReprint={(order) => enqueuePrint(buildReceiptPayload(order))}
             onVoid={voidReceipt}
           />
         ) : view === "close" ? (
@@ -731,7 +783,7 @@ export default function CassaPage() {
           result={payResult}
           onConfirm={confirmPay}
           onPrintReceipt={() => {
-            if (paidOrder) setPrintPayload(buildReceiptPayload(paidOrder));
+            if (paidOrder) enqueuePrint(buildReceiptPayload(paidOrder));
           }}
           onClose={() => {
             setPayOpen(false);
@@ -745,7 +797,7 @@ export default function CassaPage() {
         />
       )}
 
-      <PrintSheet payload={printPayload} onDone={() => setPrintPayload(null)} />
+      <PrintSheet payload={printQueue[0] ?? null} onDone={() => setPrintQueue((q) => q.slice(1))} />
     </div>
   );
 }

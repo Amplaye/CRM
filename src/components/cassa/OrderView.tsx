@@ -16,8 +16,8 @@ import {
   PencilLine,
 } from "lucide-react";
 import { useLanguage } from "@/lib/contexts/LanguageContext";
-import type { MenuCategory, MenuItem } from "@/lib/types";
-import { computeTotals, fmtEur, isActiveLine } from "@/lib/cassa/totals";
+import type { MenuCategory, MenuItem, MenuItemVariant } from "@/lib/types";
+import { computeTotals, fmtEur, isActiveLine, toCents, fromCents } from "@/lib/cassa/totals";
 import type { CassaDraftLine, CassaOrderFull, CassaOrderItemRow } from "@/lib/cassa/types";
 import type { CassaTable } from "./SalaView";
 
@@ -33,7 +33,7 @@ interface OrderViewProps {
   freeTables: CassaTable[];
   busy: boolean;
   onBack: () => void;
-  onAddItem: (item: MenuItem, course: number) => void;
+  onAddItem: (item: MenuItem, course: number, variants?: MenuItemVariant[]) => void;
   onAddFree: (name: string, price: number, course: number) => void;
   onDraftQty: (key: string, delta: number) => void;
   onDraftCourse: (key: string) => void;
@@ -87,6 +87,9 @@ export function OrderView({
   const [discValue, setDiscValue] = useState("");
   const [freeName, setFreeName] = useState("");
   const [freePrice, setFreePrice] = useState("");
+  // Variant picker: the tapped menu item (when it has variants) + toggled indexes.
+  const [variantItem, setVariantItem] = useState<MenuItem | null>(null);
+  const [variantSel, setVariantSel] = useState<Set<number>>(new Set());
 
   const sentItems = order.items.filter((i) => i.status !== "cancelled");
   const totals = useMemo(
@@ -111,7 +114,13 @@ export function OrderView({
     label: string,
     qty: number,
     price: number,
-    opts: { notes?: string | null; course: number; draft?: CassaDraftLine; sent?: CassaOrderItemRow },
+    opts: {
+      notes?: string | null;
+      course: number;
+      variants?: MenuItemVariant[] | null;
+      draft?: CassaDraftLine;
+      sent?: CassaOrderItemRow;
+    },
   ) => (
     <div
       key={opts.draft?.key || opts.sent?.id}
@@ -129,6 +138,12 @@ export function OrderView({
         </button>
         <div className="flex-1 min-w-0">
           <p className="text-sm font-bold text-black truncate">{label}</p>
+          {(opts.variants || []).map((v, i) => (
+            <p key={i} className="text-xs text-black truncate">
+              + {v.name}
+              {v.price_delta ? ` (${v.price_delta > 0 ? "+" : ""}${fmtEur(v.price_delta)})` : ""}
+            </p>
+          ))}
           {opts.notes ? <p className="text-xs italic text-black truncate">» {opts.notes}</p> : null}
         </div>
         <span className="text-sm font-bold text-black whitespace-nowrap">{fmtEur(qty * price)}</span>
@@ -234,9 +249,11 @@ export function OrderView({
             <p className="text-center text-sm text-black py-8">{t("cassa_empty_order_hint")}</p>
           )}
           {sentItems.map((i) =>
-            lineRow(i.name, i.qty, i.unit_price, { notes: i.notes, course: i.course, sent: i }),
+            lineRow(i.name, i.qty, i.unit_price, { notes: i.notes, course: i.course, variants: i.variants, sent: i }),
           )}
-          {drafts.map((d) => lineRow(d.name, d.qty, d.unit_price, { notes: d.notes, course: d.course, draft: d }))}
+          {drafts.map((d) =>
+            lineRow(d.name, d.qty, d.unit_price, { notes: d.notes, course: d.course, variants: d.variants, draft: d }),
+          )}
         </div>
 
         {/* totals */}
@@ -386,12 +403,29 @@ export function OrderView({
               {visibleItems.map((it) => (
                 <button
                   key={it.id}
-                  onClick={() => onAddItem(it, course)}
+                  onClick={() => {
+                    if (it.variants && it.variants.length > 0) {
+                      setVariantSel(new Set());
+                      setVariantItem(it);
+                    } else {
+                      onAddItem(it, course);
+                    }
+                  }}
                   className="h-20 rounded-xl border-2 p-2.5 text-left cursor-pointer transition-transform active:scale-95 hover:bg-[#c4956a]/10 flex flex-col justify-between"
                   style={{ borderColor: "#c4956a", background: "rgba(255,255,255,0.6)" }}
                 >
                   <span className="text-sm font-bold text-black leading-tight line-clamp-2">{it.name}</span>
-                  <span className="text-sm font-bold text-black">{fmtEur(it.price ?? 0)}</span>
+                  <span className="text-sm font-bold text-black inline-flex items-center justify-between w-full">
+                    {fmtEur(it.price ?? 0)}
+                    {it.variants && it.variants.length > 0 ? (
+                      <span
+                        className="text-[10px] font-bold px-1.5 py-0.5 rounded border"
+                        style={{ borderColor: "#c4956a", background: "rgba(196,149,106,0.12)" }}
+                      >
+                        {it.variants.length}▾
+                      </span>
+                    ) : null}
+                  </span>
                 </button>
               ))}
             </div>
@@ -525,6 +559,70 @@ export function OrderView({
                 ))}
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {variantItem && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40" onClick={() => setVariantItem(null)}>
+          <div
+            className="w-full max-w-sm rounded-2xl border-2 p-4 space-y-3 max-h-[70vh] overflow-y-auto"
+            style={{ borderColor: "#c4956a", background: "#FCF6ED" }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="font-bold text-black">{variantItem.name}</h3>
+            <p className="text-xs text-black">{t("cassa_choose_variants")}</p>
+            <div className="space-y-1.5">
+              {(variantItem.variants || []).map((v, idx) => {
+                const active = variantSel.has(idx);
+                return (
+                  <button
+                    key={idx}
+                    onClick={() => {
+                      const next = new Set(variantSel);
+                      if (active) next.delete(idx);
+                      else next.add(idx);
+                      setVariantSel(next);
+                    }}
+                    className={`w-full h-11 px-3 rounded-lg border-2 text-sm font-bold cursor-pointer flex items-center justify-between ${active ? "text-white" : "text-black hover:bg-[#c4956a]/10"}`}
+                    style={active ? { background: "#c4956a", borderColor: "#c4956a" } : { borderColor: "#c4956a" }}
+                  >
+                    <span className="truncate">{v.name}</span>
+                    <span className="whitespace-nowrap">
+                      {v.price_delta ? `${v.price_delta > 0 ? "+" : ""}${fmtEur(v.price_delta)}` : "—"}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+            <div className="flex justify-between text-sm font-bold text-black">
+              <span>{t("cassa_total")}</span>
+              <span>
+                {fmtEur(
+                  fromCents(
+                    toCents(variantItem.price ?? 0) +
+                      (variantItem.variants || []).reduce(
+                        (s, v, idx) => (variantSel.has(idx) ? s + toCents(v.price_delta) : s),
+                        0,
+                      ),
+                  ),
+                )}
+              </span>
+            </div>
+            <button
+              onClick={() => {
+                onAddItem(
+                  variantItem,
+                  course,
+                  (variantItem.variants || []).filter((_, idx) => variantSel.has(idx)),
+                );
+                setVariantItem(null);
+              }}
+              className="w-full h-10 rounded-lg text-sm font-bold text-white cursor-pointer"
+              style={{ background: "linear-gradient(135deg, #d4a574, #c4956a)" }}
+            >
+              {t("cassa_add")}
+            </button>
           </div>
         </div>
       )}

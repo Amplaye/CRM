@@ -1562,7 +1562,22 @@ create policy "cassa_counters admin access" on public.cassa_counters
   for all using (private.is_platform_admin()) with check (private.is_platform_admin());
 
 -- ---------------------------------------------------------------------------
--- 7) Realtime — the /cassa screen live-updates across devices
+-- 7) v2: varianti, IVA per articolo, reparto comanda (cucina/bar/pizzeria)
+-- ---------------------------------------------------------------------------
+-- menu_items carries the CATALOG values; cassa_order_items snapshots them per
+-- line at fire time (a VAT/station/variant change must not rewrite old bills).
+alter table public.menu_items
+  add column if not exists vat_rate numeric(4,2) not null default 10,
+  add column if not exists station text,
+  add column if not exists variants jsonb not null default '[]'::jsonb;
+
+alter table public.cassa_order_items
+  add column if not exists vat_rate numeric(4,2),
+  add column if not exists station text,
+  add column if not exists variants jsonb not null default '[]'::jsonb;
+
+-- ---------------------------------------------------------------------------
+-- 8) Realtime — the /cassa screen live-updates across devices
 -- ---------------------------------------------------------------------------
 do $$
 begin

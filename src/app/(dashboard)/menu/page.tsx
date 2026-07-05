@@ -1500,6 +1500,17 @@ function ItemEditModal({
   const [imageUrl, setImageUrl] = useState<string | null>(
     isEditing ? initial.image_url ?? null : null
   );
+  // Cassa v2 catalog fields (IVA %, reparto comanda, varianti). Optional columns:
+  // they exist only after the cassa migration — the save falls back gracefully.
+  const [vatRate, setVatRate] = useState<number>(
+    isEditing && initial.vat_rate != null ? Number(initial.vat_rate) : 10
+  );
+  const [station, setStation] = useState<string>(isEditing ? initial.station || "" : "");
+  const [variants, setVariants] = useState<Array<{ name: string; price_delta: string }>>(
+    isEditing && Array.isArray(initial.variants)
+      ? initial.variants.map((v) => ({ name: v.name, price_delta: String(v.price_delta ?? 0) }))
+      : []
+  );
   const [uploading, setUploading] = useState(false);
   const [saving, setSaving] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -1583,7 +1594,7 @@ function ItemEditModal({
     if (!name.trim()) return;
     setSaving(true);
     const priceNum = price.trim() === "" ? null : Number(price.replace(",", "."));
-    const payload = {
+    const basePayload = {
       tenant_id: tenantId,
       category_id: categoryId || null,
       name: name.trim(),
@@ -1595,18 +1606,25 @@ function ItemEditModal({
       available,
       image_url: imageUrl,
     };
-    let error: { message: string } | null = null;
-    if (isEditing) {
-      const res = await supabase
-        .from("menu_items")
-        .update(payload)
-        .eq("id", initial.id)
-        .select()
-        .single();
-      error = res.error;
-    } else {
-      const res = await supabase.from("menu_items").insert(payload).select().single();
-      error = res.error;
+    const cassaFields = {
+      vat_rate: vatRate,
+      station: station || null,
+      variants: variants
+        .map((v) => ({
+          name: v.name.trim().slice(0, 60),
+          price_delta: Number(v.price_delta.replace(",", ".")) || 0,
+        }))
+        .filter((v) => v.name),
+    };
+    const save = async (payload: Record<string, unknown>) =>
+      isEditing
+        ? supabase.from("menu_items").update(payload).eq("id", initial.id).select().single()
+        : supabase.from("menu_items").insert(payload).select().single();
+    let { error } = await save({ ...basePayload, ...cassaFields });
+    // Pre-migration DB: the vat_rate/station/variants columns don't exist yet
+    // (PostgREST PGRST204). Save the classic fields rather than lose the edit.
+    if (error && (error.code === "PGRST204" || /column/i.test(error.message))) {
+      ({ error } = await save(basePayload));
     }
     setSaving(false);
     if (error) {
@@ -1840,6 +1858,109 @@ function ItemEditModal({
                   </button>
                 );
               })}
+            </div>
+          </div>
+
+          {/* Cassa: IVA + reparto comanda */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-bold text-black uppercase tracking-widest mb-1.5">
+                {t("menu_item_vat") || "IVA %"}
+              </label>
+              <div className="flex flex-wrap gap-1.5">
+                {[4, 5, 10, 22].map((r) => (
+                  <button
+                    key={r}
+                    type="button"
+                    onClick={() => setVatRate(r)}
+                    className={`cursor-pointer text-[11px] font-bold tracking-wider px-3 py-1.5 rounded border-2 text-black transition-colors ${
+                      vatRate === r ? "bg-[#c4956a]/20" : "hover:bg-[#c4956a]/10"
+                    }`}
+                    style={{ borderColor: "#c4956a" }}
+                  >
+                    {r}%
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-black uppercase tracking-widest mb-1.5">
+                {t("menu_item_station") || "Reparto comanda"}
+              </label>
+              <div className="flex flex-wrap gap-1.5">
+                {[
+                  ["", t("menu_station_none") || "—"],
+                  ["cucina", t("cassa_station_cucina") || "Cucina"],
+                  ["bar", t("cassa_station_bar") || "Bar"],
+                  ["pizzeria", t("cassa_station_pizzeria") || "Pizzeria"],
+                ].map(([value, label]) => (
+                  <button
+                    key={value}
+                    type="button"
+                    onClick={() => setStation(value)}
+                    className={`cursor-pointer text-[11px] uppercase font-bold tracking-wider px-3 py-1.5 rounded border-2 text-black transition-colors ${
+                      station === value ? "bg-[#c4956a]/20" : "hover:bg-[#c4956a]/10"
+                    }`}
+                    style={{ borderColor: "#c4956a" }}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* Cassa: varianti (name + ±€ on top of the base price) */}
+          <div>
+            <label className="block text-xs font-bold text-black uppercase tracking-widest mb-1.5">
+              {t("menu_item_variants") || "Varianti"}
+            </label>
+            <p className="text-xs text-black mb-2">{t("menu_item_variants_hint")}</p>
+            <div className="space-y-2">
+              {variants.map((v, idx) => (
+                <div key={idx} className="flex items-center gap-2">
+                  <input
+                    type="text"
+                    value={v.name}
+                    onChange={(e) =>
+                      setVariants(variants.map((x, i) => (i === idx ? { ...x, name: e.target.value } : x)))
+                    }
+                    placeholder={t("menu_variant_name_placeholder") || "Es. Doppia porzione"}
+                    className="flex-1 border-2 rounded-lg px-3 py-2 text-sm text-black focus:outline-none focus:ring-1 focus:ring-[#c4956a]"
+                    style={{ borderColor: "#c4956a", background: "rgba(252,246,237,0.6)" }}
+                  />
+                  <input
+                    type="text"
+                    inputMode="decimal"
+                    value={v.price_delta}
+                    onChange={(e) =>
+                      setVariants(
+                        variants.map((x, i) => (i === idx ? { ...x, price_delta: e.target.value } : x))
+                      )
+                    }
+                    placeholder="+2.00"
+                    className="w-24 border-2 rounded-lg px-3 py-2 text-sm text-black text-right focus:outline-none focus:ring-1 focus:ring-[#c4956a]"
+                    style={{ borderColor: "#c4956a", background: "rgba(252,246,237,0.6)" }}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setVariants(variants.filter((_, i) => i !== idx))}
+                    className="cursor-pointer p-2 text-red-500 hover:text-red-600 hover:bg-red-50 rounded-lg"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </div>
+              ))}
+              {variants.length < 10 && (
+                <button
+                  type="button"
+                  onClick={() => setVariants([...variants, { name: "", price_delta: "" }])}
+                  className="cursor-pointer inline-flex items-center gap-1.5 text-sm font-bold text-black px-3 py-1.5 rounded-lg border-2 hover:bg-[#c4956a]/10"
+                  style={{ borderColor: "#c4956a" }}
+                >
+                  <Plus className="w-4 h-4" /> {t("menu_variant_add") || "Aggiungi variante"}
+                </button>
+              )}
             </div>
           </div>
 

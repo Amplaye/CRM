@@ -12,6 +12,8 @@ import {
   dominantMethod,
   businessDateOf,
   comandaCourses,
+  comandaStations,
+  vatBreakdown,
   sessionSummary,
 } from "./totals";
 
@@ -237,5 +239,83 @@ describe("sessionSummary", () => {
     expect(s.gross).toBe(0);
     expect(s.avgReceipt).toBe(0);
     expect(s.expectedCash).toBe(50);
+  });
+});
+
+describe("vatBreakdown", () => {
+  it("splits the scorporo per rate on a VAT-inclusive bill", () => {
+    const lines = [
+      { unit_price: 22, qty: 1, vat_rate: 10 }, // food
+      { unit_price: 12.2, qty: 1, vat_rate: 22 }, // amaro da banco
+    ];
+    const v = vatBreakdown({}, lines);
+    expect(v).toHaveLength(2);
+    expect(v[0]).toEqual({ rate: 10, gross: 22, net: 20, tax: 2 });
+    expect(v[1]).toEqual({ rate: 22, gross: 12.2, net: 10, tax: 2.2 });
+  });
+
+  it("defaults missing rates to 10 and folds the coperto into the same rate", () => {
+    const v = vatBreakdown({ covers: 2, cover_unit: 1.5 }, [{ unit_price: 30, qty: 1 }]);
+    expect(v).toHaveLength(1);
+    expect(v[0].rate).toBe(10);
+    expect(v[0].gross).toBe(33);
+    expect(v[0].net).toBe(30);
+    expect(v[0].tax).toBe(3);
+  });
+
+  it("ignores cancelled lines and returns [] on a zero bill", () => {
+    expect(vatBreakdown({}, [{ unit_price: 10, qty: 1, status: "cancelled", vat_rate: 10 }])).toEqual([]);
+    expect(vatBreakdown({}, [])).toEqual([]);
+  });
+
+  it("spreads a discount proportionally and the rows still sum to the bill total", () => {
+    const order = { discount_type: "percent", discount_value: 10 };
+    const lines = [
+      { unit_price: 20, qty: 1, vat_rate: 10 },
+      { unit_price: 10, qty: 1, vat_rate: 22 },
+    ];
+    const totals = computeTotals(order, lines);
+    const v = vatBreakdown(order, lines);
+    const grossSum = v.reduce((s, r) => s + toCents(r.gross), 0);
+    expect(grossSum).toBe(toCents(totals.total)); // 27.00 €
+    for (const r of v) {
+      expect(toCents(r.net) + toCents(r.tax)).toBe(toCents(r.gross));
+    }
+  });
+
+  it("keeps the sum exact when the discount doesn't divide evenly", () => {
+    const order = { discount_type: "amount", discount_value: 0.05 };
+    const lines = [
+      { unit_price: 10, qty: 1, vat_rate: 10 },
+      { unit_price: 10, qty: 1, vat_rate: 22 },
+      { unit_price: 10, qty: 1, vat_rate: 4 },
+    ];
+    const totals = computeTotals(order, lines);
+    const v = vatBreakdown(order, lines);
+    expect(v.map((r) => r.rate)).toEqual([4, 10, 22]); // ascending
+    const grossSum = v.reduce((s, r) => s + toCents(r.gross), 0);
+    expect(grossSum).toBe(toCents(totals.total));
+  });
+});
+
+describe("comandaStations", () => {
+  it("groups active lines per reparto with the station-less group last", () => {
+    const lines = [
+      { unit_price: 5, qty: 1, station: "bar" },
+      { unit_price: 12, qty: 1, station: null },
+      { unit_price: 9, qty: 1, station: "cucina" },
+      { unit_price: 4, qty: 2, station: "bar" },
+      { unit_price: 7, qty: 1, station: "cucina", status: "cancelled" },
+    ];
+    const groups = comandaStations(lines);
+    expect(groups.map((g) => g.station)).toEqual(["bar", "cucina", null]);
+    expect(groups[0].lines).toHaveLength(2);
+    expect(groups[1].lines).toHaveLength(1);
+    expect(groups[2].lines).toHaveLength(1);
+  });
+
+  it("treats blank stations as none", () => {
+    const groups = comandaStations([{ unit_price: 5, qty: 1, station: "  " }]);
+    expect(groups).toEqual([{ station: null, lines: [{ unit_price: 5, qty: 1, station: "  " }] }]);
   });
 });

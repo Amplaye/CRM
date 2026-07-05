@@ -70,6 +70,13 @@ export interface MenuCategory {
   updated_at: string;
 }
 
+/** A selectable option on a dish ("Doppia porzione", "Senza glutine"…).
+ * price_delta (±€) is added to the base price on the cassa line. */
+export interface MenuItemVariant {
+  name: string;
+  price_delta: number;
+}
+
 export interface MenuItem {
   id: string;
   tenant_id: string;
@@ -84,6 +91,13 @@ export interface MenuItem {
   /** Optional dish photo (public "menu-images" Storage bucket). */
   image_url: string | null;
   sort_order: number;
+  // Cassa v2 catalog fields — optional because they exist only once the
+  // 2026-07-04-cassa.sql migration has run; readers must default (IVA 10, no station).
+  /** % IVA of the item (scorporo on receipts). 10 = somministrazione. */
+  vat_rate?: number | null;
+  /** Prep area the comanda line routes to: "cucina" | "bar" | "pizzeria". */
+  station?: string | null;
+  variants?: MenuItemVariant[] | null;
   created_at: string;
   updated_at: string;
 }

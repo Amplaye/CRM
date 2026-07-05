@@ -221,7 +221,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
       unit_price: i.unit_price,
       gross_total: fromCents(Math.round(i.qty * toCents(i.unit_price))),
       menu_item_id: i.menu_item_id,
-      raw_payload: { cassa_item_id: i.id, course: i.course, notes: i.notes },
+      raw_payload: { cassa_item_id: i.id, course: i.course, notes: i.notes, variants: i.variants ?? [], vat_rate: i.vat_rate },
     }));
     if (totals.coverTotal > 0) {
       saleItems.push({
