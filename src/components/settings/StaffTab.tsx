@@ -19,12 +19,13 @@ type Member = {
   created_at?: string;
 };
 
-// UI exposes only two roles: Admin (DB owner — the account creator, unique)
-// and Staff (DB host). Legacy `manager` rows are displayed as Staff but cannot
-// be re-assigned from the UI; only the owner can manage the team.
+// UI roles: Admin (DB owner — the account creator, unique), Responsabile
+// (DB manager — takes orders and charges with the cassa, plus everything
+// Staff can do) and Staff (DB host — camerieri). Only the owner manages the team.
 type TFn = (k: keyof Dictionary) => string;
 const roleToUiLabel = (r: DbRole, t: TFn): string => {
   if (r === "owner") return t("team_role_admin") || "Admin";
+  if (r === "manager") return t("team_role_responsabile") || "Responsabile";
   return t("team_role_staff") || "Staff";
 };
 
@@ -40,6 +41,7 @@ export function StaffTab() {
 
   const [showInvite, setShowInvite] = useState(false);
   const [inviteName, setInviteName] = useState("");
+  const [inviteRole, setInviteRole] = useState<"host" | "manager">("host");
   const [inviting, setInviting] = useState(false);
   const [inviteError, setInviteError] = useState<string | null>(null);
 
@@ -168,13 +170,13 @@ export function StaffTab() {
     setInviting(true);
     setInviteError(null);
     try {
-      // Only Staff (host) can be invited from the UI. The Admin (owner) role is
-      // reserved for the account creator and cannot be assigned to anyone else.
+      // Staff (host) or Responsabile (manager) can be invited from the UI. The
+      // Admin (owner) role is reserved for the account creator.
       const name = inviteName.trim();
       const res = await fetch("/api/team/add-staff", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, role: "host", tenantId: activeTenant.id }),
+        body: JSON.stringify({ name, role: inviteRole, tenantId: activeTenant.id }),
       });
       const body = await res.json();
       if (!res.ok) {
@@ -183,6 +185,7 @@ export function StaffTab() {
       }
       setShowInvite(false);
       setInviteName("");
+      setInviteRole("host");
       setQrFor({ kind: "pending", name });
       setQrUrl(body.url);
       setQrError(null);
@@ -278,6 +281,8 @@ export function StaffTab() {
                 <div className="flex items-center gap-1 mt-0.5">
                   {m.role === "owner"
                     ? <Shield className="w-3 h-3 flex-shrink-0" style={{ color: '#c4956a' }} />
+                    : m.role === "manager"
+                    ? <Shield className="w-3 h-3 flex-shrink-0 text-blue-600" />
                     : <User className="w-3 h-3 flex-shrink-0 text-blue-600" />}
                   <span className="text-xs text-black">{roleLabel(m.role)}</span>
                   <span className="ml-2 px-1.5 py-0.5 text-xs font-semibold rounded-full bg-emerald-100 text-emerald-800">{t("team_status_active") || "Active"}</span>
@@ -287,7 +292,7 @@ export function StaffTab() {
               {/* actions */}
               {canManage && (
                 <div className="flex items-center gap-3 flex-shrink-0">
-                  {m.role === "host" && (
+                  {(m.role === "host" || m.role === "manager") && (
                     <button
                       onClick={() => openQrFor(m)}
                       className="text-black hover:text-black cursor-pointer"
@@ -323,6 +328,26 @@ export function StaffTab() {
               </button>
             </div>
             <div className="p-5 space-y-3">
+              <div>
+                <label className="block text-sm font-medium text-black mb-1">{t("team_invite_role") || "Ruolo"}</label>
+                <div className="grid grid-cols-2 gap-2">
+                  {([
+                    ["host", roleToUiLabel("host", t), t("team_role_hint_staff") || ""],
+                    ["manager", roleToUiLabel("manager", t), t("team_role_hint_responsabile") || ""],
+                  ] as const).map(([r, label, hint]) => (
+                    <button
+                      key={r}
+                      type="button"
+                      onClick={() => setInviteRole(r)}
+                      className={`text-left px-3 py-2.5 rounded-lg border-2 cursor-pointer ${inviteRole === r ? "" : "opacity-70"}`}
+                      style={inviteRole === r ? { borderColor: '#c4956a', background: 'rgba(196,149,106,0.15)' } : { borderColor: 'rgba(196,149,106,0.4)' }}
+                    >
+                      <span className="block text-sm font-bold text-black">{label}</span>
+                      <span className="block text-xs text-black mt-0.5">{hint}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
               <div>
                 <label className="block text-sm font-medium text-black mb-1">{t("team_invite_name") || "Nome"}</label>
                 <input

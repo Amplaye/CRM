@@ -138,7 +138,7 @@ export function OrderView({
       <div className="flex items-center gap-2">
         <button
           onClick={() => (opts.draft ? onDraftCourse(opts.draft.key) : undefined)}
-          className={`shrink-0 h-7 px-1.5 rounded-md border-2 text-[11px] font-bold text-white ${opts.draft ? "cursor-pointer" : "opacity-80"}`}
+          className={`shrink-0 h-8 px-2 rounded-md border-2 text-[11px] font-bold text-white ${opts.draft ? "cursor-pointer" : "opacity-80"}`}
           style={{ background: courseColor(opts.course), borderColor: courseColor(opts.course) }}
           title={`${t("cassa_course")} ${opts.course}${opts.draft ? " — tap ↻" : ""}`}
         >
@@ -161,7 +161,7 @@ export function OrderView({
           <>
             <button
               onClick={() => onDraftQty(opts.draft!.key, -1)}
-              className="w-8 h-8 rounded-lg border-2 flex items-center justify-center text-black cursor-pointer hover:bg-[#c4956a]/10"
+              className="w-10 h-10 rounded-lg border-2 flex items-center justify-center text-black cursor-pointer hover:bg-[#c4956a]/10"
               style={{ borderColor: "#c4956a" }}
             >
               <Minus className="w-4 h-4" />
@@ -169,7 +169,7 @@ export function OrderView({
             <span className="w-8 text-center text-sm font-bold text-black">{qty}</span>
             <button
               onClick={() => onDraftQty(opts.draft!.key, +1)}
-              className="w-8 h-8 rounded-lg border-2 flex items-center justify-center text-black cursor-pointer hover:bg-[#c4956a]/10"
+              className="w-10 h-10 rounded-lg border-2 flex items-center justify-center text-black cursor-pointer hover:bg-[#c4956a]/10"
               style={{ borderColor: "#c4956a" }}
             >
               <Plus className="w-4 h-4" />
@@ -179,7 +179,7 @@ export function OrderView({
                 setNoteKey(opts.draft!.key);
                 setNoteText(opts.draft!.notes || "");
               }}
-              className="ml-1 w-8 h-8 rounded-lg border-2 flex items-center justify-center text-black cursor-pointer hover:bg-[#c4956a]/10"
+              className="ml-1 w-10 h-10 rounded-lg border-2 flex items-center justify-center text-black cursor-pointer hover:bg-[#c4956a]/10"
               style={{ borderColor: "#c4956a" }}
               title={t("cassa_line_note")}
             >
@@ -188,7 +188,7 @@ export function OrderView({
             <span className="flex-1" />
             <button
               onClick={() => onRemoveDraft(opts.draft!.key)}
-              className="w-8 h-8 rounded-lg flex items-center justify-center text-red-600 cursor-pointer hover:bg-red-600/10"
+              className="w-10 h-10 rounded-lg flex items-center justify-center text-red-600 cursor-pointer hover:bg-red-600/10"
             >
               <X className="w-4 h-4" />
             </button>
@@ -203,7 +203,7 @@ export function OrderView({
               onClick={() => {
                 if (window.confirm(`${t("cassa_storno_confirm")} — ${label}?`)) onStorno(opts.sent!);
               }}
-              className="w-8 h-8 rounded-lg flex items-center justify-center text-red-600 cursor-pointer hover:bg-red-600/10"
+              className="w-10 h-10 rounded-lg flex items-center justify-center text-red-600 cursor-pointer hover:bg-red-600/10"
               title={t("cassa_storno")}
             >
               <X className="w-4 h-4" />
@@ -218,7 +218,7 @@ export function OrderView({
     <div className="flex flex-col lg:flex-row gap-4 h-full min-h-0">
       {/* ---------------- ticket ---------------- */}
       <div
-        className="w-full lg:w-[380px] shrink-0 flex flex-col rounded-xl border-2 min-h-0 max-h-[70vh] lg:max-h-none"
+        className="w-full lg:w-[380px] shrink-0 flex flex-col rounded-xl border-2 min-h-0 max-h-[70dvh] lg:max-h-none"
         style={{ borderColor: "#c4956a", background: "rgba(252,246,237,0.75)" }}
       >
         <div className="px-3 py-2.5 border-b-2 flex items-center gap-2" style={{ borderColor: "#c4956a" }}>
@@ -313,7 +313,7 @@ export function OrderView({
             <button
               onClick={onPrintComanda}
               disabled={sentItems.length === 0}
-              className="h-9 px-2.5 rounded-lg border-2 text-xs font-bold text-black hover:bg-[#c4956a]/10 disabled:opacity-40 cursor-pointer inline-flex items-center gap-1.5"
+              className="h-10 px-2.5 rounded-lg border-2 text-xs font-bold text-black hover:bg-[#c4956a]/10 disabled:opacity-40 cursor-pointer inline-flex items-center gap-1.5"
               style={{ borderColor: "#c4956a" }}
             >
               <Printer className="w-3.5 h-3.5" /> {t("cassa_comanda")}
@@ -321,7 +321,7 @@ export function OrderView({
             <button
               onClick={onPreconto}
               disabled={!hasActive}
-              className="h-9 px-2.5 rounded-lg border-2 text-xs font-bold text-black hover:bg-[#c4956a]/10 disabled:opacity-40 cursor-pointer inline-flex items-center gap-1.5"
+              className="h-10 px-2.5 rounded-lg border-2 text-xs font-bold text-black hover:bg-[#c4956a]/10 disabled:opacity-40 cursor-pointer inline-flex items-center gap-1.5"
               style={{ borderColor: "#c4956a" }}
             >
               <Printer className="w-3.5 h-3.5" /> {t("cassa_preconto")}
@@ -329,7 +329,7 @@ export function OrderView({
             {order.table_id !== null || freeTables.length > 0 ? (
               <button
                 onClick={() => setShowMove(true)}
-                className="h-9 px-2.5 rounded-lg border-2 text-xs font-bold text-black hover:bg-[#c4956a]/10 cursor-pointer inline-flex items-center gap-1.5"
+                className="h-10 px-2.5 rounded-lg border-2 text-xs font-bold text-black hover:bg-[#c4956a]/10 cursor-pointer inline-flex items-center gap-1.5"
                 style={{ borderColor: "#c4956a" }}
               >
                 <ArrowRightLeft className="w-3.5 h-3.5" /> {t("cassa_move_table")}
@@ -340,7 +340,7 @@ export function OrderView({
               onClick={() => {
                 if (window.confirm(t("cassa_cancel_order_confirm"))) onCancelOrder();
               }}
-              className="h-9 w-9 rounded-lg flex items-center justify-center text-red-600 hover:bg-red-600/10 cursor-pointer"
+              className="h-10 w-10 rounded-lg flex items-center justify-center text-red-600 hover:bg-red-600/10 cursor-pointer"
               title={t("cassa_cancel_order")}
             >
               <Trash2 className="w-4 h-4" />
@@ -358,7 +358,7 @@ export function OrderView({
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder={t("cassa_search_items")}
-              className="w-full h-11 pl-9 pr-3 rounded-xl border-2 text-sm text-black bg-white/70"
+              className="w-full h-11 pl-9 pr-3 rounded-xl border-2 text-base text-black bg-white/70"
               style={{ borderColor: "#c4956a" }}
             />
           </div>
@@ -390,7 +390,7 @@ export function OrderView({
         <div className="flex flex-wrap gap-1.5 pb-2">
           <button
             onClick={() => setCatId("all")}
-            className={`shrink-0 h-9 px-3 rounded-lg border-2 text-xs font-bold cursor-pointer ${catId === "all" && !search ? "text-white" : "text-black hover:bg-[#c4956a]/10"}`}
+            className={`shrink-0 h-10 px-3 rounded-lg border-2 text-xs font-bold cursor-pointer ${catId === "all" && !search ? "text-white" : "text-black hover:bg-[#c4956a]/10"}`}
             style={catId === "all" && !search ? { background: "#c4956a", borderColor: "#c4956a" } : { borderColor: "#c4956a" }}
           >
             {t("cassa_all_categories")}
@@ -402,7 +402,7 @@ export function OrderView({
                 setCatId(c.id);
                 setSearch("");
               }}
-              className={`shrink-0 h-9 px-3 rounded-lg border-2 text-xs font-bold cursor-pointer ${catId === c.id && !search ? "text-white" : "text-black hover:bg-[#c4956a]/10"}`}
+              className={`shrink-0 h-10 px-3 rounded-lg border-2 text-xs font-bold cursor-pointer ${catId === c.id && !search ? "text-white" : "text-black hover:bg-[#c4956a]/10"}`}
               style={catId === c.id && !search ? { background: "#c4956a", borderColor: "#c4956a" } : { borderColor: "#c4956a" }}
             >
               {c.name}
@@ -449,7 +449,7 @@ export function OrderView({
 
         <button
           onClick={() => setShowFree(true)}
-          className="self-start mt-1 h-9 px-3 rounded-lg border-2 text-xs font-bold text-black hover:bg-[#c4956a]/10 cursor-pointer inline-flex items-center gap-1.5"
+          className="self-start mt-1 h-10 px-3 rounded-lg border-2 text-xs font-bold text-black hover:bg-[#c4956a]/10 cursor-pointer inline-flex items-center gap-1.5"
           style={{ borderColor: "#c4956a" }}
         >
           <Plus className="w-3.5 h-3.5" /> {t("cassa_free_item")}
@@ -459,7 +459,7 @@ export function OrderView({
       {/* ---------------- modals ---------------- */}
       {showDiscount && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40" onClick={() => setShowDiscount(false)}>
-          <div className="w-full max-w-xs rounded-2xl border-2 p-4 space-y-3" style={{ borderColor: "#c4956a", background: "#FCF6ED" }} onClick={(e) => e.stopPropagation()}>
+          <div className="w-full max-w-xs rounded-2xl border-2 p-4 space-y-3 max-h-[85dvh] overflow-y-auto" style={{ borderColor: "#c4956a", background: "#FCF6ED" }} onClick={(e) => e.stopPropagation()}>
             <h3 className="font-bold text-black">{t("cassa_discount")}</h3>
             <div className="grid grid-cols-2 gap-2">
               {(["percent", "amount"] as const).map((ty) => (
@@ -514,14 +514,14 @@ export function OrderView({
 
       {showFree && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40" onClick={() => setShowFree(false)}>
-          <div className="w-full max-w-xs rounded-2xl border-2 p-4 space-y-3" style={{ borderColor: "#c4956a", background: "#FCF6ED" }} onClick={(e) => e.stopPropagation()}>
+          <div className="w-full max-w-xs rounded-2xl border-2 p-4 space-y-3 max-h-[85dvh] overflow-y-auto" style={{ borderColor: "#c4956a", background: "#FCF6ED" }} onClick={(e) => e.stopPropagation()}>
             <h3 className="font-bold text-black">{t("cassa_free_item")}</h3>
             <input
               autoFocus
               value={freeName}
               onChange={(e) => setFreeName(e.target.value)}
               placeholder={t("cassa_free_item_name")}
-              className="w-full px-3 py-2.5 text-sm text-black border-2 rounded-lg bg-white"
+              className="w-full px-3 py-2.5 text-base text-black border-2 rounded-lg bg-white"
               style={{ borderColor: "#c4956a" }}
             />
             <input
@@ -553,7 +553,7 @@ export function OrderView({
 
       {showMove && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40" onClick={() => setShowMove(false)}>
-          <div className="w-full max-w-sm rounded-2xl border-2 p-4 space-y-3 max-h-[70vh] overflow-y-auto" style={{ borderColor: "#c4956a", background: "#FCF6ED" }} onClick={(e) => e.stopPropagation()}>
+          <div className="w-full max-w-sm rounded-2xl border-2 p-4 space-y-3 max-h-[80dvh] overflow-y-auto" style={{ borderColor: "#c4956a", background: "#FCF6ED" }} onClick={(e) => e.stopPropagation()}>
             <h3 className="font-bold text-black">{t("cassa_move_table")}</h3>
             {freeTables.length === 0 ? (
               <p className="text-sm text-black">{t("cassa_no_free_tables")}</p>
@@ -581,7 +581,7 @@ export function OrderView({
       {variantItem && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40" onClick={() => setVariantItem(null)}>
           <div
-            className="w-full max-w-sm rounded-2xl border-2 p-4 space-y-3 max-h-[70vh] overflow-y-auto"
+            className="w-full max-w-sm rounded-2xl border-2 p-4 space-y-3 max-h-[80dvh] overflow-y-auto"
             style={{ borderColor: "#c4956a", background: "#FCF6ED" }}
             onClick={(e) => e.stopPropagation()}
           >
@@ -644,7 +644,7 @@ export function OrderView({
 
       {noteKey && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40" onClick={() => setNoteKey(null)}>
-          <div className="w-full max-w-xs rounded-2xl border-2 p-4 space-y-3" style={{ borderColor: "#c4956a", background: "#FCF6ED" }} onClick={(e) => e.stopPropagation()}>
+          <div className="w-full max-w-xs rounded-2xl border-2 p-4 space-y-3 max-h-[85dvh] overflow-y-auto" style={{ borderColor: "#c4956a", background: "#FCF6ED" }} onClick={(e) => e.stopPropagation()}>
             <h3 className="font-bold text-black inline-flex items-center gap-2">
               <StickyNote className="w-4 h-4" /> {t("cassa_line_note")}
             </h3>
@@ -653,7 +653,7 @@ export function OrderView({
               value={noteText}
               onChange={(e) => setNoteText(e.target.value)}
               placeholder={t("cassa_line_note_placeholder")}
-              className="w-full px-3 py-2.5 text-sm text-black border-2 rounded-lg bg-white"
+              className="w-full px-3 py-2.5 text-base text-black border-2 rounded-lg bg-white"
               style={{ borderColor: "#c4956a" }}
             />
             <button
@@ -672,7 +672,7 @@ export function OrderView({
 
       {showCovers && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40" onClick={() => setShowCovers(false)}>
-          <div className="w-full max-w-xs rounded-2xl border-2 p-4 space-y-3" style={{ borderColor: "#c4956a", background: "#FCF6ED" }} onClick={(e) => e.stopPropagation()}>
+          <div className="w-full max-w-xs rounded-2xl border-2 p-4 space-y-3 max-h-[85dvh] overflow-y-auto" style={{ borderColor: "#c4956a", background: "#FCF6ED" }} onClick={(e) => e.stopPropagation()}>
             <h3 className="font-bold text-black inline-flex items-center gap-2">
               <Users className="w-4 h-4" /> {t("cassa_covers")}
             </h3>

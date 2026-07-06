@@ -113,13 +113,14 @@ export function Sidebar({ mobileOpen = false, onClose }: SidebarProps) {
   const roleLabel =
     isPlatformOnly ? "Platform Admin"
     : activeRole === "owner" ? "Admin"
+    : activeRole === "manager" ? (t("team_role_responsabile") || "Responsabile")
     : activeRole === "host" ? "Staff"
     : activeRole?.replace("_", " ") || "Guest";
 
-  // Staff (host) accounts are created via QR and have no email; if we couldn't
-  // load the name yet, show "Staff" placeholder instead of an empty line.
-  const primaryLabel = activeRole === "host"
-    ? (displayName || t("team_role_staff") || "Staff")
+  // Staff (host) and Responsabile (manager) accounts are created via QR and
+  // have no email; if we couldn't load the name yet, show the role placeholder.
+  const primaryLabel = activeRole === "host" || activeRole === "manager"
+    ? (displayName || roleLabel)
     : (displayName || user?.email || "User");
   const avatarChar = (displayName || user?.email || "U").charAt(0).toUpperCase();
   // The restaurant's own logo (uploaded in Settings → General). When set it
@@ -127,11 +128,12 @@ export function Sidebar({ mobileOpen = false, onClose }: SidebarProps) {
   // Platform admins keep the BaliFlow logo so the tenant switcher stays neutral.
   const customLogo = globalRole !== "platform_admin" ? activeTenant?.settings?.branding?.logo_url : undefined;
 
-  // Staff (camerieri) see the pages they need day-to-day: floor for walk-ins,
-  // reservations to mark arrivals/no-shows, and the menu so they can look it up
-  // and add/remove dishes on the fly (the owner asked for this). Everything else
-  // — settings, billing, analytics, management — stays hidden.
-  const isHost = activeRole === "host";
+  // Staff (camerieri) and Responsabili (manager) see the pages they need
+  // day-to-day: floor for walk-ins, reservations to mark arrivals/no-shows, and
+  // the menu to consult it (read-only — editing is owner-only). The cassa
+  // reaches both via the pinned bottom CTA. Everything else — settings,
+  // billing, analytics, management — stays hidden.
+  const isHost = activeRole === "host" || activeRole === "manager";
   const features = getFeatures(activeTenant?.settings);
   // PLAN gate: a tenant with no active subscription sees only the entry package
   // (menu + settings); every other core section is shown LOCKED. This is separate

@@ -80,8 +80,11 @@ const UNCAT_ID = "__uncategorized__";
 
 export default function MenuPage() {
   const { t, language } = useLanguage();
-  const { activeTenant: tenant, refreshActiveTenant } = useTenant();
+  const { activeTenant: tenant, refreshActiveTenant, activeRole, globalRole } = useTenant();
   const supabase = createClient();
+  // Camerieri (host) e Responsabili (manager) consult the menu but never edit
+  // it: every create/edit/delete/import/branding affordance is owner-only.
+  const canEdit = activeRole === "owner" || globalRole === "platform_admin";
 
   // Public-menu template selector (1 Immersive · 2 Editorial · 3 Cinematic ·
   // 4 Classic). The saved value lives in tenants.settings.menu_style and is the
@@ -94,7 +97,7 @@ export default function MenuPage() {
   }, [tenant?.settings?.menu_style]);
 
   const chooseStyle = async (s: "1" | "2" | "3" | "4") => {
-    if (!tenant || s === menuStyle) return;
+    if (!tenant || !canEdit || s === menuStyle) return;
     const prev = menuStyle;
     setMenuStyle(s); // optimistic
     setSavingStyle(true);
@@ -144,7 +147,7 @@ export default function MenuPage() {
   // the whole branding object so an unset field becomes undefined rather than
   // lingering. `null` in the patch clears a field.
   const saveBrand = async (patch: { brand_color?: string | null; font?: MenuFont; logo_url?: string | null }) => {
-    if (!tenant) return;
+    if (!tenant || !canEdit) return;
     const cur = (tenant.settings?.menu_branding as MenuBrand) || {};
     const next: MenuBrand = { brand_color: cur.brand_color, logo_url: cur.logo_url, font: cur.font };
     if ("brand_color" in patch) next.brand_color = patch.brand_color || undefined;
@@ -164,7 +167,7 @@ export default function MenuPage() {
   };
 
   const handleMenuLogoPick = async (file: File | null) => {
-    if (!tenant || !file || !file.type.startsWith("image/")) return;
+    if (!tenant || !canEdit || !file || !file.type.startsWith("image/")) return;
     setBrandUploading(true);
     try {
       const url = await uploadBrandingLogo(supabase, tenant.id, file, "menu-logo.webp");
@@ -179,7 +182,7 @@ export default function MenuPage() {
   };
 
   const handleMenuLogoRemove = async () => {
-    if (!tenant) return;
+    if (!tenant || !canEdit) return;
     setBrandUploading(true);
     try {
       await removeBrandingLogo(supabase, tenant.id, "menu-logo.webp");
@@ -412,6 +415,7 @@ export default function MenuPage() {
   const isUncatView = !selectedCollectionId && selectedCategoryId === UNCAT_ID;
 
   const handleDeleteItem = async (id: string) => {
+    if (!canEdit) return;
     if (!confirm(t("menu_confirm_delete_item") || "Eliminare questo piatto?")) return;
     setItems((prev) => prev.filter((it) => it.id !== id));
     const { error } = await supabase.from("menu_items").delete().eq("id", id);
@@ -423,6 +427,7 @@ export default function MenuPage() {
 
   // Remove a dish from the active collection (does NOT delete the dish itself).
   const handleRemoveFromCollection = async (itemId: string) => {
+    if (!canEdit) return;
     if (!selectedCollectionId) return;
     const prev = collectionLinks;
     setCollectionLinks((ls) =>
@@ -441,6 +446,7 @@ export default function MenuPage() {
   };
 
   const handleDeleteCategory = async (id: string) => {
+    if (!canEdit) return;
     const used = items.filter((i) => i.category_id === id).length;
     const msg = used > 0
       ? `${t("menu_confirm_delete_cat_used") || "Categoria con piatti collegati"} (${used}). ${t("menu_items_become_uncategorized") || "I piatti diventeranno senza categoria."}`
@@ -488,6 +494,7 @@ export default function MenuPage() {
               {savingStyle && (
                 <Loader2 className="w-3.5 h-3.5 animate-spin text-[#a87642]" />
               )}
+              {canEdit && (
               <select
                 value={menuStyle}
                 onChange={(e) => chooseStyle(e.target.value as "1" | "2" | "3" | "4")}
@@ -513,6 +520,7 @@ export default function MenuPage() {
                   </option>
                 ))}
               </select>
+              )}
               {tenant?.slug && (
                 <a
                   href={`/m/${tenant.slug}?style=${menuStyle}`}
@@ -526,6 +534,7 @@ export default function MenuPage() {
                   <Eye className="w-4 h-4" />
                 </a>
               )}
+              {canEdit && (
               <button
                 type="button"
                 onClick={() => setBrandOpen((v) => !v)}
@@ -539,6 +548,7 @@ export default function MenuPage() {
               >
                 <Palette className="w-4 h-4" />
               </button>
+              )}
             </div>
           </div>
 
@@ -836,6 +846,8 @@ export default function MenuPage() {
           className="p-3 border-t shrink-0 grid grid-cols-2 gap-2"
           style={{ borderColor: "#c4956a" }}
         >
+          {canEdit && (
+          <>
           <button
             onClick={() => setCategoryModal({ mode: "new" })}
             className="cursor-pointer text-xs font-bold text-black inline-flex items-center justify-center px-2.5 py-2 rounded-md border-2 hover:bg-[#c4956a]/10 transition-colors"
@@ -863,6 +875,8 @@ export default function MenuPage() {
             <Upload className="w-3.5 h-3.5 mr-1.5" />
             {t("menu_import") || "Importa"}
           </button>
+          </>
+          )}
           <button
             onClick={() => setQrOpen(true)}
             className="cursor-pointer text-xs font-bold text-black inline-flex items-center justify-center px-2.5 py-2 rounded-md border-2 hover:bg-[#c4956a]/10 transition-colors"
@@ -930,7 +944,7 @@ export default function MenuPage() {
                       ? t("menu_uncategorized") || "Senza categoria"
                       : activeCategory!.name}
                   </h2>
-                  {!search.trim() && activeCategory && (
+                  {!search.trim() && activeCategory && canEdit && (
                     <button
                       onClick={() => setCategoryModal({ mode: "edit", category: activeCategory })}
                       className="cursor-pointer p-1.5 text-black hover:bg-zinc-100 rounded-lg border-2"
@@ -940,7 +954,7 @@ export default function MenuPage() {
                       <Pencil className="w-4 h-4" />
                     </button>
                   )}
-                  {!search.trim() && isCollectionView && (
+                  {!search.trim() && isCollectionView && canEdit && (
                     <button
                       onClick={() => setCollectionModal({ mode: "edit", collection: activeCollection! })}
                       className="cursor-pointer p-1.5 text-black hover:bg-zinc-100 rounded-lg border-2"
@@ -962,7 +976,7 @@ export default function MenuPage() {
                 </p>
                 </div>
               </div>
-              {isCollectionView ? (
+              {!canEdit ? null : isCollectionView ? (
                 <button
                   onClick={() => setCollectionModal({ mode: "edit", collection: activeCollection! })}
                   className="cursor-pointer shrink-0 px-3 md:px-4 py-2 text-white text-sm font-bold rounded-lg shadow-sm flex items-center"
@@ -1006,7 +1020,7 @@ export default function MenuPage() {
                       ? t("menu_collection_empty") || "Raccolta vuota — scegli i piatti da aggiungere"
                       : t("menu_empty_category") || "Nessun piatto in questa categoria"}
                   </p>
-                  {!search.trim() &&
+                  {!search.trim() && canEdit &&
                     (isCollectionView ? (
                       <button
                         onClick={() =>
@@ -1263,6 +1277,8 @@ export default function MenuPage() {
                           )}
                         </td>
                         <td className="px-3 py-3 align-top text-right whitespace-nowrap">
+                          {canEdit && (
+                          <>
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
@@ -1296,6 +1312,8 @@ export default function MenuPage() {
                               <Trash2 className="w-4 h-4" />
                             </button>
                           )}
+                          </>
+                          )}
                         </td>
                       </tr>
                     ))}
@@ -1309,7 +1327,7 @@ export default function MenuPage() {
       </main>
 
       {/* Modals */}
-      {itemModal && tenant && (
+      {itemModal && tenant && canEdit && (
         <ItemEditModal
           t={t}
           language={language}
@@ -1332,7 +1350,7 @@ export default function MenuPage() {
         />
       )}
 
-      {categoryModal && tenant && (
+      {categoryModal && tenant && canEdit && (
         <CategoryEditModal
           t={t}
           tenantId={tenant.id}
@@ -1361,7 +1379,7 @@ export default function MenuPage() {
         />
       )}
 
-      {collectionModal && tenant && (
+      {collectionModal && tenant && canEdit && (
         <CollectionEditModal
           t={t}
           language={language}
@@ -1399,7 +1417,7 @@ export default function MenuPage() {
         />
       )}
 
-      {importOpen && tenant && (
+      {importOpen && tenant && canEdit && (
         <ImportMenuModal
           t={t}
           language={language}

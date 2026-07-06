@@ -4,7 +4,22 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Sparkles, X, Send, ArrowRight, RotateCcw } from "lucide-react";
 import { useLanguage } from "@/lib/contexts/LanguageContext";
-import { answerQuery } from "@/lib/assistant/engine";
+import { useTenant } from "@/lib/contexts/TenantContext";
+import { createClient } from "@/lib/supabase/client";
+import { answerQuery, normalize } from "@/lib/assistant/engine";
+import {
+  detectAction,
+  actionText,
+  parseDateWord,
+  parseTimeWord,
+  parsePartyWord,
+  parsePhoneWord,
+  parseMoneyWord,
+  YES_WORDS,
+  ABORT_WORDS,
+  SKIP_WORDS,
+  type ActionIntent,
+} from "@/lib/assistant/actions";
 import {
   UI,
   topicById,
@@ -12,11 +27,19 @@ import {
   type AssistantLang,
   type KbTopic,
 } from "@/lib/assistant/kb";
+import { fmtEur, type SessionSummary } from "@/lib/cassa/totals";
+import type { CassaSessionRow } from "@/lib/cassa/types";
+import {
+  createReservationAction,
+  updateReservationDetailsAction,
+} from "@/app/actions/reservations";
 import { safeSession } from "@/lib/safe-storage";
 
-// The floating in-app helper. Fully local (see src/lib/assistant): every reply
-// comes from the built-in knowledge base — free forever, works offline, and
-// nothing typed here ever leaves the browser.
+// The floating in-app helper. Questions are answered from the local knowledge
+// base (free, offline — see src/lib/assistant); OPERATIONAL commands ("crea una
+// prenotazione", "apri la cassa", "quanto abbiamo incassato?") are detected
+// locally too and executed against the CRM's own APIs, with a confirmation
+// step before anything is written.
 
 type ChatMessage =
   | { role: "user"; text: string }
@@ -24,6 +47,7 @@ type ChatMessage =
 
 const STORE_KEY = "crm_assistant_chat_v1";
 const MAX_MESSAGES = 60;
+const TYPING_MS = 3000; // simulated "typing…" pause before each reply
 
 function loadChat(): ChatMessage[] {
   try {
@@ -36,16 +60,51 @@ function loadChat(): ChatMessage[] {
   }
 }
 
+// --------------------------------------------------------------- action flows
+interface ResLite {
+  id: string;
+  time: string;
+  date: string;
+  party_size: number;
+  status: string;
+  guest_name: string;
+}
+
+type Flow =
+  | {
+      kind: "create_reservation";
+      stage: "name" | "date" | "time" | "party" | "phone" | "confirm";
+      slots: { name?: string; phone?: string; date?: string; time?: string; party?: number };
+    }
+  | { kind: "cancel_reservation"; stage: "pick" | "confirm"; matches: ResLite[]; chosen?: ResLite }
+  | { kind: "open_register"; stage: "float" }
+  | { kind: "close_register"; stage: "confirm" };
+
 export function AssistantWidget() {
-  const { language } = useLanguage();
+  const { language, t } = useLanguage();
   const lang = language as AssistantLang;
   const ui = UI[lang] || UI.en;
   const router = useRouter();
+  const { activeTenant } = useTenant();
+  const tenantId = activeTenant?.id;
+  const supabase = useMemo(() => createClient(), []);
 
   const [open, setOpen] = useState(false);
   const [input, setInput] = useState("");
   const [messages, setMessages] = useState<ChatMessage[]>([]);
+  // Replies are delivered after a short "typing…" pause to feel like a chat
+  // with a person; this counts the replies still being "typed".
+  const [pending, setPending] = useState(0);
+  const flowRef = useRef<Flow | null>(null);
   const listRef = useRef<HTMLDivElement>(null);
+  const timersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
+
+  useEffect(
+    () => () => {
+      timersRef.current.forEach(clearTimeout);
+    },
+    [],
+  );
 
   useEffect(() => {
     setMessages(loadChat());
@@ -59,7 +118,7 @@ export function AssistantWidget() {
     if (open && listRef.current) {
       listRef.current.scrollTop = listRef.current.scrollHeight;
     }
-  }, [open, messages]);
+  }, [open, messages, pending]);
 
   const suggestions = useMemo(
     () => SUGGESTED_TOPIC_IDS.map(topicById).filter(Boolean) as KbTopic[],
@@ -69,29 +128,400 @@ export function AssistantWidget() {
   const push = (...msgs: ChatMessage[]) =>
     setMessages((prev) => [...prev, ...msgs].slice(-MAX_MESSAGES));
 
+  /** Show the typing dots for `delay` ms, then deliver the bot messages. */
+  const replyLater = (delay: number, ...msgs: ChatMessage[]) => {
+    setPending((p) => p + 1);
+    timersRef.current.push(
+      setTimeout(() => {
+        setPending((p) => Math.max(0, p - 1));
+        push(...msgs);
+      }, delay),
+    );
+  };
+
+  const say = (text: string) => replyLater(TYPING_MS, { role: "bot", text });
+
+  /** Async work behind the typing dots — the reply lands after max(op, 3s). */
+  const sayAsync = (op: () => Promise<string>) => {
+    setPending((p) => p + 1);
+    const started = Date.now();
+    op()
+      .catch((err) =>
+        actionText("error", lang, { msg: err instanceof Error ? err.message : String(err) }),
+      )
+      .then((text) => {
+        const wait = Math.max(0, TYPING_MS - (Date.now() - started));
+        timersRef.current.push(
+          setTimeout(() => {
+            setPending((p) => Math.max(0, p - 1));
+            push({ role: "bot", text });
+          }, wait),
+        );
+      });
+  };
+
+  // ------------------------------------------------------------- formatting
+  const fmtDate = (d: string) =>
+    new Date(`${d}T12:00:00`).toLocaleDateString(lang, {
+      weekday: "short",
+      day: "numeric",
+      month: "short",
+    });
+
+  const resSummary = (s: { name?: string; date?: string; time?: string; party?: number }) =>
+    `👤 ${s.name || "—"} · 📅 ${s.date ? fmtDate(s.date) : "—"} · 🕗 ${s.time || "—"} · ${s.party ?? "—"} pax`;
+
+  const liteSummary = (r: ResLite) =>
+    `👤 ${r.guest_name} · 📅 ${fmtDate(r.date)} · 🕗 ${r.time} · ${r.party_size} pax`;
+
+  const summaryBody = (s: Partial<SessionSummary>) => {
+    const lines = [
+      `${t("cassa_gross")}: ${fmtEur(Number(s.gross) || 0)}`,
+      `${t("cassa_receipts")}: ${s.receipts ?? 0} · ${t("cassa_covers")}: ${s.covers ?? 0}`,
+    ];
+    for (const [m, v] of Object.entries(s.byMethod || {})) {
+      lines.push(`• ${t(("cassa_method_" + (m === "meal_voucher" ? "voucher" : m === "bank_transfer" ? "bank" : m)) as Parameters<typeof t>[0])}: ${fmtEur(Number(v) || 0)}`);
+    }
+    if (s.expectedCash != null) lines.push(`${t("cassa_expected_cash")}: ${fmtEur(Number(s.expectedCash) || 0)}`);
+    return lines.join("\n");
+  };
+
+  // ------------------------------------------------------------- executors
+  const api = async <T,>(path: string, init?: RequestInit): Promise<T> => {
+    const res = await fetch(path, {
+      ...init,
+      headers: { "Content-Type": "application/json", ...(init?.headers || {}) },
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error((data as { error?: string })?.error || `HTTP ${res.status}`);
+    return data as T;
+  };
+
+  type SessionInfo = {
+    session: CassaSessionRow | null;
+    summary: SessionSummary | null;
+    last_session: CassaSessionRow | null;
+    business_date: string;
+  };
+  const fetchSession = () => api<SessionInfo>(`/api/cassa/session?tenant_id=${tenantId}`);
+
+  const runCreateReservation = (slots: NonNullable<Extract<Flow, { kind: "create_reservation" }>["slots"]>) =>
+    sayAsync(async () => {
+      const res = await createReservationAction({
+        tenantId: tenantId!,
+        guestName: slots.name!,
+        guestPhone: slots.phone || "",
+        date: slots.date!,
+        time: slots.time!,
+        partySize: slots.party!,
+        source: "staff",
+      });
+      if (!(res as { success?: boolean }).success) {
+        return actionText("error", lang, { msg: (res as { error?: string }).error || "?" });
+      }
+      return actionText("created", lang, { summary: resSummary(slots) });
+    });
+
+  const loadReservations = async (date: string, activeOnly: boolean): Promise<ResLite[]> => {
+    const q = supabase
+      .from("reservations")
+      .select("id, time, date, party_size, status, guests(name)")
+      .eq("tenant_id", tenantId!)
+      .eq("date", date);
+    const { data, error } = activeOnly
+      ? await q.in("status", ["pending_confirmation", "confirmed", "seated"])
+      : await q.neq("status", "cancelled");
+    if (error) throw new Error(error.message);
+    return ((data || []) as unknown as Array<Record<string, unknown>>)
+      .map((r) => ({
+        id: r.id as string,
+        time: r.time as string,
+        date: r.date as string,
+        party_size: Number(r.party_size) || 0,
+        status: r.status as string,
+        guest_name: ((r.guests as { name?: string } | null)?.name || "—") as string,
+      }))
+      .sort((a, b) => a.time.localeCompare(b.time));
+  };
+
+  const runCancel = (r: ResLite) =>
+    sayAsync(async () => {
+      const res = await updateReservationDetailsAction({
+        tenantId: tenantId!,
+        reservationId: r.id,
+        data: { status: "cancelled" },
+      });
+      if (!(res as { success?: boolean }).success) {
+        return actionText("error", lang, { msg: (res as { error?: string }).error || "?" });
+      }
+      return actionText("cancelled", lang, { summary: liteSummary(r) });
+    });
+
+  // ------------------------------------------------------------- flow engine
+  const startFlow = (intent: ActionIntent) => {
+    if (!tenantId) return say(actionText("error", lang, { msg: "no tenant" }));
+    switch (intent.kind) {
+      case "create_reservation": {
+        const slots = {
+          name: intent.name,
+          phone: intent.phone,
+          date: intent.date,
+          time: intent.time,
+          party: intent.party,
+        };
+        advanceCreate(slots);
+        return;
+      }
+      case "cancel_reservation": {
+        const date = intent.date || new Date().toISOString().slice(0, 10);
+        sayAsync(async () => {
+          let matches = await loadReservations(date, true);
+          if (intent.name) {
+            const needle = normalize(intent.name);
+            const filtered = matches.filter((m) => normalize(m.guest_name).includes(needle));
+            if (filtered.length > 0) matches = filtered;
+          }
+          if (matches.length === 0) {
+            return actionText("cancel_none", lang, {
+              name: intent.name ? ` (${intent.name})` : "",
+              date: fmtDate(date),
+            });
+          }
+          if (matches.length === 1) {
+            flowRef.current = { kind: "cancel_reservation", stage: "confirm", matches, chosen: matches[0] };
+            return actionText("confirm_cancel", lang, { summary: liteSummary(matches[0]) });
+          }
+          flowRef.current = { kind: "cancel_reservation", stage: "pick", matches };
+          const list = matches.map((m, i) => `${i + 1}. ${m.time} — ${m.guest_name} ×${m.party_size}`).join("\n");
+          return actionText("cancel_pick", lang, { list });
+        });
+        return;
+      }
+      case "recap_reservations": {
+        sayAsync(async () => {
+          const rows = await loadReservations(intent.date, false);
+          if (rows.length === 0) return actionText("recap_empty", lang, { date: fmtDate(intent.date) });
+          const covers = rows.reduce((s, r) => s + r.party_size, 0);
+          const header = actionText("recap_header", lang, {
+            date: fmtDate(intent.date),
+            n: rows.length,
+            covers,
+          });
+          const lines = rows.map((r) => `• ${r.time} — ${r.guest_name} ×${r.party_size}${r.status !== "confirmed" ? ` (${r.status.replace(/_/g, " ")})` : ""}`);
+          return [header, ...lines].join("\n");
+        });
+        return;
+      }
+      case "revenue": {
+        sayAsync(async () => {
+          const info = await fetchSession();
+          if (info.session && info.summary) {
+            return actionText("revenue_open", lang, { body: summaryBody(info.summary) });
+          }
+          const last = info.last_session;
+          if (last?.totals && Object.keys(last.totals).length > 0) {
+            const date = last.closed_at ? fmtDate(last.closed_at.slice(0, 10)) : "—";
+            return actionText("revenue_last", lang, { date, body: summaryBody(last.totals as Partial<SessionSummary>) });
+          }
+          return actionText("revenue_none", lang);
+        });
+        return;
+      }
+      case "open_register": {
+        if (intent.float != null) {
+          openRegister(intent.float);
+        } else {
+          flowRef.current = { kind: "open_register", stage: "float" };
+          say(actionText("ask_float", lang));
+        }
+        return;
+      }
+      case "close_register": {
+        sayAsync(async () => {
+          const info = await fetchSession();
+          if (!info.session) return actionText("close_nothing", lang);
+          flowRef.current = { kind: "close_register", stage: "confirm" };
+          return actionText("confirm_close", lang, {
+            body: info.summary ? summaryBody(info.summary) : "",
+          });
+        });
+        return;
+      }
+    }
+  };
+
+  const openRegister = (float: number) =>
+    sayAsync(async () => {
+      const res = await api<{ existing: boolean; session: CassaSessionRow }>("/api/cassa/session", {
+        method: "POST",
+        body: JSON.stringify({ tenant_id: tenantId, opening_float: float }),
+      });
+      if (res.existing) return actionText("open_already", lang);
+      return actionText("opened", lang, { float: fmtEur(float) });
+    });
+
+  /** Ask for the next missing reservation slot, or confirm when complete. */
+  const advanceCreate = (slots: Extract<Flow, { kind: "create_reservation" }>["slots"]) => {
+    const next = !slots.name
+      ? "name"
+      : !slots.date
+        ? "date"
+        : !slots.time
+          ? "time"
+          : slots.party == null
+            ? "party"
+            : slots.phone == null
+              ? "phone"
+              : "confirm";
+    flowRef.current = { kind: "create_reservation", stage: next, slots };
+    if (next === "confirm") {
+      say(actionText("confirm_create", lang, { summary: resSummary(slots) }));
+    } else {
+      say(actionText(("ask_" + next) as "ask_name", lang));
+    }
+  };
+
+  /** Route a user message into the active multi-step flow. Returns true if consumed. */
+  const handleFlowInput = (raw: string): boolean => {
+    const flow = flowRef.current;
+    if (!flow) return false;
+    const q = normalize(raw);
+    if (ABORT_WORDS.test(q)) {
+      flowRef.current = null;
+      say(actionText("aborted", lang));
+      return true;
+    }
+
+    if (flow.kind === "create_reservation") {
+      const slots = { ...flow.slots };
+      switch (flow.stage) {
+        case "name": {
+          const name = raw.trim().slice(0, 40);
+          if (!name) { say(actionText("ask_name", lang)); return true; }
+          slots.name = name;
+          break;
+        }
+        case "date": {
+          const d = parseDateWord(raw, new Date());
+          if (!d) { say(actionText("invalid_date", lang)); return true; }
+          slots.date = d;
+          break;
+        }
+        case "time": {
+          const tm = parseTimeWord(raw);
+          if (!tm) { say(actionText("invalid_time", lang)); return true; }
+          slots.time = tm;
+          break;
+        }
+        case "party": {
+          const p = parsePartyWord(raw) ?? (Number.parseInt(q, 10) || null);
+          if (!p || p < 1 || p > 99) { say(actionText("invalid_number", lang)); return true; }
+          slots.party = p;
+          break;
+        }
+        case "phone": {
+          if (SKIP_WORDS.test(q)) slots.phone = "";
+          else {
+            const ph = parsePhoneWord(raw);
+            if (!ph) { say(actionText("ask_phone", lang)); return true; }
+            slots.phone = ph;
+          }
+          break;
+        }
+        case "confirm": {
+          if (YES_WORDS.test(q)) {
+            flowRef.current = null;
+            runCreateReservation(slots);
+          } else {
+            say(actionText("confirm_create", lang, { summary: resSummary(slots) }));
+          }
+          return true;
+        }
+      }
+      advanceCreate(slots);
+      return true;
+    }
+
+    if (flow.kind === "cancel_reservation") {
+      if (flow.stage === "pick") {
+        const n = Number.parseInt(q, 10);
+        const chosen = Number.isFinite(n) && n >= 1 && n <= flow.matches.length ? flow.matches[n - 1] : null;
+        if (!chosen) {
+          const list = flow.matches.map((m, i) => `${i + 1}. ${m.time} — ${m.guest_name} ×${m.party_size}`).join("\n");
+          say(actionText("cancel_pick", lang, { list }));
+          return true;
+        }
+        flowRef.current = { ...flow, stage: "confirm", chosen };
+        say(actionText("confirm_cancel", lang, { summary: liteSummary(chosen) }));
+        return true;
+      }
+      if (YES_WORDS.test(q) && flow.chosen) {
+        flowRef.current = null;
+        runCancel(flow.chosen);
+      } else {
+        say(actionText("confirm_cancel", lang, { summary: flow.chosen ? liteSummary(flow.chosen) : "" }));
+      }
+      return true;
+    }
+
+    if (flow.kind === "open_register") {
+      const v = parseMoneyWord(raw);
+      if (v == null) { say(actionText("invalid_number", lang)); return true; }
+      flowRef.current = null;
+      openRegister(v);
+      return true;
+    }
+
+    if (flow.kind === "close_register") {
+      if (YES_WORDS.test(q)) {
+        flowRef.current = null;
+        sayAsync(async () => {
+          const res = await api<{ summary: SessionSummary }>("/api/cassa/session", {
+            method: "PATCH",
+            body: JSON.stringify({ tenant_id: tenantId }),
+          });
+          return actionText("closed", lang, { body: summaryBody(res.summary) });
+        });
+      } else {
+        flowRef.current = null;
+        say(actionText("aborted", lang));
+      }
+      return true;
+    }
+
+    return false;
+  };
+
+  // ------------------------------------------------------------------- ask
   const ask = (raw: string) => {
     const text = raw.trim();
     if (!text) return;
+    push({ role: "user", text });
+    setInput("");
+
+    if (handleFlowInput(text)) return;
+
+    const intent = tenantId ? detectAction(text, new Date()) : null;
+    if (intent) {
+      startFlow(intent);
+      return;
+    }
+
     const reply = answerQuery(text, lang);
     if (reply.kind === "topic" && reply.topic) {
-      push(
-        { role: "user", text },
-        { role: "bot", topicId: reply.topic.id, relatedIds: reply.related.map((r) => r.id) },
-      );
+      replyLater(TYPING_MS, {
+        role: "bot",
+        topicId: reply.topic.id,
+        relatedIds: reply.related.map((r) => r.id),
+      });
     } else {
-      push(
-        { role: "user", text },
-        { role: "bot", text: reply.text, suggest: reply.kind === "fallback" },
-      );
+      replyLater(TYPING_MS, { role: "bot", text: reply.text, suggest: reply.kind === "fallback" });
     }
-    setInput("");
   };
 
   const askTopic = (topic: KbTopic) => {
-    push(
-      { role: "user", text: topic.title[lang] },
-      { role: "bot", topicId: topic.id, relatedIds: topic.related || [] },
-    );
+    push({ role: "user", text: topic.title[lang] });
+    replyLater(1200, { role: "bot", topicId: topic.id, relatedIds: topic.related || [] });
   };
 
   const chip = (topic: KbTopic, key: string) => (
@@ -166,11 +596,13 @@ export function AssistantWidget() {
             <Sparkles className="w-5 h-5 shrink-0" />
             <div className="flex-1 min-w-0">
               <p className="font-bold leading-tight">{ui.title}</p>
-              <p className="text-xs opacity-90 leading-tight truncate">{ui.subtitle}</p>
             </div>
             {messages.length > 0 && (
               <button
-                onClick={() => setMessages([])}
+                onClick={() => {
+                  setMessages([]);
+                  flowRef.current = null;
+                }}
                 className="p-1.5 rounded-lg hover:bg-white/15 cursor-pointer"
                 title={ui.clear}
               >
@@ -210,6 +642,21 @@ export function AssistantWidget() {
                 </div>
               );
             })}
+
+            {pending > 0 && (
+              <div
+                className="w-fit rounded-2xl rounded-bl-md border-2 px-4 py-3 flex items-center gap-1"
+                style={{ borderColor: "#c4956a", background: "rgba(252,246,237,0.9)" }}
+              >
+                {[0, 1, 2].map((i) => (
+                  <span
+                    key={i}
+                    className="w-2 h-2 rounded-full animate-bounce"
+                    style={{ background: "#c4956a", animationDelay: `${i * 0.15}s` }}
+                  />
+                ))}
+              </div>
+            )}
           </div>
 
           <form
@@ -224,7 +671,7 @@ export function AssistantWidget() {
               value={input}
               onChange={(e) => setInput(e.target.value)}
               placeholder={ui.placeholder}
-              className="flex-1 h-11 px-3 rounded-xl border-2 text-sm text-black bg-white"
+              className="flex-1 h-11 px-3 rounded-xl border-2 text-base text-black bg-white"
               style={{ borderColor: "#c4956a" }}
             />
             <button

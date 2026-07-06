@@ -27,7 +27,6 @@ export const UI: Record<
   AssistantLang,
   {
     title: string;
-    subtitle: string;
     placeholder: string;
     welcome: string;
     suggestionsLabel: string;
@@ -38,10 +37,9 @@ export const UI: Record<
 > = {
   it: {
     title: "Assistente",
-    subtitle: "Ti aiuto con tutto il CRM — gratis, sempre.",
     placeholder: "Chiedimi qualsiasi cosa… (es. come apro la cassa?)",
     welcome:
-      "Ciao! 👋 Sono l'assistente del CRM. Chiedimi come funziona qualsiasi sezione, come aggiungere o togliere qualcosa, o come collegare WhatsApp. Ecco alcuni argomenti:",
+      "Ciao, sono il tuo assistente, come posso aiutarti oggi? 👋 Posso spiegarti ogni sezione del CRM e fare le cose al posto tuo: creare o cancellare prenotazioni, farti il recap della giornata, dirti l'incasso, aprire o chiudere la cassa. Ecco alcuni argomenti:",
     suggestionsLabel: "Argomenti utili",
     relatedLabel: "Vedi anche",
     clear: "Nuova conversazione",
@@ -49,10 +47,9 @@ export const UI: Record<
   },
   en: {
     title: "Assistant",
-    subtitle: "I help you with the whole CRM — free, always.",
     placeholder: "Ask me anything… (e.g. how do I open the till?)",
     welcome:
-      "Hi! 👋 I'm the CRM assistant. Ask me how any section works, how to add or remove something, or how to connect WhatsApp. Some useful topics:",
+      "Hi, I'm your assistant — how can I help you today? 👋 I can explain every section of the CRM and do things for you: create or cancel reservations, recap your day, tell you today's takings, open or close the till. Some useful topics:",
     suggestionsLabel: "Useful topics",
     relatedLabel: "See also",
     clear: "New conversation",
@@ -60,10 +57,9 @@ export const UI: Record<
   },
   es: {
     title: "Asistente",
-    subtitle: "Te ayudo con todo el CRM — gratis, siempre.",
     placeholder: "Pregúntame lo que sea… (ej. ¿cómo abro la caja?)",
     welcome:
-      "¡Hola! 👋 Soy el asistente del CRM. Pregúntame cómo funciona cualquier sección, cómo añadir o quitar algo, o cómo conectar WhatsApp. Algunos temas útiles:",
+      "Hola, soy tu asistente, ¿en qué puedo ayudarte hoy? 👋 Puedo explicarte cada sección del CRM y hacer cosas por ti: crear o cancelar reservas, hacerte el resumen del día, decirte la recaudación, abrir o cerrar la caja. Algunos temas útiles:",
     suggestionsLabel: "Temas útiles",
     relatedLabel: "Ver también",
     clear: "Nueva conversación",
@@ -71,10 +67,9 @@ export const UI: Record<
   },
   de: {
     title: "Assistent",
-    subtitle: "Ich helfe dir mit dem ganzen CRM — kostenlos, immer.",
     placeholder: "Frag mich alles… (z. B. wie öffne ich die Kasse?)",
     welcome:
-      "Hallo! 👋 Ich bin der CRM-Assistent. Frag mich, wie ein Bereich funktioniert, wie man etwas hinzufügt oder entfernt, oder wie man WhatsApp verbindet. Nützliche Themen:",
+      "Hallo, ich bin dein Assistent — wie kann ich dir heute helfen? 👋 Ich kann dir jeden Bereich des CRM erklären und Dinge für dich erledigen: Reservierungen anlegen oder stornieren, den Tag zusammenfassen, dir den Umsatz nennen, die Kasse öffnen oder schließen. Nützliche Themen:",
     suggestionsLabel: "Nützliche Themen",
     relatedLabel: "Siehe auch",
     clear: "Neues Gespräch",
@@ -614,10 +609,10 @@ export const KB: KbTopic[] = [
     },
     keywords: ["assistente", "cosa sai fare", "chi sei", "aiuto", "help", "what can you do", "who are you", "asistente", "que sabes hacer", "ayuda", "hilfe", "was kannst du"],
     answer: {
-      it: "Sono l'assistente integrato del CRM: ti spiego come funziona ogni sezione, come aggiungere o togliere qualsiasi cosa (piatti, tavoli, utenti, prenotazioni…) e ti porto direttamente alla pagina giusta. Funziono in italiano, inglese, spagnolo e tedesco, sono gratuito e i tuoi messaggi non escono dal tuo browser.",
-      en: "I'm the CRM's built-in assistant: I explain how every section works, how to add or remove anything (dishes, tables, users, bookings…) and I take you straight to the right page. I work in Italian, English, Spanish and German, I'm free, and your messages never leave your browser.",
-      es: "Soy el asistente integrado del CRM: te explico cómo funciona cada sección, cómo añadir o quitar cualquier cosa (platos, mesas, usuarios, reservas…) y te llevo directo a la página correcta. Funciono en italiano, inglés, español y alemán, soy gratis y tus mensajes no salen de tu navegador.",
-      de: "Ich bin der eingebaute CRM-Assistent: Ich erkläre jeden Bereich, wie man alles hinzufügt oder entfernt (Gerichte, Tische, Nutzer, Reservierungen…) und bringe dich direkt zur richtigen Seite. Ich funktioniere auf Italienisch, Englisch, Spanisch und Deutsch, bin kostenlos, und deine Nachrichten verlassen nie deinen Browser.",
+      it: "Sono l'assistente integrato del CRM: ti spiego come funziona ogni sezione e faccio le cose al posto tuo. Prova a scrivermi: «crea una prenotazione a nome Mario domani alle 20:30 per 4», «cancella la prenotazione di Mario», «recap delle prenotazioni», «quanto abbiamo incassato?», «apri la cassa», «chiudi la cassa». Prima di scrivere qualcosa ti chiedo sempre conferma. Funziono in italiano, inglese, spagnolo e tedesco e sono gratuito.",
+      en: "I'm the CRM's built-in assistant: I explain how every section works and do things for you. Try: “create a reservation for Mario tomorrow at 20:30 for 4”, “cancel Mario's reservation”, “reservations recap”, “how much did we take today?”, “open the till”, “close the till”. I always ask for confirmation before writing anything. I work in Italian, English, Spanish and German and I'm free.",
+      es: "Soy el asistente integrado del CRM: te explico cómo funciona cada sección y hago cosas por ti. Prueba: «crea una reserva para Mario mañana a las 20:30 para 4», «cancela la reserva de Mario», «resumen de reservas», «¿cuánto hemos recaudado?», «abre la caja», «cierra la caja». Siempre pido confirmación antes de escribir nada. Funciono en italiano, inglés, español y alemán y soy gratis.",
+      de: "Ich bin der eingebaute CRM-Assistent: Ich erkläre jeden Bereich und erledige Dinge für dich. Probier: „erstelle eine Reservierung für Mario morgen um 20:30 für 4“, „storniere Marios Reservierung“, „Reservierungs-Überblick“, „wie viel Umsatz haben wir?“, „öffne die Kasse“, „schließe die Kasse“. Vor jedem Schreibvorgang frage ich nach Bestätigung. Ich funktioniere auf Italienisch, Englisch, Spanisch und Deutsch und bin kostenlos.",
     },
     related: ["overview", "cassa-open-close", "menu-manage", "whatsapp-connect"],
   },

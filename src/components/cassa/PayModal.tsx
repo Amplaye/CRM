@@ -94,7 +94,7 @@ export function PayModal({ total, busy, result, onConfirm, onPrintReceipt, onClo
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40" onClick={result ? undefined : onClose}>
       <div
-        className="w-full max-w-md rounded-2xl border-2 shadow-xl overflow-hidden"
+        className="w-full max-w-md rounded-2xl border-2 shadow-xl max-h-[90dvh] overflow-y-auto"
         style={{ borderColor: "#c4956a", background: "#FCF6ED" }}
         onClick={(e) => e.stopPropagation()}
       >
@@ -158,14 +158,14 @@ export function PayModal({ total, busy, result, onConfirm, onPrintReceipt, onClo
               </div>
 
               {/* Split alla romana — informational helper */}
-              <div className="flex items-center justify-center gap-2">
+              <div className="flex flex-wrap items-center justify-center gap-2">
                 <Users className="w-4 h-4 text-black" />
                 <span className="text-sm text-black">{t("cassa_split")}</span>
                 {[0, 2, 3, 4, 5, 6].map((n) => (
                   <button
                     key={n}
                     onClick={() => setSplitParts(n)}
-                    className={`h-8 min-w-8 px-2 rounded-lg border-2 text-xs font-bold cursor-pointer ${splitParts === n ? "text-white" : "text-black hover:bg-[#c4956a]/10"}`}
+                    className={`h-10 min-w-10 px-2 rounded-lg border-2 text-xs font-bold cursor-pointer ${splitParts === n ? "text-white" : "text-black hover:bg-[#c4956a]/10"}`}
                     style={splitParts === n ? { background: "#c4956a", borderColor: "#c4956a" } : { borderColor: "#c4956a" }}
                   >
                     {n === 0 ? "—" : n}
@@ -230,7 +230,7 @@ export function PayModal({ total, busy, result, onConfirm, onPrintReceipt, onClo
                     <button
                       key={n}
                       onClick={() => setReceivedStr(String(n))}
-                      className="px-3 h-9 rounded-lg border-2 text-sm font-bold text-black hover:bg-[#c4956a]/10 cursor-pointer"
+                      className="px-3 h-10 rounded-lg border-2 text-sm font-bold text-black hover:bg-[#c4956a]/10 cursor-pointer"
                       style={{ borderColor: "#c4956a" }}
                     >
                       {n} €

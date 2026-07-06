@@ -10,16 +10,17 @@ export async function POST(req: NextRequest) {
   try {
     const body = (await req.json()) as { name?: string; role?: string; tenantId?: string };
     const name = (body.name || "").trim();
-    // Only Staff (host) can be created from the UI. The Admin (owner) role is
-    // reserved for the account creator and is never assignable to anyone else.
-    const role = "host";
+    // Staff (host = cameriere) and Responsabile (manager) can be created from
+    // the UI. The Admin (owner) role is reserved for the account creator and
+    // is never assignable to anyone else.
+    const role = body.role === "manager" ? "manager" : "host";
     const tenantId = (body.tenantId || "").trim();
 
     if (!name || !tenantId) {
       return NextResponse.json({ error: "Missing name or tenantId" }, { status: 400 });
     }
-    if (body.role && body.role !== "host") {
-      return NextResponse.json({ error: "Only staff role is allowed" }, { status: 400 });
+    if (body.role && body.role !== "host" && body.role !== "manager") {
+      return NextResponse.json({ error: "Only staff or responsabile roles are allowed" }, { status: 400 });
     }
 
     const userClient = await createServerSupabaseClient();

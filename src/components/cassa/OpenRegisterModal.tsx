@@ -24,7 +24,7 @@ export function OpenRegisterModal({ busy, onConfirm, onClose }: OpenRegisterModa
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40" onClick={onClose}>
       <div
-        className="w-full max-w-sm rounded-2xl border-2 p-4 space-y-3"
+        className="w-full max-w-sm rounded-2xl border-2 p-4 space-y-3 max-h-[85dvh] overflow-y-auto"
         style={{ borderColor: "#c4956a", background: "#FCF6ED" }}
         onClick={(e) => e.stopPropagation()}
       >

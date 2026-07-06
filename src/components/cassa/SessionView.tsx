@@ -14,6 +14,7 @@ import { useLanguage } from "@/lib/contexts/LanguageContext";
 import { fmtEur, toCents, fromCents, type SessionSummary } from "@/lib/cassa/totals";
 import type { CassaSessionRow } from "@/lib/cassa/types";
 import { methodLabelKey } from "./PayModal";
+import { SessionsCalendar } from "./SessionsCalendar";
 import type { Dictionary } from "@/lib/i18n/dictionaries/en";
 
 // The cash day, made obvious: a big OPEN/CLOSED state card first, then the live
@@ -23,6 +24,7 @@ import type { Dictionary } from "@/lib/i18n/dictionaries/en";
 const QUICK_FLOATS = [0, 50, 100, 150, 200];
 
 interface SessionViewProps {
+  tenantId: string;
   session: CassaSessionRow | null;
   lastSession: CassaSessionRow | null;
   summary: SessionSummary | null;
@@ -36,6 +38,7 @@ interface SessionViewProps {
 }
 
 export function SessionView({
+  tenantId,
   session,
   lastSession,
   summary,
@@ -243,7 +246,7 @@ export function SessionView({
                     value={notes}
                     onChange={(e) => setNotes(e.target.value)}
                     placeholder={t("cassa_close_notes_placeholder")}
-                    className="w-full px-3 py-2 text-sm text-black border-2 rounded-lg bg-white"
+                    className="w-full px-3 py-2 text-base text-black border-2 rounded-lg bg-white"
                     style={{ borderColor: "#c4956a" }}
                   />
                   <button
@@ -309,6 +312,14 @@ export function SessionView({
             </div>,
           )}
         </>
+      )}
+
+      {/* --------- cash-day history calendar --------- */}
+      {card(
+        <SessionsCalendar
+          tenantId={tenantId}
+          refreshKey={`${session?.id ?? ""}·${lastSession?.id ?? ""}`}
+        />,
       )}
 
       {/* --------- coperto setting --------- */}

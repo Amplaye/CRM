@@ -87,6 +87,10 @@ export default function CassaPage() {
   const [setupNeeded, setSetupNeeded] = useState(false);
   const [loading, setLoading] = useState(true);
   const draftKeySeq = useRef(0);
+  // Mirrors for the realtime callback (avoid resubscribing the channel on
+  // every tab switch / journal-day change).
+  const viewRef = useRef<View>("sala");
+  viewRef.current = view;
 
   const tenantId = activeTenant?.id;
   const venueName = activeTenant?.name || "";
@@ -218,6 +222,9 @@ export default function CassaPage() {
           refreshTimer = setTimeout(() => {
             loadOrders();
             loadSession();
+            // Keep the journal live too when it's on screen (other devices
+            // closing bills should show up without leaving the tab).
+            if (viewRef.current === "receipts") loadReceipts();
           }, 400);
         },
       )
@@ -229,9 +236,17 @@ export default function CassaPage() {
     };
   }, [tenantId, enabled, supabase, loadStatic, loadOrders, loadSession]);
 
+  // Fetch the journal as soon as the business day is known — not on first tab
+  // switch — so opening "Scontrini" is instant; later switches just refresh
+  // the cached list in the background (stale-while-revalidate).
   useEffect(() => {
-    if (view === "receipts") loadReceipts();
-  }, [view, loadReceipts]);
+    void loadReceipts();
+  }, [loadReceipts]);
+
+  useEffect(() => {
+    if (view === "receipts") void loadReceipts();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- refresh on tab switch only
+  }, [view]);
 
   // ------------------------------------------------------------- order flow
   const upsertOrder = useCallback((order: CassaOrderFull) => {
@@ -729,7 +744,7 @@ export default function CassaPage() {
         {/* Register status: unmissable, color-coded, tap → the day tab. */}
         <button
           onClick={() => setView("close")}
-          className="inline-flex items-center gap-1.5 h-8 px-3 rounded-full border-2 text-xs font-bold cursor-pointer"
+          className="inline-flex items-center gap-1.5 h-10 px-3 rounded-full border-2 text-xs font-bold cursor-pointer"
           style={
             session
               ? { borderColor: "#059669", background: "rgba(16,185,129,0.12)", color: "#065f46" }
@@ -838,8 +853,10 @@ export default function CassaPage() {
           />
         ) : view === "receipts" ? (
           <ReceiptsView
+            tenantId={tenantId || ""}
             receipts={receipts}
             businessDate={receiptsDate || businessDate}
+            today={businessDate}
             isToday={!receiptsDate || receiptsDate === businessDate}
             onShiftDay={(delta) => {
               const cur = receiptsDate || businessDate;
@@ -850,6 +867,7 @@ export default function CassaPage() {
               // Never navigate past the current business day.
               setReceiptsDate(next >= businessDate ? "" : next);
             }}
+            onPickDay={(next) => setReceiptsDate(next >= businessDate ? "" : next)}
             canVoid={canManage && (!receiptsDate || receiptsDate === businessDate)}
             busy={busy}
             onReprint={(order) => enqueuePrint(buildReceiptPayload(order))}
@@ -857,6 +875,7 @@ export default function CassaPage() {
           />
         ) : view === "close" ? (
           <SessionView
+            tenantId={tenantId || ""}
             session={session}
             lastSession={lastSession}
             summary={summary}
