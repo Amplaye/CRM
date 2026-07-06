@@ -1,6 +1,6 @@
 "use client";
 
-import { Armchair, ShoppingBag, Coffee, Clock } from "lucide-react";
+import { Armchair, ShoppingBag, Coffee, Clock, Users } from "lucide-react";
 import { useLanguage } from "@/lib/contexts/LanguageContext";
 import { fmtEur } from "@/lib/cassa/totals";
 import type { CassaOrderFull } from "@/lib/cassa/types";
@@ -111,7 +111,12 @@ export function SalaView({ tables, openOrders, onOpenTable, onCounterSale, onRes
                         <div className="text-white font-bold text-lg leading-tight">{fmtEur(order.total)}</div>
                         <div className="text-white/90 text-xs flex items-center gap-1">
                           <Clock className="w-3 h-3" /> {minutesSince(order.opened_at)}′
-                          {order.covers > 0 ? ` · ${order.covers}👤` : ""}
+                          {order.covers > 0 && (
+                            <>
+                              <span>·</span>
+                              <Users className="w-3 h-3" /> {order.covers}
+                            </>
+                          )}
                         </div>
                       </>
                     ) : (

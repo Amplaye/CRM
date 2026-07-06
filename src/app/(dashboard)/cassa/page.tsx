@@ -27,6 +27,7 @@ import type {
   CassaSessionRow,
 } from "@/lib/cassa/types";
 import { SalaView, type CassaTable } from "@/components/cassa/SalaView";
+import { OpenRegisterModal } from "@/components/cassa/OpenRegisterModal";
 import { OrderView } from "@/components/cassa/OrderView";
 import { PayModal, type PayEntry } from "@/components/cassa/PayModal";
 import { ReceiptsView } from "@/components/cassa/ReceiptsView";
@@ -65,6 +66,11 @@ export default function CassaPage() {
   const [activeOrderId, setActiveOrderId] = useState<string | null>(null);
   const [draftsMap, setDraftsMap] = useState<Record<string, CassaDraftLine[]>>({});
   const [session, setSession] = useState<CassaSessionRow | null>(null);
+  const [lastSession, setLastSession] = useState<CassaSessionRow | null>(null);
+  const [sessionLoaded, setSessionLoaded] = useState(false);
+  // Register-closed gate: non-null while the "open the day" modal is up;
+  // `pending` is the action to resume once the session is open.
+  const [gate, setGate] = useState<{ pending: (() => void) | null } | null>(null);
   const [summary, setSummary] = useState<SessionSummary | null>(null);
   const [coverCharge, setCoverCharge] = useState(0);
   const [businessDate, setBusinessDate] = useState("");
@@ -159,13 +165,16 @@ export default function CassaPage() {
       const data = await api<{
         session: CassaSessionRow | null;
         summary: SessionSummary | null;
+        last_session: CassaSessionRow | null;
         cover_charge: number;
         business_date: string;
       }>(`/api/cassa/session?tenant_id=${tenantId}`);
       setSession(data.session);
+      setLastSession(data.last_session ?? null);
       setSummary(data.summary);
       setCoverCharge(data.cover_charge);
       setBusinessDate(data.business_date);
+      setSessionLoaded(true);
     } catch {
       /* session panel simply stays empty (e.g. before the migration) */
     }
@@ -234,12 +243,26 @@ export default function CassaPage() {
     });
   }, []);
 
-  const openTable = async (table: CassaTable, existing: CassaOrderFull | null) => {
+  // Creating bills / charging requires an open day. Instead of the old silent
+  // auto-open with a 0 float, we hold the action, ask for the opening float,
+  // then resume exactly where the waiter left off.
+  const needsOpen = sessionLoaded && !session;
+
+  const openTable = (table: CassaTable, existing: CassaOrderFull | null) => {
     if (existing) {
+      // Resuming an existing bill is always allowed — it was opened legally.
       setActiveOrderId(existing.id);
       setView("order");
       return;
     }
+    if (needsOpen) {
+      setGate({ pending: () => void createTableOrder(table) });
+      return;
+    }
+    void createTableOrder(table);
+  };
+
+  const createTableOrder = async (table: CassaTable) => {
     if (busy) return;
     setBusy(true);
     try {
@@ -263,7 +286,15 @@ export default function CassaPage() {
     }
   };
 
-  const counterSale = async (kind: "banco" | "asporto") => {
+  const counterSale = (kind: "banco" | "asporto") => {
+    if (needsOpen) {
+      setGate({ pending: () => void createCounterSale(kind) });
+      return;
+    }
+    void createCounterSale(kind);
+  };
+
+  const createCounterSale = async (kind: "banco" | "asporto") => {
     if (busy) return;
     setBusy(true);
     try {
@@ -503,7 +534,7 @@ export default function CassaPage() {
     }
   };
 
-  const charge = async () => {
+  const doCharge = async () => {
     if (!activeOrder) return;
     if (drafts.length > 0) {
       const sent = await sendComanda();
@@ -512,6 +543,15 @@ export default function CassaPage() {
     setPayResult(null);
     setPaidOrder(null);
     setPayOpen(true);
+  };
+
+  const charge = () => {
+    if (!activeOrder) return;
+    if (needsOpen) {
+      setGate({ pending: () => void doCharge() });
+      return;
+    }
+    void doCharge();
   };
 
   const confirmPay = async (payments: PayEntry[]) => {
@@ -626,6 +666,13 @@ export default function CassaPage() {
     }
   };
 
+  const confirmGate = async (openingFloat: number) => {
+    const pending = gate?.pending ?? null;
+    setGate(null);
+    await openSession(openingFloat);
+    pending?.();
+  };
+
   const closeSession = async (countedCash: number | null, notes: string | null) => {
     setBusy(true);
     try {
@@ -679,10 +726,21 @@ export default function CassaPage() {
         <h1 className="text-2xl font-bold text-black flex items-center gap-2">
           <Banknote className="w-6 h-6" /> {t("nav_cassa")}
         </h1>
-        <span
-          className="inline-flex items-center gap-1.5 h-7 px-2.5 rounded-full border-2 text-xs font-bold text-black"
-          style={{ borderColor: "#c4956a", background: session ? "rgba(196,149,106,0.15)" : "transparent" }}
+        {/* Register status: unmissable, color-coded, tap → the day tab. */}
+        <button
+          onClick={() => setView("close")}
+          className="inline-flex items-center gap-1.5 h-8 px-3 rounded-full border-2 text-xs font-bold cursor-pointer"
+          style={
+            session
+              ? { borderColor: "#059669", background: "rgba(16,185,129,0.12)", color: "#065f46" }
+              : { borderColor: "#dc2626", background: "rgba(220,38,38,0.08)", color: "#991b1b" }
+          }
+          title={session ? t("cassa_day_running") : t("cassa_register_closed_title")}
         >
+          <span
+            className="w-2 h-2 rounded-full shrink-0"
+            style={{ background: session ? "#059669" : "#dc2626" }}
+          />
           {session ? (
             <>
               <Unlock className="w-3.5 h-3.5" /> {t("cassa_session_open")} ·{" "}
@@ -694,7 +752,7 @@ export default function CassaPage() {
               <Lock className="w-3.5 h-3.5" /> {t("cassa_session_closed")}
             </>
           )}
-        </span>
+        </button>
         <span className="flex-1" />
         {view !== "order" && (
           <div className="flex items-center gap-1.5">
@@ -721,6 +779,27 @@ export default function CassaPage() {
               {t("cassa_setup_needed_body")} <code>scripts/migrations/2026-07-04-cassa.sql</code>
             </p>
           </div>
+        </div>
+      )}
+
+      {/* Register closed → say it loudly on the sala, with the fix one tap away. */}
+      {view === "sala" && !loading && needsOpen && (
+        <div
+          className="mb-4 rounded-xl border-2 p-4 flex flex-wrap items-center gap-3"
+          style={{ borderColor: "#dc2626", background: "rgba(220,38,38,0.06)" }}
+        >
+          <Lock className="w-6 h-6 text-red-600 shrink-0" />
+          <div className="flex-1 min-w-[200px]">
+            <p className="font-bold text-black">{t("cassa_register_closed_title")}</p>
+            <p className="text-sm text-black">{t("cassa_register_closed_body")}</p>
+          </div>
+          <button
+            onClick={() => setGate({ pending: null })}
+            className="h-11 px-5 rounded-xl text-sm font-bold text-white cursor-pointer inline-flex items-center gap-2"
+            style={{ background: "linear-gradient(135deg, #d4a574, #c4956a)" }}
+          >
+            <Unlock className="w-4 h-4" /> {t("cassa_open_session")}
+          </button>
         </div>
       )}
 
@@ -779,6 +858,7 @@ export default function CassaPage() {
         ) : view === "close" ? (
           <SessionView
             session={session}
+            lastSession={lastSession}
             summary={summary}
             coverCharge={coverCharge}
             canManage={canManage}
@@ -828,6 +908,10 @@ export default function CassaPage() {
             setPaidOrder(null);
           }}
         />
+      )}
+
+      {gate && (
+        <OpenRegisterModal busy={busy} onConfirm={(f) => void confirmGate(f)} onClose={() => setGate(null)} />
       )}
 
       <PrintSheet payload={printQueue[0] ?? null} onDone={() => setPrintQueue((q) => q.slice(1))} />

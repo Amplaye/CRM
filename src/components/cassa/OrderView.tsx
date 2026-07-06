@@ -14,6 +14,7 @@ import {
   ArrowRightLeft,
   Trash2,
   PencilLine,
+  Users,
 } from "lucide-react";
 import { useLanguage } from "@/lib/contexts/LanguageContext";
 import type { MenuCategory, MenuItem, MenuItemVariant } from "@/lib/types";
@@ -24,6 +25,11 @@ import type { CassaTable } from "./SalaView";
 // The comanda composer: ticket on the left (sent lines + new drafts + totals),
 // menu on the right (course selector, category chips, searchable dish grid).
 // Everything is sized for fingers on a tablet at a busy pass.
+
+// One color per course so "which portata is this line?" reads at a glance:
+// 1ª bronze (brand), 2ª olive, 3ª terracotta.
+const COURSE_COLORS: Record<number, string> = { 1: "#c4956a", 2: "#768a61", 3: "#b3654a" };
+const courseColor = (c: number) => COURSE_COLORS[c] || "#c4956a";
 
 interface OrderViewProps {
   order: CassaOrderFull;
@@ -90,6 +96,8 @@ export function OrderView({
   // Variant picker: the tapped menu item (when it has variants) + toggled indexes.
   const [variantItem, setVariantItem] = useState<MenuItem | null>(null);
   const [variantSel, setVariantSel] = useState<Set<number>>(new Set());
+  const [showCovers, setShowCovers] = useState(false);
+  const [coversDraft, setCoversDraft] = useState(0);
 
   const sentItems = order.items.filter((i) => i.status !== "cancelled");
   const totals = useMemo(
@@ -130,9 +138,9 @@ export function OrderView({
       <div className="flex items-center gap-2">
         <button
           onClick={() => (opts.draft ? onDraftCourse(opts.draft.key) : undefined)}
-          className={`shrink-0 w-7 h-7 rounded-md border text-[11px] font-bold text-black ${opts.draft ? "cursor-pointer hover:bg-[#c4956a]/15" : "opacity-70"}`}
-          style={{ borderColor: "#c4956a" }}
-          title={t("cassa_course")}
+          className={`shrink-0 h-7 px-1.5 rounded-md border-2 text-[11px] font-bold text-white ${opts.draft ? "cursor-pointer" : "opacity-80"}`}
+          style={{ background: courseColor(opts.course), borderColor: courseColor(opts.course) }}
+          title={`${t("cassa_course")} ${opts.course}${opts.draft ? " — tap ↻" : ""}`}
         >
           {opts.course}ª
         </button>
@@ -188,7 +196,7 @@ export function OrderView({
         ) : (
           <>
             <span className="text-xs text-black">
-              {qty}× · {fmtEur(price)} · ✓ {t("cassa_sent")} ({opts.sent!.comanda_no}ª)
+              {qty}× · {fmtEur(price)} · ✓ {t("cassa_comanda")} #{opts.sent!.comanda_no}
             </span>
             <span className="flex-1" />
             <button
@@ -224,24 +232,22 @@ export function OrderView({
               {order.opened_by_name ? ` · ${order.opened_by_name}` : ""}
             </p>
           </div>
-          {/* covers stepper */}
-          <div className="flex items-center gap-1">
-            <button
-              onClick={() => onSetCovers(Math.max(0, order.covers - 1))}
-              className="w-8 h-8 rounded-lg border-2 flex items-center justify-center text-black cursor-pointer hover:bg-[#c4956a]/10"
-              style={{ borderColor: "#c4956a" }}
-            >
-              <Minus className="w-4 h-4" />
-            </button>
-            <span className="w-10 text-center text-sm font-bold text-black">{order.covers}👤</span>
-            <button
-              onClick={() => onSetCovers(order.covers + 1)}
-              className="w-8 h-8 rounded-lg border-2 flex items-center justify-center text-black cursor-pointer hover:bg-[#c4956a]/10"
-              style={{ borderColor: "#c4956a" }}
-            >
-              <Plus className="w-4 h-4" />
-            </button>
-          </div>
+          {/* covers: one labeled button → picker modal (was a cryptic bare stepper) */}
+          <button
+            onClick={() => {
+              setCoversDraft(order.covers);
+              setShowCovers(true);
+            }}
+            className="h-10 px-3 rounded-xl border-2 inline-flex items-center gap-1.5 text-black cursor-pointer hover:bg-[#c4956a]/10"
+            style={{ borderColor: "#c4956a", background: "rgba(255,255,255,0.6)" }}
+            title={t("cassa_covers_hint")}
+          >
+            <Users className="w-4 h-4" />
+            <span className="text-base font-bold">{order.covers}</span>
+            <span className="text-[10px] font-bold uppercase tracking-wide hidden sm:inline">
+              {t("cassa_covers")}
+            </span>
+          </button>
         </div>
 
         <div className="flex-1 overflow-y-auto p-2.5 space-y-1.5">
@@ -356,17 +362,26 @@ export function OrderView({
               style={{ borderColor: "#c4956a" }}
             />
           </div>
-          {/* course selector for NEW lines */}
-          <div className="flex items-center gap-1">
+          {/* course selector for NEW lines: joined segments, number + word, color-coded */}
+          <div
+            className="flex rounded-xl border-2 overflow-hidden shrink-0"
+            style={{ borderColor: "#c4956a", background: "rgba(255,255,255,0.7)" }}
+            title={t("cassa_course_hint")}
+          >
             {[1, 2, 3].map((c) => (
               <button
                 key={c}
                 onClick={() => setCourse(c)}
-                className={`h-11 min-w-11 px-2 rounded-xl border-2 text-sm font-bold cursor-pointer ${course === c ? "text-white" : "text-black hover:bg-[#c4956a]/10"}`}
-                style={course === c ? { background: "#c4956a", borderColor: "#c4956a" } : { borderColor: "#c4956a" }}
-                title={`${t("cassa_course")} ${c}`}
+                className={`h-11 w-16 flex flex-col items-center justify-center cursor-pointer ${c > 1 ? "border-l-2" : ""} ${course === c ? "text-white" : "text-black hover:bg-[#c4956a]/10"}`}
+                style={{
+                  borderColor: "#c4956a",
+                  ...(course === c ? { background: courseColor(c) } : {}),
+                }}
               >
-                {c}ª
+                <span className="text-sm font-bold leading-none">{c}ª</span>
+                <span className={`text-[9px] font-bold uppercase tracking-wide leading-none mt-1 ${course === c ? "opacity-90" : "opacity-60"}`}>
+                  {t("cassa_course")}
+                </span>
               </button>
             ))}
           </div>
@@ -651,6 +666,59 @@ export function OrderView({
             >
               OK
             </button>
+          </div>
+        </div>
+      )}
+
+      {showCovers && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40" onClick={() => setShowCovers(false)}>
+          <div className="w-full max-w-xs rounded-2xl border-2 p-4 space-y-3" style={{ borderColor: "#c4956a", background: "#FCF6ED" }} onClick={(e) => e.stopPropagation()}>
+            <h3 className="font-bold text-black inline-flex items-center gap-2">
+              <Users className="w-4 h-4" /> {t("cassa_covers")}
+            </h3>
+            <p className="text-xs text-black">{t("cassa_covers_hint")}</p>
+            <div className="grid grid-cols-4 gap-2">
+              {[1, 2, 3, 4, 5, 6, 7, 8].map((n) => (
+                <button
+                  key={n}
+                  onClick={() => {
+                    onSetCovers(n);
+                    setShowCovers(false);
+                  }}
+                  className={`h-12 rounded-xl border-2 text-lg font-bold cursor-pointer ${order.covers === n ? "text-white" : "text-black hover:bg-[#c4956a]/10"}`}
+                  style={order.covers === n ? { background: "#c4956a", borderColor: "#c4956a" } : { borderColor: "#c4956a" }}
+                >
+                  {n}
+                </button>
+              ))}
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setCoversDraft(Math.max(0, coversDraft - 1))}
+                className="w-11 h-11 rounded-xl border-2 flex items-center justify-center text-black cursor-pointer hover:bg-[#c4956a]/10"
+                style={{ borderColor: "#c4956a" }}
+              >
+                <Minus className="w-4 h-4" />
+              </button>
+              <span className="flex-1 text-center text-xl font-bold text-black">{coversDraft}</span>
+              <button
+                onClick={() => setCoversDraft(coversDraft + 1)}
+                className="w-11 h-11 rounded-xl border-2 flex items-center justify-center text-black cursor-pointer hover:bg-[#c4956a]/10"
+                style={{ borderColor: "#c4956a" }}
+              >
+                <Plus className="w-4 h-4" />
+              </button>
+              <button
+                onClick={() => {
+                  onSetCovers(coversDraft);
+                  setShowCovers(false);
+                }}
+                className="h-11 px-4 rounded-xl text-sm font-bold text-white cursor-pointer"
+                style={{ background: "linear-gradient(135deg, #d4a574, #c4956a)" }}
+              >
+                OK
+              </button>
+            </div>
           </div>
         </div>
       )}

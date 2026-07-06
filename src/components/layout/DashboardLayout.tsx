@@ -2,6 +2,7 @@
 
 import { Sidebar } from "./Sidebar";
 import { Topbar } from "./Topbar";
+import { AssistantWidget } from "@/components/assistant/AssistantWidget";
 import { ReactNode, useState, useEffect, useMemo } from "react";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import { useTenant } from "@/lib/contexts/TenantContext";
@@ -143,6 +144,8 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
              {children}
           </main>
         </div>
+        {/* Built-in help assistant (local KB, no external APIs). Tenant pages only. */}
+        {!isOnAdminPage && activeTenant && <AssistantWidget />}
       </div>
     </ProtectedRoute>
   );

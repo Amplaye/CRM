@@ -52,11 +52,27 @@ export async function GET(req: Request) {
   const businessDate = businessDateOf(timezone);
 
   if (!session) {
-    return NextResponse.json({ session: null, summary: null, cover_charge: coverCharge, business_date: businessDate });
+    // With the register closed the UI shows the last closing report, so the
+    // manager sees yesterday's numbers before opening a new day.
+    const { data: lastSession } = await svc
+      .from("cassa_sessions")
+      .select("*")
+      .eq("tenant_id", tenantId!)
+      .eq("status", "closed")
+      .order("closed_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    return NextResponse.json({
+      session: null,
+      summary: null,
+      last_session: lastSession ?? null,
+      cover_charge: coverCharge,
+      business_date: businessDate,
+    });
   }
 
   const summary = await summarize(svc, session.id, Number(session.opening_float) || 0);
-  return NextResponse.json({ session, summary, cover_charge: coverCharge, business_date: businessDate });
+  return NextResponse.json({ session, summary, last_session: null, cover_charge: coverCharge, business_date: businessDate });
 }
 
 export async function POST(req: Request) {
