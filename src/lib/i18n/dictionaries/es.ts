@@ -1379,6 +1379,8 @@ export const es: Dictionary = {
   cassa_split: "Dividir",
   cassa_pay_share: "Cobrar parte",
   cassa_split_paid: "pagadas",
+  cassa_cash_insufficient: "Efectivo recibido insuficiente",
+  cassa_cash_exact_confirm: "Sin importe recibido — toca de nuevo para cobrar el importe exacto",
   cassa_remaining: "Por pagar",
   cassa_pay_confirm: "Cobrar",
   cassa_add_payment: "Añadir pago",

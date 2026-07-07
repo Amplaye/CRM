@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import type { RealtimePostgresChangesPayload } from "@supabase/supabase-js";
 import { Banknote, LayoutGrid, ReceiptText, Lock, Unlock, AlertTriangle } from "lucide-react";
 import { useTenant } from "@/lib/contexts/TenantContext";
 import { useLanguage } from "@/lib/contexts/LanguageContext";
@@ -64,7 +65,6 @@ export default function CassaPage() {
   const [items, setItems] = useState<MenuItem[]>([]);
   const [openOrders, setOpenOrders] = useState<CassaOrderFull[]>([]);
   const [activeOrderId, setActiveOrderId] = useState<string | null>(null);
-  const [draftsMap, setDraftsMap] = useState<Record<string, CassaDraftLine[]>>({});
   const [session, setSession] = useState<CassaSessionRow | null>(null);
   const [lastSession, setLastSession] = useState<CassaSessionRow | null>(null);
   const [sessionLoaded, setSessionLoaded] = useState(false);
@@ -91,6 +91,7 @@ export default function CassaPage() {
   // every tab switch / journal-day change).
   const viewRef = useRef<View>("sala");
   viewRef.current = view;
+  const loadReceiptsRef = useRef<() => void>(() => {});
 
   const tenantId = activeTenant?.id;
   const venueName = activeTenant?.name || "";
@@ -98,9 +99,26 @@ export default function CassaPage() {
     () => openOrders.find((o) => o.id === activeOrderId) || null,
     [openOrders, activeOrderId],
   );
-  const drafts = useMemo(
-    () => (activeOrderId ? draftsMap[activeOrderId] || [] : []),
-    [draftsMap, activeOrderId],
+  // The cart is no longer per-device React state: draft lines live in
+  // cassa_order_items (status 'draft') so every device streams the same
+  // carrello over realtime. This view of them keeps OrderView's props stable.
+  const drafts = useMemo<CassaDraftLine[]>(
+    () =>
+      (activeOrder?.items || [])
+        .filter((i) => i.status === "draft")
+        .map((i) => ({
+          key: i.id,
+          menu_item_id: i.menu_item_id,
+          name: i.name,
+          unit_price: i.unit_price,
+          qty: i.qty,
+          course: i.course,
+          notes: i.notes,
+          vat_rate: Number(i.vat_rate ?? DEFAULT_VAT_RATE),
+          station: i.station,
+          variants: i.variants || [],
+        })),
+    [activeOrder],
   );
 
   const fail = useCallback(
@@ -196,6 +214,42 @@ export default function CassaPage() {
       console.error("Cassa receipts load error:", err);
     }
   }, [tenantId, businessDate, receiptsDate]);
+  loadReceiptsRef.current = loadReceipts;
+
+  // ------------------------------------------------- shared state surgery
+  const upsertOrder = useCallback((order: CassaOrderFull) => {
+    setOpenOrders((prev) => {
+      const rest = prev.filter((o) => o.id !== order.id);
+      return order.status === "open"
+        ? [...rest, order].sort((a, b) => a.opened_at.localeCompare(b.opened_at))
+        : rest;
+    });
+  }, []);
+
+  /** Insert-or-replace one line inside its order (idempotent: realtime echoes
+   * of our own writes land here too). */
+  const upsertItem = useCallback((row: CassaOrderItemRow) => {
+    setOpenOrders((prev) =>
+      prev.map((o) => {
+        if (o.id !== row.order_id) return o;
+        const exists = o.items.some((i) => i.id === row.id);
+        return {
+          ...o,
+          items: exists ? o.items.map((i) => (i.id === row.id ? row : i)) : [...o.items, row],
+        };
+      }),
+    );
+  }, []);
+
+  const removeItemById = useCallback((itemId: string) => {
+    setOpenOrders((prev) =>
+      prev.map((o) =>
+        o.items.some((i) => i.id === itemId)
+          ? { ...o, items: o.items.filter((i) => i.id !== itemId) }
+          : o,
+      ),
+    );
+  }, []);
 
   useEffect(() => {
     if (!tenantId || !enabled) return;
@@ -209,34 +263,66 @@ export default function CassaPage() {
       if (!cancelled) setLoading(false);
     })();
     void loadSession();
-    // Coalesce realtime bursts (a comanda inserts N rows → N events) into one
-    // refetch instead of hammering supabase + the session lambda per event.
+    // Realtime, two layers:
+    //  1. INSTANT — every payload is merged straight into state (no refetch
+    //     round-trip), so a dish tapped on mobile appears on desktop in the
+    //     time it takes the event to travel. Merges are idempotent by id, so
+    //     the echoes of our own optimistic writes are harmless.
+    //  2. RECONCILE — a debounced full refetch trails the burst as a safety
+    //     net for anything a merge can't know (orders hydrated elsewhere,
+    //     missed events after a reconnect) + the session money badge.
     let refreshTimer: ReturnType<typeof setTimeout> | null = null;
-    const bump = () => {
+    const reconcile = () => {
       if (refreshTimer) clearTimeout(refreshTimer);
       refreshTimer = setTimeout(() => {
         loadOrders();
         loadSession();
         // Keep the journal live too when it's on screen (other devices
         // closing bills should show up without leaving the tab).
-        if (viewRef.current === "receipts") loadReceipts();
-      }, 400);
+        if (viewRef.current === "receipts") loadReceiptsRef.current();
+      }, 1000);
     };
     const channel = supabase
       .channel(`cassa-${tenantId}`)
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "cassa_orders", filter: `tenant_id=eq.${tenantId}` },
-        bump,
+        (payload: RealtimePostgresChangesPayload<CassaOrderFull>) => {
+          if (payload.eventType === "DELETE") {
+            const oldId = (payload.old as { id?: string })?.id;
+            if (oldId) setOpenOrders((prev) => prev.filter((o) => o.id !== oldId));
+          } else {
+            const row = payload.new as CassaOrderFull;
+            // Merge PRESERVING the items we already hold — the row payload has
+            // no relation data. A brand-new order lands with [] and the item
+            // events / reconcile fill it.
+            setOpenOrders((prev) => {
+              const existing = prev.find((o) => o.id === row.id);
+              if (row.status !== "open") return prev.filter((o) => o.id !== row.id);
+              const rest = prev.filter((o) => o.id !== row.id);
+              return [...rest, { ...existing, ...row, items: existing?.items || [] }].sort((a, b) =>
+                a.opened_at.localeCompare(b.opened_at),
+              );
+            });
+          }
+          reconcile();
+        },
       )
-      // Adding/voiding dishes writes ONLY to cassa_order_items — the parent
-      // cassa_orders row is untouched, so without this second subscription the
-      // other device (desktop↔mobile, same account) never sees new lines land.
-      // The items table carries tenant_id, so scope the stream to this tenant.
+      // Dishes (drafts AND sent comande) write ONLY to cassa_order_items — the
+      // parent row update from recomputeOrder trails it. Without this stream
+      // the other device (desktop↔mobile, same account) never sees lines land.
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "cassa_order_items", filter: `tenant_id=eq.${tenantId}` },
-        bump,
+        (payload: RealtimePostgresChangesPayload<CassaOrderItemRow>) => {
+          if (payload.eventType === "DELETE") {
+            const oldId = (payload.old as { id?: string })?.id;
+            if (oldId) removeItemById(oldId);
+          } else {
+            upsertItem(payload.new as CassaOrderItemRow);
+          }
+          reconcile();
+        },
       )
       .subscribe();
     return () => {
@@ -244,7 +330,7 @@ export default function CassaPage() {
       if (refreshTimer) clearTimeout(refreshTimer);
       supabase.removeChannel(channel);
     };
-  }, [tenantId, enabled, supabase, loadStatic, loadOrders, loadSession]);
+  }, [tenantId, enabled, supabase, loadStatic, loadOrders, loadSession, upsertItem, removeItemById]);
 
   // Fetch the journal as soon as the business day is known — not on first tab
   // switch — so opening "Scontrini" is instant; later switches just refresh
@@ -259,15 +345,6 @@ export default function CassaPage() {
   }, [view]);
 
   // ------------------------------------------------------------- order flow
-  const upsertOrder = useCallback((order: CassaOrderFull) => {
-    setOpenOrders((prev) => {
-      const rest = prev.filter((o) => o.id !== order.id);
-      return order.status === "open"
-        ? [...rest, order].sort((a, b) => a.opened_at.localeCompare(b.opened_at))
-        : rest;
-    });
-  }, []);
-
   // Creating bills / charging requires an open day. Instead of the old silent
   // auto-open with a 0 float, we hold the action, ask for the opening float,
   // then resume exactly where the waiter left off.
@@ -343,125 +420,185 @@ export default function CassaPage() {
     }
   };
 
-  const setDrafts = (orderId: string, next: CassaDraftLine[]) =>
-    setDraftsMap((prev) => ({ ...prev, [orderId]: next }));
-
   const enqueuePrint = (p: PrintPayload | PrintPayload[]) =>
     setPrintQueue((q) => [...q, ...(Array.isArray(p) ? p : [p])]);
 
+  /** POST one draft line (shared cart). Optimistic tmp row → swapped for the
+   * server row; the realtime echo is deduped by id inside the swap. */
+  const insertDraft = async (line: Omit<CassaDraftLine, "key">) => {
+    if (!activeOrderId || !tenantId) return;
+    const orderId = activeOrderId;
+    draftKeySeq.current += 1;
+    const tmpId = `tmp-${draftKeySeq.current}`;
+    upsertItem({
+      id: tmpId,
+      tenant_id: tenantId,
+      order_id: orderId,
+      menu_item_id: line.menu_item_id,
+      name: line.name,
+      unit_price: line.unit_price,
+      qty: line.qty,
+      course: line.course,
+      comanda_no: 0,
+      notes: line.notes,
+      vat_rate: line.vat_rate,
+      station: line.station,
+      variants: line.variants,
+      status: "draft",
+      created_at: new Date().toISOString(),
+    });
+    try {
+      const data = await api<{ items: CassaOrderItemRow[] }>(`/api/cassa/orders/${orderId}/items`, {
+        method: "POST",
+        body: JSON.stringify({
+          tenant_id: tenantId,
+          draft: true,
+          items: [
+            {
+              menu_item_id: line.menu_item_id,
+              name: line.name,
+              unit_price: line.unit_price,
+              qty: line.qty,
+              course: line.course,
+              notes: line.notes,
+              vat_rate: line.vat_rate,
+              station: line.station,
+              variants: line.variants,
+            },
+          ],
+        }),
+      });
+      const real = data.items[0];
+      setOpenOrders((prev) =>
+        prev.map((o) => {
+          if (o.id !== orderId) return o;
+          const rest = o.items.filter((i) => i.id !== tmpId && i.id !== real.id);
+          return { ...o, items: [...rest, real] };
+        }),
+      );
+    } catch (err) {
+      removeItemById(tmpId);
+      fail(err);
+    }
+  };
+
   const addItem = (item: MenuItem, course: number, variants: MenuItemVariant[] = []) => {
     if (!activeOrderId) return;
-    const cur = draftsMap[activeOrderId] || [];
     // Same dish, same course, plain (no notes/variants) → just bump the qty.
-    const match = cur.find(
+    const match = drafts.find(
       (d) => d.menu_item_id === item.id && d.course === course && !d.notes && d.variants.length === 0,
     );
     if (match && variants.length === 0) {
-      setDrafts(
-        activeOrderId,
-        cur.map((d) => (d.key === match.key ? { ...d, qty: d.qty + 1 } : d)),
-      );
-    } else {
-      draftKeySeq.current += 1;
-      const priceC =
-        toCents(item.price ?? 0) + variants.reduce((s, v) => s + toCents(v.price_delta), 0);
-      setDrafts(activeOrderId, [
-        ...cur,
-        {
-          key: `d${draftKeySeq.current}`,
-          menu_item_id: item.id,
-          name: item.name,
-          unit_price: fromCents(priceC),
-          qty: 1,
-          course,
-          notes: null,
-          vat_rate: Number(item.vat_rate ?? DEFAULT_VAT_RATE),
-          station: item.station ?? null,
-          variants,
-        },
-      ]);
+      draftQty(match.key, +1);
+      return;
     }
+    const priceC =
+      toCents(item.price ?? 0) + variants.reduce((s, v) => s + toCents(v.price_delta), 0);
+    void insertDraft({
+      menu_item_id: item.id,
+      name: item.name,
+      unit_price: fromCents(priceC),
+      qty: 1,
+      course,
+      notes: null,
+      vat_rate: Number(item.vat_rate ?? DEFAULT_VAT_RATE),
+      station: item.station ?? null,
+      variants,
+    });
   };
 
   const addFree = (name: string, price: number, course: number) => {
     if (!activeOrderId) return;
-    draftKeySeq.current += 1;
-    setDrafts(activeOrderId, [
-      ...(draftsMap[activeOrderId] || []),
-      {
-        key: `d${draftKeySeq.current}`,
-        menu_item_id: null,
-        name,
-        unit_price: price,
-        qty: 1,
-        course,
-        notes: null,
-        vat_rate: DEFAULT_VAT_RATE,
-        station: null,
-        variants: [],
-      },
-    ]);
+    void insertDraft({
+      menu_item_id: null,
+      name,
+      unit_price: price,
+      qty: 1,
+      course,
+      notes: null,
+      vat_rate: DEFAULT_VAT_RATE,
+      station: null,
+      variants: [],
+    });
+  };
+
+  /** Optimistically patch a draft line, then persist; rollback on failure.
+   * Ops on a not-yet-acked tmp row apply locally only (the POST swap wins). */
+  const patchDraft = (key: string, patch: Partial<Pick<CassaOrderItemRow, "qty" | "course" | "notes">>) => {
+    const order = openOrders.find((o) => o.id === activeOrderId);
+    const it = order?.items.find((i) => i.id === key && i.status === "draft");
+    if (!order || !it) return;
+    upsertItem({ ...it, ...patch });
+    if (key.startsWith("tmp-")) return;
+    api(`/api/cassa/orders/${order.id}/items`, {
+      method: "PATCH",
+      body: JSON.stringify({ tenant_id: tenantId, action: "update", item_id: key, ...patch }),
+    }).catch((err) => {
+      upsertItem(it); // rollback
+      fail(err);
+    });
   };
 
   const draftQty = (key: string, delta: number) => {
-    if (!activeOrderId) return;
-    const cur = draftsMap[activeOrderId] || [];
-    setDrafts(
-      activeOrderId,
-      cur
-        .map((d) => (d.key === key ? { ...d, qty: d.qty + delta } : d))
-        .filter((d) => d.qty > 0),
-    );
+    const order = openOrders.find((o) => o.id === activeOrderId);
+    const it = order?.items.find((i) => i.id === key && i.status === "draft");
+    if (!it) return;
+    const nextQty = Math.round((it.qty + delta) * 100) / 100;
+    if (nextQty <= 0) {
+      removeDraft(key);
+      return;
+    }
+    patchDraft(key, { qty: nextQty });
   };
 
   const draftCourse = (key: string) => {
-    if (!activeOrderId) return;
-    const cur = draftsMap[activeOrderId] || [];
-    setDrafts(
-      activeOrderId,
-      cur.map((d) => (d.key === key ? { ...d, course: (d.course % 3) + 1 } : d)),
-    );
+    const order = openOrders.find((o) => o.id === activeOrderId);
+    const it = order?.items.find((i) => i.id === key && i.status === "draft");
+    if (!it) return;
+    patchDraft(key, { course: (it.course % 3) + 1 });
   };
 
-  const draftNotes = (key: string, notes: string | null) => {
-    if (!activeOrderId) return;
-    const cur = draftsMap[activeOrderId] || [];
-    setDrafts(activeOrderId, cur.map((d) => (d.key === key ? { ...d, notes } : d)));
-  };
+  const draftNotes = (key: string, notes: string | null) => patchDraft(key, { notes });
 
   const removeDraft = (key: string) => {
-    if (!activeOrderId) return;
-    setDrafts(activeOrderId, (draftsMap[activeOrderId] || []).filter((d) => d.key !== key));
+    const order = openOrders.find((o) => o.id === activeOrderId);
+    const it = order?.items.find((i) => i.id === key && i.status === "draft");
+    if (!order || !it) return;
+    removeItemById(key);
+    if (key.startsWith("tmp-")) return;
+    api(`/api/cassa/orders/${order.id}/items`, {
+      method: "PATCH",
+      body: JSON.stringify({ tenant_id: tenantId, action: "remove", item_id: key }),
+    }).catch((err) => {
+      upsertItem(it); // rollback
+      fail(err);
+    });
   };
 
-  /** Fire the pending drafts as a comanda; returns the refreshed items or null. */
+  /** Fire the shared cart as the next comanda round; returns the refreshed
+   * items or null on failure. The server flips ALL draft rows (including ones
+   * added by other devices a moment ago). */
   const sendComanda = async (): Promise<CassaOrderItemRow[] | null> => {
-    if (!activeOrder || drafts.length === 0) return activeOrder?.items ?? null;
+    if (!activeOrder) return null;
+    if (drafts.length === 0) return activeOrder.items;
     setBusy(true);
     try {
-      const data = await api<{ items: CassaOrderItemRow[]; comanda_no: number; totals: { subtotal: number; total: number } }>(
-        `/api/cassa/orders/${activeOrder.id}/items`,
-        {
-          method: "POST",
-          body: JSON.stringify({
-            tenant_id: tenantId,
-            items: drafts.map((d) => ({
-              menu_item_id: d.menu_item_id,
-              name: d.name,
-              unit_price: d.unit_price,
-              qty: d.qty,
-              course: d.course,
-              notes: d.notes,
-              vat_rate: d.vat_rate,
-              station: d.station,
-              variants: d.variants,
-            })),
-          }),
-        },
-      );
-      const nextItems = [...activeOrder.items, ...data.items];
-      upsertOrder({ ...activeOrder, items: nextItems, subtotal: data.totals.subtotal, total: data.totals.total });
-      setDrafts(activeOrder.id, []);
+      const data = await api<{
+        items: CassaOrderItemRow[];
+        comanda_no: number | null;
+        totals: { subtotal: number; total: number };
+      }>(`/api/cassa/orders/${activeOrder.id}/items`, {
+        method: "PATCH",
+        body: JSON.stringify({ tenant_id: tenantId, action: "send" }),
+      });
+      const flipped = new Map((data.items || []).map((i) => [i.id, i]));
+      const nextItems = activeOrder.items.map((i) => flipped.get(i.id) ?? i);
+      upsertOrder({
+        ...activeOrder,
+        items: nextItems,
+        subtotal: data.totals.subtotal,
+        total: data.totals.total,
+      });
       return nextItems;
     } catch (err) {
       fail(err);
@@ -473,7 +610,9 @@ export default function CassaPage() {
 
   const printLastComanda = () => {
     if (!activeOrder) return;
-    const active = activeOrder.items.filter(isActiveLine);
+    // Only FIRED lines: drafts (comanda_no 0) aren't a round yet and must
+    // never reprint as one.
+    const active = activeOrder.items.filter((i) => i.status === "sent");
     if (active.length === 0) return;
     const last = Math.max(...active.map((i) => i.comanda_no));
     const lines = active.filter((i) => i.comanda_no === last);

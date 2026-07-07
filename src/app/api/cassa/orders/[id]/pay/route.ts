@@ -51,9 +51,27 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
   if (!loaded || loaded.order.tenant_id !== tenantId) {
     return NextResponse.json({ error: "order_not_found" }, { status: 404 });
   }
-  const { order, items } = loaded;
+  const { order } = loaded;
+  let items = loaded.items;
   if (order.status !== "open") {
     return NextResponse.json({ error: "order_not_open" }, { status: 409 });
+  }
+
+  // Drafts still in the shared cart go out WITH the bill: flip them to sent
+  // (next comanda round) before money is derived — another device may have
+  // added them a second before this charge landed, and a paid order must never
+  // keep "unfired" lines.
+  if (items.some((i) => i.status === "draft")) {
+    const comandaNo = items.reduce((m, i) => Math.max(m, i.comanda_no), 0) + 1;
+    const { error: sendErr } = await svc
+      .from("cassa_order_items")
+      .update({ status: "sent", comanda_no: comandaNo })
+      .eq("order_id", id)
+      .eq("status", "draft");
+    if (sendErr) return NextResponse.json({ error: sendErr.message }, { status: 500 });
+    items = items.map((i) =>
+      i.status === "draft" ? { ...i, status: "sent" as const, comanda_no: comandaNo } : i,
+    );
   }
 
   const activeItems = items.filter(isActiveLine);

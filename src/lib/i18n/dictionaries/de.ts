@@ -1379,6 +1379,8 @@ export const de: Dictionary = {
   cassa_split: "Teilen",
   cassa_pay_share: "Anteil kassieren",
   cassa_split_paid: "bezahlt",
+  cassa_cash_insufficient: "Erhaltenes Bargeld reicht nicht aus",
+  cassa_cash_exact_confirm: "Kein Betrag eingegeben — erneut tippen, um den exakten Betrag zu kassieren",
   cassa_remaining: "Offen",
   cassa_pay_confirm: "Kassieren",
   cassa_add_payment: "Zahlung hinzufügen",

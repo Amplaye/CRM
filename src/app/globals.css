@@ -389,6 +389,21 @@ tr.is-new-row::after {
 .cart-bar {
   animation: cart-bar-in 0.32s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
+
+/* ── Floating assistant bubble vs the cassa ──────────────────────────────────
+   While a comanda is being composed on mobile the docked cart bar owns the
+   bottom edge, so the bubble hops just above it (never on top of it). While
+   the ticket sheet or the pay modal is up, the bubble hides completely — it
+   must never cover money buttons. Classes toggled by OrderView/PayModal. */
+@media (max-width: 1023px) {
+  body.cassa-order-open .assistant-fab {
+    bottom: calc(env(safe-area-inset-bottom, 0px) + 4.9rem);
+    transition: bottom 0.25s ease;
+  }
+}
+body.cassa-overlay-open .assistant-fab {
+  display: none;
+}
 @media (prefers-reduced-motion: reduce) {
   .sheet-panel, .sheet-panel--closing, .cart-bar { animation: none; }
 }

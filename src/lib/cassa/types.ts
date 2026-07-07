@@ -7,7 +7,8 @@ import type { MenuItemVariant } from "@/lib/types";
 
 export type CassaOrderStatus = "open" | "paid" | "cancelled" | "void";
 export type CassaChannel = "sala" | "asporto" | "delivery";
-export type CassaItemStatus = "sent" | "cancelled";
+/** draft = in the shared cart (not fired yet); sent = fired with a comanda round. */
+export type CassaItemStatus = "draft" | "sent" | "cancelled";
 
 export interface CassaOrderRow {
   id: string;

@@ -828,7 +828,7 @@ export function AssistantWidget() {
           onClick={() => setOpen(true)}
           aria-label={ui.openLabel}
           title={ui.title}
-          className="fixed bottom-5 right-5 z-40 w-14 h-14 rounded-full flex items-center justify-center text-white cursor-pointer shadow-lg transition-transform hover:scale-105"
+          className="assistant-fab fixed bottom-5 right-5 z-40 w-14 h-14 rounded-full flex items-center justify-center text-white cursor-pointer shadow-lg transition-transform hover:scale-105"
           style={{ background: "linear-gradient(135deg, #d4a574, #c4956a)" }}
         >
           <Sparkles className="w-6 h-6" />

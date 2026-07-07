@@ -1,7 +1,7 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { Banknote, CreditCard, Ticket, X, Users, Printer, Check, Minus, Plus } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { AlertTriangle, Banknote, CreditCard, Ticket, X, Users, Printer, Check, Minus, Plus } from "lucide-react";
 import { useLanguage } from "@/lib/contexts/LanguageContext";
 import type { Dictionary } from "@/lib/i18n/dictionaries/en";
 import {
@@ -55,6 +55,16 @@ export function PayModal({ total, busy, result, onConfirm, onPrintReceipt, onClo
   const [amountStr, setAmountStr] = useState("");
   const [receivedStr, setReceivedStr] = useState("");
   const [splitParts, setSplitParts] = useState(0);
+  // Exact-cash confirmation gate: charging CASH with no received amount typed
+  // needs a second tap — "30€ due, 0€ typed, charged anyway" must never happen
+  // silently again.
+  const [confirmExact, setConfirmExact] = useState(false);
+
+  // The floating assistant bubble must never hover over the money screen.
+  useEffect(() => {
+    document.body.classList.add("cassa-overlay-open");
+    return () => document.body.classList.remove("cassa-overlay-open");
+  }, []);
 
   const remaining = useMemo(() => remainingDue(total, entries), [total, entries]);
   const parsedAmount = Number(amountStr.replace(",", "."));
@@ -68,11 +78,26 @@ export function PayModal({ total, busy, result, onConfirm, onPrintReceipt, onClo
       : remaining;
 
   const change = method === "cash" && received != null ? changeDue(received, effectiveAmount) : 0;
+  // Typed cash that doesn't cover what's being charged → hard stop with a
+  // visible reason (the button used to just grey out with no explanation).
+  const cashShort =
+    method === "cash" && received != null && toCents(received) < toCents(Math.min(effectiveAmount, remaining));
+
+  // Any change to the inputs invalidates a pending exact-cash confirmation.
+  useEffect(() => {
+    setConfirmExact(false);
+  }, [method, receivedStr, amountStr, entries.length]);
 
   const addEntry = () => {
-    if (effectiveAmount <= 0 || busy) return;
+    if (effectiveAmount <= 0 || busy || cashShort) return;
     const amount = Math.min(effectiveAmount, remaining);
     if (amount <= 0) return;
+    // Cash with NOTHING typed in "Ricevuto": warn first, charge on the second
+    // tap (counts as explicit "exact amount" confirmation).
+    if (method === "cash" && received == null && !confirmExact) {
+      setConfirmExact(true);
+      return;
+    }
     const entry: PayEntry = {
       method,
       amount,
@@ -332,11 +357,30 @@ export function PayModal({ total, busy, result, onConfirm, onPrintReceipt, onClo
                 </p>
               )}
 
+              {/* typed cash doesn't cover the charge → say WHY the button is dead */}
+              {cashShort && (
+                <p className="flex items-center justify-center gap-1.5 text-center text-sm font-bold text-red-700">
+                  <AlertTriangle className="w-4 h-4 shrink-0" />
+                  {t("cassa_cash_insufficient")} ({fmtEur(Math.min(effectiveAmount, remaining))})
+                </p>
+              )}
+              {/* exact-cash gate armed → explain the second tap */}
+              {confirmExact && !cashShort && (
+                <p className="flex items-center justify-center gap-1.5 text-center text-sm font-bold" style={{ color: "#92400e" }}>
+                  <AlertTriangle className="w-4 h-4 shrink-0" />
+                  {t("cassa_cash_exact_confirm")}
+                </p>
+              )}
+
               <button
                 onClick={addEntry}
-                disabled={busy || remaining <= 0 || effectiveAmount <= 0 || (method === "cash" && received != null && received < Math.min(effectiveAmount, remaining))}
+                disabled={busy || remaining <= 0 || effectiveAmount <= 0 || cashShort}
                 className="w-full py-3.5 text-white text-base font-bold rounded-xl disabled:opacity-40 cursor-pointer"
-                style={{ background: "linear-gradient(135deg, #d4a574, #c4956a)" }}
+                style={{
+                  background: confirmExact && !cashShort
+                    ? "linear-gradient(135deg, #d97706, #b45309)"
+                    : "linear-gradient(135deg, #d4a574, #c4956a)",
+                }}
               >
                 {busy
                   ? "…"

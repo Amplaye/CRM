@@ -118,11 +118,11 @@ export function OrderView({
   const [sheetOpen, setSheetOpen] = useState(false);
   const [sheetClosing, setSheetClosing] = useState(false);
 
-  const sentItems = order.items.filter((i) => i.status !== "cancelled");
-  const totals = useMemo(
-    () => computeTotals(order, [...order.items, ...drafts]),
-    [order, drafts],
-  );
+  // Drafts now LIVE inside order.items (status 'draft', synced via realtime);
+  // the drafts prop is the same rows reshaped. So: fired lines are the 'sent'
+  // ones, and totals come from order.items alone or drafts would count twice.
+  const sentItems = order.items.filter((i) => i.status === "sent");
+  const totals = useMemo(() => computeTotals(order, order.items), [order]);
 
   // Show every available dish, even one with no price set yet: the menu editor
   // allows null prices, and hiding those made them "disappear" from the till
@@ -140,7 +140,7 @@ export function OrderView({
     return sellable.filter((i) => i.category_id === catId);
   }, [sellable, search, catId]);
 
-  const hasActive = order.items.some(isActiveLine) || drafts.length > 0;
+  const hasActive = order.items.some(isActiveLine);
   const lineCount = sentItems.length + drafts.length;
 
   const closeSheet = () => {
@@ -149,6 +149,12 @@ export function OrderView({
       setSheetOpen(false);
       setSheetClosing(false);
     }, 260);
+  };
+  // For printing: drop the sheet NOW (no exit animation) so the print snapshot
+  // never races the closing overlay.
+  const closeSheetInstant = () => {
+    setSheetOpen(false);
+    setSheetClosing(false);
   };
 
   // When the sheet is open the page underneath must not scroll (iOS bleed).
@@ -159,6 +165,18 @@ export function OrderView({
     return () => {
       document.body.style.overflow = prev;
     };
+  }, [sheetOpen]);
+
+  // Tell the floating assistant bubble to hop just above the cart bar while a
+  // comanda is being composed (mobile), and to hide entirely while the ticket
+  // sheet is open — it must never sit on top of the money buttons.
+  useEffect(() => {
+    document.body.classList.add("cassa-order-open");
+    return () => document.body.classList.remove("cassa-order-open");
+  }, []);
+  useEffect(() => {
+    document.body.classList.toggle("cassa-overlay-open", sheetOpen);
+    return () => document.body.classList.remove("cassa-overlay-open");
   }, [sheetOpen]);
 
   // ---------------------------------------------------------------- line row
@@ -370,9 +388,13 @@ export function OrderView({
       </div>
       <div className={`grid gap-2 ${canMove ? "grid-cols-3" : "grid-cols-2"}`}>
         {/* re-print the LAST sent comanda — icon+label, no longer reads as a
-            second "Comanda" button next to Send. */}
+            second "Comanda" button next to Send. Printing from the mobile sheet
+            first drops the sheet so the print snapshot is clean. */}
         <button
-          onClick={onPrintComanda}
+          onClick={() => {
+            if (sheetOpen) closeSheetInstant();
+            onPrintComanda();
+          }}
           disabled={sentItems.length === 0}
           className={secondaryBtn}
           style={{ borderColor: "#c4956a" }}
@@ -382,7 +404,10 @@ export function OrderView({
           <span className="truncate">{t("cassa_comanda")}</span>
         </button>
         <button
-          onClick={onPreconto}
+          onClick={() => {
+            if (sheetOpen) closeSheetInstant();
+            onPreconto();
+          }}
           disabled={!hasActive}
           className={secondaryBtn}
           style={{ borderColor: "#c4956a" }}
@@ -570,46 +595,44 @@ export function OrderView({
         <div className="lg:hidden h-24 shrink-0" />
       </div>
 
-      {/* ============ MOBILE: sticky cart bar ============ */}
-      {/* A floating pill card, lifted off the screen edges, with its own shadow.
-          Reserves right room (pr-[4.75rem]) so the "Vedi comanda" CTA never
-          slides under the floating assistant bubble bottom-right; the bubble
-          keeps its own z-40 layer and stays tappable over the padded gap. */}
-      <div
-        className="lg:hidden fixed left-0 right-0 bottom-0 z-40 px-3 pt-2 pointer-events-none"
-        style={{ paddingBottom: "calc(env(safe-area-inset-bottom) + 0.5rem)" }}
+      {/* ============ MOBILE: docked cart bar ============ */}
+      {/* Full-width, flush with the bottom edge (rounded top corners only) —
+          the floating assistant bubble sits JUST ABOVE it (globals.css moves
+          .assistant-fab up while body.cassa-order-open), so nothing ever
+          overlaps the bar's content. z-30 keeps the bar under the bubble
+          (z-40) and under the ticket sheet (z-50). */}
+      <button
+        onClick={() => setSheetOpen(true)}
+        className="lg:hidden cart-bar fixed left-0 right-0 bottom-0 z-30 pl-4 pr-3 flex items-center gap-3 rounded-t-2xl cursor-pointer text-white"
+        style={{
+          background: "linear-gradient(135deg, #d4a574, #c4956a)",
+          boxShadow: "0 -6px 20px -6px rgba(169,113,63,0.5)",
+          paddingTop: "0.625rem",
+          paddingBottom: "calc(env(safe-area-inset-bottom) + 0.625rem)",
+        }}
       >
-        <button
-          onClick={() => setSheetOpen(true)}
-          className="cart-bar pointer-events-auto w-full h-16 pl-4 pr-[4.75rem] flex items-center gap-3 rounded-2xl cursor-pointer text-white shadow-lg active:scale-[0.99] transition-transform"
-          style={{
-            background: "linear-gradient(135deg, #d4a574, #c4956a)",
-            boxShadow: "0 8px 24px -6px rgba(169,113,63,0.55)",
-          }}
-        >
-          <span className="relative shrink-0 w-11 h-11 rounded-xl bg-white/20 flex items-center justify-center">
-            <ShoppingCart className="w-6 h-6" />
-            {lineCount > 0 && (
-              <span className="absolute -top-1.5 -right-1.5 min-w-5 h-5 px-1 rounded-full bg-white text-[11px] font-bold flex items-center justify-center shadow" style={{ color: "#a9713f" }}>
-                {lineCount}
-              </span>
-            )}
-          </span>
-          <span className="flex flex-col items-start leading-tight min-w-0">
-            <span className="text-[11px] font-bold uppercase tracking-wide opacity-90 truncate">
-              {lineCount > 0
-                ? `${lineCount} ${lineCount === 1 ? t("cassa_item") : t("cassa_items")}`
-                : t("cassa_empty_order_short")}
+        <span className="relative shrink-0 w-11 h-11 rounded-xl bg-white/20 flex items-center justify-center">
+          <ShoppingCart className="w-6 h-6" />
+          {lineCount > 0 && (
+            <span className="absolute -top-1.5 -right-1.5 min-w-5 h-5 px-1 rounded-full bg-white text-[11px] font-bold flex items-center justify-center shadow" style={{ color: "#a9713f" }}>
+              {lineCount}
             </span>
-            <span className="text-xl font-bold">{fmtEur(totals.total)}</span>
+          )}
+        </span>
+        <span className="flex flex-col items-start leading-tight min-w-0">
+          <span className="text-[11px] font-bold uppercase tracking-wide opacity-90 whitespace-nowrap">
+            {lineCount > 0
+              ? `${lineCount} ${lineCount === 1 ? t("cassa_item") : t("cassa_items")}`
+              : t("cassa_empty_order_short")}
           </span>
-          <span className="flex-1" />
-          <span className="inline-flex items-center gap-1.5 text-sm font-bold whitespace-nowrap bg-white/20 rounded-full pl-3 pr-2.5 py-1.5">
-            {t("cassa_view_order")}
-            <ArrowLeft className="w-4 h-4 rotate-180" />
-          </span>
-        </button>
-      </div>
+          <span className="text-xl font-bold whitespace-nowrap">{fmtEur(totals.total)}</span>
+        </span>
+        <span className="flex-1" />
+        <span className="shrink-0 inline-flex items-center gap-1.5 h-11 text-sm font-bold whitespace-nowrap bg-white/20 rounded-full px-4 active:bg-white/30">
+          {t("cassa_view_order")}
+          <ArrowLeft className="w-4 h-4 rotate-180" />
+        </span>
+      </button>
 
       {/* ============ MOBILE: ticket bottom sheet ============ */}
       {sheetOpen && (

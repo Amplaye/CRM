@@ -1376,6 +1376,8 @@ export const en = {
   cassa_split: "Split",
   cassa_pay_share: "Charge share",
   cassa_split_paid: "paid",
+  cassa_cash_insufficient: "Cash received is not enough",
+  cassa_cash_exact_confirm: "No cash amount entered — tap again to charge the exact amount",
   cassa_remaining: "To pay",
   cassa_pay_confirm: "Charge",
   cassa_add_payment: "Add payment",
