@@ -38,7 +38,7 @@ Return exactly one of these shapes:
 9. {"type":"pick","index":N} — ONLY when the flow context shows a numbered list and the user is referring to one entry (1-based).
 10. {"type":"answer","text":"..."} — anything else. Reply briefly (max 80 words) and warmly IN ${LANG_NAMES[lang]}. You may only discuss this CRM and day-to-day restaurant operations; for unrelated requests say kindly that you can only help with the CRM. Never invent CRM features beyond the topics below.
 
-If a flow context is provided, the user is mid-task: interpret short replies as the requested detail (use shape 1 with ONLY the new or corrected fields) or as yes/no/pick.
+If a flow context is provided, the user is mid-task: interpret short replies as the requested detail (use shape 1, ALWAYS keeping "kind":"create_reservation", with only the new or corrected fields) or as yes/no/pick.
 
 Topic catalog (id: title):
 ${catalog}`;
@@ -93,11 +93,13 @@ export async function POST(request: Request) {
   ];
 
   try {
+    // No response_format: the Vercel AI Gateway rejects it as invalid input
+    // (shape is validated before auth). The JSON-only system prompt plus
+    // parseInterpretation's fence-stripping/validation cover it instead.
     const res = await chatCompletion({
       model: "gpt-4.1-mini",
       temperature: 0.1,
       max_tokens: 300,
-      response_format: { type: "json_object" },
       messages,
     });
     if (!res.ok) {

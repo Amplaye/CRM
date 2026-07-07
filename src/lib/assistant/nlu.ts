@@ -55,10 +55,15 @@ function cleanMoney(v: unknown): number | undefined {
   return Number.isFinite(n) && n >= 0 && n <= 999999 ? Math.round(n * 100) / 100 : undefined;
 }
 
+const CREATE_SLOT_KEYS = ["name", "phone", "phone_unknown", "date", "time", "party"];
+
 function parseAction(action: unknown, today: string): Interpretation | null {
   if (!action || typeof action !== "object") return null;
   const a = action as Record<string, unknown>;
-  switch (a.kind) {
+  // Mid-flow the model sometimes returns just the new slots and drops the
+  // kind ({"phone_unknown":true,"party":6}) — that can only be a create.
+  const kind = a.kind ?? (CREATE_SLOT_KEYS.some((k) => a[k] != null) ? "create_reservation" : undefined);
+  switch (kind) {
     case "create_reservation": {
       const out: Interpretation = {
         type: "action",

@@ -14,7 +14,8 @@ export type ChatCompletionRequest = {
   temperature?: number;
   max_completion_tokens?: number;
   max_tokens?: number;
-  response_format?: { type: 'json_object' };
+  // ⚠️ Don't add response_format here: the Vercel AI Gateway rejects it
+  // ("Invalid input", validated even before auth) — prompt for JSON instead.
 };
 
 export function chatCompletionsConfig(): { url: string; bearer: string; modelPrefix: string } {

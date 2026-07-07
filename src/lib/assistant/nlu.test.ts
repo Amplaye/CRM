@@ -34,6 +34,18 @@ describe("parseInterpretation", () => {
     expect(parseInterpretation(raw, TODAY)).toEqual({ type: "action", action: { kind: "revenue" } });
   });
 
+  it("infers create_reservation when the model drops the kind mid-flow", () => {
+    const out = parseInterpretation(
+      { type: "action", action: { phone_unknown: true, party: 6 } },
+      TODAY,
+    );
+    expect(out).toMatchObject({
+      type: "action",
+      phoneUnknown: true,
+      action: { kind: "create_reservation", party: 6 },
+    });
+  });
+
   it("keeps phone_unknown as phoneUnknown", () => {
     const out = parseInterpretation(
       { type: "action", action: { kind: "create_reservation", party: 4, phone_unknown: true } },
