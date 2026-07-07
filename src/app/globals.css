@@ -404,14 +404,12 @@ tr.is-new-row::after {
 }
 
 /* ── Printing the Cassa documents (comanda / preconto / scontrino) ────────────
-   The app shell wraps every page in a height-capped, overflow:hidden, scrolled
-   flex column (DashboardLayout: h-[100dvh] overflow-hidden > main overflow-y-auto).
-   An in-page print sheet positioned inside that tree gets clipped to the shell
-   and offset by <main>'s scroll — which is exactly why the receipt printed fine
-   on desktop (viewport ≈ shell) but came out blank on mobile. So at print time
-   we flatten the shell: strip the height/overflow/scroll caps off every ancestor
-   and let the fixed-position sheet own the page. The sheet's own @media rules
-   (in PrintSheet) hide everything else. */
+   PrintSheet portals its receipt to a DIRECT <body> child (.cassa-print), so at
+   print time we simply DISPLAY:NONE every other body child — the whole app shell
+   collapses to zero layout and the receipt is the only thing on the page. This
+   replaced a visibility:hidden approach that left the tall shell occupying its
+   full box → ~11 ghost pages on mobile. The receipt's own sizing lives in
+   PrintSheet's scoped @media block. */
 @media print {
   html, body {
     height: auto !important;
@@ -419,15 +417,7 @@ tr.is-new-row::after {
     overscroll-behavior: auto !important;
     background: #fff !important;
   }
-  /* Neutralise the flex shell + <main> scroller so nothing clips the sheet. */
-  body * {
-    overflow: visible !important;
-  }
-  /* Keep the app from reserving a 100dvh column that pushes the sheet away. */
-  body > div,
-  body > div * {
-    height: auto !important;
-    max-height: none !important;
-    min-height: 0 !important;
+  body > *:not(.cassa-print) {
+    display: none !important;
   }
 }

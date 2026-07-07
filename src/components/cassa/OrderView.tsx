@@ -17,6 +17,7 @@ import {
   Users,
   ShoppingCart,
   ChevronDown,
+  ReceiptText,
 } from "lucide-react";
 import { useLanguage } from "@/lib/contexts/LanguageContext";
 import type { MenuCategory, MenuItem, MenuItemVariant } from "@/lib/types";
@@ -340,13 +341,20 @@ export function OrderView({
   );
 
   // ------------------------------------------------------------ ticket actions
+  // Two clear tiers: the primary pair (Invia / Incassa) as tall gradient CTAs,
+  // then a row of equal-width secondary buttons. Every secondary is a fixed grid
+  // cell (no flex-wrap, no text that collides with the floating assistant bubble
+  // bottom-right) so "Sposta tavolo" et al. stay on one line and read cleanly.
+  const secondaryBtn =
+    "h-11 rounded-xl border-2 text-[13px] font-bold text-black active:bg-[#c4956a]/20 disabled:opacity-40 cursor-pointer inline-flex items-center justify-center gap-1.5";
+  const canMove = order.table_id !== null || freeTables.length > 0;
   const ticketActions = (
     <div className="p-2.5 border-t-2 space-y-2" style={{ borderColor: "#c4956a" }}>
       <div className="grid grid-cols-2 gap-2">
         <button
           onClick={onSendComanda}
           disabled={busy || drafts.length === 0}
-          className="h-12 rounded-xl text-sm font-bold text-white disabled:opacity-40 cursor-pointer inline-flex items-center justify-center gap-2"
+          className="h-12 rounded-xl text-sm font-bold text-white disabled:opacity-40 cursor-pointer inline-flex items-center justify-center gap-2 shadow-sm active:scale-[0.98] transition-transform"
           style={{ background: "linear-gradient(135deg, #d4a574, #c4956a)" }}
         >
           <Send className="w-4 h-4" /> {t("cassa_send_order")}
@@ -354,52 +362,54 @@ export function OrderView({
         <button
           onClick={onCharge}
           disabled={busy || !hasActive}
-          className="h-12 rounded-xl text-sm font-bold text-white disabled:opacity-40 cursor-pointer"
+          className="h-12 rounded-xl text-sm font-bold text-white disabled:opacity-40 cursor-pointer shadow-sm active:scale-[0.98] transition-transform"
           style={{ background: "linear-gradient(135deg, #8fa573, #768a61)" }}
         >
           {t("cassa_charge")} · {fmtEur(totals.total)}
         </button>
       </div>
-      <div className="flex items-center gap-1.5">
-        {/* re-print the LAST sent comanda — icon only, so it no longer reads as a
+      <div className={`grid gap-2 ${canMove ? "grid-cols-3" : "grid-cols-2"}`}>
+        {/* re-print the LAST sent comanda — icon+label, no longer reads as a
             second "Comanda" button next to Send. */}
         <button
           onClick={onPrintComanda}
           disabled={sentItems.length === 0}
-          className="h-11 w-11 rounded-lg border-2 text-black active:bg-[#c4956a]/20 disabled:opacity-40 cursor-pointer inline-flex items-center justify-center"
+          className={secondaryBtn}
           style={{ borderColor: "#c4956a" }}
           title={t("cassa_reprint_comanda")}
         >
-          <Printer className="w-4 h-4" />
+          <Printer className="w-4 h-4 shrink-0" />
+          <span className="truncate">{t("cassa_comanda")}</span>
         </button>
         <button
           onClick={onPreconto}
           disabled={!hasActive}
-          className="h-11 px-3 rounded-lg border-2 text-xs font-bold text-black active:bg-[#c4956a]/20 disabled:opacity-40 cursor-pointer inline-flex items-center gap-1.5"
+          className={secondaryBtn}
           style={{ borderColor: "#c4956a" }}
         >
-          <Printer className="w-3.5 h-3.5" /> {t("cassa_preconto")}
+          <ReceiptText className="w-4 h-4 shrink-0" />
+          <span className="truncate">{t("cassa_preconto")}</span>
         </button>
-        {order.table_id !== null || freeTables.length > 0 ? (
+        {canMove ? (
           <button
             onClick={() => setShowMove(true)}
-            className="h-11 px-3 rounded-lg border-2 text-xs font-bold text-black active:bg-[#c4956a]/20 cursor-pointer inline-flex items-center gap-1.5"
+            className={secondaryBtn}
             style={{ borderColor: "#c4956a" }}
           >
-            <ArrowRightLeft className="w-3.5 h-3.5" /> {t("cassa_move_table")}
+            <ArrowRightLeft className="w-4 h-4 shrink-0" />
+            <span className="truncate">{t("cassa_move_table")}</span>
           </button>
         ) : null}
-        <span className="flex-1" />
-        <button
-          onClick={() => {
-            if (window.confirm(t("cassa_cancel_order_confirm"))) onCancelOrder();
-          }}
-          className="h-11 w-11 rounded-lg flex items-center justify-center text-red-600 active:bg-red-600/20 cursor-pointer"
-          title={t("cassa_cancel_order")}
-        >
-          <Trash2 className="w-4 h-4" />
-        </button>
       </div>
+      <button
+        onClick={() => {
+          if (window.confirm(t("cassa_cancel_order_confirm"))) onCancelOrder();
+        }}
+        className="w-full h-9 rounded-lg text-xs font-bold text-red-600 active:bg-red-600/10 cursor-pointer inline-flex items-center justify-center gap-1.5"
+        title={t("cassa_cancel_order")}
+      >
+        <Trash2 className="w-3.5 h-3.5" /> {t("cassa_cancel_order")}
+      </button>
     </div>
   );
 
@@ -448,7 +458,7 @@ export function OrderView({
         {courseSelector}
       </div>
 
-      <div className="flex gap-1.5 pb-2 overflow-x-auto no-scrollbar">
+      <div className="flex gap-1.5 pb-2 overflow-x-auto no-scrollbar lg:flex-wrap lg:overflow-visible">
         <button
           onClick={() => setCatId("all")}
           className={`shrink-0 h-10 px-3 rounded-lg border-2 text-xs font-bold cursor-pointer ${catId === "all" && !search ? "text-white" : "text-black active:bg-[#c4956a]/20"}`}
@@ -556,46 +566,50 @@ export function OrderView({
           <p className="font-bold text-black truncate flex-1">{order.table_name}</p>
         </div>
         {menuPicker}
-        {/* spacer so the sticky cart bar never covers the "Voce libera" button */}
-        <div className="lg:hidden h-16 shrink-0" />
+        {/* spacer so the floating cart bar never covers the "Voce libera" button */}
+        <div className="lg:hidden h-24 shrink-0" />
       </div>
 
       {/* ============ MOBILE: sticky cart bar ============ */}
-      {/* Reserves right padding (pr-[4.75rem]) so its content — "Vedi comanda" —
-          never slides under the floating assistant bubble that sits bottom-right;
-          the bubble keeps its own z-40 layer and stays tappable over the padded
-          gap. */}
-      <button
-        onClick={() => setSheetOpen(true)}
-        className="lg:hidden cart-bar fixed left-0 right-0 bottom-0 z-40 h-16 pl-4 pr-[4.75rem] flex items-center gap-3 border-t-2 cursor-pointer text-white"
-        style={{
-          borderColor: "#a9713f",
-          background: "linear-gradient(135deg, #d4a574, #c4956a)",
-          paddingBottom: "env(safe-area-inset-bottom)",
-        }}
+      {/* A floating pill card, lifted off the screen edges, with its own shadow.
+          Reserves right room (pr-[4.75rem]) so the "Vedi comanda" CTA never
+          slides under the floating assistant bubble bottom-right; the bubble
+          keeps its own z-40 layer and stays tappable over the padded gap. */}
+      <div
+        className="lg:hidden fixed left-0 right-0 bottom-0 z-40 px-3 pt-2 pointer-events-none"
+        style={{ paddingBottom: "calc(env(safe-area-inset-bottom) + 0.5rem)" }}
       >
-        <span className="relative">
-          <ShoppingCart className="w-6 h-6" />
-          {lineCount > 0 && (
-            <span className="absolute -top-2 -right-2 min-w-5 h-5 px-1 rounded-full bg-white text-[11px] font-bold flex items-center justify-center" style={{ color: "#a9713f" }}>
-              {lineCount}
-            </span>
-          )}
-        </span>
-        <span className="flex flex-col items-start leading-tight">
-          <span className="text-[11px] font-bold uppercase tracking-wide opacity-90">
-            {lineCount > 0
-              ? `${lineCount} ${lineCount === 1 ? t("cassa_item") : t("cassa_items")}`
-              : t("cassa_empty_order_short")}
+        <button
+          onClick={() => setSheetOpen(true)}
+          className="cart-bar pointer-events-auto w-full h-16 pl-4 pr-[4.75rem] flex items-center gap-3 rounded-2xl cursor-pointer text-white shadow-lg active:scale-[0.99] transition-transform"
+          style={{
+            background: "linear-gradient(135deg, #d4a574, #c4956a)",
+            boxShadow: "0 8px 24px -6px rgba(169,113,63,0.55)",
+          }}
+        >
+          <span className="relative shrink-0 w-11 h-11 rounded-xl bg-white/20 flex items-center justify-center">
+            <ShoppingCart className="w-6 h-6" />
+            {lineCount > 0 && (
+              <span className="absolute -top-1.5 -right-1.5 min-w-5 h-5 px-1 rounded-full bg-white text-[11px] font-bold flex items-center justify-center shadow" style={{ color: "#a9713f" }}>
+                {lineCount}
+              </span>
+            )}
           </span>
-          <span className="text-lg font-bold">{fmtEur(totals.total)}</span>
-        </span>
-        <span className="flex-1" />
-        <span className="inline-flex items-center gap-1 text-sm font-bold">
-          {t("cassa_view_order")}
-          <ArrowLeft className="w-4 h-4 rotate-180" />
-        </span>
-      </button>
+          <span className="flex flex-col items-start leading-tight min-w-0">
+            <span className="text-[11px] font-bold uppercase tracking-wide opacity-90 truncate">
+              {lineCount > 0
+                ? `${lineCount} ${lineCount === 1 ? t("cassa_item") : t("cassa_items")}`
+                : t("cassa_empty_order_short")}
+            </span>
+            <span className="text-xl font-bold">{fmtEur(totals.total)}</span>
+          </span>
+          <span className="flex-1" />
+          <span className="inline-flex items-center gap-1.5 text-sm font-bold whitespace-nowrap bg-white/20 rounded-full pl-3 pr-2.5 py-1.5">
+            {t("cassa_view_order")}
+            <ArrowLeft className="w-4 h-4 rotate-180" />
+          </span>
+        </button>
+      </div>
 
       {/* ============ MOBILE: ticket bottom sheet ============ */}
       {sheetOpen && (

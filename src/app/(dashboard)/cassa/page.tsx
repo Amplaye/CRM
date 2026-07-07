@@ -212,21 +212,31 @@ export default function CassaPage() {
     // Coalesce realtime bursts (a comanda inserts N rows → N events) into one
     // refetch instead of hammering supabase + the session lambda per event.
     let refreshTimer: ReturnType<typeof setTimeout> | null = null;
+    const bump = () => {
+      if (refreshTimer) clearTimeout(refreshTimer);
+      refreshTimer = setTimeout(() => {
+        loadOrders();
+        loadSession();
+        // Keep the journal live too when it's on screen (other devices
+        // closing bills should show up without leaving the tab).
+        if (viewRef.current === "receipts") loadReceipts();
+      }, 400);
+    };
     const channel = supabase
       .channel(`cassa-${tenantId}`)
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "cassa_orders", filter: `tenant_id=eq.${tenantId}` },
-        () => {
-          if (refreshTimer) clearTimeout(refreshTimer);
-          refreshTimer = setTimeout(() => {
-            loadOrders();
-            loadSession();
-            // Keep the journal live too when it's on screen (other devices
-            // closing bills should show up without leaving the tab).
-            if (viewRef.current === "receipts") loadReceipts();
-          }, 400);
-        },
+        bump,
+      )
+      // Adding/voiding dishes writes ONLY to cassa_order_items — the parent
+      // cassa_orders row is untouched, so without this second subscription the
+      // other device (desktop↔mobile, same account) never sees new lines land.
+      // The items table carries tenant_id, so scope the stream to this tenant.
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "cassa_order_items", filter: `tenant_id=eq.${tenantId}` },
+        bump,
       )
       .subscribe();
     return () => {

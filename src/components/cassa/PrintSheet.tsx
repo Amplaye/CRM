@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { useLanguage } from "@/lib/contexts/LanguageContext";
 import type { Dictionary } from "@/lib/i18n/dictionaries/en";
 import { fmtEur, type CassaTotals, type VatLine } from "@/lib/cassa/totals";
@@ -71,6 +72,12 @@ const STATION_KEYS: Record<string, keyof Dictionary> = {
 
 export function PrintSheet({ payload, onDone }: { payload: PrintPayload | null; onDone: () => void }) {
   const { t } = useLanguage();
+  // Portal the sheet to <body> so it's a DIRECT body child. That lets the print
+  // CSS `display:none` every OTHER body child (the whole app shell) and leave a
+  // single short page — instead of nesting the sheet deep inside the tall,
+  // height-capped dashboard shell where it printed 11 ghost pages on mobile.
+  const [host, setHost] = useState<HTMLElement | null>(null);
+  useEffect(() => setHost(document.body), []);
 
   useEffect(() => {
     if (!payload) return;
@@ -111,31 +118,34 @@ export function PrintSheet({ payload, onDone }: { payload: PrintPayload | null; 
     };
   }, [payload, onDone]);
 
-  if (!payload) return null;
+  if (!payload || !host) return null;
 
   const sep = <div style={{ borderTop: "1px dashed #000", margin: "6px 0" }} />;
 
-  return (
+  return createPortal(
     <div className="cassa-print" aria-hidden="true">
       <style>{`
         .cassa-print { display: none; }
         @media print {
-          body * { visibility: hidden !important; }
+          /* Collapse the ENTIRE app to zero layout — display:none, not
+             visibility:hidden. A hidden element still occupies its full box, so
+             the tall app shell (menu grid + ticket) spanned ~11 printed pages of
+             ghost/blank content on mobile. display:none removes it from flow, so
+             the receipt is the only thing on the page → exactly one page. */
+          body > *:not(.cassa-print) { display: none !important; }
+          /* The sheet flows in normal (static) position, so the browser
+             paginates ONE short page around it and a tall bill can spill onto a
+             second page instead of being clipped. */
           .cassa-print, .cassa-print * { visibility: visible !important; }
-          /* fixed (not absolute) so the sheet is pinned to the printed page and
-             never inherits the app shell's scroll offset — that offset is what
-             pushed it off the page on mobile. Global @media print rules flatten
-             the shell's height/overflow caps around it. */
           .cassa-print {
             display: block !important;
-            position: fixed !important; left: 0; top: 0;
-            width: 72mm; padding: 2mm;
+            position: static !important;
+            width: 72mm; margin: 0 auto; padding: 2mm;
             background: #fff; color: #000;
             font-family: "Courier New", ui-monospace, monospace;
             font-size: 12px; line-height: 1.35;
-            z-index: 2147483647;
           }
-          @page { margin: 4mm; }
+          @page { margin: 4mm; size: 72mm auto; }
         }
       `}</style>
 
@@ -265,6 +275,7 @@ export function PrintSheet({ payload, onDone }: { payload: PrintPayload | null; 
           <div style={{ textAlign: "center", marginTop: 2 }}>{t("cassa_print_thanks")}</div>
         </>
       )}
-    </div>
+    </div>,
+    host,
   );
 }
