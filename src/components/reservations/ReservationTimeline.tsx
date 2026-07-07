@@ -4,25 +4,64 @@ import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { Reservation } from "@/lib/types";
 import { useTenant } from "@/lib/contexts/TenantContext";
-import { Loader2 } from "lucide-react";
+import { useLanguage } from "@/lib/contexts/LanguageContext";
+import { Loader2, AlertTriangle } from "lucide-react";
 import { cn } from "@/components/layout/Sidebar";
+import { writeOfflineCache, readOfflineCache } from "@/lib/offline-cache";
 
 interface ResWithGuest extends Reservation {
   guest_name?: string;
   table_names?: string[];
 }
 
+// Local calendar date (YYYY-MM-DD): reservation `date` columns are local.
+function localToday(): string {
+  const d = new Date();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${d.getFullYear()}-${m}-${day}`;
+}
+
 export function ReservationTimeline({ date, shiftFilter = "all", onRowClick }: { date: string, shiftFilter?: "all" | "lunch" | "dinner", onRowClick: (r: Reservation) => void }) {
   const { activeTenant } = useTenant();
+  const { t } = useLanguage();
   const [reservations, setReservations] = useState<ResWithGuest[]>([]);
   const [loading, setLoading] = useState(true);
+  // >0 ⇒ shown from the offline cache (ms of last live fetch).
+  const [staleSince, setStaleSince] = useState<number | null>(null);
 
   useEffect(() => {
     if (!activeTenant) return;
 
     const supabase = createClient();
+    const isToday = date === localToday();
+
+    const applyShiftFilter = (rows: ResWithGuest[]): ResWithGuest[] => {
+      const sorted = [...rows].sort((a, b) => a.time.localeCompare(b.time));
+      return shiftFilter === "all"
+        ? sorted
+        : sorted.filter((r: any) => {
+            const rs = r.shift || (parseInt((r.time || '00').split(':')[0]) < 16 ? 'lunch' : 'dinner');
+            return rs === shiftFilter;
+          });
+    };
+
+    const hydrateFromCache = () => {
+      if (isToday) {
+        const cached = readOfflineCache<ResWithGuest[]>(activeTenant.id, "reservations", date);
+        if (cached) {
+          setReservations(applyShiftFilter(cached.data));
+          setStaleSince(cached.cachedAt);
+        }
+      }
+      setLoading(false);
+    };
 
     const fetchReservations = async () => {
+      if (typeof navigator !== "undefined" && navigator.onLine === false) {
+        hydrateFromCache();
+        return;
+      }
       const { data: results, error } = await supabase
         .from("reservations")
         .select("*, guests(name), reservation_tables(restaurant_tables(name))")
@@ -31,7 +70,7 @@ export function ReservationTimeline({ date, shiftFilter = "all", onRowClick }: {
 
       if (error) {
         console.error("Failed to load timeline reservations", error);
-        setLoading(false);
+        hydrateFromCache();
         return;
       }
 
@@ -45,14 +84,9 @@ export function ReservationTimeline({ date, shiftFilter = "all", onRowClick }: {
           .filter(Boolean),
       }));
 
-      const sorted = withNames.sort((a, b) => a.time.localeCompare(b.time));
-      const filtered = shiftFilter === "all"
-        ? sorted
-        : sorted.filter((r: any) => {
-            const rs = r.shift || (parseInt((r.time || '00').split(':')[0]) < 16 ? 'lunch' : 'dinner');
-            return rs === shiftFilter;
-          });
-      setReservations(filtered);
+      setStaleSince(null);
+      if (isToday) writeOfflineCache(activeTenant.id, "reservations", withNames, date);
+      setReservations(applyShiftFilter(withNames));
       setLoading(false);
     };
 
@@ -98,6 +132,18 @@ export function ReservationTimeline({ date, shiftFilter = "all", onRowClick }: {
 
   return (
     <div className="border-2 border-t-0 text-sm rounded-b-xl overflow-hidden relative" style={{ background: 'rgba(252,246,237,0.85)', borderColor: '#c4956a', boxShadow: '0 20px 60px rgba(196,149,106,0.25), 0 8px 24px rgba(196,149,106,0.15)' }}>
+      {staleSince !== null && (
+        <div className="border-b border-amber-400 bg-amber-50 px-4 py-2 flex items-center gap-2 text-xs text-amber-900">
+          <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+          <span className="font-semibold">{t("offline_stale_data")}</span>
+          <span className="text-amber-700">
+            · {t("offline_last_updated").replace(
+              "{time}",
+              new Date(staleSince).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+            )}
+          </span>
+        </div>
+      )}
       <div className="flex border-b" style={{ borderColor: '#c4956a' }}>
         <div className="w-24 border-r py-3 px-4 font-semibold text-black" style={{ borderColor: '#c4956a' }}>Time</div>
         <div className="flex-1 py-3 px-4 font-semibold text-black">Service Floor</div>

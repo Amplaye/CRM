@@ -1541,4 +1541,12 @@ export const es: Dictionary = {
   pl_statement_title: "De ingresos a margen — últimos {n} días",
   pl_statement_hint: "barras = % de ingresos · △▽ = vs periodo anterior",
   pl_missing_costs: "Personal o costes fijos a cero: añádelos en Ajustes → Gestión para un margen operativo real.",
+
+  // PWA / Offline
+  pwa_update_available: "Hay una nueva versión disponible",
+  pwa_reload: "Recargar",
+  offline_indicator: "Sin conexión",
+  offline_stale_data: "Sin conexión — mostrando datos guardados",
+  offline_last_updated: "actualizado {time}",
+  offline_action_unavailable: "No disponible sin conexión — vuelve a conectarte para continuar.",
 };

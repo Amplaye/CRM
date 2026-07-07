@@ -1538,6 +1538,14 @@ export const en = {
   pl_statement_title: "From revenue to margin — last {n} days",
   pl_statement_hint: "bars = % of revenue · △▽ = vs previous period",
   pl_missing_costs: "Staff or fixed costs are at zero: add them in Settings → Management to get a real operating margin.",
+
+  // PWA / Offline
+  pwa_update_available: "A new version is available",
+  pwa_reload: "Reload",
+  offline_indicator: "Offline",
+  offline_stale_data: "Offline — showing saved data",
+  offline_last_updated: "updated {time}",
+  offline_action_unavailable: "Not available offline — reconnect to continue.",
 };
 
 export type Dictionary = typeof en;

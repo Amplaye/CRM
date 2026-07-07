@@ -5,7 +5,9 @@ import type { RealtimePostgresChangesPayload } from "@supabase/supabase-js";
 import { Banknote, LayoutGrid, ReceiptText, Lock, Unlock, AlertTriangle } from "lucide-react";
 import { useTenant } from "@/lib/contexts/TenantContext";
 import { useLanguage } from "@/lib/contexts/LanguageContext";
+import { useNetworkStatus } from "@/lib/contexts/NetworkStatusContext";
 import { createClient } from "@/lib/supabase/client";
+import { writeOfflineCache, readOfflineCache } from "@/lib/offline-cache";
 import { getFeatures } from "@/lib/types/tenant-settings";
 import { ManagementLocked } from "@/components/management/ManagementLocked";
 import type { MenuCategory, MenuItem, MenuItemVariant } from "@/lib/types";
@@ -54,6 +56,7 @@ async function api<T>(path: string, init?: RequestInit): Promise<T> {
 export default function CassaPage() {
   const { activeTenant, activeRole, globalRole, refreshActiveTenant } = useTenant();
   const { t } = useLanguage();
+  const { online } = useNetworkStatus();
   const supabase = useMemo(() => createClient(), []);
   const enabled = getFeatures(activeTenant?.settings).management_enabled;
   const canManage =
@@ -86,6 +89,9 @@ export default function CassaPage() {
   const [busy, setBusy] = useState(false);
   const [setupNeeded, setSetupNeeded] = useState(false);
   const [loading, setLoading] = useState(true);
+  // When >0, the menu/tables on screen came from the offline cache — timestamp
+  // (ms) of when they were last fetched live, used to show a "stale data" hint.
+  const [staleSince, setStaleSince] = useState<number | null>(null);
   const draftKeySeq = useRef(0);
   // Mirrors for the realtime callback (avoid resubscribing the channel on
   // every tab switch / journal-day change).
@@ -134,39 +140,84 @@ export default function CassaPage() {
     [t],
   );
 
+  // Writes (open table, send comanda, charge) need the server for totals and
+  // fiscal receipt numbers — they can't happen offline. Guard the entry points
+  // with a clear message instead of letting the fetch fail with a cryptic error.
+  // Returns true when it's safe to proceed (online).
+  const guardOnline = useCallback((): boolean => {
+    if (typeof navigator !== "undefined" && navigator.onLine === false) {
+      window.alert(t("offline_action_unavailable"));
+      return false;
+    }
+    return true;
+  }, [t]);
+
   // ------------------------------------------------------------------ loads
+  // Reference data (menu/categories/tables) is read-only and safe to cache for
+  // offline use: on a successful live read we persist it (tenant-scoped); if the
+  // read fails or we're offline, we hydrate from that cache and flag it stale so
+  // the UI can show a "not up to date" banner. Money/orders are NEVER cached.
+  const hydrateStaticFromCache = useCallback(() => {
+    if (!tenantId) return;
+    const cTbl = readOfflineCache<CassaTable[]>(tenantId, "tables");
+    const cCat = readOfflineCache<MenuCategory[]>(tenantId, "categories");
+    const cItm = readOfflineCache<MenuItem[]>(tenantId, "menu");
+    if (cTbl) setTables(cTbl.data);
+    if (cCat) setCategories(cCat.data);
+    if (cItm) setItems(cItm.data);
+    // Oldest of the three timestamps is the honest "as of" moment.
+    const stamps = [cTbl?.cachedAt, cCat?.cachedAt, cItm?.cachedAt].filter(
+      (n): n is number => typeof n === "number",
+    );
+    setStaleSince(stamps.length ? Math.min(...stamps) : null);
+  }, [tenantId]);
+
   const loadStatic = useCallback(async () => {
     if (!tenantId) return;
-    const [{ data: tbs }, { data: cats }, { data: its }] = await Promise.all([
-      supabase
-        .from("restaurant_tables")
-        .select("id, name, seats, zone")
-        .eq("tenant_id", tenantId)
-        .eq("status", "active")
-        .order("name"),
-      supabase
-        .from("menu_categories")
-        .select("*")
-        .eq("tenant_id", tenantId)
-        .order("sort_order", { ascending: true })
-        .order("created_at", { ascending: true }),
-      supabase
-        .from("menu_items")
-        // Only what the picker uses — skipping description/allergens/images
-        // keeps the payload light on tablets with a big menu.
-        .select("id, category_id, name, price, available, sort_order, vat_rate, station, variants, created_at")
-        .eq("tenant_id", tenantId)
-        .order("sort_order", { ascending: true })
-        .order("created_at", { ascending: true }),
-    ]);
-    setTables(
-      ((tbs || []) as CassaTable[]).sort((a, b) =>
+    // Offline: don't even attempt the live read — go straight to cache.
+    if (typeof navigator !== "undefined" && navigator.onLine === false) {
+      hydrateStaticFromCache();
+      return;
+    }
+    try {
+      const [{ data: tbs }, { data: cats }, { data: its }] = await Promise.all([
+        supabase
+          .from("restaurant_tables")
+          .select("id, name, seats, zone")
+          .eq("tenant_id", tenantId)
+          .eq("status", "active")
+          .order("name"),
+        supabase
+          .from("menu_categories")
+          .select("*")
+          .eq("tenant_id", tenantId)
+          .order("sort_order", { ascending: true })
+          .order("created_at", { ascending: true }),
+        supabase
+          .from("menu_items")
+          // Only what the picker uses — skipping description/allergens/images
+          // keeps the payload light on tablets with a big menu.
+          .select("id, category_id, name, price, available, sort_order, vat_rate, station, variants, created_at")
+          .eq("tenant_id", tenantId)
+          .order("sort_order", { ascending: true })
+          .order("created_at", { ascending: true }),
+      ]);
+      const sortedTables = ((tbs || []) as CassaTable[]).sort((a, b) =>
         a.name.localeCompare(b.name, undefined, { numeric: true }),
-      ),
-    );
-    setCategories((cats || []) as MenuCategory[]);
-    setItems((its || []) as MenuItem[]);
-  }, [supabase, tenantId]);
+      );
+      setTables(sortedTables);
+      setCategories((cats || []) as MenuCategory[]);
+      setItems((its || []) as MenuItem[]);
+      // Live data won — clear any stale flag and refresh the offline cache.
+      setStaleSince(null);
+      writeOfflineCache(tenantId, "tables", sortedTables);
+      writeOfflineCache(tenantId, "categories", (cats || []) as MenuCategory[]);
+      writeOfflineCache(tenantId, "menu", (its || []) as MenuItem[]);
+    } catch {
+      // Network blip mid-session: fall back to the last cached reference data.
+      hydrateStaticFromCache();
+    }
+  }, [supabase, tenantId, hydrateStaticFromCache]);
 
   const loadOrders = useCallback(async () => {
     if (!tenantId) return;
@@ -372,11 +423,13 @@ export default function CassaPage() {
 
   const openTable = (table: CassaTable, existing: CassaOrderFull | null) => {
     if (existing) {
-      // Resuming an existing bill is always allowed — it was opened legally.
+      // Resuming an existing bill is always allowed — it was opened legally,
+      // and viewing it is read-only (works offline).
       setActiveOrderId(existing.id);
       setView("order");
       return;
     }
+    if (!guardOnline()) return; // opening a new bill writes to the server
     if (needsOpen) {
       setGate({ pending: () => void createTableOrder(table) });
       return;
@@ -409,6 +462,7 @@ export default function CassaPage() {
   };
 
   const counterSale = (kind: "banco" | "asporto") => {
+    if (!guardOnline()) return; // creates a new bill server-side
     if (needsOpen) {
       setGate({ pending: () => void createCounterSale(kind) });
       return;
@@ -626,6 +680,7 @@ export default function CassaPage() {
   const sendComanda = async (): Promise<CassaOrderItemRow[] | null> => {
     if (!activeOrder) return null;
     if (drafts.length === 0) return activeOrder.items;
+    if (!guardOnline()) return null; // sending the comanda writes to the server
     setBusy(true);
     try {
       const data = await api<{
@@ -759,6 +814,7 @@ export default function CassaPage() {
 
   const charge = () => {
     if (!activeOrder) return;
+    if (!guardOnline()) return; // payment needs the server (totals + receipt no.)
     if (needsOpen) {
       setGate({ pending: () => void doCharge() });
       return;
@@ -1006,6 +1062,22 @@ export default function CassaPage() {
               {t("cassa_setup_needed_body")} <code>scripts/migrations/2026-07-04-cassa.sql</code>
             </p>
           </div>
+        </div>
+      )}
+
+      {/* Offline: the menu/tables shown are from the local cache, not live. */}
+      {(!online || staleSince !== null) && (
+        <div className="mb-4 rounded-xl border-2 border-amber-500 bg-amber-50 p-3 flex items-center gap-2 text-sm text-amber-900">
+          <AlertTriangle className="w-4 h-4 shrink-0" />
+          <span className="font-semibold">{t("offline_stale_data")}</span>
+          {staleSince !== null && (
+            <span className="text-amber-700">
+              · {t("offline_last_updated").replace(
+                "{time}",
+                new Date(staleSince).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+              )}
+            </span>
+          )}
         </div>
       )}
 

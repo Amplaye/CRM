@@ -2,6 +2,7 @@
 
 import { AuthProvider } from "@/lib/contexts/AuthContext";
 import { TenantProvider, useTenant } from "@/lib/contexts/TenantContext";
+import { NetworkStatusProvider } from "@/lib/contexts/NetworkStatusContext";
 import { useLanguage } from "@/lib/contexts/LanguageContext";
 import { tenantHasLocaleSwitcher } from "@/lib/tenants/legacy-locale";
 import { ReactNode, useEffect } from "react";
@@ -44,11 +45,13 @@ function CrmLanguageBridge() {
 
 export function Providers({ children }: { children: ReactNode }) {
   return (
-    <AuthProvider>
-      <TenantProvider>
-        <CrmLanguageBridge />
-        {children}
-      </TenantProvider>
-    </AuthProvider>
+    <NetworkStatusProvider>
+      <AuthProvider>
+        <TenantProvider>
+          <CrmLanguageBridge />
+          {children}
+        </TenantProvider>
+      </AuthProvider>
+    </NetworkStatusProvider>
   );
 }

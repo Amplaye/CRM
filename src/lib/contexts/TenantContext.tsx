@@ -5,6 +5,7 @@ import { useAuth } from "./AuthContext";
 import { createClient } from "@/lib/supabase/client";
 import { Tenant, GlobalRole } from "@/lib/types";
 import { safeLocal, safeSession } from "@/lib/safe-storage";
+import { purgeOfflineCache } from "@/lib/offline-cache";
 
 interface TenantContextType {
   activeTenant: Tenant | null;
@@ -206,6 +207,10 @@ export const TenantProvider = ({ children }: { children: ReactNode }) => {
 
   const switchTenant = async (tenantId: string | null) => {
     if (user) safeSession.remove(`tenant_ctx_${user.id}`);
+    // Drop all offline-cached reference data before leaving this tenant — the
+    // cache keys are tenant-scoped so cross-reads can't happen, but purging here
+    // keeps the device clean and bounds storage. switchTenant always reloads.
+    purgeOfflineCache();
     const isAdmin = globalRole === "platform_admin";
 
     if (tenantId === null) {

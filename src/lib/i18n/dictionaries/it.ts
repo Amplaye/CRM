@@ -1541,4 +1541,12 @@ export const it: Dictionary = {
   pl_statement_title: "Da ricavi a margine — ultimi {n} giorni",
   pl_statement_hint: "barre = % dei ricavi · △▽ = vs periodo precedente",
   pl_missing_costs: "Personale o costi fissi a zero: inseriscili in Impostazioni → Gestionale per un margine operativo reale.",
+
+  // PWA / Offline
+  pwa_update_available: "È disponibile una nuova versione",
+  pwa_reload: "Ricarica",
+  offline_indicator: "Offline",
+  offline_stale_data: "Offline — dati salvati (non aggiornati)",
+  offline_last_updated: "aggiornato {time}",
+  offline_action_unavailable: "Non disponibile offline — riconnettiti per continuare.",
 };

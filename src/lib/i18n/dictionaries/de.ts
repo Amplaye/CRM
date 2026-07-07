@@ -1541,4 +1541,12 @@ export const de: Dictionary = {
   pl_statement_title: "Von Umsatz zu Marge — letzte {n} Tage",
   pl_statement_hint: "Balken = % vom Umsatz · △▽ = vs Vorperiode",
   pl_missing_costs: "Personal- oder Fixkosten stehen auf null: trage sie in Einstellungen → Verwaltung ein, um eine echte operative Marge zu sehen.",
+
+  // PWA / Offline
+  pwa_update_available: "Eine neue Version ist verfügbar",
+  pwa_reload: "Neu laden",
+  offline_indicator: "Offline",
+  offline_stale_data: "Offline — gespeicherte Daten werden angezeigt",
+  offline_last_updated: "aktualisiert {time}",
+  offline_action_unavailable: "Offline nicht verfügbar — bitte wieder verbinden.",
 };

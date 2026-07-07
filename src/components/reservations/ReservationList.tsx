@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { Reservation } from "@/lib/types";
 import { useLanguage } from "@/lib/contexts/LanguageContext";
+import { writeOfflineCache, readOfflineCache } from "@/lib/offline-cache";
 import { Clock, User, Phone, MessageSquare, Globe, UserCheck, AlertTriangle, UserMinus, CalendarCheck, Plus, Users, XCircle, Armchair, AlertOctagon } from "lucide-react";
 import Link from "next/link";
 import { useSeenSnapshotAndMark } from "@/lib/hooks/useLastSeen";
@@ -16,20 +17,68 @@ interface ReservationListProps {
   onCreate?: () => void;
 }
 
+// A reservation row enriched with the joined guest/table fields the list renders.
+type ResRow = Reservation & {
+  guest_name?: string;
+  guest_phone?: string;
+  guest_dietary_notes?: string;
+  guest_accessibility_notes?: string;
+  guest_family_notes?: string;
+  table_names?: string[];
+};
+
+// Local calendar date (YYYY-MM-DD) — reservation `date` columns are local, so we
+// compare against the device's local day, not UTC.
+function localToday(): string {
+  const d = new Date();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${d.getFullYear()}-${m}-${day}`;
+}
+
 export function ReservationList({ date, shiftFilter = "all", onRowClick, onCreate }: ReservationListProps) {
   const { activeTenant: tenant } = useTenant();
   const { t } = useLanguage();
   const seenAt = useSeenSnapshotAndMark(tenant?.id, "reservations");
-  const [reservations, setReservations] = useState<(Reservation & { guest_name?: string; guest_phone?: string; guest_dietary_notes?: string; guest_accessibility_notes?: string; guest_family_notes?: string; table_names?: string[] })[]>([]);
+  const [reservations, setReservations] = useState<ResRow[]>([]);
   const [loading, setLoading] = useState(true);
+  // >0 ⇒ the list on screen came from the offline cache (ms of last live fetch).
+  const [staleSince, setStaleSince] = useState<number | null>(null);
 
   useEffect(() => {
     if (!tenant) return;
     setLoading(true);
 
     const supabase = createClient();
+    // Only today's book is worth caching for offline glance-ability (bounds
+    // storage; past/future days aren't useful without a connection).
+    const isToday = date === localToday();
+
+    const applyShiftFilter = (rows: ResRow[]): ResRow[] => {
+      const sorted = [...rows].sort((a, b) => b.time.localeCompare(a.time));
+      return shiftFilter === "all"
+        ? sorted
+        : sorted.filter((r: any) => {
+            const rs = r.shift || (parseInt((r.time || '00').split(':')[0]) < 16 ? 'lunch' : 'dinner');
+            return rs === shiftFilter;
+          });
+    };
+
+    const hydrateFromCache = () => {
+      if (!isToday) return;
+      const cached = readOfflineCache<ResRow[]>(tenant.id, "reservations", date);
+      if (cached) {
+        setReservations(applyShiftFilter(cached.data));
+        setStaleSince(cached.cachedAt);
+      }
+      setLoading(false);
+    };
 
     const fetchReservations = async () => {
+      if (typeof navigator !== "undefined" && navigator.onLine === false) {
+        hydrateFromCache();
+        return;
+      }
       const { data: resData, error } = await supabase
         .from("reservations")
         .select("*, guests(name, phone, dietary_notes, accessibility_notes, family_notes), reservation_tables(restaurant_tables(name))")
@@ -38,7 +87,7 @@ export function ReservationList({ date, shiftFilter = "all", onRowClick, onCreat
 
       if (error) {
         console.error("Failed to load reservations", error);
-        setLoading(false);
+        hydrateFromCache(); // network blip → show the last cached book
         return;
       }
 
@@ -52,16 +101,11 @@ export function ReservationList({ date, shiftFilter = "all", onRowClick, onCreat
         table_names: (r.reservation_tables || [])
           .map((rt: any) => rt.restaurant_tables?.name)
           .filter(Boolean),
-      })) as (Reservation & { guest_name?: string; guest_phone?: string; guest_dietary_notes?: string; guest_accessibility_notes?: string; guest_family_notes?: string; table_names?: string[] })[];
+      })) as ResRow[];
 
-      const sorted = withNames.sort((a, b) => b.time.localeCompare(a.time));
-      const filtered = shiftFilter === "all"
-        ? sorted
-        : sorted.filter((r: any) => {
-            const rs = r.shift || (parseInt((r.time || '00').split(':')[0]) < 16 ? 'lunch' : 'dinner');
-            return rs === shiftFilter;
-          });
-      setReservations(filtered);
+      setStaleSince(null); // live data won
+      if (isToday) writeOfflineCache(tenant.id, "reservations", withNames, date);
+      setReservations(applyShiftFilter(withNames));
       setLoading(false);
     };
 
@@ -154,6 +198,18 @@ export function ReservationList({ date, shiftFilter = "all", onRowClick, onCreat
 
   return (
     <>
+    {staleSince !== null && (
+      <div className="mb-3 rounded-lg border border-amber-400 bg-amber-50 px-3 py-2 flex items-center gap-2 text-xs text-amber-900">
+        <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+        <span className="font-semibold">{t("offline_stale_data")}</span>
+        <span className="text-amber-700">
+          · {t("offline_last_updated").replace(
+            "{time}",
+            new Date(staleSince).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+          )}
+        </span>
+      </div>
+    )}
     {/* Mobile: card list */}
     <div className="md:hidden space-y-2">
       {(() => { let newRowIdx = 0; return reservations.map((res) => {

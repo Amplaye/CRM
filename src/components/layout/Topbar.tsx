@@ -1,8 +1,9 @@
 "use client";
 
-import { Bell, Menu, Phone, MessageSquare, Globe, X, Calendar, ClipboardList, AlertTriangle } from "lucide-react";
+import { Bell, Menu, Phone, MessageSquare, Globe, X, Calendar, ClipboardList, AlertTriangle, WifiOff } from "lucide-react";
 import { useLanguage } from "@/lib/contexts/LanguageContext";
 import { useTenant } from "@/lib/contexts/TenantContext";
+import { useNetworkStatus } from "@/lib/contexts/NetworkStatusContext";
 import { tenantHasLocaleSwitcher } from "@/lib/tenants/legacy-locale";
 import { useAuth } from "@/lib/contexts/AuthContext";
 import { useEffect, useState, useRef } from "react";
@@ -49,6 +50,7 @@ export function Topbar({ onMenuToggle }: TopbarProps) {
   // stays fixed to crm_locale. See src/lib/tenants/legacy-locale.ts.
   const showLocaleSwitcher = tenantHasLocaleSwitcher(activeTenant?.slug);
   const { user, loading: authLoading } = useAuth();
+  const { online } = useNetworkStatus();
   const router = useRouter();
   const [isClient, setIsClient] = useState(false);
   const [notifications, setNotifications] = useState<Notification[]>([]);
@@ -163,6 +165,9 @@ export function Topbar({ onMenuToggle }: TopbarProps) {
     let cancelled = false;
 
     const catchUp = async () => {
+      // Offline: skip the wasted fetch (it would just error). Realtime + a fresh
+      // catchUp on the next visibility event cover us once we're back online.
+      if (typeof navigator !== "undefined" && navigator.onLine === false) return;
       // Always look back 24h. Using a moving "lastKey" cursor caused voice
       // bookings to be skipped when the cursor was advanced between the
       // realtime delivery window and the next visibility/focus event —
@@ -421,6 +426,17 @@ export function Topbar({ onMenuToggle }: TopbarProps) {
           so it can be demoed in any UI language. Every real tenant's CRM language
           is fixed per tenant (settings.crm_locale), chosen once at onboarding. */}
       <div className="flex items-center space-x-2 sm:space-x-3 md:space-x-4">
+        {/* Offline: unmissable but unobtrusive — hidden entirely when online. */}
+        {isClient && !online && (
+          <div
+            className="flex items-center gap-1.5 border-2 rounded-lg px-2 sm:px-2.5 h-8 sm:h-9 text-xs font-semibold text-amber-800"
+            style={{ borderColor: "#d97706", background: "rgba(245,158,11,0.12)" }}
+            title={t("offline_indicator")}
+          >
+            <WifiOff className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+            <span className="hidden sm:inline">{t("offline_indicator")}</span>
+          </div>
+        )}
         {isClient && showLocaleSwitcher && (
           <div className="flex items-center border-2 rounded-lg px-2 sm:px-3 h-8 sm:h-9" style={{ borderColor: '#c4956a', background: 'rgba(252,246,237,0.6)' }}>
             <Globe className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-black mr-1.5 sm:mr-2" />

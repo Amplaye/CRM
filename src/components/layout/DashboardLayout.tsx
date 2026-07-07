@@ -44,6 +44,10 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
     };
 
     const checkMembership = async () => {
+      // Offline: never run the guard. A failed fetch is NOT evidence the
+      // membership was revoked — evicting here would log staff out on a Wi-Fi
+      // blip mid-service. We re-check as soon as we're back online.
+      if (typeof navigator !== "undefined" && navigator.onLine === false) return;
       const { data, error } = await supabase
         .from("tenant_members")
         .select("id")
@@ -79,11 +83,16 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
     const interval = setInterval(checkMembership, 20000);
     const onVisible = () => { if (document.visibilityState === "visible") void checkMembership(); };
     document.addEventListener("visibilitychange", onVisible);
+    // Back online after a drop → re-check promptly (the polls that fired while
+    // offline were skipped, so this closes the gap).
+    const onOnline = () => void checkMembership();
+    window.addEventListener("online", onOnline);
 
     return () => {
       cancelled = true;
       clearInterval(interval);
       document.removeEventListener("visibilitychange", onVisible);
+      window.removeEventListener("online", onOnline);
       supabase.removeChannel(ch);
     };
   }, [user?.id, activeTenant?.id, globalRole, supabase]);

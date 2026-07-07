@@ -32,6 +32,19 @@ const nextConfig: NextConfig = {
   async headers() {
     return [
       {
+        // The service worker must never be served stale, or users get stuck on
+        // an old SW after a deploy. no-store forces the browser to revalidate
+        // /sw.js over the network (paired with updateViaCache:'none' at
+        // registration). Both rules match /sw.js and set different header keys,
+        // so this composes with the security headers below without conflict.
+        source: "/sw.js",
+        headers: [
+          { key: "Cache-Control", value: "no-cache, no-store, must-revalidate" },
+          { key: "Content-Type", value: "application/javascript; charset=utf-8" },
+          { key: "Service-Worker-Allowed", value: "/" },
+        ],
+      },
+      {
         source: "/:path*",
         headers: securityHeaders,
       },
