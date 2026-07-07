@@ -412,7 +412,7 @@ export default function DashboardPage() {
   if (!hasActivePlan(tenant?.settings)) return <LockedPreview section="analytics" />;
 
   return (
-    <div className="p-4 sm:p-6 lg:p-8 w-full max-w-full overflow-x-hidden space-y-5 sm:space-y-7 animate-in fade-in slide-in-from-bottom-2 duration-500">
+    <div className="dashboard-enter p-4 sm:p-6 lg:p-8 w-full max-w-full overflow-x-hidden space-y-5 sm:space-y-7">
 
       {/* ── Header ── */}
       <div className="space-y-2">

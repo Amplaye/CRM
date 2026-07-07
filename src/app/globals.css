@@ -1,7 +1,18 @@
 @import "tailwindcss";
 
-/* Mobile: prevent any rogue child from causing horizontal page scroll. */
-html, body { overflow-x: hidden; }
+/* Mobile: prevent any rogue child from causing horizontal page scroll, and
+   block the browser's own rubber-band bounce past the viewport edge — an
+   extreme sideways swipe would otherwise drag the whole layout off-screen. */
+html, body { overflow-x: hidden; overscroll-behavior-x: none; }
+
+/* Buttons inside a scrollable list (e.g. the Cassa dish grid) can otherwise
+   have their tap mistaken for the start of a scroll/pan gesture on mobile,
+   dropping the click entirely — this tells the browser a button is always a
+   discrete tap target, never a pan surface. Also removes the ~300ms tap
+   delay and the double-tap-to-zoom that would fire on a fast double order. */
+button {
+  touch-action: manipulation;
+}
 
 @theme {
   --color-terracotta-50: #fff3ec;
@@ -293,6 +304,21 @@ tr.is-new-row::after {
 }
 @media (prefers-reduced-motion: reduce) {
   .payments-diamond-border {
+    animation: none;
+  }
+}
+
+/* Dashboard entrance: one-shot fade + rise on first mount. Honors
+   prefers-reduced-motion. */
+.dashboard-enter {
+  animation: dashboard-enter 0.5s ease-out both;
+}
+@keyframes dashboard-enter {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .dashboard-enter {
     animation: none;
   }
 }

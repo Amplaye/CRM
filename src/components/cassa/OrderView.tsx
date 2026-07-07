@@ -426,7 +426,7 @@ export function OrderView({
                       onAddItem(it, course);
                     }
                   }}
-                  className="h-20 rounded-xl border-2 p-2.5 text-left cursor-pointer transition-transform active:scale-95 hover:bg-[#c4956a]/10 flex flex-col justify-between"
+                  className="h-20 rounded-xl border-2 p-2.5 text-left cursor-pointer transition-transform active:scale-95 flex flex-col justify-between"
                   style={{ borderColor: "#c4956a", background: "rgba(255,255,255,0.6)" }}
                 >
                   <span className="text-sm font-bold text-black leading-tight line-clamp-2">{it.name}</span>
