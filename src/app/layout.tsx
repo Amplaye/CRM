@@ -4,6 +4,7 @@ import "./globals.css";
 import { Providers } from "@/components/Providers";
 import { LanguageProvider } from "@/lib/contexts/LanguageContext";
 import { SandEffectWrapper } from "@/components/SandEffectWrapper";
+import { ServiceWorkerRegister } from "@/components/ServiceWorkerRegister";
 import { Analytics } from "@vercel/analytics/next";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 
@@ -63,6 +64,7 @@ export default function RootLayout({
         <LanguageProvider>
           <Providers>
             <SandEffectWrapper />
+            <ServiceWorkerRegister />
             {children}
           </Providers>
         </LanguageProvider>

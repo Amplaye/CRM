@@ -17,6 +17,9 @@ export const config = {
     // (twitter-image/icon/apple-icon) are already covered by the extension rule.
     // `manifest.webmanifest` (from app/manifest.ts) must stay public too, or
     // the install prompt fetches it and gets a 307 to the login page.
-    '/((?!_next/static|_next/image|favicon.ico|opengraph-image|manifest.webmanifest|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
+    // `sw.js` (public/sw.js) needs the same treatment: it's what makes Chrome/
+    // Edge/Firefox consider the PWA installable, and a 307-to-login response
+    // in place of the script makes registration fail silently.
+    '/((?!_next/static|_next/image|favicon.ico|opengraph-image|manifest.webmanifest|sw\\.js|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
   ],
 }
