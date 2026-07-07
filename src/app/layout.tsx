@@ -21,6 +21,14 @@ export const metadata: Metadata = {
   metadataBase: new URL("https://crm.baliflowagency.com"),
   title: "BaliFlow CRM",
   description: "BaliFlow CRM - Business Operations Dashboard",
+  applicationName: "BaliFlow CRM",
+  // iOS has no manifest-based install: these meta tags are what make
+  // "Add to Home Screen" open the CRM full-screen like an app on iPad/iPhone.
+  appleWebApp: {
+    capable: true,
+    title: "BaliFlow CRM",
+    statusBarStyle: "default",
+  },
   openGraph: {
     title: "BaliFlow CRM",
     description: "BaliFlow CRM - Business Operations Dashboard",
@@ -36,6 +44,10 @@ export const metadata: Metadata = {
 export const viewport = {
   width: "device-width",
   initialScale: 1,
+  // Paint behind the iOS notch/home bar in standalone (installed) mode and
+  // tint the browser UI to the app's cream background.
+  viewportFit: "cover" as const,
+  themeColor: "#FCF6ED",
 };
 
 export default function RootLayout({

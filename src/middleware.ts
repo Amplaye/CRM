@@ -15,6 +15,8 @@ export const config = {
     // catch it — exclude it explicitly or the auth middleware 307s WhatsApp's
     // crawler to /welcome and the link preview breaks. The .png metadata routes
     // (twitter-image/icon/apple-icon) are already covered by the extension rule.
-    '/((?!_next/static|_next/image|favicon.ico|opengraph-image|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
+    // `manifest.webmanifest` (from app/manifest.ts) must stay public too, or
+    // the install prompt fetches it and gets a 307 to the login page.
+    '/((?!_next/static|_next/image|favicon.ico|opengraph-image|manifest.webmanifest|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
   ],
 }

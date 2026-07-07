@@ -21,6 +21,9 @@ export interface AssistantReply {
   text?: string;
   /** Topics to offer as chips (fallback replies). */
   suggestions: KbTopic[];
+  /** Match strength of the winning topic — lets callers treat weak wins as
+   * "maybe" and try a smarter interpreter first. */
+  score?: number;
 }
 
 /** Lowercase, strip accents and punctuation — so "com'è" matches "come". */
@@ -119,5 +122,5 @@ export function answerQuery(raw: string, lang: AssistantLang): AssistantReply {
     .filter(Boolean)
     .slice(0, 4) as KbTopic[];
 
-  return { kind: "topic", topic: best.topic, related, suggestions: [] };
+  return { kind: "topic", topic: best.topic, related, suggestions: [], score: best.score };
 }

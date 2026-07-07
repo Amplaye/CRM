@@ -20,6 +20,7 @@ import {
   SKIP_WORDS,
   type ActionIntent,
 } from "@/lib/assistant/actions";
+import type { Interpretation } from "@/lib/assistant/nlu";
 import {
   UI,
   topicById,
@@ -39,7 +40,11 @@ import { safeSession } from "@/lib/safe-storage";
 // base (free, offline — see src/lib/assistant); OPERATIONAL commands ("crea una
 // prenotazione", "apri la cassa", "quanto abbiamo incassato?") are detected
 // locally too and executed against the CRM's own APIs, with a confirmation
-// step before anything is written.
+// step before anything is written. When the local matcher does NOT understand
+// a message (free-form phrasing, several details in one sentence, mid-flow
+// corrections), it falls back to /api/assistant/interpret — an LLM that maps
+// the message to the same structured intents — so day-to-day traffic stays
+// free and the long tail still works.
 
 type ChatMessage =
   | { role: "user"; text: string }
@@ -48,6 +53,10 @@ type ChatMessage =
 const STORE_KEY = "crm_assistant_chat_v1";
 const MAX_MESSAGES = 60;
 const TYPING_MS = 3000; // simulated "typing…" pause before each reply
+const QUICK_TYPING_MS = 500; // follow-up replies right after an LLM round
+// Local topic matches below this score are "maybe"s: the LLM gets first shot
+// and the local guess stays as the offline/no-key safety net.
+const STRONG_TOPIC_SCORE = 6;
 
 function loadChat(): ChatMessage[] {
   try {
@@ -139,18 +148,25 @@ export function AssistantWidget() {
     );
   };
 
-  const say = (text: string) => replyLater(TYPING_MS, { role: "bot", text });
+  // While handling an LLM round the user already waited out the typing dots,
+  // so follow-up replies scheduled inside it go out quickly instead of adding
+  // another 3s pause.
+  const quickRef = useRef(false);
+  const typingMs = () => (quickRef.current ? QUICK_TYPING_MS : TYPING_MS);
+
+  const say = (text: string) => replyLater(typingMs(), { role: "bot", text });
 
   /** Async work behind the typing dots — the reply lands after max(op, 3s). */
   const sayAsync = (op: () => Promise<string>) => {
     setPending((p) => p + 1);
     const started = Date.now();
+    const delay = typingMs();
     op()
       .catch((err) =>
         actionText("error", lang, { msg: err instanceof Error ? err.message : String(err) }),
       )
       .then((text) => {
-        const wait = Math.max(0, TYPING_MS - (Date.now() - started));
+        const wait = Math.max(0, delay - (Date.now() - started));
         timersRef.current.push(
           setTimeout(() => {
             setPending((p) => Math.max(0, p - 1));
@@ -158,6 +174,63 @@ export function AssistantWidget() {
           }, wait),
         );
       });
+  };
+
+  /** Wait out the remaining typing time of an LLM round, then run `fn` in
+   * quick-typing mode so its own say()/sayAsync() don't re-add the pause. */
+  const afterThinking = (started: number, fn: () => void) => {
+    const wait = Math.max(0, TYPING_MS - (Date.now() - started));
+    timersRef.current.push(
+      setTimeout(() => {
+        setPending((p) => Math.max(0, p - 1));
+        quickRef.current = true;
+        try {
+          fn();
+        } finally {
+          quickRef.current = false;
+        }
+      }, wait),
+    );
+  };
+
+  // --------------------------------------------------------- LLM fallback
+  const pad2 = (n: number) => String(n).padStart(2, "0");
+
+  /** Ask /api/assistant/interpret to make sense of a message the local
+   * matcher rejected. Returns null on any failure — callers always have a
+   * local fallback, so the assistant keeps working offline/without a key. */
+  const interpret = async (message: string, flowCtx?: string): Promise<Interpretation | null> => {
+    if (!tenantId) return null;
+    try {
+      const now = new Date();
+      const res = await fetch("/api/assistant/interpret", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          tenant_id: tenantId,
+          message,
+          lang,
+          today: `${now.getFullYear()}-${pad2(now.getMonth() + 1)}-${pad2(now.getDate())}`,
+          weekday: now.toLocaleDateString("en-US", { weekday: "long" }),
+          history: messages
+            .slice(-6)
+            .map((m) => ({
+              role: m.role,
+              text:
+                m.role === "user"
+                  ? m.text
+                  : m.text || (m.topicId ? topicById(m.topicId)?.title[lang] || "" : ""),
+            }))
+            .filter((h) => h.text),
+          flow: flowCtx,
+        }),
+      });
+      if (!res.ok) return null;
+      const data = (await res.json()) as { interpretation?: Interpretation | null };
+      return data.interpretation ?? null;
+    } catch {
+      return null;
+    }
   };
 
   // ------------------------------------------------------------- formatting
@@ -360,6 +433,15 @@ export function AssistantWidget() {
       return actionText("opened", lang, { float: fmtEur(float) });
     });
 
+  const closeRegister = () =>
+    sayAsync(async () => {
+      const res = await api<{ summary: SessionSummary }>("/api/cassa/session", {
+        method: "PATCH",
+        body: JSON.stringify({ tenant_id: tenantId }),
+      });
+      return actionText("closed", lang, { body: summaryBody(res.summary) });
+    });
+
   /** Ask for the next missing reservation slot, or confirm when complete. */
   const advanceCreate = (slots: Extract<Flow, { kind: "create_reservation" }>["slots"]) => {
     const next = !slots.name
@@ -381,6 +463,127 @@ export function AssistantWidget() {
     }
   };
 
+  // ------------------------------------------------- natural-language rescue
+  type CreateSlots = Extract<Flow, { kind: "create_reservation" }>["slots"];
+
+  /** Merge the create-reservation fields the LLM extracted into the current
+   * slots. New values win (corrections). Returns null when nothing new. */
+  const mergeCreateSlots = (slots: CreateSlots, interp: Interpretation | null): CreateSlots | null => {
+    if (interp?.type !== "action" || interp.action.kind !== "create_reservation") return null;
+    const a = interp.action;
+    const merged = { ...slots };
+    let changed = false;
+    if (a.name && a.name !== merged.name) { merged.name = a.name; changed = true; }
+    if (a.date && a.date !== merged.date) { merged.date = a.date; changed = true; }
+    if (a.time && a.time !== merged.time) { merged.time = a.time; changed = true; }
+    if (a.party != null && a.party !== merged.party) { merged.party = a.party; changed = true; }
+    if (a.phone && a.phone !== merged.phone) { merged.phone = a.phone; changed = true; }
+    else if (interp.phoneUnknown && merged.phone == null) { merged.phone = ""; changed = true; }
+    return changed ? merged : null;
+  };
+
+  /** Describe the active flow for the LLM so short replies get read in context. */
+  const flowContext = (flow: Flow): string => {
+    if (flow.kind === "create_reservation") {
+      const s = flow.slots;
+      const known = [
+        s.name && `name=${s.name}`,
+        s.date && `date=${s.date}`,
+        s.time && `time=${s.time}`,
+        s.party != null && `party=${s.party}`,
+        s.phone != null && `phone=${s.phone || "none"}`,
+      ]
+        .filter(Boolean)
+        .join(", ");
+      if (flow.stage === "confirm") {
+        return `Creating a reservation (${known}). The assistant asked the user to CONFIRM it (yes/no); corrections to the details are also possible.`;
+      }
+      return `Creating a reservation (known: ${known || "nothing yet"}). The assistant just asked the user for: ${flow.stage}.`;
+    }
+    if (flow.kind === "cancel_reservation") {
+      if (flow.stage === "pick") {
+        const list = flow.matches.map((m, i) => `${i + 1}. ${m.time} — ${m.guest_name} ×${m.party_size}`).join("\n");
+        return `Cancelling a reservation. The assistant showed this numbered list and asked which one to cancel:\n${list}`;
+      }
+      return "Cancelling a reservation. The assistant asked the user to CONFIRM (yes/no).";
+    }
+    if (flow.kind === "open_register") {
+      return "Opening the till. The assistant asked for the opening cash float (a number).";
+    }
+    return "Closing the till/cash day. The assistant asked the user to CONFIRM (yes/no).";
+  };
+
+  /** Mid-flow reply the strict parsers rejected ("il numero non ce l'ho,
+   * comunque siamo in 6", "quella delle 21", "aspetta, meglio alle 21") →
+   * let the LLM read it in flow context; `invalid` is the local re-ask. */
+  const rescueFlow = (raw: string, invalid: () => void) => {
+    const flow = flowRef.current;
+    if (!flow || !tenantId) return invalid();
+    setPending((p) => p + 1);
+    const started = Date.now();
+    interpret(raw, flowContext(flow)).then((interp) => {
+      afterThinking(started, () => {
+        // The flow may have been cleared/replaced while the LLM was thinking.
+        if (flowRef.current !== flow) return;
+
+        if (flow.kind === "create_reservation") {
+          if (flow.stage === "confirm" && interp?.type === "yes") {
+            flowRef.current = null;
+            return runCreateReservation(flow.slots);
+          }
+          if (flow.stage === "confirm" && interp?.type === "no") {
+            flowRef.current = null;
+            return say(actionText("aborted", lang));
+          }
+          const merged = mergeCreateSlots(flow.slots, interp);
+          if (merged) return advanceCreate(merged);
+          return invalid();
+        }
+
+        if (flow.kind === "cancel_reservation") {
+          if (
+            flow.stage === "pick" &&
+            interp?.type === "pick" &&
+            interp.index >= 1 &&
+            interp.index <= flow.matches.length
+          ) {
+            const chosen = flow.matches[interp.index - 1];
+            flowRef.current = { ...flow, stage: "confirm", matches: flow.matches, chosen };
+            return say(actionText("confirm_cancel", lang, { summary: liteSummary(chosen) }));
+          }
+          if (flow.stage === "confirm" && interp?.type === "yes" && flow.chosen) {
+            flowRef.current = null;
+            return runCancel(flow.chosen);
+          }
+          if (flow.stage === "confirm" && interp?.type === "no") {
+            flowRef.current = null;
+            return say(actionText("aborted", lang));
+          }
+          return invalid();
+        }
+
+        if (flow.kind === "open_register") {
+          if (interp?.type === "action" && interp.action.kind === "open_register" && interp.action.float != null) {
+            flowRef.current = null;
+            return openRegister(interp.action.float);
+          }
+          return invalid();
+        }
+
+        // close_register — confirm stage
+        if (interp?.type === "yes") {
+          flowRef.current = null;
+          return closeRegister();
+        }
+        if (interp?.type === "no") {
+          flowRef.current = null;
+          return say(actionText("aborted", lang));
+        }
+        return invalid();
+      });
+    });
+  };
+
   /** Route a user message into the active multi-step flow. Returns true if consumed. */
   const handleFlowInput = (raw: string): boolean => {
     const flow = flowRef.current;
@@ -398,24 +601,31 @@ export function AssistantWidget() {
         case "name": {
           const name = raw.trim().slice(0, 40);
           if (!name) { say(actionText("ask_name", lang)); return true; }
+          // A reply with dates/times/numbers or a long phrase is not a bare
+          // name ("si chiama Mario e siamo in 4") — read it in context.
+          const wordy = raw.trim().split(/\s+/).length > 3;
+          if (/\d/.test(raw) || wordy || parseDateWord(raw, new Date()) || parseTimeWord(raw) || parsePartyWord(raw)) {
+            rescueFlow(raw, () => say(actionText("ask_name", lang)));
+            return true;
+          }
           slots.name = name;
           break;
         }
         case "date": {
           const d = parseDateWord(raw, new Date());
-          if (!d) { say(actionText("invalid_date", lang)); return true; }
+          if (!d) { rescueFlow(raw, () => say(actionText("invalid_date", lang))); return true; }
           slots.date = d;
           break;
         }
         case "time": {
           const tm = parseTimeWord(raw);
-          if (!tm) { say(actionText("invalid_time", lang)); return true; }
+          if (!tm) { rescueFlow(raw, () => say(actionText("invalid_time", lang))); return true; }
           slots.time = tm;
           break;
         }
         case "party": {
           const p = parsePartyWord(raw) ?? (Number.parseInt(q, 10) || null);
-          if (!p || p < 1 || p > 99) { say(actionText("invalid_number", lang)); return true; }
+          if (!p || p < 1 || p > 99) { rescueFlow(raw, () => say(actionText("invalid_number", lang))); return true; }
           slots.party = p;
           break;
         }
@@ -423,7 +633,7 @@ export function AssistantWidget() {
           if (SKIP_WORDS.test(q)) slots.phone = "";
           else {
             const ph = parsePhoneWord(raw);
-            if (!ph) { say(actionText("ask_phone", lang)); return true; }
+            if (!ph) { rescueFlow(raw, () => say(actionText("ask_phone", lang))); return true; }
             slots.phone = ph;
           }
           break;
@@ -433,7 +643,8 @@ export function AssistantWidget() {
             flowRef.current = null;
             runCreateReservation(slots);
           } else {
-            say(actionText("confirm_create", lang, { summary: resSummary(slots) }));
+            // Not a plain yes/no — maybe a correction ("aspetta, alle 21").
+            rescueFlow(raw, () => say(actionText("confirm_create", lang, { summary: resSummary(slots) })));
           }
           return true;
         }
@@ -447,8 +658,9 @@ export function AssistantWidget() {
         const n = Number.parseInt(q, 10);
         const chosen = Number.isFinite(n) && n >= 1 && n <= flow.matches.length ? flow.matches[n - 1] : null;
         if (!chosen) {
+          // "quella delle 21", "the one under Mario" → LLM maps it to a number.
           const list = flow.matches.map((m, i) => `${i + 1}. ${m.time} — ${m.guest_name} ×${m.party_size}`).join("\n");
-          say(actionText("cancel_pick", lang, { list }));
+          rescueFlow(raw, () => say(actionText("cancel_pick", lang, { list })));
           return true;
         }
         flowRef.current = { ...flow, stage: "confirm", chosen };
@@ -459,14 +671,16 @@ export function AssistantWidget() {
         flowRef.current = null;
         runCancel(flow.chosen);
       } else {
-        say(actionText("confirm_cancel", lang, { summary: flow.chosen ? liteSummary(flow.chosen) : "" }));
+        rescueFlow(raw, () =>
+          say(actionText("confirm_cancel", lang, { summary: flow.chosen ? liteSummary(flow.chosen) : "" })),
+        );
       }
       return true;
     }
 
     if (flow.kind === "open_register") {
       const v = parseMoneyWord(raw);
-      if (v == null) { say(actionText("invalid_number", lang)); return true; }
+      if (v == null) { rescueFlow(raw, () => say(actionText("invalid_number", lang))); return true; }
       flowRef.current = null;
       openRegister(v);
       return true;
@@ -475,16 +689,12 @@ export function AssistantWidget() {
     if (flow.kind === "close_register") {
       if (YES_WORDS.test(q)) {
         flowRef.current = null;
-        sayAsync(async () => {
-          const res = await api<{ summary: SessionSummary }>("/api/cassa/session", {
-            method: "PATCH",
-            body: JSON.stringify({ tenant_id: tenantId }),
-          });
-          return actionText("closed", lang, { body: summaryBody(res.summary) });
-        });
+        closeRegister();
       } else {
-        flowRef.current = null;
-        say(actionText("aborted", lang));
+        rescueFlow(raw, () => {
+          flowRef.current = null;
+          say(actionText("aborted", lang));
+        });
       }
       return true;
     }
@@ -493,6 +703,24 @@ export function AssistantWidget() {
   };
 
   // ------------------------------------------------------------------- ask
+  /** Free-standing message the local matcher didn't (confidently) understand:
+   * let the LLM interpret it; `localFallback` is the old canned behaviour. */
+  const askRemote = (text: string, localFallback: () => void) => {
+    setPending((p) => p + 1);
+    const started = Date.now();
+    interpret(text).then((interp) => {
+      afterThinking(started, () => {
+        if (interp?.type === "action") return startFlow(interp.action);
+        if (interp?.type === "topic") {
+          const topic = topicById(interp.topicId);
+          if (topic) return push({ role: "bot", topicId: topic.id, relatedIds: topic.related || [] });
+        }
+        if (interp?.type === "answer") return push({ role: "bot", text: interp.text });
+        localFallback();
+      });
+    });
+  };
+
   const ask = (raw: string) => {
     const text = raw.trim();
     if (!text) return;
@@ -508,15 +736,36 @@ export function AssistantWidget() {
     }
 
     const reply = answerQuery(text, lang);
-    if (reply.kind === "topic" && reply.topic) {
+    // Confident local hits stay local (free, offline). Weak topic matches and
+    // outright misses go to the LLM, with the local guess as safety net.
+    if (reply.kind === "topic" && reply.topic && (reply.score ?? 0) >= STRONG_TOPIC_SCORE) {
       replyLater(TYPING_MS, {
         role: "bot",
         topicId: reply.topic.id,
         relatedIds: reply.related.map((r) => r.id),
       });
-    } else {
-      replyLater(TYPING_MS, { role: "bot", text: reply.text, suggest: reply.kind === "fallback" });
+      return;
     }
+    if (reply.kind === "smalltalk") {
+      replyLater(TYPING_MS, { role: "bot", text: reply.text });
+      return;
+    }
+    if (!tenantId) {
+      // No tenant context (shouldn't happen in the dashboard) → old behaviour.
+      if (reply.kind === "topic" && reply.topic) {
+        replyLater(TYPING_MS, { role: "bot", topicId: reply.topic.id, relatedIds: reply.related.map((r) => r.id) });
+      } else {
+        replyLater(TYPING_MS, { role: "bot", text: reply.text, suggest: reply.kind === "fallback" });
+      }
+      return;
+    }
+    askRemote(text, () => {
+      if (reply.kind === "topic" && reply.topic) {
+        push({ role: "bot", topicId: reply.topic.id, relatedIds: reply.related.map((r) => r.id) });
+      } else {
+        push({ role: "bot", text: reply.text, suggest: reply.kind === "fallback" });
+      }
+    });
   };
 
   const askTopic = (topic: KbTopic) => {

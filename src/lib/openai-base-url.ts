@@ -14,6 +14,7 @@ export type ChatCompletionRequest = {
   temperature?: number;
   max_completion_tokens?: number;
   max_tokens?: number;
+  response_format?: { type: 'json_object' };
 };
 
 export function chatCompletionsConfig(): { url: string; bearer: string; modelPrefix: string } {
