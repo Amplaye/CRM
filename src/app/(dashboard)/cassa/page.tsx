@@ -92,6 +92,10 @@ export default function CassaPage() {
   const viewRef = useRef<View>("sala");
   viewRef.current = view;
   const loadReceiptsRef = useRef<() => void>(() => {});
+  // Fresh openOrders for async flows (an optimistic row can be edited while
+  // its POST is still in flight — the closure's copy would miss those taps).
+  const openOrdersRef = useRef<CassaOrderFull[]>([]);
+  openOrdersRef.current = openOrders;
 
   const tenantId = activeTenant?.id;
   const venueName = activeTenant?.name || "";
@@ -178,7 +182,23 @@ export default function CassaPage() {
       return;
     }
     setSetupNeeded(false);
-    setOpenOrders((data || []) as CassaOrderFull[]);
+    // Server truth, EXCEPT optimistic rows still waiting for their POST ack:
+    // this read may predate the in-flight insert, and blindly replacing state
+    // would wipe the row the waiter just tapped (it then "flickers back" at
+    // ack time — or worse, edits land on a ghost). Re-append local tmp- rows.
+    setOpenOrders((prev) => {
+      const next = (data || []) as CassaOrderFull[];
+      const tmpByOrder = new Map<string, CassaOrderFull["items"]>();
+      for (const o of prev) {
+        const tmps = o.items.filter((i) => i.id.startsWith("tmp-"));
+        if (tmps.length > 0) tmpByOrder.set(o.id, tmps);
+      }
+      if (tmpByOrder.size === 0) return next;
+      return next.map((o) => {
+        const tmps = tmpByOrder.get(o.id);
+        return tmps ? { ...o, items: [...o.items, ...tmps] } : o;
+      });
+    });
   }, [supabase, tenantId]);
 
   const loadSession = useCallback(async () => {
@@ -469,13 +489,38 @@ export default function CassaPage() {
         }),
       });
       const real = data.items[0];
+      // Fast taps can edit (or even delete) the optimistic row while the POST
+      // is in flight: those edits landed on the tmp id and never reached the
+      // server. Read the row's CURRENT state and carry the delta over.
+      const orderNow = openOrdersRef.current.find((o) => o.id === orderId);
+      const tmpNow = orderNow?.items.find((i) => i.id === tmpId);
+      const merged =
+        tmpNow && (tmpNow.qty !== real.qty || tmpNow.course !== real.course || tmpNow.notes !== real.notes)
+          ? { ...real, qty: tmpNow.qty, course: tmpNow.course, notes: tmpNow.notes }
+          : real;
       setOpenOrders((prev) =>
         prev.map((o) => {
           if (o.id !== orderId) return o;
           const rest = o.items.filter((i) => i.id !== tmpId && i.id !== real.id);
-          return { ...o, items: [...rest, real] };
+          // tmp row missing = deleted by the user OR displaced by a refetch
+          // race — either way, keep the SERVER row (never destroy data on an
+          // ambiguous state; a re-deleted line costs one extra tap).
+          return { ...o, items: [...rest, merged] };
         }),
       );
+      if (merged !== real) {
+        api(`/api/cassa/orders/${orderId}/items`, {
+          method: "PATCH",
+          body: JSON.stringify({
+            tenant_id: tenantId,
+            action: "update",
+            item_id: real.id,
+            qty: merged.qty,
+            course: merged.course,
+            notes: merged.notes,
+          }),
+        }).catch(() => {});
+      }
     } catch (err) {
       removeItemById(tmpId);
       fail(err);
