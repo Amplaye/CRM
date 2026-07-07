@@ -50,6 +50,13 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
   if (body.covers !== undefined) {
     patch.covers = Math.max(0, Math.min(500, Math.round(Number(body.covers) || 0)));
   }
+  if (body.cover_unit !== undefined) {
+    // Per-order coperto override: lets the cashier set/correct the cover price on
+    // a bill that was opened before the coperto was configured (the snapshot is
+    // taken at creation, so an open bill would otherwise stay stuck at 0).
+    const cu = Number(body.cover_unit);
+    patch.cover_unit = Number.isFinite(cu) && cu >= 0 ? Math.round(cu * 100) / 100 : 0;
+  }
   if (body.discount_type !== undefined) {
     // null clears the discount; otherwise type+value arrive together.
     if (body.discount_type === null) {

@@ -74,12 +74,41 @@ export function PrintSheet({ payload, onDone }: { payload: PrintPayload | null; 
 
   useEffect(() => {
     if (!payload) return;
-    // Let the sheet paint before the (blocking) system dialog opens.
-    const timer = setTimeout(() => {
-      window.print();
+    let done = false;
+    // On desktop window.print() BLOCKS, so calling onDone() right after is fine.
+    // On mobile it's ASYNC — returning immediately and unmounting the sheet
+    // (display:none) races the print render and the page comes out blank. So we
+    // wait for the dialog to close (afterprint, or a focus/visibility fallback
+    // for browsers that don't fire it) before popping this sheet off the queue.
+    const finish = () => {
+      if (done) return;
+      done = true;
+      cleanup();
       onDone();
-    }, 80);
-    return () => clearTimeout(timer);
+    };
+    const onAfterPrint = () => finish();
+    const onFocus = () => setTimeout(finish, 100);
+    const onVisible = () => {
+      if (document.visibilityState === "visible") setTimeout(finish, 100);
+    };
+    const cleanup = () => {
+      window.removeEventListener("afterprint", onAfterPrint);
+      window.removeEventListener("focus", onFocus);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
+    // Let the sheet paint before the (possibly blocking) system dialog opens.
+    const timer = setTimeout(() => {
+      window.addEventListener("afterprint", onAfterPrint);
+      window.addEventListener("focus", onFocus);
+      document.addEventListener("visibilitychange", onVisible);
+      window.print();
+      // Safety net: if no close event ever fires, don't strand the queue.
+      setTimeout(finish, 60000);
+    }, 120);
+    return () => {
+      clearTimeout(timer);
+      cleanup();
+    };
   }, [payload, onDone]);
 
   if (!payload) return null;
@@ -93,13 +122,18 @@ export function PrintSheet({ payload, onDone }: { payload: PrintPayload | null; 
         @media print {
           body * { visibility: hidden !important; }
           .cassa-print, .cassa-print * { visibility: visible !important; }
+          /* fixed (not absolute) so the sheet is pinned to the printed page and
+             never inherits the app shell's scroll offset — that offset is what
+             pushed it off the page on mobile. Global @media print rules flatten
+             the shell's height/overflow caps around it. */
           .cassa-print {
             display: block !important;
-            position: absolute; left: 0; top: 0;
+            position: fixed !important; left: 0; top: 0;
             width: 72mm; padding: 2mm;
             background: #fff; color: #000;
             font-family: "Courier New", ui-monospace, monospace;
             font-size: 12px; line-height: 1.35;
+            z-index: 2147483647;
           }
           @page { margin: 4mm; }
         }

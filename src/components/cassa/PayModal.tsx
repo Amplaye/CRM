@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Banknote, CreditCard, Ticket, Landmark, Globe, CircleDollarSign, X, Users, Printer, Check } from "lucide-react";
+import { Banknote, CreditCard, Ticket, X, Users, Printer, Check, Minus, Plus } from "lucide-react";
 import { useLanguage } from "@/lib/contexts/LanguageContext";
 import type { Dictionary } from "@/lib/i18n/dictionaries/en";
 import {
@@ -25,13 +25,13 @@ export interface PayEntry {
   received?: number | null;
 }
 
+// Only the three methods an Italian restaurant actually rings up at the till:
+// cash, card, and meal vouchers (buoni pasto). Online/bank/other were removed
+// on request to keep the pay screen fast and unambiguous.
 const METHODS: Array<{ id: CassaPaymentMethod; icon: typeof Banknote; labelKey: string }> = [
   { id: "cash", icon: Banknote, labelKey: "cassa_method_cash" },
   { id: "card", icon: CreditCard, labelKey: "cassa_method_card" },
   { id: "meal_voucher", icon: Ticket, labelKey: "cassa_method_voucher" },
-  { id: "online", icon: Globe, labelKey: "cassa_method_online" },
-  { id: "bank_transfer", icon: Landmark, labelKey: "cassa_method_bank" },
-  { id: "other", icon: CircleDollarSign, labelKey: "cassa_method_other" },
 ];
 
 export function methodLabelKey(method: string): string {
@@ -90,6 +90,43 @@ export function PayModal({ total, busy, result, onConfirm, onPrintReceipt, onClo
   };
 
   const splitAmounts = splitParts >= 2 ? splitEqual(total, splitParts) : null;
+  // How many equal shares are still unpaid, and the value of the next one. Shares
+  // are charged largest-first (splitEqual front-loads the remainder cents) so the
+  // running list matches what each person actually hands over.
+  const sharesPaid = splitAmounts
+    ? Math.min(
+        splitParts,
+        (() => {
+          let paidC = toCents(total) - toCents(remaining);
+          let n = 0;
+          for (const a of splitAmounts) {
+            if (paidC + 1 >= toCents(a)) {
+              paidC -= toCents(a);
+              n++;
+            } else break;
+          }
+          return n;
+        })(),
+      )
+    : 0;
+  const nextShare = splitAmounts && sharesPaid < splitParts ? splitAmounts[sharesPaid] : 0;
+
+  // Charge exactly one alla-romana share with the selected method.
+  const paySplitShare = () => {
+    if (!nextShare || busy) return;
+    const amount = Math.min(nextShare, remaining);
+    if (amount <= 0) return;
+    const entry: PayEntry = {
+      method,
+      amount,
+      received: method === "cash" && received != null ? received : null,
+    };
+    const next = [...entries, entry];
+    setEntries(next);
+    setAmountStr("");
+    setReceivedStr("");
+    if (remainingDue(total, next) === 0) onConfirm(next);
+  };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40" onClick={result ? undefined : onClose}>
@@ -157,28 +194,71 @@ export function PayModal({ total, busy, result, onConfirm, onPrintReceipt, onClo
                 )}
               </div>
 
-              {/* Split alla romana — informational helper */}
-              <div className="flex flex-wrap items-center justify-center gap-2">
-                <Users className="w-4 h-4 text-black" />
-                <span className="text-sm text-black">{t("cassa_split")}</span>
-                {[0, 2, 3, 4, 5, 6].map((n) => (
+              {/* Split alla romana: presets + a stepper for any number of people. */}
+              <div className="rounded-xl border-2 p-3 space-y-2.5" style={{ borderColor: "#c4956a", background: "rgba(196,149,106,0.06)" }}>
+                <div className="flex items-center gap-2">
+                  <Users className="w-4 h-4 text-black" />
+                  <span className="text-sm font-bold text-black">{t("cassa_split")}</span>
+                  <span className="flex-1" />
+                  {/* manual person count stepper */}
                   <button
-                    key={n}
-                    onClick={() => setSplitParts(n)}
-                    className={`h-10 min-w-10 px-2 rounded-lg border-2 text-xs font-bold cursor-pointer ${splitParts === n ? "text-white" : "text-black hover:bg-[#c4956a]/10"}`}
-                    style={splitParts === n ? { background: "#c4956a", borderColor: "#c4956a" } : { borderColor: "#c4956a" }}
+                    onClick={() => setSplitParts((n) => (n <= 2 ? 0 : n - 1))}
+                    className="w-9 h-9 rounded-lg border-2 flex items-center justify-center text-black cursor-pointer active:bg-[#c4956a]/20"
+                    style={{ borderColor: "#c4956a" }}
+                    aria-label="-"
                   >
-                    {n === 0 ? "—" : n}
+                    <Minus className="w-4 h-4" />
                   </button>
-                ))}
+                  <span className="w-7 text-center text-base font-bold text-black">{splitParts >= 2 ? splitParts : "—"}</span>
+                  <button
+                    onClick={() => setSplitParts((n) => (n < 2 ? 2 : Math.min(50, n + 1)))}
+                    className="w-9 h-9 rounded-lg border-2 flex items-center justify-center text-black cursor-pointer active:bg-[#c4956a]/20"
+                    style={{ borderColor: "#c4956a" }}
+                    aria-label="+"
+                  >
+                    <Plus className="w-4 h-4" />
+                  </button>
+                </div>
+                <div className="flex flex-wrap gap-1.5">
+                  <button
+                    onClick={() => setSplitParts(0)}
+                    className={`h-9 px-3 rounded-lg border-2 text-xs font-bold cursor-pointer ${splitParts < 2 ? "text-white" : "text-black active:bg-[#c4956a]/20"}`}
+                    style={splitParts < 2 ? { background: "#c4956a", borderColor: "#c4956a" } : { borderColor: "#c4956a" }}
+                  >
+                    {t("cassa_remove")}
+                  </button>
+                  {[2, 3, 4, 5, 6].map((n) => (
+                    <button
+                      key={n}
+                      onClick={() => setSplitParts(n)}
+                      className={`h-9 min-w-9 px-2 rounded-lg border-2 text-sm font-bold cursor-pointer ${splitParts === n ? "text-white" : "text-black active:bg-[#c4956a]/20"}`}
+                      style={splitParts === n ? { background: "#c4956a", borderColor: "#c4956a" } : { borderColor: "#c4956a" }}
+                    >
+                      {n}
+                    </button>
+                  ))}
+                </div>
+                {splitAmounts && (
+                  <>
+                    <p className="text-center text-sm text-black">
+                      {splitAmounts.every((a) => a === splitAmounts[0])
+                        ? `${splitParts} × ${fmtEur(splitAmounts[0])}`
+                        : `${splitAmounts.filter((a) => a === splitAmounts[0]).length} × ${fmtEur(splitAmounts[0])} + ${splitAmounts.filter((a) => a !== splitAmounts[0]).length} × ${fmtEur(splitAmounts[splitAmounts.length - 1])}`}
+                      {sharesPaid > 0 ? ` · ${sharesPaid}/${splitParts} ${t("cassa_split_paid")}` : ""}
+                    </p>
+                    {nextShare > 0 && (
+                      <button
+                        onClick={paySplitShare}
+                        disabled={busy || remaining <= 0}
+                        className="w-full h-11 rounded-lg text-sm font-bold text-white disabled:opacity-40 cursor-pointer"
+                        style={{ background: "linear-gradient(135deg, #d4a574, #c4956a)" }}
+                      >
+                        {t("cassa_pay_share")} · {fmtEur(Math.min(nextShare, remaining))}
+                      </button>
+                    )}
+                  </>
+                )}
               </div>
-              {splitAmounts && (
-                <p className="text-center text-sm font-bold text-black">
-                  {splitAmounts.every((a) => a === splitAmounts[0])
-                    ? `${splitParts} × ${fmtEur(splitAmounts[0])}`
-                    : `${splitAmounts.filter((a) => a === splitAmounts[0]).length} × ${fmtEur(splitAmounts[0])} + ${splitAmounts.filter((a) => a !== splitAmounts[0]).length} × ${fmtEur(splitAmounts[splitAmounts.length - 1])}`}
-                </p>
-              )}
 
               {/* Method picker */}
               <div className="grid grid-cols-3 gap-2">
@@ -186,7 +266,7 @@ export function PayModal({ total, busy, result, onConfirm, onPrintReceipt, onClo
                   <button
                     key={m.id}
                     onClick={() => setMethod(m.id)}
-                    className={`flex flex-col items-center gap-1 py-2.5 rounded-xl border-2 cursor-pointer ${method === m.id ? "text-white" : "text-black hover:bg-[#c4956a]/10"}`}
+                    className={`flex flex-col items-center gap-1 py-3 rounded-xl border-2 cursor-pointer ${method === m.id ? "text-white" : "text-black active:bg-[#c4956a]/20"}`}
                     style={method === m.id ? { background: "linear-gradient(135deg, #d4a574, #c4956a)", borderColor: "#c4956a" } : { borderColor: "#c4956a" }}
                   >
                     <m.icon className="w-5 h-5" />
@@ -230,7 +310,7 @@ export function PayModal({ total, busy, result, onConfirm, onPrintReceipt, onClo
                     <button
                       key={n}
                       onClick={() => setReceivedStr(String(n))}
-                      className="px-3 h-10 rounded-lg border-2 text-sm font-bold text-black hover:bg-[#c4956a]/10 cursor-pointer"
+                      className="px-3 h-10 rounded-lg border-2 text-sm font-bold text-black active:bg-[#c4956a]/20 cursor-pointer"
                       style={{ borderColor: "#c4956a" }}
                     >
                       {n} €
@@ -238,7 +318,7 @@ export function PayModal({ total, busy, result, onConfirm, onPrintReceipt, onClo
                   ))}
                   <button
                     onClick={() => setReceivedStr(effectiveAmount.toFixed(2))}
-                    className="px-3 h-9 rounded-lg border-2 text-sm font-bold text-black hover:bg-[#c4956a]/10 cursor-pointer"
+                    className="px-3 h-10 rounded-lg border-2 text-sm font-bold text-black active:bg-[#c4956a]/20 cursor-pointer"
                     style={{ borderColor: "#c4956a" }}
                   >
                     {t("cassa_exact_amount")}

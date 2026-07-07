@@ -55,6 +55,10 @@ interface OrderViewProps {
   onPrintComanda: () => void;
   onStorno: (item: CassaOrderItemRow) => void;
   onSetCovers: (covers: number) => void;
+  /** Set the per-order coperto (cover price). Defaults to `coverCharge` if unset. */
+  onSetCover: (coverUnit: number) => void;
+  /** Live tenant coperto from settings — used to pre-fill a bill that has none. */
+  coverCharge: number;
   onSetDiscount: (type: "percent" | "amount" | null, value: number) => void;
   onPreconto: () => void;
   onCharge: () => void;
@@ -80,6 +84,8 @@ export function OrderView({
   onPrintComanda,
   onStorno,
   onSetCovers,
+  onSetCover,
+  coverCharge,
   onSetDiscount,
   onPreconto,
   onCharge,
@@ -104,6 +110,9 @@ export function OrderView({
   const [variantSel, setVariantSel] = useState<Set<number>>(new Set());
   const [showCovers, setShowCovers] = useState(false);
   const [coversDraft, setCoversDraft] = useState(0);
+  // Per-order coperto, editable from the covers modal. Seeds from the order's
+  // own snapshot, falling back to the live tenant setting when the bill has none.
+  const [coverStr, setCoverStr] = useState("");
   // Mobile: is the ticket bottom-sheet open? `closing` drives the slide-out.
   const [sheetOpen, setSheetOpen] = useState(false);
   const [sheetClosing, setSheetClosing] = useState(false);
@@ -269,6 +278,8 @@ export function OrderView({
       <button
         onClick={() => {
           setCoversDraft(order.covers);
+          const cu = order.cover_unit > 0 ? order.cover_unit : coverCharge;
+          setCoverStr(cu > 0 ? String(cu) : "");
           setShowCovers(true);
         }}
         className="h-10 px-3 rounded-xl border-2 inline-flex items-center gap-1.5 text-black cursor-pointer active:bg-[#c4956a]/20"
@@ -393,9 +404,37 @@ export function OrderView({
   );
 
   // ---------------------------------------------------------------- dish grid
+  // course selector for NEW lines: joined segments, number + word, color-coded.
+  // On mobile it sits on its OWN row (full width) so the three segments never
+  // overflow next to the search field — that clipping was the "3ª cut off" bug.
+  const courseSelector = (
+    <div
+      className="flex rounded-xl border-2 overflow-hidden shrink-0"
+      style={{ borderColor: "#c4956a", background: "rgba(255,255,255,0.7)" }}
+      title={t("cassa_course_hint")}
+    >
+      {[1, 2, 3].map((c) => (
+        <button
+          key={c}
+          onClick={() => setCourse(c)}
+          className={`h-11 flex-1 lg:flex-none lg:w-16 flex flex-col items-center justify-center cursor-pointer ${c > 1 ? "border-l-2" : ""} ${course === c ? "text-white" : "text-black active:bg-[#c4956a]/20"}`}
+          style={{
+            borderColor: "#c4956a",
+            ...(course === c ? { background: courseColor(c) } : {}),
+          }}
+        >
+          <span className="text-sm font-bold leading-none">{c}ª</span>
+          <span className={`text-[9px] font-bold uppercase tracking-wide leading-none mt-1 ${course === c ? "opacity-90" : "opacity-60"}`}>
+            {t("cassa_course")}
+          </span>
+        </button>
+      ))}
+    </div>
+  );
+
   const menuPicker = (
     <div className="flex-1 flex flex-col min-h-0">
-      <div className="flex items-center gap-2 mb-2">
+      <div className="flex flex-col lg:flex-row lg:items-center gap-2 mb-2">
         <div className="relative flex-1">
           <Search className="w-4 h-4 text-black absolute left-3 top-1/2 -translate-y-1/2" />
           <input
@@ -406,29 +445,7 @@ export function OrderView({
             style={{ borderColor: "#c4956a" }}
           />
         </div>
-        {/* course selector for NEW lines: joined segments, number + word, color-coded */}
-        <div
-          className="flex rounded-xl border-2 overflow-hidden shrink-0"
-          style={{ borderColor: "#c4956a", background: "rgba(255,255,255,0.7)" }}
-          title={t("cassa_course_hint")}
-        >
-          {[1, 2, 3].map((c) => (
-            <button
-              key={c}
-              onClick={() => setCourse(c)}
-              className={`h-11 w-14 sm:w-16 flex flex-col items-center justify-center cursor-pointer ${c > 1 ? "border-l-2" : ""} ${course === c ? "text-white" : "text-black active:bg-[#c4956a]/20"}`}
-              style={{
-                borderColor: "#c4956a",
-                ...(course === c ? { background: courseColor(c) } : {}),
-              }}
-            >
-              <span className="text-sm font-bold leading-none">{c}ª</span>
-              <span className={`text-[9px] font-bold uppercase tracking-wide leading-none mt-1 ${course === c ? "opacity-90" : "opacity-60"}`}>
-                {t("cassa_course")}
-              </span>
-            </button>
-          ))}
-        </div>
+        {courseSelector}
       </div>
 
       <div className="flex gap-1.5 pb-2 overflow-x-auto no-scrollbar">
@@ -544,9 +561,13 @@ export function OrderView({
       </div>
 
       {/* ============ MOBILE: sticky cart bar ============ */}
+      {/* Reserves right padding (pr-[4.75rem]) so its content — "Vedi comanda" —
+          never slides under the floating assistant bubble that sits bottom-right;
+          the bubble keeps its own z-40 layer and stays tappable over the padded
+          gap. */}
       <button
         onClick={() => setSheetOpen(true)}
-        className="lg:hidden cart-bar fixed left-0 right-0 bottom-0 z-40 h-16 px-4 flex items-center gap-3 border-t-2 cursor-pointer text-white"
+        className="lg:hidden cart-bar fixed left-0 right-0 bottom-0 z-40 h-16 pl-4 pr-[4.75rem] flex items-center gap-3 border-t-2 cursor-pointer text-white"
         style={{
           borderColor: "#a9713f",
           background: "linear-gradient(135deg, #d4a574, #c4956a)",
@@ -820,12 +841,9 @@ export function OrderView({
               {[1, 2, 3, 4, 5, 6, 7, 8].map((n) => (
                 <button
                   key={n}
-                  onClick={() => {
-                    onSetCovers(n);
-                    setShowCovers(false);
-                  }}
-                  className={`h-12 rounded-xl border-2 text-lg font-bold cursor-pointer ${order.covers === n ? "text-white" : "text-black active:bg-[#c4956a]/20"}`}
-                  style={order.covers === n ? { background: "#c4956a", borderColor: "#c4956a" } : { borderColor: "#c4956a" }}
+                  onClick={() => setCoversDraft(n)}
+                  className={`h-12 rounded-xl border-2 text-lg font-bold cursor-pointer ${coversDraft === n ? "text-white" : "text-black active:bg-[#c4956a]/20"}`}
+                  style={coversDraft === n ? { background: "#c4956a", borderColor: "#c4956a" } : { borderColor: "#c4956a" }}
                 >
                   {n}
                 </button>
@@ -847,17 +865,33 @@ export function OrderView({
               >
                 <Plus className="w-4 h-4" />
               </button>
-              <button
-                onClick={() => {
-                  onSetCovers(coversDraft);
-                  setShowCovers(false);
-                }}
-                className="h-11 px-4 rounded-xl text-sm font-bold text-white cursor-pointer"
-                style={{ background: "linear-gradient(135deg, #d4a574, #c4956a)" }}
-              >
-                OK
-              </button>
             </div>
+            {/* coperto per persona — editable so a bill opened before the coperto
+                was set can still be charged for it */}
+            <div>
+              <label className="text-xs font-bold text-black">{t("cassa_cover_charge")} (€ / {t("cassa_covers").toLowerCase()})</label>
+              <input
+                inputMode="decimal"
+                value={coverStr}
+                onChange={(e) => setCoverStr(e.target.value)}
+                placeholder="0.00"
+                className="w-full mt-1 px-3 py-2.5 text-lg font-bold text-black border-2 rounded-lg bg-white"
+                style={{ borderColor: "#c4956a" }}
+              />
+            </div>
+            <button
+              onClick={() => {
+                onSetCovers(coversDraft);
+                const cu = Number(coverStr.replace(",", "."));
+                const nextCover = Number.isFinite(cu) && cu >= 0 ? cu : 0;
+                if (nextCover !== order.cover_unit) onSetCover(nextCover);
+                setShowCovers(false);
+              }}
+              className="w-full h-11 rounded-xl text-sm font-bold text-white cursor-pointer"
+              style={{ background: "linear-gradient(135deg, #d4a574, #c4956a)" }}
+            >
+              OK
+            </button>
           </div>
         </div>
       )}

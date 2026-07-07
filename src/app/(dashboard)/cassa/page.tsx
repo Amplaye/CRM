@@ -520,17 +520,20 @@ export default function CassaPage() {
 
   const patchOrder = async (patch: Record<string, unknown>) => {
     if (!activeOrder) return;
-    setBusy(true);
+    // Optimistic: reflect the change instantly (covers/discount felt laggy while
+    // it waited on the API round-trip). Snapshot for rollback, then reconcile
+    // with the server's canonical row — never block the UI on the request.
+    const prev = activeOrder;
+    upsertOrder({ ...activeOrder, ...patch });
     try {
       const data = await api<{ order: CassaOrderFull }>(`/api/cassa/orders/${activeOrder.id}`, {
         method: "PATCH",
         body: JSON.stringify({ tenant_id: tenantId, ...patch }),
       });
-      upsertOrder({ ...activeOrder, ...data.order, items: activeOrder.items });
+      upsertOrder({ ...prev, ...data.order, items: prev.items });
     } catch (err) {
+      upsertOrder(prev); // roll back the optimistic change
       fail(err);
-    } finally {
-      setBusy(false);
     }
   };
 
@@ -712,6 +715,21 @@ export default function CassaPage() {
       });
       setCoverCharge(value);
       refreshActiveTenant?.();
+      // Push the new coperto onto every OPEN sala bill too. Without this, orders
+      // opened before the coperto was set stay frozen at their birth snapshot
+      // (cover_unit) and the charge silently never appears on them.
+      const openSala = openOrders.filter((o) => o.channel === "sala" && o.cover_unit !== value);
+      if (openSala.length > 0) {
+        openSala.forEach((o) => upsertOrder({ ...o, cover_unit: value }));
+        await Promise.all(
+          openSala.map((o) =>
+            api(`/api/cassa/orders/${o.id}`, {
+              method: "PATCH",
+              body: JSON.stringify({ tenant_id: tenantId, cover_unit: value }),
+            }).catch(() => {}),
+          ),
+        );
+      }
     } catch (err) {
       fail(err);
     } finally {
@@ -849,6 +867,8 @@ export default function CassaPage() {
             onPrintComanda={printLastComanda}
             onStorno={storno}
             onSetCovers={(covers) => void patchOrder({ covers })}
+            onSetCover={(coverUnit) => void patchOrder({ cover_unit: coverUnit })}
+            coverCharge={coverCharge}
             onSetDiscount={(type, value) =>
               void patchOrder({ discount_type: type, discount_value: value })
             }
