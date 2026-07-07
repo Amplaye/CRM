@@ -818,7 +818,13 @@ export default function CassaPage() {
         </div>
       )}
 
-      <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain">
+      {/* In ORDER view, OrderView owns its own two scroll regions (ticket +
+          dish grid). This wrapper must NOT also scroll, or the dish grid ends
+          up nested inside THREE stacked overflow-y-auto containers and WebKit
+          can't disambiguate the first tap-after-scroll into a click — the dish
+          buttons then need two taps / feel unselectable. So it's a plain flex
+          box in order view, and a scroller only for the other tabs. */}
+      <div className={`flex-1 min-h-0${view === "order" ? "" : " overflow-y-auto overscroll-contain"}`}>
         {loading ? (
           <div className="py-16 text-center text-sm text-black">…</div>
         ) : view === "order" && activeOrder ? (

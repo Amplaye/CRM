@@ -105,8 +105,13 @@ export function OrderView({
     [order, drafts],
   );
 
+  // Show every available dish, even one with no price set yet: the menu editor
+  // allows null prices, and hiding those made them "disappear" from the till
+  // while still showing in the Menu page. A null-price dish adds at €0 (addItem
+  // already coalesces price ?? 0) — the cashier can adjust or it's a variable
+  // "market price" item — which is far better than it silently going missing.
   const sellable = useMemo(
-    () => items.filter((i) => i.available && i.price != null),
+    () => items.filter((i) => i.available),
     [items],
   );
   const visibleItems = useMemo(() => {

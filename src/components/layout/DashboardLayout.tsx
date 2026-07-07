@@ -140,7 +140,7 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
             </div>
           )}
           <Topbar onMenuToggle={() => setMobileMenuOpen(true)} />
-          <main className="flex-1 overflow-y-auto">
+          <main className="flex-1 overflow-y-auto overscroll-contain">
              {children}
           </main>
         </div>

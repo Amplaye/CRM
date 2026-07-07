@@ -79,6 +79,25 @@ export function Sidebar({ mobileOpen = false, onClose }: SidebarProps) {
   const { user } = useAuth();
   const counts = useNotificationCounts(activeTenant?.id);
 
+  // Keep the mobile drawer mounted through its closing animation: when
+  // mobileOpen flips false we hold `rendered` true for the exit transition,
+  // then unmount. `closing` drives the reverse (slide-out) animation.
+  const [rendered, setRendered] = useState(mobileOpen);
+  const [closing, setClosing] = useState(false);
+  useEffect(() => {
+    if (mobileOpen) {
+      setRendered(true);
+      setClosing(false);
+    } else if (rendered) {
+      setClosing(true);
+      const timeout = setTimeout(() => {
+        setRendered(false);
+        setClosing(false);
+      }, 280); // matches drawer-panel-in duration
+      return () => clearTimeout(timeout);
+    }
+  }, [mobileOpen, rendered]);
+
   const handleSignOut = async () => {
     const supabase = createClient();
     await supabase.auth.signOut();
@@ -389,13 +408,23 @@ export function Sidebar({ mobileOpen = false, onClose }: SidebarProps) {
         {sidebarContent}
       </aside>
 
-      {/* Mobile overlay + drawer */}
-      {mobileOpen && (
+      {/* Mobile overlay + drawer — slides in/out (see .drawer-* in globals.css).
+          Stays mounted through the closing animation via `rendered`/`closing`. */}
+      {rendered && (
         <div className="md:hidden fixed inset-0 z-50 flex">
           {/* Backdrop */}
-          <div className="fixed inset-0 bg-black/40" onClick={onClose} />
+          <div
+            className={cn("fixed inset-0 bg-black/40", closing ? "drawer-backdrop--closing" : "drawer-backdrop")}
+            onClick={onClose}
+          />
           {/* Drawer */}
-          <aside className="relative w-72 max-w-[80vw] h-full flex flex-col flex-shrink-0 shadow-xl" style={{ background: 'rgba(252,246,237,0.98)', borderRight: '2px solid #c4956a' }}>
+          <aside
+            className={cn(
+              "relative w-72 max-w-[80vw] h-full flex flex-col flex-shrink-0 shadow-xl",
+              closing ? "drawer-panel--closing" : "drawer-panel"
+            )}
+            style={{ background: 'rgba(252,246,237,0.98)', borderRight: '2px solid #c4956a' }}
+          >
             {sidebarContent}
           </aside>
         </div>

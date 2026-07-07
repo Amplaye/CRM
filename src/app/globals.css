@@ -1,9 +1,12 @@
 @import "tailwindcss";
 
 /* Mobile: prevent any rogue child from causing horizontal page scroll, and
-   block the browser's own rubber-band bounce past the viewport edge — an
-   extreme sideways swipe would otherwise drag the whole layout off-screen. */
-html, body { overflow-x: hidden; overscroll-behavior-x: none; }
+   block the browser's own rubber-band bounce past the viewport edge in BOTH
+   axes — an extreme swipe would otherwise drag the whole layout off-screen
+   (sideways) or reveal the empty canvas behind the app (vertical pull). The
+   inner scroll region (<main>) also gets overscroll-behavior:contain so its
+   bounce never chains up to the document. */
+html, body { overflow-x: hidden; overscroll-behavior: none; }
 
 /* Buttons inside a scrollable list (e.g. the Cassa dish grid) can otherwise
    have their tap mistaken for the start of a scroll/pan gesture on mobile,
@@ -321,6 +324,43 @@ tr.is-new-row::after {
   .dashboard-enter {
     animation: none;
   }
+}
+
+/* Mobile nav drawer: slide the panel in from the left and fade the backdrop,
+   so opening/closing the menu feels smooth instead of popping in instantly.
+   Honors prefers-reduced-motion (then it just appears). */
+@keyframes drawer-backdrop-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes drawer-panel-in {
+  from { transform: translateX(-100%); }
+  to { transform: translateX(0); }
+}
+@keyframes drawer-backdrop-out {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+@keyframes drawer-panel-out {
+  from { transform: translateX(0); }
+  to { transform: translateX(-100%); }
+}
+.drawer-backdrop {
+  animation: drawer-backdrop-in 0.25s ease-out both;
+}
+.drawer-panel {
+  animation: drawer-panel-in 0.28s cubic-bezier(0.22, 1, 0.36, 1) both;
+  will-change: transform;
+}
+.drawer-backdrop--closing {
+  animation: drawer-backdrop-out 0.25s ease-in both;
+}
+.drawer-panel--closing {
+  animation: drawer-panel-out 0.28s cubic-bezier(0.4, 0, 1, 1) both;
+}
+@media (prefers-reduced-motion: reduce) {
+  .drawer-backdrop, .drawer-panel,
+  .drawer-backdrop--closing, .drawer-panel--closing { animation: none; }
 }
 
 /* Horizontally-scrollable rows (mobile settings tabs, analytics period nav)
