@@ -838,7 +838,7 @@ export function AssistantWidget() {
       {/* panel */}
       {open && (
         <div
-          className="fixed z-40 bottom-4 right-4 left-4 sm:left-auto sm:w-[400px] max-h-[80dvh] flex flex-col rounded-2xl border-2 shadow-2xl overflow-hidden"
+          className="fixed z-40 inset-0 sm:inset-auto sm:bottom-4 sm:right-4 sm:w-[400px] sm:max-h-[80dvh] flex flex-col rounded-none sm:rounded-2xl border-0 sm:border-2 shadow-2xl overflow-hidden"
           style={{ borderColor: "#c4956a", background: "#FCF6ED" }}
         >
           <div className="flex items-center gap-2.5 px-4 py-3 text-white" style={{ background: "linear-gradient(135deg, #d4a574, #c4956a)" }}>

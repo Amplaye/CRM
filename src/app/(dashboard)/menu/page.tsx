@@ -482,7 +482,7 @@ export default function MenuPage() {
         style={{ background: "rgba(252,246,237,0.85)", borderColor: "#c4956a" }}
       >
         <div className="p-5 border-b shrink-0" style={{ borderColor: "#c4956a" }}>
-          <div className="flex items-center justify-between gap-3">
+          <div className="flex flex-col gap-3">
             <h1 className="text-xl font-bold text-black tracking-tight">
               {t("menu_title") || "Menu"}
             </h1>
@@ -490,7 +490,7 @@ export default function MenuPage() {
             {/* Template picker + preview, inline. The 1–4 selector chooses the
                 public-menu look (saved immediately = both preview and live menu);
                 the eye opens that look in a new tab. */}
-            <div className="flex items-center gap-1.5 shrink-0">
+            <div className="flex items-center gap-1.5 flex-wrap">
               {savingStyle && (
                 <Loader2 className="w-3.5 h-3.5 animate-spin text-[#a87642]" />
               )}

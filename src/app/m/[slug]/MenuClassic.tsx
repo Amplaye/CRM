@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, useLayoutEffect } from "react";
+import { ClosePublicMenuButton } from "./ClosePublicMenuButton";
 
 // Public hosted menu, shared via a QR sticker — designed as a premium
 // fine-dining card, not a list. The server (page.tsx) does all data work and
@@ -110,6 +111,7 @@ export default function MenuClassic({
 
   return (
     <div className="menu-root min-h-[100dvh]">
+      <ClosePublicMenuButton />
       {/* Atmosphere: warm vignette + fine paper grain over the sand canvas. */}
       <div className="menu-grain" aria-hidden />
 

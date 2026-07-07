@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect, useCallback } from "react";
+import { ClosePublicMenuButton } from "./ClosePublicMenuButton";
 
 // ── Design 2 — "EDITORIAL / Gourmet Magazine" ───────────────────────────────
 // A printed luxury food-magazine spread (Kinfolk / Cereal / a Michelin carte on
@@ -119,6 +120,7 @@ export default function MenuEditorial({
 
   return (
     <div className="ed-root">
+      <ClosePublicMenuButton />
       <div className="ed-grain" aria-hidden />
 
       {/* ── Masthead ──────────────────────────────────────────────────────── */}

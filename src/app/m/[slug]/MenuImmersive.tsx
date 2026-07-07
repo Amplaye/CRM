@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { ClosePublicMenuButton } from "./ClosePublicMenuButton";
 
 // Public hosted menu (Design 1 — "IMMERSIVE / Luxury Stories").
 //
@@ -153,6 +154,7 @@ export default function MenuImmersive({
   if (empty) {
     return (
       <div className="im-root im-empty-root">
+        <ClosePublicMenuButton />
         <div className="im-atmos" aria-hidden />
         <div className="im-empty">
           <p className="im-empty-eyebrow">{menuLabel}</p>
@@ -167,6 +169,7 @@ export default function MenuImmersive({
 
   return (
     <div className="im-root">
+      <ClosePublicMenuButton />
       <div className="im-atmos" aria-hidden />
 
       {/* ── Top chrome: current category + chapter filter bar ──────────── */}

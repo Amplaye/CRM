@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, useLayoutEffect } from "react";
+import { ClosePublicMenuButton } from "./ClosePublicMenuButton";
 
 // ── Design 3 — "CINEMATIC / Dark Materic Glass" ─────────────────────────────
 // A nocturnal chef's-table register: a near-black, hand-finished canvas with
@@ -109,6 +110,7 @@ export default function MenuCinematic({
 
   return (
     <div className="cin-root" ref={rootRef}>
+      <ClosePublicMenuButton />
       {/* Atmosphere — layered glows, vignette and grain over the near-black. */}
       <div className="cin-atmos" aria-hidden>
         <span className="cin-glow cin-glow-a" />

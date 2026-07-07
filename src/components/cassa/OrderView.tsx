@@ -410,7 +410,7 @@ export function OrderView({
           ))}
         </div>
 
-        <div className="flex-1 overflow-y-auto">
+        <div className="flex-1 overflow-y-auto overscroll-contain">
           {visibleItems.length === 0 ? (
             <p className="text-center text-sm text-black py-10">{t("cassa_no_items")}</p>
           ) : (

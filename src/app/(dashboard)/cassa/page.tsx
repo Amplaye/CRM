@@ -818,7 +818,7 @@ export default function CassaPage() {
         </div>
       )}
 
-      <div className="flex-1 min-h-0 overflow-y-auto">
+      <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain">
         {loading ? (
           <div className="py-16 text-center text-sm text-black">…</div>
         ) : view === "order" && activeOrder ? (

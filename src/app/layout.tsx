@@ -38,13 +38,12 @@ export const metadata: Metadata = {
   },
 };
 
-// Do NOT disable zoom. Owners (often non-technical) fill this on their phone
-// and must be able to pinch-zoom the dense onboarding form; blocking it is also
-// a WCAG failure. Auto-zoom-on-input-focus is already prevented by the
-// `font-size:16px` rule in globals.css, so capping the scale is unnecessary.
 export const viewport = {
   width: "device-width",
   initialScale: 1,
+  minimumScale: 1,
+  maximumScale: 1,
+  userScalable: false,
   // Paint behind the iOS notch/home bar in standalone (installed) mode and
   // tint the browser UI to the app's cream background.
   viewportFit: "cover" as const,
