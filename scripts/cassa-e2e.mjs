@@ -92,7 +92,7 @@ async function main() {
     // scope the first click to the ticket column — otherwise Playwright's retry
     // (the button is briefly disabled while the comanda fires) can land on the
     // pay-sheet overlay that has meanwhile opened.
-    const ticketPanel = page.locator(".lg\\:w-\\[380px\\]");
+    const ticketPanel = page.locator(".w-\\[380px\\]");
     await ticketPanel.getByRole("button", { name: chargeRe }).click();
     // Wait for the pay sheet (fixed inset-0 z-50 overlay) to actually be up.
     const paySheet = page.locator("div.fixed.inset-0.z-50").last();

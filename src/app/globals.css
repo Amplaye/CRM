@@ -363,6 +363,36 @@ tr.is-new-row::after {
   .drawer-backdrop--closing, .drawer-panel--closing { animation: none; }
 }
 
+/* Cassa mobile: the comanda (order ticket) opens as a bottom sheet that slides
+   up over the menu — only one scroll region is ever live at a time, which is
+   what makes dish taps reliable on iOS (competing nested scrollers were eating
+   the first tap). The sticky cart bar itself slides up from below on mount. */
+@keyframes sheet-in {
+  from { transform: translateY(100%); }
+  to { transform: translateY(0); }
+}
+@keyframes sheet-out {
+  from { transform: translateY(0); }
+  to { transform: translateY(100%); }
+}
+@keyframes cart-bar-in {
+  from { transform: translateY(120%); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+.sheet-panel {
+  animation: sheet-in 0.3s cubic-bezier(0.22, 1, 0.36, 1) both;
+  will-change: transform;
+}
+.sheet-panel--closing {
+  animation: sheet-out 0.26s cubic-bezier(0.4, 0, 1, 1) both;
+}
+.cart-bar {
+  animation: cart-bar-in 0.32s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+@media (prefers-reduced-motion: reduce) {
+  .sheet-panel, .sheet-panel--closing, .cart-bar { animation: none; }
+}
+
 /* Horizontally-scrollable rows (mobile settings tabs, analytics period nav)
    without a visible scrollbar — content stays on one line and swipes sideways. */
 .no-scrollbar {
