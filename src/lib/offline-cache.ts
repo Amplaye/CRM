@@ -110,6 +110,55 @@ export function readOfflineCache<T>(
  * data; pass nothing to purge every tenant's offline cache on this device
  * (used on logout, where we don't want to assume which tenant was active).
  */
+// Last-good tenant context snapshot, keyed by user id. Lets the PWA boot
+// offline from a cold launch (sessionStorage is per-tab-session and empty on
+// launch, and the Supabase membership query needs the network). Lives under
+// PREFIX so the existing logout/switch purge sweeps it with everything else.
+function tenantCtxKey(userId: string): string {
+  return `${PREFIX}tenantctx_${userId}`;
+}
+
+export function writeOfflineTenantCtx(
+  userId: string | null | undefined,
+  ctx: unknown,
+): void {
+  if (!userId || ctx == null) return;
+  safeLocal.set(tenantCtxKey(userId), JSON.stringify(ctx));
+}
+
+export function readOfflineTenantCtx<T>(
+  userId: string | null | undefined,
+): T | null {
+  if (!userId) return null;
+  const raw = safeLocal.get(tenantCtxKey(userId));
+  if (!raw) return null;
+  try {
+    return JSON.parse(raw) as T;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Delete the service worker's offline page-HTML caches (the `bf-pages-*`
+ * caches written by public/sw.js on successful navigations). Called alongside
+ * purgeOfflineCache on logout and tenant switch so a cached dashboard page
+ * can never be reopened offline by the next user on a shared device. The
+ * name prefix is a contract with sw.js — rename both together. Fire-and-forget.
+ */
+export function purgeOfflinePages(): void {
+  try {
+    if (typeof caches === "undefined") return;
+    void caches.keys().then((names) => {
+      for (const n of names) {
+        if (n.startsWith("bf-pages-")) void caches.delete(n);
+      }
+    }).catch(() => {});
+  } catch {
+    // CacheStorage unavailable (SSR / insecure context) — nothing to purge.
+  }
+}
+
 export function purgeOfflineCache(tenantId?: string | null): void {
   if (tenantId) {
     for (const key of readIndex(tenantId)) safeLocal.remove(key);

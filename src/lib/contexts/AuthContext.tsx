@@ -2,7 +2,7 @@
 
 import { createContext, useContext, useEffect, useState, ReactNode, useMemo } from "react";
 import { createClient } from "@/lib/supabase/client";
-import { purgeOfflineCache } from "@/lib/offline-cache";
+import { purgeOfflineCache, purgeOfflinePages } from "@/lib/offline-cache";
 import type { User } from "@supabase/supabase-js";
 
 interface AuthContextType {
@@ -24,7 +24,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       // Single choke point for every logout path (button, kick-out, token
       // invalidation): drop all offline-cached reference data so it can't leak
       // to the next user or tenant on a shared device.
-      if (event === "SIGNED_OUT") purgeOfflineCache();
+      if (event === "SIGNED_OUT") {
+        purgeOfflineCache();
+        purgeOfflinePages();
+      }
       const newUser = session?.user ?? null;
       setUser(prev => {
         if (prev?.id === newUser?.id) return prev; // same user, keep same reference

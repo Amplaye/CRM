@@ -3,6 +3,9 @@ import {
   writeOfflineCache,
   readOfflineCache,
   purgeOfflineCache,
+  writeOfflineTenantCtx,
+  readOfflineTenantCtx,
+  purgeOfflinePages,
 } from "./offline-cache";
 
 // The test env is "node" (no DOM), and safe-storage bails when `window` is
@@ -113,5 +116,35 @@ describe("offline-cache", () => {
   it("no-ops without a tenant id", () => {
     expect(() => writeOfflineCache(null, "menu", [{ id: "1" }])).not.toThrow();
     expect(readOfflineCache(undefined, "menu")).toBeNull();
+  });
+
+  it("round-trips the tenant context snapshot per user", () => {
+    const snap = { globalRole: "user", tenants: [{ id: "t1" }], activeTenant: { id: "t1" }, activeRole: "owner", isImpersonating: false };
+    writeOfflineTenantCtx("user-1", snap);
+    expect(readOfflineTenantCtx("user-1")).toEqual(snap);
+    expect(readOfflineTenantCtx("user-2")).toBeNull(); // per-user isolation
+    expect(readOfflineTenantCtx(null)).toBeNull();
+  });
+
+  it("the logout purge also sweeps the tenant context snapshot", () => {
+    writeOfflineTenantCtx("user-1", { tenants: [{ id: "t1" }] });
+    purgeOfflineCache(); // no-arg = logout sweep of all bf_offline_v1_* keys
+    expect(readOfflineTenantCtx("user-1")).toBeNull();
+  });
+
+  it("purgeOfflinePages deletes only bf-pages-* caches and never throws without CacheStorage", () => {
+    // node env: no `caches` global — must be a silent no-op.
+    expect(() => purgeOfflinePages()).not.toThrow();
+
+    const deleted: string[] = [];
+    (globalThis as any).caches = {
+      keys: () => Promise.resolve(["bf-pages-v2", "bf-static-v2", "bf-shell-v2"]),
+      delete: (n: string) => { deleted.push(n); return Promise.resolve(true); },
+    };
+    purgeOfflinePages();
+    return Promise.resolve().then(() => {
+      expect(deleted).toEqual(["bf-pages-v2"]); // static/shell caches untouched
+      delete (globalThis as any).caches;
+    });
   });
 });

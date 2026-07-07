@@ -5,7 +5,12 @@ import { useAuth } from "./AuthContext";
 import { createClient } from "@/lib/supabase/client";
 import { Tenant, GlobalRole } from "@/lib/types";
 import { safeLocal, safeSession } from "@/lib/safe-storage";
-import { purgeOfflineCache } from "@/lib/offline-cache";
+import {
+  purgeOfflineCache,
+  purgeOfflinePages,
+  readOfflineTenantCtx,
+  writeOfflineTenantCtx,
+} from "@/lib/offline-cache";
 
 interface TenantContextType {
   activeTenant: Tenant | null;
@@ -91,6 +96,32 @@ export const TenantProvider = ({ children }: { children: ReactNode }) => {
             .eq("user_id", user.id)
         ]);
 
+        // Offline cold launch: sessionStorage is per-tab-session (empty when
+        // the installed PWA starts) and the membership query can't reach
+        // Supabase — supabase-js does NOT throw on network failure, it returns
+        // an error object, so this must be handled here rather than in the
+        // catch below. Fall back to the last good context saved on this
+        // device (written on every successful load, purged on logout/switch)
+        // instead of rendering an empty CRM. A user with zero memberships is
+        // NOT this case: that returns data:[] with no error.
+        if (membershipsRes.error && !membershipsRes.data) {
+          const fallback = readOfflineTenantCtx<{
+            globalRole: GlobalRole;
+            tenants: Tenant[];
+            activeTenant: Tenant | null;
+            activeRole: string | null;
+            isImpersonating: boolean;
+          }>(user.id);
+          if (fallback && Array.isArray(fallback.tenants) && fallback.tenants.length > 0) {
+            setGlobalRole(fallback.globalRole);
+            setAvailableTenants(fallback.tenants);
+            setActiveTenant(fallback.activeTenant);
+            setActiveRole(fallback.activeRole);
+            setIsImpersonating(!!fallback.isImpersonating);
+            return;
+          }
+        }
+
         const role = (userRes.data?.global_role || "user") as GlobalRole;
         setGlobalRole(role);
 
@@ -153,9 +184,12 @@ export const TenantProvider = ({ children }: { children: ReactNode }) => {
         // Cache in sessionStorage — but never cache an empty tenant list,
         // otherwise a transient fetch failure would persist across navigations.
         if (tenants.length > 0) {
-          safeSession.set(cacheKey, JSON.stringify({
+          const snapshot = {
             globalRole: role, tenants, activeTenant: active, activeRole: activeR, isImpersonating: impersonating,
-          }));
+          };
+          safeSession.set(cacheKey, JSON.stringify(snapshot));
+          // localStorage copy for offline cold launches (see fallback above).
+          writeOfflineTenantCtx(user.id, snapshot);
         }
       } catch (err) {
         console.error("Failed to load tenant context", err);
@@ -211,6 +245,7 @@ export const TenantProvider = ({ children }: { children: ReactNode }) => {
     // cache keys are tenant-scoped so cross-reads can't happen, but purging here
     // keeps the device clean and bounds storage. switchTenant always reloads.
     purgeOfflineCache();
+    purgeOfflinePages();
     const isAdmin = globalRole === "platform_admin";
 
     if (tenantId === null) {

@@ -20,6 +20,10 @@ export const config = {
     // `sw.js` (public/sw.js) needs the same treatment: it's what makes Chrome/
     // Edge/Firefox consider the PWA installable, and a 307-to-login response
     // in place of the script makes registration fail silently.
-    '/((?!_next/static|_next/image|favicon.ico|opengraph-image|manifest.webmanifest|sw\\.js|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
+    // `offline.html` too: the SW precaches it at install time with a plain
+    // fetch — if the middleware 307s that request to the login/welcome page,
+    // THAT page gets cached under the /offline.html key and is what users see
+    // offline (broken, since its hashed assets may not be cached).
+    '/((?!_next/static|_next/image|favicon.ico|opengraph-image|manifest.webmanifest|sw\\.js|offline\\.html|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
   ],
 }
