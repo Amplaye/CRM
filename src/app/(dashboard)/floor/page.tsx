@@ -4,7 +4,8 @@ import { LockedPreview } from "@/components/billing/LockedPreview";
 import { hasActivePlan } from "@/lib/billing/entitlements";
 
 import { useEffect, useState, useCallback, useRef } from "react";
-import { Calendar, Users, LayoutGrid, AlertTriangle, ChevronLeft, ChevronRight, List, LayoutPanelTop, Plus, Pencil, Check, X, Armchair, RotateCw } from "lucide-react";
+import { Calendar, Users, LayoutGrid, AlertTriangle, ChevronLeft, ChevronRight, List, LayoutPanelTop, Plus, Pencil, Check, X, Armchair, RotateCw, QrCode } from "lucide-react";
+import { TableQrModal } from "@/components/floor/TableQrModal";
 import { useRouter } from "next/navigation";
 import { useLanguage } from "@/lib/contexts/LanguageContext";
 import { useTenant } from "@/lib/contexts/TenantContext";
@@ -120,6 +121,9 @@ export default function FloorPage() {
   const [loading, setLoading] = useState(true);
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split("T")[0]);
   const [selectedShift, setSelectedShift] = useState<"lunch" | "dinner">(new Date().getHours() < 16 ? "lunch" : "dinner");
+
+  // Self-order table QR print sheet
+  const [qrModalOpen, setQrModalOpen] = useState(false);
 
   // Quick Seat state
   const [quickSeatTable, setQuickSeatTable] = useState<TableData | null>(null);
@@ -873,6 +877,15 @@ export default function FloorPage() {
         <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
           <h2 className="text-lg font-bold text-black">{t("floor_tables")}</h2>
           <div className="flex items-center gap-2">
+            {features.self_order_enabled && tables.length > 0 && (
+              <button
+                onClick={() => setQrModalOpen(true)}
+                className="inline-flex items-center gap-1 px-3 py-1.5 text-xs sm:text-sm font-semibold rounded-lg border-2 text-black hover:bg-[#c4956a]/10 transition-colors"
+                style={{ borderColor: "#c4956a", background: "rgba(252,246,237,0.6)" }}
+              >
+                <QrCode className="w-4 h-4" /> {t("floor_qr_button")}
+              </button>
+            )}
             {viewMode === "plan" && canEditPlan && (
               <button
                 onClick={() => setEditingPlan((v) => { if (v) setWallMode(false); return !v; })}
@@ -1534,6 +1547,23 @@ export default function FloorPage() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Self-order QR print sheet (one QR per table) */}
+      {qrModalOpen && activeTenant?.slug && (
+        <TableQrModal
+          restaurantName={activeTenant.name}
+          slug={activeTenant.slug}
+          tables={tables.map((tb) => ({ id: tb.id, name: tb.name }))}
+          labels={{
+            title: t("floor_qr_title"),
+            desc: t("floor_qr_desc"),
+            print: t("floor_qr_print"),
+            scanHint: t("floor_qr_scan_hint"),
+            table: t("floor_qr_table"),
+          }}
+          onClose={() => setQrModalOpen(false)}
+        />
       )}
     </div>
   );

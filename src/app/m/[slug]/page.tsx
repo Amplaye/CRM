@@ -10,6 +10,9 @@ import {
   type CollectionKind,
 } from "@/lib/menu/labels";
 import MenuView, { type MenuViewSection } from "./MenuView";
+import SelfOrderMenu, { type SelfOrderSection, type SelfOrderStrings } from "./SelfOrderMenu";
+import { getFeatures } from "@/lib/types/tenant-settings";
+import type { MenuItemVariant } from "@/lib/types";
 
 // The public menu has its own premium typographic voice, loaded only on this
 // route (next/font works in any server component). Fraunces — a high-contrast,
@@ -106,6 +109,47 @@ const PUBLIC_STRINGS: Record<
   de: { menu: "Speisekarte", updating: "Speisekarte wird aktualisiert.", other: "Sonstiges", featured: "Auswahl" },
 };
 
+// Strings for the table self-order mode (?table=<id>), same server-localized
+// pattern as PUBLIC_STRINGS — the whole flow speaks the tenant's language.
+const SELF_ORDER_STRINGS: Record<MenuLocale, SelfOrderStrings> = {
+  it: {
+    table: "Tavolo", add: "Aggiungi", yourOrder: "Il tuo ordine", empty: "Il carrello è vuoto",
+    sendOrder: "Invia ordine", sending: "Invio…", viewOrder: "Vedi ordine", items: "articoli",
+    notesPlaceholder: "Note (allergie, senza cipolla…)", total: "Totale", cancel: "Annulla",
+    sentTitle: "Ordine inviato!", sentBody: "Il personale l'ha ricevuto e lo prepara al più presto.",
+    orderMore: "Ordina ancora", closedTitle: "Cassa chiusa",
+    closedBody: "In questo momento non è possibile ordinare dal tavolo: chiama il personale.",
+    genericError: "Invio non riuscito. Riprova o chiama il personale.",
+  },
+  es: {
+    table: "Mesa", add: "Añadir", yourOrder: "Tu pedido", empty: "El carrito está vacío",
+    sendOrder: "Enviar pedido", sending: "Enviando…", viewOrder: "Ver pedido", items: "artículos",
+    notesPlaceholder: "Notas (alergias, sin cebolla…)", total: "Total", cancel: "Cancelar",
+    sentTitle: "¡Pedido enviado!", sentBody: "El personal lo ha recibido y lo prepara enseguida.",
+    orderMore: "Pedir más", closedTitle: "Caja cerrada",
+    closedBody: "Ahora mismo no se puede pedir desde la mesa: llama al personal.",
+    genericError: "No se pudo enviar. Inténtalo de nuevo o llama al personal.",
+  },
+  en: {
+    table: "Table", add: "Add", yourOrder: "Your order", empty: "Your cart is empty",
+    sendOrder: "Send order", sending: "Sending…", viewOrder: "View order", items: "items",
+    notesPlaceholder: "Notes (allergies, no onion…)", total: "Total", cancel: "Cancel",
+    sentTitle: "Order sent!", sentBody: "The staff received it and will prepare it right away.",
+    orderMore: "Order more", closedTitle: "Till closed",
+    closedBody: "Table ordering is not available right now: please call the staff.",
+    genericError: "Could not send the order. Try again or call the staff.",
+  },
+  de: {
+    table: "Tisch", add: "Hinzufügen", yourOrder: "Deine Bestellung", empty: "Der Warenkorb ist leer",
+    sendOrder: "Bestellung senden", sending: "Wird gesendet…", viewOrder: "Bestellung ansehen", items: "Artikel",
+    notesPlaceholder: "Hinweise (Allergien, ohne Zwiebeln…)", total: "Gesamt", cancel: "Abbrechen",
+    sentTitle: "Bestellung gesendet!", sentBody: "Das Personal hat sie erhalten und bereitet sie gleich zu.",
+    orderMore: "Mehr bestellen", closedTitle: "Kasse geschlossen",
+    closedBody: "Bestellen am Tisch ist gerade nicht möglich: bitte das Personal rufen.",
+    genericError: "Senden fehlgeschlagen. Erneut versuchen oder das Personal rufen.",
+  },
+};
+
 type CategoryRow = { id: string; name: string; sort_order: number };
 
 type CollectionRow = {
@@ -127,6 +171,8 @@ type ItemRow = {
   available: boolean;
   image_url: string | null;
   sort_order: number;
+  /** Only selected in order mode (?table=); null/absent otherwise. */
+  variants?: MenuItemVariant[] | null;
 };
 
 export default async function PublicMenuPage({
@@ -160,6 +206,22 @@ export default async function PublicMenuPage({
   const locale = resolveLocale(tenant.settings?.crm_locale);
   const ui = PUBLIC_STRINGS[locale];
 
+  // ── Self-order mode: ?table=<id> + feature flag ──
+  // The QR on the table adds ?table=<restaurant_tables.id>. When the tenant has
+  // self-ordering ON and the id belongs to it, the page renders the ordering UI
+  // instead of the showcase templates. Any mismatch degrades to the plain menu.
+  const tableRaw = Array.isArray(sp.table) ? sp.table[0] : sp.table;
+  let orderTable: { id: string; name: string } | null = null;
+  if (tableRaw && getFeatures(tenant.settings as any).self_order_enabled) {
+    const { data: tableRow } = await sb
+      .from("restaurant_tables")
+      .select("id, name")
+      .eq("id", tableRaw)
+      .eq("tenant_id", tenant.id)
+      .maybeSingle();
+    if (tableRow) orderTable = { id: tableRow.id, name: tableRow.name || "" };
+  }
+
   // Final template: a ?style preview override wins (transient), otherwise the
   // owner's saved choice, otherwise "1" (Immersive).
   const savedRaw = tenant.settings?.menu_style;
@@ -179,7 +241,9 @@ export default async function PublicMenuPage({
       sb
         .from("menu_items")
         .select(
-          "id,category_id,name,description,price,currency,allergens,tags,available,image_url,sort_order"
+          "id,category_id,name,description,price,currency,allergens,tags,available,image_url,sort_order" +
+            // The order flow needs each dish's variant options; the plain menu doesn't.
+            (orderTable ? ",variants" : "")
         )
         .eq("tenant_id", tenant.id)
         .eq("available", true)
@@ -287,6 +351,47 @@ export default async function PublicMenuPage({
   const wrapStyle = mb?.brand_color
     ? ({ ["--accent" as string]: mb.brand_color } as CSSProperties)
     : undefined;
+
+  // Self-order mode renders its own functional UI (cart, variants, submit) —
+  // the four showcase templates stay untouched.
+  if (orderTable) {
+    const variantsById = new Map(
+      items.map((it) => [it.id, Array.isArray(it.variants) ? it.variants : []])
+    );
+    const orderSections: SelfOrderSection[] = sections
+      .map((s) => ({
+        key: s.key,
+        title: s.title,
+        featured: s.featured,
+        items: s.items
+          .filter((it) => it.price != null)
+          .map((it) => ({
+            id: it.id,
+            name: it.name,
+            description: it.description,
+            price: it.price as number,
+            image_url: it.image_url,
+            allergenLabels: it.allergenLabels,
+            variants: variantsById.get(it.id) || [],
+          })),
+      }))
+      .filter((s) => s.items.length > 0);
+
+    return (
+      <div className={`${displayFont.variable} ${manrope.variable}`} style={wrapStyle}>
+        <SelfOrderMenu
+          slug={tenant.slug}
+          tableId={orderTable.id}
+          tableName={orderTable.name}
+          restaurantName={tenant.name}
+          logoUrl={mb?.logo_url}
+          sections={orderSections}
+          strings={SELF_ORDER_STRINGS[locale]}
+          emptyLabel={ui.updating}
+        />
+      </div>
+    );
+  }
 
   return (
     <div className={`${displayFont.variable} ${manrope.variable}`} style={wrapStyle}>

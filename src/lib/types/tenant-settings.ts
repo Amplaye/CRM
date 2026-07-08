@@ -26,6 +26,7 @@ export interface TenantFeatures {
   followup_enabled: boolean;  // send the post-visit thank-you / review request (WhatsApp template)
   commercial_info_enabled: boolean; // bot answers commercial questions (price lists, set menus, buffets, cakes) from `commerciale` KB articles + proactively offers them
   management_enabled: boolean; // iammi-style controllo gestione (POS sales, food cost, P&L, inventory, invoices)
+  self_order_enabled: boolean; // QR self-ordering at the table: /m/<slug>?table=<id> lets guests send draft lines to the native cassa
 }
 
 /** Sensible defaults for an average restaurant. Chosen so existing tenants keep
@@ -53,6 +54,9 @@ export const DEFAULT_FEATURES: TenantFeatures = {
   // (it surfaces POS/food-cost/inventory screens that only matter once a till is
   // connected — today the MockAdapter — and recipes/costs are entered).
   management_enabled: false,
+  // OFF by default: table QR ordering writes into the native cassa, so it only
+  // makes sense once the owner uses /cassa and has printed the per-table QRs.
+  self_order_enabled: false,
 };
 
 /** Ordered list driving the client-facing Settings → Funzionalità UI (label/hint
@@ -72,6 +76,7 @@ export const FEATURE_FLAGS: ReadonlyArray<{ key: keyof TenantFeatures; labelKey:
   { key: "reminders_enabled", labelKey: "settings_feature_reminders", hintKey: "settings_feature_reminders_hint" },
   { key: "followup_enabled", labelKey: "settings_feature_followup", hintKey: "settings_feature_followup_hint" },
   { key: "commercial_info_enabled", labelKey: "settings_feature_commercial_info", hintKey: "settings_feature_commercial_info_hint" },
+  { key: "self_order_enabled", labelKey: "settings_feature_self_order", hintKey: "settings_feature_self_order_hint" },
 ];
 
 /**
