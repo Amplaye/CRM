@@ -20,6 +20,8 @@ import { ChartFrame } from "@/components/ChartFrame";
 import { useLanguage } from "@/lib/contexts/LanguageContext";
 import { useTenant } from "@/lib/contexts/TenantContext";
 import { createClient } from "@/lib/supabase/client";
+import { downloadCsv, type CsvCell } from "@/lib/export/to-csv";
+import { buildReportPdf, downloadPdf } from "@/lib/export/to-pdf";
 
 /* ──────────────────────────────────────────────────────────
    Time-range helpers
@@ -367,9 +369,7 @@ export default function AnalyticsPage() {
     };
   }, [reservations, waitlist, conversations, incidents, tenant?.settings, range]);
 
-  /* ──────────── render ──────────── */
-
-  const cardStyle = { background: "rgba(252,246,237,0.85)", borderColor: "#c4956a" };
+  /* ──────────── export (CSV + PDF) ──────────── */
 
   const rangeLabel = (r: TimeRange) => {
     const map: Record<TimeRange, string> = {
@@ -381,6 +381,70 @@ export default function AnalyticsPage() {
     };
     return map[r];
   };
+
+  const euro = (n: number) => `€ ${n.toLocaleString("it-IT")}`;
+
+  // KPI summary + per-bucket trend, shared by both formats.
+  const reportData = () => {
+    const summary: Array<{ label: string; raw: string | number; pretty: string }> = [
+      { label: t("analytics_net_value"), raw: kpis.netValue, pretty: euro(kpis.netValue) },
+      { label: t("analytics_gross"), raw: kpis.grossValue, pretty: euro(kpis.grossValue) },
+      { label: t("analytics_ai_cost"), raw: kpis.periodCost, pretty: euro(kpis.periodCost) },
+      { label: t("analytics_waitlist_matches"), raw: kpis.waitlistMatchRevenue, pretty: `${euro(kpis.waitlistMatchRevenue)} (${kpis.waitlistMatchCount})` },
+      { label: t("analytics_noshow_reduction"), raw: kpis.noShowReductionPct, pretty: kpis.noShowReductionPct > 0 ? `-${kpis.noShowReductionPct}%` : "—" },
+      { label: t("analytics_saved_loss"), raw: kpis.noShowSaved, pretty: euro(kpis.noShowSaved) },
+      { label: t("analytics_total_covers"), raw: kpis.totalCovers, pretty: String(kpis.totalCovers) },
+      { label: t("analytics_ai_handled"), raw: kpis.aiHandledPct, pretty: `${kpis.aiHandledPct}% (${kpis.aiCount} AI / ${kpis.staffCount} Staff)` },
+      { label: t("analytics_conversations"), raw: kpis.totalConversations, pretty: String(kpis.totalConversations) },
+      { label: t("analytics_incidents"), raw: kpis.totalIncidents, pretty: String(kpis.totalIncidents) },
+    ];
+    const trendCols = [
+      t("export_col_period"),
+      t("analytics_legend_covers"),
+      t("analytics_legend_noshows"),
+      t("analytics_legend_recovered"),
+    ];
+    const trendRows: CsvCell[][] = kpis.chartData.map((r) => [r.label, r.covers, r.noShows, r.recovered]);
+    return { summary, trendCols, trendRows };
+  };
+
+  const exportCsv = () => {
+    const { summary, trendCols, trendRows } = reportData();
+    const rows: CsvCell[][] = [
+      ...summary.map((r) => [r.label, r.raw] as CsvCell[]),
+      [],
+      trendCols,
+      ...trendRows,
+    ];
+    downloadCsv(`analytics-${range}-${toDateStr(new Date())}.csv`, rows);
+  };
+
+  const exportPdf = async () => {
+    const { summary, trendCols, trendRows } = reportData();
+    const bytes = await buildReportPdf({
+      title: t("analytics_title"),
+      subtitle: rangeLabel(range),
+      business: tenant?.name || undefined,
+      sections: [
+        {
+          title: t("export_section_summary"),
+          columns: [t("export_col_metric"), t("export_col_value")],
+          rows: summary.map((r) => [r.label, r.pretty]),
+        },
+        {
+          title: t("export_section_trend"),
+          columns: trendCols,
+          rows: trendRows,
+        },
+      ],
+      footer: `${t("export_generated")} ${toDateStr(new Date())} — TableFlow`,
+    });
+    downloadPdf(`analytics-${range}-${toDateStr(new Date())}.pdf`, bytes);
+  };
+
+  /* ──────────── render ──────────── */
+
+  const cardStyle = { background: "rgba(252,246,237,0.85)", borderColor: "#c4956a" };
 
   return (
     <div className="p-4 sm:p-6 lg:p-8 w-full space-y-6 sm:space-y-8 lg:space-y-10">
@@ -413,11 +477,20 @@ export default function AnalyticsPage() {
           </div>
 
           <button
-            className="inline-flex items-center px-4 py-2 border-2 text-sm font-medium rounded-lg shadow-sm text-black transition-colors"
+            onClick={exportCsv}
+            className="inline-flex items-center px-4 py-2 border-2 text-sm font-medium rounded-lg shadow-sm text-black transition-colors cursor-pointer"
             style={{ borderColor: "#c4956a", background: "rgba(252,246,237,0.6)" }}
           >
             <Download className="-ml-1 mr-2 h-4 w-4" />
-            {t("analytics_export")}
+            CSV
+          </button>
+          <button
+            onClick={exportPdf}
+            className="inline-flex items-center px-4 py-2 border-2 text-sm font-medium rounded-lg shadow-sm text-black transition-colors cursor-pointer"
+            style={{ borderColor: "#c4956a", background: "rgba(252,246,237,0.6)" }}
+          >
+            <Download className="-ml-1 mr-2 h-4 w-4" />
+            PDF
           </button>
         </div>
       </div>

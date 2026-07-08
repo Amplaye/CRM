@@ -16,6 +16,8 @@ import { canSeeWip } from "@/lib/billing/wip";
 import { plSummary, plByBand, periodFoodCost, plDelta } from "@/lib/management/pl";
 import type { PlDelta, PlSummary, RecipeLine, SaleRow } from "@/lib/management/types";
 import type { Shift } from "@/lib/management/time-buckets";
+import { downloadCsv } from "@/lib/export/to-csv";
+import { buildReportPdf, downloadPdf } from "@/lib/export/to-pdf";
 
 const PERIODS = [7, 30, 90] as const;
 type PeriodDays = (typeof PERIODS)[number];
@@ -187,28 +189,61 @@ export default function PlPage() {
     );
   };
 
-  const exportCsv = () => {
-    if (!summary) return;
-    const rows: Array<[string, string | number]> = [
-      [t("pl_revenue" as keyof Dictionary) || "Ricavi", summary.revenue],
-      [t("pl_covers" as keyof Dictionary) || "Coperti", summary.covers],
-      [t("pl_avg_ticket" as keyof Dictionary) || "Scontrino medio", summary.avgTicket ?? ""],
-      [t("pl_food_cost" as keyof Dictionary) || "Food cost", summary.foodCost],
-      ["Food cost %", summary.foodCostPct ?? ""],
-      [t("pl_labor" as keyof Dictionary) || "Costo personale", summary.labor],
-      ["Labor %", summary.laborPct ?? ""],
-      [t("pl_prime_cost" as keyof Dictionary) || "Prime cost", summary.primeCost],
-      ["Prime cost %", summary.primeCostPct ?? ""],
-      [t("pl_overhead" as keyof Dictionary) || "Costi fissi", summary.overhead],
-      [t("pl_fees" as keyof Dictionary) || "Commissioni", summary.fees],
-      [t("pl_operating_margin" as keyof Dictionary) || "Margine operativo", summary.operatingMargin],
-      ["Margine %", summary.operatingMarginPct ?? ""],
+  // One builder for both CSV (raw values) and PDF (pretty values).
+  const reportRows = () => {
+    if (!summary) return null;
+    const pctS = (v: number | null) => (v == null ? "—" : `${v.toFixed(1)}%`);
+    return [
+      { label: t("pl_revenue" as keyof Dictionary) || "Ricavi", raw: summary.revenue, pretty: fmt(summary.revenue) },
+      { label: t("pl_covers" as keyof Dictionary) || "Coperti", raw: summary.covers, pretty: String(summary.covers) },
+      { label: t("pl_avg_ticket" as keyof Dictionary) || "Scontrino medio", raw: summary.avgTicket ?? "", pretty: summary.avgTicket != null ? `€ ${summary.avgTicket.toFixed(2)}` : "—" },
+      { label: t("pl_food_cost" as keyof Dictionary) || "Food cost", raw: summary.foodCost, pretty: fmt(summary.foodCost) },
+      { label: "Food cost %", raw: summary.foodCostPct ?? "", pretty: pctS(summary.foodCostPct) },
+      { label: t("pl_labor" as keyof Dictionary) || "Costo personale", raw: summary.labor, pretty: fmt(summary.labor) },
+      { label: "Labor %", raw: summary.laborPct ?? "", pretty: pctS(summary.laborPct) },
+      { label: t("pl_prime_cost" as keyof Dictionary) || "Prime cost", raw: summary.primeCost, pretty: fmt(summary.primeCost) },
+      { label: "Prime cost %", raw: summary.primeCostPct ?? "", pretty: pctS(summary.primeCostPct) },
+      { label: t("pl_overhead" as keyof Dictionary) || "Costi fissi", raw: summary.overhead, pretty: fmt(summary.overhead) },
+      { label: t("pl_fees" as keyof Dictionary) || "Commissioni", raw: summary.fees, pretty: fmt(summary.fees) },
+      { label: t("pl_operating_margin" as keyof Dictionary) || "Margine operativo", raw: summary.operatingMargin, pretty: fmt(summary.operatingMargin) },
+      { label: "Margine %", raw: summary.operatingMarginPct ?? "", pretty: pctS(summary.operatingMarginPct) },
     ];
-    const csv = "data:text/csv;charset=utf-8," + encodeURIComponent(rows.map((r) => `${r[0]};${r[1]}`).join("\n"));
-    const a = document.createElement("a");
-    a.href = csv;
-    a.download = `conto-economico-${windowDays}gg-${dateStr(new Date())}.csv`;
-    a.click();
+  };
+
+  const exportCsv = () => {
+    const rows = reportRows();
+    if (!rows) return;
+    downloadCsv(`conto-economico-${windowDays}gg-${dateStr(new Date())}.csv`, rows.map((r) => [r.label, r.raw]));
+  };
+
+  const exportPdf = async () => {
+    const rows = reportRows();
+    if (!rows) return;
+    const bandRow = (s: PlSummary) => [fmt(s.revenue), fmt(s.operatingMargin)];
+    const bytes = await buildReportPdf({
+      title: t("nav_pl" as keyof Dictionary) || "Conto economico",
+      subtitle: (t("pl_statement_title" as keyof Dictionary) || "Da ricavi a margine — ultimi {n} giorni").replace("{n}", String(windowDays)),
+      business: activeTenant?.name || undefined,
+      sections: [
+        {
+          title: t("export_section_summary" as keyof Dictionary) || "Riepilogo",
+          columns: [t("export_col_metric" as keyof Dictionary) || "Voce", t("export_col_value" as keyof Dictionary) || "Valore"],
+          rows: rows.map((r) => [r.label, r.pretty]),
+        },
+        ...(bands
+          ? [{
+              title: t("pl_chart_bands" as keyof Dictionary) || "Margine: pranzo vs cena",
+              columns: ["", t("pl_revenue" as keyof Dictionary) || "Ricavi", t("pl_operating_margin" as keyof Dictionary) || "Margine operativo"],
+              rows: [
+                [t("pl_lunch" as keyof Dictionary) || "Pranzo", ...bandRow(bands.lunch)],
+                [t("pl_dinner" as keyof Dictionary) || "Cena", ...bandRow(bands.dinner)],
+              ],
+            }]
+          : []),
+      ],
+      footer: `${t("export_generated" as keyof Dictionary) || "Generato il"} ${dateStr(new Date())} — TableFlow`,
+    });
+    downloadPdf(`conto-economico-${windowDays}gg-${dateStr(new Date())}.pdf`, bytes);
   };
 
   const bandChart = bands
@@ -320,6 +355,9 @@ export default function PlPage() {
           </div>
           <button onClick={exportCsv} className="inline-flex items-center gap-1.5 px-3.5 py-2 text-sm font-bold rounded-xl border cursor-pointer text-black bg-white/70" style={{ borderColor: "#c4956a" }}>
             <Download className="w-4 h-4" /> CSV
+          </button>
+          <button onClick={exportPdf} className="inline-flex items-center gap-1.5 px-3.5 py-2 text-sm font-bold rounded-xl border cursor-pointer text-black bg-white/70" style={{ borderColor: "#c4956a" }}>
+            <Download className="w-4 h-4" /> PDF
           </button>
         </div>
       </div>
