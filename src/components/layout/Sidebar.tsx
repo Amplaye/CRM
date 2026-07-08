@@ -23,6 +23,7 @@ import {
   Package,
   Banknote,
   Lock,
+  CalendarClock,
 } from "lucide-react";
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
@@ -53,6 +54,7 @@ const navItems: Array<{ name: string; href: string; icon: any; badgeKey?: keyof 
   { name: "Conversations", href: "/conversations", icon: MessageSquare, badgeKey: "conversations", badgeStyle: "alert" },
   { name: "Guests", href: "/guests", icon: Users },
   { name: "Menu", href: "/menu", icon: UtensilsCrossed },
+  { name: "Staff", href: "/staff", icon: CalendarClock },
   { name: "Analytics", href: "/", icon: BarChart3 },
   { name: "Knowledge Base", href: "/knowledge", icon: BookOpen },
   // Gestionale (controllo gestione) — only when management_enabled is ON.
@@ -168,7 +170,7 @@ export function Sidebar({ mobileOpen = false, onClose }: SidebarProps) {
   const visibleNavItems = (isHost
     // Hosts (camerieri) see the day-to-day pages; the cassa reaches them via
     // the pinned bottom CTA (taking orders and cashing bills IS their job).
-    ? navItems.filter(i => i.href === "/floor" || i.href === "/reservations" || i.href === "/menu")
+    ? navItems.filter(i => i.href === "/floor" || i.href === "/reservations" || i.href === "/menu" || i.href === "/staff")
     : navItems
   // Feature flag: hide the Waitlist page for tenants that don't use it.
   ).filter(i => i.href !== "/waitlist" || features.waitlist_enabled)

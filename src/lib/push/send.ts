@@ -10,7 +10,15 @@
 import webpush from "web-push";
 import { createServiceRoleClient } from "@/lib/supabase/server";
 
-export type PushEvent = "reservation_new" | "reservation_escalated" | "waitlist_new" | "conversation_new";
+export type PushEvent =
+  | "reservation_new"
+  | "reservation_escalated"
+  | "waitlist_new"
+  | "conversation_new"
+  | "shift_new"
+  | "shift_request_new"
+  | "shift_request_approved"
+  | "shift_request_rejected";
 
 type Lang = "en" | "it" | "es" | "de";
 
@@ -41,6 +49,30 @@ const MESSAGES: Record<PushEvent, Record<Lang, { title: string; body: string }>>
     es: { title: "Nuevo mensaje de WhatsApp", body: "{name}: {preview}" },
     de: { title: "Neue WhatsApp-Nachricht", body: "{name}: {preview}" },
   },
+  shift_new: {
+    en: { title: "New shift assigned", body: "{date} · {start}–{end}" },
+    it: { title: "Nuovo turno assegnato", body: "{date} · {start}–{end}" },
+    es: { title: "Nuevo turno asignado", body: "{date} · {start}–{end}" },
+    de: { title: "Neue Schicht zugeteilt", body: "{date} · {start}–{end}" },
+  },
+  shift_request_new: {
+    en: { title: "New staff request", body: "{name} — {date}" },
+    it: { title: "Nuova richiesta dello staff", body: "{name} — {date}" },
+    es: { title: "Nueva solicitud del equipo", body: "{name} — {date}" },
+    de: { title: "Neue Team-Anfrage", body: "{name} — {date}" },
+  },
+  shift_request_approved: {
+    en: { title: "Request approved", body: "{date}" },
+    it: { title: "Richiesta approvata", body: "{date}" },
+    es: { title: "Solicitud aprobada", body: "{date}" },
+    de: { title: "Anfrage genehmigt", body: "{date}" },
+  },
+  shift_request_rejected: {
+    en: { title: "Request declined", body: "{date}" },
+    it: { title: "Richiesta rifiutata", body: "{date}" },
+    es: { title: "Solicitud rechazada", body: "{date}" },
+    de: { title: "Anfrage abgelehnt", body: "{date}" },
+  },
 };
 
 const EVENT_URL: Record<PushEvent, string> = {
@@ -48,6 +80,10 @@ const EVENT_URL: Record<PushEvent, string> = {
   reservation_escalated: "/pending",
   waitlist_new: "/waitlist",
   conversation_new: "/conversations",
+  shift_new: "/staff",
+  shift_request_new: "/staff",
+  shift_request_approved: "/staff",
+  shift_request_rejected: "/staff",
 };
 
 function vapidConfigured(): boolean {
@@ -70,20 +106,40 @@ export async function sendPushToTenant(
   tenantId: string,
   event: PushEvent,
   params: Record<string, string | number | null | undefined> = {},
-  opts?: { url?: string; excludeUserId?: string },
+  opts?: {
+    url?: string;
+    excludeUserId?: string;
+    /** Deliver to this user only (e.g. the member a shift was assigned to). */
+    onlyUserId?: string;
+    /** Deliver only to members holding one of these roles (e.g. managers). */
+    roles?: string[];
+  },
 ): Promise<void> {
   try {
     if (!vapidConfigured() || !tenantId) return;
 
     const supabase = createServiceRoleClient();
 
-    const [{ data: tenant }, { data: subs }] = await Promise.all([
+    const [{ data: tenant }, { data: subsRaw }] = await Promise.all([
       supabase.from("tenants").select("settings").eq("id", tenantId).maybeSingle(),
       supabase
         .from("push_subscriptions")
         .select("id, endpoint, keys, user_id")
         .eq("tenant_id", tenantId),
     ]);
+    let subs = subsRaw;
+    if (subs && subs.length > 0 && opts?.onlyUserId) {
+      subs = subs.filter((s: any) => s.user_id === opts.onlyUserId);
+    }
+    if (subs && subs.length > 0 && opts?.roles?.length) {
+      const { data: members } = await supabase
+        .from("tenant_members")
+        .select("user_id, role")
+        .eq("tenant_id", tenantId)
+        .in("role", opts.roles);
+      const allowed = new Set((members || []).map((m: any) => m.user_id));
+      subs = subs.filter((s: any) => allowed.has(s.user_id));
+    }
     if (!subs || subs.length === 0) return;
 
     const lang: Lang = ((tenant?.settings as any)?.crm_locale as Lang) || "en";
