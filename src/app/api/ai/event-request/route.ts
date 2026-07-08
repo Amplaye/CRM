@@ -4,6 +4,7 @@ import { logAuditEvent } from '@/lib/audit';
 import { assertAiSecret } from '@/lib/ai-auth';
 import { assertActivePlan } from '@/lib/billing/guard';
 import { isE164, normalizePhone, phoneTail } from '@/lib/booking-validation';
+import { sendPushToTenant } from '@/lib/push/send';
 
 /**
  * AI event-request intake.
@@ -146,6 +147,10 @@ export async function POST(request: Request) {
         party_size_estimate: Number.isFinite(payload.party_size) ? payload.party_size : null,
         has_summary: !!summary,
       },
+    });
+
+    void sendPushToTenant(payload.tenant_id, 'reservation_escalated', {
+      name: payload.guest_name, date: resDate, time: resTime, party: partySize,
     });
 
     return NextResponse.json({

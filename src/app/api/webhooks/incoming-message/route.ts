@@ -5,6 +5,7 @@ import { handleMetaWebhookVerification } from '@/lib/meta-signature';
 import { assertAiSecret } from '@/lib/ai-auth';
 import { tenantReceivesTraffic, type TenantStatus } from '@/lib/tenants/status';
 import { normalizePhone } from '@/lib/booking-validation';
+import { sendPushToTenant } from '@/lib/push/send';
 
 // Meta webhook verification handshake. When this route is registered as a Meta
 // WhatsApp webhook (directly, without n8n in front), Meta calls GET once with
@@ -164,6 +165,16 @@ export async function POST(request: Request) {
 
       await supabase.from('conversations').update(updates).eq('id', existing.id);
 
+      // Push only when the bot hands off to a human (fresh escalation) —
+      // pushing every appended message would spam the staff.
+      if (payload.outcome === 'escalated' && existing.status !== 'escalated') {
+        const lastUserMsg = [...newMessages].reverse().find((m: any) => m?.role === 'user' || m?.role === 'guest');
+        void sendPushToTenant(payload.tenant_id, 'conversation_new', {
+          name: guestName || 'Guest',
+          preview: String(lastUserMsg?.content || summaryText || '').slice(0, 120),
+        });
+      }
+
       if (dedupKey) {
         await logAuditEvent({
           tenant_id: payload.tenant_id,
@@ -213,6 +224,13 @@ export async function POST(request: Request) {
         .single();
 
       if (insertErr) throw insertErr;
+
+      // New inbound conversation → notify the staff PWA (best-effort).
+      const lastUserMsg = [...newMessages].reverse().find((m: any) => m?.role === 'user' || m?.role === 'guest');
+      void sendPushToTenant(payload.tenant_id, 'conversation_new', {
+        name: guestName || 'Guest',
+        preview: String(lastUserMsg?.content || summaryText || '').slice(0, 120),
+      });
 
       await logAuditEvent({
         tenant_id: payload.tenant_id,

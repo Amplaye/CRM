@@ -4,6 +4,7 @@ import { logAuditEvent } from '@/lib/audit';
 import { assertAiSecret } from '@/lib/ai-auth';
 import { assertActivePlan } from '@/lib/billing/guard';
 import { getTenantFeatures } from '@/lib/tenants/features';
+import { sendPushToTenant } from '@/lib/push/send';
 
 export async function POST(request: Request) {
   const unauth = assertAiSecret(request);
@@ -113,6 +114,10 @@ export async function POST(request: Request) {
         requested_time: payload.requested_time,
         party_size: payload.party_size
       }
+    });
+
+    void sendPushToTenant(payload.tenant_id, 'waitlist_new', {
+      name: payload.guest_name, date: payload.requested_date, time: payload.requested_time, party: payload.party_size,
     });
 
     return NextResponse.json({

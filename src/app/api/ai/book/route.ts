@@ -3,6 +3,7 @@ import { createServiceRoleClient } from '@/lib/supabase/server';
 import { CreateBookingRequest } from '@/lib/types';
 import { logAuditEvent } from '@/lib/audit';
 import { logSystemEvent, resolveSystemEvents } from '@/lib/system-log';
+import { sendPushToTenant } from '@/lib/push/send';
 import { assertAiSecret } from '@/lib/ai-auth';
 import { assertActivePlan } from '@/lib/billing/guard';
 import { formatDateFull } from '@/lib/format-date';
@@ -561,6 +562,10 @@ export async function POST(request: Request) {
         }
       });
 
+      void sendPushToTenant(payload.tenant_id, 'reservation_escalated', {
+        name: payload.guest_name, date: payload.date, time: payload.time, party: payload.party_size,
+      });
+
       return NextResponse.json({
         success: true,
         reservation_id: newRes.id,
@@ -723,6 +728,10 @@ export async function POST(request: Request) {
         }
       });
 
+      void sendPushToTenant(payload.tenant_id, 'waitlist_new', {
+        name: payload.guest_name, date: payload.date, time: payload.time, party: payload.party_size,
+      });
+
       return NextResponse.json({
         success: true,
         on_waitlist: true,
@@ -789,6 +798,10 @@ export async function POST(request: Request) {
         source: "ai_agent", details: { type: "no_capacity_race", free_seats: atomicResult.free_seats, party_size: payload.party_size }
       });
 
+      void sendPushToTenant(payload.tenant_id, 'waitlist_new', {
+        name: payload.guest_name, date: payload.date, time: payload.time, party: payload.party_size,
+      });
+
       return NextResponse.json({
         success: true,
         on_waitlist: true,
@@ -828,6 +841,10 @@ export async function POST(request: Request) {
     void resolveSystemEvents({
       error_key: `booking:${payload.tenant_id}`,
       tenant_id: payload.tenant_id,
+    });
+
+    void sendPushToTenant(payload.tenant_id, 'reservation_new', {
+      name: payload.guest_name, date: payload.date, time: payload.time, party: payload.party_size,
     });
 
     // Venue recap for the confirmation message (WhatsApp/voice): address +

@@ -1,11 +1,12 @@
 "use client";
 
-import { Save, Plus, Trash2, Clock, Power, PowerOff, Upload, Image as ImageIcon, Store, Phone, BarChart3, Check } from "lucide-react";
+import { Save, Plus, Trash2, Clock, Power, PowerOff, Upload, Image as ImageIcon, Store, Phone, BarChart3, Check, Bell } from "lucide-react";
 import { useLanguage } from "@/lib/contexts/LanguageContext";
 import { useTenant } from "@/lib/contexts/TenantContext";
 import { useEffect, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { uploadBrandingLogo, removeBrandingLogo } from "@/lib/branding/upload-logo";
+import { usePushSubscription } from "@/lib/hooks/usePushSubscription";
 
 interface TimeSlot { open: string; close: string }
 type OpeningHours = Record<string, TimeSlot[]>;
@@ -86,6 +87,7 @@ const DEFAULT_VOICEMAIL: VoicemailConfig = {
 export function GeneralTab() {
   const { t } = useLanguage();
   const { activeTenant: tenant, refreshActiveTenant } = useTenant();
+  const push = usePushSubscription(tenant?.id);
   const supabase = createClient();
 
   const [name, setName] = useState("");
@@ -541,6 +543,38 @@ export function GeneralTab() {
               <p className="mt-1 text-xs text-black">{t("settings_noshow_baseline_desc")}</p>
             </div>
           </div>
+        </section>
+
+        {/* Web push — per-device opt-in: "enabled" = this browser has a live
+            subscription registered on the server. Always a user gesture. */}
+        <section className="p-6 rounded-xl border-2" style={{ background: "rgba(252,246,237,0.85)", borderColor: "#c4956a" }}>
+          <h3 className="flex items-center gap-2 text-lg font-bold text-black mb-1">
+            <Bell className="h-5 w-5 text-[#c4956a]" />
+            {t("settings_push_title")}
+          </h3>
+          <p className="text-xs text-black mb-4">{t("settings_push_desc")}</p>
+          {!push.supported ? (
+            <p className="text-sm text-black">{t("settings_push_unsupported")}</p>
+          ) : (
+            <div className="flex items-center justify-between gap-3 flex-wrap">
+              <span className="text-sm font-medium text-black">
+                {push.subscribed ? t("settings_push_enabled") : t("settings_push_disabled")}
+              </span>
+              <button
+                type="button"
+                disabled={push.busy || push.permission === "denied"}
+                onClick={() => (push.subscribed ? push.unsubscribe() : push.subscribe())}
+                className="cursor-pointer inline-flex items-center gap-2 px-4 py-2 rounded-lg border-2 text-sm font-semibold text-black hover:bg-[#c4956a]/10 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                style={{ borderColor: "#c4956a" }}
+              >
+                {push.subscribed ? <PowerOff className="h-4 w-4 text-[#c4956a]" /> : <Power className="h-4 w-4 text-[#c4956a]" />}
+                {push.busy ? "…" : push.subscribed ? t("settings_push_turn_off") : t("settings_push_turn_on")}
+              </button>
+            </div>
+          )}
+          {push.permission === "denied" && (
+            <p className="mt-2 text-xs text-red-600">{t("settings_push_denied")}</p>
+          )}
         </section>
 
         <section className="p-6 rounded-xl border-2" style={{ background: "rgba(252,246,237,0.85)", borderColor: "#c4956a" }}>

@@ -28,7 +28,7 @@
 // Bump ONLY when this SW's logic changes. Normal app deploys don't need a bump:
 // their /_next/static/* URLs are already content-hashed, so old assets fall out
 // of use naturally and the activate handler purges the previous version's cache.
-const CACHE_VERSION = "v2";
+const CACHE_VERSION = "v3";
 const STATIC_CACHE = `bf-static-${CACHE_VERSION}`;
 const SHELL_CACHE = `bf-shell-${CACHE_VERSION}`;
 // Route HTML for offline fallback ONLY. Kept separate from SHELL_CACHE so the
@@ -202,4 +202,53 @@ self.addEventListener("fetch", (event) => {
   }
 
   // 6. Everything else → default network passthrough (do nothing).
+});
+
+// ── Web Push (notifications only — no caching involved, SAFETY CONTRACT
+//    above untouched). The server (src/lib/push/send.ts) sends a JSON payload:
+//    { title, body, url, tag }.
+self.addEventListener("push", (event) => {
+  let data = {};
+  try {
+    data = event.data ? event.data.json() : {};
+  } catch {
+    data = { body: event.data ? event.data.text() : "" };
+  }
+  const title = data.title || "BaliFlow";
+  event.waitUntil(
+    self.registration.showNotification(title, {
+      body: data.body || "",
+      icon: "/icons/icon-192.png",
+      badge: "/icons/icon-192.png",
+      tag: data.tag || undefined,
+      data: { url: data.url || "/" },
+    }),
+  );
+});
+
+// Focus an existing dashboard tab (navigating it to the target route) or open
+// a new one.
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+  const url = (event.notification.data && event.notification.data.url) || "/";
+  event.waitUntil(
+    (async () => {
+      const windows = await self.clients.matchAll({
+        type: "window",
+        includeUncontrolled: true,
+      });
+      for (const client of windows) {
+        if ("focus" in client) {
+          await client.focus();
+          if ("navigate" in client) {
+            try {
+              await client.navigate(url);
+            } catch {}
+          }
+          return;
+        }
+      }
+      await self.clients.openWindow(url);
+    })(),
+  );
 });

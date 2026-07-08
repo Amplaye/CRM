@@ -10,6 +10,7 @@ import { sendReservationConfirmationWhatsApp } from "@/lib/whatsapp/confirm-on-u
 import { verifyTenantMembership } from "@/lib/tenant-membership";
 import { isImpersonatingTenant } from "@/lib/impersonation";
 import { logSystemEvent } from "@/lib/system-log";
+import { sendPushToTenant } from "@/lib/push/send";
 
 /**
  * Creates a Reservation.
@@ -188,6 +189,14 @@ export async function createReservationAction(params: {
       },
       created_at: new Date().toISOString(),
     });
+
+    // Push only for bookings that did NOT originate from a staff member using
+    // the dashboard (they're already looking at it) — i.e. AI/webhook/online.
+    if (params.source === "ai_agent" || params.source === "online") {
+      void sendPushToTenant(params.tenantId, "reservation_new", {
+        name: params.guestName, date: params.date, time: params.time, party: params.partySize,
+      });
+    }
 
     return { success: true, reservationId: newRes.id };
   } catch (err: any) {
