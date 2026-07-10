@@ -63,6 +63,8 @@ export async function updateSession(request: NextRequest) {
     !request.nextUrl.pathname.startsWith('/rv/') &&
     // /u/<token> is the public one-click unsubscribe from campaign emails.
     !request.nextUrl.pathname.startsWith('/u/') &&
+    // /s/<slug> is the public template micro-site (website builder) — guests only.
+    !request.nextUrl.pathname.startsWith('/s/') &&
     !request.nextUrl.pathname.startsWith('/api')
   ) {
     const url = request.nextUrl.clone()

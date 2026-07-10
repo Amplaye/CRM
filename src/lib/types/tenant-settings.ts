@@ -13,6 +13,12 @@ import { hasManagement } from "@/lib/billing/entitlements";
 /** Voice tier. `vapi` = base (default, every tenant); `retell` = premium upgrade. */
 export type VoiceProviderTier = "vapi" | "retell";
 
+/** The sections the public micro-site (/s/<slug>) can show, in canonical order.
+ * `site_branding.sections` stores the owner's enabled subset + order; the hero
+ * is always shown and isn't in this list. */
+export const SITE_SECTIONS = ["about", "menu", "gallery", "reviews", "hours", "contact"] as const;
+export type SiteSectionKey = (typeof SITE_SECTIONS)[number];
+
 /** On/off capabilities a single restaurant can have. Plain, owner-answerable. */
 export interface TenantFeatures {
   waitlist_enabled: boolean; // collect guests when full, notify on free table
@@ -174,6 +180,28 @@ export interface TenantSettings {
     logo_url?: string;
     /** Display serif for the menu wordmark/headings. Unset → Fraunces (default). */
     font?: "fraunces" | "playfair" | "cormorant";
+  };
+  /** Public micro-site branding/content for /s/<slug> (Fase 4 — website builder).
+   * Same self-serve spirit as menu_branding but for the WHOLE site: the owner
+   * edits it in the Website dashboard, zero code. `sections` is the ORDERED list
+   * of enabled sections (unset → every section in the canonical order); hero and
+   * gallery images live in the public "branding" bucket under the tenant folder
+   * (`site-hero.webp`, `site-gallery-*.webp`). */
+  site_branding?: {
+    /** Public URL of the hero image (branding bucket, site-hero.webp). */
+    hero_url?: string;
+    /** Short line under the restaurant name in the hero. */
+    tagline?: string;
+    /** The "Chi siamo" prose shown in the About section. */
+    about_text?: string;
+    /** Accent colour as hex "#rrggbb" (falls back to menu_branding.brand_color). */
+    brand_color?: string;
+    /** Display serif for headings, same trio as the public menu. */
+    font?: "fraunces" | "playfair" | "cormorant";
+    /** Public URLs of gallery photos (branding bucket). */
+    gallery?: string[];
+    /** Ordered keys of the sections to show. Unset → all, canonical order. */
+    sections?: SiteSectionKey[];
   };
   /** Offboarding bookkeeping, written by the archive flow (src/lib/tenants/delete-tenant.ts). */
   archive?: { prev_status: TenantStatus; export_path?: string };
