@@ -61,6 +61,8 @@ export async function updateSession(request: NextRequest) {
     // /rv/<token> is the public certified-review form (signed link from the
     // post-visit follow-up) — a guest, never an authenticated user.
     !request.nextUrl.pathname.startsWith('/rv/') &&
+    // /u/<token> is the public one-click unsubscribe from campaign emails.
+    !request.nextUrl.pathname.startsWith('/u/') &&
     !request.nextUrl.pathname.startsWith('/api')
   ) {
     const url = request.nextUrl.clone()

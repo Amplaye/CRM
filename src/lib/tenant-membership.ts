@@ -1,6 +1,9 @@
 import { createServerSupabaseClient, createServiceRoleClient } from "@/lib/supabase/server";
 
-export type TenantRole = "owner" | "manager" | "host";
+// The DB enum also has 'admin' and 'readonly' (legacy); the app uses these
+// four. 'marketing' unlocks ONLY the campaigns module (Fase 3) — pass it
+// explicitly in requiredRoles where that's intended.
+export type TenantRole = "owner" | "manager" | "host" | "marketing";
 
 /**
  * Verify that the currently logged-in user is a member of `tenantId`, and

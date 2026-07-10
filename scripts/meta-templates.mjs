@@ -113,6 +113,22 @@ const TEMPLATES = [
     },
   },
   {
+    // Campaign carrier (Fase 3 — marketing suite). {{2}} is the owner-written
+    // campaign text; {{1}} personalizes with the guest's name. MARKETING
+    // category → opt-out-able, correct for promos. Meta may reject overly
+    // generic bodies — if so, tighten the copy around the variable.
+    name: "marketing_campaign",
+    category: "MARKETING",
+    // vars: 1=guest name, 2=campaign message
+    bodies: {
+      es: "Hola {{1}} 👋\n\n{{2}}\n\n¡Te esperamos!",
+      it: "Ciao {{1}} 👋\n\n{{2}}\n\nTi aspettiamo!",
+      en: "Hi {{1}} 👋\n\n{{2}}\n\nSee you soon!",
+      de: "Hallo {{1}} 👋\n\n{{2}}\n\nWir freuen uns auf dich!",
+    },
+    examples: ["María", "Este viernes menú degustación a 35€ — reserva tu mesa"],
+  },
+  {
     name: "waitlist_table_available",
     category: "UTILITY",
     // vars: 1=guest name, 2=restaurant name, 3=date, 4=time, 5=party size
