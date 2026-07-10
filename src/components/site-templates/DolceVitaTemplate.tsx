@@ -2,7 +2,7 @@
 
 import type { CSSProperties } from "react";
 import BookingWidget from "@/app/b/[slug]/BookingWidget";
-import { EditableImage, EditableText, useBlockValue } from "@/lib/site/content";
+import { EditableImage, EditableMarquee, EditableText, useBlockValue } from "@/lib/site/content";
 import { formatSitePrice } from "@/lib/site/data";
 import type { SiteData } from "@/lib/site/types";
 import { DOLCEVITA_DEFAULTS } from "./defaults";
@@ -89,12 +89,14 @@ function Marquee({ id, fallback }: { id: string; fallback: string }) {
     </span>
   );
   return (
-    <div className="w-full overflow-hidden py-2.5" style={{ background: C.wine, color: C.cream, borderBottom: "1px solid rgba(246,238,224,0.12)" }}>
-      <div className="dv-marquee-track">
-        {row("a")}
-        {row("b")}
+    <EditableMarquee id={id} fallback={fallback} bandStyle={{ background: C.wine, color: C.cream, borderBottom: "1px solid rgba(246,238,224,0.12)" }}>
+      <div className="w-full overflow-hidden py-2.5" style={{ background: C.wine, color: C.cream, borderBottom: "1px solid rgba(246,238,224,0.12)" }}>
+        <div className="dv-marquee-track">
+          {row("a")}
+          {row("b")}
+        </div>
       </div>
-    </div>
+    </EditableMarquee>
   );
 }
 

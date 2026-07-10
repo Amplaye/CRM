@@ -37,7 +37,7 @@ type Outcome = {
   depositUrl?: string | null;
 };
 
-const INPUT = "w-full rounded-lg border-2 bg-white px-3 py-2.5 text-sm text-black focus:outline-none";
+const INPUT = "bw-field w-full rounded-lg border-2 bg-white px-3 py-2.5 text-sm text-black focus:outline-none";
 
 function todayYmd(): string {
   const d = new Date();
@@ -133,16 +133,30 @@ export default function BookingWidget({
           : outcome.kind === "full"
             ? ui.koFull
             : ui.okPending;
+    const showCheck = outcome.kind === "confirmed" || outcome.kind === "pending";
     return (
-      <div className="mt-6 space-y-4 rounded-xl border-2 bg-white p-6 text-center" style={{ borderColor: accent }}>
+      <div
+        className="bw-shell bw-success mt-6 space-y-4 rounded-xl border-2 bg-white p-6 text-center"
+        style={{ borderColor: accent, ["--bw-accent" as string]: accent }}
+      >
+        {showCheck ? (
+          <div
+            className="bw-check mx-auto flex h-14 w-14 items-center justify-center rounded-full"
+            style={{ background: `color-mix(in srgb, ${accent} 14%, white)` }}
+          >
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke={accent} strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d="M20 6 9 17l-5-5" />
+            </svg>
+          </div>
+        ) : null}
         <p className="font-semibold text-black">{msg}</p>
         {outcome.depositUrl ? (
           <div className="space-y-2">
             <p className="text-sm text-black">{ui.okDeposit}</p>
             <a
               href={outcome.depositUrl}
-              className="inline-block rounded-xl px-6 py-3 font-bold text-white"
-              style={{ background: accent }}
+              className="bw-cta inline-block rounded-xl px-6 py-3 font-bold text-white"
+              style={{ background: accent, ["--bw-accent" as string]: accent }}
             >
               {ui.depositBtn}
             </a>
@@ -164,7 +178,10 @@ export default function BookingWidget({
   }
 
   return (
-    <div className="mt-6 space-y-4 rounded-xl border-2 bg-white p-5" style={{ borderColor: accent }}>
+    <div
+      className="bw-shell mt-6 space-y-4 rounded-xl border-2 bg-white p-5"
+      style={{ borderColor: accent, ["--bw-accent" as string]: accent }}
+    >
       <div className="grid grid-cols-2 gap-3">
         <div>
           <label className="mb-1 block text-sm font-bold text-black">{ui.dateLabel}</label>
@@ -198,25 +215,36 @@ export default function BookingWidget({
         type="button"
         onClick={check}
         disabled={busy !== null || !date}
-        className="w-full rounded-xl py-3 text-base font-bold text-white disabled:opacity-40"
+        className="bw-cta w-full rounded-xl py-3 text-base font-bold text-white disabled:opacity-40"
         style={{ background: accent }}
       >
-        {busy === "check" ? ui.checking : ui.checkBtn}
+        {busy === "check" ? (
+          <span className="inline-flex items-center gap-2">
+            <span className="bw-spinner" />
+            {ui.checking}
+          </span>
+        ) : (
+          ui.checkBtn
+        )}
       </button>
 
-      {slotsMsg ? <p className="text-center text-sm font-semibold text-black">{slotsMsg}</p> : null}
+      {slotsMsg ? <p className="bw-step text-center text-sm font-semibold text-black">{slotsMsg}</p> : null}
 
       {slots ? (
-        <div>
+        <div className="bw-step">
           <label className="mb-2 block text-sm font-bold text-black">{ui.timeLabel}</label>
           <div className="grid grid-cols-4 gap-2">
-            {slots.map((s) => (
+            {slots.map((s, i) => (
               <button
                 key={s.time}
                 type="button"
                 onClick={() => setTime(s.time)}
-                className={`h-10 rounded-lg border-2 text-sm font-bold ${time === s.time ? "text-white" : "text-black"}`}
-                style={time === s.time ? { background: accent, borderColor: accent } : { borderColor: accent }}
+                className={`bw-chip h-10 rounded-lg border-2 text-sm font-bold ${time === s.time ? "bw-chip-on text-white" : "text-black"}`}
+                style={
+                  time === s.time
+                    ? { background: accent, borderColor: accent, animationDelay: `${i * 28}ms` }
+                    : { borderColor: accent, animationDelay: `${i * 28}ms` }
+                }
               >
                 {s.time}
               </button>
@@ -226,7 +254,7 @@ export default function BookingWidget({
       ) : null}
 
       {time ? (
-        <div className="space-y-3">
+        <div className="bw-step space-y-3">
           <input
             value={name}
             onChange={(e) => setName(e.target.value)}
@@ -254,10 +282,17 @@ export default function BookingWidget({
             type="button"
             onClick={book}
             disabled={busy !== null || !name.trim() || !phone.trim()}
-            className="w-full rounded-xl py-3.5 text-base font-bold text-white disabled:opacity-40"
+            className="bw-cta w-full rounded-xl py-3.5 text-base font-bold text-white disabled:opacity-40"
             style={{ background: accent }}
           >
-            {busy === "book" ? ui.booking : `${ui.bookBtn} · ${time}`}
+            {busy === "book" ? (
+              <span className="inline-flex items-center gap-2">
+                <span className="bw-spinner" />
+                {ui.booking}
+              </span>
+            ) : (
+              `${ui.bookBtn} · ${time}`
+            )}
           </button>
         </div>
       ) : null}

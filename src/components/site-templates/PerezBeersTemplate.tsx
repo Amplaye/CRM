@@ -2,7 +2,7 @@
 
 import type { CSSProperties } from "react";
 import BookingWidget from "@/app/b/[slug]/BookingWidget";
-import { EditableImage, EditableText, useBlockValue } from "@/lib/site/content";
+import { EditableImage, EditableMarquee, EditableText, useBlockValue } from "@/lib/site/content";
 import { formatSitePrice } from "@/lib/site/data";
 import type { SiteData } from "@/lib/site/types";
 import { PEREZBEERS_DEFAULTS } from "./defaults";
@@ -79,12 +79,14 @@ function Marquee({ id, fallback }: { id: string; fallback: string }) {
     </span>
   );
   return (
-    <div className="w-full overflow-hidden border-y py-3" style={{ background: "rgba(197,57,44,0.10)", borderColor: "rgba(220,160,60,0.20)" }}>
-      <div className="pb-marquee-track">
-        {row("a")}
-        {row("b")}
+    <EditableMarquee id={id} fallback={fallback} bandStyle={{ background: "rgba(197,57,44,0.10)", borderTop: "1px solid rgba(220,160,60,0.20)", borderBottom: "1px solid rgba(220,160,60,0.20)", color: cream(0.8) }}>
+      <div className="w-full overflow-hidden border-y py-3" style={{ background: "rgba(197,57,44,0.10)", borderColor: "rgba(220,160,60,0.20)" }}>
+        <div className="pb-marquee-track">
+          {row("a")}
+          {row("b")}
+        </div>
       </div>
-    </div>
+    </EditableMarquee>
   );
 }
 

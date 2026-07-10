@@ -1,7 +1,7 @@
 "use client";
 
 import BookingWidget from "@/app/b/[slug]/BookingWidget";
-import { EditableImage, EditableText, useBlockValue } from "@/lib/site/content";
+import { EditableImage, EditableMarquee, EditableText, useBlockValue } from "@/lib/site/content";
 import { formatSitePrice } from "@/lib/site/data";
 import type { SiteData } from "@/lib/site/types";
 import { PICNIC_DEFAULTS } from "./defaults";
@@ -79,12 +79,14 @@ function Marquee({ id, fallback }: { id: string; fallback: string }) {
     </span>
   );
   return (
-    <div className="w-full overflow-hidden py-3" style={{ background: C.dark, color: CREAM_80, borderTop: `1px solid ${HAIR_DARK}`, borderBottom: `1px solid ${HAIR_DARK}` }}>
-      <div className="pc-marquee-track">
-        {row("a")}
-        {row("b")}
+    <EditableMarquee id={id} fallback={fallback} bandStyle={{ background: C.dark, color: CREAM_80, borderTop: `1px solid ${HAIR_DARK}`, borderBottom: `1px solid ${HAIR_DARK}` }}>
+      <div className="w-full overflow-hidden py-3" style={{ background: C.dark, color: CREAM_80, borderTop: `1px solid ${HAIR_DARK}`, borderBottom: `1px solid ${HAIR_DARK}` }}>
+        <div className="pc-marquee-track">
+          {row("a")}
+          {row("b")}
+        </div>
       </div>
-    </div>
+    </EditableMarquee>
   );
 }
 

@@ -135,3 +135,45 @@ export function useBlockValue(id: string, fallback = ""): string {
   const { content } = useContext(Ctx);
   return content[id] ?? fallback;
 }
+
+/** Marquee / carousel text. Public mode renders `children` (the template's own
+ * animated ribbon). Edit mode swaps in a static, click-to-edit single line of
+ * the raw "·"-separated source so owners can change the scrolling words in the
+ * visual editor — the animation would make an inline caret unusable, so we edit
+ * the source string, not the moving copy. Items stay separated by " · ". */
+export function EditableMarquee({
+  id,
+  fallback = "",
+  bandStyle,
+  children,
+}: {
+  id: string;
+  fallback?: string;
+  /** Applied to the edit-mode band so it reads like the real ribbon. */
+  bandStyle?: CSSProperties;
+  children: ReactNode;
+}) {
+  const { content, editMode, onEditText } = useContext(Ctx);
+  const value = content[id] ?? fallback;
+
+  if (!editMode) return <>{children}</>;
+
+  return (
+    <div className="w-full overflow-hidden py-2.5" style={bandStyle} title="Testo del carosello — separa le voci con ·">
+      <div
+        className="mx-auto max-w-4xl px-5 text-center text-xs font-semibold uppercase tracking-[0.2em]"
+        style={{ ...EDIT_OUTLINE, whiteSpace: "pre-wrap" }}
+        contentEditable
+        suppressContentEditableWarning
+        spellCheck={false}
+        data-block-id={id}
+        onBlur={(e: React.FocusEvent<HTMLElement>) => {
+          const next = (e.currentTarget.innerText || "").replace(/ /g, " ").trim();
+          if (next !== value) onEditText?.(id, next);
+        }}
+      >
+        {value || "…"}
+      </div>
+    </div>
+  );
+}
