@@ -3,6 +3,7 @@ import { createServiceRoleClient } from "@/lib/supabase/server";
 import { sendWhatsAppTemplate } from "@/lib/whatsapp/meta";
 import { tenantWhatsAppFrom } from "@/lib/whatsapp/from";
 import { getFeatures, type TenantSettings } from "@/lib/types/tenant-settings";
+import { createReviewToken } from "@/lib/reviews/token";
 import { hasActivePlan } from "@/lib/billing/entitlements";
 import { logSystemEvent } from "@/lib/system-log";
 
@@ -37,7 +38,7 @@ export async function GET(req: NextRequest) {
 
   const { data: rows } = await supabase
     .from("reservations")
-    .select("id, tenant_id, date, status, language, guests(name, phone), tenants(name, settings)")
+    .select("id, tenant_id, date, status, language, guests(name, phone), tenants(name, slug, settings)")
     .eq("date", yesterday)
     .in("status", ["completed", "seated"]); // guest actually showed up
 
@@ -48,7 +49,7 @@ export async function GET(req: NextRequest) {
     id: string; tenant_id: string; date: string; status: string;
     language: string | null;
     guests: { name: string | null; phone: string | null } | null;
-    tenants: { name: string | null; settings: TenantSettings | null } | null;
+    tenants: { name: string | null; slug: string | null; settings: TenantSettings | null } | null;
   };
   for (const r of (rows || []) as unknown as Row[]) {
     const settings = r.tenants?.settings;
@@ -76,13 +77,22 @@ export async function GET(req: NextRequest) {
     const restaurant = r.tenants?.name || "";
     const from = tenantWhatsAppFrom(settings);
 
-    // post_visit_followup vars: {{1}}=name {{2}}=restaurant
+    // Certified reviews (Fase 2): when the tenant enabled the module, send the
+    // post_visit_review template whose URL button carries the signed /rv/<token>
+    // link; otherwise the plain post_visit_followup. Both use {{1}}=name
+    // {{2}}=restaurant.
+    const wantsReview = getFeatures(settings).reviews_enabled && !!r.tenants?.slug;
+    const reviewToken = wantsReview
+      ? createReviewToken({ s: r.tenants!.slug!, r: r.id })
+      : undefined;
     const res = await sendWhatsAppTemplate(
       phone,
-      "post_visit_followup",
+      wantsReview ? "post_visit_review" : "post_visit_followup",
       lang,
       [guestName, restaurant],
-      from
+      from,
+      undefined,
+      reviewToken
     );
 
     if (res.ok) {
@@ -94,7 +104,7 @@ export async function GET(req: NextRequest) {
         entity_id: r.id,
         source: "system",
         idempotency_key: `followup:${r.id}`,
-        details: { channel: "whatsapp", template: "post_visit_followup", lang, message_id: res.messageId },
+        details: { channel: "whatsapp", template: wantsReview ? "post_visit_review" : "post_visit_followup", lang, message_id: res.messageId },
       });
     } else {
       failed++;

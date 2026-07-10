@@ -92,6 +92,27 @@ const TEMPLATES = [
     // No buttons: a review CTA is usually a URL button added per-tenant later.
   },
   {
+    // Follow-up WITH the certified-review link (Fase 2). Same copy as
+    // post_visit_followup plus a dynamic-URL button whose {{1}} suffix is the
+    // signed review token (/rv/<token>). The cron sends THIS template when the
+    // tenant has reviews_enabled, the plain one otherwise.
+    name: "post_visit_review",
+    category: "MARKETING",
+    // vars: 1=guest name, 2=restaurant name
+    bodies: {
+      es: "Hola {{1}} 😊 ¡Gracias por visitar {{2}}! Esperamos que lo hayas disfrutado. ¿Nos dejarías una reseña? Solo te llevará un momento y nos ayuda muchísimo. ¡Hasta pronto! 🙌",
+      it: "Ciao {{1}} 😊 Grazie per essere venuto da {{2}}! Speriamo ti sia trovato bene. Ci lasceresti una recensione? Ci vuole un attimo e ci aiuta tantissimo. A presto! 🙌",
+      en: "Hi {{1}} 😊 Thanks for visiting {{2}}! We hope you enjoyed it. Would you leave us a review? It only takes a moment and helps us a lot. See you soon! 🙌",
+      de: "Hallo {{1}} 😊 Danke für deinen Besuch bei {{2}}! Wir hoffen, es hat dir gefallen. Würdest du uns eine Bewertung hinterlassen? Es dauert nur einen Moment und hilft uns sehr. Bis bald! 🙌",
+    },
+    examples: ["María", "Picnic"],
+    urlButton: {
+      texts: { es: "Dejar reseña", it: "Lascia recensione", en: "Leave a review", de: "Bewertung abgeben" },
+      url: "https://crm.baliflowagency.com/rv/{{1}}",
+      example: "eyJzIjoicGljbmljIiwiciI6ImFiYyJ9.c2lnbmF0dXJl",
+    },
+  },
+  {
     name: "waitlist_table_available",
     category: "UTILITY",
     // vars: 1=guest name, 2=restaurant name, 3=date, 4=time, 5=party size
@@ -177,6 +198,21 @@ function buildComponents(tpl, lang) {
     components.push({
       type: "BUTTONS",
       buttons: btns.map((t) => ({ type: "QUICK_REPLY", text: t })),
+    });
+  }
+  // Dynamic-URL button: url ends in {{1}}, sender passes the suffix at send
+  // time (sendWhatsAppTemplate's urlButtonParam). Meta wants a full example.
+  if (tpl.urlButton) {
+    components.push({
+      type: "BUTTONS",
+      buttons: [
+        {
+          type: "URL",
+          text: tpl.urlButton.texts[lang],
+          url: tpl.urlButton.url,
+          example: [tpl.urlButton.url.replace("{{1}}", tpl.urlButton.example)],
+        },
+      ],
     });
   }
   return components;

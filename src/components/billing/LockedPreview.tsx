@@ -11,6 +11,7 @@ import {
   Users,
   MessageCircle,
   BookOpen,
+  Star,
 } from "lucide-react";
 import { useLanguage } from "@/lib/contexts/LanguageContext";
 import type { Dictionary } from "@/lib/i18n/dictionaries/en";
@@ -38,7 +39,8 @@ export type LockSection =
   | "pending"
   | "guests"
   | "conversations"
-  | "knowledge";
+  | "knowledge"
+  | "reviews";
 
 const NAV_KEY: Record<LockSection, keyof Dictionary> = {
   analytics: "nav_analytics",
@@ -49,6 +51,7 @@ const NAV_KEY: Record<LockSection, keyof Dictionary> = {
   guests: "nav_guests",
   conversations: "nav_conversations",
   knowledge: "nav_knowledge_base",
+  reviews: "nav_reviews",
 };
 
 const SECTION_ICON: Record<LockSection, typeof Lock> = {
@@ -60,6 +63,7 @@ const SECTION_ICON: Record<LockSection, typeof Lock> = {
   guests: Users,
   conversations: MessageCircle,
   knowledge: BookOpen,
+  reviews: Star,
 };
 
 // ── Shared demo primitives ───────────────────────────────────────────────────
@@ -406,7 +410,34 @@ function DemoFor({ section }: { section: LockSection }) {
       return <DemoConversations />;
     case "knowledge":
       return <DemoKnowledge />;
+    case "reviews":
+      return <DemoReviews />;
   }
+}
+
+function DemoReviews() {
+  const rows: [string, number, string][] = [
+    ["Marco Rossi", 5, "Serata perfetta, torneremo di sicuro!"],
+    ["Giulia Bianchi", 4, "Ottimo menù degustazione, servizio attento."],
+    ["Luca Ferrari", 5, "La migliore carbonara della città."],
+  ];
+  return (
+    <div className="p-4 sm:p-6 lg:p-8 space-y-3 max-w-2xl">
+      {rows.map((r, i) => (
+        <div key={i} className="rounded-xl border-2 p-4 bg-white/70" style={{ borderColor: BRASS }}>
+          <div className="flex items-center gap-2">
+            <span className="inline-flex">
+              {[1, 2, 3, 4, 5].map((n) => (
+                <Star key={n} className="w-4 h-4" fill={n <= r[1] ? "#f59e0b" : "transparent"} stroke={n <= r[1] ? "#f59e0b" : BRASS} />
+              ))}
+            </span>
+            <span className="text-sm font-bold" style={{ color: INK }}>{r[0]}</span>
+          </div>
+          <p className="mt-2 text-sm" style={{ color: BROWN }}>{r[2]}</p>
+        </div>
+      ))}
+    </div>
+  );
 }
 
 /**

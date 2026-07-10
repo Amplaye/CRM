@@ -58,6 +58,9 @@ export async function updateSession(request: NextRequest) {
     // /d/<slug> is the public deposit-checkout landing (Stripe success/cancel
     // URL) — the paying guest has no CRM account.
     !request.nextUrl.pathname.startsWith('/d/') &&
+    // /rv/<token> is the public certified-review form (signed link from the
+    // post-visit follow-up) — a guest, never an authenticated user.
+    !request.nextUrl.pathname.startsWith('/rv/') &&
     !request.nextUrl.pathname.startsWith('/api')
   ) {
     const url = request.nextUrl.clone()

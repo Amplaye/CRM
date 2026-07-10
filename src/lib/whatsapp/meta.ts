@@ -119,6 +119,9 @@ export async function sendWhatsAppMeta(
  *                   Order MUST match the template's variable map.
  * @param fromId    Optional sender phone_number_id (defaults via resolveWhatsAppFrom).
  * @param token     Optional access token (defaults to META_ACCESS_TOKEN).
+ * @param urlButtonParam Value for a dynamic-URL button's {{1}} suffix (e.g. the
+ *                   review token appended to https://.../rv/{{1}}). Only pass it
+ *                   for templates approved WITH such a button.
  *
  * Never throws — returns a MetaSendResult, same contract as sendWhatsAppMeta().
  */
@@ -128,7 +131,8 @@ export async function sendWhatsAppTemplate(
   language: string,
   bodyParams: string[] = [],
   fromId?: string | null,
-  token: string | undefined = process.env.META_ACCESS_TOKEN
+  token: string | undefined = process.env.META_ACCESS_TOKEN,
+  urlButtonParam?: string
 ): Promise<MetaSendResult> {
   if (!token) {
     return { ok: false, status: 0, errorMessage: "META_ACCESS_TOKEN not configured" };
@@ -142,15 +146,23 @@ export async function sendWhatsAppTemplate(
 
   // Only attach a BODY component when the template actually has variables —
   // a parameter-less template rejects an empty parameters array.
-  const components =
-    bodyParams.length > 0
-      ? [
-          {
-            type: "body",
-            parameters: bodyParams.map((text) => ({ type: "text", text: String(text) })),
-          },
-        ]
-      : undefined;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const componentList: any[] = [];
+  if (bodyParams.length > 0) {
+    componentList.push({
+      type: "body",
+      parameters: bodyParams.map((text) => ({ type: "text", text: String(text) })),
+    });
+  }
+  if (urlButtonParam) {
+    componentList.push({
+      type: "button",
+      sub_type: "url",
+      index: "0",
+      parameters: [{ type: "text", text: urlButtonParam }],
+    });
+  }
+  const components = componentList.length > 0 ? componentList : undefined;
 
   try {
     const res = await fetch(

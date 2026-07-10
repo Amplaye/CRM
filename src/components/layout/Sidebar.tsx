@@ -24,6 +24,7 @@ import {
   Banknote,
   Lock,
   CalendarClock,
+  Star,
 } from "lucide-react";
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
@@ -53,6 +54,8 @@ const navItems: Array<{ name: string; href: string; icon: any; badgeKey?: keyof 
   { name: "Pending", href: "/pending", icon: ClipboardList, badgeKey: "pending", badgeStyle: "alert" },
   { name: "Conversations", href: "/conversations", icon: MessageSquare, badgeKey: "conversations", badgeStyle: "alert" },
   { name: "Guests", href: "/guests", icon: Users },
+  // Certified reviews — hidden until the owner flips reviews_enabled.
+  { name: "Reviews", href: "/reviews", icon: Star },
   { name: "Menu", href: "/menu", icon: UtensilsCrossed },
   { name: "Staff", href: "/staff", icon: CalendarClock },
   { name: "Analytics", href: "/", icon: BarChart3 },
@@ -174,6 +177,8 @@ export function Sidebar({ mobileOpen = false, onClose }: SidebarProps) {
     : navItems
   // Feature flag: hide the Waitlist page for tenants that don't use it.
   ).filter(i => i.href !== "/waitlist" || features.waitlist_enabled)
+  // Feature flag: Reviews appears only when the owner enabled the module.
+  .filter(i => i.href !== "/reviews" || features.reviews_enabled)
   // Work-in-progress: hide the gestionale sections still under development
   // (inventory, P&L, food cost) for everyone except the WIP allowlist.
   .filter(i => !isWipHref(i.href) || canSeeWip(activeTenant?.id))

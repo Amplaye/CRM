@@ -18,7 +18,8 @@ export type PushEvent =
   | "shift_new"
   | "shift_request_new"
   | "shift_request_approved"
-  | "shift_request_rejected";
+  | "shift_request_rejected"
+  | "review_new";
 
 type Lang = "en" | "it" | "es" | "de";
 
@@ -73,6 +74,12 @@ const MESSAGES: Record<PushEvent, Record<Lang, { title: string; body: string }>>
     es: { title: "Solicitud rechazada", body: "{date}" },
     de: { title: "Anfrage abgelehnt", body: "{date}" },
   },
+  review_new: {
+    en: { title: "New review", body: "{stars} — {name}" },
+    it: { title: "Nuova recensione", body: "{stars} — {name}" },
+    es: { title: "Nueva reseña", body: "{stars} — {name}" },
+    de: { title: "Neue Bewertung", body: "{stars} — {name}" },
+  },
 };
 
 const EVENT_URL: Record<PushEvent, string> = {
@@ -84,6 +91,7 @@ const EVENT_URL: Record<PushEvent, string> = {
   shift_request_new: "/staff",
   shift_request_approved: "/staff",
   shift_request_rejected: "/staff",
+  review_new: "/reviews",
 };
 
 function vapidConfigured(): boolean {
