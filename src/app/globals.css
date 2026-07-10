@@ -15,6 +15,17 @@ html, body { overflow-x: hidden; overscroll-behavior: none; }
    delay and the double-tap-to-zoom that would fire on a fast double order. */
 button {
   touch-action: manipulation;
+  cursor: pointer;
+}
+button:disabled,
+button[aria-disabled="true"] {
+  cursor: default;
+}
+/* Elements that behave as buttons but aren't <button> (role="button", or a
+   clickable label/summary) should read as clickable too. */
+[role="button"]:not(:disabled):not([aria-disabled="true"]),
+summary {
+  cursor: pointer;
 }
 
 @theme {
