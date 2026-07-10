@@ -1,7 +1,7 @@
 "use client";
 
 import type { CSSProperties } from "react";
-import BookingWidget from "@/app/b/[slug]/BookingWidget";
+import { BookingCta } from "@/components/site-templates/FloatingBookingWidget";
 import { EditableImage, EditableMarquee, EditableText, useBlockValue } from "@/lib/site/content";
 import { formatSitePrice } from "@/lib/site/data";
 import type { SiteData } from "@/lib/site/types";
@@ -93,8 +93,8 @@ export default function VascoTemplate({ data }: { data: SiteData }) {
   const brand = data.tenantName;
   const ui = data.labels;
   const mapEmbed = data.address ? `https://maps.google.com/maps?q=${encodeURIComponent(data.address)}&output=embed` : "";
-  const inkSoft = "rgba(34,28,24,0.72)";
-  const creamSoft = "rgba(245,239,225,0.8)";
+  const inkSoft = "rgb(34,28,24)";
+  const creamSoft = "rgb(245,239,225)";
 
   return (
     <div style={{ background: C.cream, color: C.ink, fontFamily: BODY }} className="min-h-screen w-full">
@@ -260,7 +260,7 @@ export default function VascoTemplate({ data }: { data: SiteData }) {
         <div className="mx-auto grid max-w-6xl items-center gap-12 md:grid-cols-2">
           <EditableImage id="txakoli.image" alt="" className="va-tilt aspect-[4/3] w-full object-cover" style={{ rotate: "1.5deg", borderRadius: 3, boxShadow: "0 25px 50px -18px rgba(0,0,0,0.5)" }} />
           <div>
-            <EditableText id="txakoli.eyebrow" as="p" style={{ ...EYEBROW, color: "rgba(245,239,225,0.65)" }} />
+            <EditableText id="txakoli.eyebrow" as="p" style={{ ...EYEBROW, color: "rgb(245,239,225)" }} />
             <EditableText id="txakoli.title" as="h2" className="mt-3 text-4xl font-bold md:text-5xl" style={{ fontFamily: DISPLAY, lineHeight: 1.02 }} />
             <EditableText id="txakoli.text" as="p" className="mt-6 max-w-lg leading-relaxed" style={{ color: creamSoft }} />
             <EditableText id="txakoli.toast" as="p" className="mt-7 italic" style={{ fontFamily: DISPLAY, fontSize: "clamp(1.6rem, 3.5vw, 2.4rem)", color: C.gold }} />
@@ -283,9 +283,8 @@ export default function VascoTemplate({ data }: { data: SiteData }) {
               </a>
             ) : null}
           </div>
-          <div className="p-6 md:p-8" style={{ background: C.cream, color: C.ink, borderRadius: 3, boxShadow: "0 34px 64px -26px rgba(0,0,0,0.6)" }}>
-            <h3 className="text-2xl font-bold" style={{ fontFamily: DISPLAY }}>{data.bookingStrings.title}</h3>
-            <BookingWidget slug={data.slug} accent="#c82020" strings={data.bookingStrings} />
+          <div>
+            <BookingCta className="va-btn va-btn-red" style={{ ...PILL, background: C.red, color: "#fff" }}>{data.bookingStrings.title}</BookingCta>
           </div>
         </div>
       </section>
@@ -329,7 +328,7 @@ export default function VascoTemplate({ data }: { data: SiteData }) {
       <section id="encontrar" className="w-full px-5 py-16 md:py-24" style={{ background: C.redDeep, color: C.cream }}>
         <div className="mx-auto grid max-w-6xl gap-12 md:grid-cols-2">
           <div>
-            <EditableText id="find.eyebrow" as="p" style={{ ...EYEBROW, color: "rgba(245,239,225,0.65)" }} />
+            <EditableText id="find.eyebrow" as="p" style={{ ...EYEBROW, color: "rgb(245,239,225)" }} />
             <EditableText id="find.title" as="h2" className="mt-3 text-4xl font-bold md:text-5xl" style={{ fontFamily: DISPLAY, lineHeight: 1.02 }} />
             <EditableText id="find.text" as="p" className="mt-4 leading-relaxed" style={{ color: creamSoft }} />
             <dl className="mt-8 text-sm">
@@ -391,7 +390,7 @@ export default function VascoTemplate({ data }: { data: SiteData }) {
           <div>
             <EditableText id="footer.brand" as="p" fallback={brand} className="text-2xl font-bold uppercase" style={{ fontFamily: DISPLAY, letterSpacing: "0.12em" }} />
             <EditableText id="footer.tagline" as="p" className="mt-2 text-sm italic" style={{ fontFamily: DISPLAY, color: creamSoft }} />
-            <div className="mt-5 text-sm" style={{ color: "rgba(245,239,225,0.65)" }}>
+            <div className="mt-5 text-sm" style={{ color: "rgb(245,239,225)" }}>
               {data.address ? <p>{data.address}</p> : null}
               {data.phone ? <p className="mt-1">{data.phone}</p> : null}
             </div>
@@ -403,7 +402,7 @@ export default function VascoTemplate({ data }: { data: SiteData }) {
             <a href="#encontrar" className="va-link">{ui.contact}</a>
           </nav>
         </div>
-        <p className="mx-auto mt-10 max-w-6xl border-t pt-5 text-xs" style={{ borderColor: "rgba(245,239,225,0.15)", color: "rgba(245,239,225,0.55)" }}>
+        <p className="mx-auto mt-10 max-w-6xl border-t pt-5 text-xs" style={{ borderColor: "rgba(245,239,225,0.15)", color: "rgb(245,239,225)" }}>
           © {new Date().getFullYear()} {brand}
         </p>
       </footer>

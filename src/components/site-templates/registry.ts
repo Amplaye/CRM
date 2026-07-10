@@ -34,6 +34,9 @@ export type SiteTemplateDef = {
   vibe: string;
   swatches: [string, string, string];
   fontLabel: string;
+  /** Brand accent for the floating booking widget (matches each template's
+   * own CTA colour). */
+  accent: string;
 };
 
 export const SITE_TEMPLATE_DEFS: Record<Exclude<SiteTemplateKey, "classic">, SiteTemplateDef> = {
@@ -45,6 +48,7 @@ export const SITE_TEMPLATE_DEFS: Record<Exclude<SiteTemplateKey, "classic">, Sit
     vibe: "Neobrutalist di quartiere — crema, pomodoro, ombre nette",
     swatches: ["#f4ecdd", "#c0432b", "#2f5a3a"],
     fontLabel: "Fraunces",
+    accent: "#c0432b",
   },
   dolcevita: {
     component: DolceVitaTemplate,
@@ -54,6 +58,7 @@ export const SITE_TEMPLATE_DEFS: Record<Exclude<SiteTemplateKey, "classic">, Sit
     vibe: "Invito a cena romantico — vino, crema, sigillo di ceralacca",
     swatches: ["#7c2230", "#f6eee0", "#c0392b"],
     fontLabel: "Fraunces",
+    accent: "#c0392b",
   },
   champinoneria: {
     component: ChampinoneriaTemplate,
@@ -63,6 +68,7 @@ export const SITE_TEMPLATE_DEFS: Record<Exclude<SiteTemplateKey, "classic">, Sit
     vibe: "Bistró editoriale caldo — carta crema, cacao scuro, corsivo",
     swatches: ["#f5eee0", "#2a1d12", "#a6724b"],
     fontLabel: "Cormorant",
+    accent: "#a6724b",
   },
   picnic: {
     component: PicnicTemplate,
@@ -72,6 +78,7 @@ export const SITE_TEMPLATE_DEFS: Record<Exclude<SiteTemplateKey, "classic">, Sit
     vibe: "Napoletano notturno — nero, ruggine, serif corsivo",
     swatches: ["#000000", "#c94a1a", "#f7f3ed"],
     fontLabel: "Playfair",
+    accent: "#c94a1a",
   },
   perezbeers: {
     component: PerezBeersTemplate,
@@ -81,6 +88,7 @@ export const SITE_TEMPLATE_DEFS: Record<Exclude<SiteTemplateKey, "classic">, Sit
     vibe: "Beer-hall serale — basalto, oro candela, rosso mattone",
     swatches: ["#120D0A", "#DCA03C", "#C5392C"],
     fontLabel: "Poppins",
+    accent: "#C5392C",
   },
   vasco: {
     component: VascoTemplate,
@@ -90,6 +98,7 @@ export const SITE_TEMPLATE_DEFS: Record<Exclude<SiteTemplateKey, "classic">, Sit
     vibe: "Tasca basca editoriale — crema, rosso e verde, polaroid",
     swatches: ["#f5efe1", "#c82020", "#0d3a20"],
     fontLabel: "Fraunces",
+    accent: "#c82020",
   },
   montesdeoca: {
     component: MontesdeocaTemplate,
@@ -99,6 +108,7 @@ export const SITE_TEMPLATE_DEFS: Record<Exclude<SiteTemplateKey, "classic">, Sit
     vibe: "Palazzo a lume di candela — espresso, ottone, serif leggero",
     swatches: ["#1c1712", "#b08d4f", "#efe7d6"],
     fontLabel: "Cormorant",
+    accent: "#b08d4f",
   },
 };
 

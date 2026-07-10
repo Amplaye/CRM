@@ -448,78 +448,146 @@ body.cassa-overlay-open .assistant-fab {
   }
 }
 
-/* ── Booking widget (public site templates /s and /b) ─────────────────────────
-   Premium micro-interactions for the shared BookingWidget used by all 7 site
-   templates. Steps (date+people → slots → guest form → success) slide/fade in;
-   slot chips reveal with a small stagger; the CTA and inputs get soft lift and
-   focus glow. The accent colour is injected as --bw-accent by the component so
-   the focus ring/glow tints per template. Honors prefers-reduced-motion. */
-@keyframes bw-step-in {
-  from { opacity: 0; transform: translateY(10px); }
-  to   { opacity: 1; transform: translateY(0); }
+/* ── Booking widget v2 (bw2-*) + floating launcher (fbw-*) ────────────────────
+   Shared by the standalone /b/<slug> page and the FloatingBookingWidget panel
+   injected on every /s template site. A single accent (--bw-accent) tints
+   buttons, focus rings and the launcher pill per template. Everything animates:
+   step transitions, slot reveal, panel open/close. Honors reduced-motion. */
+
+@keyframes bw2-fade { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes bw2-slide { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes bw2-chip { from { opacity: 0; transform: translateY(6px) scale(0.95); } to { opacity: 1; transform: translateY(0) scale(1); } }
+@keyframes bw2-spin { to { transform: rotate(360deg); } }
+@keyframes bw2-pop { 0% { opacity: 0; transform: scale(0.4); } 60% { opacity: 1; transform: scale(1.12); } 100% { opacity: 1; transform: scale(1); } }
+
+.bw2 { color: #111; font-size: 14px; }
+.bw2-fade-in { animation: bw2-fade 0.4s cubic-bezier(0.16, 1, 0.3, 1) both; }
+.bw2-slide-in { animation: bw2-slide 0.38s cubic-bezier(0.16, 1, 0.3, 1) both; }
+
+/* Progress rail */
+.bw2-rail { display: flex; gap: 6px; margin-bottom: 14px; }
+.bw2-dot { height: 4px; flex: 1; border-radius: 9999px; background: rgba(0,0,0,0.1); transition: background-color 0.35s ease; }
+.bw2-dot-active { background: color-mix(in srgb, var(--bw-accent, #000) 55%, rgba(0,0,0,0.12)); }
+.bw2-dot-done { background: var(--bw-accent, #000); }
+
+.bw2-group { display: flex; flex-direction: column; gap: 6px; }
+.bw2-label { font-size: 11px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: rgba(0,0,0,0.55); }
+
+.bw2-input {
+  width: 100%; border-radius: 12px; background: #fff; color: #111;
+  border: 1.5px solid rgba(0,0,0,0.12); padding: 11px 13px; font-size: 14px;
+  outline: none; transition: border-color 0.2s ease, box-shadow 0.2s ease;
 }
-@keyframes bw-chip-in {
-  from { opacity: 0; transform: translateY(6px) scale(0.96); }
-  to   { opacity: 1; transform: translateY(0) scale(1); }
-}
-@keyframes bw-success-in {
-  from { opacity: 0; transform: translateY(8px) scale(0.97); }
-  to   { opacity: 1; transform: translateY(0) scale(1); }
-}
-@keyframes bw-spin {
-  to { transform: rotate(360deg); }
-}
-@keyframes bw-check-pop {
-  0%   { opacity: 0; transform: scale(0.4); }
-  60%  { opacity: 1; transform: scale(1.12); }
-  100% { opacity: 1; transform: scale(1); }
+.bw2-input::placeholder { color: rgba(0,0,0,0.4); }
+.bw2-input:focus {
+  border-color: var(--bw-accent, #000);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--bw-accent, #000) 15%, transparent);
 }
 
-.bw-shell {
-  transition: box-shadow 0.35s cubic-bezier(0.16, 1, 0.3, 1);
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04), 0 8px 30px -12px rgba(0, 0, 0, 0.18);
+/* People stepper */
+.bw2-stepper { display: flex; align-items: center; justify-content: space-between; border-radius: 12px; border: 1.5px solid rgba(0,0,0,0.12); background: #fff; padding: 3px; }
+.bw2-step-btn {
+  width: 34px; height: 34px; border-radius: 9px; font-size: 20px; font-weight: 700; line-height: 1;
+  color: var(--bw-accent, #111); background: color-mix(in srgb, var(--bw-accent, #000) 8%, #fff);
+  transition: background-color 0.18s ease, transform 0.12s ease;
 }
-.bw-step { animation: bw-step-in 0.42s cubic-bezier(0.16, 1, 0.3, 1) both; }
-.bw-success { animation: bw-success-in 0.5s cubic-bezier(0.16, 1, 0.3, 1) both; }
+.bw2-step-btn:hover { background: color-mix(in srgb, var(--bw-accent, #000) 16%, #fff); }
+.bw2-step-btn:active { transform: scale(0.9); }
+.bw2-step-val { font-size: 16px; font-weight: 700; color: #111; min-width: 2ch; text-align: center; }
 
-.bw-field {
-  transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
+/* Buttons */
+.bw2-btn {
+  display: flex; align-items: center; justify-content: center; width: 100%;
+  border-radius: 12px; padding: 13px 16px; font-size: 15px; font-weight: 700;
+  transition: transform 0.16s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.2s ease, filter 0.2s ease, opacity 0.2s ease;
 }
-.bw-field:focus {
-  box-shadow: 0 0 0 4px color-mix(in srgb, var(--bw-accent, #000) 18%, transparent);
+.bw2-btn-primary {
+  color: #fff; background: var(--bw-accent, #111);
+  box-shadow: 0 8px 20px -8px color-mix(in srgb, var(--bw-accent, #000) 60%, transparent);
+}
+.bw2-btn-primary:not(:disabled):hover { transform: translateY(-1px); filter: brightness(1.06); box-shadow: 0 12px 26px -8px color-mix(in srgb, var(--bw-accent, #000) 70%, transparent); }
+.bw2-btn-primary:not(:disabled):active { transform: translateY(0) scale(0.99); }
+.bw2-btn-primary:disabled { opacity: 0.4; }
+.bw2-btn-ghost { color: #111; background: transparent; font-weight: 600; font-size: 13px; padding: 8px; }
+.bw2-btn-ghost:hover { color: var(--bw-accent, #111); }
+
+/* Slot chips */
+.bw2-chip {
+  height: 40px; border-radius: 10px; font-size: 13px; font-weight: 700; color: #111;
+  border: 1.5px solid rgba(0,0,0,0.14); background: #fff;
+  animation: bw2-chip 0.32s cubic-bezier(0.16, 1, 0.3, 1) both;
+  transition: transform 0.14s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.16s ease, background-color 0.16s ease, color 0.16s ease, border-color 0.16s ease;
+}
+.bw2-chip:not(.bw2-chip-on):hover { transform: translateY(-2px); border-color: var(--bw-accent, #000); box-shadow: 0 6px 14px -6px color-mix(in srgb, var(--bw-accent, #000) 55%, transparent); }
+.bw2-chip:active { transform: scale(0.95); }
+.bw2-chip-on { color: #fff; background: var(--bw-accent, #111); border-color: var(--bw-accent, #111); box-shadow: 0 6px 16px -6px color-mix(in srgb, var(--bw-accent, #000) 70%, transparent); }
+
+.bw2-note { text-align: center; font-size: 13px; font-weight: 600; color: #111; }
+.bw2-error { text-align: center; font-size: 13px; font-weight: 700; color: #b91c1c; }
+
+.bw2-spinner {
+  display: inline-block; width: 1em; height: 1em; border-radius: 9999px; vertical-align: -0.15em;
+  border: 2px solid rgba(255,255,255,0.45); border-top-color: #fff; animation: bw2-spin 0.7s linear infinite;
 }
 
-.bw-cta {
-  transition: transform 0.18s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.22s ease, filter 0.2s ease;
-  box-shadow: 0 6px 18px -6px color-mix(in srgb, var(--bw-accent, #000) 55%, transparent);
-}
-.bw-cta:not(:disabled):hover { transform: translateY(-1px); filter: brightness(1.05); box-shadow: 0 10px 24px -6px color-mix(in srgb, var(--bw-accent, #000) 65%, transparent); }
-.bw-cta:not(:disabled):active { transform: translateY(0) scale(0.99); }
+/* Outcome badge */
+.bw2-badge { width: 60px; height: 60px; border-radius: 9999px; display: flex; align-items: center; justify-content: center; animation: bw2-pop 0.5s cubic-bezier(0.16, 1, 0.3, 1) both; }
+.bw2-badge-icon { width: 30px; height: 30px; }
+.bw2-badge-ok { color: var(--bw-accent, #111); background: color-mix(in srgb, var(--bw-accent, #000) 14%, #fff); }
+.bw2-badge-wait { color: #92600a; background: #fdf1dc; }
 
-.bw-chip {
-  transition: transform 0.15s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.18s ease, background-color 0.18s ease, color 0.18s ease;
-  animation: bw-chip-in 0.34s cubic-bezier(0.16, 1, 0.3, 1) both;
-}
-.bw-chip:not(.bw-chip-on):hover { transform: translateY(-2px); box-shadow: 0 6px 14px -6px color-mix(in srgb, var(--bw-accent, #000) 60%, transparent); }
-.bw-chip:active { transform: scale(0.95); }
-.bw-chip-on { box-shadow: 0 6px 16px -6px color-mix(in srgb, var(--bw-accent, #000) 70%, transparent); }
+/* ——— Floating launcher + panel ——— */
+@keyframes fbw-panel-in { from { opacity: 0; transform: translateY(24px) scale(0.96); } to { opacity: 1; transform: translateY(0) scale(1); } }
+@keyframes fbw-panel-out { from { opacity: 1; transform: translateY(0) scale(1); } to { opacity: 0; transform: translateY(24px) scale(0.96); } }
+@keyframes fbw-fade-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes fbw-fade-out { from { opacity: 1; } to { opacity: 0; } }
 
-.bw-spinner {
-  display: inline-block;
-  width: 1em;
-  height: 1em;
-  border: 2px solid rgba(255, 255, 255, 0.45);
-  border-top-color: #fff;
-  border-radius: 9999px;
-  animation: bw-spin 0.7s linear infinite;
-  vertical-align: -0.15em;
+.fbw-backdrop { position: fixed; inset: 0; z-index: 2147483000; background: rgba(15,12,10,0.42); backdrop-filter: blur(2px); border: 0; }
+.fbw-backdrop-in { animation: fbw-fade-in 0.28s ease both; }
+.fbw-backdrop-out { animation: fbw-fade-out 0.3s ease both; }
+
+.fbw-panel {
+  position: fixed; z-index: 2147483001; bottom: 20px; right: 20px;
+  width: min(380px, calc(100vw - 32px)); max-height: min(86vh, 720px);
+  display: flex; flex-direction: column; overflow: hidden;
+  background: #fff; border-radius: 20px;
+  box-shadow: 0 30px 70px -20px rgba(0,0,0,0.5), 0 0 0 1px rgba(0,0,0,0.05);
+  transform-origin: bottom right;
 }
-.bw-check { animation: bw-check-pop 0.5s cubic-bezier(0.16, 1, 0.3, 1) both; }
+.fbw-panel-in { animation: fbw-panel-in 0.34s cubic-bezier(0.16, 1, 0.3, 1) both; }
+.fbw-panel-out { animation: fbw-panel-out 0.3s cubic-bezier(0.4, 0, 1, 1) both; }
+
+.fbw-head { display: flex; align-items: center; justify-content: space-between; padding: 16px 18px; background: var(--bw-accent, #111); color: #fff; }
+.fbw-head-dot { width: 8px; height: 8px; border-radius: 9999px; background: #fff; box-shadow: 0 0 0 4px rgba(255,255,255,0.25); }
+.fbw-head-title { font-size: 15px; font-weight: 700; letter-spacing: 0.01em; }
+.fbw-close { width: 30px; height: 30px; display: flex; align-items: center; justify-content: center; border-radius: 9px; color: #fff; background: rgba(255,255,255,0.16); transition: background-color 0.18s ease, transform 0.14s ease; }
+.fbw-close:hover { background: rgba(255,255,255,0.28); }
+.fbw-close:active { transform: scale(0.9); }
+.fbw-close svg { width: 16px; height: 16px; }
+.fbw-body { padding: 18px; overflow-y: auto; overscroll-behavior: contain; }
+
+.fbw-pill {
+  position: fixed; z-index: 2147483001; bottom: 20px; right: 20px;
+  display: inline-flex; align-items: center; gap: 9px;
+  padding: 14px 20px; border-radius: 9999px;
+  color: #fff; background: var(--bw-accent, #111); font-size: 15px; font-weight: 700;
+  box-shadow: 0 12px 28px -8px color-mix(in srgb, var(--bw-accent, #000) 70%, transparent), 0 0 0 1px rgba(255,255,255,0.08) inset;
+  transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.2s ease, opacity 0.22s ease, filter 0.2s ease;
+}
+.fbw-pill:hover { transform: translateY(-2px); filter: brightness(1.05); box-shadow: 0 18px 36px -8px color-mix(in srgb, var(--bw-accent, #000) 80%, transparent); }
+.fbw-pill:active { transform: translateY(0) scale(0.97); }
+.fbw-pill-hidden { opacity: 0; transform: translateY(10px) scale(0.9); pointer-events: none; }
+.fbw-pill-icon { width: 19px; height: 19px; }
+
+@media (max-width: 480px) {
+  .fbw-panel { bottom: 0; right: 0; left: 0; width: 100vw; max-height: 90vh; border-radius: 20px 20px 0 0; transform-origin: bottom center; }
+  .fbw-pill { bottom: 16px; right: 16px; }
+}
 
 @media (prefers-reduced-motion: reduce) {
-  .bw-shell { transition: none; }
-  .bw-step, .bw-success, .bw-chip, .bw-check { animation: none; }
-  .bw-field, .bw-cta, .bw-chip { transition: none; }
-  .bw-cta:not(:disabled):hover, .bw-chip:not(.bw-chip-on):hover { transform: none; }
-  .bw-spinner { animation-duration: 1.4s; }
+  .bw2-fade-in, .bw2-slide-in, .bw2-chip, .bw2-badge { animation: none; }
+  .fbw-panel-in, .fbw-panel-out, .fbw-backdrop-in, .fbw-backdrop-out { animation-duration: 0.01ms; }
+  .bw2-btn, .bw2-chip, .bw2-input, .fbw-pill, .fbw-close, .bw2-step-btn { transition: none; }
+  .bw2-btn-primary:not(:disabled):hover, .bw2-chip:not(.bw2-chip-on):hover, .fbw-pill:hover { transform: none; }
+  .bw2-spinner { animation-duration: 1.4s; }
 }

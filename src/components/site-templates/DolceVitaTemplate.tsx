@@ -1,7 +1,7 @@
 "use client";
 
 import type { CSSProperties } from "react";
-import BookingWidget from "@/app/b/[slug]/BookingWidget";
+import { BookingCta } from "@/components/site-templates/FloatingBookingWidget";
 import { EditableImage, EditableMarquee, EditableText, useBlockValue } from "@/lib/site/content";
 import { formatSitePrice } from "@/lib/site/data";
 import type { SiteData } from "@/lib/site/types";
@@ -123,7 +123,7 @@ export default function DolceVitaTemplate({ data }: { data: SiteData }) {
         <header className="absolute inset-x-0 top-0 z-40">
           <div className="mx-auto flex h-20 max-w-6xl items-center justify-between px-5">
             <a href="#top" className="text-2xl" style={{ ...display, color: C.cream }}>{brand}</a>
-            <nav className="hidden items-center gap-7 text-xs font-semibold uppercase tracking-[0.18em] md:flex" style={{ color: "rgba(246,238,224,0.85)" }}>
+            <nav className="hidden items-center gap-7 text-xs font-semibold uppercase tracking-[0.18em] md:flex" style={{ color: "rgb(246,238,224)" }}>
               <a href="#familia" className="hover:opacity-70">{ui.about}</a>
               <a href={`/m/${data.slug}`} className="hover:opacity-70">{ui.fullMenu}</a>
               <a href="#reviews" className="hover:opacity-70">{ui.reviews}</a>
@@ -145,7 +145,7 @@ export default function DolceVitaTemplate({ data }: { data: SiteData }) {
               <EditableText id="hero.script" as="p" className="text-2xl" style={{ ...script, color: C.olive }} />
               <div aria-hidden className="mx-auto my-3 h-px w-16" style={{ background: "rgba(124,34,48,0.25)" }} />
               <p aria-hidden className="tracking-[0.3em]" style={{ color: C.mustard }}>★★★★★</p>
-              <EditableText id="hero.tag" as="p" className="dv-eyebrow mt-2" style={{ color: "rgba(74,82,38,0.65)", letterSpacing: "0.18em" }} />
+              <EditableText id="hero.tag" as="p" className="dv-eyebrow mt-2" style={{ color: "rgb(74,82,38)", letterSpacing: "0.18em" }} />
             </div>
             <EditableText id="hero.text" as="p" className="mx-auto mt-6 max-w-lg italic leading-relaxed" style={{ color: C.olive }} />
             <div className="mt-8 flex flex-wrap justify-center gap-4">
@@ -162,11 +162,11 @@ export default function DolceVitaTemplate({ data }: { data: SiteData }) {
         <div className="mx-auto grid max-w-4xl gap-8 text-center sm:grid-cols-3 sm:gap-0">
           <div className="px-6">
             <EditableText id="stats.1.n" as="p" style={{ ...display, color: C.tomato, fontSize: "clamp(2.8rem, 5vw, 3.75rem)" }} />
-            <EditableText id="stats.1.label" as="p" className="dv-eyebrow mt-2" style={{ color: "rgba(74,82,38,0.55)" }} />
+            <EditableText id="stats.1.label" as="p" className="dv-eyebrow mt-2" style={{ color: "rgb(74,82,38)" }} />
           </div>
           <div className="px-6 sm:border-l" style={{ borderColor: "rgba(74,82,38,0.12)" }}>
             <EditableText id="stats.2.n" as="p" style={{ ...display, color: C.tomato, fontSize: "clamp(2.8rem, 5vw, 3.75rem)" }} />
-            <EditableText id="stats.2.label" as="p" className="dv-eyebrow mt-2" style={{ color: "rgba(74,82,38,0.55)" }} />
+            <EditableText id="stats.2.label" as="p" className="dv-eyebrow mt-2" style={{ color: "rgb(74,82,38)" }} />
           </div>
           <div className="px-6 sm:border-l" style={{ borderColor: "rgba(74,82,38,0.12)" }}>
             {data.reviews.length ? (
@@ -175,9 +175,9 @@ export default function DolceVitaTemplate({ data }: { data: SiteData }) {
               <EditableText id="stats.3.n" as="p" style={{ ...display, color: C.tomato, fontSize: "clamp(2.8rem, 5vw, 3.75rem)" }} />
             )}
             {data.reviews.length ? (
-              <p className="dv-eyebrow mt-2" style={{ color: "rgba(74,82,38,0.55)" }}>{ui.reviews}</p>
+              <p className="dv-eyebrow mt-2" style={{ color: "rgb(74,82,38)" }}>{ui.reviews}</p>
             ) : (
-              <EditableText id="stats.3.label" as="p" className="dv-eyebrow mt-2" style={{ color: "rgba(74,82,38,0.55)" }} />
+              <EditableText id="stats.3.label" as="p" className="dv-eyebrow mt-2" style={{ color: "rgb(74,82,38)" }} />
             )}
           </div>
         </div>
@@ -191,7 +191,7 @@ export default function DolceVitaTemplate({ data }: { data: SiteData }) {
               <div className="max-w-xl">
                 <EditableText id="cocina.eyebrow" as="p" className="dv-eyebrow" style={{ color: C.tomato }} />
                 <EditableText id="cocina.title" as="h2" className="mt-3" style={{ ...display, color: C.olive, fontSize: "clamp(2.4rem, 5vw, 4.4rem)" }} />
-                <EditableText id="cocina.text" as="p" className="mt-4 leading-relaxed" style={{ color: "rgba(74,82,38,0.8)" }} />
+                <EditableText id="cocina.text" as="p" className="mt-4 leading-relaxed" style={{ color: "rgb(74,82,38)" }} />
               </div>
               <a href={`/m/${data.slug}`} className="dv-btn dv-btn-ghost">{ui.fullMenu} →</a>
             </div>
@@ -215,7 +215,7 @@ export default function DolceVitaTemplate({ data }: { data: SiteData }) {
                       <span className="shrink-0 font-semibold" style={{ color: C.tomato }}>{formatSitePrice(it.price, it.currency)}</span>
                     ) : null}
                   </div>
-                  {it.description ? <p className="mt-1 text-sm leading-snug line-clamp-2" style={{ color: "rgba(74,82,38,0.7)" }}>{it.description}</p> : null}
+                  {it.description ? <p className="mt-1 text-sm leading-snug line-clamp-2" style={{ color: "rgb(74,82,38)" }}>{it.description}</p> : null}
                 </div>
               ))}
             </div>
@@ -243,7 +243,7 @@ export default function DolceVitaTemplate({ data }: { data: SiteData }) {
             {[1, 2, 3].map((n) => (
               <div key={n} className="px-6 py-8" style={{ background: C.peach }}>
                 <EditableText id={`occasions.${n}.title`} as="h3" className="text-2xl" style={{ ...display, color: C.olive }} />
-                <EditableText id={`occasions.${n}.text`} as="p" className="mt-3 text-sm leading-relaxed" style={{ color: "rgba(74,82,38,0.8)" }} />
+                <EditableText id={`occasions.${n}.text`} as="p" className="mt-3 text-sm leading-relaxed" style={{ color: "rgb(74,82,38)" }} />
               </div>
             ))}
           </div>
@@ -264,8 +264,8 @@ export default function DolceVitaTemplate({ data }: { data: SiteData }) {
           <div>
             <EditableText id="familia.eyebrow" as="p" className="dv-eyebrow" style={{ color: C.tomato }} />
             <EditableText id="familia.title" as="h2" className="mt-3" style={{ ...display, color: C.olive, fontSize: "clamp(2.4rem, 5vw, 4rem)" }} />
-            <EditableText id="familia.p1" as="p" className="mt-6 leading-relaxed" style={{ color: "rgba(74,82,38,0.85)" }} />
-            <EditableText id="familia.p2" as="p" className="mt-3 leading-relaxed" style={{ color: "rgba(74,82,38,0.85)" }} />
+            <EditableText id="familia.p1" as="p" className="mt-6 leading-relaxed" style={{ color: "rgb(74,82,38)" }} />
+            <EditableText id="familia.p2" as="p" className="mt-3 leading-relaxed" style={{ color: "rgb(74,82,38)" }} />
             <EditableText id="familia.quote" as="blockquote" className="mt-7 text-2xl md:text-3xl" style={{ ...script, color: C.tomato, lineHeight: 1.25 }} />
             <EditableText id="familia.caption" as="p" className="dv-eyebrow mt-4" style={{ color: C.terracotta }} />
           </div>
@@ -279,14 +279,13 @@ export default function DolceVitaTemplate({ data }: { data: SiteData }) {
         <div className="relative mx-auto max-w-2xl text-center">
           <EditableText id="book.eyebrow" as="p" className="dv-eyebrow" style={{ color: C.peach }} />
           <EditableText id="book.title" as="h2" className="mt-3" style={{ ...display, color: C.cream, fontSize: "clamp(2.4rem, 6vw, 4.4rem)" }} />
-          <EditableText id="book.text" as="p" className="mx-auto mt-4 max-w-md leading-relaxed" style={{ color: "rgba(246,238,224,0.7)" }} />
-          <div className="mt-10 rounded-2xl p-6 text-left md:p-8" style={{ background: C.cream2, boxShadow: "0 24px 60px rgba(46,10,16,0.5)" }}>
-            <h3 className="text-xl" style={{ ...display, color: C.olive }}>{data.bookingStrings.title}</h3>
-            <BookingWidget slug={data.slug} accent={C.tomato} strings={data.bookingStrings} />
+          <EditableText id="book.text" as="p" className="mx-auto mt-4 max-w-md leading-relaxed" style={{ color: "rgb(246,238,224)" }} />
+          <div className="mt-10">
+            <BookingCta className="dv-btn dv-btn-red">{data.bookingStrings.title}</BookingCta>
           </div>
-          <EditableText id="book.script" as="p" className="mt-6 text-2xl" style={{ ...script, color: "rgba(246,238,224,0.6)" }} />
+          <EditableText id="book.script" as="p" className="mt-6 text-2xl" style={{ ...script, color: "rgb(246,238,224)" }} />
           {data.giftCardsEnabled ? (
-            <a href={`/g/${data.slug}`} className="mt-3 inline-block text-sm underline underline-offset-4" style={{ color: "rgba(246,238,224,0.75)" }}>
+            <a href={`/g/${data.slug}`} className="mt-3 inline-block text-sm underline underline-offset-4" style={{ color: "rgb(246,238,224)" }}>
               🎁 {ui.giftCta}
             </a>
           ) : null}
@@ -315,7 +314,7 @@ export default function DolceVitaTemplate({ data }: { data: SiteData }) {
               </div>
             </>
           ) : (
-            <p className="mt-6" style={{ color: "rgba(74,82,38,0.75)" }}>{ui.reviewsEmpty}</p>
+            <p className="mt-6" style={{ color: "rgb(74,82,38)" }}>{ui.reviewsEmpty}</p>
           )}
           {data.reviewUrl ? (
             <a href={data.reviewUrl} target="_blank" rel="noopener noreferrer" className="dv-btn dv-btn-ghost mt-10">Google ★</a>
@@ -348,7 +347,7 @@ export default function DolceVitaTemplate({ data }: { data: SiteData }) {
                   {data.hours.map((h) => (
                     <div key={h.day} className="flex items-center justify-between border-b py-2 text-sm" style={{ borderColor: "rgba(74,82,38,0.12)" }}>
                       <dt className="font-semibold" style={{ color: C.olive }}>{h.day}</dt>
-                      <dd style={{ color: "rgba(74,82,38,0.75)" }}>{h.value}</dd>
+                      <dd style={{ color: "rgb(74,82,38)" }}>{h.value}</dd>
                     </div>
                   ))}
                 </dl>
@@ -391,12 +390,12 @@ export default function DolceVitaTemplate({ data }: { data: SiteData }) {
             <a href="#reservar" className="hover:underline">{ui.book}</a>
             <a href="#encontrar" className="hover:underline">{ui.contact}</a>
           </nav>
-          <div className="text-sm" style={{ color: "rgba(246,238,224,0.75)" }}>
+          <div className="text-sm" style={{ color: "rgb(246,238,224)" }}>
             {data.address ? <p>{data.address}</p> : null}
             {data.phone ? <p className="mt-1">{data.phone}</p> : null}
           </div>
         </div>
-        <p className="mx-auto mt-8 max-w-6xl border-t pt-4 text-xs" style={{ borderColor: "rgba(246,238,224,0.15)", color: "rgba(246,238,224,0.6)" }}>
+        <p className="mx-auto mt-8 max-w-6xl border-t pt-4 text-xs" style={{ borderColor: "rgba(246,238,224,0.15)", color: "rgb(246,238,224)" }}>
           © {new Date().getFullYear()} {brand}
         </p>
       </footer>

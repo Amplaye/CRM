@@ -1,6 +1,6 @@
 "use client";
 
-import BookingWidget from "@/app/b/[slug]/BookingWidget";
+import { BookingCta } from "@/components/site-templates/FloatingBookingWidget";
 import { EditableImage, EditableMarquee, EditableText, useBlockValue } from "@/lib/site/content";
 import { formatSitePrice } from "@/lib/site/data";
 import type { SiteData } from "@/lib/site/types";
@@ -303,9 +303,8 @@ export default function PicnicTemplate({ data }: { data: SiteData }) {
               <EditableText id="reservas.titleItalic" as="span" className="font-normal italic" style={{ color: C.rust }} />
             </h2>
             <EditableText id="reservas.text" as="p" className="mt-4 max-w-md font-light leading-relaxed" style={{ color: CREAM_80 }} />
-            <div className="mt-8 rounded-sm p-6" style={{ background: C.cream, color: C.dark }}>
-              <h3 className="text-lg font-bold" style={{ fontFamily: DISPLAY }}>{data.bookingStrings.title}</h3>
-              <BookingWidget slug={data.slug} accent={C.rust} strings={data.bookingStrings} />
+            <div className="mt-8">
+              <BookingCta className="pc-btn inline-block rounded-full px-8 py-3.5 text-sm font-medium" style={{ background: C.rust, color: C.cream }}>{data.bookingStrings.title}</BookingCta>
             </div>
             {data.giftCardsEnabled ? (
               <a href={`/g/${data.slug}`} className="mt-6 inline-block text-sm font-light underline underline-offset-4" style={{ color: CREAM_80 }}>

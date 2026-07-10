@@ -1,7 +1,7 @@
 "use client";
 
 import type { CSSProperties } from "react";
-import BookingWidget from "@/app/b/[slug]/BookingWidget";
+import { BookingCta } from "@/components/site-templates/FloatingBookingWidget";
 import { EditableImage, EditableMarquee, EditableText, useBlockValue } from "@/lib/site/content";
 import { formatSitePrice } from "@/lib/site/data";
 import type { SiteData } from "@/lib/site/types";
@@ -153,7 +153,7 @@ export default function ChampinoneriaTemplate({ data }: { data: SiteData }) {
         <Mushroom className="ch-bob absolute bottom-[20%] right-[6%] h-14 w-14 md:h-20 md:w-20" style={{ color: "rgba(245,238,224,0.12)", animationDelay: "-3.5s" }} />
         <div className="relative z-10 px-5 py-28 text-center" style={{ color: C.cream }}>
           <EditableText id="hero.title" as="h1" fallback={brand} style={{ ...SCRIPT, fontSize: "clamp(3rem, 12vw, 9.5rem)" }} />
-          <EditableText id="hero.text" as="p" className="mx-auto mt-6 max-w-2xl text-base leading-relaxed md:text-lg" style={{ color: "rgba(245,238,224,0.85)" }} />
+          <EditableText id="hero.text" as="p" className="mx-auto mt-6 max-w-2xl text-base leading-relaxed md:text-lg" style={{ color: "rgb(245,238,224)" }} />
           <div className="mt-10 flex flex-wrap items-center justify-center gap-4">
             <a href="#reserva" className="ch-pill ch-pill-cream" style={pillBase}>{ui.book}</a>
             <a href={`/m/${data.slug}`} className="ch-pill ch-pill-cream-o" style={pillBase}>{ui.viewMenu}</a>
@@ -181,8 +181,8 @@ export default function ChampinoneriaTemplate({ data }: { data: SiteData }) {
           <div>
             <Eyebrow id="casa.eyebrow" color={C.brassSoft} />
             <EditableText id="casa.title" as="h2" className="mt-4" style={display("clamp(2.2rem, 5vw, 3.6rem)")} />
-            <EditableText id="casa.p1" as="p" className="mt-6 leading-relaxed" style={{ color: "rgba(245,238,224,0.8)" }} />
-            <EditableText id="casa.p2" as="p" className="mt-4 leading-relaxed" style={{ color: "rgba(245,238,224,0.7)" }} />
+            <EditableText id="casa.p1" as="p" className="mt-6 leading-relaxed" style={{ color: "rgb(245,238,224)" }} />
+            <EditableText id="casa.p2" as="p" className="mt-4 leading-relaxed" style={{ color: "rgb(245,238,224)" }} />
           </div>
           <EditableImage id="casa.image" alt="" className="ch-frame-photo aspect-[4/5] w-full rotate-1 object-cover" />
         </div>
@@ -244,13 +244,12 @@ export default function ChampinoneriaTemplate({ data }: { data: SiteData }) {
         <div className="relative mx-auto max-w-2xl text-center">
           <Eyebrow id="reserva.eyebrow" color={C.brassSoft} center />
           <EditableText id="reserva.title" as="h2" className="mt-4" style={{ ...SCRIPT, fontSize: "clamp(2.6rem, 6vw, 4.4rem)" }} />
-          <EditableText id="reserva.text" as="p" className="mt-4 leading-relaxed" style={{ color: "rgba(245,238,224,0.7)" }} />
-          <div className="ch-frame mt-10 p-6 text-left md:p-8" style={{ color: C.ink }}>
-            <h3 className="text-2xl" style={{ fontFamily: DISPLAY, fontWeight: 500 }}>{data.bookingStrings.title}</h3>
-            <BookingWidget slug={data.slug} accent="#2e2218" strings={data.bookingStrings} />
+          <EditableText id="reserva.text" as="p" className="mt-4 leading-relaxed" style={{ color: "rgb(245,238,224)" }} />
+          <div className="mt-10">
+            <BookingCta className="ch-pill ch-pill-cream" style={pillBase}>{data.bookingStrings.title}</BookingCta>
           </div>
           {data.giftCardsEnabled ? (
-            <a href={`/g/${data.slug}`} className="mt-7 inline-block text-sm underline underline-offset-4 hover:opacity-80" style={{ color: "rgba(245,238,224,0.7)" }}>
+            <a href={`/g/${data.slug}`} className="mt-7 inline-block text-sm underline underline-offset-4 hover:opacity-80" style={{ color: "rgb(245,238,224)" }}>
               {ui.giftCta}
             </a>
           ) : null}
@@ -304,12 +303,12 @@ export default function ChampinoneriaTemplate({ data }: { data: SiteData }) {
           <div>
             <Eyebrow id="encontrar.eyebrow" color={C.brassSoft} />
             <EditableText id="encontrar.title" as="h2" className="mt-4" style={{ ...SCRIPT, fontSize: "clamp(2.4rem, 5.5vw, 4rem)" }} />
-            <EditableText id="encontrar.text" as="p" className="mt-4 leading-relaxed" style={{ color: "rgba(245,238,224,0.7)" }} />
+            <EditableText id="encontrar.text" as="p" className="mt-4 leading-relaxed" style={{ color: "rgb(245,238,224)" }} />
             <dl className="mt-8 space-y-5 text-sm">
               {data.address ? (
                 <div>
                   <dt style={{ ...EYEBROW, fontSize: "0.62rem", color: C.brassSoft }}>{ui.address}</dt>
-                  <dd className="mt-1.5" style={{ color: "rgba(245,238,224,0.85)" }}>{data.address}</dd>
+                  <dd className="mt-1.5" style={{ color: "rgb(245,238,224)" }}>{data.address}</dd>
                 </div>
               ) : null}
               {data.hours.length ? (
@@ -318,8 +317,8 @@ export default function ChampinoneriaTemplate({ data }: { data: SiteData }) {
                   <dd className="mt-1.5 max-w-sm space-y-1">
                     {data.hours.map((h) => (
                       <div key={h.day} className="flex items-baseline justify-between gap-6">
-                        <span style={{ color: "rgba(245,238,224,0.85)" }}>{h.day}</span>
-                        <span style={{ color: "rgba(245,238,224,0.55)" }}>{h.value}</span>
+                        <span style={{ color: "rgb(245,238,224)" }}>{h.day}</span>
+                        <span style={{ color: "rgb(245,238,224)" }}>{h.value}</span>
                       </div>
                     ))}
                   </dd>
@@ -329,7 +328,7 @@ export default function ChampinoneriaTemplate({ data }: { data: SiteData }) {
                 <div>
                   <dt style={{ ...EYEBROW, fontSize: "0.62rem", color: C.brassSoft }}>{ui.phone}</dt>
                   <dd className="mt-1.5">
-                    <a href={tel} className="underline underline-offset-4" style={{ color: "rgba(245,238,224,0.85)" }}>{data.phone}</a>
+                    <a href={tel} className="underline underline-offset-4" style={{ color: "rgb(245,238,224)" }}>{data.phone}</a>
                   </dd>
                 </div>
               ) : null}
@@ -362,8 +361,8 @@ export default function ChampinoneriaTemplate({ data }: { data: SiteData }) {
           <div>
             <EditableText id="footer.brand" as="p" fallback={brand} className="text-3xl" style={SCRIPT} />
             <EditableText id="footer.tagline" as="p" className="mt-2" style={{ ...EYEBROW, fontSize: "0.62rem", color: C.brassSoft }} />
-            <EditableText id="footer.line" as="p" className="mt-4 text-sm" style={{ color: "rgba(245,238,224,0.7)" }} />
-            <div className="mt-4 text-sm" style={{ color: "rgba(245,238,224,0.55)" }}>
+            <EditableText id="footer.line" as="p" className="mt-4 text-sm" style={{ color: "rgb(245,238,224)" }} />
+            <div className="mt-4 text-sm" style={{ color: "rgb(245,238,224)" }}>
               {data.address ? <p>{data.address}</p> : null}
               {data.phone ? <p className="mt-1">{data.phone}</p> : null}
             </div>
@@ -375,7 +374,7 @@ export default function ChampinoneriaTemplate({ data }: { data: SiteData }) {
             <a href="#encontrar" className="hover:opacity-70">{ui.contact}</a>
           </nav>
         </div>
-        <p className="mx-auto mt-10 max-w-6xl border-t pt-5 text-xs" style={{ borderColor: "rgba(245,238,224,0.12)", color: "rgba(245,238,224,0.55)" }}>
+        <p className="mx-auto mt-10 max-w-6xl border-t pt-5 text-xs" style={{ borderColor: "rgba(245,238,224,0.12)", color: "rgb(245,238,224)" }}>
           © {new Date().getFullYear()} {brand}
         </p>
       </footer>

@@ -9,6 +9,7 @@ import { SITE_STRINGS } from "@/lib/site/labels";
 import { buildSiteData, firstName, formatSitePrice, type RawMenuItemRow, type RawReviewRow } from "@/lib/site/data";
 import { SiteContentProvider } from "@/lib/site/content";
 import { SITE_TEMPLATE_DEFS, isDemoTemplate } from "@/components/site-templates/registry";
+import FloatingBookingWidget from "@/components/site-templates/FloatingBookingWidget";
 
 // Public template micro-site (Fase 4 — website builder). Same contract as the
 // hosted menu /m/<slug>: service-role read, no auth, no cookies, branding from
@@ -142,6 +143,7 @@ export default async function PublicSitePage({ params }: { params: Promise<Param
         <SiteContentProvider value={{ content, editMode: false }}>
           <Template data={data} />
         </SiteContentProvider>
+        <FloatingBookingWidget slug={tenant.slug} accent={def.accent} strings={data.bookingStrings} />
       </>
     );
   }

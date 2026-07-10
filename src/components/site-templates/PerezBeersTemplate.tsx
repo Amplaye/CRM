@@ -1,7 +1,7 @@
 "use client";
 
 import type { CSSProperties } from "react";
-import BookingWidget from "@/app/b/[slug]/BookingWidget";
+import { BookingCta } from "@/components/site-templates/FloatingBookingWidget";
 import { EditableImage, EditableMarquee, EditableText, useBlockValue } from "@/lib/site/content";
 import { formatSitePrice } from "@/lib/site/data";
 import type { SiteData } from "@/lib/site/types";
@@ -190,7 +190,7 @@ export default function PerezBeersTemplate({ data }: { data: SiteData }) {
             <EditableText id="secreto.title" as="h2" className="mt-4 text-4xl md:text-5xl" style={h2} />
             <div className="pb-rule my-7" />
             <EditableText id="secreto.p1" as="p" className="leading-relaxed" style={{ color: cream(0.7) }} />
-            <EditableText id="secreto.p2" as="p" className="mt-4 leading-relaxed" style={{ color: "rgba(220,160,60,0.9)" }} />
+            <EditableText id="secreto.p2" as="p" className="mt-4 leading-relaxed" style={{ color: "rgb(220,160,60)" }} />
             <div className="mt-9 flex items-center gap-8">
               <div>
                 <EditableText id="secreto.stat1" as="p" className="text-3xl" style={{ fontFamily: DISPLAY, fontWeight: 700, color: C.goldLight }} />
@@ -299,12 +299,8 @@ export default function PerezBeersTemplate({ data }: { data: SiteData }) {
               <a href={`/g/${data.slug}`} className="mt-7 inline-flex items-center gap-2 text-sm font-semibold hover:underline" style={{ color: C.goldLight }}>🎁 {ui.giftCta}</a>
             ) : null}
           </div>
-          <div className="relative">
-            <div aria-hidden className="pointer-events-none absolute -inset-4 rounded-[2.2rem] blur-2xl" style={{ background: "linear-gradient(135deg, rgba(240,205,130,0.35), rgba(197,57,44,0.3))" }} />
-            <div className="relative rounded-[1.8rem] p-6 md:p-8" style={{ background: "#FAF6EE", color: C.basalt }}>
-              <h3 className="text-xl" style={{ fontFamily: DISPLAY, fontWeight: 700, letterSpacing: "-0.025em" }}>{data.bookingStrings.title}</h3>
-              <BookingWidget slug={data.slug} accent="#C5392C" strings={data.bookingStrings} />
-            </div>
+          <div>
+            <BookingCta className="pb-btn-gold" style={btnGold}>{data.bookingStrings.title}</BookingCta>
           </div>
         </div>
       </section>

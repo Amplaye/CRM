@@ -1,7 +1,7 @@
 "use client";
 
 import type { CSSProperties } from "react";
-import BookingWidget from "@/app/b/[slug]/BookingWidget";
+import { BookingCta } from "@/components/site-templates/FloatingBookingWidget";
 import { EditableImage, EditableMarquee, EditableText, useBlockValue } from "@/lib/site/content";
 import { formatSitePrice } from "@/lib/site/data";
 import type { SiteData } from "@/lib/site/types";
@@ -233,7 +233,7 @@ export default function SuerteTemplate({ data }: { data: SiteData }) {
               </span>
               <EditableText id="special.eyebrow" as="p" className="mt-4 text-sm font-semibold uppercase tracking-wide" style={{ color: C.mustard }} />
               <EditableText id="special.title" as="h2" className="mt-2 text-4xl font-bold md:text-5xl" style={{ fontFamily: DISPLAY }} />
-              <EditableText id="special.text" as="p" className="mt-4 leading-relaxed" style={{ color: "rgba(244,236,221,0.85)" }} />
+              <EditableText id="special.text" as="p" className="mt-4 leading-relaxed" style={{ color: "rgb(244,236,221)" }} />
               <a href="#reserva" className="su-btn mt-6" style={{ ...pill(C.cream, C.charcoal, C.charcoal), boxShadow: `4px 4px 0 ${C.charcoal}` }}>
                 {ui.book} →
               </a>
@@ -261,10 +261,7 @@ export default function SuerteTemplate({ data }: { data: SiteData }) {
               </a>
             ) : null}
           </div>
-          <div className="p-6 md:p-8" style={{ background: C.creamDeep, border: `2px solid ${C.charcoal}`, borderRadius: "1.4rem 0.7rem 1.6rem 0.6rem", boxShadow: `5px 5px 0 ${C.tile}` }}>
-            <h3 className="text-xl font-bold" style={{ fontFamily: DISPLAY }}>{data.bookingStrings.title}</h3>
-            <BookingWidget slug={data.slug} accent={C.tomato} strings={data.bookingStrings} />
-          </div>
+          <BookingCta className="su-btn text-base" style={{ ...pill(C.tomato, C.cream, C.charcoal), boxShadow: `4px 4px 0 ${C.charcoal}` }}>{data.bookingStrings.title}</BookingCta>
         </div>
       </section>
 
@@ -349,7 +346,7 @@ export default function SuerteTemplate({ data }: { data: SiteData }) {
         <div className="mx-auto grid max-w-6xl gap-8 md:grid-cols-[1.4fr_1fr_1fr]">
           <div>
             <p className="text-2xl font-bold" style={{ fontFamily: DISPLAY, color: C.tomato }}>{brand}</p>
-            <EditableText id="footer.tagline" as="p" className="mt-2 text-sm" style={{ color: "rgba(244,236,221,0.7)" }} />
+            <EditableText id="footer.tagline" as="p" className="mt-2 text-sm" style={{ color: "rgb(244,236,221)" }} />
             <EditableText id="footer.script" as="p" className="mt-3 text-2xl" style={{ fontFamily: SCRIPT, color: C.mustard }} />
           </div>
           <nav className="flex flex-col gap-2 text-sm">
@@ -358,12 +355,12 @@ export default function SuerteTemplate({ data }: { data: SiteData }) {
             <a href="#reserva" className="hover:underline">{ui.book}</a>
             <a href="#visit" className="hover:underline">{ui.contact}</a>
           </nav>
-          <div className="text-sm" style={{ color: "rgba(244,236,221,0.7)" }}>
+          <div className="text-sm" style={{ color: "rgb(244,236,221)" }}>
             {data.address ? <p>{data.address}</p> : null}
             {data.phone ? <p className="mt-1">{data.phone}</p> : null}
           </div>
         </div>
-        <p className="mx-auto mt-8 max-w-6xl border-t pt-4 text-xs" style={{ borderColor: "rgba(244,236,221,0.15)", color: "rgba(244,236,221,0.5)" }}>
+        <p className="mx-auto mt-8 max-w-6xl border-t pt-4 text-xs" style={{ borderColor: "rgba(244,236,221,0.15)", color: "rgb(244,236,221)" }}>
           © {new Date().getFullYear()} {brand}
         </p>
       </footer>

@@ -1,7 +1,7 @@
 "use client";
 
 import type { CSSProperties } from "react";
-import BookingWidget from "@/app/b/[slug]/BookingWidget";
+import { BookingCta } from "@/components/site-templates/FloatingBookingWidget";
 import { EditableImage, EditableText } from "@/lib/site/content";
 import { formatSitePrice } from "@/lib/site/data";
 import type { SiteData } from "@/lib/site/types";
@@ -278,9 +278,9 @@ export default function MontesdeocaTemplate({ data }: { data: SiteData }) {
               </span>
             </div>
             <EditableText id="reservar.title" as="h2" className="text-3xl md:text-4xl" style={{ fontFamily: DISPLAY, fontWeight: 400, color: C.espresso }} />
-            <EditableText id="reservar.text" as="p" className="mx-auto mt-3 max-w-sm text-sm" style={{ lineHeight: 1.7, color: "rgba(28,23,18,0.65)" }} />
-            <div className="mt-6 text-left">
-              <BookingWidget slug={data.slug} accent={C.terracota} strings={data.bookingStrings} />
+            <EditableText id="reservar.text" as="p" className="mx-auto mt-3 max-w-sm text-sm" style={{ lineHeight: 1.7, color: "rgb(28,23,18)" }} />
+            <div className="mt-6">
+              <BookingCta className="mo-btn" style={btn(false)}>{data.bookingStrings.title}</BookingCta>
             </div>
           </div>
           {data.giftCardsEnabled ? (

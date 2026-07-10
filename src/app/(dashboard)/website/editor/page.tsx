@@ -20,6 +20,7 @@ import { SiteContentProvider } from "@/lib/site/content";
 import { buildSiteData, type RawMenuItemRow, type RawReviewRow } from "@/lib/site/data";
 import { uploadSitePhoto, siteBlockFileName } from "@/lib/site/upload-site-photo";
 import { SITE_TEMPLATE_DEFS, isDemoTemplate } from "@/components/site-templates/registry";
+import FloatingBookingWidget from "@/components/site-templates/FloatingBookingWidget";
 
 export default function WebsiteEditorPage() {
   const { t } = useLanguage();
@@ -235,6 +236,7 @@ export default function WebsiteEditorPage() {
         <SiteContentProvider value={{ content, editMode: canEdit, onEditText, onEditImage }}>
           <def.component data={data} />
         </SiteContentProvider>
+        <FloatingBookingWidget slug={tenant.slug} accent={def.accent} strings={data.bookingStrings} />
       </div>
 
       <input

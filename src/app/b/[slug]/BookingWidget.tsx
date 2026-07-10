@@ -3,9 +3,10 @@
 import { useState } from "react";
 
 // Two-step widget: (1) date + people → slot grid from /api/public/availability,
-// (2) pick a slot → name/phone → /api/public/book. Success states mirror the
-// AI pipeline's outcomes: confirmed, pending (large party), waitlist, deposit
-// link. Strings arrive pre-localized from the server page.
+// (2) pick a slot → name/phone → /api/public/book. Outcomes mirror the AI
+// pipeline: confirmed / pending (large-party escalation) / waitlist / full /
+// error. Strings arrive pre-localized from the server. Rendered both inside the
+// FloatingBookingWidget panel and standalone on /b/<slug>.
 
 export interface BookingStrings {
   dateLabel: string;
@@ -33,15 +34,19 @@ export interface BookingStrings {
 }
 
 type Outcome = {
-  kind: "confirmed" | "pending" | "waitlist" | "full" | "error";
+  kind: "confirmed" | "pending" | "waitlist" | "full";
   depositUrl?: string | null;
 };
-
-const INPUT = "bw-field w-full rounded-lg border-2 bg-white px-3 py-2.5 text-sm text-black focus:outline-none";
 
 function todayYmd(): string {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+/** "HH:MM" now, local — used to drop already-passed slots when booking today. */
+function nowHm(): string {
+  const d = new Date();
+  return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
 }
 
 export default function BookingWidget({
@@ -65,6 +70,11 @@ export default function BookingWidget({
   const [outcome, setOutcome] = useState<Outcome | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  // Step index drives the progress dots and the slide animation key.
+  const step = outcome ? 3 : time ? 2 : slots ? 1 : 0;
+
+  const vars = { ["--bw-accent" as string]: accent } as React.CSSProperties;
+
   const check = async () => {
     setBusy("check");
     setError(null);
@@ -80,10 +90,15 @@ export default function BookingWidget({
       const json = await res.json().catch(() => ({}));
       if (!res.ok) {
         setError(ui.koGeneric);
-      } else if (json.status === "closed_day") {
+      } else if (json.status === "closed_day" || json.status === "closed") {
         setSlotsMsg(ui.closedDay);
       } else {
-        const free = (json.availability || []).filter((a: { available: boolean }) => a.available);
+        // Drop slots already in the past when booking for today — the server
+        // rejects them with `past_time`, so never offer them.
+        const cutoff = date === todayYmd() ? nowHm() : "00:00";
+        const free = (json.availability || []).filter(
+          (a: { available: boolean; time: string }) => a.available && a.time > cutoff,
+        );
         if (free.length === 0) setSlotsMsg(ui.noSlots);
         else setSlots(free);
       }
@@ -104,17 +119,28 @@ export default function BookingWidget({
         body: JSON.stringify({ slug, date, time, party_size: people, name, phone, notes }),
       });
       const json = await res.json().catch(() => ({}));
-      if (json?.success && json.status === "confirmed") {
+
+      // The public /book route returns HTTP 400 { error: "invalid_phone" } for a
+      // malformed number, and on success { success, status, on_waitlist,
+      // deposit_payment_url }. status can be: confirmed | escalated (large party
+      // → venue confirms) | full. Anything else success:true → treat as pending.
+      if (res.status === 400 && json?.error === "invalid_phone") {
+        setError(ui.koPhone);
+      } else if (json?.success && json.status === "confirmed") {
         setOutcome({ kind: "confirmed", depositUrl: json.deposit_payment_url });
-      } else if (json?.success && json.on_waitlist) {
+      } else if (json?.success && (json.on_waitlist || json.status === "waitlist")) {
         setOutcome({ kind: "waitlist" });
       } else if (json?.success && json.status === "full") {
         setOutcome({ kind: "full" });
       } else if (json?.success) {
-        // pending_confirmation (large party) or merged duplicate — the venue follows up.
         setOutcome({ kind: "pending", depositUrl: json.deposit_payment_url });
-      } else if (json?.error === "invalid_phone") {
+      } else if (json?.error === "invalid_phone" || json?.reason === "invalid_phone") {
         setError(ui.koPhone);
+      } else if (json?.reason === "past_time") {
+        // Slot lapsed between listing and submit — refresh availability.
+        setError(ui.koGeneric);
+        setTime(null);
+        setSlots(null);
       } else {
         setError(ui.koGeneric);
       }
@@ -124,7 +150,20 @@ export default function BookingWidget({
     setBusy(null);
   };
 
-  if (outcome && outcome.kind !== "error") {
+  const reset = () => {
+    setOutcome(null);
+    setSlots(null);
+    setSlotsMsg(null);
+    setTime(null);
+    setName("");
+    setPhone("");
+    setNotes("");
+    setError(null);
+  };
+
+  // ——— Success / outcome screen ———
+  if (outcome) {
+    const good = outcome.kind === "confirmed";
     const msg =
       outcome.kind === "confirmed"
         ? ui.okConfirmed
@@ -133,171 +172,139 @@ export default function BookingWidget({
           : outcome.kind === "full"
             ? ui.koFull
             : ui.okPending;
-    const showCheck = outcome.kind === "confirmed" || outcome.kind === "pending";
     return (
-      <div
-        className="bw-shell bw-success mt-6 space-y-4 rounded-xl border-2 bg-white p-6 text-center"
-        style={{ borderColor: accent, ["--bw-accent" as string]: accent }}
-      >
-        {showCheck ? (
-          <div
-            className="bw-check mx-auto flex h-14 w-14 items-center justify-center rounded-full"
-            style={{ background: `color-mix(in srgb, ${accent} 14%, white)` }}
-          >
-            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke={accent} strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-              <path d="M20 6 9 17l-5-5" />
-            </svg>
+      <div className="bw2" style={vars}>
+        <div key="done" className="bw2-screen bw2-fade-in flex flex-col items-center py-4 text-center">
+          <div className={`bw2-badge ${good ? "bw2-badge-ok" : "bw2-badge-wait"}`}>
+            {good ? (
+              <svg className="bw2-badge-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d="M20 6 9 17l-5-5" />
+              </svg>
+            ) : outcome.kind === "full" ? (
+              <svg className="bw2-badge-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <circle cx="12" cy="12" r="9" />
+                <path d="M15 9l-6 6M9 9l6 6" />
+              </svg>
+            ) : (
+              <svg className="bw2-badge-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <circle cx="12" cy="12" r="9" />
+                <path d="M12 7v5l3 2" />
+              </svg>
+            )}
           </div>
-        ) : null}
-        <p className="font-semibold text-black">{msg}</p>
-        {outcome.depositUrl ? (
-          <div className="space-y-2">
-            <p className="text-sm text-black">{ui.okDeposit}</p>
-            <a
-              href={outcome.depositUrl}
-              className="bw-cta inline-block rounded-xl px-6 py-3 font-bold text-white"
-              style={{ background: accent, ["--bw-accent" as string]: accent }}
-            >
-              {ui.depositBtn}
-            </a>
-          </div>
-        ) : null}
-        <button
-          type="button"
-          onClick={() => {
-            setOutcome(null);
-            setSlots(null);
-            setTime(null);
-          }}
-          className="text-sm font-semibold text-black underline"
-        >
-          {ui.newBooking}
-        </button>
+          <p className="mt-5 max-w-xs text-[15px] font-semibold leading-snug text-black">{msg}</p>
+
+          {outcome.depositUrl ? (
+            <div className="mt-5 w-full space-y-2">
+              <p className="text-xs font-medium text-black/70">{ui.okDeposit}</p>
+              <a href={outcome.depositUrl} className="bw2-btn bw2-btn-primary">
+                {ui.depositBtn}
+              </a>
+            </div>
+          ) : null}
+
+          <button type="button" onClick={reset} className="bw2-btn bw2-btn-ghost mt-4">
+            {ui.newBooking}
+          </button>
+        </div>
       </div>
     );
   }
 
   return (
-    <div
-      className="bw-shell mt-6 space-y-4 rounded-xl border-2 bg-white p-5"
-      style={{ borderColor: accent, ["--bw-accent" as string]: accent }}
-    >
-      <div className="grid grid-cols-2 gap-3">
-        <div>
-          <label className="mb-1 block text-sm font-bold text-black">{ui.dateLabel}</label>
-          <input
-            type="date"
-            value={date}
-            min={todayYmd()}
-            onChange={(e) => setDate(e.target.value)}
-            className={INPUT}
-            style={{ borderColor: accent }}
-          />
-        </div>
-        <div>
-          <label className="mb-1 block text-sm font-bold text-black">{ui.peopleLabel}</label>
-          <select
-            value={people}
-            onChange={(e) => setPeople(Number(e.target.value))}
-            className={INPUT}
-            style={{ borderColor: accent }}
-          >
-            {Array.from({ length: 12 }, (_, i) => i + 1).map((n) => (
-              <option key={n} value={n}>
-                {n}
-              </option>
-            ))}
-          </select>
-        </div>
+    <div className="bw2" style={vars}>
+      {/* Progress rail */}
+      <div className="bw2-rail" aria-hidden="true">
+        {[0, 1, 2].map((i) => (
+          <span key={i} className={`bw2-dot ${step > i ? "bw2-dot-done" : step === i ? "bw2-dot-active" : ""}`} />
+        ))}
       </div>
 
-      <button
-        type="button"
-        onClick={check}
-        disabled={busy !== null || !date}
-        className="bw-cta w-full rounded-xl py-3 text-base font-bold text-white disabled:opacity-40"
-        style={{ background: accent }}
-      >
-        {busy === "check" ? (
-          <span className="inline-flex items-center gap-2">
-            <span className="bw-spinner" />
-            {ui.checking}
-          </span>
-        ) : (
-          ui.checkBtn
-        )}
-      </button>
-
-      {slotsMsg ? <p className="bw-step text-center text-sm font-semibold text-black">{slotsMsg}</p> : null}
-
-      {slots ? (
-        <div className="bw-step">
-          <label className="mb-2 block text-sm font-bold text-black">{ui.timeLabel}</label>
-          <div className="grid grid-cols-4 gap-2">
-            {slots.map((s, i) => (
-              <button
-                key={s.time}
-                type="button"
-                onClick={() => setTime(s.time)}
-                className={`bw-chip h-10 rounded-lg border-2 text-sm font-bold ${time === s.time ? "bw-chip-on text-white" : "text-black"}`}
-                style={
-                  time === s.time
-                    ? { background: accent, borderColor: accent, animationDelay: `${i * 28}ms` }
-                    : { borderColor: accent, animationDelay: `${i * 28}ms` }
-                }
-              >
-                {s.time}
+      {/* Step 0 — date + people */}
+      <div key={`s-${step}`} className="bw2-screen bw2-fade-in space-y-4">
+        <div className="grid grid-cols-2 gap-3">
+          <label className="bw2-group">
+            <span className="bw2-label">{ui.dateLabel}</span>
+            <input
+              type="date"
+              value={date}
+              min={todayYmd()}
+              onChange={(e) => setDate(e.target.value)}
+              className="bw2-input"
+            />
+          </label>
+          <label className="bw2-group">
+            <span className="bw2-label">{ui.peopleLabel}</span>
+            <div className="bw2-stepper">
+              <button type="button" onClick={() => setPeople((n) => Math.max(1, n - 1))} className="bw2-step-btn" aria-label="-">
+                −
               </button>
-            ))}
+              <span className="bw2-step-val">{people}</span>
+              <button type="button" onClick={() => setPeople((n) => Math.min(20, n + 1))} className="bw2-step-btn" aria-label="+">
+                +
+              </button>
+            </div>
+          </label>
+        </div>
+
+        <button type="button" onClick={check} disabled={busy !== null || !date} className="bw2-btn bw2-btn-primary">
+          {busy === "check" ? (
+            <span className="inline-flex items-center gap-2">
+              <span className="bw2-spinner" /> {ui.checking}
+            </span>
+          ) : (
+            ui.checkBtn
+          )}
+        </button>
+
+        {slotsMsg ? <p className="bw2-note">{slotsMsg}</p> : null}
+
+        {/* Step 1 — slot grid */}
+        {slots ? (
+          <div className="bw2-slide-in">
+            <span className="bw2-label mb-2 block">{ui.timeLabel}</span>
+            <div className="grid grid-cols-4 gap-2">
+              {slots.map((s, i) => (
+                <button
+                  key={s.time}
+                  type="button"
+                  onClick={() => setTime(s.time)}
+                  className={`bw2-chip ${time === s.time ? "bw2-chip-on" : ""}`}
+                  style={{ animationDelay: `${Math.min(i, 16) * 26}ms` }}
+                >
+                  {s.time}
+                </button>
+              ))}
+            </div>
           </div>
-        </div>
-      ) : null}
+        ) : null}
 
-      {time ? (
-        <div className="bw-step space-y-3">
-          <input
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            placeholder={ui.nameLabel}
-            className={INPUT}
-            style={{ borderColor: accent }}
-          />
-          <input
-            type="tel"
-            value={phone}
-            onChange={(e) => setPhone(e.target.value)}
-            placeholder={ui.phoneLabel}
-            className={INPUT}
-            style={{ borderColor: accent }}
-          />
-          <textarea
-            value={notes}
-            onChange={(e) => setNotes(e.target.value.slice(0, 300))}
-            rows={2}
-            placeholder={ui.notesPh}
-            className={INPUT}
-            style={{ borderColor: accent }}
-          />
-          <button
-            type="button"
-            onClick={book}
-            disabled={busy !== null || !name.trim() || !phone.trim()}
-            className="bw-cta w-full rounded-xl py-3.5 text-base font-bold text-white disabled:opacity-40"
-            style={{ background: accent }}
-          >
-            {busy === "book" ? (
-              <span className="inline-flex items-center gap-2">
-                <span className="bw-spinner" />
-                {ui.booking}
-              </span>
-            ) : (
-              `${ui.bookBtn} · ${time}`
-            )}
-          </button>
-        </div>
-      ) : null}
+        {/* Step 2 — guest details */}
+        {time ? (
+          <div className="bw2-slide-in space-y-3 pt-1">
+            <input value={name} onChange={(e) => setName(e.target.value)} placeholder={ui.nameLabel} className="bw2-input" />
+            <input type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder={ui.phoneLabel} className="bw2-input" />
+            <textarea
+              value={notes}
+              onChange={(e) => setNotes(e.target.value.slice(0, 300))}
+              rows={2}
+              placeholder={ui.notesPh}
+              className="bw2-input resize-none"
+            />
+            <button type="button" onClick={book} disabled={busy !== null || !name.trim() || !phone.trim()} className="bw2-btn bw2-btn-primary">
+              {busy === "book" ? (
+                <span className="inline-flex items-center gap-2">
+                  <span className="bw2-spinner" /> {ui.booking}
+                </span>
+              ) : (
+                `${ui.bookBtn} · ${time}`
+              )}
+            </button>
+          </div>
+        ) : null}
 
-      {error ? <p className="text-center text-sm font-bold text-red-700">{error}</p> : null}
+        {error ? <p className="bw2-error">{error}</p> : null}
+      </div>
     </div>
   );
 }
