@@ -223,7 +223,7 @@ export default function WebsitePage() {
 
       {/* Template picker — classic (form-driven) + the demo-site replicas
           (edited inline in the visual editor). */}
-      <div className="rounded-xl border-2 p-5 max-w-3xl space-y-4" style={CARD}>
+      <div className="rounded-xl border-2 p-5 space-y-4" style={CARD}>
         <h2 className="font-bold text-black">{t("website_templates_title")}</h2>
         <p className="text-sm text-black">{t("website_templates_hint")}</p>
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
@@ -278,7 +278,7 @@ export default function WebsitePage() {
       {template === "classic" ? (
       <>
       {/* Hero */}
-      <div className="rounded-xl border-2 p-5 max-w-2xl space-y-4" style={CARD}>
+      <div className="rounded-xl border-2 p-5 space-y-4" style={CARD}>
         <h2 className="font-bold text-black">{t("website_hero_title")}</h2>
         {heroUrl ? (
           // eslint-disable-next-line @next/next/no-img-element
@@ -322,7 +322,7 @@ export default function WebsitePage() {
       </div>
 
       {/* About */}
-      <div className="rounded-xl border-2 p-5 max-w-2xl space-y-3" style={CARD}>
+      <div className="rounded-xl border-2 p-5 space-y-3" style={CARD}>
         <h2 className="font-bold text-black">{t("website_about_title")}</h2>
         <textarea
           value={aboutText}
@@ -337,7 +337,7 @@ export default function WebsitePage() {
       </div>
 
       {/* Style */}
-      <div className="rounded-xl border-2 p-5 max-w-2xl space-y-4" style={CARD}>
+      <div className="rounded-xl border-2 p-5 space-y-4" style={CARD}>
         <h2 className="font-bold text-black">{t("website_style_title")}</h2>
         <div>
           <label className="block text-sm font-bold text-black mb-2">{t("menu_branding_color")}</label>
@@ -393,7 +393,7 @@ export default function WebsitePage() {
       </div>
 
       {/* Gallery */}
-      <div className="rounded-xl border-2 p-5 max-w-2xl space-y-4" style={CARD}>
+      <div className="rounded-xl border-2 p-5 space-y-4" style={CARD}>
         <h2 className="font-bold text-black">{t("website_gallery_title")}</h2>
         {gallery.length ? (
           <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
@@ -434,7 +434,7 @@ export default function WebsitePage() {
       </div>
 
       {/* Sections on/off + order */}
-      <div className="rounded-xl border-2 p-5 max-w-2xl space-y-3" style={CARD}>
+      <div className="rounded-xl border-2 p-5 space-y-3" style={CARD}>
         <h2 className="font-bold text-black">{t("website_sections_title")}</h2>
         <p className="text-sm text-black">{t("website_sections_hint")}</p>
         <ul className="space-y-2">

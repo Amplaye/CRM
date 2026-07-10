@@ -75,7 +75,7 @@ function Marquee({ id, fallback, bg = C.tileDeep }: { id: string; fallback: stri
 export default function SuerteTemplate({ data }: { data: SiteData }) {
   const brand = data.tenantName;
   const ui = data.labels;
-  const mapEmbed = data.address ? `https://www.google.com/maps?q=${encodeURIComponent(data.address)}&output=embed` : "";
+  const mapEmbed = data.address ? `https://maps.google.com/maps?q=${encodeURIComponent(data.address)}&output=embed` : "";
 
   const pill = (bg: string, fg: string, shadow: string): CSSProperties => ({
     background: bg,

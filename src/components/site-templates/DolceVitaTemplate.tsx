@@ -101,7 +101,7 @@ function Marquee({ id, fallback }: { id: string; fallback: string }) {
 export default function DolceVitaTemplate({ data }: { data: SiteData }) {
   const brand = data.tenantName;
   const ui = data.labels;
-  const mapEmbed = data.address ? `https://www.google.com/maps?q=${encodeURIComponent(data.address)}&output=embed` : "";
+  const mapEmbed = data.address ? `https://maps.google.com/maps?q=${encodeURIComponent(data.address)}&output=embed` : "";
 
   return (
     <div style={{ background: C.cream, color: C.olive, fontFamily: BODY }} className="min-h-screen w-full">

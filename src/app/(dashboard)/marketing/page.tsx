@@ -137,7 +137,7 @@ export default function MarketingPage() {
       </div>
 
       {/* Composer */}
-      <div className="rounded-xl border-2 p-5 max-w-2xl space-y-4" style={CARD}>
+      <div className="rounded-xl border-2 p-5 space-y-4" style={CARD}>
         <div className="grid sm:grid-cols-2 gap-3">
           <div>
             <label className="block text-sm font-bold text-black mb-1">{t("mkt_name_label")}</label>
@@ -231,7 +231,7 @@ export default function MarketingPage() {
       </div>
 
       {/* History */}
-      <div className="max-w-2xl">
+      <div>
         <h2 className="text-sm font-bold text-black uppercase tracking-wider mb-2">{t("mkt_history")}</h2>
         {campaigns.length === 0 ? (
           <p className="text-sm text-black italic">{t("mkt_history_none")}</p>

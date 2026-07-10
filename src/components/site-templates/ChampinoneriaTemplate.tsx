@@ -107,7 +107,7 @@ export default function ChampinoneriaTemplate({ data }: { data: SiteData }) {
   const brand = data.tenantName;
   const ui = data.labels;
   const tel = data.phone ? `tel:${data.phone.replace(/\s+/g, "")}` : "";
-  const mapEmbed = data.address ? `https://www.google.com/maps?q=${encodeURIComponent(data.address)}&output=embed` : "";
+  const mapEmbed = data.address ? `https://maps.google.com/maps?q=${encodeURIComponent(data.address)}&output=embed` : "";
 
   const pillBase: CSSProperties = {
     borderRadius: 999,

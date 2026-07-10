@@ -113,7 +113,7 @@ export default function GiftCardsPage() {
         </a>
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-3 max-w-2xl">
+      <div className="grid gap-3 sm:grid-cols-3">
         <div className="rounded-xl border-2 p-4" style={CARD}>
           <p className="text-xs font-semibold text-black">{t("gift_kpi_count")}</p>
           <p className="text-2xl font-bold text-black">{rows.length}</p>

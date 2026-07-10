@@ -90,7 +90,7 @@ function Marquee({ id, fallback, border }: { id: string; fallback: string; borde
 export default function VascoTemplate({ data }: { data: SiteData }) {
   const brand = data.tenantName;
   const ui = data.labels;
-  const mapEmbed = data.address ? `https://www.google.com/maps?q=${encodeURIComponent(data.address)}&output=embed` : "";
+  const mapEmbed = data.address ? `https://maps.google.com/maps?q=${encodeURIComponent(data.address)}&output=embed` : "";
   const inkSoft = "rgba(34,28,24,0.72)";
   const creamSoft = "rgba(245,239,225,0.8)";
 

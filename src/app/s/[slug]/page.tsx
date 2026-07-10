@@ -135,6 +135,7 @@ export default async function PublicSitePage({ params }: { params: Promise<Param
     const Template = def.component;
     return (
       <>
+        <PublicSiteScrollReset />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
         {/* eslint-disable-next-line @next/next/no-page-custom-font */}
         <link rel="stylesheet" href={def.fontsHref} />
@@ -355,6 +356,8 @@ export default async function PublicSitePage({ params }: { params: Promise<Param
   };
 
   return (
+    <>
+    <PublicSiteScrollReset />
     <div className={`${displayFont.variable} ${manrope.variable} min-h-screen bg-white`} style={{ ...wrapStyle, fontFamily: "var(--font-body)" }}>
       {/* Hero — always on */}
       <header className="relative flex min-h-[70vh] flex-col items-center justify-center overflow-hidden px-6 py-20 text-center">
@@ -399,6 +402,19 @@ export default async function PublicSitePage({ params }: { params: Promise<Param
         {venue.address ? <p className="mt-1">{[venue.address, venue.city].filter(Boolean).join(", ")}</p> : null}
       </footer>
     </div>
+    </>
+  );
+}
+
+// The CRM app-shell pins html/body scroll (overscroll-behavior:none + a
+// non-scalable viewport) to kill rubber-band bounce inside the dashboard. On
+// the public micro-site that same rule makes some browsers (e.g. Brave on a
+// Mac trackpad) treat the whole document as non-scrollable — the wheel/gesture
+// does nothing while the scrollbar still drags. These pages are a normal
+// document, so we restore native scrolling for them.
+function PublicSiteScrollReset() {
+  return (
+    <style>{`html,body{overscroll-behavior:auto;overflow-x:visible;touch-action:auto;height:auto;}`}</style>
   );
 }
 
