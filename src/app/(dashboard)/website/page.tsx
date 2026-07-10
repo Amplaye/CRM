@@ -12,12 +12,14 @@ import {
   getFeatures,
   SITE_SECTIONS,
   type SiteSectionKey,
+  type SiteTemplateKey,
   type TenantSettings,
 } from "@/lib/types/tenant-settings";
+import { SITE_TEMPLATE_DEFS, isDemoTemplate } from "@/components/site-templates/registry";
 import { useLanguage } from "@/lib/contexts/LanguageContext";
 import { useTenant } from "@/lib/contexts/TenantContext";
 import { createClient } from "@/lib/supabase/client";
-import { compressImageToWebp } from "@/lib/branding/upload-logo";
+import { uploadSitePhoto } from "@/lib/site/upload-site-photo";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ArrowDown, ArrowUp, ExternalLink, Globe, Trash2, Upload } from "lucide-react";
 import Link from "next/link";
@@ -31,26 +33,7 @@ type SiteBranding = NonNullable<TenantSettings["site_branding"]>;
 type SiteFont = NonNullable<SiteBranding["font"]>;
 
 const BRAND_SWATCHES = ["#b07a32", "#7e5226", "#a8421f", "#8a5f28", "#5c6c4b", "#7c4a52", "#2f5d62"];
-const BRANDING_BUCKET = "branding";
 const MAX_GALLERY = 8;
-
-/** Compress to a web-friendly WebP (bigger cap than logos — these are photos)
- * and upload to the shared branding bucket under the tenant folder. */
-async function uploadSitePhoto(
-  supabase: ReturnType<typeof createClient>,
-  tenantId: string,
-  file: File,
-  fileName: string,
-): Promise<string> {
-  const blob = await compressImageToWebp(file, 1600);
-  const path = `${tenantId}/${fileName}`;
-  const { error } = await supabase.storage
-    .from(BRANDING_BUCKET)
-    .upload(path, blob, { contentType: "image/webp", upsert: true });
-  if (error) throw error;
-  const { data: pub } = supabase.storage.from(BRANDING_BUCKET).getPublicUrl(path);
-  return `${pub.publicUrl}?v=${blob.size}`;
-}
 
 export default function WebsitePage() {
   const { t } = useLanguage();
@@ -62,6 +45,7 @@ export default function WebsitePage() {
   const enabled = getFeatures(tenant?.settings).website_enabled;
 
   const saved = (tenant?.settings?.site_branding || {}) as SiteBranding;
+  const [template, setTemplate] = useState<SiteTemplateKey>(saved.template ?? "classic");
   const [tagline, setTagline] = useState(saved.tagline ?? "");
   const [aboutText, setAboutText] = useState(saved.about_text ?? "");
   const [brandColor, setBrandColor] = useState(saved.brand_color ?? "");
@@ -79,6 +63,7 @@ export default function WebsitePage() {
 
   useEffect(() => {
     const b = (tenant?.settings?.site_branding || {}) as SiteBranding;
+    setTemplate(b.template ?? "classic");
     setTagline(b.tagline ?? "");
     setAboutText(b.about_text ?? "");
     setBrandColor(b.brand_color ?? "");
@@ -176,6 +161,12 @@ export default function WebsitePage() {
     void save({ sections: next });
   };
 
+  const selectTemplate = (k: SiteTemplateKey) => {
+    if (!canEdit) return;
+    setTemplate(k);
+    void save({ template: k });
+  };
+
   if (!planActive || !enabled) {
     return (
       <div className="p-4 sm:p-8">
@@ -230,6 +221,62 @@ export default function WebsitePage() {
         <p className="text-sm font-semibold text-black">{t("website_saved")}</p>
       ) : null}
 
+      {/* Template picker — classic (form-driven) + the demo-site replicas
+          (edited inline in the visual editor). */}
+      <div className="rounded-xl border-2 p-5 max-w-3xl space-y-4" style={CARD}>
+        <h2 className="font-bold text-black">{t("website_templates_title")}</h2>
+        <p className="text-sm text-black">{t("website_templates_hint")}</p>
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <button
+            type="button"
+            onClick={() => selectTemplate("classic")}
+            className="rounded-lg border-2 bg-white p-3 text-left"
+            style={{ borderColor: template === "classic" ? "#1c150d" : "#c4956a" }}
+          >
+            <span className="flex items-center gap-1.5">
+              {["#fcf6ed", "#c4956a", "#2b2018"].map((c) => (
+                <span key={c} className="h-4 w-4 rounded-full border" style={{ background: c, borderColor: "rgba(0,0,0,0.15)" }} />
+              ))}
+            </span>
+            <span className="mt-2 block text-sm font-bold text-black">{t("website_template_classic")}</span>
+            <span className="block text-xs text-black opacity-70">{t("website_template_classic_desc")}</span>
+          </button>
+          {(Object.entries(SITE_TEMPLATE_DEFS) as [Exclude<SiteTemplateKey, "classic">, (typeof SITE_TEMPLATE_DEFS)[Exclude<SiteTemplateKey, "classic">]][]).map(
+            ([k, d]) => (
+              <button
+                key={k}
+                type="button"
+                onClick={() => selectTemplate(k)}
+                className="rounded-lg border-2 bg-white p-3 text-left"
+                style={{ borderColor: template === k ? "#1c150d" : "#c4956a" }}
+              >
+                <span className="flex items-center gap-1.5">
+                  {d.swatches.map((c) => (
+                    <span key={c} className="h-4 w-4 rounded-full border" style={{ background: c, borderColor: "rgba(0,0,0,0.15)" }} />
+                  ))}
+                </span>
+                <span className="mt-2 block text-sm font-bold text-black">{d.label}</span>
+                <span className="block text-xs text-black opacity-70">{d.vibe}</span>
+              </button>
+            ),
+          )}
+        </div>
+        {isDemoTemplate(template) ? (
+          <div className="flex flex-wrap items-center gap-3 pt-1">
+            <Link
+              href="/website/editor"
+              className="inline-block rounded-lg px-4 py-2 text-sm font-semibold text-white"
+              style={{ background: "linear-gradient(135deg, #c4956a, #a0764e)" }}
+            >
+              {t("website_editor_open")}
+            </Link>
+            <p className="min-w-[220px] flex-1 text-sm text-black">{t("website_editor_hint")}</p>
+          </div>
+        ) : null}
+      </div>
+
+      {template === "classic" ? (
+      <>
       {/* Hero */}
       <div className="rounded-xl border-2 p-5 max-w-2xl space-y-4" style={CARD}>
         <h2 className="font-bold text-black">{t("website_hero_title")}</h2>
@@ -437,6 +484,8 @@ export default function WebsitePage() {
           })}
         </ul>
       </div>
+      </>
+      ) : null}
 
       {saving ? <p className="text-sm text-black">{t("website_saving")}</p> : null}
     </div>

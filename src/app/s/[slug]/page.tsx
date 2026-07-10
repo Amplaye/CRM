@@ -4,15 +4,28 @@ import { Fraunces, Manrope, Playfair_Display, Cormorant_Garamond } from "next/fo
 import { createServiceRoleClient } from "@/lib/supabase/server";
 import { getFeatures, SITE_SECTIONS, type SiteSectionKey, type TenantSettings } from "@/lib/types/tenant-settings";
 import type { OpeningHours } from "@/lib/restaurant-rules";
+import { resolveSiteLocale } from "@/lib/site/booking-strings";
+import { SITE_STRINGS } from "@/lib/site/labels";
+import { buildSiteData, firstName, formatSitePrice, type RawMenuItemRow, type RawReviewRow } from "@/lib/site/data";
+import { SiteContentProvider } from "@/lib/site/content";
+import { SITE_TEMPLATE_DEFS, isDemoTemplate } from "@/components/site-templates/registry";
 
 // Public template micro-site (Fase 4 — website builder). Same contract as the
 // hosted menu /m/<slug>: service-role read, no auth, no cookies, branding from
-// tenants.settings. The owner assembles it in the Website dashboard (sections
-// on/off + order, hero/gallery photos, texts, colour, font) — zero code.
+// tenants.settings.
 //
-// The font trio and the --accent cascade are the exact /m/[slug] idiom: all
-// three display serifs bind the SAME --font-display variable, so one class
-// swap re-skins every heading, and only the chosen font's CSS ships.
+// Two rendering paths:
+// - "classic" (default): the original design, assembled with the Website
+//   dashboard form fields (sections on/off + order, hero/gallery, texts).
+// - demo-site templates (site_branding.template): full-bleed replicas of the
+//   agency demo sites, rendered from live CRM data + the owner's inline edits
+//   (settings.site_content[template]), each embedding the real booking widget.
+//
+// The classic font trio and the --accent cascade are the exact /m/[slug]
+// idiom: all three display serifs bind the SAME --font-display variable, so
+// one class swap re-skins every heading, and only the chosen font's CSS ships.
+// Demo templates load their own Google Fonts via <link> instead (their font
+// pairs are template-specific and not known at build time).
 const fraunces = Fraunces({
   variable: "--font-display",
   subsets: ["latin"],
@@ -56,88 +69,8 @@ type TenantRow = {
   settings: TenantSettings;
 };
 
-type SiteLocale = "it" | "es" | "en" | "de";
-const VALID_LOCALES: SiteLocale[] = ["it", "es", "en", "de"];
-function resolveLocale(raw: unknown): SiteLocale {
-  return VALID_LOCALES.includes(raw as SiteLocale) ? (raw as SiteLocale) : "it";
-}
-
-// Guest-facing copy — inline per language like the public menu (the i18n
-// dictionaries are for the CRM UI, not for guest pages).
-const STRINGS: Record<
-  SiteLocale,
-  {
-    book: string; viewMenu: string; fullMenu: string; about: string; menu: string;
-    gallery: string; reviews: string; hours: string; contact: string; closed: string;
-    address: string; phone: string; map: string; giftCta: string; giftTitle: string;
-    reviewsEmpty: string; days: string[]; poweredPrefix: string;
-  }
-> = {
-  it: {
-    book: "Prenota un tavolo", viewMenu: "Guarda il menù", fullMenu: "Menù completo",
-    about: "Chi siamo", menu: "Dal nostro menù", gallery: "Galleria", reviews: "Dicono di noi",
-    hours: "Orari", contact: "Dove siamo", closed: "Chiuso", address: "Indirizzo",
-    phone: "Telefono", map: "Apri in Maps", giftCta: "Regala una cena",
-    giftTitle: "Buono regalo", reviewsEmpty: "Ancora nessuna recensione.",
-    days: ["Lunedì", "Martedì", "Mercoledì", "Giovedì", "Venerdì", "Sabato", "Domenica"],
-    poweredPrefix: "Sito di",
-  },
-  es: {
-    book: "Reservar mesa", viewMenu: "Ver la carta", fullMenu: "Carta completa",
-    about: "Quiénes somos", menu: "De nuestra carta", gallery: "Galería", reviews: "Opiniones",
-    hours: "Horario", contact: "Dónde estamos", closed: "Cerrado", address: "Dirección",
-    phone: "Teléfono", map: "Abrir en Maps", giftCta: "Regala una cena",
-    giftTitle: "Tarjeta regalo", reviewsEmpty: "Aún no hay opiniones.",
-    days: ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo"],
-    poweredPrefix: "Web de",
-  },
-  en: {
-    book: "Book a table", viewMenu: "See the menu", fullMenu: "Full menu",
-    about: "About us", menu: "From our menu", gallery: "Gallery", reviews: "What guests say",
-    hours: "Opening hours", contact: "Find us", closed: "Closed", address: "Address",
-    phone: "Phone", map: "Open in Maps", giftCta: "Gift a dinner",
-    giftTitle: "Gift card", reviewsEmpty: "No reviews yet.",
-    days: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"],
-    poweredPrefix: "Website of",
-  },
-  de: {
-    book: "Tisch reservieren", viewMenu: "Speisekarte ansehen", fullMenu: "Ganze Speisekarte",
-    about: "Über uns", menu: "Aus unserer Karte", gallery: "Galerie", reviews: "Gästestimmen",
-    hours: "Öffnungszeiten", contact: "So finden Sie uns", closed: "Geschlossen", address: "Adresse",
-    phone: "Telefon", map: "In Maps öffnen", giftCta: "Ein Abendessen schenken",
-    giftTitle: "Geschenkgutschein", reviewsEmpty: "Noch keine Bewertungen.",
-    days: ["Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag", "Sonntag"],
-    poweredPrefix: "Website von",
-  },
-};
-
-type MenuItemRow = {
-  id: string;
-  name: string;
-  description: string;
-  price: number | null;
-  currency: string;
-  image_url: string | null;
-  sort_order: number;
-};
-
-type ReviewRow = {
-  rating: number;
-  comment: string;
-  created_at: string;
-  guests: { name: string | null } | null;
-};
-
-function formatPrice(price: number, currency: string): string {
-  const symbol = currency === "EUR" ? "€" : currency;
-  return `${price.toFixed(2).replace(/\.00$/, "")} ${symbol}`;
-}
-
-/** First name only — a public site shouldn't print a guest's full name. */
-function firstName(full: string | null): string {
-  const first = (full || "").trim().split(/\s+/)[0];
-  return first || "Guest";
-}
+type MenuItemRow = RawMenuItemRow & { sort_order: number };
+type ReviewRow = RawReviewRow & { created_at: string };
 
 function Stars({ n }: { n: number }) {
   return (
@@ -163,10 +96,56 @@ export default async function PublicSitePage({ params }: { params: Promise<Param
   if (!features.website_enabled) notFound();
 
   const settings = tenant.settings || {};
-  const locale = resolveLocale(settings.crm_locale);
-  const ui = STRINGS[locale];
+  const locale = resolveSiteLocale(settings.crm_locale);
+  const ui = SITE_STRINGS[locale];
   const site = settings.site_branding || {};
 
+  // ——— Demo-site template path ———
+  const template = site.template;
+  if (isDemoTemplate(template)) {
+    const def = SITE_TEMPLATE_DEFS[template];
+    const [menuRes, reviewsRes] = await Promise.all([
+      sb
+        .from("menu_items")
+        .select("id,name,description,price,currency,image_url,sort_order")
+        .eq("tenant_id", tenant.id)
+        .eq("available", true)
+        .order("sort_order", { ascending: true })
+        .limit(24),
+      sb
+        .from("reviews")
+        .select("rating,comment,created_at,guests(name)")
+        .eq("tenant_id", tenant.id)
+        .neq("status", "hidden")
+        .gte("rating", 4)
+        .neq("comment", "")
+        .order("created_at", { ascending: false })
+        .limit(6),
+    ]);
+    const data = buildSiteData({
+      tenantName: tenant.name,
+      slug: tenant.slug,
+      settings,
+      menuRows: (menuRes.data || []) as MenuItemRow[],
+      reviewRows: (reviewsRes.data || []) as unknown as ReviewRow[],
+      giftCardsEnabled: features.gift_cards_enabled,
+    });
+    const overrides = (settings.site_content?.[template] || {}) as Record<string, string>;
+    const content = { ...def.defaults, ...overrides };
+    const Template = def.component;
+    return (
+      <>
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+        {/* eslint-disable-next-line @next/next/no-page-custom-font */}
+        <link rel="stylesheet" href={def.fontsHref} />
+        <SiteContentProvider value={{ content, editMode: false }}>
+          <Template data={data} />
+        </SiteContentProvider>
+      </>
+    );
+  }
+
+  // ——— Classic path (original design) ———
   // Enabled sections in the owner's order; unset → everything, canonical order.
   const sections: SiteSectionKey[] =
     Array.isArray(site.sections) && site.sections.length
@@ -255,7 +234,7 @@ export default async function PublicSitePage({ params }: { params: Promise<Param
                       {it.description ? <p className="mt-1 text-sm text-black opacity-80 line-clamp-2">{it.description}</p> : null}
                     </div>
                     {it.price != null ? (
-                      <p className="shrink-0 font-semibold text-black">{formatPrice(it.price, it.currency)}</p>
+                      <p className="shrink-0 font-semibold text-black">{formatSitePrice(it.price, it.currency || "EUR")}</p>
                     ) : null}
                   </div>
                 </div>

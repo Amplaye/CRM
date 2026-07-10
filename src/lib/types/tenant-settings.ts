@@ -19,6 +19,24 @@ export type VoiceProviderTier = "vapi" | "retell";
 export const SITE_SECTIONS = ["about", "menu", "gallery", "reviews", "hours", "contact"] as const;
 export type SiteSectionKey = (typeof SITE_SECTIONS)[number];
 
+/** Visual templates for the public micro-site /s/<slug>. `classic` is the
+ * original built-in design (assembled with the form fields of the Website
+ * dashboard). Every other key replicates one of the agency demo sites and is
+ * edited INLINE in the visual editor (/website/editor): each text and image
+ * block has an id, owner overrides live in `site_content[template]`, and each
+ * template embeds the CRM booking widget. Sections are full-bleed by design. */
+export const SITE_TEMPLATES = [
+  "classic",
+  "suerte",
+  "dolcevita",
+  "champinoneria",
+  "picnic",
+  "perezbeers",
+  "vasco",
+  "montesdeoca",
+] as const;
+export type SiteTemplateKey = (typeof SITE_TEMPLATES)[number];
+
 /** On/off capabilities a single restaurant can have. Plain, owner-answerable. */
 export interface TenantFeatures {
   waitlist_enabled: boolean; // collect guests when full, notify on free table
@@ -188,6 +206,9 @@ export interface TenantSettings {
    * gallery images live in the public "branding" bucket under the tenant folder
    * (`site-hero.webp`, `site-gallery-*.webp`). */
   site_branding?: {
+    /** Which visual template renders /s/<slug>. Unset → "classic" (the
+     * original design, so existing tenants keep today's site untouched). */
+    template?: SiteTemplateKey;
     /** Public URL of the hero image (branding bucket, site-hero.webp). */
     hero_url?: string;
     /** Short line under the restaurant name in the hero. */
@@ -200,9 +221,17 @@ export interface TenantSettings {
     font?: "fraunces" | "playfair" | "cormorant";
     /** Public URLs of gallery photos (branding bucket). */
     gallery?: string[];
-    /** Ordered keys of the sections to show. Unset → all, canonical order. */
+    /** Ordered keys of the sections to show. Unset → all, canonical order.
+     * Only the classic template consumes this; the demo-site templates have a
+     * fixed structure and are edited inline instead. */
     sections?: SiteSectionKey[];
   };
+  /** Inline-edited site content, keyed by template then by block id (e.g.
+   * "hero.title" → text, "about.image" → public URL in the branding bucket).
+   * Only OVERRIDES are stored — anything unset falls back to the template's
+   * built-in default copy, so template updates flow to untouched blocks.
+   * Content survives template switches (each template keeps its own map). */
+  site_content?: Partial<Record<SiteTemplateKey, Record<string, string>>>;
   /** Loyalty programme config (Fase 6). Read via getLoyaltyConfig() which
    * applies defaults/clamping — points accrue on completed reservations,
    * rewards are redeemed by staff from the guest panel. */
