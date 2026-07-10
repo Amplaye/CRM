@@ -203,6 +203,14 @@ export interface TenantSettings {
     /** Ordered keys of the sections to show. Unset → all, canonical order. */
     sections?: SiteSectionKey[];
   };
+  /** Loyalty programme config (Fase 6). Read via getLoyaltyConfig() which
+   * applies defaults/clamping — points accrue on completed reservations,
+   * rewards are redeemed by staff from the guest panel. */
+  loyalty?: {
+    points_per_visit?: number;
+    reward_points?: number;
+    reward_label?: string;
+  };
   /** Offboarding bookkeeping, written by the archive flow (src/lib/tenants/delete-tenant.ts). */
   archive?: { prev_status: TenantStatus; export_path?: string };
   /** Which voice platform serves this tenant's calls. Vapi is the BASE tier

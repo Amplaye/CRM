@@ -11,6 +11,7 @@ import { verifyTenantMembership } from "@/lib/tenant-membership";
 import { isImpersonatingTenant } from "@/lib/impersonation";
 import { logSystemEvent } from "@/lib/system-log";
 import { sendPushToTenant } from "@/lib/push/send";
+import { accrueVisitPoints } from "@/lib/loyalty/accrue";
 
 /**
  * Creates a Reservation.
@@ -286,6 +287,28 @@ export async function updateReservationDetailsAction(params: {
       });
 
     if (eventErr) throw eventErr;
+
+    // Loyalty accrual on the completed transition — best-effort and idempotent
+    // (one positive event per reservation, enforced by a partial unique index),
+    // so a repeated flip to completed can never double-earn. Never blocks the
+    // update: accrueVisitPoints swallows its own errors.
+    if (
+      params.data.status === "completed" &&
+      current.status !== "completed" &&
+      current.guest_id
+    ) {
+      const { data: tenantRow } = await supabase
+        .from("tenants")
+        .select("settings")
+        .eq("id", params.tenantId)
+        .maybeSingle();
+      await accrueVisitPoints(supabase, {
+        tenantId: params.tenantId,
+        guestId: current.guest_id,
+        reservationId: params.reservationId,
+        settings: tenantRow?.settings,
+      });
+    }
 
     // Notify the guest by WhatsApp when this update CONFIRMS the booking from a
     // non-confirmed state (e.g. staff approving an escalated large group). The

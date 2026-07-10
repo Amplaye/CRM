@@ -3,7 +3,7 @@
 import { LockedPreview } from "@/components/billing/LockedPreview";
 import { hasActivePlan } from "@/lib/billing/entitlements";
 
-import { Download, Upload, Search, X, CalendarCheck, User, LayoutGrid, List, Trash2, Phone, AlertOctagon, Accessibility, Users as UsersIcon, Utensils, Tag } from "lucide-react";
+import { Download, Upload, Search, X, CalendarCheck, User, LayoutGrid, List, Trash2, Phone, AlertOctagon, Accessibility, Users as UsersIcon, Utensils, Tag, Award } from "lucide-react";
 import { useLanguage } from "@/lib/contexts/LanguageContext";
 import { useEffect, useState, useRef, useMemo } from "react";
 import { useTenant } from "@/lib/contexts/TenantContext";
@@ -11,6 +11,8 @@ import { Guest, Reservation } from "@/lib/types";
 import { createClient } from "@/lib/supabase/client";
 import { useSeenSnapshotAndMark } from "@/lib/hooks/useLastSeen";
 import { guestsToCsv, parseCsv as parseGuestCsv, rowsToGuestInputs, planImport, type ImportPlan } from "@/lib/guests/porting";
+import { getFeatures, type TenantSettings } from "@/lib/types/tenant-settings";
+import { getLoyaltyConfig } from "@/lib/loyalty/loyalty";
 
 const downloadText = (text: string, filename: string) => {
   const blob = new Blob([text], { type: "text/csv;charset=utf-8" });
@@ -434,6 +436,16 @@ export default function GuestsPage() {
               </div>
             </div>
 
+            {/* Loyalty balance + reward redemption (only when the module is on). */}
+            {getFeatures(activeTenant?.settings).loyalty_enabled && activeTenant && (
+              <GuestLoyaltyPanel
+                key={`loyalty-${selectedGuest.id}`}
+                guest={selectedGuest}
+                tenantId={activeTenant.id}
+                settings={activeTenant.settings}
+              />
+            )}
+
             {/* Tags — the raw material of marketing segments (segmentation.ts
                 filters by tag), so the owner can finally curate them here. */}
             <GuestTagsEditor
@@ -484,6 +496,82 @@ export default function GuestsPage() {
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+function GuestLoyaltyPanel({ guest, tenantId, settings }: { guest: Guest; tenantId: string; settings: TenantSettings | undefined }) {
+  const { t } = useLanguage();
+  const supabase = createClient();
+  const cfg = getLoyaltyConfig(settings);
+  const [points, setPoints] = useState<number | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const { data } = await supabase
+        .from("loyalty_accounts")
+        .select("points")
+        .eq("tenant_id", tenantId)
+        .eq("guest_id", guest.id)
+        .maybeSingle();
+      if (!cancelled) setPoints(data?.points ?? 0);
+    })();
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [guest.id, tenantId]);
+
+  const redeem = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/loyalty/redeem", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tenant_id: tenantId, guest_id: guest.id }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (res.ok && json?.success) setPoints(Number(json.points) || 0);
+      else setError(t("loyalty_redeem_failed"));
+    } catch {
+      setError(t("loyalty_redeem_failed"));
+    }
+    setBusy(false);
+  };
+
+  const pts = points ?? 0;
+  const pct = Math.min(100, Math.round((pts / cfg.reward_points) * 100));
+  const canRedeem = pts >= cfg.reward_points;
+
+  return (
+    <div>
+      <h3 className="text-xs font-bold text-black uppercase tracking-wider mb-2 flex items-center gap-1.5">
+        <Award className="w-3.5 h-3.5" />
+        {t("loyalty_panel_title")}
+      </h3>
+      <div className="rounded-lg border-2 p-3 space-y-2" style={{ borderColor: '#c4956a', background: 'rgba(252,246,237,0.6)' }}>
+        <p className="text-sm text-black">
+          <span className="text-2xl font-bold">{points === null ? "…" : pts}</span>{" "}
+          / {cfg.reward_points} {t("loyalty_points_label")}
+        </p>
+        <div className="h-2 w-full rounded-full" style={{ background: 'rgba(196,149,106,0.25)' }}>
+          <div className="h-2 rounded-full" style={{ width: `${pct}%`, background: '#c4956a' }} />
+        </div>
+        {cfg.reward_label ? (
+          <p className="text-xs text-black">{t("loyalty_reward_label")}: <span className="font-semibold">{cfg.reward_label}</span></p>
+        ) : null}
+        {error ? <p className="text-xs font-semibold text-red-700">{error}</p> : null}
+        <button
+          onClick={redeem}
+          disabled={!canRedeem || busy}
+          className="w-full rounded-lg py-2 text-sm font-bold text-white disabled:opacity-40"
+          style={{ background: 'linear-gradient(135deg, #d4a574, #c4956a)' }}
+        >
+          {busy ? "…" : t("loyalty_redeem_btn")}
+        </button>
+      </div>
     </div>
   );
 }

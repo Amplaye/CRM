@@ -8,6 +8,7 @@ import { useTenant } from "@/lib/contexts/TenantContext";
 import { createClient } from "@/lib/supabase/client";
 import { Dictionary } from "@/lib/i18n/dictionaries/en";
 import { TenantFeatures, FEATURE_FLAGS, getRawFeatures } from "@/lib/types/tenant-settings";
+import { getLoyaltyConfig } from "@/lib/loyalty/loyalty";
 
 // Settings → Features. Each restaurant capability is a single on/off toggle that
 // flips a flag in tenants.settings.features. Flipping a switch SAVES INSTANTLY —
@@ -146,6 +147,10 @@ export function FeaturesTab() {
         })}
       </div>
 
+      {/* Loyalty programme numbers — shown only while the module is ON. Same
+          instant-save spirit: each field persists on blur. */}
+      {features.loyalty_enabled && <LoyaltyConfigCard />}
+
       {/* Guided follow-up: the moment the owner turns the commercial module ON, point
           them to where they actually add their price lists (no KB jargon, no guesswork). */}
       {features.commercial_info_enabled && (
@@ -161,6 +166,72 @@ export function FeaturesTab() {
           </span>
         </Link>
       )}
+    </div>
+  );
+}
+
+// Points-per-visit, reward threshold and reward name for the loyalty module.
+// Persists settings.loyalty on blur (spreading the full settings object —
+// multi-tenant invariant: never drop other keys).
+function LoyaltyConfigCard() {
+  const { t } = useLanguage();
+  const { activeTenant: tenant, refreshActiveTenant } = useTenant();
+  const supabase = createClient();
+  const cfg = getLoyaltyConfig(tenant?.settings);
+  const [ppv, setPpv] = useState(String(cfg.points_per_visit));
+  const [rewardPts, setRewardPts] = useState(String(cfg.reward_points));
+  const [rewardLabel, setRewardLabel] = useState(cfg.reward_label);
+  const [status, setStatus] = useState<"saving" | "saved" | "error" | null>(null);
+
+  const persist = async () => {
+    if (!tenant) return;
+    const next = {
+      points_per_visit: Math.max(1, Math.round(Number(ppv) || cfg.points_per_visit)),
+      reward_points: Math.max(1, Math.round(Number(rewardPts) || cfg.reward_points)),
+      reward_label: rewardLabel.trim(),
+    };
+    setStatus("saving");
+    const { error } = await supabase
+      .from("tenants")
+      .update({ settings: { ...(tenant.settings || {}), loyalty: next } })
+      .eq("id", tenant.id);
+    if (error) {
+      setStatus("error");
+      return;
+    }
+    setStatus("saved");
+    setTimeout(() => setStatus(null), 2000);
+    await refreshActiveTenant();
+  };
+
+  const inputCls = "w-full rounded-lg border-2 bg-white px-3 py-2 text-sm text-black focus:outline-none";
+  const inputStyle = { borderColor: "#c4956a" } as const;
+
+  return (
+    <div className="p-3 rounded-lg border-2 space-y-3" style={{ borderColor: "#c4956a", background: "rgba(252,246,237,0.6)" }}>
+      <div className="flex items-center justify-between">
+        <p className="text-sm font-bold text-black">{t("loyalty_config_title")}</p>
+        <span className="text-xs" aria-live="polite">
+          {status === "saving" && <span className="text-black">…</span>}
+          {status === "saved" && <span className="font-semibold text-green-600">{t("settings_saved")}</span>}
+          {status === "error" && <span className="font-semibold text-red-600">{t("settings_save_error")}</span>}
+        </span>
+      </div>
+      <div className="grid gap-3 sm:grid-cols-3">
+        <div>
+          <label className="block text-xs font-bold text-black mb-1">{t("loyalty_config_ppv")}</label>
+          <input inputMode="numeric" value={ppv} onChange={(e) => setPpv(e.target.value)} onBlur={persist} className={inputCls} style={inputStyle} />
+        </div>
+        <div>
+          <label className="block text-xs font-bold text-black mb-1">{t("loyalty_config_reward_points")}</label>
+          <input inputMode="numeric" value={rewardPts} onChange={(e) => setRewardPts(e.target.value)} onBlur={persist} className={inputCls} style={inputStyle} />
+        </div>
+        <div>
+          <label className="block text-xs font-bold text-black mb-1">{t("loyalty_config_reward_label")}</label>
+          <input value={rewardLabel} onChange={(e) => setRewardLabel(e.target.value)} onBlur={persist} placeholder={t("loyalty_config_reward_ph")} className={inputCls} style={inputStyle} />
+        </div>
+      </div>
+      <p className="text-xs text-black">{t("loyalty_config_hint")}</p>
     </div>
   );
 }
