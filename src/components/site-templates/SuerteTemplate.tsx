@@ -2,7 +2,7 @@
 
 import type { CSSProperties } from "react";
 import BookingWidget from "@/app/b/[slug]/BookingWidget";
-import { EditableImage, EditableText, useBlockValue } from "@/lib/site/content";
+import { EditableImage, EditableMarquee, EditableText, useBlockValue } from "@/lib/site/content";
 import { formatSitePrice } from "@/lib/site/data";
 import type { SiteData } from "@/lib/site/types";
 import { SUERTE_DEFAULTS } from "./defaults";
@@ -63,12 +63,14 @@ function Marquee({ id, fallback, bg = C.tileDeep }: { id: string; fallback: stri
     </span>
   );
   return (
-    <div className="w-full overflow-hidden border-y-2 py-2.5" style={{ background: bg, color: C.cream, borderColor: "rgba(42,36,32,0.15)" }}>
-      <div className="su-marquee-track">
-        {row("a")}
-        {row("b")}
+    <EditableMarquee id={id} fallback={fallback} bandStyle={{ background: bg, color: C.cream, borderTop: "2px solid rgba(42,36,32,0.15)", borderBottom: "2px solid rgba(42,36,32,0.15)" }}>
+      <div className="w-full overflow-hidden border-y-2 py-2.5" style={{ background: bg, color: C.cream, borderColor: "rgba(42,36,32,0.15)" }}>
+        <div className="su-marquee-track">
+          {row("a")}
+          {row("b")}
+        </div>
       </div>
-    </div>
+    </EditableMarquee>
   );
 }
 

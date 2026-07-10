@@ -2,7 +2,7 @@
 
 import type { CSSProperties } from "react";
 import BookingWidget from "@/app/b/[slug]/BookingWidget";
-import { EditableImage, EditableText, useBlockValue } from "@/lib/site/content";
+import { EditableImage, EditableMarquee, EditableText, useBlockValue } from "@/lib/site/content";
 import { formatSitePrice } from "@/lib/site/data";
 import type { SiteData } from "@/lib/site/types";
 import { VASCO_DEFAULTS } from "./defaults";
@@ -78,12 +78,14 @@ function Marquee({ id, fallback, border }: { id: string; fallback: string; borde
     </span>
   );
   return (
-    <div className="w-full overflow-hidden py-3" style={{ background: C.green, color: C.cream, borderTop: `3px solid ${border}`, borderBottom: `3px solid ${border}` }}>
-      <div className="va-marquee-track">
-        {row("a")}
-        {row("b")}
+    <EditableMarquee id={id} fallback={fallback} bandStyle={{ background: C.green, color: C.cream, borderTop: `3px solid ${border}`, borderBottom: `3px solid ${border}` }}>
+      <div className="w-full overflow-hidden py-3" style={{ background: C.green, color: C.cream, borderTop: `3px solid ${border}`, borderBottom: `3px solid ${border}` }}>
+        <div className="va-marquee-track">
+          {row("a")}
+          {row("b")}
+        </div>
       </div>
-    </div>
+    </EditableMarquee>
   );
 }
 
