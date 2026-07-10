@@ -3,7 +3,7 @@
 import { LockedPreview } from "@/components/billing/LockedPreview";
 import { hasActivePlan } from "@/lib/billing/entitlements";
 
-import { Download, Upload, Search, X, CalendarCheck, User, LayoutGrid, List, Trash2, Phone, AlertOctagon, Accessibility, Users as UsersIcon, Utensils } from "lucide-react";
+import { Download, Upload, Search, X, CalendarCheck, User, LayoutGrid, List, Trash2, Phone, AlertOctagon, Accessibility, Users as UsersIcon, Utensils, Tag } from "lucide-react";
 import { useLanguage } from "@/lib/contexts/LanguageContext";
 import { useEffect, useState, useRef, useMemo } from "react";
 import { useTenant } from "@/lib/contexts/TenantContext";
@@ -434,6 +434,17 @@ export default function GuestsPage() {
               </div>
             </div>
 
+            {/* Tags — the raw material of marketing segments (segmentation.ts
+                filters by tag), so the owner can finally curate them here. */}
+            <GuestTagsEditor
+              key={`tags-${selectedGuest.id}`}
+              guest={selectedGuest}
+              onSaved={(updated) => {
+                setSelectedGuest({ ...selectedGuest, ...updated });
+                setGuests(prev => prev.map(g => g.id === selectedGuest.id ? { ...g, ...updated } : g));
+              }}
+            />
+
             {/* Guest profile notes (allergies, accessibility, family) */}
             <GuestNotesEditor
               key={selectedGuest.id}
@@ -473,6 +484,57 @@ export default function GuestsPage() {
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+function GuestTagsEditor({ guest, onSaved }: { guest: Guest; onSaved: (updated: Partial<Guest>) => void }) {
+  const { t } = useLanguage();
+  const supabase = createClient();
+  const [tags, setTags] = useState<string[]>(guest.tags || []);
+  const [draft, setDraft] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  const persist = async (next: string[]) => {
+    setSaving(true);
+    const { error } = await supabase.from("guests").update({ tags: next }).eq("id", guest.id);
+    setSaving(false);
+    if (!error) { setTags(next); onSaved({ tags: next } as Partial<Guest>); }
+  };
+
+  const addTag = () => {
+    const v = draft.trim().toLowerCase();
+    setDraft("");
+    if (!v || tags.includes(v)) return;
+    persist([...tags, v]);
+  };
+
+  return (
+    <div>
+      <h3 className="text-xs font-bold text-black uppercase tracking-wider mb-2 flex items-center gap-1.5">
+        <Tag className="w-3.5 h-3.5" />
+        {t("guests_tags_label")}
+        {saving && <span className="text-[10px] text-black">…</span>}
+      </h3>
+      <div className="flex flex-wrap items-center gap-1.5">
+        {tags.map((tag) => (
+          <span key={tag} className="inline-flex items-center gap-1 rounded-full border-2 px-2.5 py-0.5 text-xs font-semibold text-black" style={{ borderColor: '#c4956a', background: 'rgba(196,149,106,0.15)' }}>
+            {tag}
+            <button onClick={() => persist(tags.filter((x) => x !== tag))} className="hover:text-red-600" aria-label={`remove ${tag}`}>
+              <X className="w-3 h-3" />
+            </button>
+          </span>
+        ))}
+        <input
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addTag(); } }}
+          onBlur={addTag}
+          placeholder={t("guests_tags_placeholder")}
+          className="border-2 rounded-full px-3 py-0.5 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-[#c4956a] w-32"
+          style={{ borderColor: 'rgba(196,149,106,0.5)', background: 'rgba(252,246,237,0.6)' }}
+        />
+      </div>
     </div>
   );
 }
