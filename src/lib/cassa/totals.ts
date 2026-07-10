@@ -13,6 +13,7 @@ export type CassaPaymentMethod =
   | "online"
   | "meal_voucher"
   | "bank_transfer"
+  | "gift_card"
   | "other";
 
 export type CassaDiscountType = "percent" | "amount";
@@ -142,7 +143,7 @@ export function dominantMethod(payments: CassaPaymentLike[]): CassaPaymentMethod
   for (const [m, c] of sums) {
     if (c > bestC) { best = m; bestC = c; }
   }
-  const known: CassaPaymentMethod[] = ["cash", "card", "online", "meal_voucher", "bank_transfer", "other"];
+  const known: CassaPaymentMethod[] = ["cash", "card", "online", "meal_voucher", "bank_transfer", "gift_card", "other"];
   return known.includes(best as CassaPaymentMethod) ? (best as CassaPaymentMethod) : "other";
 }
 

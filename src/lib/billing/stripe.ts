@@ -167,6 +167,47 @@ export async function createDepositCheckoutSession(params: {
   return { id: String(session.id), url: String(session.url) };
 }
 
+/** Checkout for a gift-card purchase. Same ad-hoc price_data shape as the
+ * deposit session but with IMMEDIATE capture (default) — a voucher is a sale,
+ * not a hold. The webhook (metadata.kind = "gift_card") mints the code. */
+export async function createGiftCardCheckoutSession(params: {
+  amountCents: number;
+  currency: string;
+  productName: string; // e.g. "Gift card 50€ — Trattoria X"
+  successUrl: string;
+  cancelUrl: string;
+  clientReferenceId: string; // tenant_id
+  metadata: Record<string, string>; // { kind:"gift_card", tenant_id, ... }
+  customerEmail?: string;
+  locale?: string;
+}): Promise<{ id: string; url: string }> {
+  const body: Record<string, unknown> = {
+    mode: "payment",
+    success_url: params.successUrl,
+    cancel_url: params.cancelUrl,
+    client_reference_id: params.clientReferenceId,
+    line_items: [
+      {
+        quantity: 1,
+        price_data: {
+          currency: params.currency.toLowerCase(),
+          unit_amount: params.amountCents,
+          product_data: { name: params.productName },
+        },
+      },
+    ],
+    payment_intent_data: {
+      description: params.productName,
+      metadata: params.metadata,
+    },
+    customer_email: params.customerEmail,
+    metadata: params.metadata,
+  };
+  if (params.locale) body.locale = params.locale;
+  const session = await stripePost("/checkout/sessions", body);
+  return { id: String(session.id), url: String(session.url) };
+}
+
 /** Capture a manually-held PaymentIntent (deposit forfeiture on no-show). */
 export async function capturePaymentIntent(id: string, idempotencyKey?: string): Promise<StripeJson> {
   return stripePost(`/payment_intents/${id}/capture`, {}, { idempotencyKey });

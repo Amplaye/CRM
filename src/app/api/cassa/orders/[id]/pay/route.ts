@@ -12,6 +12,7 @@ import {
 } from "@/lib/cassa/totals";
 import { logAuditEvent } from "@/lib/audit";
 import { logSystemEvent } from "@/lib/system-log";
+import { normalizeGiftCode } from "@/lib/gift-cards/gift-cards";
 
 // Settle a bill — the money moment of the whole cassa.
 //
@@ -31,7 +32,7 @@ import { logSystemEvent } from "@/lib/system-log";
 // Steps 5-6 are best-effort: a hiccup there must never un-cash a paid bill —
 // it gets logged to system_logs instead.
 
-const METHODS: CassaPaymentMethod[] = ["cash", "card", "online", "meal_voucher", "bank_transfer", "other"];
+const METHODS: CassaPaymentMethod[] = ["cash", "card", "online", "meal_voucher", "bank_transfer", "gift_card", "other"];
 
 export async function POST(req: Request, ctx: { params: Promise<{ id: string }> }) {
   const { id } = await ctx.params;
@@ -82,7 +83,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
 
   // ---- validate payments against the SERVER total ---------------------------
   const rawPayments: any[] = Array.isArray(body?.payments) ? body.payments : [];
-  const payments: { method: CassaPaymentMethod; amount: number; received: number | null }[] = [];
+  const payments: { method: CassaPaymentMethod; amount: number; received: number | null; gift_code?: string }[] = [];
   for (const p of rawPayments) {
     const method = METHODS.includes(p?.method) ? (p.method as CassaPaymentMethod) : null;
     const amount = Number(p?.amount);
@@ -93,7 +94,47 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
       method === "cash" && p?.received != null && Number.isFinite(Number(p.received))
         ? Math.round(Number(p.received) * 100) / 100
         : null;
-    payments.push({ method, amount: Math.round(amount * 100) / 100, received });
+    // A gift-card entry must carry a valid code; normalization fixes till typos.
+    let giftCode: string | undefined;
+    if (method === "gift_card") {
+      const norm = normalizeGiftCode(String(p?.gift_code || ""));
+      if (!norm) return NextResponse.json({ error: "invalid_gift_code" }, { status: 400 });
+      giftCode = norm;
+    }
+    payments.push({ method, amount: Math.round(amount * 100) / 100, received, gift_code: giftCode });
+  }
+
+  // ---- gift cards: check balances BEFORE claiming the bill -------------------
+  // The decrement happens after the claim (below), but an insufficient/unknown
+  // voucher must reject the charge upfront, not after the order is already paid.
+  const giftEntries = payments.filter((p) => p.method === "gift_card");
+  const giftCards = new Map<string, { id: string; balance_cents: number }>();
+  if (giftEntries.length > 0) {
+    // Several entries may reuse one code (split) — validate the SUM per code.
+    const perCode = new Map<string, number>();
+    for (const g of giftEntries) {
+      perCode.set(g.gift_code!, (perCode.get(g.gift_code!) || 0) + toCents(g.amount));
+    }
+    for (const [code, cents] of perCode) {
+      const { data: card } = await svc
+        .from("gift_cards")
+        .select("id, balance_cents, status, expires_at")
+        .eq("tenant_id", tenantId)
+        .eq("code", code)
+        .maybeSingle();
+      const expired =
+        card && (card.status === "expired" || (card.expires_at && new Date(card.expires_at).getTime() < Date.now()));
+      if (!card || card.status !== "active" || expired) {
+        return NextResponse.json({ error: "gift_card_not_active", code }, { status: 409 });
+      }
+      if (card.balance_cents < cents) {
+        return NextResponse.json(
+          { error: "gift_card_insufficient", code, balance_cents: card.balance_cents },
+          { status: 409 },
+        );
+      }
+      giftCards.set(code, { id: card.id, balance_cents: card.balance_cents });
+    }
   }
 
   const paidC = payments.reduce((s, p) => s + toCents(p.amount), 0);
@@ -169,6 +210,67 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
       title: "Cassa: numero scontrino non assegnato",
       description: `Ordine ${id} pagato ma fn_cassa_next_receipt è fallita: ${counterErr?.message || "no number"}`,
     });
+  }
+
+  // ---- gift cards: burn the balance now that the bill is claimed --------------
+  // Optimistic lock on the balance we just read: a concurrent redemption of the
+  // same code makes the guarded update match nothing → retry once with a fresh
+  // read; if it STILL can't cover the amount, log critical (bill already paid —
+  // same best-effort contract as a failed cassa_payments insert).
+  if (giftCards.size > 0) {
+    const perCode = new Map<string, number>();
+    for (const g of giftEntries) {
+      perCode.set(g.gift_code!, (perCode.get(g.gift_code!) || 0) + toCents(g.amount));
+    }
+    for (const [code, cents] of perCode) {
+      const card = giftCards.get(code)!;
+      let redeemed = false;
+      let seenBalance = card.balance_cents;
+      for (let attempt = 0; attempt < 2 && !redeemed; attempt++) {
+        const newBalance = seenBalance - cents;
+        if (newBalance < 0) break;
+        const { data: updated } = await svc
+          .from("gift_cards")
+          .update({
+            balance_cents: newBalance,
+            status: newBalance === 0 ? "redeemed" : "active",
+            updated_at: nowIso,
+          })
+          .eq("id", card.id)
+          .eq("balance_cents", seenBalance)
+          .eq("status", "active")
+          .select("id")
+          .maybeSingle();
+        if (updated) {
+          redeemed = true;
+          break;
+        }
+        const { data: fresh } = await svc
+          .from("gift_cards")
+          .select("balance_cents, status")
+          .eq("id", card.id)
+          .maybeSingle();
+        if (!fresh || fresh.status !== "active") break;
+        seenBalance = fresh.balance_cents;
+      }
+      if (redeemed) {
+        await svc.from("gift_card_redemptions").insert({
+          tenant_id: tenantId,
+          gift_card_id: card.id,
+          order_id: id,
+          amount_cents: cents,
+          created_by: userId,
+        });
+      } else {
+        await logSystemEvent({
+          tenant_id: tenantId,
+          category: "api_error",
+          severity: "critical",
+          title: "Cassa: buono regalo non scalato",
+          description: `Ordine ${id}: il buono ${code} (${cents}c) non è stato scalato dopo il pagamento — verificare saldo a mano.`,
+        });
+      }
+    }
   }
 
   // ---- payments ---------------------------------------------------------------

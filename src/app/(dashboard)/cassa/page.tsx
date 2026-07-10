@@ -1198,6 +1198,8 @@ export default function CassaPage() {
           "Incassato / resto / stampa" screen unmounts the instant it should show. */}
       {payOpen && (activeOrder || paidOrder) && (
         <PayModal
+          tenantId={tenantId!}
+          giftEnabled={getFeatures(activeTenant?.settings).gift_cards_enabled}
           total={
             activeOrder
               ? computeTotals(activeOrder, activeOrder.items).total

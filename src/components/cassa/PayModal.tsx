@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { AlertTriangle, Banknote, CreditCard, Ticket, X, Users, Printer, Check, Minus, Plus } from "lucide-react";
+import { AlertTriangle, Banknote, CreditCard, Gift, Ticket, X, Users, Printer, Check, Minus, Plus } from "lucide-react";
 import { useLanguage } from "@/lib/contexts/LanguageContext";
 import type { Dictionary } from "@/lib/i18n/dictionaries/en";
 import {
@@ -23,15 +23,20 @@ export interface PayEntry {
   method: CassaPaymentMethod;
   amount: number;
   received?: number | null;
+  /** Voucher code, only on method "gift_card" — the pay route re-validates
+   * and burns the balance server-side. */
+  gift_code?: string;
 }
 
-// Only the three methods an Italian restaurant actually rings up at the till:
-// cash, card, and meal vouchers (buoni pasto). Online/bank/other were removed
-// on request to keep the pay screen fast and unambiguous.
+// Only the methods an Italian restaurant actually rings up at the till: cash,
+// card, meal vouchers (buoni pasto) and gift cards (buoni regalo). Online/
+// bank/other were removed on request to keep the pay screen fast and
+// unambiguous. Gift card appears only when the tenant enabled the module.
 const METHODS: Array<{ id: CassaPaymentMethod; icon: typeof Banknote; labelKey: string }> = [
   { id: "cash", icon: Banknote, labelKey: "cassa_method_cash" },
   { id: "card", icon: CreditCard, labelKey: "cassa_method_card" },
   { id: "meal_voucher", icon: Ticket, labelKey: "cassa_method_voucher" },
+  { id: "gift_card", icon: Gift, labelKey: "cassa_method_gift" },
 ];
 
 export function methodLabelKey(method: string): string {
@@ -39,6 +44,10 @@ export function methodLabelKey(method: string): string {
 }
 
 interface PayModalProps {
+  /** Needed by the gift-card balance lookup (/api/gift-cards/validate). */
+  tenantId: string;
+  /** Show the gift-card method only when the tenant enabled the module. */
+  giftEnabled?: boolean;
   total: number;
   busy: boolean;
   /** After a successful charge: set to show the closing screen. */
@@ -48,13 +57,20 @@ interface PayModalProps {
   onClose: () => void;
 }
 
-export function PayModal({ total, busy, result, onConfirm, onPrintReceipt, onClose }: PayModalProps) {
+export function PayModal({ tenantId, giftEnabled = false, total, busy, result, onConfirm, onPrintReceipt, onClose }: PayModalProps) {
   const { t } = useLanguage();
   const [entries, setEntries] = useState<PayEntry[]>([]);
   const [method, setMethod] = useState<CassaPaymentMethod>("cash");
   const [amountStr, setAmountStr] = useState("");
   const [receivedStr, setReceivedStr] = useState("");
   const [splitParts, setSplitParts] = useState(0);
+  // Gift-card state: the till types a code, verifies it (live balance from the
+  // server), then charges up to that balance. The real burn happens in the pay
+  // route — this is display/UX validation only.
+  const [giftCodeStr, setGiftCodeStr] = useState("");
+  const [giftCard, setGiftCard] = useState<{ code: string; balanceCents: number } | null>(null);
+  const [giftError, setGiftError] = useState<string | null>(null);
+  const [giftChecking, setGiftChecking] = useState(false);
   // Exact-cash confirmation gate: charging CASH with no received amount typed
   // needs a second tap — "30€ due, 0€ typed, charged anyway" must never happen
   // silently again.
@@ -71,11 +87,53 @@ export function PayModal({ total, busy, result, onConfirm, onPrintReceipt, onClo
   const parsedReceived = Number(receivedStr.replace(",", "."));
   const received = receivedStr.trim() !== "" && Number.isFinite(parsedReceived) ? parsedReceived : null;
 
-  // The amount field pre-fills with what's left, so the fast path stays one tap.
-  const effectiveAmount =
+  // What the verified voucher can still cover, net of gift entries already added.
+  const giftAvailableC = useMemo(() => {
+    if (!giftCard) return 0;
+    const usedC = entries
+      .filter((e) => e.method === "gift_card" && e.gift_code === giftCard.code)
+      .reduce((s, e) => s + toCents(e.amount), 0);
+    return Math.max(0, giftCard.balanceCents - usedC);
+  }, [giftCard, entries]);
+
+  // The amount field pre-fills with what's left, so the fast path stays one
+  // tap. A gift card additionally clamps to its available balance.
+  const baseAmount =
     amountStr.trim() !== "" && Number.isFinite(parsedAmount) && parsedAmount > 0
       ? fromCents(toCents(parsedAmount))
       : remaining;
+  const effectiveAmount =
+    method === "gift_card" ? Math.min(baseAmount, fromCents(giftAvailableC)) : baseAmount;
+
+  const verifyGiftCode = async () => {
+    if (!giftCodeStr.trim() || giftChecking) return;
+    setGiftChecking(true);
+    setGiftError(null);
+    setGiftCard(null);
+    try {
+      const res = await fetch("/api/gift-cards/validate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tenant_id: tenantId, code: giftCodeStr }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (res.ok && json?.code) {
+        setGiftCard({ code: json.code, balanceCents: Number(json.balance_cents) || 0 });
+      } else {
+        setGiftError(
+          json?.error === "not_found"
+            ? t("cassa_gift_not_found")
+            : json?.error === "invalid_code"
+              ? t("cassa_gift_invalid")
+              : t("cassa_gift_not_active"),
+        );
+      }
+    } catch {
+      setGiftError(t("cassa_gift_not_active"));
+    } finally {
+      setGiftChecking(false);
+    }
+  };
 
   const change = method === "cash" && received != null ? changeDue(received, effectiveAmount) : 0;
   // Typed cash that doesn't cover what's being charged → hard stop with a
@@ -90,6 +148,8 @@ export function PayModal({ total, busy, result, onConfirm, onPrintReceipt, onClo
 
   const addEntry = () => {
     if (effectiveAmount <= 0 || busy || cashShort) return;
+    // A gift entry needs a VERIFIED code with balance left.
+    if (method === "gift_card" && (!giftCard || giftAvailableC <= 0)) return;
     const amount = Math.min(effectiveAmount, remaining);
     if (amount <= 0) return;
     // Cash with NOTHING typed in "Ricevuto": warn first, charge on the second
@@ -102,6 +162,7 @@ export function PayModal({ total, busy, result, onConfirm, onPrintReceipt, onClo
       method,
       amount,
       received: method === "cash" && received != null ? received : null,
+      ...(method === "gift_card" && giftCard ? { gift_code: giftCard.code } : {}),
     };
     const next = [...entries, entry];
     if (remainingDue(total, next) === 0) {
@@ -139,12 +200,15 @@ export function PayModal({ total, busy, result, onConfirm, onPrintReceipt, onClo
   // Charge exactly one alla-romana share with the selected method.
   const paySplitShare = () => {
     if (!nextShare || busy) return;
-    const amount = Math.min(nextShare, remaining);
+    if (method === "gift_card" && (!giftCard || giftAvailableC <= 0)) return;
+    let amount = Math.min(nextShare, remaining);
+    if (method === "gift_card") amount = Math.min(amount, fromCents(giftAvailableC));
     if (amount <= 0) return;
     const entry: PayEntry = {
       method,
       amount,
       received: method === "cash" && received != null ? received : null,
+      ...(method === "gift_card" && giftCard ? { gift_code: giftCard.code } : {}),
     };
     const next = [...entries, entry];
     setEntries(next);
@@ -286,8 +350,8 @@ export function PayModal({ total, busy, result, onConfirm, onPrintReceipt, onClo
               </div>
 
               {/* Method picker */}
-              <div className="grid grid-cols-3 gap-2">
-                {METHODS.map((m) => (
+              <div className={`grid gap-2 ${giftEnabled ? "grid-cols-4" : "grid-cols-3"}`}>
+                {METHODS.filter((m) => m.id !== "gift_card" || giftEnabled).map((m) => (
                   <button
                     key={m.id}
                     onClick={() => setMethod(m.id)}
@@ -299,6 +363,44 @@ export function PayModal({ total, busy, result, onConfirm, onPrintReceipt, onClo
                   </button>
                 ))}
               </div>
+
+              {/* Gift-card code: verify against the server before charging */}
+              {method === "gift_card" && (
+                <div className="space-y-2">
+                  <div className="flex gap-2">
+                    <input
+                      value={giftCodeStr}
+                      onChange={(e) => {
+                        setGiftCodeStr(e.target.value);
+                        setGiftCard(null);
+                        setGiftError(null);
+                      }}
+                      placeholder="GIFT-XXXX-XXXX"
+                      autoCapitalize="characters"
+                      className="flex-1 px-3 py-2.5 text-base font-bold text-black border-2 rounded-lg bg-white uppercase"
+                      style={{ borderColor: "#c4956a" }}
+                    />
+                    <button
+                      onClick={verifyGiftCode}
+                      disabled={giftChecking || !giftCodeStr.trim()}
+                      className="px-4 rounded-lg border-2 text-sm font-bold text-black active:bg-[#c4956a]/20 disabled:opacity-40 cursor-pointer"
+                      style={{ borderColor: "#c4956a" }}
+                    >
+                      {giftChecking ? "…" : t("cassa_gift_verify")}
+                    </button>
+                  </div>
+                  {giftCard && (
+                    <p className="text-center text-sm font-bold text-black">
+                      {t("cassa_gift_balance")}: {fmtEur(fromCents(giftAvailableC))}
+                    </p>
+                  )}
+                  {giftError && (
+                    <p className="flex items-center justify-center gap-1.5 text-center text-sm font-bold text-red-700">
+                      <AlertTriangle className="w-4 h-4 shrink-0" /> {giftError}
+                    </p>
+                  )}
+                </div>
+              )}
 
               {/* Amount (defaults to the remaining) */}
               <div className="flex gap-2">

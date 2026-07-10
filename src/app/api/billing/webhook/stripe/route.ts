@@ -4,6 +4,8 @@ import { verifyWebhook } from "@/lib/billing/stripe";
 import { upsertSubscription } from "@/lib/billing/state";
 import { syncVoiceProviderFromBilling } from "@/lib/billing/voice-billing";
 import { PLANS, ADDONS } from "@/lib/billing/catalog";
+import { fulfillGiftCardSession } from "@/lib/gift-cards/fulfill";
+import { logSystemEvent } from "@/lib/system-log";
 
 // Stripe webhook — the ONLY trusted writer of subscription state. The browser
 // never tells us "I paid"; Stripe does, signed. We verify the signature against
@@ -76,6 +78,23 @@ export async function POST(req: Request) {
             stripe_payment_intent_id: s.payment_intent || null,
             stripe_checkout_session_id: s.id,
           });
+          break;
+        }
+
+        if (kind === "gift_card") {
+          // Voucher paid (immediate capture) → mint code + email recipient.
+          // fulfillGiftCardSession is idempotent by session id and never
+          // throws; a partial failure is logged, not retried into a dup.
+          const result = await fulfillGiftCardSession(svc, s);
+          if (result.error) {
+            await logSystemEvent({
+              tenant_id: tenantId,
+              category: "api_error",
+              severity: result.ok ? "medium" : "high",
+              title: result.ok ? "Gift card: email non inviata" : "Gift card: fulfillment fallito",
+              description: `Sessione ${s.id}: ${result.error}`,
+            });
+          }
           break;
         }
 

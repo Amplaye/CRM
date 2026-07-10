@@ -65,6 +65,8 @@ export async function updateSession(request: NextRequest) {
     !request.nextUrl.pathname.startsWith('/u/') &&
     // /s/<slug> is the public template micro-site (website builder) — guests only.
     !request.nextUrl.pathname.startsWith('/s/') &&
+    // /g/<slug> is the public gift-card purchase page — the buyer is a guest.
+    !request.nextUrl.pathname.startsWith('/g/') &&
     !request.nextUrl.pathname.startsWith('/api')
   ) {
     const url = request.nextUrl.clone()

@@ -27,6 +27,7 @@ import {
   Star,
   Megaphone,
   Globe,
+  Gift,
 } from "lucide-react";
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
@@ -62,6 +63,8 @@ const navItems: Array<{ name: string; href: string; icon: any; badgeKey?: keyof 
   { name: "Marketing", href: "/marketing", icon: Megaphone },
   // Micro-site editor — hidden until the owner flips website_enabled.
   { name: "Website", href: "/website", icon: Globe },
+  // Voucher sales — hidden until the owner flips gift_cards_enabled.
+  { name: "Gift Cards", href: "/gift-cards", icon: Gift },
   { name: "Menu", href: "/menu", icon: UtensilsCrossed },
   { name: "Staff", href: "/staff", icon: CalendarClock },
   { name: "Analytics", href: "/", icon: BarChart3 },
@@ -189,6 +192,8 @@ export function Sidebar({ mobileOpen = false, onClose }: SidebarProps) {
   .filter(i => i.href !== "/marketing" || features.marketing_enabled)
   // Feature flag: Website appears only when the owner enabled the module.
   .filter(i => i.href !== "/website" || features.website_enabled)
+  // Feature flag: Gift Cards appears only when the owner enabled the module.
+  .filter(i => i.href !== "/gift-cards" || features.gift_cards_enabled)
   // Work-in-progress: hide the gestionale sections still under development
   // (inventory, P&L, food cost) for everyone except the WIP allowlist.
   .filter(i => !isWipHref(i.href) || canSeeWip(activeTenant?.id))
