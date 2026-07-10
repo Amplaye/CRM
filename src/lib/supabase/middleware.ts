@@ -55,6 +55,9 @@ export async function updateSession(request: NextRequest) {
     // /r/<slug> is the public review-link resolver tapped from the post-dinner
     // WhatsApp template button — a guest, never an authenticated user.
     !request.nextUrl.pathname.startsWith('/r/') &&
+    // /d/<slug> is the public deposit-checkout landing (Stripe success/cancel
+    // URL) — the paying guest has no CRM account.
+    !request.nextUrl.pathname.startsWith('/d/') &&
     !request.nextUrl.pathname.startsWith('/api')
   ) {
     const url = request.nextUrl.clone()

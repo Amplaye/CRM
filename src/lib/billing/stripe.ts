@@ -120,6 +120,68 @@ export async function createCheckoutSession(params: {
   return { id: String(session.id), url: String(session.url) };
 }
 
+// ---------------------------------------------------------------------------
+// Guest deposits (caparre) — one-off ad-hoc amounts, pre-authorized.
+// ---------------------------------------------------------------------------
+
+/** Checkout for a booking deposit. mode:payment with capture_method:manual —
+ * the card is only AUTHORIZED (hold, ~7 days); the money moves when we
+ * capture on no-show (forfeit) or never (hold cancelled on show-up). Amount is
+ * ad-hoc (price_data), no Stripe Product needed. */
+export async function createDepositCheckoutSession(params: {
+  amountCents: number;
+  currency: string;
+  productName: string; // shown on the Stripe page, e.g. "Caparra — Trattoria X, 24/07 21:00"
+  successUrl: string;
+  cancelUrl: string;
+  clientReferenceId: string; // tenant_id
+  metadata: Record<string, string>; // { kind:"deposit", tenant_id, reservation_id }
+  customerEmail?: string;
+  locale?: string;
+}): Promise<{ id: string; url: string }> {
+  const body: Record<string, unknown> = {
+    mode: "payment",
+    success_url: params.successUrl,
+    cancel_url: params.cancelUrl,
+    client_reference_id: params.clientReferenceId,
+    line_items: [
+      {
+        quantity: 1,
+        price_data: {
+          currency: params.currency.toLowerCase(),
+          unit_amount: params.amountCents,
+          product_data: { name: params.productName },
+        },
+      },
+    ],
+    payment_intent_data: {
+      capture_method: "manual",
+      description: params.productName,
+      metadata: params.metadata,
+    },
+    customer_email: params.customerEmail,
+    metadata: params.metadata,
+  };
+  if (params.locale) body.locale = params.locale;
+  const session = await stripePost("/checkout/sessions", body);
+  return { id: String(session.id), url: String(session.url) };
+}
+
+/** Capture a manually-held PaymentIntent (deposit forfeiture on no-show). */
+export async function capturePaymentIntent(id: string, idempotencyKey?: string): Promise<StripeJson> {
+  return stripePost(`/payment_intents/${id}/capture`, {}, { idempotencyKey });
+}
+
+/** Cancel a manually-held PaymentIntent (guest showed up — release the hold). */
+export async function cancelPaymentIntent(id: string, idempotencyKey?: string): Promise<StripeJson> {
+  return stripePost(`/payment_intents/${id}/cancel`, {}, { idempotencyKey });
+}
+
+/** Refund a captured PaymentIntent (goodwill refund after a forfeit). */
+export async function refundPaymentIntent(id: string, idempotencyKey?: string): Promise<StripeJson> {
+  return stripePost(`/refunds`, { payment_intent: id }, { idempotencyKey });
+}
+
 /** Verify a Stripe webhook signature (the `Stripe-Signature` header). Implements
  * the same HMAC-SHA256 scheme as stripe.webhooks.constructEvent, so we don't need
  * the SDK. Returns the parsed event on success, throws on a bad/expired signature. */

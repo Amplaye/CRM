@@ -95,6 +95,11 @@ export function BookingTab() {
   const [dinnerOff, setDinnerOff] = useState(60);
   const [depositRequired, setDepositRequired] = useState(false);
   const [depositAmount, setDepositAmount] = useState("");
+  // Structured deposit (real Stripe link): amount in EUROS in the input,
+  // stored in cents; per-person vs flat; min party ("" = large groups only).
+  const [depositEuros, setDepositEuros] = useState("");
+  const [depositPolicy, setDepositPolicy] = useState<"per_person" | "flat">("per_person");
+  const [depositMinParty, setDepositMinParty] = useState("");
   // Kill switch for the live test: when on, the WhatsApp engine stops handling
   // requests and replies with botPausedMessage (which redirects to the owner).
   const [botPaused, setBotPaused] = useState(false);
@@ -122,6 +127,9 @@ export function BookingTab() {
     setCancellation(CANCELLATION_OPTIONS.includes(venue.cancellation_notice) ? venue.cancellation_notice : "none");
     setDepositRequired(!!venue.deposit_required);
     setDepositAmount(venue.deposit_amount || "");
+    setDepositEuros(venue.deposit_amount_cents ? String(venue.deposit_amount_cents / 100) : "");
+    setDepositPolicy(venue.deposit_policy === "flat" ? "flat" : "per_person");
+    setDepositMinParty(venue.deposit_min_party ? String(venue.deposit_min_party) : "");
     const off = s.last_reservation_offset || {};
     setLunchOff(Number.isFinite(off.lunch) ? off.lunch : 45);
     setDinnerOff(Number.isFinite(off.dinner) ? off.dinner : 60);
@@ -172,6 +180,9 @@ export function BookingTab() {
           last_dinner_offset_min: dinnerOff,
           deposit_required: depositRequired,
           deposit_amount: depositAmount,
+          deposit_amount_cents: Math.round((parseFloat(depositEuros.replace(",", ".")) || 0) * 100),
+          deposit_policy: depositPolicy,
+          deposit_min_party: Number(depositMinParty) || 0,
           auto_confirm_max: autoConfirmMax,
           bot_paused: botPaused,
           bot_paused_message: botPausedMessage,
@@ -353,10 +364,33 @@ export function BookingTab() {
           <Toggle on={depositRequired} onClick={() => setDepositRequired((v) => !v)} />
         </Row>
         {depositRequired && (
-          <Row htmlFor="deposit_amount" label={t("settings_booking_deposit_amount")}>
-            <input id="deposit_amount" name="deposit_amount" type="text" value={depositAmount} onChange={(e) => setDepositAmount(e.target.value)}
-              placeholder={t("settings_booking_deposit_amount_ph")} className={INPUT} style={INPUT_BORDER} />
-          </Row>
+          <>
+            <Row htmlFor="deposit_amount" label={t("settings_booking_deposit_amount")}>
+              <input id="deposit_amount" name="deposit_amount" type="text" value={depositAmount} onChange={(e) => setDepositAmount(e.target.value)}
+                placeholder={t("settings_booking_deposit_amount_ph")} className={INPUT} style={INPUT_BORDER} />
+            </Row>
+            {/* Structured amount — what actually generates the Stripe payment
+                link (needs deposits_enabled in Settings → Features). */}
+            <Row htmlFor="deposit_euros" label={t("settings_booking_deposit_euros")} hint={t("settings_booking_deposit_euros_hint")}>
+              <div className="flex items-center gap-2">
+                <input id="deposit_euros" name="deposit_euros" type="number" min={0} step="0.5" value={depositEuros}
+                  onChange={(e) => setDepositEuros(e.target.value)} placeholder="10"
+                  className="w-24 border-2 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-[#c4956a]" style={INPUT_BORDER} />
+                <span className="text-sm font-bold text-black">€</span>
+              </div>
+            </Row>
+            <Row htmlFor="deposit_policy" label={t("settings_booking_deposit_policy")}>
+              <FieldSelect id="deposit_policy" value={depositPolicy} onChange={(v) => setDepositPolicy(v === "flat" ? "flat" : "per_person")}>
+                <option value="per_person">{t("settings_booking_deposit_per_person")}</option>
+                <option value="flat">{t("settings_booking_deposit_flat")}</option>
+              </FieldSelect>
+            </Row>
+            <Row htmlFor="deposit_min_party" label={t("settings_booking_deposit_min_party")} hint={t("settings_booking_deposit_min_party_hint")}>
+              <input id="deposit_min_party" name="deposit_min_party" type="number" min={1} value={depositMinParty}
+                onChange={(e) => setDepositMinParty(e.target.value)} placeholder={String(autoConfirmMax + 1)}
+                className="w-24 border-2 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-[#c4956a]" style={INPUT_BORDER} />
+            </Row>
+          </>
         )}
       </section>
     </div>

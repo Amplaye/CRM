@@ -5,9 +5,10 @@ import { hasActivePlan } from "@/lib/billing/entitlements";
 
 import { ReservationList } from "@/components/reservations/ReservationList";
 import { ReservationTimeline } from "@/components/reservations/ReservationTimeline";
-import { Plus, Download, Upload, X, Save, Clock, Menu, Phone, ChevronLeft, ChevronRight, AlertOctagon, Accessibility, Users as UsersIcon } from "lucide-react";
+import { Plus, Download, Upload, X, Save, Clock, Menu, Phone, ChevronLeft, ChevronRight, AlertOctagon, Accessibility, Users as UsersIcon, CreditCard } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
 import { Reservation, ReservationStatus } from "@/lib/types";
+import { getFeatures, type TenantSettings } from "@/lib/types/tenant-settings";
 import { TranslateNoteButton } from "@/components/ui/TranslateNoteButton";
 
 interface ReservationWithGuest extends Reservation {
@@ -775,6 +776,14 @@ export default function ReservationsPage() {
                    </div>
                 </div>
 
+                {/* Deposit (caparra) — request link / settle the Stripe hold */}
+                <DepositPanel
+                  key={`dep-${selectedRes.id}-${selectedRes.deposit_status || "none"}`}
+                  reservation={selectedRes}
+                  tenantId={activeTenant?.id || ""}
+                  onChanged={(status) => setSelectedRes(prev => prev ? { ...prev, deposit_status: status } as ReservationWithGuest : prev)}
+                />
+
                 {/* Change table — in-place reassignment; keeps the reservation row + analytics */}
                 <div className="rounded-lg border-2 p-3" style={{ borderColor: '#c4956a', background: 'rgba(252,246,237,0.6)' }}>
                   <div className="flex items-center justify-between gap-2">
@@ -949,6 +958,113 @@ export default function ReservationsPage() {
         </div>
         </>
       )}
+    </div>
+  );
+}
+
+// Deposit (caparra) panel inside the quick-edit drawer. Renders only when the
+// feature is on or the booking already has deposit state. Staff can generate
+// the Stripe link (copied for sending), then settle the hold: forfeit on
+// no-show (captures the money) or release on show-up (card never charged).
+function DepositPanel({ reservation, tenantId, onChanged }: {
+  reservation: ReservationWithGuest;
+  tenantId: string;
+  onChanged: (status: NonNullable<Reservation["deposit_status"]>) => void;
+}) {
+  const { t } = useLanguage();
+  const { activeTenant } = useTenant();
+  const [busy, setBusy] = useState(false);
+  const [link, setLink] = useState<string | null>(null);
+  const [msg, setMsg] = useState<string | null>(null);
+
+  const status = reservation.deposit_status || "none";
+  const enabled = getFeatures(activeTenant?.settings as TenantSettings | undefined).deposits_enabled;
+  if (!enabled && status === "none") return null;
+
+  const amount = reservation.deposit_amount_cents
+    ? `${(reservation.deposit_amount_cents / 100).toFixed(2).replace(".", ",")} €`
+    : "";
+
+  const STATUS_STYLE: Record<string, string> = {
+    pending: "bg-amber-100 text-amber-800",
+    required: "bg-amber-100 text-amber-800",
+    authorized: "bg-emerald-100 text-emerald-800",
+    paid: "bg-emerald-100 text-emerald-800",
+    forfeited: "bg-red-100 text-red-800",
+    released: "bg-zinc-100 text-black",
+    refunded: "bg-zinc-100 text-black",
+    none: "bg-zinc-100 text-black",
+  };
+
+  const post = async (path: string, body: Record<string, unknown>) => {
+    setBusy(true);
+    setMsg(null);
+    try {
+      const res = await fetch(path, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tenant_id: tenantId, reservation_id: reservation.id, ...body }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json?.hint || json?.detail || json?.error || `HTTP ${res.status}`);
+      return json;
+    } catch (e) {
+      setMsg(e instanceof Error ? e.message : "Error");
+      return null;
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const requestLink = async () => {
+    const json = await post("/api/deposits/request", {});
+    if (json?.url) {
+      setLink(json.url);
+      onChanged("pending");
+      try { await navigator.clipboard.writeText(json.url); setMsg(t("res_deposit_link_copied")); } catch { /* clipboard optional */ }
+    }
+  };
+
+  const resolve = async (action: "forfeit" | "release" | "refund") => {
+    const json = await post("/api/deposits/resolve", { action });
+    if (json?.deposit_status) { onChanged(json.deposit_status); setLink(null); }
+  };
+
+  const btn = "flex-1 text-sm font-medium py-2 px-3 rounded-lg transition-colors shadow-sm disabled:opacity-50 text-white";
+
+  return (
+    <div className="rounded-lg border-2 p-3 space-y-2" style={{ borderColor: "#c4956a", background: "rgba(252,246,237,0.6)" }}>
+      <div className="flex items-center justify-between">
+        <span className="flex items-center gap-1.5 text-sm font-bold text-black">
+          <CreditCard className="w-4 h-4" /> {t("res_deposit_title")}{amount ? ` · ${amount}` : ""}
+        </span>
+        <span className={`text-[10px] font-bold uppercase px-2 py-1 rounded ${STATUS_STYLE[status]}`}>
+          {t(`res_deposit_status_${status}` as Parameters<typeof t>[0]) || status}
+        </span>
+      </div>
+      {["none", "required", "pending"].includes(status) && (
+        <button type="button" disabled={busy} onClick={requestLink}
+          className={`${btn} w-full`} style={{ background: "linear-gradient(135deg, #c4956a, #a0764e)" }}>
+          {busy ? "..." : status === "pending" ? t("res_deposit_regen_link") : t("res_deposit_gen_link")}
+        </button>
+      )}
+      {status === "authorized" && (
+        <div className="flex gap-2">
+          <button type="button" disabled={busy} onClick={() => resolve("release")} className={`${btn} bg-emerald-600 hover:bg-emerald-700`}>
+            {t("res_deposit_release")}
+          </button>
+          <button type="button" disabled={busy} onClick={() => resolve("forfeit")} className={`${btn} bg-red-600 hover:bg-red-700`}>
+            {t("res_deposit_forfeit")}
+          </button>
+        </div>
+      )}
+      {status === "forfeited" && (
+        <button type="button" disabled={busy} onClick={() => resolve("refund")} className={`${btn} w-full bg-zinc-700 hover:bg-zinc-800`}>
+          {t("res_deposit_refund")}
+        </button>
+      )}
+      {link && <p className="text-xs text-black break-all"><strong>{t("res_deposit_link")}:</strong> {link}</p>}
+      {msg && <p className="text-xs font-medium text-black">{msg}</p>}
     </div>
   );
 }

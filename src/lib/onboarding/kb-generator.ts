@@ -116,6 +116,17 @@ export interface VenueInfo {
   parking: ParkingKind[];
   deposit_required: boolean;
   deposit_amount: string;
+  // Structured deposit policy (Fase 1 — real Stripe deposits). The legacy
+  // deposit_required/deposit_amount pair stays the INFORMATIONAL fallback the
+  // recap prints; these three make the amount computable so the bot/staff can
+  // generate a payable Checkout link. Editable in Settings → Bookings.
+  /** Deposit in cents (per person or flat, see deposit_policy). */
+  deposit_amount_cents?: number;
+  /** "per_person" multiplies by party size; "flat" charges once. */
+  deposit_policy?: "per_person" | "flat";
+  /** First party size that owes a deposit. 1 = every booking. Unset → the
+   * bot's large-group threshold (bot_config.party_size_threshold_large). */
+  deposit_min_party?: number;
   cancellation_notice: CancellationNotice;
   // Short Google-Maps link (via da.gd) shown in the WhatsApp recap instead of the long
   // bare URL that widened the chat. Optional + best-effort: when absent the bot falls

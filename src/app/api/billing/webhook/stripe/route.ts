@@ -11,8 +11,12 @@ import { PLANS, ADDONS } from "@/lib/billing/catalog";
 // we care about into upsertSubscription (which also mirrors settings.billing).
 //
 // Configure in Stripe: endpoint = /api/billing/webhook/stripe, events:
-//   checkout.session.completed, customer.subscription.updated,
-//   customer.subscription.deleted.
+//   checkout.session.completed, checkout.session.expired,
+//   customer.subscription.updated, customer.subscription.deleted.
+//
+// Booking deposits (metadata.kind = "deposit") also land here: same endpoint,
+// same secret — the metadata discriminates, and the deposit branch writes
+// reservations.deposit_* + reservation_payments instead of subscriptions.
 //
 // Must read the RAW body for signature verification — req.text(), not req.json().
 
@@ -48,6 +52,33 @@ export async function POST(req: Request) {
         if (!tenantId) break;
         const meta = s.metadata || {};
         const kind = meta.kind;
+
+        if (kind === "deposit" && meta.reservation_id) {
+          // Booking deposit paid → the hold is AUTHORIZED (capture_method:
+          // manual — money moves only on forfeit). Idempotent: re-delivery
+          // rewrites the same state.
+          await svc
+            .from("reservations")
+            .update({
+              deposit_status: "authorized",
+              deposit_payment_intent_id: s.payment_intent || null,
+              deposit_paid_at: new Date().toISOString(),
+            })
+            .eq("id", meta.reservation_id)
+            .eq("tenant_id", tenantId);
+          await svc.from("reservation_payments").insert({
+            tenant_id: tenantId,
+            reservation_id: meta.reservation_id,
+            kind: "deposit",
+            action: "authorized",
+            amount_cents: Number(s.amount_total) || 0,
+            currency: String(s.currency || "eur"),
+            stripe_payment_intent_id: s.payment_intent || null,
+            stripe_checkout_session_id: s.id,
+          });
+          break;
+        }
+
         const isAddon = kind === "addon" && ADDON_IDS.has(meta.addon);
         const isPlan = kind === "plan" && PLAN_IDS.has(meta.plan);
         const isBundle = kind === "bundle" && PLAN_IDS.has(meta.plan);
@@ -102,6 +133,32 @@ export async function POST(req: Request) {
             stripe_customer_id: s.customer || undefined,
           });
           await syncVoice(svc, tenantId, finalAddons);
+        }
+        break;
+      }
+
+      case "checkout.session.expired": {
+        // Deposit link never paid (Checkout sessions expire after 24h) — put
+        // the reservation back to 'required' so staff sees it's still owed and
+        // can send a fresh link. Guarded on pending so we never regress a paid one.
+        const s = event.data.object;
+        const meta = s.metadata || {};
+        if (meta.kind === "deposit" && meta.reservation_id && meta.tenant_id) {
+          await svc
+            .from("reservations")
+            .update({ deposit_status: "required", deposit_checkout_session_id: null })
+            .eq("id", meta.reservation_id)
+            .eq("tenant_id", meta.tenant_id)
+            .eq("deposit_status", "pending");
+          await svc.from("reservation_payments").insert({
+            tenant_id: meta.tenant_id,
+            reservation_id: meta.reservation_id,
+            kind: "deposit",
+            action: "expired",
+            amount_cents: Number(s.amount_total) || 0,
+            currency: String(s.currency || "eur"),
+            stripe_checkout_session_id: s.id,
+          });
         }
         break;
       }

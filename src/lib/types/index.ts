@@ -175,6 +175,11 @@ export interface Reservation {
   linked_conversation_id?: string;
   cancellation_source?: CancellationSource;
   noshow_warning_responded?: boolean;
+  // Booking deposit (caparra) — written by /api/deposits/* and the Stripe
+  // webhook; 'none' for bookings the feature never touched.
+  deposit_status?: "none" | "required" | "pending" | "authorized" | "paid" | "forfeited" | "released" | "refunded";
+  deposit_amount_cents?: number | null;
+  deposit_currency?: string | null;
   created_at: number;
   end_time?: string;
   shift?: 'lunch' | 'dinner';

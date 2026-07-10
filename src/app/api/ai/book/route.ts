@@ -31,6 +31,9 @@ import {
 import { assertRateLimit } from '@/lib/rate-limit';
 import { getFeatures } from '@/lib/types/tenant-settings';
 import { bookingVenueLines, type VenueInfo, type Lang } from '@/lib/onboarding/kb-generator';
+import { createDepositForReservation } from '@/lib/deposits/checkout';
+import { depositLinkLine } from '@/lib/deposits/deposits';
+import type { TenantSettings } from '@/lib/types/tenant-settings';
 
 export async function POST(request: Request) {
   const unauth = assertAiSecret(request);
@@ -103,7 +106,7 @@ export async function POST(request: Request) {
     const [tenantRes, idempotencyRes, existingGuestsRes, convLangRes] = await Promise.all([
       supabase
         .from('tenants')
-        .select('settings')
+        .select('name, slug, settings')
         .eq('id', payload.tenant_id)
         .maybeSingle(),
       supabase
@@ -858,6 +861,30 @@ export async function POST(request: Request) {
       ? bookingVenueLines(venue, (effectiveLang || 'es') as Lang)
       : null;
 
+    // Real deposit (Fase 1): when deposits_enabled and this party size owes
+    // one, generate the payable Stripe link and upgrade the recap's deposit
+    // line from informational text to the actual payment link. Best-effort:
+    // a Stripe hiccup falls back to the legacy informational line.
+    let depositUrl = "";
+    let depositLine = venueLines?.deposit || "";
+    {
+      const depositLink = await createDepositForReservation(supabase, {
+        tenantId: payload.tenant_id,
+        tenantName: (tenantRes.data as { name?: string } | null)?.name || "",
+        tenantSlug: (tenantRes.data as { slug?: string } | null)?.slug || "",
+        settings: tenantRes.data?.settings as TenantSettings | null,
+        reservationId: newRes.id,
+        partySize: payload.party_size,
+        date: payload.date,
+        time: payload.time,
+        lang: effectiveLang,
+      });
+      if (depositLink) {
+        depositUrl = depositLink.url;
+        depositLine = depositLinkLine(effectiveLang || 'es', depositLink.formatted, depositLink.url);
+      }
+    }
+
     return NextResponse.json({
        success: true,
        reservation_id: newRes.id,
@@ -873,7 +900,9 @@ export async function POST(request: Request) {
        parking: venueLines?.parking || "",
        // Deposit only matters for large groups (manual confirmation path); the
        // recap shows it only when both a deposit is required AND it's a big party.
-       deposit_note: venueLines?.deposit || "",
+       // When deposits_enabled produced a Checkout link, the note IS the link.
+       deposit_note: depositLine,
+       deposit_payment_url: depositUrl,
        cancellation_note: venueLines?.cancellation || "",
     });
 

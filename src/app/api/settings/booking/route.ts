@@ -93,6 +93,20 @@ export async function POST(req: NextRequest) {
     const dinnerOff = clampInt(body.last_dinner_offset_min, -1, 240, 60);
     const depositRequired = !!body.deposit_required;
     const depositAmount = String(body.deposit_amount ?? "").trim();
+    // Structured deposit policy (real Stripe deposits, Fase 1). The legacy
+    // free-text deposit_amount stays for the KB/recap prose; these make the
+    // amount computable. Omitted fields keep their stored value.
+    const prevVenue = (settings.venue || {}) as Record<string, unknown>;
+    const depositAmountCents = clampInt(
+      body.deposit_amount_cents,
+      0,
+      1_000_000_00,
+      Number(prevVenue.deposit_amount_cents) || 0,
+    );
+    const depositPolicy =
+      body.deposit_policy === "flat" || body.deposit_policy === "per_person"
+        ? body.deposit_policy
+        : (prevVenue.deposit_policy as string) === "flat" ? "flat" : "per_person";
     // Pause kill switch: when bot_paused is true the WhatsApp engine short-circuits
     // and replies with bot_paused_message (which redirects to the owner). Preserve
     // the previously saved message when the form omits it.
@@ -131,6 +145,11 @@ export async function POST(req: NextRequest) {
         ...(settings.venue || {}),
         deposit_required: depositRequired,
         deposit_amount: depositAmount,
+        deposit_amount_cents: depositAmountCents,
+        deposit_policy: depositPolicy,
+        // 1 = every booking; unset/0 → depositDueFor falls back to the
+        // large-group threshold, so "deposit for big groups" needs no config.
+        deposit_min_party: clampInt(body.deposit_min_party, 0, 100, Number(prevVenue.deposit_min_party) || 0) || undefined,
         cancellation_notice: cancellation,
       },
       bot_config: {
