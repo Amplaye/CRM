@@ -13,6 +13,10 @@ const csp = [
   "img-src 'self' data: blob: https:",
   "font-src 'self' data:",
   "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://api.vapi.ai https://graph.facebook.com https://api.resend.com",
+  // The public micro-site (/s) embeds a Google Maps iframe. Without an explicit
+  // frame-src it falls back to default-src 'self' and the map is blocked by our
+  // own CSP (renders as a broken frame). Allow only Google's map hosts.
+  "frame-src https://www.google.com https://maps.google.com",
   "frame-ancestors 'none'",
   "base-uri 'self'",
   "form-action 'self'",
