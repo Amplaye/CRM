@@ -255,6 +255,8 @@ export default function MarketingPage() {
             body={body}
             sampleName={t("mkt_preview_sample_name")}
             emptyLabel={t("mkt_preview_empty")}
+            waFramePre={t("mkt_wa_frame_pre")}
+            waFramePost={t("mkt_wa_frame_post")}
           />
           <p className="text-xs text-black text-center">
             {channel === "whatsapp" ? t("mkt_preview_wa_hint") : t("mkt_preview_email_hint")}
@@ -335,7 +337,7 @@ export default function MarketingPage() {
 
 // ── Phone mockup: renders the message as the client will receive it ─────────
 function PhoneMock({
-  channel, senderName, subject, body, sampleName, emptyLabel,
+  channel, senderName, subject, body, sampleName, emptyLabel, waFramePre, waFramePost,
 }: {
   channel: "email" | "whatsapp";
   senderName: string;
@@ -343,10 +345,16 @@ function PhoneMock({
   body: string;
   sampleName: string;
   emptyLabel: string;
+  /** Fixed greeting BEFORE the free body — "{name}" is replaced with the sample. */
+  waFramePre: string;
+  /** Fixed sign-off AFTER the free body. */
+  waFramePost: string;
 }) {
   const hasBody = !!body.trim();
-  // WhatsApp: the approved template frame is "Ciao {name}," + the free body.
-  const waText = hasBody ? `Ciao ${sampleName},\n\n${body}` : "";
+  // Mirror the approved WhatsApp template frame exactly: greeting + free body +
+  // sign-off (Meta requires fixed text around every variable).
+  const pre = waFramePre.replace("{name}", sampleName);
+  const waText = hasBody ? `${pre}\n\n${body}\n\n${waFramePost}` : "";
 
   return (
     <div className="mx-auto w-full max-w-[300px]">

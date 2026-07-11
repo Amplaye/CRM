@@ -117,20 +117,28 @@ const TEMPLATES = [
     // campaign text; {{1}} personalizes with the guest's name. MARKETING
     // category → opt-out-able, correct for promos. Meta may reject overly
     // generic bodies — if so, tighten the copy around the variable.
-    name: "marketing_campaign",
+    // NOTE: v2 name because Meta locks a deleted template's name+language for
+    // hours before it can be recreated (2026-07-11 trap). The first
+    // "marketing_campaign" was deleted to switch to the greeting-only frame, so
+    // we ship the new frame under a fresh name and never wait on the lock.
+    name: "marketing_campaign_v2",
     category: "MARKETING",
     // vars: 1=guest name, 2=campaign message.
     // Greeting-only frame (no fixed closing, no emoji) — the owner's free text
     // is {{2}} and carries the whole message, so one template covers every
     // campaign. No emoji keeps the frame neutral (owner request); note Meta
     // still classifies by CONTENT, so promotional bodies stay MARKETING.
+    // Meta hard rules: a variable can't sit at the very start OR end, and the
+    // body can't be mostly variables. So {{2}} (the owner's free message) is
+    // wrapped by a fixed greeting AND a minimal, NEUTRAL sign-off (not a salesy
+    // "see you soon!") — no emoji. This is the smallest frame Meta will approve.
     bodies: {
-      es: "Hola {{1}},\n\n{{2}}",
-      it: "Ciao {{1}},\n\n{{2}}",
-      en: "Hi {{1}},\n\n{{2}}",
-      de: "Hallo {{1}},\n\n{{2}}",
+      es: "Hola {{1}}, te escribimos desde el restaurante:\n\n{{2}}\n\nGracias y un saludo.",
+      it: "Ciao {{1}}, ti scriviamo dal ristorante:\n\n{{2}}\n\nGrazie e a presto.",
+      en: "Hi {{1}}, we're writing to you from the restaurant:\n\n{{2}}\n\nThank you and best regards.",
+      de: "Hallo {{1}}, wir schreiben dir vom Restaurant:\n\n{{2}}\n\nDanke und viele Grüße.",
     },
-    examples: ["María", "Este viernes menú degustación a 35€ — reserva tu mesa"],
+    examples: ["María", "Este viernes tenemos menú degustación de temporada a 35€ por persona. Reserva tu mesa respondiendo a este mensaje."],
   },
   {
     name: "waitlist_table_available",

@@ -133,6 +133,8 @@ export const en = {
   mkt_preview_wa_hint: "This is how the WhatsApp notification looks to the client.",
   mkt_preview_email_hint: "This is how the email looks in the client's inbox.",
   mkt_preview_sample_name: "Maria",
+  mkt_wa_frame_pre: "Hi {name}, we're writing to you from the restaurant:",
+  mkt_wa_frame_post: "Thank you and best regards.",
   reviews_title: "Reviews",
   reviews_desc: "Certified guest reviews: only diners who really booked can leave one.",
   reviews_count_label: "reviews",

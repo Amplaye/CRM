@@ -2,7 +2,7 @@
 // against fresh guests+reservations, writes the campaign_recipients ledger,
 // then delivers channel by channel:
 //   email    → Resend, one send per recipient (personalized unsubscribe link)
-//   whatsapp → approved MARKETING template `marketing_campaign`
+//   whatsapp → approved MARKETING template `marketing_campaign_v2`
 //              ({{1}}=name {{2}}=body — outside the 24h window by definition)
 //
 // Idempotency: the unique (campaign_id, guest_id) row is claimed BEFORE the
@@ -139,7 +139,7 @@ export async function sendCampaign(
         if (!g.phone) { skipped++; await mark("skipped", "no_phone"); continue; }
         const res = await sendWhatsAppTemplate(
           g.phone,
-          "marketing_campaign",
+          "marketing_campaign_v2",
           lang,
           [g.name || "", campaign.body],
           from,

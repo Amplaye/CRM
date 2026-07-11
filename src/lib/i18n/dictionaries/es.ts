@@ -135,6 +135,8 @@ export const es: Dictionary = {
   mkt_preview_wa_hint: "Así ve el cliente la notificación de WhatsApp.",
   mkt_preview_email_hint: "Así ve el cliente el email en su bandeja.",
   mkt_preview_sample_name: "María",
+  mkt_wa_frame_pre: "Hola {name}, te escribimos desde el restaurante:",
+  mkt_wa_frame_post: "Gracias y un saludo.",
   reviews_title: "Reseñas",
   reviews_desc: "Las reseñas certificadas de tus clientes: solo quien reservó de verdad puede dejarlas.",
   reviews_count_label: "reseñas",
