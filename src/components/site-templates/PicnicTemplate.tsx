@@ -13,12 +13,14 @@ import { PICNIC_DEFAULTS } from "./defaults";
 // the visual editor can rewrite it in place; menu, reviews, hours and contact
 // come from live CRM data; booking is the real widget.
 
+// The three editable "key" colours read from the palette cascade (--c1/2/3)
+// with the built-in hex as fallback, so an unset palette looks unchanged.
 const C = {
-  black: "#000000",
+  black: "var(--c1, #000000)",
   dark: "#1a1a1a",
   card: "#0f0f0f",
-  cream: "#f7f3ed",
-  rust: "#c94a1a",
+  cream: "var(--c3, #f7f3ed)",
+  rust: "var(--c2, #c94a1a)",
 };
 const HAIR_DARK = "rgba(255,255,255,0.06)";
 const HAIR_CREAM = "rgba(26,26,26,0.1)";

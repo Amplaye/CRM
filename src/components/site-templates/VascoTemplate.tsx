@@ -14,12 +14,14 @@ import { VASCO_DEFAULTS } from "./defaults";
 // editor; menu, reviews, hours and contact come from live CRM data; booking
 // is the real widget.
 
+// The three editable "key" colours read from the palette cascade (--c1/2/3)
+// with the built-in hex as fallback, so an unset palette looks unchanged.
 const C = {
-  cream: "#f5efe1",
+  cream: "var(--c1, #f5efe1)",
   creamDeep: "#e8dcc6",
   ink: "#221c18",
-  green: "#0d3a20",
-  red: "#c82020",
+  green: "var(--c3, #0d3a20)",
+  red: "var(--c2, #c82020)",
   redDeep: "#8a1a16",
   redSoft: "#e0463a",
   emerald: "#0a8240",

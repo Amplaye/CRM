@@ -13,14 +13,16 @@ import { SUERTE_DEFAULTS } from "./defaults";
 // Editable* so the visual editor can rewrite it in place; menu, reviews,
 // hours and contact come from live CRM data; booking is the real widget.
 
+// The three editable "key" colours read from the palette cascade (--c1/2/3)
+// with the built-in hex as fallback, so an unset palette looks unchanged.
 const C = {
-  cream: "#f4ecdd",
+  cream: "var(--c1, #f4ecdd)",
   creamDeep: "#ece0c9",
   charcoal: "#2a2420",
   soft: "#4a4038",
-  tomato: "#c0432b",
+  tomato: "var(--c2, #c0432b)",
   mustard: "#d69a3c",
-  basil: "#2f5a3a",
+  basil: "var(--c3, #2f5a3a)",
   tile: "#2e6e8e",
   tileDeep: "#235775",
 };

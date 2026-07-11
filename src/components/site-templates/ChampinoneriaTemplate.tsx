@@ -13,13 +13,15 @@ import { CHAMPINONERIA_DEFAULTS } from "./defaults";
 // image renders via Editable* so the visual editor can rewrite it in place;
 // menu, reviews, hours and contact come from live CRM data; booking is real.
 
+// The three editable "key" colours read from the palette cascade (--c1/2/3)
+// with the built-in hex as fallback, so an unset palette looks unchanged.
 const C = {
-  cream: "#f5eee0",
+  cream: "var(--c1, #f5eee0)",
   taupe: "#ede4d3",
-  dark: "#2a1d12",
+  dark: "var(--c2, #2a1d12)",
   ink: "#2e2218",
   inkSoft: "#7a6a56",
-  brass: "#a6724b",
+  brass: "var(--c3, #a6724b)",
   brassSoft: "#c9a77c",
   gold: "#b08d57",
   oxblood: "#241810",

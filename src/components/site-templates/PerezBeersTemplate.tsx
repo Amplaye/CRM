@@ -14,12 +14,14 @@ import { PEREZBEERS_DEFAULTS } from "./defaults";
 // place; menu, reviews, hours and contact come from live CRM data; booking is
 // the real widget. Animations are CSS-only (float, pulse, marquee).
 
+// The three editable "key" colours read from the palette cascade (--c1/2/3)
+// with the built-in hex as fallback, so an unset palette looks unchanged.
 const C = {
-  basalt: "#120D0A",
+  basalt: "var(--c1, #120D0A)",
   cream: "#EDE6D8",
-  gold: "#DCA03C",
+  gold: "var(--c2, #DCA03C)",
   goldLight: "#F0CD82",
-  red: "#C5392C",
+  red: "var(--c3, #C5392C)",
   redLight: "#E0574A",
 };
 

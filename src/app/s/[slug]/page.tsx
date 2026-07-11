@@ -8,7 +8,7 @@ import { resolveSiteLocale } from "@/lib/site/booking-strings";
 import { SITE_STRINGS } from "@/lib/site/labels";
 import { buildSiteData, firstName, formatSitePrice, type RawMenuItemRow, type RawReviewRow } from "@/lib/site/data";
 import { SiteContentProvider } from "@/lib/site/content";
-import { SITE_TEMPLATE_DEFS, isDemoTemplate } from "@/components/site-templates/registry";
+import { SITE_TEMPLATE_DEFS, isDemoTemplate, paletteVars, paletteAccent } from "@/components/site-templates/registry";
 import FloatingBookingWidget from "@/components/site-templates/FloatingBookingWidget";
 
 // Public template micro-site (Fase 4 — website builder). Same contract as the
@@ -134,16 +134,22 @@ export default async function PublicSitePage({ params }: { params: Promise<Param
     const overrides = (settings.site_content?.[template] || {}) as Record<string, string>;
     const content = { ...def.defaults, ...overrides };
     const Template = def.component;
+    // Colour override (if any) cascades as --c1/2/3 onto the template wrapper;
+    // the widget accent follows the (possibly recoloured) palette.
+    const palette = settings.site_palette?.[template];
+    const cascade = paletteVars(template, palette) as CSSProperties;
     return (
       <>
         <PublicSiteScrollReset />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
         {/* eslint-disable-next-line @next/next/no-page-custom-font */}
         <link rel="stylesheet" href={def.fontsHref} />
-        <SiteContentProvider value={{ content, editMode: false }}>
-          <Template data={data} />
-        </SiteContentProvider>
-        <FloatingBookingWidget slug={tenant.slug} accent={def.accent} strings={data.bookingStrings} />
+        <div style={cascade}>
+          <SiteContentProvider value={{ content, editMode: false }}>
+            <Template data={data} />
+          </SiteContentProvider>
+        </div>
+        <FloatingBookingWidget slug={tenant.slug} accent={paletteAccent(template, palette)} strings={data.bookingStrings} />
       </>
     );
   }

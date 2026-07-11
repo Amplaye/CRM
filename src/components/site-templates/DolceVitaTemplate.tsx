@@ -14,15 +14,17 @@ import { DOLCEVITA_DEFAULTS } from "./defaults";
 // can rewrite it in place; menu, reviews, hours and contact come from live CRM
 // data; booking is the real widget inside the cream ticket of #reservar.
 
+// The three editable "key" colours read from the palette cascade (--c1/2/3)
+// with the built-in hex as fallback, so an unset palette looks unchanged.
 const C = {
-  cream: "#f6eee0",
+  cream: "var(--c2, #f6eee0)",
   cream2: "#fbf6ec",
-  wine: "#7c2230",
+  wine: "var(--c1, #7c2230)",
   wine2: "#5e1822",
   peach: "#e8b197",
   olive: "#4a5226",
   olive2: "#3c4420",
-  tomato: "#c0392b",
+  tomato: "var(--c3, #c0392b)",
   tomato2: "#9c2b20",
   terracotta: "#c77b53",
   mustard: "#d9a441",

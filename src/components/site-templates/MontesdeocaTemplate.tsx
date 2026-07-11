@@ -13,12 +13,14 @@ import { MONTESDEOCA_DEFAULTS } from "./defaults";
 // text/image renders via Editable*; menu, reviews, hours and contact come from
 // live CRM data; booking is the real widget inside the piedra invitation card.
 
+// The three editable "key" colours read from the palette cascade (--c1/2/3)
+// with the built-in hex as fallback, so an unset palette looks unchanged.
 const C = {
-  espresso: "#1c1712",
+  espresso: "var(--c1, #1c1712)",
   verde: "#2e3d32",
   vino: "#5a2a33",
-  piedra: "#efe7d6",
-  laton: "#b08d4f",
+  piedra: "var(--c3, #efe7d6)",
+  laton: "var(--c2, #b08d4f)",
   terracota: "#a8553a",
 };
 
