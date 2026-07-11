@@ -3,7 +3,7 @@
 import { LockedPreview } from "@/components/billing/LockedPreview";
 import { hasActivePlan } from "@/lib/billing/entitlements";
 
-import { Download, Upload, Search, X, CalendarCheck, User, LayoutGrid, List, Trash2, Phone, AlertOctagon, Accessibility, Users as UsersIcon, Utensils, Tag, Award } from "lucide-react";
+import { Download, Upload, Search, X, CalendarCheck, User, LayoutGrid, List, Trash2, Phone, AlertOctagon, Accessibility, Users as UsersIcon, Utensils, Tag, Award, Mail, Cake } from "lucide-react";
 import { useLanguage } from "@/lib/contexts/LanguageContext";
 import { useEffect, useState, useRef, useMemo } from "react";
 import { useTenant } from "@/lib/contexts/TenantContext";
@@ -446,6 +446,18 @@ export default function GuestsPage() {
               />
             )}
 
+            {/* Contact & marketing data — email fuels email campaigns, birthday
+                fuels the birthday segment. Both were only importable via CSV
+                before; now the owner can capture them per guest. */}
+            <GuestContactEditor
+              key={`contact-${selectedGuest.id}`}
+              guest={selectedGuest}
+              onSaved={(updated) => {
+                setSelectedGuest({ ...selectedGuest, ...updated });
+                setGuests(prev => prev.map(g => g.id === selectedGuest.id ? { ...g, ...updated } : g));
+              }}
+            />
+
             {/* Tags — the raw material of marketing segments (segmentation.ts
                 filters by tag), so the owner can finally curate them here. */}
             <GuestTagsEditor
@@ -621,6 +633,78 @@ function GuestTagsEditor({ guest, onSaved }: { guest: Guest; onSaved: (updated: 
           placeholder={t("guests_tags_placeholder")}
           className="border-2 rounded-full px-3 py-0.5 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-[#c4956a] w-32"
           style={{ borderColor: 'rgba(196,149,106,0.5)', background: 'rgba(252,246,237,0.6)' }}
+        />
+      </div>
+    </div>
+  );
+}
+
+// Email + birthday capture. Email makes the guest reachable by email campaigns;
+// birthday makes them match the "compleanno nel mese" segment. Persist on blur,
+// same idiom as GuestNotesEditor — no explicit Save button.
+function GuestContactEditor({ guest, onSaved }: { guest: Guest; onSaved: (updated: Partial<Guest>) => void }) {
+  const { t } = useLanguage();
+  const supabase = createClient();
+  const [email, setEmail] = useState(guest.email || "");
+  const [birthday, setBirthday] = useState(guest.birthday || "");
+  const [savingField, setSavingField] = useState<string | null>(null);
+  const [emailError, setEmailError] = useState(false);
+
+  const persist = async (field: "email" | "birthday", value: string) => {
+    const current = (field === "email" ? guest.email : guest.birthday) || "";
+    if (value === current) return;
+    if (field === "email" && value && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(value)) {
+      setEmailError(true);
+      return;
+    }
+    setEmailError(false);
+    setSavingField(field);
+    const { error } = await supabase
+      .from("guests")
+      .update({ [field]: value || null })
+      .eq("id", guest.id);
+    setSavingField(null);
+    if (!error) onSaved({ [field]: value || null } as Partial<Guest>);
+  };
+
+  const cls = "block w-full border-2 rounded-lg px-3 py-2 text-sm font-medium text-black focus:outline-none focus:ring-2 focus:ring-[#c4956a]";
+  const style: React.CSSProperties = { borderColor: '#c4956a', background: 'rgba(252,246,237,0.6)' };
+
+  return (
+    <div className="space-y-3">
+      <h3 className="text-xs font-bold text-black uppercase tracking-wider">{t("guests_contact_title")}</h3>
+
+      <div>
+        <label className="flex items-center gap-1.5 text-xs font-semibold text-black mb-1">
+          <Mail className="w-3.5 h-3.5" />
+          <span>{t("guests_email_label")}</span>
+          {savingField === "email" && <span className="text-[10px] text-black">…</span>}
+        </label>
+        <input
+          type="email"
+          value={email}
+          onChange={(e) => { setEmail(e.target.value); setEmailError(false); }}
+          onBlur={() => persist("email", email.trim())}
+          placeholder={t("guests_email_ph")}
+          className={cls}
+          style={emailError ? { ...style, borderColor: '#ef4444' } : style}
+        />
+        {emailError && <p className="mt-1 text-[11px] font-semibold text-red-600">{t("guests_email_invalid")}</p>}
+      </div>
+
+      <div>
+        <label className="flex items-center gap-1.5 text-xs font-semibold text-black mb-1">
+          <Cake className="w-3.5 h-3.5" />
+          <span>{t("guests_birthday_label")}</span>
+          {savingField === "birthday" && <span className="text-[10px] text-black">…</span>}
+        </label>
+        <input
+          type="date"
+          value={birthday || ""}
+          onChange={(e) => setBirthday(e.target.value)}
+          onBlur={() => persist("birthday", birthday)}
+          className={cls}
+          style={style}
         />
       </div>
     </div>
