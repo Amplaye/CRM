@@ -4,6 +4,7 @@ import { createServiceRoleClient } from "@/lib/supabase/server";
 import { hasActivePlan } from "@/lib/billing/entitlements";
 import type { TenantSettings } from "@/lib/types/tenant-settings";
 import { BOOKING_STRINGS, resolveSiteLocale } from "@/lib/site/booking-strings";
+import { distinctRooms } from "@/lib/site/data";
 import BookingWidget from "./BookingWidget";
 
 // Public booking widget (Fase 7) — the "Prenota" button of the micro-site and
@@ -30,6 +31,13 @@ export default async function BookingPage({ params }: { params: Promise<Params> 
   if (!tenant || (tenant.status !== "trial" && tenant.status !== "active")) notFound();
   if (!hasActivePlan(tenant.settings)) notFound();
 
+  const { data: tableRows } = await sb
+    .from("restaurant_tables")
+    .select("zone")
+    .eq("tenant_id", tenant.id)
+    .eq("status", "active");
+  const rooms = distinctRooms((tableRows || []) as { zone: string | null }[]);
+
   const ui = BOOKING_STRINGS[resolveSiteLocale(tenant.settings?.crm_locale)];
   const accent =
     tenant.settings?.site_branding?.brand_color || tenant.settings?.menu_branding?.brand_color || "#c4956a";
@@ -42,7 +50,7 @@ export default async function BookingPage({ params }: { params: Promise<Params> 
       <div className="mx-auto max-w-lg">
         <h1 className="text-center text-3xl font-bold text-black">{ui.title}</h1>
         <p className="mt-2 text-center text-black">{tenant.name}</p>
-        <BookingWidget slug={tenant.slug} accent={accent} strings={ui} />
+        <BookingWidget slug={tenant.slug} accent={accent} rooms={rooms} strings={ui} />
       </div>
     </div>
   );

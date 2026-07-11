@@ -316,6 +316,8 @@ export interface CreateBookingRequest {
   force_new?: boolean;                    // re-book after the ±3-day duplicate guard
   zone?: 'inside' | 'outside' | string;   // free-text accepted; normalised server-side
   zone_preference?: 'inside' | 'outside' | string;
+  zone_exact?: string;                    // literal restaurant_tables.zone (web widget room step) — used verbatim, no inside/outside normalisation
+  guest_email?: string;                   // captured by the web widget for marketing; saved on the guest, never triggers email
   from_web?: boolean;                     // distinguishes Vapi web-call from PSTN
   language?: 'es' | 'it' | 'en' | 'de';   // pinned per-reservation for reminder copy
   status?: ReservationStatus;             // override (e.g. when staff pre-confirms)

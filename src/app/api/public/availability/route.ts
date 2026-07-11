@@ -26,6 +26,9 @@ export async function POST(req: Request) {
   const slug = typeof body?.slug === "string" ? body.slug.trim() : "";
   const date = typeof body?.date === "string" ? body.date.trim() : "";
   const partySize = Number(body?.party_size);
+  // Optional exact room name (widget room step) — availability is then scoped to
+  // that room's tables. Length-capped; the AI route validates it exists.
+  const room = typeof body?.room === "string" ? body.room.trim().slice(0, 60) : "";
   if (!slug || !/^\d{4}-\d{2}-\d{2}$/.test(date) || !Number.isInteger(partySize) || partySize < 1 || partySize > 50) {
     return NextResponse.json({ error: "invalid_request" }, { status: 400 });
   }
@@ -44,6 +47,7 @@ export async function POST(req: Request) {
     tenant_id: tenant.id,
     date,
     party_size: String(partySize),
+    ...(room ? { zone_exact: room } : {}),
   });
   const inner = new Request(`http://internal/api/ai/availability?${qs}`, {
     headers: { "x-ai-secret": process.env.AI_WEBHOOK_SECRET || "" },

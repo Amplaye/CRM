@@ -6,7 +6,7 @@ import { getFeatures, SITE_SECTIONS, type SiteSectionKey, type TenantSettings } 
 import type { OpeningHours } from "@/lib/restaurant-rules";
 import { resolveSiteLocale } from "@/lib/site/booking-strings";
 import { SITE_STRINGS } from "@/lib/site/labels";
-import { buildSiteData, firstName, formatSitePrice, type RawMenuItemRow, type RawReviewRow } from "@/lib/site/data";
+import { buildSiteData, distinctRooms, firstName, formatSitePrice, type RawMenuItemRow, type RawReviewRow } from "@/lib/site/data";
 import { SiteContentProvider } from "@/lib/site/content";
 import { SITE_TEMPLATE_DEFS, isDemoTemplate, paletteVars, paletteAccent } from "@/components/site-templates/registry";
 import FloatingBookingWidget from "@/components/site-templates/FloatingBookingWidget";
@@ -109,7 +109,7 @@ export default async function PublicSitePage({ params }: { params: Promise<Param
     // The demo templates show a teaser AND an in-site full-menu overlay, so
     // fetch every available dish (with allergens/tags/category) + the category
     // names to group them. buildSiteData picks the teaser from the same rows.
-    const [menuRes, catsRes, reviewsRes] = await Promise.all([
+    const [menuRes, catsRes, reviewsRes, tablesRes] = await Promise.all([
       sb
         .from("menu_items")
         .select("id,name,description,price,currency,image_url,sort_order,category_id,allergens,tags")
@@ -132,7 +132,14 @@ export default async function PublicSitePage({ params }: { params: Promise<Param
         .neq("comment", "")
         .order("created_at", { ascending: false })
         .limit(6),
+      // Distinct rooms for the booking widget's room step (shown only when 2+).
+      sb
+        .from("restaurant_tables")
+        .select("zone")
+        .eq("tenant_id", tenant.id)
+        .eq("status", "active"),
     ]);
+    const rooms = distinctRooms((tablesRes.data || []) as { zone: string | null }[]);
     const data = buildSiteData({
       tenantName: tenant.name,
       slug: tenant.slug,
@@ -160,7 +167,7 @@ export default async function PublicSitePage({ params }: { params: Promise<Param
             <Template data={data} />
           </SiteContentProvider>
         </div>
-        <FloatingBookingWidget slug={tenant.slug} accent={paletteAccent(template, palette)} strings={data.bookingStrings} />
+        <FloatingBookingWidget slug={tenant.slug} accent={paletteAccent(template, palette)} rooms={rooms} strings={data.bookingStrings} />
         <SiteMenuOverlay
           data={data}
           accent={paletteAccent(template, palette)}

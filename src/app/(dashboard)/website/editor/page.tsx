@@ -18,7 +18,7 @@ import { useLanguage } from "@/lib/contexts/LanguageContext";
 import { useTenant } from "@/lib/contexts/TenantContext";
 import { createClient } from "@/lib/supabase/client";
 import { SiteContentProvider } from "@/lib/site/content";
-import { buildSiteData, type RawMenuCategoryRow, type RawMenuItemRow, type RawReviewRow } from "@/lib/site/data";
+import { buildSiteData, distinctRooms, type RawMenuCategoryRow, type RawMenuItemRow, type RawReviewRow } from "@/lib/site/data";
 import { SITE_STRINGS } from "@/lib/site/labels";
 import { resolveSiteLocale } from "@/lib/site/booking-strings";
 import { uploadSitePhoto, siteBlockFileName } from "@/lib/site/upload-site-photo";
@@ -44,6 +44,7 @@ export default function WebsiteEditorPage() {
   const [menuRows, setMenuRows] = useState<RawMenuItemRow[]>([]);
   const [categoryRows, setCategoryRows] = useState<RawMenuCategoryRow[]>([]);
   const [reviewRows, setReviewRows] = useState<RawReviewRow[]>([]);
+  const [rooms, setRooms] = useState<string[]>([]);
   const [content, setContent] = useState<Record<string, string> | null>(null);
   // The key colours, always concrete (override resolved onto swatches) so the
   // pickers show a value. Length matches the template's swatches (some expose
@@ -78,7 +79,7 @@ export default function WebsiteEditorPage() {
     if (!tenant || !demo) return;
     let alive = true;
     (async () => {
-      const [menuRes, catsRes, reviewsRes] = await Promise.all([
+      const [menuRes, catsRes, reviewsRes, tablesRes] = await Promise.all([
         supabase
           .from("menu_items")
           .select("id,name,description,price,currency,image_url,sort_order,category_id,allergens,tags")
@@ -101,11 +102,17 @@ export default function WebsiteEditorPage() {
           .neq("comment", "")
           .order("created_at", { ascending: false })
           .limit(6),
+        supabase
+          .from("restaurant_tables")
+          .select("zone")
+          .eq("tenant_id", tenant.id)
+          .eq("status", "active"),
       ]);
       if (!alive) return;
       setMenuRows((menuRes.data || []) as RawMenuItemRow[]);
       setCategoryRows((catsRes.data || []) as RawMenuCategoryRow[]);
       setReviewRows(((reviewsRes.data || []) as unknown) as RawReviewRow[]);
+      setRooms(distinctRooms((tablesRes.data || []) as { zone: string | null }[]));
     })();
     return () => {
       alive = false;
@@ -357,7 +364,7 @@ export default function WebsiteEditorPage() {
             <def.component data={data} />
           </SiteContentProvider>
         </div>
-        <FloatingBookingWidget slug={tenant.slug} accent={paletteAccent(demo, palette)} strings={data.bookingStrings} />
+        <FloatingBookingWidget slug={tenant.slug} accent={paletteAccent(demo, palette)} rooms={rooms} strings={data.bookingStrings} />
         <SiteMenuOverlay
           data={data}
           accent={paletteAccent(demo, palette)}

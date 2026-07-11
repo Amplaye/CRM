@@ -54,6 +54,72 @@ export function isOpen(dayOfWeek: number, shift: 'lunch' | 'dinner', openingHour
   });
 }
 
+function minutesToTime(min: number): string {
+  const t = ((min % (24 * 60)) + 24 * 60) % (24 * 60);
+  return `${String(Math.floor(t / 60)).padStart(2, '0')}:${String(t % 60).padStart(2, '0')}`;
+}
+
+// Last accepted reservation time for a shift = shift close − offset (minutes the
+// owner picked in the setup wizard, stored in settings.last_reservation_offset).
+// A guest can book AT this time but not after it: a 23:45 slot when the kitchen
+// closes at 00:00 is not a real table. `offset < 0` means the shift isn't served
+// → no cut-off (returns null). Shared by /api/ai/availability (to hide late
+// slots) and /api/ai/book (to reject them). Mirrors getTimeSlots' midnight-wrap.
+export function lastReservationTime(
+  daySlots: TimeSlot[],
+  shift: 'lunch' | 'dinner',
+  offset: number,
+): string | null {
+  if (offset < 0) return null;
+  for (const s of daySlots) {
+    const startMin = timeToMinutes(s.open);
+    if ((shift === 'lunch' && startMin < 17 * 60) || (shift === 'dinner' && startMin >= 17 * 60)) {
+      let closeMin = timeToMinutes(s.close);
+      // Dinner closing after midnight (00:00 / 01:00) wraps to a small number;
+      // push past 24h so "close − offset" doesn't go negative and collapse onto
+      // the open time (e.g. 00:00 − 45 → 23:15, not a bogus 23:15 before open).
+      if (closeMin <= startMin) closeMin += 24 * 60;
+      return minutesToTime(Math.max(startMin, closeMin - offset));
+    }
+  }
+  return null;
+}
+
+// The two per-shift offsets a tenant configured (setup wizard), with the legacy
+// 45/60-minute fallback for tenants provisioned before the field existed.
+export function reservationOffsets(
+  raw: { lunch?: number; dinner?: number } | null | undefined,
+): { lunch: number; dinner: number } {
+  const o = raw || {};
+  return {
+    lunch: Number.isFinite(o.lunch) ? (o.lunch as number) : 45,
+    dinner: Number.isFinite(o.dinner) ? (o.dinner as number) : 60,
+  };
+}
+
+// Is `time` after the last accepted reservation for its shift? Used to drop
+// too-late slots and to reject too-late booking attempts. False when the shift
+// has no cut-off. Handles after-midnight dinner (00:30 is "later" than 23:00).
+export function isAfterLastReservation(
+  time: string,
+  daySlots: TimeSlot[],
+  offsets: { lunch: number; dinner: number },
+): boolean {
+  const shift = getShift(time);
+  const last = lastReservationTime(daySlots, shift, offsets[shift]);
+  if (!last) return false;
+  let reqMin = timeToMinutes(time);
+  let lastMin = timeToMinutes(last);
+  // After-midnight tail of a dinner service: shift both into the 24h+ range so
+  // 00:30 compares as later than 23:00, and a 00:15 cut-off sits above 23:45.
+  const startMin = daySlots.length ? Math.min(...daySlots.map((s) => timeToMinutes(s.open))) : 0;
+  if (shift === 'dinner') {
+    if (reqMin < startMin) reqMin += 24 * 60;
+    if (lastMin < startMin) lastMin += 24 * 60;
+  }
+  return reqMin > lastMin;
+}
+
 // Decide what happens to a booking of `partySize`, given the tenant's policy.
 // - largeThreshold = first party size that needs manual confirmation (escalated)
 // - blockThreshold = first party size refused outright

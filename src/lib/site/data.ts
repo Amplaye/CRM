@@ -37,6 +37,19 @@ export function formatSitePrice(price: number, currency: string): string {
   return `${price.toFixed(2).replace(/\.00$/, "")} ${symbol}`;
 }
 
+/** Distinct room names (restaurant_tables.zone) that have ≥1 active table, in a
+ * stable alphabetical order. The widget shows its room-picker step only when
+ * this returns 2+ — a single-room venue skips the step entirely. Blank/whitespace
+ * zones are ignored so a mis-seeded table can't create a nameless room. */
+export function distinctRooms(rows: { zone: string | null }[]): string[] {
+  const set = new Set<string>();
+  for (const r of rows) {
+    const z = (r.zone || "").trim();
+    if (z) set.add(z);
+  }
+  return Array.from(set).sort((a, b) => a.localeCompare(b));
+}
+
 /** First name only — a public site shouldn't print a guest's full name. */
 export function firstName(full: string | null): string {
   const first = (full || "").trim().split(/\s+/)[0];

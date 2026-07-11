@@ -28,6 +28,25 @@ export function isE164(phone: unknown): boolean {
   return trimmed.length > 0 && PHONE_E164_RE.test(trimmed);
 }
 
+// Pragmatic email check: one "@", a dotted domain with a 2+ letter TLD, no
+// spaces. Not RFC-perfect (that's a losing game) — the goal is to reject "asd",
+// "a@b", "test@test" while accepting real addresses. Applied to the web booking
+// widget where the email is captured for marketing (must be a plausible inbox).
+export const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+
+export function isEmail(email: unknown): boolean {
+  if (typeof email !== 'string') return false;
+  const trimmed = email.trim();
+  return trimmed.length > 0 && trimmed.length <= 254 && EMAIL_RE.test(trimmed);
+}
+
+/** Trim + lowercase for storage; '' for empty/garbage so callers can skip it. */
+export function normalizeEmail(email: unknown): string {
+  if (typeof email !== 'string') return '';
+  const trimmed = email.trim().toLowerCase();
+  return isEmail(trimmed) ? trimmed : '';
+}
+
 /**
  * Canonical phone form for STORING a guest, idempotent regardless of how the
  * channel delivered it. Under Meta WhatsApp the inbound `from` arrives WITHOUT

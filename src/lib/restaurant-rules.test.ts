@@ -8,7 +8,11 @@ import {
   getBookingAction,
   getTimeSlots,
   classifyHora,
+  lastReservationTime,
+  reservationOffsets,
+  isAfterLastReservation,
   type OpeningHours,
+  type TimeSlot,
 } from './restaurant-rules';
 
 describe('getShift', () => {
@@ -223,6 +227,70 @@ describe('classifyHora', () => {
   it('Saturday last reservation crosses midnight (01:00 − 45 = 00:15)', () => {
     expect(classifyHora('00:30', 6, AFTER_MIDNIGHT_HOURS)).toEqual({ kind: 'after_last_reservation', lastReservation: '00:15' });
     expect(classifyHora('00:00', 6, AFTER_MIDNIGHT_HOURS)).toEqual({ kind: 'in_range' });
+  });
+});
+
+describe('reservationOffsets', () => {
+  it('falls back to legacy 45/60 when unset', () => {
+    expect(reservationOffsets(undefined)).toEqual({ lunch: 45, dinner: 60 });
+    expect(reservationOffsets(null)).toEqual({ lunch: 45, dinner: 60 });
+    expect(reservationOffsets({})).toEqual({ lunch: 45, dinner: 60 });
+  });
+  it('uses owner values including 0', () => {
+    expect(reservationOffsets({ lunch: 30, dinner: 90 })).toEqual({ lunch: 30, dinner: 90 });
+    expect(reservationOffsets({ lunch: 0, dinner: 0 })).toEqual({ lunch: 0, dinner: 0 });
+  });
+});
+
+describe('lastReservationTime', () => {
+  const LUNCH_DINNER: TimeSlot[] = [
+    { open: '13:00', close: '16:00' },
+    { open: '20:00', close: '23:30' },
+  ];
+  it('close − offset per shift', () => {
+    expect(lastReservationTime(LUNCH_DINNER, 'lunch', 45)).toBe('15:15');
+    expect(lastReservationTime(LUNCH_DINNER, 'dinner', 60)).toBe('22:30');
+  });
+  it('dinner closing after midnight does not collapse onto open', () => {
+    const afterMidnight: TimeSlot[] = [{ open: '19:30', close: '00:00' }];
+    // 00:00 → 24:00; 24:00 − 45 = 23:15
+    expect(lastReservationTime(afterMidnight, 'dinner', 45)).toBe('23:15');
+    const oneAm: TimeSlot[] = [{ open: '19:30', close: '01:00' }];
+    // 01:00 → 25:00; 25:00 − 45 = 00:15
+    expect(lastReservationTime(oneAm, 'dinner', 45)).toBe('00:15');
+  });
+  it('negative offset = shift not served → null', () => {
+    expect(lastReservationTime(LUNCH_DINNER, 'lunch', -1)).toBeNull();
+  });
+  it('offset larger than the shift never precedes the open', () => {
+    // 16:00 − 600min would be 06:00; clamps to the 13:00 open.
+    expect(lastReservationTime(LUNCH_DINNER, 'lunch', 600)).toBe('13:00');
+  });
+});
+
+describe('isAfterLastReservation', () => {
+  const LUNCH_DINNER: TimeSlot[] = [
+    { open: '13:00', close: '16:00' },
+    { open: '20:00', close: '23:30' },
+  ];
+  const offsets = { lunch: 45, dinner: 60 }; // last lunch 15:15, last dinner 22:30
+  it('is false at or before the cut-off, true after', () => {
+    expect(isAfterLastReservation('15:15', LUNCH_DINNER, offsets)).toBe(false);
+    expect(isAfterLastReservation('15:00', LUNCH_DINNER, offsets)).toBe(false);
+    expect(isAfterLastReservation('15:30', LUNCH_DINNER, offsets)).toBe(true);
+    expect(isAfterLastReservation('22:30', LUNCH_DINNER, offsets)).toBe(false);
+    expect(isAfterLastReservation('23:15', LUNCH_DINNER, offsets)).toBe(true); // the bug: 23:15 close-adjacent slot is not bookable
+  });
+  it('handles after-midnight dinner: 00:30 is later than a 00:15 cut-off', () => {
+    const oneAm: TimeSlot[] = [{ open: '19:30', close: '01:00' }]; // last dinner 00:15
+    const o = { lunch: 45, dinner: 45 };
+    expect(isAfterLastReservation('00:15', oneAm, o)).toBe(false);
+    expect(isAfterLastReservation('00:30', oneAm, o)).toBe(true);
+    expect(isAfterLastReservation('23:00', oneAm, o)).toBe(false);
+  });
+  it('no cut-off (shift not served) → never after', () => {
+    const dinnerOnly: TimeSlot[] = [{ open: '20:00', close: '23:30' }];
+    expect(isAfterLastReservation('14:00', dinnerOnly, { lunch: -1, dinner: 60 })).toBe(false);
   });
 });
 

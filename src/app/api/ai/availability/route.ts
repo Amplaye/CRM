@@ -7,6 +7,9 @@ import {
   getShift,
   getTimeSlots,
   isOpen,
+  isAfterLastReservation,
+  lastReservationTime,
+  reservationOffsets,
   type OpeningHours,
 } from '@/lib/restaurant-rules';
 
@@ -15,12 +18,6 @@ const WEEKDAYS_ES = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'vier
 function timeToMin(t: string): number {
   const [h, m] = t.split(':').map(Number);
   return h * 60 + m;
-}
-
-function minToTime(min: number): string {
-  const h = Math.floor(min / 60);
-  const m = min % 60;
-  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
 }
 
 function findNextOpenDay(openingHours: OpeningHours, fromDate: string, maxLookahead = 7) {
@@ -38,29 +35,6 @@ function findNextOpenDay(openingHours: OpeningHours, fromDate: string, maxLookah
   return null;
 }
 
-function lastBookingTime(
-  shiftHours: { open: string; close: string }[],
-  shift: 'lunch' | 'dinner',
-  offset: number,
-): string | null {
-  // Last reservation cut-off = close − offset (minutes the owner picked in the
-  // setup wizard, stored in settings.last_reservation_offset). offset < 0 means
-  // the shift isn't served → no cut-off.
-  if (offset < 0) return null;
-  for (const s of shiftHours) {
-    const startMin = timeToMin(s.open);
-    if ((shift === 'lunch' && startMin < 17 * 60) || (shift === 'dinner' && startMin >= 17 * 60)) {
-      let closeMin = timeToMin(s.close);
-      // Dinner that closes after midnight (00:00 / 01:00) wraps to a small number;
-      // push it past 24h so "close − offset" doesn't go negative (e.g. 00:00 − 45
-      // → 23:15, 01:00 − 45 → 00:15) instead of collapsing onto the open time.
-      if (closeMin <= startMin) closeMin += 24 * 60;
-      return minToTime(Math.max(startMin, closeMin - offset) % (24 * 60));
-    }
-  }
-  return null;
-}
-
 export async function GET(request: Request) {
   const unauth = assertAiSecret(request);
   if (unauth) return unauth;
@@ -72,6 +46,10 @@ export async function GET(request: Request) {
     const date = searchParams.get('date');
     const party_size = searchParams.get('party_size');
     const zoneParam = (searchParams.get('zone') || '').toLowerCase();
+    // Exact room name (free-text restaurant_tables.zone) — the public widget's
+    // room step sends this so availability reflects only that room's tables.
+    // Distinct from the fuzzy inside/outside `zone` the bot uses.
+    const zoneExact = (searchParams.get('zone_exact') || '').trim();
     const timeParam = searchParams.get('time'); // optional — enables structured pre-check
 
     if (!tenant_id || !date || !party_size) {
@@ -109,12 +87,9 @@ export async function GET(request: Request) {
 
     // Owner-chosen cut-off (setup wizard). Fallback to the legacy 45/60 min for
     // tenants provisioned before this field existed.
-    const offsets = tenantSettings?.last_reservation_offset || {};
-    const lunchOffset = Number.isFinite(offsets.lunch) ? (offsets.lunch as number) : 45;
-    const dinnerOffset = Number.isFinite(offsets.dinner) ? (offsets.dinner as number) : 60;
-
-    const lastLunch = lastBookingTime(hoursToday, 'lunch', lunchOffset);
-    const lastDinner = lastBookingTime(hoursToday, 'dinner', dinnerOffset);
+    const offsets = reservationOffsets(tenantSettings?.last_reservation_offset);
+    const lastLunch = lastReservationTime(hoursToday, 'lunch', offsets.lunch);
+    const lastDinner = lastReservationTime(hoursToday, 'dinner', offsets.dinner);
     const lastReservationTimes = {
       ...(lastLunch ? { lunch: lastLunch } : {}),
       ...(lastDinner ? { dinner: lastDinner } : {}),
@@ -138,13 +113,16 @@ export async function GET(request: Request) {
       });
     }
 
-    // Fetch active tables
+    // Fetch active tables. An exact room name (from the widget's room step)
+    // filters by the literal zone; otherwise the fuzzy inside/outside `zone` the
+    // bot may pass still applies.
     let tablesQuery = supabase
       .from('restaurant_tables')
       .select('id, seats, zone')
       .eq('tenant_id', tenant_id)
       .eq('status', 'active');
-    if (zone) tablesQuery = tablesQuery.eq('zone', zone);
+    if (zoneExact) tablesQuery = tablesQuery.eq('zone', zoneExact);
+    else if (zone) tablesQuery = tablesQuery.eq('zone', zone);
     const { data: tables, error: tablesErr } = await tablesQuery;
     if (tablesErr) throw tablesErr;
     const allTables = (tables || []) as { id: string; seats: number; zone: string }[];
@@ -176,6 +154,12 @@ export async function GET(request: Request) {
     const availability = slots.map((time) => {
       const slotShift = getShift(time);
       if (!isOpen(dayOfWeek, slotShift, openingHours)) {
+        return { time, available: false, free_tables: 0 };
+      }
+      // Past the last accepted reservation for this shift (close − offset)? The
+      // book route rejects these, so never offer them — e.g. a 23:45 slot when
+      // the kitchen closes at 00:00 is not a real table.
+      if (isAfterLastReservation(time, hoursToday, offsets)) {
         return { time, available: false, free_tables: 0 };
       }
       const occupied = new Set<string>();

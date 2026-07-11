@@ -523,6 +523,7 @@ body.cassa-overlay-open .assistant-fab {
 .bw2-chip-on { color: #fff; background: var(--bw-accent, #111); border-color: var(--bw-accent, #111); box-shadow: 0 6px 16px -6px color-mix(in srgb, var(--bw-accent, #000) 70%, transparent); }
 
 .bw2-note { text-align: center; font-size: 13px; font-weight: 600; color: #111; }
+.bw2-hint { font-size: 12px; font-weight: 600; color: var(--bw-accent, #111); }
 .bw2-error { text-align: center; font-size: 13px; font-weight: 700; color: #b91c1c; }
 
 .bw2-spinner {

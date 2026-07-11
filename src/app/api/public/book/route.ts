@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { randomUUID } from "crypto";
 import { createServiceRoleClient } from "@/lib/supabase/server";
 import { assertRateLimit } from "@/lib/rate-limit";
+import { isEmail, normalizeEmail } from "@/lib/booking-validation";
 import { POST as aiBook } from "@/app/api/ai/book/route";
 
 // PUBLIC booking for the widget (/b/<slug>) — Fase 7. Reuses the FULL
@@ -34,7 +35,10 @@ export async function POST(req: Request) {
   const partySize = Number(body?.party_size);
   const name = typeof body?.name === "string" ? body.name.trim().slice(0, 80) : "";
   const phone = typeof body?.phone === "string" ? body.phone.replace(/[\s().-]/g, "") : "";
+  const email = typeof body?.email === "string" ? body.email.trim().slice(0, 254) : "";
   const notes = typeof body?.notes === "string" ? body.notes.trim().slice(0, 300) : "";
+  // Exact room name chosen in the widget's room step (blank = single-room venue).
+  const room = typeof body?.room === "string" ? body.room.trim().slice(0, 60) : "";
 
   if (
     !slug ||
@@ -49,6 +53,12 @@ export async function POST(req: Request) {
   }
   if (!PHONE_RE.test(phone)) {
     return NextResponse.json({ error: "invalid_phone" }, { status: 400 });
+  }
+  // Email is mandatory on the public site (all fields required) and must be a
+  // plausible address — captured for the tenant's marketing list. It never
+  // triggers a confirmation email (the AI book route only stores it).
+  if (!isEmail(email)) {
+    return NextResponse.json({ error: "invalid_email" }, { status: 400 });
   }
 
   const svc = createServiceRoleClient();
@@ -75,10 +85,12 @@ export async function POST(req: Request) {
       tenant_id: tenant.id,
       guest_name: name,
       guest_phone: phone.startsWith("+") ? phone : `+${phone}`,
+      guest_email: normalizeEmail(email),
       date,
       time,
       party_size: partySize,
       notes,
+      ...(room ? { zone_exact: room } : {}),
       source: "web",
       idempotency_key: randomUUID(),
       ...(locale ? { language: locale } : {}),

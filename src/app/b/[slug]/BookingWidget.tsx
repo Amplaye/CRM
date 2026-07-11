@@ -2,15 +2,20 @@
 
 import { useState } from "react";
 
-// Two-step widget: (1) date + people → slot grid from /api/public/availability,
-// (2) pick a slot → name/phone → /api/public/book. Outcomes mirror the AI
-// pipeline: confirmed / pending (large-party escalation) / waitlist / full /
+// Multi-step widget: (1) date + people → (2) room, only when the venue has more
+// than one → (3) slot grid from /api/public/availability (already trimmed to
+// bookable times — nothing past the last-reservation cut-off) → (4)
+// name/phone/email(+notes) → /api/public/book. Every field except notes is
+// required and validated (real email + phone) before the button enables.
+// Outcomes mirror the AI pipeline: confirmed / pending / waitlist / full /
 // error. Strings arrive pre-localized from the server. Rendered both inside the
 // FloatingBookingWidget panel and standalone on /b/<slug>.
 
 export interface BookingStrings {
   dateLabel: string;
   peopleLabel: string;
+  roomLabel: string;
+  roomHint: string;
   timeLabel: string;
   checkBtn: string;
   checking: string;
@@ -18,6 +23,7 @@ export interface BookingStrings {
   noSlots: string;
   nameLabel: string;
   phoneLabel: string;
+  emailLabel: string;
   notesLabel: string;
   notesPh: string;
   bookBtn: string;
@@ -28,7 +34,9 @@ export interface BookingStrings {
   okDeposit: string;
   depositBtn: string;
   koFull: string;
+  koRoomFull: string;
   koPhone: string;
+  koEmail: string;
   koGeneric: string;
   newBooking: string;
 }
@@ -49,26 +57,50 @@ function nowHm(): string {
   return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
 }
 
+// Same pragmatic rules as the server (booking-validation.ts) so the button only
+// enables on input the API will accept — no round-trip to discover "invalid".
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+function emailOk(v: string): boolean {
+  const t = v.trim();
+  return t.length > 0 && t.length <= 254 && EMAIL_RE.test(t);
+}
+// E.164-ish: strip spaces/()-/dots; then optional '+' and 7–15 digits, 1st non-zero.
+function phoneOk(v: string): boolean {
+  const t = v.replace(/[\s().-]/g, "");
+  return /^\+?[1-9]\d{6,14}$/.test(t);
+}
+
 export default function BookingWidget({
   slug,
   accent,
+  rooms = [],
   strings: ui,
 }: {
   slug: string;
   accent: string;
+  /** Distinct room names; the room step shows only when 2+. */
+  rooms?: string[];
   strings: BookingStrings;
 }) {
+  const hasRooms = rooms.length > 1;
+
   const [date, setDate] = useState(todayYmd());
   const [people, setPeople] = useState(2);
+  const [room, setRoom] = useState<string>("");
   const [slots, setSlots] = useState<{ time: string; available: boolean }[] | null>(null);
   const [slotsMsg, setSlotsMsg] = useState<string | null>(null);
   const [time, setTime] = useState<string | null>(null);
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
+  const [email, setEmail] = useState("");
   const [notes, setNotes] = useState("");
   const [busy, setBusy] = useState<"check" | "book" | null>(null);
   const [outcome, setOutcome] = useState<Outcome | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  // A room must be chosen before checking availability when the venue has rooms.
+  const roomReady = !hasRooms || room !== "";
+  const detailsReady = name.trim() !== "" && phoneOk(phone) && emailOk(email);
 
   // Step index drives the progress dots and the slide animation key.
   const step = outcome ? 3 : time ? 2 : slots ? 1 : 0;
@@ -76,6 +108,7 @@ export default function BookingWidget({
   const vars = { ["--bw-accent" as string]: accent } as React.CSSProperties;
 
   const check = async () => {
+    if (!roomReady) return;
     setBusy("check");
     setError(null);
     setSlots(null);
@@ -85,7 +118,7 @@ export default function BookingWidget({
       const res = await fetch("/api/public/availability", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ slug, date, party_size: people }),
+        body: JSON.stringify({ slug, date, party_size: people, ...(hasRooms ? { room } : {}) }),
       });
       const json = await res.json().catch(() => ({}));
       if (!res.ok) {
@@ -93,8 +126,8 @@ export default function BookingWidget({
       } else if (json.status === "closed_day" || json.status === "closed") {
         setSlotsMsg(ui.closedDay);
       } else {
-        // Drop slots already in the past when booking for today — the server
-        // rejects them with `past_time`, so never offer them.
+        // Server already dropped past-cut-off slots; still drop times earlier
+        // than "now" when booking today (server rejects them with past_time).
         const cutoff = date === todayYmd() ? nowHm() : "00:00";
         const free = (json.availability || []).filter(
           (a: { available: boolean; time: string }) => a.available && a.time > cutoff,
@@ -109,35 +142,55 @@ export default function BookingWidget({
   };
 
   const book = async () => {
-    if (!time || !name.trim() || !phone.trim()) return;
+    if (!time || !detailsReady) return;
     setBusy("book");
     setError(null);
     try {
       const res = await fetch("/api/public/book", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ slug, date, time, party_size: people, name, phone, notes }),
+        body: JSON.stringify({
+          slug,
+          date,
+          time,
+          party_size: people,
+          name,
+          phone,
+          email,
+          notes,
+          ...(hasRooms ? { room } : {}),
+        }),
       });
       const json = await res.json().catch(() => ({}));
 
-      // The public /book route returns HTTP 400 { error: "invalid_phone" } for a
-      // malformed number, and on success { success, status, on_waitlist,
+      // The public /book route returns HTTP 400 { error } for a malformed
+      // phone/email, and on success { success, status, on_waitlist,
       // deposit_payment_url }. status can be: confirmed | escalated (large party
-      // → venue confirms) | full. Anything else success:true → treat as pending.
+      // → venue confirms) | full (or room full). Anything else success:true →
+      // treat as pending.
       if (res.status === 400 && json?.error === "invalid_phone") {
         setError(ui.koPhone);
+      } else if (res.status === 400 && json?.error === "invalid_email") {
+        setError(ui.koEmail);
       } else if (json?.success && json.status === "confirmed") {
         setOutcome({ kind: "confirmed", depositUrl: json.deposit_payment_url });
       } else if (json?.success && (json.on_waitlist || json.status === "waitlist")) {
         setOutcome({ kind: "waitlist" });
       } else if (json?.success && json.status === "full") {
-        setOutcome({ kind: "full" });
+        // Distinguish "this room is full" (guest picked a room) from shift-full.
+        if (json.zone_requested_available === false) {
+          setError(ui.koRoomFull);
+          setTime(null);
+          setSlots(null);
+        } else {
+          setOutcome({ kind: "full" });
+        }
       } else if (json?.success) {
         setOutcome({ kind: "pending", depositUrl: json.deposit_payment_url });
       } else if (json?.error === "invalid_phone" || json?.reason === "invalid_phone") {
         setError(ui.koPhone);
-      } else if (json?.reason === "past_time") {
-        // Slot lapsed between listing and submit — refresh availability.
+      } else if (json?.reason === "past_time" || json?.reason === "after_last_reservation") {
+        // Slot lapsed or was past the cut-off — refresh availability.
         setError(ui.koGeneric);
         setTime(null);
         setSlots(null);
@@ -157,8 +210,16 @@ export default function BookingWidget({
     setTime(null);
     setName("");
     setPhone("");
+    setEmail("");
     setNotes("");
     setError(null);
+  };
+
+  // Changing the room/date/people invalidates any shown slots.
+  const invalidateSlots = () => {
+    setSlots(null);
+    setSlotsMsg(null);
+    setTime(null);
   };
 
   // ——— Success / outcome screen ———
@@ -229,25 +290,48 @@ export default function BookingWidget({
               type="date"
               value={date}
               min={todayYmd()}
-              onChange={(e) => setDate(e.target.value)}
+              onChange={(e) => {
+                setDate(e.target.value);
+                invalidateSlots();
+              }}
               className="bw2-input"
             />
           </label>
           <label className="bw2-group">
             <span className="bw2-label">{ui.peopleLabel}</span>
             <div className="bw2-stepper">
-              <button type="button" onClick={() => setPeople((n) => Math.max(1, n - 1))} className="bw2-step-btn" aria-label="-">
+              <button type="button" onClick={() => { setPeople((n) => Math.max(1, n - 1)); invalidateSlots(); }} className="bw2-step-btn" aria-label="-">
                 −
               </button>
               <span className="bw2-step-val">{people}</span>
-              <button type="button" onClick={() => setPeople((n) => Math.min(20, n + 1))} className="bw2-step-btn" aria-label="+">
+              <button type="button" onClick={() => { setPeople((n) => Math.min(20, n + 1)); invalidateSlots(); }} className="bw2-step-btn" aria-label="+">
                 +
               </button>
             </div>
           </label>
         </div>
 
-        <button type="button" onClick={check} disabled={busy !== null || !date} className="bw2-btn bw2-btn-primary">
+        {/* Room step — only when the venue has more than one room */}
+        {hasRooms ? (
+          <div className="bw2-group">
+            <span className="bw2-label">{ui.roomLabel}</span>
+            <div className="grid grid-cols-2 gap-2">
+              {rooms.map((r) => (
+                <button
+                  key={r}
+                  type="button"
+                  onClick={() => { setRoom(r); invalidateSlots(); }}
+                  className={`bw2-chip ${room === r ? "bw2-chip-on" : ""}`}
+                >
+                  {r}
+                </button>
+              ))}
+            </div>
+            {!room ? <p className="bw2-hint mt-1">{ui.roomHint}</p> : null}
+          </div>
+        ) : null}
+
+        <button type="button" onClick={check} disabled={busy !== null || !date || !roomReady} className="bw2-btn bw2-btn-primary">
           {busy === "check" ? (
             <span className="inline-flex items-center gap-2">
               <span className="bw2-spinner" /> {ui.checking}
@@ -279,11 +363,12 @@ export default function BookingWidget({
           </div>
         ) : null}
 
-        {/* Step 2 — guest details */}
+        {/* Step 2 — guest details (all required except notes) */}
         {time ? (
           <div className="bw2-slide-in space-y-3 pt-1">
-            <input value={name} onChange={(e) => setName(e.target.value)} placeholder={ui.nameLabel} className="bw2-input" />
-            <input type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder={ui.phoneLabel} className="bw2-input" />
+            <input value={name} onChange={(e) => setName(e.target.value)} placeholder={ui.nameLabel} className="bw2-input" autoComplete="name" />
+            <input type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder={ui.phoneLabel} className="bw2-input" autoComplete="tel" inputMode="tel" />
+            <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder={ui.emailLabel} className="bw2-input" autoComplete="email" inputMode="email" />
             <textarea
               value={notes}
               onChange={(e) => setNotes(e.target.value.slice(0, 300))}
@@ -291,7 +376,7 @@ export default function BookingWidget({
               placeholder={ui.notesPh}
               className="bw2-input resize-none"
             />
-            <button type="button" onClick={book} disabled={busy !== null || !name.trim() || !phone.trim()} className="bw2-btn bw2-btn-primary">
+            <button type="button" onClick={book} disabled={busy !== null || !detailsReady} className="bw2-btn bw2-btn-primary">
               {busy === "book" ? (
                 <span className="inline-flex items-center gap-2">
                   <span className="bw2-spinner" /> {ui.booking}

@@ -3,6 +3,8 @@ import {
   isDate,
   isTime,
   isE164,
+  isEmail,
+  normalizeEmail,
   normalizePhone,
   phoneTail,
   timeToMinutes,
@@ -122,6 +124,38 @@ describe('isE164', () => {
     expect(isE164('not-a-phone')).toBe(false);
     expect(isE164('')).toBe(false);
     expect(isE164(undefined)).toBe(false);
+  });
+});
+
+describe('isEmail', () => {
+  it('accepts plausible addresses', () => {
+    expect(isEmail('name@domain.com')).toBe(true);
+    expect(isEmail('a.b+tag@sub.domain.co')).toBe(true);
+    expect(isEmail('STEWARD@Hotmail.IT')).toBe(true);
+  });
+  it('rejects the classic garbage the widget must catch', () => {
+    expect(isEmail('asd')).toBe(false);        // no @
+    expect(isEmail('a@b')).toBe(false);         // no dotted TLD
+    expect(isEmail('test@test')).toBe(false);   // no TLD
+    expect(isEmail('a@b.c')).toBe(false);       // 1-char TLD
+    expect(isEmail('two @spaces.com')).toBe(false);
+    expect(isEmail('x@@y.com')).toBe(false);
+    expect(isEmail('')).toBe(false);
+    expect(isEmail(undefined)).toBe(false);
+  });
+  it('rejects absurdly long input (>254 chars)', () => {
+    expect(isEmail('a'.repeat(250) + '@x.com')).toBe(false);
+  });
+});
+
+describe('normalizeEmail', () => {
+  it('trims + lowercases a valid address', () => {
+    expect(normalizeEmail('  Name@Domain.COM ')).toBe('name@domain.com');
+  });
+  it('returns "" for invalid/empty so callers skip the field', () => {
+    expect(normalizeEmail('asd')).toBe('');
+    expect(normalizeEmail('')).toBe('');
+    expect(normalizeEmail(undefined)).toBe('');
   });
 });
 

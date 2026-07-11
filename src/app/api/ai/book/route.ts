@@ -14,6 +14,9 @@ import {
   calculateEndTime,
   tablesNeeded,
   getBookingAction,
+  isAfterLastReservation,
+  lastReservationTime,
+  reservationOffsets,
   type OpeningHours,
 } from '@/lib/restaurant-rules';
 import {
@@ -21,6 +24,7 @@ import {
   isTime,
   isE164,
   normalizePhone,
+  normalizeEmail,
   phoneTail,
   normalizeZone,
   normalizeBookingSource,
@@ -94,6 +98,11 @@ export async function POST(request: Request) {
     const canonicalPhone = normalizePhone(payload.guest_phone);
     const lookupTail = phoneTail(payload.guest_phone);
 
+    // Web widget captures an email for marketing. Store it on the guest — never
+    // send any mail off the back of it (explicit product rule). '' if absent or
+    // invalid so the existing no-email flows are untouched.
+    const guestEmail = normalizeEmail(payload.guest_email);
+
     const noPlan = await assertActivePlan(payload.tenant_id);
     if (noPlan) return noPlan;
 
@@ -121,7 +130,7 @@ export async function POST(request: Request) {
       // leading "+" is found — never create a duplicate for the same number.
       supabase
         .from('guests')
-        .select('id, name, phone')
+        .select('id, name, phone, email')
         .eq('tenant_id', payload.tenant_id),
       // Conversation language — the authoritative "language the customer used in
       // chat". The bot replies in (and tags the conversation with) the locked
@@ -196,6 +205,26 @@ export async function POST(request: Request) {
           message: `A las ${payload.time} el restaurante está cerrado. Ese día abrimos: ${ohResult.hoursToday}. ¿Quieres cambiar la hora?`,
         }, { status: 409 });
       }
+      // Inside opening hours but past the last accepted reservation (close −
+      // owner's cut-off): a table for 23:45 when the kitchen closes at 00:00 is
+      // not real. The widget already hides these; this is defense in depth so a
+      // stale slot or a direct call can't slip a too-late booking through.
+      {
+        const dow = new Date(payload.date + 'T12:00:00').getDay();
+        const daySlots = openingHours[String(dow)] || [];
+        const offsets = reservationOffsets(
+          ((tenantRow?.settings as unknown) as { last_reservation_offset?: { lunch?: number; dinner?: number } })?.last_reservation_offset,
+        );
+        if (isAfterLastReservation(payload.time, daySlots, offsets)) {
+          const lastForShift = lastReservationTime(daySlots, getShift(payload.time), offsets[getShift(payload.time)]);
+          return NextResponse.json({
+            success: false,
+            reason: 'after_last_reservation',
+            last_reservation_time: lastForShift,
+            message: `La última reserva de ese turno es a las ${lastForShift}. ¿Te viene bien a esa hora o antes?`,
+          }, { status: 409 });
+        }
+      }
     }
 
     // 1. Idempotency Check
@@ -225,8 +254,14 @@ export async function POST(request: Request) {
        // auth header, not a write-lock on the guest name.
        const newName = (payload.guest_name || '').trim();
        const isPlaceholder = !newName || newName === 'Unknown Guest' || newName === 'Cliente';
-       if (!isPlaceholder && existingGuests[0].name !== newName) {
-         await supabase.from('guests').update({ name: newName }).eq('id', guestId);
+       const guestUpdate: Record<string, string> = {};
+       if (!isPlaceholder && existingGuests[0].name !== newName) guestUpdate.name = newName;
+       // Backfill email only when the guest has none yet — never overwrite an
+       // address the CRM already holds. Building the marketing list, not
+       // rewriting contacts.
+       if (guestEmail && !existingGuests[0].email) guestUpdate.email = guestEmail;
+       if (Object.keys(guestUpdate).length > 0) {
+         await supabase.from('guests').update(guestUpdate).eq('id', guestId);
        }
     } else {
        const { data: newGuest, error: guestErr } = await supabase
@@ -235,6 +270,7 @@ export async function POST(request: Request) {
             tenant_id: payload.tenant_id,
             phone: canonicalPhone || payload.guest_phone,
             name: payload.guest_name || "Unknown Guest",
+            ...(guestEmail ? { email: guestEmail } : {}),
             visit_count: 0,
             no_show_count: 0,
             cancellation_count: 0,
@@ -368,6 +404,14 @@ export async function POST(request: Request) {
     // table-less rows (escalated/waitlist), NOT appended to the guest's notes —
     // it used to leak as a Spanish "Prefiere interior" line into the booking.
     const zonePref = normalizeZone(payload.zone || payload.zone_preference);
+    // Exact room name from the web widget's room step. Honoured VERBATIM against
+    // restaurant_tables.zone (no inside/outside collapse) — but only if it's a
+    // real zone for this tenant, so a stale/garbage value can't wedge the booking
+    // into an empty filter. When valid it overrides the fuzzy inside/outside path.
+    const tenantZones = new Set((activeTables || []).map((t: any) => t.zone).filter(Boolean));
+    const zoneExact = payload.zone_exact && tenantZones.has(payload.zone_exact.trim())
+      ? payload.zone_exact.trim()
+      : null;
     // The guest's own note, with any internal Spanish routing annotations the
     // caller (e.g. the n8n voice flow) tacked on already stripped.
     const guestNotes = cleanGuestNotes(payload.notes);
@@ -518,7 +562,8 @@ export async function POST(request: Request) {
         notes: guestNotes,
         // Escalated rows hold no tables yet, so the zone preference lives in
         // tags (read back on approval from /pending). Keeps notes guest-only.
-        tags: zoneTag(zonePref),
+        // An exact room name from the web widget is recorded verbatim.
+        tags: zoneExact ? [`zone:${zoneExact}`] : zoneTag(zonePref),
         linked_conversation_id: payload.linked_conversation_id,
         end_time: endTime,
         shift,
@@ -627,8 +672,35 @@ export async function POST(request: Request) {
       if (t.zone === 'inside' || t.zone === 'outside') freeSeatsByZone[t.zone] += (t.seats || 0);
     }
 
-    let requestedZone: 'inside' | 'outside' | null = null;
-    if (zonePref === 'inside' || zonePref === 'outside') {
+    // `requestedZone` is what we pass to atomic_book_tables as p_zone_preference:
+    // null = any zone, 'inside'/'outside' = fuzzy zones, or an exact room name
+    // (web widget). The 6-arg RPC matches restaurant_tables.zone literally, so an
+    // exact room name Just Works — we only need to gate capacity for it here.
+    let requestedZone: string | null = null;
+
+    if (zoneExact) {
+      // Exact room chosen on the site: book strictly in that room or decline
+      // (never silently reseat the guest in another room).
+      const freeSeatsInRoom = (activeTables || [])
+        .filter((t: any) => t.zone === zoneExact && !occupiedTableIds.has(t.id))
+        .reduce((s: number, t: any) => s + (t.seats || 0), 0);
+      if (freeSeatsInRoom >= payload.party_size) {
+        requestedZone = zoneExact;
+      } else {
+        // Room full → decline. Don't waitlist: the guest expressed a hard room
+        // preference, so offer to try another time/room instead of queueing.
+        await supabase.from('reservations').delete().eq('id', newRes.id);
+        return NextResponse.json({
+          success: true,
+          status: 'full',
+          zone_requested: zoneExact,
+          zone_requested_available: false,
+          free_seats: freeSeatsInRoom,
+          party_size: payload.party_size,
+          message: `No hay plazas en "${zoneExact}" para ${payload.party_size} personas en ese turno.`,
+        });
+      }
+    } else if (zonePref === 'inside' || zonePref === 'outside') {
       // Honour the client's zone choice. If it doesn't fit, DO NOT auto-switch —
       // let the bot ask whether the other zone is acceptable.
       if (freeSeatsByZone[zonePref] >= payload.party_size) {
@@ -758,7 +830,7 @@ export async function POST(request: Request) {
       p_zone_preference: requestedZone,
     });
     if (atomicErr) throw atomicErr;
-    const assignedZone: 'inside' | 'outside' | null = atomicResult?.success ? requestedZone : null;
+    const assignedZone: string | null = atomicResult?.success ? requestedZone : null;
 
     if (!atomicResult.success) {
       // Race condition — seats got taken between pre-check and RPC. Drop reservation, add to waitlist.

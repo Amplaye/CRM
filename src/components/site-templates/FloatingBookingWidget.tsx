@@ -28,10 +28,13 @@ export function BookingCta({ className, style, children }: { className?: string;
 export default function FloatingBookingWidget({
   slug,
   accent,
+  rooms = [],
   strings,
 }: {
   slug: string;
   accent: string;
+  /** Distinct room names for this tenant; the widget's room step shows only when 2+. */
+  rooms?: string[];
   strings: BookingStrings & { title: string };
 }) {
   const [open, setOpen] = useState(false);
@@ -92,7 +95,7 @@ export default function FloatingBookingWidget({
             </button>
           </div>
           <div className="fbw-body">
-            <BookingWidget slug={slug} accent={accent} strings={strings} />
+            <BookingWidget slug={slug} accent={accent} rooms={rooms} strings={strings} />
           </div>
         </div>
       ) : null}
