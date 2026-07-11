@@ -66,13 +66,14 @@ export default function FloatingBookingWidget({
 
   return (
     <div className="fbw" style={vars}>
-      {/* Dimmed backdrop (mobile + focus) */}
-      {mounted ? (
+      {/* Invisible click-catcher: tapping outside the panel closes it. No dim,
+          no blur — it never paints (see .fbw-backdrop in globals.css). */}
+      {mounted && open ? (
         <button
           type="button"
           aria-label="close"
           onClick={() => setOpen(false)}
-          className={`fbw-backdrop ${open ? "fbw-backdrop-in" : "fbw-backdrop-out"}`}
+          className="fbw-backdrop"
         />
       ) : null}
 

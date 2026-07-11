@@ -2,6 +2,7 @@
 
 import type { CSSProperties } from "react";
 import { BookingCta } from "@/components/site-templates/FloatingBookingWidget";
+import { dishCardProps } from "@/components/site-templates/SiteMenuOverlay";
 import { EditableImage, EditableMarquee, EditableText, useBlockValue } from "@/lib/site/content";
 import { formatSitePrice } from "@/lib/site/data";
 import type { SiteData } from "@/lib/site/types";
@@ -18,12 +19,12 @@ import { SUERTE_DEFAULTS } from "./defaults";
 const C = {
   cream: "var(--c1, #f4ecdd)",
   creamDeep: "#ece0c9",
-  charcoal: "#2a2420",
+  charcoal: "var(--c4, #2a2420)",
   soft: "#4a4038",
   tomato: "var(--c2, #c0432b)",
-  mustard: "#d69a3c",
+  mustard: "var(--c5, #d69a3c)",
   basil: "var(--c3, #2f5a3a)",
-  tile: "#2e6e8e",
+  tile: "var(--c6, #2e6e8e)",
   tileDeep: "#235775",
 };
 
@@ -197,7 +198,7 @@ export default function SuerteTemplate({ data }: { data: SiteData }) {
             </div>
             <div className="mt-10 grid grid-cols-2 gap-5 md:grid-cols-3">
               {data.menuItems.map((it) => (
-                <div key={it.id} className="su-card overflow-hidden bg-white" style={{ border: `2px solid ${C.charcoal}`, borderRadius: "1.1rem 0.5rem 1.2rem 0.5rem", boxShadow: `4px 4px 0 ${C.charcoal}` }}>
+                <div key={it.id} {...dishCardProps(it.id)} className="su-card overflow-hidden bg-white" style={{ border: `2px solid ${C.charcoal}`, borderRadius: "1.1rem 0.5rem 1.2rem 0.5rem", boxShadow: `4px 4px 0 ${C.charcoal}`, cursor: "pointer" }}>
                   {it.image_url ? (
                     <div className="aspect-[5/4] overflow-hidden">
                       {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -252,7 +253,7 @@ export default function SuerteTemplate({ data }: { data: SiteData }) {
 
       {/* Booking — real CRM widget */}
       <section id="reserva" className="w-full px-5 py-16 md:py-24">
-        <div className="mx-auto grid max-w-6xl gap-10 md:grid-cols-2">
+        <div className="mx-auto grid max-w-6xl items-center gap-10 md:grid-cols-2">
           <div>
             <EditableText id="book.eyebrow" as="p" className="text-sm font-semibold uppercase tracking-wide" style={{ color: C.tomato }} />
             <EditableText id="book.title" as="h2" className="mt-2 text-4xl font-bold md:text-5xl" style={{ fontFamily: DISPLAY }} />
@@ -263,7 +264,12 @@ export default function SuerteTemplate({ data }: { data: SiteData }) {
               </a>
             ) : null}
           </div>
-          <BookingCta className="su-btn text-base" style={{ ...pill(C.tomato, C.cream, C.charcoal), boxShadow: `4px 4px 0 ${C.charcoal}` }}>{data.bookingStrings.title}</BookingCta>
+          {/* Keep the CTA at its natural width (was ballooning as a lone grid
+              item): a flex wrapper stops the button from stretching to fill the
+              column, and it stays left-aligned on desktop, centered on mobile. */}
+          <div className="flex justify-center md:justify-start">
+            <BookingCta className="su-btn text-base" style={{ ...pill(C.tomato, C.cream, C.charcoal), boxShadow: `4px 4px 0 ${C.charcoal}`, whiteSpace: "nowrap" }}>{data.bookingStrings.title}</BookingCta>
+          </div>
         </div>
       </section>
 

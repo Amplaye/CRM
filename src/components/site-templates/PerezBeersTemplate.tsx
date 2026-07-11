@@ -2,6 +2,7 @@
 
 import type { CSSProperties } from "react";
 import { BookingCta } from "@/components/site-templates/FloatingBookingWidget";
+import { dishCardProps } from "@/components/site-templates/SiteMenuOverlay";
 import { EditableImage, EditableMarquee, EditableText, useBlockValue } from "@/lib/site/content";
 import { formatSitePrice } from "@/lib/site/data";
 import type { SiteData } from "@/lib/site/types";
@@ -18,9 +19,9 @@ import { PEREZBEERS_DEFAULTS } from "./defaults";
 // with the built-in hex as fallback, so an unset palette looks unchanged.
 const C = {
   basalt: "var(--c1, #120D0A)",
-  cream: "#EDE6D8",
+  cream: "var(--c4, #EDE6D8)",
   gold: "var(--c2, #DCA03C)",
-  goldLight: "#F0CD82",
+  goldLight: "var(--c5, #F0CD82)",
   red: "var(--c3, #C5392C)",
   redLight: "#E0574A",
 };
@@ -245,7 +246,7 @@ export default function PerezBeersTemplate({ data }: { data: SiteData }) {
             </div>
             <div className="mt-12 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
               {data.menuItems.map((it) => (
-                <article key={it.id} className="pb-stone pb-card overflow-hidden rounded-2xl p-4">
+                <article key={it.id} {...dishCardProps(it.id)} className="pb-stone pb-card cursor-pointer overflow-hidden rounded-2xl p-4">
                   {it.image_url ? (
                     <div className="aspect-[5/4] overflow-hidden rounded-xl">
                       {/* eslint-disable-next-line @next/next/no-img-element */}

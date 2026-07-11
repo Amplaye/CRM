@@ -2,6 +2,7 @@
 
 import type { CSSProperties } from "react";
 import { BookingCta } from "@/components/site-templates/FloatingBookingWidget";
+import { dishCardProps } from "@/components/site-templates/SiteMenuOverlay";
 import { EditableImage, EditableText } from "@/lib/site/content";
 import { formatSitePrice } from "@/lib/site/data";
 import type { SiteData } from "@/lib/site/types";
@@ -17,11 +18,11 @@ import { MONTESDEOCA_DEFAULTS } from "./defaults";
 // with the built-in hex as fallback, so an unset palette looks unchanged.
 const C = {
   espresso: "var(--c1, #1c1712)",
-  verde: "#2e3d32",
-  vino: "#5a2a33",
+  verde: "var(--c4, #2e3d32)",
+  vino: "var(--c5, #5a2a33)",
   piedra: "var(--c3, #efe7d6)",
   laton: "var(--c2, #b08d4f)",
-  terracota: "#a8553a",
+  terracota: "var(--c6, #a8553a)",
 };
 
 const DISPLAY = "'Cormorant Garamond', serif";
@@ -197,7 +198,7 @@ export default function MontesdeocaTemplate({ data }: { data: SiteData }) {
             <Heading k="cocina.kicker" t="cocina.title" italic center />
             <div className="mt-14" style={{ borderBottom: hairline(0.18) }}>
               {data.menuItems.map((it, i) => (
-                <div key={it.id} className="mo-dish flex items-center gap-5 py-6 md:gap-7" style={{ borderTop: hairline(0.18) }}>
+                <div key={it.id} {...dishCardProps(it.id)} className="mo-dish flex items-center gap-5 py-6 md:gap-7" style={{ borderTop: hairline(0.18), cursor: "pointer" }}>
                   <span className="text-sm" style={{ fontFamily: DISPLAY, color: C.laton }}>{String(i + 1).padStart(2, "0")}</span>
                   {it.image_url ? (
                     // eslint-disable-next-line @next/next/no-img-element

@@ -2,6 +2,7 @@
 
 import type { CSSProperties } from "react";
 import { BookingCta } from "@/components/site-templates/FloatingBookingWidget";
+import { dishCardProps } from "@/components/site-templates/SiteMenuOverlay";
 import { EditableImage, EditableMarquee, EditableText, useBlockValue } from "@/lib/site/content";
 import { formatSitePrice } from "@/lib/site/data";
 import type { SiteData } from "@/lib/site/types";
@@ -21,13 +22,13 @@ const C = {
   cream2: "#fbf6ec",
   wine: "var(--c1, #7c2230)",
   wine2: "#5e1822",
-  peach: "#e8b197",
-  olive: "#4a5226",
+  peach: "var(--c5, #e8b197)",
+  olive: "var(--c4, #4a5226)",
   olive2: "#3c4420",
   tomato: "var(--c3, #c0392b)",
   tomato2: "#9c2b20",
   terracotta: "#c77b53",
-  mustard: "#d9a441",
+  mustard: "var(--c6, #d9a441)",
   blush: "#f1d6c2",
 };
 
@@ -199,7 +200,7 @@ export default function DolceVitaTemplate({ data }: { data: SiteData }) {
             </div>
             <div className="mt-12 grid grid-cols-2 gap-6 md:grid-cols-3 md:gap-8">
               {data.menuItems.map((it, i) => (
-                <div key={it.id} className="dv-photo">
+                <div key={it.id} {...dishCardProps(it.id)} className="dv-photo cursor-pointer">
                   {it.image_url ? (
                     <div className="relative rounded-sm p-2" style={{ background: C.cream2, border: "1px solid rgba(74,82,38,0.15)", filter: "drop-shadow(0 5px 9px rgba(94,24,34,0.18))" }}>
                       <div className="aspect-[4/5] overflow-hidden rounded-sm">

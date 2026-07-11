@@ -2,6 +2,7 @@
 
 import type { CSSProperties } from "react";
 import { BookingCta } from "@/components/site-templates/FloatingBookingWidget";
+import { dishCardProps } from "@/components/site-templates/SiteMenuOverlay";
 import { EditableImage, EditableMarquee, EditableText, useBlockValue } from "@/lib/site/content";
 import { formatSitePrice } from "@/lib/site/data";
 import type { SiteData } from "@/lib/site/types";
@@ -18,15 +19,15 @@ import { VASCO_DEFAULTS } from "./defaults";
 // with the built-in hex as fallback, so an unset palette looks unchanged.
 const C = {
   cream: "var(--c1, #f5efe1)",
-  creamDeep: "#e8dcc6",
-  ink: "#221c18",
+  creamDeep: "var(--c6, #e8dcc6)",
+  ink: "var(--c4, #221c18)",
   green: "var(--c3, #0d3a20)",
   red: "var(--c2, #c82020)",
   redDeep: "#8a1a16",
   redSoft: "#e0463a",
   emerald: "#0a8240",
   greenSoft: "#38a96a",
-  gold: "#f4b400",
+  gold: "var(--c5, #f4b400)",
 };
 
 const DISPLAY = "'Fraunces', serif";
@@ -195,7 +196,7 @@ export default function VascoTemplate({ data }: { data: SiteData }) {
             </div>
             <div className="mt-12 grid gap-8 sm:grid-cols-2 lg:grid-cols-3">
               {data.menuItems.map((it, i) => (
-                <article key={it.id} className="va-tilt relative bg-white p-3 pb-5" style={{ rotate: CARD_TILTS[i % CARD_TILTS.length], borderRadius: 2, boxShadow: "0 18px 34px -18px rgba(34,28,24,0.35)" }}>
+                <article key={it.id} {...dishCardProps(it.id)} className="va-tilt relative bg-white p-3 pb-5" style={{ rotate: CARD_TILTS[i % CARD_TILTS.length], borderRadius: 2, boxShadow: "0 18px 34px -18px rgba(34,28,24,0.35)", cursor: "pointer" }}>
                   <span className="absolute -left-2.5 -top-2.5 z-10 flex h-9 w-9 items-center justify-center rounded-full text-xs font-bold" style={{ background: C.red, color: "#fff", fontFamily: DISPLAY }}>
                     {String(i + 1).padStart(2, "0")}
                   </span>

@@ -32,19 +32,21 @@ export type SiteTemplateDef = {
   fontsHref: string;
   label: string;
   vibe: string;
-  /** The template's three "key" colours, in the order they cascade as
-   * `--c1`, `--c2`, `--c3`. These ARE the built-in palette (fallbacks) AND the
-   * default swatches shown on the picker card. Each template's JSX reads the
-   * matching colour via `var(--cN, <this hex>)`, so leaving the palette unset
-   * renders byte-identical to before. */
-  swatches: [string, string, string];
-  /** Human labels (it) for the three swatches, in c1/c2/c3 order — used by the
-   * editor's colour panel so each picker says what it actually recolours in
-   * THIS template (e.g. "Sfondo" / "Accento" / "Testo"). */
-  paletteLabels: [string, string, string];
+  /** The template's "key" colours, in the order they cascade as `--c1`, `--c2`,
+   * … `--cN`. These ARE the built-in palette (fallbacks) AND the default
+   * swatches shown on the picker card. Each template's JSX reads the matching
+   * colour via `var(--cN, <this hex>)`, so leaving the palette unset renders
+   * byte-identical to before. The first three slots keep their historical
+   * meaning so older 3-colour overrides still resolve; templates expose extra
+   * slots (background/text/surfaces) so every section can be recoloured. */
+  swatches: string[];
+  /** Human labels (it) for the swatches, in c1..cN order — used by the editor's
+   * colour panel so each picker says what it recolours in THIS template
+   * (e.g. "Sfondo" / "Accento" / "Testo"). Same length as `swatches`. */
+  paletteLabels: string[];
   /** Which swatch index (0-based) is the booking-widget accent, so the widget
    * follows a recoloured palette. */
-  accentIndex: 0 | 1 | 2;
+  accentIndex: number;
   fontLabel: string;
   /** Brand accent for the floating booking widget (matches each template's
    * own CTA colour). */
@@ -58,8 +60,8 @@ export const SITE_TEMPLATE_DEFS: Record<Exclude<SiteTemplateKey, "classic">, Sit
     fontsHref: SUERTE_FONTS,
     label: "Trattoria",
     vibe: "Neobrutalist di quartiere — crema, pomodoro, ombre nette",
-    swatches: ["#f4ecdd", "#c0432b", "#2f5a3a"],
-    paletteLabels: ["Sfondo", "Accento", "Secondario"],
+    swatches: ["#f4ecdd", "#c0432b", "#2f5a3a", "#2a2420", "#d69a3c", "#2e6e8e"],
+    paletteLabels: ["Sfondo", "Accento", "Secondario", "Testo", "Dettagli", "Ombre"],
     accentIndex: 1,
     fontLabel: "Fraunces",
     accent: "#c0432b",
@@ -70,8 +72,8 @@ export const SITE_TEMPLATE_DEFS: Record<Exclude<SiteTemplateKey, "classic">, Sit
     fontsHref: DOLCEVITA_FONTS,
     label: "Romantico",
     vibe: "Invito a cena romantico — vino, crema, sigillo di ceralacca",
-    swatches: ["#7c2230", "#f6eee0", "#c0392b"],
-    paletteLabels: ["Vino", "Sfondo", "Accento"],
+    swatches: ["#7c2230", "#f6eee0", "#c0392b", "#4a5226", "#e8b197", "#d9a441"],
+    paletteLabels: ["Vino", "Sfondo", "Accento", "Verde", "Pesca", "Oro"],
     accentIndex: 2,
     fontLabel: "Fraunces",
     accent: "#c0392b",
@@ -82,8 +84,8 @@ export const SITE_TEMPLATE_DEFS: Record<Exclude<SiteTemplateKey, "classic">, Sit
     fontsHref: CHAMPINONERIA_FONTS,
     label: "Bistró",
     vibe: "Bistró editoriale caldo — carta crema, cacao scuro, corsivo",
-    swatches: ["#f5eee0", "#2a1d12", "#a6724b"],
-    paletteLabels: ["Sfondo", "Testo scuro", "Accento"],
+    swatches: ["#f5eee0", "#2a1d12", "#a6724b", "#7a6a56", "#b08d57", "#ede4d3"],
+    paletteLabels: ["Sfondo", "Testo scuro", "Accento", "Testo tenue", "Oro", "Superficie"],
     accentIndex: 2,
     fontLabel: "Cormorant",
     accent: "#a6724b",
@@ -94,8 +96,8 @@ export const SITE_TEMPLATE_DEFS: Record<Exclude<SiteTemplateKey, "classic">, Sit
     fontsHref: PICNIC_FONTS,
     label: "Cinematico",
     vibe: "Napoletano notturno — nero, ruggine, serif corsivo",
-    swatches: ["#000000", "#c94a1a", "#f7f3ed"],
-    paletteLabels: ["Sfondo", "Accento", "Testo chiaro"],
+    swatches: ["#000000", "#c94a1a", "#f7f3ed", "#0f0f0f", "#1a1a1a"],
+    paletteLabels: ["Sfondo", "Accento", "Testo chiaro", "Riquadri", "Superficie"],
     accentIndex: 1,
     fontLabel: "Playfair",
     accent: "#c94a1a",
@@ -106,8 +108,8 @@ export const SITE_TEMPLATE_DEFS: Record<Exclude<SiteTemplateKey, "classic">, Sit
     fontsHref: PEREZBEERS_FONTS,
     label: "Birreria",
     vibe: "Beer-hall serale — basalto, oro candela, rosso mattone",
-    swatches: ["#120D0A", "#DCA03C", "#C5392C"],
-    paletteLabels: ["Sfondo", "Oro", "Accento"],
+    swatches: ["#120D0A", "#DCA03C", "#C5392C", "#EDE6D8", "#F0CD82"],
+    paletteLabels: ["Sfondo", "Oro", "Accento", "Testo chiaro", "Oro chiaro"],
     accentIndex: 2,
     fontLabel: "Poppins",
     accent: "#C5392C",
@@ -118,8 +120,8 @@ export const SITE_TEMPLATE_DEFS: Record<Exclude<SiteTemplateKey, "classic">, Sit
     fontsHref: VASCO_FONTS,
     label: "Taverna",
     vibe: "Tasca basca editoriale — crema, rosso e verde, polaroid",
-    swatches: ["#f5efe1", "#c82020", "#0d3a20"],
-    paletteLabels: ["Sfondo", "Rosso", "Verde"],
+    swatches: ["#f5efe1", "#c82020", "#0d3a20", "#221c18", "#f4b400", "#e8dcc6"],
+    paletteLabels: ["Sfondo", "Rosso", "Verde", "Testo", "Oro", "Superficie"],
     accentIndex: 1,
     fontLabel: "Fraunces",
     accent: "#c82020",
@@ -130,8 +132,8 @@ export const SITE_TEMPLATE_DEFS: Record<Exclude<SiteTemplateKey, "classic">, Sit
     fontsHref: MONTESDEOCA_FONTS,
     label: "Elegante",
     vibe: "Palazzo a lume di candela — espresso, ottone, serif leggero",
-    swatches: ["#1c1712", "#b08d4f", "#efe7d6"],
-    paletteLabels: ["Sfondo", "Ottone", "Carta"],
+    swatches: ["#1c1712", "#b08d4f", "#efe7d6", "#2e3d32", "#5a2a33", "#a8553a"],
+    paletteLabels: ["Sfondo", "Ottone", "Carta", "Verde", "Vino", "Terracotta"],
     accentIndex: 1,
     fontLabel: "Cormorant",
     accent: "#b08d4f",
@@ -158,16 +160,17 @@ export function isHexColor(v: unknown): v is string {
 
 /** Resolve the effective palette for a template: the stored override where each
  * slot is a valid hex, otherwise the template's built-in swatch for that slot.
- * Always returns exactly three colours. */
+ * Returns one colour per registry swatch (length = swatches.length), so an
+ * older, shorter override just leaves the extra slots at their defaults. */
 export function resolvePalette(
   key: Exclude<SiteTemplateKey, "classic">,
   override?: readonly string[] | null,
-): [string, string, string] {
+): string[] {
   const base = SITE_TEMPLATE_DEFS[key].swatches;
-  return [0, 1, 2].map((i) => {
+  return base.map((swatch, i) => {
     const v = override?.[i];
-    return isHexColor(v) ? v.trim() : base[i];
-  }) as [string, string, string];
+    return isHexColor(v) ? v.trim() : swatch;
+  });
 }
 
 /** CSS custom properties to spread on the template wrapper. Only sets a var

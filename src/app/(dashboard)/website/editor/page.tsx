@@ -18,10 +18,13 @@ import { useLanguage } from "@/lib/contexts/LanguageContext";
 import { useTenant } from "@/lib/contexts/TenantContext";
 import { createClient } from "@/lib/supabase/client";
 import { SiteContentProvider } from "@/lib/site/content";
-import { buildSiteData, type RawMenuItemRow, type RawReviewRow } from "@/lib/site/data";
+import { buildSiteData, type RawMenuCategoryRow, type RawMenuItemRow, type RawReviewRow } from "@/lib/site/data";
+import { SITE_STRINGS } from "@/lib/site/labels";
+import { resolveSiteLocale } from "@/lib/site/booking-strings";
 import { uploadSitePhoto, siteBlockFileName } from "@/lib/site/upload-site-photo";
 import { SITE_TEMPLATE_DEFS, isDemoTemplate, paletteVars, paletteAccent, resolvePalette } from "@/components/site-templates/registry";
 import FloatingBookingWidget from "@/components/site-templates/FloatingBookingWidget";
+import SiteMenuOverlay from "@/components/site-templates/SiteMenuOverlay";
 
 export default function WebsiteEditorPage() {
   const { t } = useLanguage();
@@ -39,11 +42,13 @@ export default function WebsiteEditorPage() {
   const enabled = getFeatures(tenant?.settings).website_enabled;
 
   const [menuRows, setMenuRows] = useState<RawMenuItemRow[]>([]);
+  const [categoryRows, setCategoryRows] = useState<RawMenuCategoryRow[]>([]);
   const [reviewRows, setReviewRows] = useState<RawReviewRow[]>([]);
   const [content, setContent] = useState<Record<string, string> | null>(null);
-  // The three key colours, always concrete (override resolved onto swatches) so
-  // the pickers show a value. Null until a template is known.
-  const [palette, setPalette] = useState<[string, string, string] | null>(null);
+  // The key colours, always concrete (override resolved onto swatches) so the
+  // pickers show a value. Length matches the template's swatches (some expose
+  // more than three). Null until a template is known.
+  const [palette, setPalette] = useState<string[] | null>(null);
   const [showColors, setShowColors] = useState(false);
   const [dirty, setDirty] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -73,14 +78,20 @@ export default function WebsiteEditorPage() {
     if (!tenant || !demo) return;
     let alive = true;
     (async () => {
-      const [menuRes, reviewsRes] = await Promise.all([
+      const [menuRes, catsRes, reviewsRes] = await Promise.all([
         supabase
           .from("menu_items")
-          .select("id,name,description,price,currency,image_url,sort_order")
+          .select("id,name,description,price,currency,image_url,sort_order,category_id,allergens,tags")
           .eq("tenant_id", tenant.id)
           .eq("available", true)
           .order("sort_order", { ascending: true })
-          .limit(24),
+          .order("created_at", { ascending: true }),
+        supabase
+          .from("menu_categories")
+          .select("id,name,sort_order")
+          .eq("tenant_id", tenant.id)
+          .order("sort_order", { ascending: true })
+          .order("created_at", { ascending: true }),
         supabase
           .from("reviews")
           .select("rating,comment,created_at,guests(name)")
@@ -93,6 +104,7 @@ export default function WebsiteEditorPage() {
       ]);
       if (!alive) return;
       setMenuRows((menuRes.data || []) as RawMenuItemRow[]);
+      setCategoryRows((catsRes.data || []) as RawMenuCategoryRow[]);
       setReviewRows(((reviewsRes.data || []) as unknown) as RawReviewRow[]);
     })();
     return () => {
@@ -123,7 +135,7 @@ export default function WebsiteEditorPage() {
   const onColorChange = useCallback((i: number, value: string) => {
     setPalette((cur) => {
       if (!cur) return cur;
-      const next = [...cur] as [string, string, string];
+      const next = [...cur];
       next[i] = value;
       return next;
     });
@@ -204,9 +216,11 @@ export default function WebsiteEditorPage() {
     slug: tenant.slug,
     settings,
     menuRows,
+    categoryRows,
     reviewRows,
     giftCardsEnabled: getFeatures(settings).gift_cards_enabled,
   });
+  const siteUi = SITE_STRINGS[resolveSiteLocale(settings.crm_locale)];
 
   return (
     <div className="fixed inset-0 z-[70] flex flex-col bg-neutral-900">
@@ -257,7 +271,7 @@ export default function WebsiteEditorPage() {
                 <Palette className="h-4 w-4" />
                 <span className="hidden sm:inline">{t("website_editor_colors")}</span>
                 <span className="flex gap-0.5">
-                  {palette.map((c, i) => (
+                  {palette.slice(0, 4).map((c, i) => (
                     <span key={i} className="h-3 w-3 rounded-full ring-1 ring-white/40" style={{ background: c }} />
                   ))}
                 </span>
@@ -267,15 +281,17 @@ export default function WebsiteEditorPage() {
                   {/* click-away backdrop (below the raised toolbar row so Save
                       stays a one-click target; catches clicks on the preview). */}
                   <div className="fixed inset-0 z-[71]" onClick={() => setShowColors(false)} />
-                  <div className="absolute right-0 top-full z-[76] mt-2 w-64 rounded-xl border border-black/10 bg-white p-3 text-black shadow-2xl">
+                  <div className="absolute right-0 top-full z-[76] mt-2 w-80 rounded-xl border border-black/10 bg-white p-3 text-black shadow-2xl">
                     <p className="mb-2 text-xs font-bold uppercase tracking-wide text-black/60">
                       {t("website_editor_colors_title")}
                     </p>
-                    <div className="space-y-1.5">
+                    {/* Two columns keep the panel compact when a template exposes
+                        five or six editable colours. */}
+                    <div className="grid grid-cols-2 gap-1">
                       {palette.map((c, i) => (
                         <label
                           key={i}
-                          className="flex cursor-pointer items-center gap-3 rounded-lg px-2 py-1.5 hover:bg-black/5"
+                          className="flex cursor-pointer items-center gap-2.5 rounded-lg px-2 py-1.5 hover:bg-black/5"
                         >
                           <span
                             className="relative h-8 w-8 shrink-0 overflow-hidden rounded-md ring-1 ring-black/15"
@@ -293,7 +309,7 @@ export default function WebsiteEditorPage() {
                             <span className="block truncate text-sm font-semibold text-black">
                               {def.paletteLabels[i]}
                             </span>
-                            <span className="block text-xs uppercase tabular-nums text-black/50">{c}</span>
+                            <span className="block text-[10px] uppercase tabular-nums text-black/50">{c}</span>
                           </span>
                         </label>
                       ))}
@@ -342,6 +358,11 @@ export default function WebsiteEditorPage() {
           </SiteContentProvider>
         </div>
         <FloatingBookingWidget slug={tenant.slug} accent={paletteAccent(demo, palette)} strings={data.bookingStrings} />
+        <SiteMenuOverlay
+          data={data}
+          accent={paletteAccent(demo, palette)}
+          strings={{ fullMenu: siteUi.fullMenu, allergens: siteUi.allergens, close: siteUi.close }}
+        />
       </div>
 
       <input

@@ -1,6 +1,7 @@
 "use client";
 
 import { BookingCta } from "@/components/site-templates/FloatingBookingWidget";
+import { dishCardProps } from "@/components/site-templates/SiteMenuOverlay";
 import { EditableImage, EditableMarquee, EditableText, useBlockValue } from "@/lib/site/content";
 import { formatSitePrice } from "@/lib/site/data";
 import type { SiteData } from "@/lib/site/types";
@@ -17,8 +18,8 @@ import { PICNIC_DEFAULTS } from "./defaults";
 // with the built-in hex as fallback, so an unset palette looks unchanged.
 const C = {
   black: "var(--c1, #000000)",
-  dark: "#1a1a1a",
-  card: "#0f0f0f",
+  dark: "var(--c5, #1a1a1a)",
+  card: "var(--c4, #0f0f0f)",
   cream: "var(--c3, #f7f3ed)",
   rust: "var(--c2, #c94a1a)",
 };
@@ -215,7 +216,7 @@ export default function PicnicTemplate({ data }: { data: SiteData }) {
             </div>
             <div className="mt-14 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
               {data.menuItems.map((it) => (
-                <article key={it.id} className="pc-card overflow-hidden rounded-sm" style={{ background: C.card, border: `1px solid ${HAIR_DARK}` }}>
+                <article key={it.id} {...dishCardProps(it.id)} className="pc-card overflow-hidden rounded-sm" style={{ background: C.card, border: `1px solid ${HAIR_DARK}`, cursor: "pointer" }}>
                   {it.image_url ? (
                     <div className="pc-zoom aspect-[4/3]">
                       {/* eslint-disable-next-line @next/next/no-img-element */}

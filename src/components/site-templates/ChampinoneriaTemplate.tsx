@@ -2,6 +2,7 @@
 
 import type { CSSProperties } from "react";
 import { BookingCta } from "@/components/site-templates/FloatingBookingWidget";
+import { dishCardProps } from "@/components/site-templates/SiteMenuOverlay";
 import { EditableImage, EditableMarquee, EditableText, useBlockValue } from "@/lib/site/content";
 import { formatSitePrice } from "@/lib/site/data";
 import type { SiteData } from "@/lib/site/types";
@@ -17,13 +18,13 @@ import { CHAMPINONERIA_DEFAULTS } from "./defaults";
 // with the built-in hex as fallback, so an unset palette looks unchanged.
 const C = {
   cream: "var(--c1, #f5eee0)",
-  taupe: "#ede4d3",
+  taupe: "var(--c6, #ede4d3)",
   dark: "var(--c2, #2a1d12)",
   ink: "#2e2218",
-  inkSoft: "#7a6a56",
+  inkSoft: "var(--c4, #7a6a56)",
   brass: "var(--c3, #a6724b)",
   brassSoft: "#c9a77c",
-  gold: "#b08d57",
+  gold: "var(--c5, #b08d57)",
   oxblood: "#241810",
 };
 
@@ -201,7 +202,7 @@ export default function ChampinoneriaTemplate({ data }: { data: SiteData }) {
             </div>
             <div className="mt-12 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
               {data.menuItems.map((it) => (
-                <div key={it.id} className="ch-frame ch-card overflow-hidden p-4">
+                <div key={it.id} {...dishCardProps(it.id)} className="ch-frame ch-card cursor-pointer overflow-hidden p-4">
                   {it.image_url ? (
                     <div className="ch-frame-photo aspect-[4/3] overflow-hidden">
                       {/* eslint-disable-next-line @next/next/no-img-element */}

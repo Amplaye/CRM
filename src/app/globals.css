@@ -542,9 +542,11 @@ body.cassa-overlay-open .assistant-fab {
 @keyframes fbw-fade-in { from { opacity: 0; } to { opacity: 1; } }
 @keyframes fbw-fade-out { from { opacity: 1; } to { opacity: 0; } }
 
-.fbw-backdrop { position: fixed; inset: 0; z-index: 2147483000; background: rgba(15,12,10,0.42); backdrop-filter: blur(2px); border: 0; }
-.fbw-backdrop-in { animation: fbw-fade-in 0.28s ease both; }
-.fbw-backdrop-out { animation: fbw-fade-out 0.3s ease both; }
+/* Transparent click-catcher: no dim, no blur (both slowed the open animation
+   and added nothing). It still exists only so a tap/click outside the panel
+   closes it; it never paints. */
+.fbw-backdrop { position: fixed; inset: 0; z-index: 2147483000; background: transparent; border: 0; }
+.fbw-backdrop-in, .fbw-backdrop-out { animation: none; }
 
 .fbw-panel {
   position: fixed; z-index: 2147483001; bottom: 20px; right: 20px;
@@ -582,6 +584,100 @@ body.cassa-overlay-open .assistant-fab {
 @media (max-width: 480px) {
   .fbw-panel { bottom: 0; right: 0; left: 0; width: 100vw; max-height: 90vh; border-radius: 20px 20px 0 0; transform-origin: bottom center; }
   .fbw-pill { bottom: 16px; right: 16px; }
+}
+
+/* ——— In-site menu overlay (dish detail + full menu) ——— */
+@keyframes smo-fade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes smo-rise { from { opacity: 0; transform: translateY(26px) scale(0.98); } to { opacity: 1; transform: translateY(0) scale(1); } }
+
+.smo-scrim {
+  position: fixed; inset: 0; z-index: 2147483200;
+  display: flex; align-items: center; justify-content: center; padding: 20px;
+  background: rgba(12,10,9,0.55); backdrop-filter: blur(3px);
+  animation: smo-fade 0.2s ease both;
+}
+.smo-scrim-hit { position: absolute; inset: 0; border: 0; background: transparent; cursor: pointer; }
+
+.smo-sheet {
+  position: relative; z-index: 1; width: 100%;
+  display: flex; flex-direction: column; overflow: hidden;
+  background: #fff; color: #1a1512; border-radius: 20px;
+  box-shadow: 0 40px 90px -24px rgba(0,0,0,0.6);
+  animation: smo-rise 0.32s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+.smo-sheet-lg { max-width: 620px; max-height: min(88vh, 820px); }
+.smo-sheet-sm { max-width: 440px; max-height: min(88vh, 760px); }
+
+.smo-sheet-head {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 16px 20px; background: var(--smo-accent, #111); color: #fff;
+  position: sticky; top: 0;
+}
+.smo-sheet-title { font-size: 17px; font-weight: 800; letter-spacing: 0.01em; }
+.smo-sheet-body { padding: 8px 20px 22px; overflow-y: auto; overscroll-behavior: contain; }
+
+.smo-x {
+  width: 32px; height: 32px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center; border-radius: 10px;
+  color: #fff; background: rgba(255,255,255,0.18); transition: background-color 0.16s ease, transform 0.14s ease;
+}
+.smo-x:hover { background: rgba(255,255,255,0.3); }
+.smo-x:active { transform: scale(0.9); }
+.smo-x svg { width: 17px; height: 17px; }
+.smo-x-float {
+  position: absolute; top: 12px; right: 12px; z-index: 2;
+  color: #fff; background: rgba(0,0,0,0.45); backdrop-filter: blur(4px);
+}
+.smo-x-float:hover { background: rgba(0,0,0,0.62); }
+
+.smo-cat { padding-top: 16px; }
+.smo-cat-title {
+  font-size: 12px; font-weight: 800; letter-spacing: 0.14em; text-transform: uppercase;
+  color: var(--smo-accent, #111); padding-bottom: 6px; border-bottom: 2px solid color-mix(in srgb, var(--smo-accent, #111) 24%, transparent);
+}
+.smo-list { list-style: none; margin: 0; padding: 0; }
+.smo-list > li + li { border-top: 1px solid rgba(0,0,0,0.07); }
+
+.smo-row {
+  display: flex; align-items: flex-start; gap: 14px; width: 100%; text-align: left;
+  padding: 14px 4px; cursor: pointer; transition: background-color 0.14s ease;
+}
+.smo-row:hover { background: color-mix(in srgb, var(--smo-accent, #111) 6%, transparent); }
+.smo-row-img { width: 60px; height: 60px; flex-shrink: 0; object-fit: cover; border-radius: 12px; }
+.smo-row-img-empty { background: color-mix(in srgb, var(--smo-accent, #111) 10%, #ece7df); }
+.smo-row-main { min-width: 0; flex: 1; }
+.smo-row-name { display: block; font-weight: 700; font-size: 15px; color: #1a1512; }
+.smo-row-desc { display: block; margin-top: 2px; font-size: 13px; line-height: 1.4; color: #6a615a; }
+.smo-row-price {
+  flex-shrink: 0; font-weight: 800; font-size: 14px; white-space: nowrap;
+  color: #fff; background: var(--smo-accent, #111); padding: 4px 10px; border-radius: 9999px;
+}
+
+.smo-dish-img { width: 100%; aspect-ratio: 4 / 3; object-fit: cover; }
+.smo-dish-body { padding: 20px 22px 24px; overflow-y: auto; }
+.smo-dish-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; }
+.smo-dish-name { font-size: 24px; font-weight: 800; line-height: 1.1; color: #1a1512; }
+.smo-dish-price {
+  flex-shrink: 0; font-weight: 800; font-size: 15px; white-space: nowrap;
+  color: #fff; background: var(--smo-accent, #111); padding: 5px 12px; border-radius: 9999px;
+}
+.smo-dish-desc { margin-top: 12px; font-size: 15px; line-height: 1.6; color: #4a413a; }
+
+.smo-chips { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; margin-top: 10px; }
+.smo-chip { font-size: 11px; font-weight: 700; padding: 3px 9px; border-radius: 9999px; }
+.smo-chip-tag { color: var(--smo-accent, #111); background: color-mix(in srgb, var(--smo-accent, #111) 12%, #fff); }
+.smo-allergens { font-size: 12px; color: #6a615a; }
+.smo-allergens-cap { font-weight: 700; color: #4a413a; }
+
+@media (max-width: 480px) {
+  .smo-scrim { padding: 0; align-items: flex-end; }
+  .smo-sheet { max-height: 92vh; border-radius: 20px 20px 0 0; }
+  .smo-sheet-lg, .smo-sheet-sm { max-width: 100%; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .smo-scrim, .smo-sheet { animation-duration: 0.01ms; }
+  .smo-x, .smo-row { transition: none; }
 }
 
 @media (prefers-reduced-motion: reduce) {

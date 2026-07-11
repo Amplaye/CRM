@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildHoursRows, buildMapsHref, firstName, formatSitePrice, pickMenuTeaser } from "./data";
+import { buildFullMenu, buildHoursRows, buildMapsHref, firstName, formatSitePrice, pickMenuTeaser } from "./data";
 import type { OpeningHours } from "@/lib/restaurant-rules";
 
 const DAYS = ["Lun", "Mar", "Mer", "Gio", "Ven", "Sab", "Dom"];
@@ -26,6 +26,34 @@ describe("site data shaping", () => {
     // Fewer than 3 with photo → keep menu order.
     const few = [mk("a", null), mk("b", "x"), mk("c", null)];
     expect(pickMenuTeaser(few).map((r) => r.id)).toEqual(["a", "b", "c"]);
+  });
+
+  it("defaults allergens/tags to empty arrays in the teaser", () => {
+    const [shaped] = pickMenuTeaser([
+      { id: "a", name: "A", description: null, price: 8, currency: "EUR", image_url: "x" },
+    ]);
+    expect(shaped.allergens).toEqual([]);
+    expect(shaped.tags).toEqual([]);
+  });
+
+  it("groups the full menu by category, dropping empty ones and bucketing loose dishes", () => {
+    const item = (id: string, category_id: string | null) => ({
+      id, name: id.toUpperCase(), description: "", price: 10, currency: "EUR",
+      image_url: null, category_id, allergens: ["glutine"], tags: ["vegano"],
+    });
+    const items = [item("a", "c1"), item("b", "c1"), item("c", null)];
+    const cats = [{ id: "c1", name: "Primi" }, { id: "c2", name: "Vuota" }];
+    const menu = buildFullMenu(items, cats, "Altro");
+    // "Vuota" (no items) is dropped; loose dish goes to the "Altro" bucket last.
+    expect(menu.map((c) => c.name)).toEqual(["Primi", "Altro"]);
+    expect(menu[0].items.map((i) => i.id)).toEqual(["a", "b"]);
+    expect(menu[1].id).toBe("__uncat__");
+    expect(menu[0].items[0].allergens).toEqual(["glutine"]);
+    expect(menu[0].items[0].tags).toEqual(["vegano"]);
+  });
+
+  it("returns an empty full menu when there are no items", () => {
+    expect(buildFullMenu([], [{ id: "c1", name: "Primi" }], "Altro")).toEqual([]);
   });
 
   it("builds Monday-first hour rows and hides when empty", () => {

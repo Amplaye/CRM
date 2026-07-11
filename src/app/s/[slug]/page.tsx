@@ -10,6 +10,7 @@ import { buildSiteData, firstName, formatSitePrice, type RawMenuItemRow, type Ra
 import { SiteContentProvider } from "@/lib/site/content";
 import { SITE_TEMPLATE_DEFS, isDemoTemplate, paletteVars, paletteAccent } from "@/components/site-templates/registry";
 import FloatingBookingWidget from "@/components/site-templates/FloatingBookingWidget";
+import SiteMenuOverlay from "@/components/site-templates/SiteMenuOverlay";
 
 // Public template micro-site (Fase 4 — website builder). Same contract as the
 // hosted menu /m/<slug>: service-role read, no auth, no cookies, branding from
@@ -105,14 +106,23 @@ export default async function PublicSitePage({ params }: { params: Promise<Param
   const template = site.template;
   if (isDemoTemplate(template)) {
     const def = SITE_TEMPLATE_DEFS[template];
-    const [menuRes, reviewsRes] = await Promise.all([
+    // The demo templates show a teaser AND an in-site full-menu overlay, so
+    // fetch every available dish (with allergens/tags/category) + the category
+    // names to group them. buildSiteData picks the teaser from the same rows.
+    const [menuRes, catsRes, reviewsRes] = await Promise.all([
       sb
         .from("menu_items")
-        .select("id,name,description,price,currency,image_url,sort_order")
+        .select("id,name,description,price,currency,image_url,sort_order,category_id,allergens,tags")
         .eq("tenant_id", tenant.id)
         .eq("available", true)
         .order("sort_order", { ascending: true })
-        .limit(24),
+        .order("created_at", { ascending: true }),
+      sb
+        .from("menu_categories")
+        .select("id,name,sort_order")
+        .eq("tenant_id", tenant.id)
+        .order("sort_order", { ascending: true })
+        .order("created_at", { ascending: true }),
       sb
         .from("reviews")
         .select("rating,comment,created_at,guests(name)")
@@ -128,6 +138,7 @@ export default async function PublicSitePage({ params }: { params: Promise<Param
       slug: tenant.slug,
       settings,
       menuRows: (menuRes.data || []) as MenuItemRow[],
+      categoryRows: (catsRes.data || []) as { id: string; name: string }[],
       reviewRows: (reviewsRes.data || []) as unknown as ReviewRow[],
       giftCardsEnabled: features.gift_cards_enabled,
     });
@@ -150,6 +161,11 @@ export default async function PublicSitePage({ params }: { params: Promise<Param
           </SiteContentProvider>
         </div>
         <FloatingBookingWidget slug={tenant.slug} accent={paletteAccent(template, palette)} strings={data.bookingStrings} />
+        <SiteMenuOverlay
+          data={data}
+          accent={paletteAccent(template, palette)}
+          strings={{ fullMenu: ui.fullMenu, allergens: ui.allergens, close: ui.close }}
+        />
       </>
     );
   }

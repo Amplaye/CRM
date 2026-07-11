@@ -232,14 +232,16 @@ export interface TenantSettings {
    * built-in default copy, so template updates flow to untouched blocks.
    * Content survives template switches (each template keeps its own map). */
   site_content?: Partial<Record<SiteTemplateKey, Record<string, string>>>;
-  /** Per-template colour override: the three "key" colours of each demo
-   * template (background, primary accent, secondary), as hex "#rrggbb". Unset
-   * → the template's built-in palette (its registry `swatches`). Stored per
-   * template so a colour scheme survives template switches, exactly like
-   * `site_content`. Rendered by cascading `--c1/--c2/--c3` onto the template
-   * wrapper; each template reads those vars with its own hex as the fallback,
-   * so an unset palette is byte-identical to today. */
-  site_palette?: Partial<Record<SiteTemplateKey, [string, string, string]>>;
+  /** Per-template colour override: the editable "key" colours of each demo
+   * template (background, text, surfaces, accents), as hex "#rrggbb", in the
+   * registry `swatches` order. Unset → the template's built-in palette. The
+   * first three slots keep their historical meaning (older 3-colour overrides
+   * still resolve correctly); templates may expose more slots (c4, c5, …) so
+   * every section can be recoloured. Stored per template so a scheme survives
+   * template switches, like `site_content`. Rendered by cascading
+   * `--c1..--cN` onto the wrapper; each template reads those vars with its own
+   * hex as the fallback, so an unset palette is byte-identical to today. */
+  site_palette?: Partial<Record<SiteTemplateKey, string[]>>;
   /** Loyalty programme config (Fase 6). Read via getLoyaltyConfig() which
    * applies defaults/clamping — points accrue on completed reservations,
    * rewards are redeemed by staff from the guest panel. */

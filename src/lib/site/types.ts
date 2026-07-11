@@ -12,6 +12,19 @@ export interface SiteMenuItem {
   price: number | null;
   currency: string;
   image_url: string | null;
+  /** Canonical allergen tokens (empty when none) — shown in the dish detail. */
+  allergens: string[];
+  /** Canonical tag tokens (vegano/piccante/…) — shown in the dish detail. */
+  tags: string[];
+}
+
+/** One menu category (or the uncategorized bucket) with its available dishes,
+ * used by the in-site full-menu overlay so it reads like the rest of the site
+ * instead of sending the guest to a differently-styled /m page. */
+export interface SiteMenuCategory {
+  id: string;
+  name: string;
+  items: SiteMenuItem[];
 }
 
 export interface SiteReview {
@@ -47,6 +60,10 @@ export interface SiteLabels {
   giftCta: string;
   giftTitle: string;
   reviewsEmpty: string;
+  /** "Allergeni" caption in the dish detail. */
+  allergens: string;
+  /** aria-label for overlay close buttons. */
+  close: string;
   days: string[];
   poweredPrefix: string;
 }
@@ -63,6 +80,9 @@ export interface SiteData {
   hours: SiteHoursRow[];
   /** Teaser pick (photo-first), max 6. */
   menuItems: SiteMenuItem[];
+  /** The full menu grouped by category (available dishes only), for the in-site
+   * full-menu overlay + dish detail. Empty array when the tenant has no menu. */
+  fullMenu: SiteMenuCategory[];
   /** Public 4–5★ reviews with a comment. */
   reviews: SiteReview[];
   avgRating: number;
