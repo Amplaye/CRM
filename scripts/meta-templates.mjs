@@ -119,12 +119,16 @@ const TEMPLATES = [
     // generic bodies — if so, tighten the copy around the variable.
     name: "marketing_campaign",
     category: "MARKETING",
-    // vars: 1=guest name, 2=campaign message
+    // vars: 1=guest name, 2=campaign message.
+    // Greeting-only frame (no fixed closing, no emoji) — the owner's free text
+    // is {{2}} and carries the whole message, so one template covers every
+    // campaign. No emoji keeps the frame neutral (owner request); note Meta
+    // still classifies by CONTENT, so promotional bodies stay MARKETING.
     bodies: {
-      es: "Hola {{1}} 👋\n\n{{2}}\n\n¡Te esperamos!",
-      it: "Ciao {{1}} 👋\n\n{{2}}\n\nTi aspettiamo!",
-      en: "Hi {{1}} 👋\n\n{{2}}\n\nSee you soon!",
-      de: "Hallo {{1}} 👋\n\n{{2}}\n\nWir freuen uns auf dich!",
+      es: "Hola {{1}},\n\n{{2}}",
+      it: "Ciao {{1}},\n\n{{2}}",
+      en: "Hi {{1}},\n\n{{2}}",
+      de: "Hallo {{1}},\n\n{{2}}",
     },
     examples: ["María", "Este viernes menú degustación a 35€ — reserva tu mesa"],
   },

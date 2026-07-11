@@ -3,6 +3,7 @@ import { createServiceRoleClient } from "@/lib/supabase/server";
 import { verifyTenantMembership } from "@/lib/tenant-membership";
 import { getFeatures } from "@/lib/types/tenant-settings";
 import { sendCampaign, resolveRecipients, MAX_RECIPIENTS, type CampaignRow } from "@/lib/marketing/send";
+import { estimateWhatsAppCost, estimateEmailCost } from "@/lib/marketing/pricing";
 import { logAuditEvent } from "@/lib/audit";
 import type { SegmentDef } from "@/lib/guests/segmentation";
 
@@ -101,16 +102,34 @@ export async function PUT(req: Request) {
     const member = await verifyTenantMembership(tenantId, ["owner", "manager", "marketing"]);
     if (!member) return NextResponse.json({ error: "forbidden" }, { status: 403 });
 
+    const channel = body.channel === "whatsapp" ? "whatsapp" : "email";
     const svc = createServiceRoleClient();
     const { eligible, optedOut } = await resolveRecipients(svc, tenantId, segment);
-    const withEmail = eligible.filter((g) => g.email).length;
-    const withPhone = eligible.filter((g) => g.phone).length;
+    const emails = eligible.filter((g) => g.email);
+    const phones = eligible.filter((g) => g.phone).map((g) => g.phone as string);
+    const withEmail = emails.length;
+    const withPhone = phones.length;
+
+    // Reachable on the CHOSEN channel = what the send will actually attempt,
+    // capped like the real send so the estimate never over-promises.
+    const reachable = channel === "email" ? withEmail : withPhone;
+    const billable = Math.min(reachable, MAX_RECIPIENTS);
+    const cost =
+      channel === "email"
+        ? estimateEmailCost(billable)
+        : estimateWhatsAppCost(phones.slice(0, MAX_RECIPIENTS));
+
     return NextResponse.json({
       success: true,
       total: eligible.length,
       with_email: withEmail,
       with_phone: withPhone,
       opted_out: optedOut,
+      channel,
+      reachable,
+      capped: reachable > MAX_RECIPIENTS,
+      cap: MAX_RECIPIENTS,
+      cost, // { billable, total_eur, per_message_eur }
       sample: eligible.slice(0, 5).map((g) => g.name),
     });
   } catch (e) {

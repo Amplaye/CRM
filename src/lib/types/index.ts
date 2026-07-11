@@ -142,6 +142,10 @@ export interface Guest {
   accessibility_notes?: string;
   family_notes?: string;
   estimated_spend?: number;
+  /** ISO "yyyy-mm-dd" — fuels the birthday marketing segment. */
+  birthday?: string | null;
+  /** Excluded from every marketing campaign (set via the /u unsubscribe page). */
+  marketing_opt_out?: boolean;
   created_at: number;
   updated_at: number;
 }
