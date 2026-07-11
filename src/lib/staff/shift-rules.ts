@@ -4,9 +4,21 @@
 
 export type ShiftBand = "lunch" | "dinner" | "all";
 
+// Why a member is off. Only meaningful on a time_off request; swaps/legacy = null.
+export type AbsenceKind = "vacation" | "sick" | "personal" | "other";
+export const ABSENCE_KINDS: readonly AbsenceKind[] = ["vacation", "sick", "personal", "other"];
+
 export interface ShiftSpan {
   start_time: string; // "HH:MM" or "HH:MM:SS"
   end_time: string;
+}
+
+/** Default start/end for a band — two taps schedule a standard shift. Single
+ *  source of truth shared by the modal, the bulk tool and any future caller. */
+export function bandPreset(band: ShiftBand): { start_time: string; end_time: string } {
+  if (band === "lunch") return { start_time: "12:00", end_time: "16:00" };
+  if (band === "dinner") return { start_time: "19:00", end_time: "23:30" };
+  return { start_time: "12:00", end_time: "23:30" }; // all
 }
 
 export interface ShiftLike extends ShiftSpan {
@@ -76,4 +88,58 @@ export function validateShiftInput(input: {
   if (b - a < 15) return "too_short"; // sub-15-minute shifts are input mistakes
   if (b - a > 16 * 60) return "too_long"; // >16h can't be one shift
   return null;
+}
+
+// ── Date maths for the bulk rota tool & multi-day absences ──────────────────
+// All pure string maths on "YYYY-MM-DD" so the same logic runs on the client
+// (grid preview) and the server (the write), with no timezone drift from Date.
+
+const MS_DAY = 24 * 60 * 60 * 1000;
+
+/** Parse "YYYY-MM-DD" as a UTC instant (avoids local-tz off-by-one). */
+function ymdToUtc(d: string): number {
+  const [y, m, day] = d.split("-").map((n) => parseInt(n, 10));
+  return Date.UTC(y, (m || 1) - 1, day || 1);
+}
+
+function utcToYmd(ms: number): string {
+  const d = new Date(ms);
+  const p = (n: number) => String(n).padStart(2, "0");
+  return `${d.getUTCFullYear()}-${p(d.getUTCMonth() + 1)}-${p(d.getUTCDate())}`;
+}
+
+/** Monday=0 … Sunday=6 for a "YYYY-MM-DD" date. */
+export function weekdayIndex(d: string): number {
+  return (new Date(ymdToUtc(d)).getUTCDay() + 6) % 7;
+}
+
+/** Add `n` days to a "YYYY-MM-DD" date, returning "YYYY-MM-DD". */
+export function addDays(d: string, n: number): string {
+  return utcToYmd(ymdToUtc(d) + n * MS_DAY);
+}
+
+/**
+ * Every date in [from, to] inclusive, ascending. Empty if `to` < `from` or
+ * either is malformed. Capped at 366 days so a typo can't fan out unbounded.
+ */
+export function datesInRange(from: string, to: string): string[] {
+  if (!isValidDate(from) || !isValidDate(to)) return [];
+  const a = ymdToUtc(from);
+  const b = ymdToUtc(to);
+  if (b < a) return [];
+  const out: string[] = [];
+  for (let ms = a; ms <= b && out.length < 366; ms += MS_DAY) out.push(utcToYmd(ms));
+  return out;
+}
+
+/**
+ * Given the Monday that starts a week and a set of weekday indices
+ * (0=Mon … 6=Sun), return the concrete dates in that week, ascending.
+ */
+export function weekdayDatesInWeek(weekStart: string, weekdays: number[]): string[] {
+  if (!isValidDate(weekStart)) return [];
+  const want = new Set(weekdays.filter((n) => n >= 0 && n <= 6));
+  const out: string[] = [];
+  for (let i = 0; i < 7; i++) if (want.has(i)) out.push(addDays(weekStart, i));
+  return out;
 }

@@ -10,13 +10,15 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import {
   CalendarClock, ChevronLeft, ChevronRight, Plus, X, Sun, Moon, Clock,
-  CheckCircle2, XCircle, Hourglass, Users, Lock, Send,
+  CheckCircle2, XCircle, Hourglass, Users, Lock, Send, CalendarRange, CopyPlus,
+  Plane, Thermometer, UserMinus, CalendarOff,
 } from "lucide-react";
 import { useLanguage } from "@/lib/contexts/LanguageContext";
 import { useTenant } from "@/lib/contexts/TenantContext";
 import { createClient } from "@/lib/supabase/client";
 import type { Dictionary } from "@/lib/i18n/dictionaries/en";
 import { hasActivePlan } from "@/lib/billing/entitlements";
+import { bandPreset, datesInRange, type AbsenceKind } from "@/lib/staff/shift-rules";
 import { StaffTab } from "@/components/settings/StaffTab";
 
 type DbRole = "owner" | "manager" | "host";
@@ -35,7 +37,9 @@ type ShiftRequest = {
   id: string;
   member_id: string;
   type: "time_off" | "swap";
+  reason_kind: AbsenceKind | null;
   work_date: string;
+  end_date: string | null;
   target_shift_id: string | null;
   target_member_id: string | null;
   reason: string | null;
@@ -62,6 +66,16 @@ const DAY_KEYS = [
   "settings_day_mon", "settings_day_tue", "settings_day_wed", "settings_day_thu",
   "settings_day_fri", "settings_day_sat", "settings_day_sun",
 ] as const;
+
+// Weekday labels for the bulk tool's day pills, Monday-first (0=Mon … 6=Sun).
+const WEEKDAY_PILL_KEYS = DAY_KEYS;
+
+const ABSENCE_LABEL_KEY: Record<AbsenceKind, string> = {
+  vacation: "staff_absence_vacation",
+  sick: "staff_absence_sick",
+  personal: "staff_absence_personal",
+  other: "staff_absence_other",
+};
 
 export default function StaffPage() {
   const { t } = useLanguage();
@@ -92,6 +106,11 @@ export default function StaffPage() {
     | { type: "swap"; shift: Shift }
     | null
   >(null);
+  // Manager accelerators
+  const [bulkOpen, setBulkOpen] = useState(false);
+  const [absenceModal, setAbsenceModal] = useState<{ memberId?: string; date?: string } | null>(null);
+  const [copyBusy, setCopyBusy] = useState(false);
+  const [flash, setFlash] = useState<string | null>(null);
 
   const weekDays = useMemo(() => {
     return Array.from({ length: 7 }, (_, i) => {
@@ -176,7 +195,59 @@ export default function StaffPage() {
     [shifts],
   );
 
+  // Approved absences expanded to the set of (member, date) pairs they cover, so
+  // the grid can show "off" on every day of a holiday range in one glance.
+  const absenceByCell = useMemo(() => {
+    const map = new Map<string, AbsenceKind>(); // key `${memberId}|${date}`
+    for (const r of requests) {
+      if (r.type !== "time_off" || r.status !== "approved") continue;
+      for (const d of datesInRange(r.work_date, r.end_date ?? r.work_date)) {
+        map.set(`${r.member_id}|${d}`, r.reason_kind ?? "other");
+      }
+    }
+    return map;
+  }, [requests]);
+
+  const absenceFor = useCallback(
+    (memberId: string, date: string) => absenceByCell.get(`${memberId}|${date}`) ?? null,
+    [absenceByCell],
+  );
+
   const pendingCount = requests.filter((r) => r.status === "pending").length;
+
+  // Copy the previous week's rota onto the visible week (add-only).
+  const copyPreviousWeek = useCallback(async () => {
+    if (!activeTenant?.id) return;
+    const prevStart = new Date(weekStart);
+    prevStart.setDate(prevStart.getDate() - 7);
+    setCopyBusy(true);
+    setFlash(null);
+    try {
+      const res = await fetch("/api/staff/shifts/copy-week", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          tenant_id: activeTenant.id,
+          source_week_start: dateStr(prevStart),
+          target_week_start: dateStr(weekStart),
+        }),
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setFlash(tk("staff_copy_error"));
+      } else if (body.empty || (body.created === 0 && body.skipped === 0)) {
+        setFlash(tk("staff_copy_empty"));
+      } else {
+        setFlash(tk("staff_copy_done").replace("{created}", String(body.created)).replace("{skipped}", String(body.skipped)));
+        void refresh();
+      }
+    } catch {
+      setFlash(tk("staff_copy_error"));
+    } finally {
+      setCopyBusy(false);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTenant?.id, weekStart, refresh]);
 
   // ── Guards ──
   if (!hasActivePlan(activeTenant?.settings)) {
@@ -202,6 +273,18 @@ export default function StaffPage() {
     dinner: { bg: "rgba(124,92,60,0.16)", fg: "#5b4632" },
     all: { bg: "rgba(122,133,96,0.16)", fg: "#4a5138" },
   };
+
+  const absenceIcon = (k: AbsenceKind) =>
+    k === "vacation" ? <Plane className="w-3 h-3" />
+    : k === "sick" ? <Thermometer className="w-3 h-3" />
+    : k === "personal" ? <UserMinus className="w-3 h-3" />
+    : <CalendarOff className="w-3 h-3" />;
+
+  const absenceStyle = (k: AbsenceKind): { bg: string; fg: string } =>
+    k === "vacation" ? { bg: "rgba(37,99,235,0.12)", fg: "#1d4ed8" }
+    : k === "sick" ? { bg: "rgba(220,38,38,0.10)", fg: "#b91c1c" }
+    : k === "personal" ? { bg: "rgba(124,92,60,0.12)", fg: "#7c5c3c" }
+    : { bg: "rgba(107,114,128,0.12)", fg: "#4b5563" };
 
   const statusChip = (status: ShiftRequest["status"]) => {
     const map = {
@@ -277,10 +360,17 @@ export default function StaffPage() {
               {requests.map((r) => (
                 <div key={r.id} className="p-4 flex flex-wrap items-center gap-3 justify-between">
                   <div className="min-w-0">
-                    <p className="text-sm font-bold text-black">
+                    <p className="text-sm font-bold text-black flex items-center flex-wrap gap-x-1">
+                      {r.type === "time_off" && r.reason_kind && (
+                        <span className="inline-flex items-center gap-1 mr-1" style={{ color: absenceStyle(r.reason_kind).fg }}>
+                          {absenceIcon(r.reason_kind)}
+                        </span>
+                      )}
                       {memberName(r.member_id)}
-                      <span className="font-medium"> · {r.type === "time_off" ? tk("staff_type_time_off") : tk("staff_type_swap")}</span>
-                      <span className="font-medium"> · {r.work_date}</span>
+                      <span className="font-medium"> · {r.type === "time_off"
+                        ? (r.reason_kind ? tk(ABSENCE_LABEL_KEY[r.reason_kind]) : tk("staff_type_time_off"))
+                        : tk("staff_type_swap")}</span>
+                      <span className="font-medium"> · {r.end_date && r.end_date !== r.work_date ? `${r.work_date} → ${r.end_date}` : r.work_date}</span>
                     </p>
                     {r.type === "swap" && (
                       <p className="text-xs text-black mt-0.5">→ {memberName(r.target_member_id)}</p>
@@ -289,6 +379,24 @@ export default function StaffPage() {
                   </div>
                   <div className="flex items-center gap-2">
                     {statusChip(r.status)}
+                    {/* Manager can delete an absence they recorded (approved time_off). */}
+                    {isManager && r.status === "approved" && r.type === "time_off" && r.reason_kind && (
+                      <button
+                        onClick={async () => {
+                          if (!confirm(tk("staff_absence_delete_confirm"))) return;
+                          await fetch("/api/staff/absences", {
+                            method: "DELETE",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({ tenant_id: activeTenant!.id, request_id: r.id }),
+                          });
+                          void refresh();
+                        }}
+                        className="text-red-500 hover:text-red-700 cursor-pointer"
+                        title={tk("staff_delete")}
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    )}
                     {isManager && r.status === "pending" && (
                       <>
                         <button
@@ -330,7 +438,7 @@ export default function StaffPage() {
 
       {tab === "shifts" && (
         <>
-          {/* Week navigation */}
+          {/* Week navigation + manager accelerators */}
           <div className="flex items-center gap-2 flex-wrap">
             <div className="inline-flex rounded-xl border overflow-hidden bg-white/70" style={{ borderColor: "#c4956a" }}>
               <button onClick={() => setWeekStart((w) => { const d = new Date(w); d.setDate(d.getDate() - 7); return d; })}
@@ -348,7 +456,42 @@ export default function StaffPage() {
             <span className="text-sm font-bold text-black tabular-nums">
               {weekDays[0].getDate()}/{pad(weekDays[0].getMonth() + 1)} — {weekDays[6].getDate()}/{pad(weekDays[6].getMonth() + 1)}
             </span>
+
+            {isManager && (
+              <div className="flex items-center gap-2 ml-auto flex-wrap">
+                <button
+                  onClick={() => setBulkOpen(true)}
+                  className="inline-flex items-center gap-1.5 px-3 py-2 text-sm font-bold rounded-xl text-white cursor-pointer"
+                  style={{ background: "#c4956a" }}
+                >
+                  <CalendarRange className="w-4 h-4" /> {tk("staff_bulk_open")}
+                </button>
+                <button
+                  onClick={copyPreviousWeek}
+                  disabled={copyBusy}
+                  className="inline-flex items-center gap-1.5 px-3 py-2 text-sm font-bold rounded-xl border cursor-pointer text-black bg-white/70 disabled:opacity-50"
+                  style={{ borderColor: "#c4956a" }}
+                  title={tk("staff_copy_prev_hint")}
+                >
+                  <CopyPlus className="w-4 h-4" /> {copyBusy ? "…" : tk("staff_copy_prev")}
+                </button>
+                <button
+                  onClick={() => setAbsenceModal({})}
+                  className="inline-flex items-center gap-1.5 px-3 py-2 text-sm font-bold rounded-xl border cursor-pointer text-black bg-white/70"
+                  style={{ borderColor: "#c4956a" }}
+                >
+                  <CalendarOff className="w-4 h-4" /> {tk("staff_absence_open")}
+                </button>
+              </div>
+            )}
           </div>
+
+          {flash && (
+            <div className="rounded-xl border px-4 py-2.5 text-sm font-medium text-black bg-white/70 flex items-center justify-between gap-3" style={{ borderColor: "#c4956a" }}>
+              <span>{flash}</span>
+              <button onClick={() => setFlash(null)} className="text-black/50 hover:text-black cursor-pointer" aria-label="dismiss"><X className="w-4 h-4" /></button>
+            </div>
+          )}
 
           {/* Rota grid — horizontally scrollable on mobile */}
           <div className={`${CARD} overflow-hidden`} style={CARD_STYLE}>
@@ -386,10 +529,17 @@ export default function StaffPage() {
                       {weekDays.map((d, i) => {
                         const ds = dateStr(d);
                         const cellShifts = shiftsFor(m.id, ds);
+                        const absence = absenceFor(m.id, ds);
                         return (
                           <td key={i} className="align-top px-1.5 py-1.5 min-w-[96px]"
                             style={ds === todayStr ? { background: "rgba(196,149,106,0.06)" } : undefined}>
                             <div className="space-y-1">
+                              {absence && (
+                                <div className="w-full rounded-lg px-2 py-1 flex items-center gap-1 text-[11px] font-bold"
+                                  style={{ background: absenceStyle(absence).bg, color: absenceStyle(absence).fg }}>
+                                  {absenceIcon(absence)} {tk(ABSENCE_LABEL_KEY[absence])}
+                                </div>
+                              )}
                               {cellShifts.map((s) => {
                                 const mine = m.id === myMemberId;
                                 const clickable = isManager || mine;
@@ -462,6 +612,39 @@ export default function StaffPage() {
           modal={requestModal}
           onClose={() => setRequestModal(null)}
           onSaved={() => { setRequestModal(null); void refresh(); }}
+        />
+      )}
+
+      {/* ── Bulk assign panel (manager) ── */}
+      {bulkOpen && activeTenant && (
+        <BulkAssignPanel
+          t={tk}
+          tenantId={activeTenant.id}
+          members={members}
+          weekStart={weekStart}
+          weekDays={weekDays}
+          onClose={() => setBulkOpen(false)}
+          onDone={(created, skipped) => {
+            setBulkOpen(false);
+            setFlash(tk("staff_bulk_done").replace("{created}", String(created)).replace("{skipped}", String(skipped)));
+            void refresh();
+          }}
+        />
+      )}
+
+      {/* ── Absence modal (manager records ferie/malattia/imprevisto) ── */}
+      {absenceModal && activeTenant && (
+        <AbsenceModal
+          t={tk}
+          tenantId={activeTenant.id}
+          members={members}
+          preset={absenceModal}
+          onClose={() => setAbsenceModal(null)}
+          onSaved={(days) => {
+            setAbsenceModal(null);
+            setFlash(tk("staff_absence_done").replace("{days}", String(days)));
+            void refresh();
+          }}
         />
       )}
     </div>
@@ -691,6 +874,304 @@ function RequestModal({
             style={{ background: "#c4956a" }}
           >
             {busy ? "…" : t("staff_send")}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ──────────────────── Bulk assign (manager) ──────────────────── */
+// One band/time → many members × many weekdays of the visible week, in a single
+// action. Replaces the "click every empty cell" grind. Cells that already have
+// an overlapping shift are skipped server-side, so it's safe to re-run.
+function BulkAssignPanel({
+  t, tenantId, members, weekStart, weekDays, onClose, onDone,
+}: {
+  t: (k: string) => string;
+  tenantId: string;
+  members: Member[];
+  weekStart: Date;
+  weekDays: Date[];
+  onClose: () => void;
+  onDone: (created: number, skipped: number) => void;
+}) {
+  const [selMembers, setSelMembers] = useState<Set<string>>(() => new Set(members.map((m) => m.id)));
+  const [selDays, setSelDays] = useState<Set<number>>(() => new Set([0, 1, 2, 3, 4])); // Mon–Fri default
+  const [band, setBand] = useState<Shift["band"]>("dinner");
+  const [start, setStart] = useState("19:00");
+  const [end, setEnd] = useState("23:30");
+  const [note, setNote] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  const applyBand = (b: Shift["band"]) => {
+    setBand(b);
+    const p = bandPreset(b);
+    setStart(p.start_time);
+    setEnd(p.end_time);
+  };
+
+  const toggleMember = (id: string) =>
+    setSelMembers((s) => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; });
+  const toggleDay = (i: number) =>
+    setSelDays((s) => { const n = new Set(s); n.has(i) ? n.delete(i) : n.add(i); return n; });
+
+  const allMembersSelected = selMembers.size === members.length && members.length > 0;
+  const toggleAllMembers = () =>
+    setSelMembers(allMembersSelected ? new Set() : new Set(members.map((m) => m.id)));
+
+  // Concrete dates for the picked weekdays in the visible week.
+  const dates = useMemo(
+    () => weekDays.filter((_, i) => selDays.has(i)).map((d) => dateStr(d)),
+    [weekDays, selDays],
+  );
+  const pairCount = selMembers.size * dates.length;
+
+  const submit = async () => {
+    setBusy(true);
+    setErr(null);
+    try {
+      const res = await fetch("/api/staff/shifts/bulk", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          tenant_id: tenantId,
+          member_ids: [...selMembers],
+          dates,
+          band,
+          start_time: start,
+          end_time: end,
+          role_note: note,
+        }),
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setErr(body?.error === "shift_conflict" ? t("staff_conflict") : (body?.error || "error"));
+        return;
+      }
+      onDone(body.created ?? 0, body.skipped ?? 0);
+    } catch (e: any) {
+      setErr(e?.message || "error");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const weekLabel = `${weekDays[0].getDate()}/${pad(weekDays[0].getMonth() + 1)} — ${weekDays[6].getDate()}/${pad(weekDays[6].getMonth() + 1)}`;
+
+  return (
+    <div className={OVERLAY} role="dialog" aria-modal="true">
+      <div className="absolute inset-0 bg-black/50" onClick={onClose} />
+      <div className="relative bg-white rounded-2xl w-full max-w-lg border-2 max-h-[92vh] overflow-y-auto" style={{ borderColor: "#c4956a" }}>
+        <div className="flex items-center justify-between p-5 pb-3 sticky top-0 bg-white z-10 border-b" style={{ borderColor: "#f0e5d4" }}>
+          <div>
+            <h3 className="text-lg font-bold text-black flex items-center gap-2"><CalendarRange className="w-5 h-5" /> {t("staff_bulk_title")}</h3>
+            <p className="text-xs mt-0.5" style={{ color: "#8b6540" }}>{t("staff_bulk_week")} {weekLabel}</p>
+          </div>
+          <button onClick={onClose} className="text-black/50 hover:text-black cursor-pointer" aria-label="close"><X className="w-5 h-5" /></button>
+        </div>
+
+        <div className="p-5 pt-4 space-y-4">
+          {/* Members */}
+          <div>
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="block text-xs font-bold text-black">{t("staff_bulk_members")}</label>
+              <button onClick={toggleAllMembers} className="text-xs font-bold cursor-pointer" style={{ color: "#c4956a" }}>
+                {allMembersSelected ? t("staff_bulk_none") : t("staff_bulk_all")}
+              </button>
+            </div>
+            <div className="flex flex-wrap gap-1.5">
+              {members.map((m) => {
+                const on = selMembers.has(m.id);
+                return (
+                  <button
+                    key={m.id}
+                    type="button"
+                    onClick={() => toggleMember(m.id)}
+                    className="px-2.5 py-1.5 rounded-lg border-2 text-sm font-medium cursor-pointer text-black"
+                    style={on ? { borderColor: "#c4956a", background: "rgba(196,149,106,0.15)" } : { borderColor: "#e2d5bf", opacity: 0.7 }}
+                  >
+                    {on ? <CheckCircle2 className="w-3.5 h-3.5 inline mr-1" style={{ color: "#c4956a" }} /> : null}
+                    {m.name || m.email || m.id.slice(0, 6)}
+                  </button>
+                );
+              })}
+              {members.length === 0 && <span className="text-sm text-black">{t("staff_no_members")}</span>}
+            </div>
+          </div>
+
+          {/* Weekdays */}
+          <div>
+            <label className="block text-xs font-bold text-black mb-1.5">{t("staff_bulk_days")}</label>
+            <div className="flex flex-wrap gap-1.5">
+              {WEEKDAY_PILL_KEYS.map((k, i) => {
+                const on = selDays.has(i);
+                return (
+                  <button
+                    key={k}
+                    type="button"
+                    onClick={() => toggleDay(i)}
+                    className="w-11 h-10 rounded-lg border-2 text-sm font-bold cursor-pointer text-black"
+                    style={on ? { borderColor: "#c4956a", background: "rgba(196,149,106,0.15)" } : { borderColor: "#e2d5bf", opacity: 0.6 }}
+                  >
+                    {t(k)}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Band + times */}
+          <div className="grid grid-cols-3 gap-3">
+            <div>
+              <label className="block text-xs font-bold text-black mb-1">{t("staff_band")}</label>
+              <select value={band} onChange={(e) => applyBand(e.target.value as Shift["band"])} className={INPUT} style={INPUT_STYLE}>
+                <option value="lunch">{t("staff_band_lunch")}</option>
+                <option value="dinner">{t("staff_band_dinner")}</option>
+                <option value="all">{t("staff_band_all")}</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-black mb-1">{t("staff_start")}</label>
+              <input type="time" value={start} onChange={(e) => setStart(e.target.value)} className={INPUT} style={INPUT_STYLE} />
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-black mb-1">{t("staff_end")}</label>
+              <input type="time" value={end} onChange={(e) => setEnd(e.target.value)} className={INPUT} style={INPUT_STYLE} />
+            </div>
+          </div>
+          <div>
+            <label className="block text-xs font-bold text-black mb-1">{t("staff_note")}</label>
+            <input value={note} onChange={(e) => setNote(e.target.value.slice(0, 60))} placeholder={t("staff_note_ph")} className={INPUT} style={INPUT_STYLE} />
+          </div>
+
+          {err && <p className="text-xs text-red-600">{err}</p>}
+
+          <button
+            onClick={submit}
+            disabled={busy || pairCount === 0}
+            className="w-full py-2.5 rounded-lg text-white text-sm font-bold cursor-pointer disabled:opacity-50"
+            style={{ background: "#c4956a" }}
+          >
+            {busy ? "…" : pairCount === 0 ? t("staff_bulk_pick") : t("staff_bulk_create").replace("{n}", String(pairCount))}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ──────────────────── Absence (manager) ──────────────────── */
+// "Marco is on holiday next week" / "Ana called in sick." Records an approved
+// time_off for a member over a date range and cancels their shifts across it.
+function AbsenceModal({
+  t, tenantId, members, preset, onClose, onSaved,
+}: {
+  t: (k: string) => string;
+  tenantId: string;
+  members: Member[];
+  preset: { memberId?: string; date?: string };
+  onClose: () => void;
+  onSaved: (days: number) => void;
+}) {
+  const [memberId, setMemberId] = useState(preset.memberId || members[0]?.id || "");
+  const [kind, setKind] = useState<AbsenceKind>("vacation");
+  const [from, setFrom] = useState(preset.date || "");
+  const [to, setTo] = useState("");
+  const [reason, setReason] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  const dayCount = from ? datesInRange(from, to || from).length : 0;
+
+  const KIND_OPTS: Array<[AbsenceKind, string]> = [
+    ["vacation", "staff_absence_vacation"],
+    ["sick", "staff_absence_sick"],
+    ["personal", "staff_absence_personal"],
+    ["other", "staff_absence_other"],
+  ];
+
+  const save = async () => {
+    setBusy(true);
+    setErr(null);
+    try {
+      const res = await fetch("/api/staff/absences", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          tenant_id: tenantId,
+          member_id: memberId,
+          reason_kind: kind,
+          work_date: from,
+          end_date: to && to !== from ? to : null,
+          reason,
+        }),
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) { setErr(body?.error || "error"); return; }
+      onSaved(dayCount);
+    } catch (e: any) {
+      setErr(e?.message || "error");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className={OVERLAY} role="dialog" aria-modal="true">
+      <div className="absolute inset-0 bg-black/50" onClick={onClose} />
+      <div className={PANEL} style={{ borderColor: "#c4956a" }}>
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-lg font-bold text-black flex items-center gap-2"><CalendarOff className="w-5 h-5" /> {t("staff_absence_title")}</h3>
+          <button onClick={onClose} className="text-black/50 hover:text-black cursor-pointer" aria-label="close"><X className="w-5 h-5" /></button>
+        </div>
+        <div className="space-y-3">
+          <div>
+            <label className="block text-xs font-bold text-black mb-1">{t("staff_tab_team")}</label>
+            <select value={memberId} onChange={(e) => setMemberId(e.target.value)} className={INPUT} style={INPUT_STYLE}>
+              {members.map((m) => <option key={m.id} value={m.id}>{m.name || m.email || m.id.slice(0, 6)}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="block text-xs font-bold text-black mb-1">{t("staff_absence_reason")}</label>
+            <div className="grid grid-cols-2 gap-2">
+              {KIND_OPTS.map(([k, labelKey]) => (
+                <button
+                  key={k}
+                  type="button"
+                  onClick={() => setKind(k)}
+                  className="px-3 py-2 rounded-lg border-2 text-sm font-bold cursor-pointer text-black text-left"
+                  style={kind === k ? { borderColor: "#c4956a", background: "rgba(196,149,106,0.15)" } : { borderColor: "#e2d5bf", opacity: 0.75 }}
+                >
+                  {t(labelKey)}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-bold text-black mb-1">{t("staff_absence_from")}</label>
+              <input type="date" value={from} onChange={(e) => { setFrom(e.target.value); if (to && to < e.target.value) setTo(""); }} className={INPUT} style={INPUT_STYLE} />
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-black mb-1">{t("staff_absence_to")}</label>
+              <input type="date" value={to} min={from || undefined} onChange={(e) => setTo(e.target.value)} className={INPUT} style={INPUT_STYLE} />
+            </div>
+          </div>
+          <p className="text-xs" style={{ color: "#8b6540" }}>{t("staff_absence_to_hint")}</p>
+          <div>
+            <label className="block text-xs font-bold text-black mb-1">{t("staff_request_reason")}</label>
+            <input value={reason} onChange={(e) => setReason(e.target.value.slice(0, 300))} className={INPUT} style={INPUT_STYLE} />
+          </div>
+          {err && <p className="text-xs text-red-600">{err}</p>}
+          <button
+            onClick={save}
+            disabled={busy || !memberId || !from}
+            className="w-full py-2 rounded-lg text-white text-sm font-bold cursor-pointer disabled:opacity-50"
+            style={{ background: "#c4956a" }}
+          >
+            {busy ? "…" : dayCount > 1 ? t("staff_absence_save_range").replace("{days}", String(dayCount)) : t("staff_absence_save")}
           </button>
         </div>
       </div>

@@ -1,12 +1,11 @@
 "use client";
 
 import { Suspense, useState, useEffect } from "react";
-import { Settings as SettingsIcon, Users, ToggleRight, CalendarClock, LineChart, Plug, CreditCard, Tags, MessageCircle } from "lucide-react";
+import { Settings as SettingsIcon, ToggleRight, CalendarClock, LineChart, Plug, CreditCard, Tags, MessageCircle } from "lucide-react";
 import { useSearchParams, useRouter, usePathname } from "next/navigation";
 import { useLanguage } from "@/lib/contexts/LanguageContext";
 import { useTenant } from "@/lib/contexts/TenantContext";
 import { GeneralTab } from "@/components/settings/GeneralTab";
-import { StaffTab } from "@/components/settings/StaffTab";
 import { FeaturesTab } from "@/components/settings/FeaturesTab";
 import { BookingTab } from "@/components/settings/BookingTab";
 import { ManagementTab } from "@/components/settings/ManagementTab";
@@ -16,7 +15,7 @@ import { CommercialInfoTab } from "@/components/settings/CommercialInfoTab";
 import { WhatsAppTab } from "@/components/settings/WhatsAppTab";
 import { getFeatures } from "@/lib/types/tenant-settings";
 
-type Tab = "general" | "booking" | "features" | "commercial" | "management" | "pos" | "payments" | "staff" | "whatsapp";
+type Tab = "general" | "booking" | "features" | "commercial" | "management" | "pos" | "payments" | "whatsapp";
 
 function SettingsContent() {
   const { t } = useLanguage();
@@ -25,18 +24,19 @@ function SettingsContent() {
   const router = useRouter();
   const pathname = usePathname();
 
-  const TABS: Tab[] = ["general", "booking", "staff", "features", "commercial", "management", "pos", "payments", "whatsapp"];
+  const TABS: Tab[] = ["general", "booking", "features", "commercial", "management", "pos", "payments", "whatsapp"];
   const initial = (searchParams.get("tab") as Tab) || "general";
   const [tab, setTab] = useState<Tab>(TABS.includes(initial) ? initial : "general");
 
+  // Staff management moved to its own /staff page (next to the rota). Old links
+  // to ?tab=staff redirect there so bookmarks keep working.
   useEffect(() => {
+    if (searchParams.get("tab") === "staff") { router.replace("/staff"); return; }
     const t = searchParams.get("tab") as Tab | null;
     if (t && TABS.includes(t)) setTab(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams]);
 
-  // Only the Admin (DB owner — the account creator) can manage staff.
-  const canSeeStaffTab = activeRole === "owner";
   // Features = restaurant capabilities; the owner or Bali Flow staff (impersonating) sets them.
   const canSeeFeaturesTab = activeRole === "owner" || globalRole === "platform_admin";
   // Bookings = contact details + booking rules; owner-level, same gate as features.
@@ -97,16 +97,6 @@ function SettingsContent() {
           >
             <CalendarClock className="w-4 h-4" />
             {t("settings_tab_booking") || "Prenotazioni"}
-          </button>
-        )}
-        {canSeeStaffTab && (
-          <button
-            onClick={() => setActiveTab("staff")}
-            className={`inline-flex shrink-0 whitespace-nowrap items-center gap-2 px-4 py-2 text-sm font-medium border-b-2 transition-colors cursor-pointer ${tab === "staff" ? "text-black" : "text-black hover:text-black border-transparent"}`}
-            style={tab === "staff" ? { borderColor: "#c4956a" } : {}}
-          >
-            <Users className="w-4 h-4" />
-            {t("settings_tab_staff") || "Staff"}
           </button>
         )}
         {canSeeFeaturesTab && (
@@ -179,7 +169,6 @@ function SettingsContent() {
       {tab === "pos" && canSeePosTab && <PosTab />}
       {tab === "payments" && canSeePaymentsTab && <PaymentsTab />}
       {tab === "whatsapp" && canSeeWhatsAppTab && <WhatsAppTab />}
-      {tab === "staff" && canSeeStaffTab && <StaffTab />}
     </div>
   );
 }

@@ -1,12 +1,12 @@
 "use client";
 
-import { UserPlus, Shield, Trash2, X, QrCode, User } from "lucide-react";
+import { UserPlus, Shield, Trash2, X, QrCode, User, Hourglass, Info } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import { useLanguage } from "@/lib/contexts/LanguageContext";
 import type { Dictionary } from "@/lib/i18n/dictionaries/en";
 import { useTenant } from "@/lib/contexts/TenantContext";
 import { createClient } from "@/lib/supabase/client";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 type DbRole = "owner" | "manager" | "host";
 
@@ -17,6 +17,17 @@ type Member = {
   email: string;
   name: string;
   created_at?: string;
+};
+
+// An invite that's been created but not yet scanned — it lives only in
+// qr_login_tokens (no tenant_members row until first scan), so without this the
+// owner has no way to see who's been invited but hasn't logged in.
+type PendingInvite = {
+  id: string;
+  token: string;
+  pending_name: string | null;
+  pending_role: string | null;
+  expires_at: string;
 };
 
 // UI roles: Admin (DB owner — the account creator, unique), Responsabile
@@ -35,6 +46,8 @@ export function StaffTab() {
   const supabase = useMemo(() => createClient(), []);
 
   const [members, setMembers] = useState<Member[]>([]);
+  const [pending, setPending] = useState<PendingInvite[]>([]);
+  const [showRoleHelp, setShowRoleHelp] = useState(false);
   const [loading, setLoading] = useState(true);
   const [myUserId, setMyUserId] = useState<string | null>(null);
   const [myRole, setMyRole] = useState<DbRole | null>(null);
@@ -130,6 +143,34 @@ export function StaffTab() {
     };
   }, [activeTenant, supabase]);
 
+  // Pending invites: rows in qr_login_tokens not yet scanned (user_id null),
+  // not consumed, not expired. Only owner/manager can read these (RLS).
+  const fetchPending = useCallback(async () => {
+    if (!activeTenant) return;
+    const nowIso = new Date().toISOString();
+    const { data } = await supabase
+      .from("qr_login_tokens")
+      .select("id, token, pending_name, pending_role, expires_at, consumed_at, user_id")
+      .eq("tenant_id", activeTenant.id)
+      .is("user_id", null)
+      .is("consumed_at", null)
+      .gt("expires_at", nowIso)
+      .order("expires_at", { ascending: false });
+    setPending(
+      (data || [])
+        .filter((r: any) => r.pending_name || r.pending_role)
+        .map((r: any) => ({
+          id: r.id,
+          token: r.token,
+          pending_name: r.pending_name,
+          pending_role: r.pending_role,
+          expires_at: r.expires_at,
+        })),
+    );
+  }, [activeTenant, supabase]);
+
+  useEffect(() => { void fetchPending(); }, [fetchPending]);
+
   useEffect(() => {
     if (!myUserId || members.length === 0) return;
     const me = members.find(m => m.user_id === myUserId);
@@ -190,10 +231,41 @@ export function StaffTab() {
       setQrUrl(body.url);
       setQrError(null);
       setQrLoading(false);
+      void fetchPending(); // show it in the "waiting to scan" list right away
     } catch (e: any) {
       setInviteError(e?.message || "Network error");
     } finally {
       setInviting(false);
+    }
+  };
+
+  // Re-show the QR for a pending invite (the owner closed the modal, or wants to
+  // show it again on the new hire's phone). The token is still valid until it
+  // expires; we rebuild the same /qr-login URL from it.
+  const reshowPending = (p: PendingInvite) => {
+    setQrFor({ kind: "pending", name: p.pending_name || "" });
+    setQrUrl(`${window.location.origin}/qr-login?t=${p.token}`);
+    setQrError(null);
+    setQrLoading(false);
+  };
+
+  // Cancel an outstanding invite before it's scanned (wrong name/role, or the
+  // person isn't joining). Deletes the pending token via the requests-style API.
+  const cancelPending = async (p: PendingInvite) => {
+    if (!activeTenant) return;
+    if (!confirm((t("team_pending_cancel_confirm") || "Annullare l'invito per {name}?").replace("{name}", p.pending_name || "—"))) return;
+    const prev = pending;
+    setPending(curr => curr.filter(x => x.id !== p.id)); // optimistic
+    try {
+      const res = await fetch("/api/team/cancel-invite", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tokenId: p.id, tenantId: activeTenant.id }),
+      });
+      if (!res.ok) { setPending(prev); const b = await res.json().catch(() => ({})); alert(b?.error || "Failed"); }
+    } catch (e: any) {
+      setPending(prev);
+      alert(e?.message || "Network error");
     }
   };
 
@@ -236,6 +308,14 @@ export function StaffTab() {
         {canManage && (
           <div className="mt-3 sm:mt-0 flex space-x-3">
             <button
+              onClick={() => setShowRoleHelp(v => !v)}
+              className="inline-flex items-center px-3 py-2 border-2 text-sm font-medium rounded-md text-black hover:bg-white/50 transition-colors cursor-pointer"
+              style={{ borderColor: '#c4956a' }}
+            >
+              <Info className="-ml-0.5 mr-1.5 h-4 w-4" aria-hidden="true" />
+              {t("team_roles_help")}
+            </button>
+            <button
               onClick={() => setShowInvite(true)}
               className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-zinc-900 hover:bg-zinc-800 transition-colors cursor-pointer"
             >
@@ -245,6 +325,29 @@ export function StaffTab() {
           </div>
         )}
       </div>
+
+      {/* What each role can do + how the invite works — the answer to
+          "what happens when I add someone". */}
+      {showRoleHelp && (
+        <div className="border-2 rounded-xl p-4 sm:p-5 space-y-3" style={{ borderColor: '#c4956a', background: 'rgba(252,246,237,0.7)' }}>
+          <div className="flex items-start gap-2">
+            <Shield className="w-4 h-4 mt-0.5 flex-shrink-0" style={{ color: '#c4956a' }} />
+            <p className="text-sm text-black"><span className="font-bold">{t("team_role_admin")}</span> — {t("team_help_admin")}</p>
+          </div>
+          <div className="flex items-start gap-2">
+            <Shield className="w-4 h-4 mt-0.5 flex-shrink-0 text-blue-600" />
+            <p className="text-sm text-black"><span className="font-bold">{t("team_role_responsabile")}</span> — {t("team_help_responsabile")}</p>
+          </div>
+          <div className="flex items-start gap-2">
+            <User className="w-4 h-4 mt-0.5 flex-shrink-0 text-blue-600" />
+            <p className="text-sm text-black"><span className="font-bold">{t("team_role_staff")}</span> — {t("team_help_staff")}</p>
+          </div>
+          <div className="flex items-start gap-2 pt-2 border-t" style={{ borderColor: 'rgba(196,149,106,0.3)' }}>
+            <QrCode className="w-4 h-4 mt-0.5 flex-shrink-0" style={{ color: '#c4956a' }} />
+            <p className="text-sm text-black">{t("team_help_invite_flow")}</p>
+          </div>
+        </div>
+      )}
 
       <div className="border-2 rounded-xl overflow-hidden" style={{ background: 'rgba(252,246,237,0.85)', borderColor: '#c4956a', boxShadow: '0 20px 60px rgba(196,149,106,0.25), 0 8px 24px rgba(196,149,106,0.15)' }}>
         {/* skeleton */}
@@ -316,6 +419,42 @@ export function StaffTab() {
           );
         })}
       </div>
+
+      {/* Pending invites — created but not yet scanned. Without this they're
+          invisible (they live in qr_login_tokens, not tenant_members). */}
+      {canManage && pending.length > 0 && (
+        <div>
+          <p className="text-xs font-bold uppercase tracking-wide mb-2" style={{ color: '#8b6540' }}>
+            {t("team_pending_title")}
+          </p>
+          <div className="border-2 border-dashed rounded-xl overflow-hidden" style={{ borderColor: 'rgba(196,149,106,0.6)', background: 'rgba(252,246,237,0.5)' }}>
+            {pending.map(p => (
+              <div key={p.id} className="flex items-center gap-3 px-4 py-3 border-b last:border-b-0" style={{ borderColor: 'rgba(196,149,106,0.25)' }}>
+                <div className="flex-shrink-0 h-10 w-10 rounded-full flex items-center justify-center" style={{ background: 'rgba(245,158,11,0.15)' }}>
+                  <Hourglass className="w-4 h-4" style={{ color: '#92400e' }} />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="text-sm font-medium text-black truncate">{p.pending_name || "—"}</div>
+                  <div className="flex items-center gap-1 mt-0.5">
+                    <span className="text-xs text-black">{p.pending_role === "manager" ? roleToUiLabel("manager", t) : roleToUiLabel("host", t)}</span>
+                    <span className="ml-2 px-1.5 py-0.5 text-xs font-semibold rounded-full" style={{ background: 'rgba(245,158,11,0.15)', color: '#92400e' }}>
+                      {t("team_pending_badge")}
+                    </span>
+                  </div>
+                </div>
+                <div className="flex items-center gap-3 flex-shrink-0">
+                  <button onClick={() => reshowPending(p)} className="text-black hover:text-black cursor-pointer" title={t("team_pending_show_qr")}>
+                    <QrCode className="w-4 h-4" />
+                  </button>
+                  <button onClick={() => cancelPending(p)} className="text-red-500 hover:text-red-700 cursor-pointer" title={t("team_pending_cancel")}>
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {showInvite && (
         <>
