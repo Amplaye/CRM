@@ -67,8 +67,13 @@ const DAY_KEYS = [
   "settings_day_fri", "settings_day_sat", "settings_day_sun",
 ] as const;
 
-// Weekday labels for the bulk tool's day pills, Monday-first (0=Mon … 6=Sun).
-const WEEKDAY_PILL_KEYS = DAY_KEYS;
+// Short weekday labels for the bulk tool's day pills, Monday-first (0=Mon …
+// 6=Sun). Deliberately short (not the full settings_day_* names) so the pills
+// stay compact across locales.
+const WEEKDAY_PILL_KEYS = [
+  "staff_wd_mon", "staff_wd_tue", "staff_wd_wed", "staff_wd_thu",
+  "staff_wd_fri", "staff_wd_sat", "staff_wd_sun",
+] as const;
 
 const ABSENCE_LABEL_KEY: Record<AbsenceKind, string> = {
   vacation: "staff_absence_vacation",
@@ -1012,7 +1017,7 @@ function BulkAssignPanel({
                     key={k}
                     type="button"
                     onClick={() => toggleDay(i)}
-                    className="w-11 h-10 rounded-lg border-2 text-sm font-bold cursor-pointer text-black"
+                    className="min-w-[3rem] px-1 h-10 rounded-lg border-2 text-sm font-bold cursor-pointer text-black whitespace-nowrap"
                     style={on ? { borderColor: "#c4956a", background: "rgba(196,149,106,0.15)" } : { borderColor: "#e2d5bf", opacity: 0.6 }}
                   >
                     {t(k)}

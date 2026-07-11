@@ -1278,6 +1278,7 @@ export const en = {
   staff_bulk_all: "Select all",
   staff_bulk_none: "Clear",
   staff_bulk_days: "Days of the week",
+  staff_wd_mon: "Mon", staff_wd_tue: "Tue", staff_wd_wed: "Wed", staff_wd_thu: "Thu", staff_wd_fri: "Fri", staff_wd_sat: "Sat", staff_wd_sun: "Sun",
   staff_bulk_pick: "Pick members and days",
   staff_bulk_create: "Create {n} shifts",
   staff_bulk_done: "{created} shifts created, {skipped} already there.",

@@ -1281,6 +1281,7 @@ export const es: Dictionary = {
   staff_bulk_all: "Seleccionar todos",
   staff_bulk_none: "Quitar",
   staff_bulk_days: "Días de la semana",
+  staff_wd_mon: "Lun", staff_wd_tue: "Mar", staff_wd_wed: "Mié", staff_wd_thu: "Jue", staff_wd_fri: "Vie", staff_wd_sat: "Sáb", staff_wd_sun: "Dom",
   staff_bulk_pick: "Elige miembros y días",
   staff_bulk_create: "Crear {n} turnos",
   staff_bulk_done: "{created} turnos creados, {skipped} ya existían.",

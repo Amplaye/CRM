@@ -42,7 +42,7 @@ const roleToUiLabel = (r: DbRole, t: TFn): string => {
 
 export function StaffTab() {
   const { t } = useLanguage();
-  const { activeTenant } = useTenant();
+  const { activeTenant, globalRole } = useTenant();
   const supabase = useMemo(() => createClient(), []);
 
   const [members, setMembers] = useState<Member[]>([]);
@@ -177,8 +177,10 @@ export function StaffTab() {
     setMyRole(me ? me.role : null);
   }, [myUserId, members]);
 
-  // Only the account creator (DB role 'owner' → UI 'Admin') can manage the team.
-  const canManage = myRole === "owner";
+  // The account creator (DB role 'owner' → UI 'Admin') manages the team; a Bali
+  // Flow platform admin impersonating a tenant can too (matches the rest of the
+  // staff page, which treats platform_admin as owner-level).
+  const canManage = myRole === "owner" || globalRole === "platform_admin";
 
   const removeMember = async (member: Member) => {
     if (!canManage) return;
