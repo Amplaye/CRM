@@ -340,6 +340,7 @@ export const en = {
   analytics_total_covers: "Total Covers",
   analytics_bookings: "bookings",
   analytics_ai_handled: "AI Handled",
+  analytics_web_handled: "Web",
   analytics_conversations: "Conversations",
   analytics_incidents: "Incidents",
   analytics_in_range: "in selected range",

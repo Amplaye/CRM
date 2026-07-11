@@ -5,6 +5,7 @@
 // Nothing in here touches the network, the clock, or the DB. Time-aware
 // helpers accept an explicit `nowInTz` argument so tests can pin time.
 
+import { isValidPhoneNumber } from 'libphonenumber-js';
 import type { OpeningHours } from './restaurant-rules';
 
 const WEEKDAYS_ES = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'] as const;
@@ -26,6 +27,27 @@ export function isE164(phone: unknown): boolean {
   if (typeof phone !== 'string') return false;
   const trimmed = phone.trim();
   return trimmed.length > 0 && PHONE_E164_RE.test(trimmed);
+}
+
+/**
+ * Stronger than isE164: the number must be E.164-shaped AND a real, dial-able
+ * number for its country per libphonenumber's metadata. This is what the public
+ * booking widget uses so it can reject plausible-looking garbage the bare regex
+ * accepts — e.g. "+11111111111" (11 repeated ones) or "+34123" (too short for
+ * Spain). Fixed lines are allowed (a restaurant guest may leave a landline);
+ * we do NOT require MOBILE because the library reports many valid numbers with
+ * an undefined type. Callers must pass a leading "+" (add it before calling).
+ */
+export function isRealPhone(phone: unknown): boolean {
+  if (typeof phone !== 'string') return false;
+  const trimmed = phone.trim();
+  if (!isE164(trimmed)) return false;
+  const withPlus = trimmed.startsWith('+') ? trimmed : `+${trimmed}`;
+  try {
+    return isValidPhoneNumber(withPlus);
+  } catch {
+    return false;
+  }
 }
 
 // Pragmatic email check: one "@", a dotted domain with a 2+ letter TLD, no

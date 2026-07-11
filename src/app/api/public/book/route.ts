@@ -2,7 +2,8 @@ import { NextResponse } from "next/server";
 import { randomUUID } from "crypto";
 import { createServiceRoleClient } from "@/lib/supabase/server";
 import { assertRateLimit } from "@/lib/rate-limit";
-import { isEmail, normalizeEmail } from "@/lib/booking-validation";
+import { isEmail, isRealPhone, normalizeEmail } from "@/lib/booking-validation";
+import { emailDomainReachable } from "@/lib/email-domain";
 import { POST as aiBook } from "@/app/api/ai/book/route";
 
 // PUBLIC booking for the widget (/b/<slug>) — Fase 7. Reuses the FULL
@@ -14,8 +15,8 @@ import { POST as aiBook } from "@/app/api/ai/book/route";
 // a response trimmed to widget-safe fields. source='web' throughout.
 
 export const dynamic = "force-dynamic";
-
-const PHONE_RE = /^\+?[1-9]\d{6,14}$/;
+// Node runtime (not edge) — the email domain check uses node:dns.
+export const runtime = "nodejs";
 
 export async function POST(req: Request) {
   const limited = await assertRateLimit(req, "public:book", { max: 5, windowSecs: 60 });
@@ -51,13 +52,21 @@ export async function POST(req: Request) {
   ) {
     return NextResponse.json({ error: "invalid_request" }, { status: 400 });
   }
-  if (!PHONE_RE.test(phone)) {
+  // Phone must be a real, dial-able number for its country — not just
+  // E.164-shaped. Rejects "+11111111111" & co. that the bare regex waves through.
+  if (!isRealPhone(phone)) {
     return NextResponse.json({ error: "invalid_phone" }, { status: 400 });
   }
   // Email is mandatory on the public site (all fields required) and must be a
   // plausible address — captured for the tenant's marketing list. It never
-  // triggers a confirmation email (the AI book route only stores it).
+  // triggers a confirmation email (the AI book route only stores it). Two gates:
+  // (1) pragmatic syntax, (2) the domain actually accepts mail (MX/A lookup),
+  // so "x@dominioinventato.xyz" / "x@hotmail.con" are refused. We can't verify
+  // the individual mailbox without sending — which the product forbids.
   if (!isEmail(email)) {
+    return NextResponse.json({ error: "invalid_email" }, { status: 400 });
+  }
+  if (!(await emailDomainReachable(email))) {
     return NextResponse.json({ error: "invalid_email" }, { status: 400 });
   }
 
