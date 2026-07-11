@@ -342,6 +342,7 @@ export const de: Dictionary = {
   analytics_total_covers: "Gedecke Gesamt",
   analytics_bookings: "Reservierungen",
   analytics_ai_handled: "Von KI bearbeitet",
+  analytics_web_handled: "Web",
   analytics_conversations: "Unterhaltungen",
   analytics_incidents: "Vorfälle",
   analytics_in_range: "im Zeitraum",

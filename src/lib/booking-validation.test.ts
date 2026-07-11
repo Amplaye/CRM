@@ -3,6 +3,7 @@ import {
   isDate,
   isTime,
   isE164,
+  isRealPhone,
   isEmail,
   normalizeEmail,
   normalizePhone,
@@ -124,6 +125,27 @@ describe('isE164', () => {
     expect(isE164('not-a-phone')).toBe(false);
     expect(isE164('')).toBe(false);
     expect(isE164(undefined)).toBe(false);
+  });
+});
+
+describe('isRealPhone', () => {
+  it('accepts real, dial-able numbers (with or without +)', () => {
+    expect(isRealPhone('+34612345678')).toBe(true); // ES mobile
+    expect(isRealPhone('+34684109244')).toBe(true); // ES mobile
+    expect(isRealPhone('+393331234567')).toBe(true); // IT mobile
+    expect(isRealPhone('+390612345678')).toBe(true); // IT landline (Rome)
+    expect(isRealPhone('34612345678')).toBe(true); // no + prefix
+  });
+  it('rejects E.164-shaped but impossible numbers', () => {
+    expect(isRealPhone('+11111111111')).toBe(false); // 11 repeated ones — the fake used
+    expect(isRealPhone('+34123')).toBe(false); // too short for ES
+    expect(isRealPhone('+999999999999')).toBe(false); // no such country
+  });
+  it('rejects garbage / empty / non-string', () => {
+    expect(isRealPhone('not-a-phone')).toBe(false);
+    expect(isRealPhone('')).toBe(false);
+    expect(isRealPhone(undefined)).toBe(false);
+    expect(isRealPhone(null)).toBe(false);
   });
 });
 

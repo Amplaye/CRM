@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { isValidPhoneNumber } from "libphonenumber-js";
 
 // Multi-step widget: (1) date + people → (2) room, only when the venue has more
 // than one → (3) slot grid from /api/public/availability (already trimmed to
@@ -64,10 +65,18 @@ function emailOk(v: string): boolean {
   const t = v.trim();
   return t.length > 0 && t.length <= 254 && EMAIL_RE.test(t);
 }
-// E.164-ish: strip spaces/()-/dots; then optional '+' and 7–15 digits, 1st non-zero.
+// Real, dial-able number (libphonenumber) — same gate as the server's
+// isRealPhone, so the button only enables on a number the API will accept and
+// "+11111111111"-style junk is caught before submit. A leading "+" is required
+// for the country to be inferred; we add it if the user omitted it.
 function phoneOk(v: string): boolean {
   const t = v.replace(/[\s().-]/g, "");
-  return /^\+?[1-9]\d{6,14}$/.test(t);
+  if (!/^\+?[1-9]\d{6,14}$/.test(t)) return false;
+  try {
+    return isValidPhoneNumber(t.startsWith("+") ? t : `+${t}`);
+  } catch {
+    return false;
+  }
 }
 
 export default function BookingWidget({
