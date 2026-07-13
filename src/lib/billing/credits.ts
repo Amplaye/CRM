@@ -165,14 +165,20 @@ export async function consumeCredits(
 /**
  * Add bought credits to the wallet (a Stripe top-up pack). They never expire and
  * are spent only after the monthly allowance is gone.
+ *
+ * `action` is what the ledger row says. It defaults to "topup" (the customer
+ * paid), and the admin panel passes "admin_grant" instead — a gift and a
+ * purchase both add credits, but conflating them in the ledger would make the
+ * revenue numbers lie.
  */
 export async function grantPurchasedCredits(
   tenantId: string,
   creditsMc: number,
   metadata?: Record<string, unknown>,
   client?: ServiceClient,
+  action: "topup" | "admin_grant" = "topup",
 ): Promise<boolean> {
-  return grant(tenantId, "purchased", creditsMc, "topup", metadata, client);
+  return grant(tenantId, "purchased", creditsMc, action, metadata, client);
 }
 
 /**

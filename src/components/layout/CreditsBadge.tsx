@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
-import { Zap } from "lucide-react";
+import { Coins } from "lucide-react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { useTenant } from "@/lib/contexts/TenantContext";
@@ -132,7 +132,7 @@ export function CreditsBadge() {
         title={t(tk("credits_badge_title")) || "Crediti"}
         aria-label={t(tk("credits_badge_title")) || "Crediti"}
       >
-        <Zap
+        <Coins
           className="h-3.5 w-3.5 sm:h-4 sm:w-4"
           style={{ color: low ? "#dc2626" : "#000000" }}
         />

@@ -7,11 +7,12 @@ import Link from "next/link";
 import {
   ArrowLeft, Bot, AlertTriangle, MessageSquare, Calendar,
   Phone, TrendingUp, UserX, Zap, Clock, Lightbulb, DollarSign, ShieldCheck, Eye,
-  CheckCircle2, XCircle, AlertCircle, Package, LogIn, Sliders, StickyNote, Trash2, Save, CreditCard, ExternalLink,
+  CheckCircle2, XCircle, AlertCircle, Package, LogIn, Sliders, StickyNote, Trash2, Save, CreditCard, ExternalLink, Coins,
 } from "lucide-react";
 import { TENANT_STATUSES, type TenantStatus } from "@/lib/tenants/status";
 import { getRawFeatures, type TenantFeatures } from "@/lib/types/tenant-settings";
 import { entitlementFor, hasActivePlan } from "@/lib/billing/entitlements";
+import { formatCredits } from "@/lib/billing/credits-catalog";
 
 // All per-tenant feature flags the admin can toggle (Italian admin copy). The
 // management module shows its entitlement reason (manual / paid / grace) inline.
@@ -43,6 +44,14 @@ const ENTITLEMENT_OVERRIDES: Array<{ key: string; title: string; hint: string }>
 const POS_PROVIDERS = ["mock", "cassa_in_cloud", "tilby", "ipratico", "nempos", "deliverect", "loyverse"];
 
 interface ClientNote { id: string; content: string; author: string; created_at: string; }
+
+interface CreditsInfo {
+  included_remaining_mc: number;
+  purchased_remaining_mc: number;
+  included_granted_mc: number;
+  total_remaining_mc: number;
+  recent: { id: string; action_type: string; credits_mc: number; created_at: string; metadata?: Record<string, unknown> }[];
+}
 
 const STATUS_BADGE: Record<TenantStatus, string> = {
   active: "bg-emerald-50 text-emerald-700 border-emerald-200",
@@ -134,6 +143,12 @@ export default function TenantDetailPage() {
   const [notes, setNotes] = useState<ClientNote[]>([]);
   const [newNote, setNewNote] = useState("");
   const [notesBusy, setNotesBusy] = useState(false);
+  // Credits (prepaid AI wallet) — balance + manual grant/claw-back.
+  const [credits, setCredits] = useState<CreditsInfo | null>(null);
+  const [creditsAmount, setCreditsAmount] = useState("");
+  const [creditsReason, setCreditsReason] = useState("");
+  const [creditsBusy, setCreditsBusy] = useState(false);
+  const [creditsMsg, setCreditsMsg] = useState<string | null>(null);
 
   // Flip a single feature flag for this tenant (admin-only). Flags live in
   // settings.features (the nested object getFeatures() reads + the sidebar gates
@@ -263,6 +278,46 @@ export default function TenantDetailPage() {
     setStatusSaving(false);
   };
 
+  // --- Credits (prepaid AI wallet) ---------------------------------------
+  // The admin can hand credits to a restaurant that ran dry mid-service (a
+  // Stripe checkout takes minutes they don't have on a Saturday night), and take
+  // back a grant typed wrong. Both go through /api/admin/credits, which is the
+  // ONLY path to grant_credits — the RPC is revoked from `authenticated` at the
+  // DB level, so a tenant can never mint its own.
+  const loadCredits = async () => {
+    if (!tenantId) return;
+    try {
+      const res = await fetch(`/api/admin/credits?tenant_id=${tenantId}`);
+      const j = await res.json();
+      if (j?.ok) setCredits(j);
+    } catch {
+      /* the card just shows "—" */
+    }
+  };
+
+  const grantCredits = async () => {
+    const amount = Number(creditsAmount);
+    if (!tenantId || !Number.isFinite(amount) || amount === 0) return;
+    setCreditsBusy(true);
+    setCreditsMsg(null);
+    try {
+      const res = await fetch("/api/admin/credits", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tenant_id: tenantId, credits: amount, reason: creditsReason.trim() }),
+      });
+      const j = await res.json();
+      if (!res.ok || !j?.ok) throw new Error(j?.error || "Failed");
+      setCreditsAmount("");
+      setCreditsReason("");
+      setCreditsMsg(amount > 0 ? `+${amount} crediti accreditati` : `${amount} crediti rimossi`);
+      await loadCredits();
+    } catch (err: any) {
+      setCreditsMsg(`Errore: ${err?.message || "operazione fallita"}`);
+    }
+    setCreditsBusy(false);
+  };
+
   useEffect(() => {
     if (!tenantId) return;
     const fetchDetail = async () => {
@@ -274,6 +329,7 @@ export default function TenantDetailPage() {
           fetch(`/api/admin/tenant/health?id=${tenantId}`),
           fetch(`/api/whatsapp/setup?tenant_id=${tenantId}`),
         ]);
+        void loadCredits();
         const json = await detailRes.json();
         if (json.error) throw new Error(json.error);
         setData(json);
@@ -923,6 +979,94 @@ export default function TenantDetailPage() {
           </div>
         );
       })()}
+
+      {/* Credits — the prepaid AI wallet. The one place we can refill a restaurant
+          that ran dry mid-service, and undo a grant typed wrong. Negative amount
+          = claw-back (clamped to what they actually have; a negative balance would
+          read as "exhausted" forever). */}
+      <div className="rounded-xl border-2 p-4" style={cardStyle}>
+        <div className="flex items-center gap-2 mb-3">
+          <Coins className="w-4 h-4 text-[#c4956a]" />
+          <h3 className="text-xs font-bold text-black uppercase tracking-wider">Crediti</h3>
+        </div>
+
+        <div className="grid grid-cols-3 gap-3 text-xs mb-4">
+          <div>
+            <p className="text-black/60">Saldo totale</p>
+            <p className="font-bold text-black text-base">
+              {credits ? formatCredits(credits.total_remaining_mc) : "—"}
+            </p>
+          </div>
+          <div>
+            <p className="text-black/60">Inclusi nel piano</p>
+            <p className="font-medium text-black">
+              {credits
+                ? `${formatCredits(credits.included_remaining_mc)} / ${formatCredits(credits.included_granted_mc)}`
+                : "—"}
+            </p>
+          </div>
+          <div>
+            <p className="text-black/60">Acquistati/regalati</p>
+            <p className="font-medium text-black">
+              {credits ? formatCredits(credits.purchased_remaining_mc) : "—"}
+            </p>
+          </div>
+        </div>
+
+        <div className="flex flex-col sm:flex-row gap-2">
+          <input
+            type="number"
+            value={creditsAmount}
+            onChange={(e) => setCreditsAmount(e.target.value)}
+            placeholder="Crediti (es. 500, o -100 per togliere)"
+            className="w-full sm:w-56 border-2 rounded-lg px-2 py-1.5 text-xs text-black focus:outline-none focus:ring-1 focus:ring-[#c4956a]"
+            style={{ borderColor: "#c4956a", background: "rgba(252,246,237,0.6)" }}
+          />
+          <input
+            value={creditsReason}
+            onChange={(e) => setCreditsReason(e.target.value)}
+            placeholder="Motivo (resta nel registro)"
+            className="flex-1 border-2 rounded-lg px-2 py-1.5 text-xs text-black focus:outline-none focus:ring-1 focus:ring-[#c4956a]"
+            style={{ borderColor: "#c4956a", background: "rgba(252,246,237,0.6)" }}
+          />
+          <button
+            onClick={grantCredits}
+            disabled={creditsBusy || !creditsAmount.trim() || Number(creditsAmount) === 0}
+            className="px-3 py-1.5 rounded-lg bg-[#c4956a] text-white text-xs font-bold hover:bg-[#8b6540] transition-colors disabled:opacity-50 cursor-pointer disabled:cursor-not-allowed shrink-0"
+          >
+            {creditsBusy ? "..." : Number(creditsAmount) < 0 ? "Togli" : "Accredita"}
+          </button>
+        </div>
+        {creditsMsg && <p className="text-xs font-medium text-black mt-2">{creditsMsg}</p>}
+
+        {credits && credits.recent.length > 0 && (
+          <div className="mt-4">
+            <p className="text-[10px] font-bold text-black/60 uppercase tracking-wider mb-1.5">
+              Ultime ricariche
+            </p>
+            <div className="space-y-1">
+              {credits.recent.map((ev) => (
+                <div key={ev.id} className="flex items-center justify-between text-xs">
+                  <span className="text-black">
+                    {ev.action_type === "admin_grant"
+                      ? "Manuale (admin)"
+                      : ev.action_type === "topup"
+                        ? "Ricarica pagata"
+                        : "Crediti del piano"}
+                    <span className="text-black/50 ml-2">
+                      {new Date(ev.created_at).toLocaleDateString()}
+                    </span>
+                  </span>
+                  <span className="font-bold text-black">
+                    {ev.credits_mc >= 0 ? "+" : "−"}
+                    {formatCredits(Math.abs(ev.credits_mc))}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
 
       {/* Manual entitlement overrides — force a paid service ON or OFF regardless
           of billing (payment disputes). Auto = follow the subscription. */}
