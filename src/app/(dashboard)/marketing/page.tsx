@@ -33,14 +33,12 @@ interface RecipientRow {
   guests: { name: string | null; phone: string | null; email: string | null } | null;
 }
 
-/** Email identity. The ADDRESS is fixed to the platform's verified domain — an
- *  ESP won't send from an unverified one — so the tenant owns the display name
- *  and the reply-to. See src/lib/email/from.ts. */
+/** Email identity. The ADDRESS is fixed to the platform's verified no-reply
+ *  domain — an ESP won't send from an unverified one — so the tenant owns only
+ *  the display name. Campaigns are send-only. See src/lib/email/from.ts. */
 interface SenderConfig {
   sender_name: string;
-  reply_to: string;
   resolved_from: string;
-  resolved_reply_to: string | null;
   domain_configured: boolean;
 }
 
@@ -140,12 +138,9 @@ export default function MarketingPage() {
 
   const saveSender = async () => {
     if (!sender) return;
-    const json = await post("/api/marketing/sender", {
-      sender_name: sender.sender_name,
-      reply_to: sender.reply_to,
-    }, "PATCH");
+    const json = await post("/api/marketing/sender", { sender_name: sender.sender_name }, "PATCH");
     if (json?.success) {
-      setSender({ ...sender, resolved_from: json.resolved_from, resolved_reply_to: json.resolved_reply_to });
+      setSender({ ...sender, resolved_from: json.resolved_from });
       setSenderSaved(true);
       setTimeout(() => setSenderSaved(false), 2000);
     }
@@ -306,34 +301,21 @@ export default function MarketingPage() {
                 <label className="text-sm font-bold text-black">{t("mkt_sender_label")}</label>
                 {senderSaved && <span className="text-xs font-semibold text-emerald-700">{t("mkt_sender_saved")}</span>}
               </div>
-              <div className="grid sm:grid-cols-2 gap-2">
-                <div>
-                  <label className="block text-xs font-semibold text-black mb-1">{t("mkt_sender_name")}</label>
-                  <input
-                    value={sender.sender_name}
-                    onChange={(e) => setSender({ ...sender, sender_name: e.target.value })}
-                    onBlur={() => void saveSender()}
-                    placeholder={activeTenant?.name || ""}
-                    className={INPUT}
-                    style={{ ...INPUT_STYLE, background: "#fff" }}
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-black mb-1">{t("mkt_sender_replyto")}</label>
-                  <input
-                    type="email"
-                    value={sender.reply_to}
-                    onChange={(e) => setSender({ ...sender, reply_to: e.target.value })}
-                    onBlur={() => void saveSender()}
-                    placeholder="info@ristorante.com"
-                    className={INPUT}
-                    style={{ ...INPUT_STYLE, background: "#fff" }}
-                  />
-                </div>
+              <div>
+                <label className="block text-xs font-semibold text-black mb-1">{t("mkt_sender_name")}</label>
+                <input
+                  value={sender.sender_name}
+                  onChange={(e) => setSender({ ...sender, sender_name: e.target.value })}
+                  onBlur={() => void saveSender()}
+                  placeholder={activeTenant?.name || ""}
+                  className={INPUT}
+                  style={{ ...INPUT_STYLE, background: "#fff" }}
+                />
               </div>
               <p className="text-xs text-black">
                 {t("mkt_sender_from_note")} <span className="font-semibold">{sender.resolved_from}</span>
               </p>
+              <p className="text-xs text-black">{t("mkt_sender_noreply_note")}</p>
               {!sender.domain_configured && (
                 <p className="text-xs font-semibold text-amber-700">{t("mkt_sender_domain_warning")}</p>
               )}
@@ -375,6 +357,8 @@ export default function MarketingPage() {
             emptyLabel={t("mkt_preview_empty")}
             waFramePre={t("mkt_wa_frame_pre")}
             waFramePost={t("mkt_wa_frame_post")}
+            emailNoReply={t("mkt_email_noreply_body")}
+            emailUnsub={t("mkt_email_unsub")}
           />
           <p className="text-xs text-black text-center">
             {channel === "whatsapp" ? t("mkt_preview_wa_hint") : t("mkt_preview_email_hint")}
@@ -546,6 +530,7 @@ export default function MarketingPage() {
 // ── Phone mockup: renders the message as the client will receive it ─────────
 function PhoneMock({
   channel, senderName, subject, body, sampleName, emptyLabel, waFramePre, waFramePost,
+  emailNoReply, emailUnsub,
 }: {
   channel: "email" | "whatsapp";
   senderName: string;
@@ -557,6 +542,9 @@ function PhoneMock({
   waFramePre: string;
   /** Fixed sign-off AFTER the free body. */
   waFramePost: string;
+  /** Footer lines the real email carries — shown so the preview isn't a lie. */
+  emailNoReply: string;
+  emailUnsub: string;
 }) {
   const hasBody = !!body.trim();
   // Mirror the approved WhatsApp template frame exactly: greeting + free body +
@@ -600,10 +588,16 @@ function PhoneMock({
                 <p className="text-[11px] text-neutral-500 font-medium">{senderName || "Business"}</p>
                 <p className="text-sm font-bold text-black truncate">{subject || (hasBody ? senderName : "")}</p>
               </div>
-              {/* Email body */}
-              <div className="flex-1 overflow-y-auto px-4 py-3">
+              {/* Email body + the real footer (no-reply notice + unsubscribe) */}
+              <div className="flex-1 overflow-y-auto px-4 py-3 flex flex-col">
                 {hasBody ? (
-                  <p className="text-[13px] text-black whitespace-pre-wrap leading-relaxed">{body}</p>
+                  <>
+                    <p className="text-[13px] text-black whitespace-pre-wrap leading-relaxed flex-1">{body}</p>
+                    <div className="mt-4 pt-3 border-t border-neutral-200 space-y-1">
+                      <p className="text-[10px] text-neutral-500 leading-snug">{emailNoReply}</p>
+                      <p className="text-[10px] text-neutral-500 underline">{emailUnsub}</p>
+                    </div>
+                  </>
                 ) : (
                   <p className="text-center text-xs text-neutral-500 mt-8">{emptyLabel}</p>
                 )}

@@ -5,14 +5,14 @@
 // "info@ristorantepippo.com" in the From of a mail relayed by our infrastructure
 // gets rejected outright, or — worse — delivered and marked as spam because it
 // fails DMARC. So the sending ADDRESS is a platform concern (EMAIL_FROM, one
-// verified domain), while what the tenant controls is:
+// verified no-reply domain shared by every tenant), while the tenant controls
+// the display NAME the guest actually reads ("Ristorante Picnic").
 //
-//   • sender_name → the display name the guest actually reads ("Ristorante Picnic")
-//   • reply_to    → where the guest's reply lands (the venue's real inbox)
+// Result: `Ristorante Picnic <no-reply@crm.example.com>`.
 //
-// Result: `Ristorante Picnic <no-reply@crm.example.com>`, Reply-To: info@venue.com.
-// A tenant that later verifies its OWN domain in Resend becomes a config change
-// here, not a code change.
+// Campaigns are SEND-ONLY by owner decision: no Reply-To is set and the email
+// body tells the guest not to reply (see marketing/send.ts). A tenant that later
+// verifies its OWN domain in Resend becomes a config change here, not a code one.
 
 import type { TenantSettings } from "@/lib/types/tenant-settings";
 
@@ -55,11 +55,4 @@ export function resolveEmailFrom(
   const name = sanitizeDisplayName(raw);
 
   return name ? `${name} <${address}>` : platform;
-}
-
-/** The tenant's Reply-To (its real inbox), if set and plausibly an address. */
-export function tenantReplyTo(settings: TenantSettings | null | undefined): string | undefined {
-  const raw = settings?.marketing_email?.reply_to?.trim();
-  if (!raw) return undefined;
-  return /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(raw) ? raw : undefined;
 }

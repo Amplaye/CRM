@@ -1,5 +1,5 @@
 import { describe, it, expect, afterEach } from "vitest";
-import { resolveEmailFrom, tenantReplyTo, addressOf, emailSenderConfigured } from "./from";
+import { resolveEmailFrom, addressOf, emailSenderConfigured } from "./from";
 import type { TenantSettings } from "@/lib/types/tenant-settings";
 
 const ORIGINAL = process.env.EMAIL_FROM;
@@ -51,20 +51,6 @@ describe("resolveEmailFrom", () => {
     process.env.EMAIL_FROM = "TableFlow <no-reply@crm.example.com>";
     const settings = { marketing_email: { sender_name: "Picnic, Bali" } } as TenantSettings;
     expect(resolveEmailFrom(settings, "x")).toBe('"Picnic, Bali" <no-reply@crm.example.com>');
-  });
-});
-
-describe("tenantReplyTo", () => {
-  it("returns a valid reply-to", () => {
-    const settings = { marketing_email: { reply_to: "info@picnic.com" } } as TenantSettings;
-    expect(tenantReplyTo(settings)).toBe("info@picnic.com");
-  });
-  it("rejects a malformed address", () => {
-    const settings = { marketing_email: { reply_to: "not-an-email" } } as TenantSettings;
-    expect(tenantReplyTo(settings)).toBeUndefined();
-  });
-  it("is undefined when unset", () => {
-    expect(tenantReplyTo(null)).toBeUndefined();
   });
 });
 

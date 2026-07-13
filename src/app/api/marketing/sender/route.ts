@@ -1,18 +1,18 @@
 import { NextResponse } from "next/server";
 import { createServiceRoleClient } from "@/lib/supabase/server";
 import { verifyTenantMembership } from "@/lib/tenant-membership";
-import { resolveEmailFrom, tenantReplyTo, emailSenderConfigured } from "@/lib/email/from";
+import { resolveEmailFrom, emailSenderConfigured } from "@/lib/email/from";
 import type { TenantSettings } from "@/lib/types/tenant-settings";
 
 // Email sender identity for campaigns (Marketing → mittente).
 //
-//   GET   ?tenant_id=…              → current sender_name / reply_to + the
-//                                     resolved From the guest will actually see
-//   PATCH { tenant_id, sender_name, reply_to }
+//   GET   ?tenant_id=…                  → current sender_name + the resolved From
+//                                         the guest will actually see
+//   PATCH { tenant_id, sender_name }
 //
-// Only the display NAME and the REPLY-TO are tenant-editable: the address must
-// stay on the platform's DNS-verified domain or the ESP refuses the send
-// (see src/lib/email/from.ts).
+// Only the display NAME is tenant-editable: the address must stay on the
+// platform's DNS-verified no-reply domain or the ESP refuses the send. Campaigns
+// are send-only — no Reply-To (see src/lib/email/from.ts).
 
 export async function GET(req: Request) {
   const tenantId = new URL(req.url).searchParams.get("tenant_id") || "";
@@ -28,10 +28,8 @@ export async function GET(req: Request) {
   return NextResponse.json({
     success: true,
     sender_name: settings?.marketing_email?.sender_name || tenant.name || "",
-    reply_to: settings?.marketing_email?.reply_to || "",
     /** Exactly what the guest sees in the From column. */
     resolved_from: resolveEmailFrom(settings, tenant.name),
-    resolved_reply_to: tenantReplyTo(settings) || null,
     /** False → EMAIL_FROM unset, so sends fall back to Resend's sandbox address. */
     domain_configured: emailSenderConfigured(),
   });
@@ -51,21 +49,13 @@ export async function PATCH(req: Request) {
   if (!member) return NextResponse.json({ error: "forbidden" }, { status: 403 });
 
   const senderName = String(body.sender_name ?? "").trim().slice(0, 80);
-  const replyTo = String(body.reply_to ?? "").trim().slice(0, 160);
-  if (replyTo && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(replyTo)) {
-    return NextResponse.json({ error: "invalid_reply_to" }, { status: 400 });
-  }
 
   const svc = createServiceRoleClient();
   const { data: tenant } = await svc.from("tenants").select("name, settings").eq("id", tenantId).maybeSingle();
   if (!tenant) return NextResponse.json({ error: "not_found" }, { status: 404 });
 
   const settings = { ...((tenant.settings as Record<string, unknown>) || {}) };
-  settings.marketing_email = {
-    ...((settings.marketing_email as Record<string, unknown>) || {}),
-    sender_name: senderName || undefined,
-    reply_to: replyTo || undefined,
-  };
+  settings.marketing_email = { sender_name: senderName || undefined };
 
   const { error } = await svc.from("tenants").update({ settings }).eq("id", tenantId);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
@@ -73,6 +63,5 @@ export async function PATCH(req: Request) {
   return NextResponse.json({
     success: true,
     resolved_from: resolveEmailFrom(settings as TenantSettings, tenant.name),
-    resolved_reply_to: tenantReplyTo(settings as TenantSettings) || null,
   });
 }

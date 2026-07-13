@@ -15,7 +15,7 @@
 // campaigns outgrow a single Vercel invocation — see project_n8n_scaling.
 
 import { sendEmail } from "@/lib/email/send";
-import { resolveEmailFrom, tenantReplyTo } from "@/lib/email/from";
+import { resolveEmailFrom } from "@/lib/email/from";
 import { renderEmailLayout, escapeHtml } from "@/lib/email/templates/base";
 import { sendWhatsAppTemplate } from "@/lib/whatsapp/meta";
 import { tenantWhatsAppFrom } from "@/lib/whatsapp/from";
@@ -99,10 +99,10 @@ export async function sendCampaign(
 
   const origin = process.env.NEXT_PUBLIC_APP_URL || "https://crm.baliflowagency.com";
   const from = tenantWhatsAppFrom(tenant.settings);
-  // Email identity: the guest reads the venue's name, and a Reply lands in the
-  // venue's inbox — while the address stays on the platform's verified domain.
+  // Email identity: the guest reads the venue's NAME, while the address stays on
+  // the platform's verified no-reply domain. Campaigns are send-only by design —
+  // no Reply-To is set, and the body says so, so nobody writes into a void.
   const emailFrom = resolveEmailFrom(tenant.settings, tenant.name);
-  const replyTo = tenantReplyTo(tenant.settings);
   const branding = {
     name: tenant.name,
     brand_color: tenant.settings?.menu_branding?.brand_color,
@@ -111,6 +111,13 @@ export async function sendCampaign(
   const lang = (tenant.settings?.bot_config?.primary_language || "es").slice(0, 2);
   const UNSUB = { es: "Darse de baja", it: "Disiscriviti", en: "Unsubscribe", de: "Abmelden" } as const;
   const unsubLabel = UNSUB[lang as keyof typeof UNSUB] || UNSUB.es;
+  const NOREPLY = {
+    es: "Este mensaje se envía desde una dirección que no admite respuestas. Por favor, no respondas a este correo.",
+    it: "Questo messaggio è inviato da un indirizzo che non accetta risposte. Ti preghiamo di non rispondere a questa email.",
+    en: "This message is sent from an address that does not accept replies. Please do not reply to this email.",
+    de: "Diese Nachricht wird von einer Adresse gesendet, die keine Antworten annimmt. Bitte antworte nicht auf diese E-Mail.",
+  } as const;
+  const noReplyNote = NOREPLY[lang as keyof typeof NOREPLY] || NOREPLY.es;
 
   let sent = 0, failed = 0, skipped = 0;
   for (const g of capped) {
@@ -131,14 +138,16 @@ export async function sendCampaign(
           branding,
           preheader: campaign.subject || undefined,
           bodyHtml: `<p>${escapeHtml(campaign.body).replace(/\n/g, "<br/>")}</p>`,
-          footerHtml: `<a href="${unsubUrl}" style="color:#111827;text-decoration:underline;">${unsubLabel}</a>`,
+          footerHtml:
+            `<p style="margin:0 0 8px;">${escapeHtml(noReplyNote)}</p>` +
+            `<a href="${unsubUrl}" style="color:#111827;text-decoration:underline;">${unsubLabel}</a>`,
         });
         await sendEmail({
           to: g.email,
           subject: campaign.subject || tenant.name,
           html,
           from: emailFrom,
-          replyTo,
+          // No replyTo on purpose: campaigns are send-only (owner decision).
           idempotencyKey: `campaign_${campaign.id}_${g.id}`,
         });
         sent++; await mark("sent");
