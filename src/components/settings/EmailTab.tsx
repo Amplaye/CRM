@@ -16,6 +16,12 @@ import { useTenant } from "@/lib/contexts/TenantContext";
 // Resend account. Resend refuses to send from a domain it hasn't verified, so a
 // key on its own would show "connected" while every guest email bounced.
 //
+// Resend keys come in two flavours and BOTH work here:
+//   Full access    → we read the account's domains and propose noreply@<domain>.
+//   Sending access → Resend won't let us read the domains (401 restricted_api_key,
+//                    which is NOT a bad key), so the owner types the sender and we
+//                    prove it with one real test email to their own inbox.
+//
 // The key goes to /api/marketing/email-provider and is encrypted server-side — it
 // is never stored in tenants.settings and never comes back down to the browser.
 
@@ -36,6 +42,9 @@ interface ApiResult {
   ok: boolean;
   msg: string;
   needsDomain?: boolean;
+  /** Chiave "Sending access": non ci lascia leggere i domini, quindi il mittente
+   *  lo deve scrivere lui e lo verifichiamo con un'email di prova. */
+  needsSender?: boolean;
   verified?: string[];
   pending?: string[];
 }
@@ -130,6 +139,7 @@ export function EmailTab() {
             data?.error ||
             (data?.ok ? "OK" : "Connessione non riuscita"),
           needsDomain: !!data?.needs_domain,
+          needsSender: !!data?.needs_sender,
           verified: data?.verified,
           pending: data?.pending,
         });
@@ -183,6 +193,12 @@ export function EmailTab() {
               resend.com/domains
             </a>
             , aggiungi il dominio del tuo sito, copia i record DNS dal tuo provider e riprova qui.
+          </div>
+        )}
+        {result.needsSender && (
+          <div className="text-xs text-black">
+            Scrivi l&apos;indirizzo mittente nel campo qui sotto e premi di nuovo &quot;Salva e collega&quot;: ti
+            mandiamo un&apos;email di prova per confermare che Resend lo accetti.
           </div>
         )}
       </div>
@@ -345,7 +361,9 @@ export function EmailTab() {
                 dominio verificato Resend non fa partire nulla.
               </li>
               <li>
-                Apri <strong>API Keys → Create API Key</strong> e copia la chiave (inizia con <code>re_</code>).
+                Apri <strong>API Keys → Create API Key</strong> e copia la chiave (inizia con <code>re_</code>). Con
+                il permesso <strong>Full access</strong> troviamo da soli il dominio verificato; con{" "}
+                <strong>Sending access</strong> funziona lo stesso, ma il mittente devi scriverlo tu qui sotto.
               </li>
               <li>Incolla la chiave qui sotto e premi &quot;Salva e collega&quot;.</li>
             </ol>
@@ -368,7 +386,7 @@ export function EmailTab() {
 
           <label className="flex flex-col gap-1">
             <span className="text-sm font-bold text-black flex items-center gap-1">
-              <Mail className="w-4 h-4" /> Indirizzo mittente (facoltativo)
+              <Mail className="w-4 h-4" /> Indirizzo mittente
             </span>
             <input
               value={senderDraft}
@@ -379,7 +397,8 @@ export function EmailTab() {
               autoComplete="off"
             />
             <span className="text-xs text-black">
-              Se lo lasci vuoto usiamo <code>noreply@</code> sul dominio che hai verificato.
+              Con una chiave <strong>Full access</strong> puoi lasciarlo vuoto: usiamo <code>noreply@</code> sul
+              dominio che hai verificato. Con una chiave <strong>Sending access</strong> è obbligatorio.
             </span>
           </label>
 

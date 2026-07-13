@@ -3,7 +3,7 @@ import { createServiceRoleClient } from "@/lib/supabase/server";
 import { verifyTenantMembership } from "@/lib/tenant-membership";
 import { encryptEmailSecret, readEmailSecret } from "@/lib/email/credentials";
 import { getEmailUsageThisMonth } from "@/lib/email/usage";
-import { defaultSenderAddress, senderOnVerifiedDomain, isEmailAddress, addressOf } from "@/lib/email/from";
+import { defaultSenderAddress, senderOnVerifiedDomain, isEmailAddress, addressOf, domainOf } from "@/lib/email/from";
 
 // Settings → Email: the tenant's OWN Resend account, mirroring /api/pos/connect.
 //
@@ -36,25 +36,43 @@ interface ResendDomain {
 interface KeyCheck {
   ok: boolean;
   detail: string;
-  /** Domains the key's account has DNS-verified — the only ones it can send from. */
+  /** false → a "Sending access" key: valid, but Resend won't let it read the
+   *  account's domains, so we can't discover the sender for the owner. */
+  canListDomains: boolean;
+  /** Domains the key's account has DNS-verified — the only ones it can send from.
+   *  Always empty for a sending-only key (we're not allowed to look). */
   verified: string[];
   /** Domains added but not through DNS yet (pending/failed): worth naming, since
    *  "I added it on Resend" is the state an owner most often mistakes for done. */
   pending: string[];
 }
 
-/** Cheapest authenticated Resend call: 200 lists the account's domains — which
- * is also exactly what we need to pick a sender, so one round-trip answers both
- * "is this key real?" and "what can it send from?".
+/** Cheapest authenticated Resend call: 200 lists the account's domains — which is
+ * also exactly what we need to pick a sender, so one round-trip answers both "is
+ * this key real?" and "what can it send from?".
  *
- * A REJECTED key comes back 400 `{"name":"validation_error","message":"API key is
- * invalid"}` — NOT 401, which Resend reserves for a missing Authorization header
- * (verified against the live API). So a bad key must be recognised by the error
- * name, not the status: keying off 401 alone would tell someone who fat-fingered
- * their key to "try again later", and they'd keep retrying a key that will never
- * work. Anything else (5xx, rate limit) really is transient. */
+ * Three distinct answers hide in the error bodies, and conflating any two of them
+ * hands the owner a lie (all reproduced against the live API):
+ *
+ *   400 validation_error  "API key is invalid"                    → really rejected
+ *   401 restricted_api_key "restricted to only send emails"       → PERFECTLY VALID,
+ *        it's a Resend key created with "Sending access" instead of "Full access".
+ *        It cannot read domains, but it can send — which is the only thing we
+ *        actually need it for. Treating this 401 as a bad key is what made a
+ *        correct key come back "Chiave rifiutata, controlla di averla copiata".
+ *   anything else (5xx, rate limit)                               → transient
+ *
+ * Note the rejected case is a 400, NOT a 401: Resend reserves 401 for a missing
+ * or restricted Authorization. So a bad key must be recognised by its error name,
+ * never by the status alone. */
 async function checkResendKey(apiKey: string): Promise<KeyCheck> {
-  const fail = (detail: string): KeyCheck => ({ ok: false, detail, verified: [], pending: [] });
+  const fail = (detail: string): KeyCheck => ({
+    ok: false,
+    detail,
+    canListDomains: false,
+    verified: [],
+    pending: [],
+  });
   try {
     const res = await fetch("https://api.resend.com/domains", {
       headers: { Authorization: `Bearer ${apiKey}` },
@@ -71,6 +89,7 @@ async function checkResendKey(apiKey: string): Promise<KeyCheck> {
       const pending = domains.filter((d) => d.status !== "verified").map((d) => d.name);
       return {
         ok: true,
+        canListDomains: true,
         verified,
         pending,
         detail: verified.length
@@ -79,16 +98,62 @@ async function checkResendKey(apiKey: string): Promise<KeyCheck> {
       };
     }
 
-    const rejected =
-      res.status === 401 ||
-      res.status === 403 ||
-      json?.name === "validation_error" ||
-      json?.name === "restricted_api_key" ||
-      /api key/i.test(json?.message || "");
+    if (json?.name === "restricted_api_key") {
+      return {
+        ok: true,
+        canListDomains: false,
+        verified: [],
+        pending: [],
+        detail: "Chiave valida (tipo “Sending access”): può inviare, ma non ci lascia leggere i tuoi domini.",
+      };
+    }
+
+    const rejected = json?.name === "validation_error" || /api key/i.test(json?.message || "");
     if (rejected) return fail("Chiave rifiutata da Resend. Controlla di averla copiata per intero.");
     return fail(`Resend ha risposto ${res.status}. Riprova tra poco.`);
   } catch {
     return fail("Impossibile contattare Resend. Controlla la connessione e riprova.");
+  }
+}
+
+/** For a sending-only key the domain list is off-limits, so the only way to know
+ * whether an address is sendable is to ask Resend to send from it. We do exactly
+ * that: one real email to the owner's own inbox. It doubles as proof the whole
+ * chain works, which is strictly better than saving an address and finding out
+ * from a guest who never got their confirmation.
+ *
+ * The 403 we're looking for is the same one the platform's own domain earns in a
+ * tenant's account: `The <domain> domain is not verified`. */
+async function probeSender(
+  apiKey: string,
+  fromAddress: string,
+  tenantName: string,
+  to: string,
+): Promise<{ ok: boolean; detail: string }> {
+  try {
+    const res = await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        from: `${tenantName || "CRM"} <${fromAddress}>`,
+        to: [to],
+        subject: "Email collegata correttamente",
+        html: `<p>Il tuo account Resend è collegato al CRM. Le email partiranno da <strong>${fromAddress}</strong>.</p>`,
+      }),
+    });
+    if (res.ok) return { ok: true, detail: `Collegato: ti abbiamo mandato un'email di prova a ${to}.` };
+
+    const json = (await res.json().catch(() => ({}))) as { message?: string };
+    const msg = json?.message || `Resend ha risposto ${res.status}.`;
+    if (/not verified/i.test(msg)) {
+      return {
+        ok: false,
+        detail: `Il dominio di ${fromAddress} non è verificato nel tuo account Resend. Aggiungilo su resend.com/domains, metti i record DNS e riprova.`,
+      };
+    }
+    return { ok: false, detail: msg };
+  } catch {
+    return { ok: false, detail: "Impossibile contattare Resend. Riprova tra poco." };
   }
 }
 
@@ -146,9 +211,8 @@ export async function POST(req: Request) {
 
   const tenantId = String(body.tenant_id || "");
   if (!tenantId) return NextResponse.json({ error: "tenant_id required" }, { status: 400 });
-  if (!(await verifyTenantMembership(tenantId, [...ROLES]))) {
-    return NextResponse.json({ error: "forbidden" }, { status: 403 });
-  }
+  const member = await verifyTenantMembership(tenantId, [...ROLES]);
+  if (!member) return NextResponse.json({ error: "forbidden" }, { status: 403 });
 
   const action = body.action === "test" ? "test" : body.action === "sender" ? "sender" : "save";
   const svc = createServiceRoleClient();
@@ -176,48 +240,119 @@ export async function POST(req: Request) {
     return NextResponse.json({
       ok: true,
       test: check,
-      needs_domain: check.verified.length === 0,
+      can_list_domains: check.canListDomains,
+      needs_domain: check.canListDomains && check.verified.length === 0,
+      needs_sender: !check.canListDomains && !requested,
       verified: check.verified,
       pending: check.pending,
       suggested_from: check.verified[0] ? defaultSenderAddress(check.verified[0]) : null,
     });
   }
 
-  // A key with nothing verified behind it cannot send one single email, so it is
-  // not saved: storing it would light up "collegato" while every guest email 403s.
-  if (!check.verified.length) {
+  // ── Full-access key: the domain list IS the answer. ────────────────────────
+  if (check.canListDomains) {
+    // A key with nothing verified behind it cannot send one single email, so it is
+    // not saved: storing it would light up "collegato" while every guest email 403s.
+    if (!check.verified.length) {
+      return NextResponse.json({
+        ok: false,
+        needs_domain: true,
+        test: check,
+        verified: [],
+        pending: check.pending,
+      });
+    }
+
+    const fromAddress = requested || defaultSenderAddress(check.verified[0]);
+    if (!isEmailAddress(fromAddress) || !senderOnVerifiedDomain(fromAddress, check.verified)) {
+      return NextResponse.json({
+        ok: false,
+        invalid_sender: true,
+        verified: check.verified,
+        test: {
+          ...check,
+          ok: false,
+          detail: `L'indirizzo mittente deve stare su un dominio verificato nel tuo account Resend (${check.verified.join(", ")}).`,
+        },
+      });
+    }
+
+    const err = await store(svc, tenantId, apiKey, fromAddress);
+    if (err) return NextResponse.json({ ok: false, error: err }, { status: 500 });
+
     return NextResponse.json({
-      ok: false,
-      needs_domain: true,
-      test: check,
-      verified: [],
-      pending: check.pending,
+      ok: true,
+      connected: true,
+      from_address: fromAddress,
+      verified: check.verified,
+      test: { ...check, detail: `Collegato. Le email partiranno da ${fromAddress}.` },
     });
   }
 
-  const fromAddress = requested || defaultSenderAddress(check.verified[0]);
-  if (!isEmailAddress(fromAddress) || !senderOnVerifiedDomain(fromAddress, check.verified)) {
+  // ── "Sending access" key: the domain list is off-limits. ───────────────────
+  // We can't discover the sender, so the owner types it and Resend itself settles
+  // the argument — one real email to the owner's own inbox. Saving an unproven
+  // address would mean finding out it's wrong from a guest who never got their
+  // confirmation, which is exactly the failure this whole feature exists to avoid.
+  if (!requested || !isEmailAddress(requested)) {
     return NextResponse.json({
       ok: false,
-      invalid_sender: true,
-      verified: check.verified,
+      needs_sender: true,
       test: {
         ...check,
         ok: false,
-        detail: `L'indirizzo mittente deve stare su un dominio verificato nel tuo account Resend (${check.verified.join(", ")}).`,
+        detail:
+          "Con una chiave “Sending access” non possiamo leggere i tuoi domini: scrivi qui sotto l'indirizzo mittente (es. noreply@iltuodominio.com).",
       },
     });
   }
 
-  const err = await store(svc, tenantId, apiKey, fromAddress);
+  // resend.dev is Resend's sandbox: it sends ONLY to the account owner's own
+  // address. The probe below would pass (we mail the owner!) and we'd save a
+  // "connected" tenant that can't reach a single guest — the exact green-tick lie
+  // this route exists to prevent.
+  if (domainOf(requested) === "resend.dev") {
+    return NextResponse.json({
+      ok: false,
+      invalid_sender: true,
+      test: {
+        ...check,
+        ok: false,
+        detail:
+          "resend.dev è l'indirizzo di prova di Resend: raggiunge solo te, non i tuoi clienti. Verifica il tuo dominio su resend.com/domains e usa un indirizzo su quel dominio.",
+      },
+    });
+  }
+
+  const [{ data: tenant }, { data: authUser }] = await Promise.all([
+    svc.from("tenants").select("name").eq("id", tenantId).maybeSingle(),
+    svc.auth.admin.getUserById(member.userId),
+  ]);
+  const ownerEmail = authUser?.user?.email || "";
+  if (!ownerEmail) {
+    return NextResponse.json({
+      ok: false,
+      test: { ...check, ok: false, detail: "Non riusciamo a leggere la tua email per l'invio di prova." },
+    });
+  }
+
+  const probe = await probeSender(apiKey, requested, tenant?.name || "", ownerEmail);
+  if (!probe.ok) {
+    return NextResponse.json({
+      ok: false,
+      invalid_sender: true,
+      test: { ...check, ok: false, detail: probe.detail },
+    });
+  }
+
+  const err = await store(svc, tenantId, apiKey, requested);
   if (err) return NextResponse.json({ ok: false, error: err }, { status: 500 });
 
   return NextResponse.json({
     ok: true,
     connected: true,
-    from_address: fromAddress,
-    verified: check.verified,
-    test: { ...check, detail: `Collegato. Le email partiranno da ${fromAddress}.` },
+    from_address: requested,
+    test: { ...check, detail: probe.detail },
   });
 }
 
