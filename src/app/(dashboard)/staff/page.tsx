@@ -11,7 +11,7 @@ import Link from "next/link";
 import {
   CalendarClock, ChevronLeft, ChevronRight, Plus, X, Sun, Moon, Clock,
   CheckCircle2, XCircle, Hourglass, Users, Lock, Send, CalendarRange, CopyPlus,
-  Plane, Thermometer, UserMinus, CalendarOff,
+  Plane, Thermometer, UserMinus, CalendarOff, User, Repeat,
 } from "lucide-react";
 import { useLanguage } from "@/lib/contexts/LanguageContext";
 import { useTenant } from "@/lib/contexts/TenantContext";
@@ -92,6 +92,10 @@ export default function StaffPage() {
   const isOwner = activeRole === "owner" || activeRole === "platform_admin";
 
   const [tab, setTab] = useState<"shifts" | "requests" | "team">("shifts");
+  // A waiter opens the page to answer one question — "when do I work?" — so the
+  // rota defaults to a personal list for them. The full team grid (7 columns ×
+  // N members, unreadable on a phone) stays one tap away.
+  const [rotaView, setRotaView] = useState<"mine" | "team">(isManager ? "team" : "mine");
   const [weekStart, setWeekStart] = useState<Date>(() => mondayOf(new Date()));
   const [members, setMembers] = useState<Member[]>([]);
   const [myMemberId, setMyMemberId] = useState<string | null>(null);
@@ -219,6 +223,24 @@ export default function StaffPage() {
   );
 
   const pendingCount = requests.filter((r) => r.status === "pending").length;
+
+  // The signed-in member's own week, one entry per day — what the "mine" rota
+  // view renders. Empty days are kept here and skipped at render time so the
+  // "nothing this week" check stays a single pass.
+  const myWeek = useMemo(
+    () =>
+      weekDays.map((date, idx) => {
+        const ds = dateStr(date);
+        return {
+          idx,
+          date,
+          ds,
+          shifts: myMemberId ? shiftsFor(myMemberId, ds) : [],
+          absence: myMemberId ? absenceFor(myMemberId, ds) : null,
+        };
+      }),
+    [weekDays, myMemberId, shiftsFor, absenceFor],
+  );
 
   // Copy the previous week's rota onto the visible week (add-only).
   const copyPreviousWeek = useCallback(async () => {
@@ -462,6 +484,26 @@ export default function StaffPage() {
               {weekDays[0].getDate()}/{pad(weekDays[0].getMonth() + 1)} — {weekDays[6].getDate()}/{pad(weekDays[6].getMonth() + 1)}
             </span>
 
+            {/* Mine / Team switch — everyone with a membership row can flip it.
+                A waiter lands on "mine"; a manager lands on the full grid. */}
+            {myMemberId && (
+              <div className="inline-flex rounded-xl border overflow-hidden bg-white/70" style={{ borderColor: "#c4956a" }}>
+                {([
+                  ["mine", tk("staff_view_mine"), <User key="i" className="w-4 h-4" />],
+                  ["team", tk("staff_view_team"), <Users key="i" className="w-4 h-4" />],
+                ] as Array<[typeof rotaView, string, React.ReactNode]>).map(([key, label, icon]) => (
+                  <button
+                    key={key}
+                    onClick={() => setRotaView(key)}
+                    className={`px-3 py-2 text-sm cursor-pointer inline-flex items-center gap-1.5 ${rotaView === key ? "text-white font-bold" : "text-black"}`}
+                    style={rotaView === key ? { background: "#c4956a" } : undefined}
+                  >
+                    {icon} {label}
+                  </button>
+                ))}
+              </div>
+            )}
+
             {isManager && (
               <div className="flex items-center gap-2 ml-auto flex-wrap">
                 <button
@@ -498,7 +540,71 @@ export default function StaffPage() {
             </div>
           )}
 
+          {/* ── "My shifts": one card per day of the visible week, so a waiter on a
+                 phone reads their week top-to-bottom instead of scrolling a grid
+                 sideways. Tapping a shift opens the same swap request modal. ── */}
+          {rotaView === "mine" && myMemberId && (
+            <div className={`${CARD} overflow-hidden`} style={CARD_STYLE}>
+              {myWeek.every((d) => d.shifts.length === 0 && !d.absence) ? (
+                <p className="p-6 text-sm text-black">{loading ? "…" : tk("staff_my_week_empty")}</p>
+              ) : (
+                <div className="divide-y" style={{ borderColor: "#f0e5d4" }}>
+                  {myWeek.map((day) => {
+                    if (day.shifts.length === 0 && !day.absence) return null;
+                    const isToday = day.ds === todayStr;
+                    return (
+                      <div
+                        key={day.ds}
+                        className="p-4 flex flex-wrap items-center gap-x-4 gap-y-2"
+                        style={isToday ? { background: "rgba(196,149,106,0.06)" } : undefined}
+                      >
+                        <div className="w-28 shrink-0">
+                          <p className="text-sm font-bold" style={{ color: isToday ? "#c4956a" : "#000" }}>
+                            {tk(DAY_KEYS[day.idx])}
+                          </p>
+                          <p className="text-xs tabular-nums text-black">
+                            {day.date.getDate()}/{pad(day.date.getMonth() + 1)}
+                          </p>
+                        </div>
+                        <div className="flex flex-wrap items-center gap-2 flex-1 min-w-0">
+                          {day.absence && (
+                            <span
+                              className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-bold"
+                              style={{ background: absenceStyle(day.absence).bg, color: absenceStyle(day.absence).fg }}
+                            >
+                              {absenceIcon(day.absence)} {tk(ABSENCE_LABEL_KEY[day.absence])}
+                            </span>
+                          )}
+                          {day.shifts.map((s) => (
+                            <button
+                              key={s.id}
+                              onClick={() =>
+                                isManager
+                                  ? setShiftModal({ mode: "edit", shift: s })
+                                  : setRequestModal({ type: "swap", shift: s })
+                              }
+                              className="inline-flex items-center gap-2 rounded-lg px-3 py-1.5 cursor-pointer"
+                              style={{ background: bandColors[s.band].bg, color: bandColors[s.band].fg }}
+                              title={tk("staff_type_swap")}
+                            >
+                              <span className="inline-flex items-center gap-1 text-sm font-bold tabular-nums">
+                                {bandIcon(s.band)} {hhmm(s.start_time)}–{hhmm(s.end_time)}
+                              </span>
+                              {s.role_note && <span className="text-xs truncate max-w-[140px]">{s.role_note}</span>}
+                              {!isManager && <Repeat className="w-3.5 h-3.5 opacity-60" />}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
+
           {/* Rota grid — horizontally scrollable on mobile */}
+          {rotaView === "team" && (
           <div className={`${CARD} overflow-hidden`} style={CARD_STYLE}>
             <div className="overflow-x-auto">
               <table className="w-full min-w-[760px] border-collapse">
@@ -589,6 +695,7 @@ export default function StaffPage() {
               </table>
             </div>
           </div>
+          )}
         </>
       )}
 

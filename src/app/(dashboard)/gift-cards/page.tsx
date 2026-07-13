@@ -11,6 +11,7 @@ import { useLanguage } from "@/lib/contexts/LanguageContext";
 import { useTenant } from "@/lib/contexts/TenantContext";
 import { createClient } from "@/lib/supabase/client";
 import { formatGiftCents } from "@/lib/gift-cards/gift-cards";
+import { GiftDesignEditor } from "@/components/gift-cards/GiftDesignEditor";
 import { useEffect, useMemo, useState } from "react";
 import { ExternalLink, Gift } from "lucide-react";
 import Link from "next/link";
@@ -32,13 +33,17 @@ interface GiftRow {
 
 export default function GiftCardsPage() {
   const { t } = useLanguage();
-  const { activeTenant } = useTenant();
+  const { activeTenant, activeRole } = useTenant();
   const supabase = useMemo(() => createClient(), []);
   const [rows, setRows] = useState<GiftRow[]>([]);
   const [loading, setLoading] = useState(true);
 
   const planActive = hasActivePlan(activeTenant?.settings);
   const enabled = getFeatures(activeTenant?.settings).gift_cards_enabled;
+  // Designing the cards the public page sells is an owner/manager job — the same
+  // bar as editing the site. A host reading the sold-vouchers list sees no editor.
+  const canEdit =
+    activeRole === "owner" || activeRole === "manager" || activeRole === "platform_admin";
 
   useEffect(() => {
     if (!activeTenant || !enabled) {
@@ -127,6 +132,8 @@ export default function GiftCardsPage() {
           <p className="text-2xl font-bold text-black">{formatGiftCents(openCents)}</p>
         </div>
       </div>
+
+      <GiftDesignEditor canEdit={canEdit} />
 
       {loading ? (
         <p className="text-sm text-black">…</p>

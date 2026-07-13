@@ -20,7 +20,9 @@ import {
   Search,
   X,
   Banknote,
+  ScanBarcode,
 } from "lucide-react";
+import { CameraScanner } from "@/components/scanner/CameraScanner";
 import { InfoHotspot } from "@/components/ui/InfoHotspot";
 import { ManagementLocked } from "@/components/management/ManagementLocked";
 import { InventoryMovements } from "@/components/management/InventoryMovements";
@@ -47,6 +49,8 @@ interface IngredientRow {
   supplier_name: string | null;
   expiry_date: string | null;
   pos_external_product_id: string | null;
+  /** EAN/UPC on the package — what the phone camera scans to find this product. */
+  barcode: string | null;
 }
 
 interface PosProduct {
@@ -98,6 +102,21 @@ export default function InventoryPage() {
   const [creating, setCreating] = useState(false);
   const [filter, setFilter] = useState<Filter>("all");
   const [query, setQuery] = useState("");
+  // Barcode scan, two jobs from the same camera:
+  //   • LOOKUP (scanTarget = null, from the toolbar): find the product carrying
+  //     that code — or, when nothing does, put the digits in the search box so
+  //     the owner can add it. The scan is never a dead end.
+  //   • ASSIGN (scanTarget = an ingredient id, from that row's scan button):
+  //     write the scanned code onto that product, so future lookups find it.
+  const [scanOpen, setScanOpen] = useState(false);
+  const [scanTarget, setScanTarget] = useState<string | null>(null);
+  const [scanMsg, setScanMsg] = useState<string | null>(null);
+
+  const openScanFor = useCallback((id: string) => {
+    setScanMsg(null);
+    setScanTarget(id);
+    setScanOpen(true);
+  }, []);
 
   // Inline stock edit (the headline editable field, with POS write-back).
   const [editingStock, setEditingStock] = useState<string | null>(null);
@@ -119,7 +138,7 @@ export default function InventoryPage() {
     const [{ data }, { data: mv }] = await Promise.all([
       supabase
         .from("ingredients")
-        .select("id, name, unit, current_unit_cost, stock_qty, par_level, supplier_name, expiry_date, pos_external_product_id")
+        .select("id, name, unit, current_unit_cost, stock_qty, par_level, supplier_name, expiry_date, pos_external_product_id, barcode")
         .eq("tenant_id", activeTenant.id)
         .eq("archived", false)
         .order("name"),
@@ -329,6 +348,34 @@ export default function InventoryPage() {
     }
   }, [supabase]);
 
+  const handleScan = useCallback((code: string) => {
+    setScanOpen(false);
+    const target = scanTarget;
+    setScanTarget(null);
+    const value = code.trim();
+    if (!value) return;
+
+    // ASSIGN: the scan came from a specific product's row.
+    if (target) {
+      void patchIngredient(target, { barcode: value });
+      setScanMsg(t("inventory_barcode_saved"));
+      return;
+    }
+
+    // LOOKUP: open the product that already carries this code…
+    const hit = rowsRef.current.find((r) => r.barcode === value);
+    if (hit) {
+      setQuery("");
+      setFilter("all");
+      setExpanded(hit.id);
+      setScanMsg(null);
+      return;
+    }
+    // …or hand the digits to the search box so the owner can add the product.
+    setQuery(value);
+    setScanMsg(t("inventory_barcode_unknown"));
+  }, [scanTarget, patchIngredient, t]);
+
   const archiveIngredient = useCallback(async (id: string) => {
     if (!confirm(t("inventory_confirm_delete"))) return;
     setExpanded(null);
@@ -355,7 +402,15 @@ export default function InventoryPage() {
   const visible = useMemo(() => {
     const q = query.trim().toLowerCase();
     return rows.filter((r) => {
-      if (q && !r.name.toLowerCase().includes(q) && !(r.supplier_name || "").toLowerCase().includes(q)) return false;
+      if (
+        q &&
+        !r.name.toLowerCase().includes(q) &&
+        !(r.supplier_name || "").toLowerCase().includes(q) &&
+        // Searching by barcode too: after an unrecognised scan the digits land
+        // in this box, and once the code is saved the same scan finds the product.
+        !(r.barcode || "").toLowerCase().includes(q)
+      )
+        return false;
       if (filter === "low") return isLow(r);
       if (filter === "expiring") return isExpiringSoon(r);
       if (filter === "reorder") return reorderIds.has(r.id);
@@ -564,11 +619,21 @@ export default function InventoryPage() {
             style={{ borderColor: "#eaddcb" }}
           />
           {query && (
-            <button onClick={() => setQuery("")} className="absolute right-2.5 top-1/2 -translate-y-1/2 cursor-pointer" aria-label="clear">
+            <button onClick={() => { setQuery(""); setScanMsg(null); }} className="absolute right-2.5 top-1/2 -translate-y-1/2 cursor-pointer" aria-label="clear">
               <X className="w-4 h-4" style={{ color: "#8b6540" }} />
             </button>
           )}
         </div>
+
+        {/* Scan a package instead of typing its name. */}
+        <button
+          onClick={() => { setScanMsg(null); setScanTarget(null); setScanOpen(true); }}
+          className="inline-flex items-center gap-1.5 px-3 py-2 text-sm font-bold rounded-xl border bg-white/70 text-black cursor-pointer"
+          style={{ borderColor: "#eaddcb" }}
+        >
+          <ScanBarcode className="w-4 h-4" /> {t("scan_barcode_btn")}
+        </button>
+
         <div className="flex flex-wrap gap-1.5">
           {chips.map((c) => {
             const active = filter === c.key;
@@ -600,6 +665,33 @@ export default function InventoryPage() {
         </div>
       </div>
 
+      {scanMsg && (
+        <div className="rounded-xl border px-4 py-2.5 text-sm font-bold text-black bg-white/70 flex items-center justify-between gap-3" style={{ borderColor: "#c4956a" }}>
+          <span>{scanMsg}</span>
+          <button onClick={() => setScanMsg(null)} className="cursor-pointer text-black/50 hover:text-black" aria-label="dismiss">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
+
+      {scanOpen && (
+        <CameraScanner
+          mode="barcode"
+          onClose={() => { setScanOpen(false); setScanTarget(null); }}
+          onResult={handleScan}
+          strings={{
+            title: t("scan_barcode_title"),
+            hint: t("scan_barcode_hint"),
+            cancel: t("scan_cancel"),
+            retry: t("scan_retry"),
+            errPermission: t("scan_err_permission"),
+            errNoCamera: t("scan_err_no_camera"),
+            errInsecure: t("scan_err_insecure"),
+            errGeneric: t("scan_err_generic"),
+          }}
+        />
+      )}
+
       {/* ── Ingredient list ─────────────────────────────────────────────────── */}
       <div className="space-y-2">
         {loading ? (
@@ -628,6 +720,7 @@ export default function InventoryPage() {
               onCancel={cancelStockEdit}
               onPatch={patchIngredient}
               onArchive={archiveIngredient}
+              onScanFor={openScanFor}
               t={t}
             />
           ))
@@ -704,7 +797,7 @@ function StockBar({ stock, par }: { stock: number; par: number }) {
 // typing in one card never re-renders the rest of the list.
 const IngredientCard = memo(function IngredientCard({
   r, isOpen, editing, draft, saveState, posProducts, parSuggestion,
-  onToggle, onStartEdit, onDraftChange, onCommit, onCancel, onPatch, onArchive, t,
+  onToggle, onStartEdit, onDraftChange, onCommit, onCancel, onPatch, onArchive, onScanFor, t,
 }: {
   r: IngredientRow;
   isOpen: boolean;
@@ -720,6 +813,8 @@ const IngredientCard = memo(function IngredientCard({
   onCancel: () => void;
   onPatch: (id: string, patch: Partial<IngredientRow>) => void;
   onArchive: (id: string) => void;
+  /** Open the camera to assign a barcode TO THIS ingredient. */
+  onScanFor: (id: string) => void;
   t: (k: keyof Dictionary) => string;
 }) {
   const low = isLow(r);
@@ -841,6 +936,34 @@ const IngredientCard = memo(function IngredientCard({
             <label className="flex flex-col gap-1">
               <span className="text-xs font-bold text-black">{t("inventory_col_expiry")}</span>
               <input type="date" defaultValue={r.expiry_date || ""} onBlur={(e) => { const v = e.target.value || null; if (v !== r.expiry_date) onPatch(r.id, { expiry_date: v }); }} className={inputCls} style={inputStyle} />
+            </label>
+            {/* Barcode: type it, or scan the package once and every later scan
+                jumps straight to this product. */}
+            <label className="flex flex-col gap-1">
+              <span className="text-xs font-bold text-black">{t("inventory_barcode")}</span>
+              <div className="flex items-center gap-1.5">
+                <input
+                  key={r.barcode || "none"}
+                  defaultValue={r.barcode || ""}
+                  placeholder={t("inventory_barcode_ph")}
+                  onBlur={(e) => {
+                    const v = e.target.value.trim() || null;
+                    if (v !== r.barcode) onPatch(r.id, { barcode: v });
+                  }}
+                  className={inputCls}
+                  style={inputStyle}
+                  inputMode="numeric"
+                />
+                <button
+                  onClick={() => onScanFor(r.id)}
+                  className="p-2 rounded-lg border cursor-pointer text-black shrink-0"
+                  style={{ borderColor: "#eaddcb" }}
+                  title={t("scan_barcode_btn")}
+                  aria-label={t("scan_barcode_btn")}
+                >
+                  <ScanBarcode className="w-4 h-4" />
+                </button>
+              </div>
             </label>
           </div>
 

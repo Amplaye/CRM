@@ -146,10 +146,15 @@ export async function fulfillGiftCardSession(
       const c = COPY[locale];
       const buyerLabel = escapeHtml(meta.buyer_name || buyerEmail || venueName);
       const message = (meta.message || "").trim();
+      // The card the buyer picked, snapshotted into the checkout metadata. Naming
+      // it here is what makes the delivered email match the card they chose on the
+      // page — and it keeps saying the right thing after the owner redesigns it.
+      const designTitle = (meta.design_title || "").trim();
       const bodyHtml = `
         <p>${c.intro(buyerLabel, escapeHtml(venueName))}</p>
         ${message ? `<p style="border-left:3px solid #e5e7eb;padding-left:12px;font-style:italic;">${c.msgLabel}: “${escapeHtml(message)}”</p>` : ""}
         <div style="margin:24px 0;padding:20px;border:2px dashed #9ca3af;border-radius:12px;text-align:center;">
+          ${designTitle ? `<div style="font-size:17px;font-weight:700;color:#111827;margin-bottom:10px;">${escapeHtml(designTitle)}</div>` : ""}
           <div style="font-size:13px;color:#111827;">${c.codeLabel}</div>
           <div style="font-size:26px;font-weight:800;letter-spacing:2px;color:#111827;">${escapeHtml(code)}</div>
           <div style="margin-top:6px;font-size:14px;color:#111827;">${c.valueLabel}: <strong>${formatGiftCents(amountCents, currency)}</strong></div>

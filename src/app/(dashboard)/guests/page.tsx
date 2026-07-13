@@ -43,6 +43,12 @@ export default function GuestsPage() {
   const [importPlan, setImportPlan] = useState<{ plan: ImportPlan; fileName: string } | null>(null);
   const [importing, setImporting] = useState(false);
   const [importResult, setImportResult] = useState<string | null>(null);
+  // Loyalty points for the whole book in ONE query, so the table can show a
+  // points column. (The drawer still reads a single guest's balance on open —
+  // that's the authoritative read after a redemption.)
+  const [pointsByGuest, setPointsByGuest] = useState<Record<string, number>>({});
+
+  const loyaltyOn = getFeatures(activeTenant?.settings as TenantSettings).loyalty_enabled;
 
   // Full export: EVERY guest field (name, phone, email, tags, allergie/note
   // dietetiche, accessibilità, famiglia, spesa…), so it's a lossless backup and
@@ -131,6 +137,31 @@ export default function GuestsPage() {
       supabase.removeChannel(channel);
     };
   }, [activeTenant]);
+
+  // Points for every guest at once. Skipped entirely when the loyalty module is
+  // off, so a tenant that doesn't use it pays for no extra query and sees no column.
+  useEffect(() => {
+    if (!activeTenant || !loyaltyOn) {
+      setPointsByGuest({});
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      const { data } = await supabase
+        .from("loyalty_accounts")
+        .select("guest_id, points")
+        .eq("tenant_id", activeTenant.id);
+      if (cancelled) return;
+      const map: Record<string, number> = {};
+      for (const row of (data || []) as { guest_id: string; points: number }[]) {
+        map[row.guest_id] = row.points ?? 0;
+      }
+      setPointsByGuest(map);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [activeTenant, loyaltyOn]);
 
   useEffect(() => {
     if (!selectedGuest || !activeTenant) return;
@@ -339,12 +370,19 @@ export default function GuestsPage() {
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-bold text-black truncate">{guest.name}</p>
                     <p className="text-xs text-black truncate">{guest.phone || '—'}</p>
+                    {guest.email && <p className="text-xs text-black truncate opacity-70">{guest.email}</p>}
                   </div>
                   <div className="flex gap-3 text-center flex-shrink-0">
                     <div>
                       <p className="text-sm font-bold text-black">{guest.visit_count}</p>
                       <p className="text-[9px] text-black uppercase">{t("guests_visits_col")}</p>
                     </div>
+                    {loyaltyOn && (
+                      <div>
+                        <p className="text-sm font-bold text-black">{pointsByGuest[guest.id] ?? 0}</p>
+                        <p className="text-[9px] text-black uppercase">{t("guests_points_col")}</p>
+                      </div>
+                    )}
                     <div>
                       <p className={`text-sm font-bold ${guest.no_show_count > 0 ? 'text-red-600' : 'text-black'}`}>{guest.no_show_count}</p>
                       <p className="text-[9px] text-black uppercase">No-show</p>
@@ -364,7 +402,14 @@ export default function GuestsPage() {
                   <th className="px-3 py-3 w-10"></th>
                   <th className="px-6 py-3 text-left text-xs font-semibold text-black uppercase">{t("guests_name")}</th>
                   <th className="px-6 py-3 text-left text-xs font-semibold text-black uppercase">{t("guests_phone")}</th>
+                  {/* Email is what marketing campaigns and gift cards run on — a
+                      blank here is the reason a guest can't be reached, so it
+                      earns a column rather than hiding in the drawer. */}
+                  <th className="px-6 py-3 text-left text-xs font-semibold text-black uppercase">{t("guests_email_col")}</th>
                   <th className="px-6 py-3 text-center text-xs font-semibold text-black uppercase">{t("guests_visits_col")}</th>
+                  {loyaltyOn && (
+                    <th className="px-6 py-3 text-center text-xs font-semibold text-black uppercase">{t("guests_points_col")}</th>
+                  )}
                   <th className="px-6 py-3 text-center text-xs font-semibold text-black uppercase">{t("guests_noshows_col")}</th>
                   <th className="px-3 py-3 w-10"></th>
                 </tr>
@@ -390,7 +435,29 @@ export default function GuestsPage() {
                       </div>
                     </td>
                     <td className="px-6 py-3 text-sm text-black whitespace-nowrap">{guest.phone}</td>
+                    <td className="px-6 py-3 text-sm text-black">
+                      {guest.email ? (
+                        <span className="inline-flex items-center gap-1.5 max-w-[220px]">
+                          <Mail className="h-3.5 w-3.5 flex-shrink-0" style={{ color: '#c4956a' }} />
+                          <span className="truncate">{guest.email}</span>
+                        </span>
+                      ) : (
+                        <span className="text-black opacity-40">—</span>
+                      )}
+                    </td>
                     <td className="px-6 py-3 text-sm font-medium text-black text-center">{guest.visit_count}</td>
+                    {loyaltyOn && (
+                      <td className="px-6 py-3 text-sm font-medium text-center">
+                        {pointsByGuest[guest.id] ? (
+                          <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 font-bold text-black"
+                            style={{ background: 'rgba(196,149,106,0.18)' }}>
+                            <Award className="h-3.5 w-3.5" /> {pointsByGuest[guest.id]}
+                          </span>
+                        ) : (
+                          <span className="text-black opacity-40">0</span>
+                        )}
+                      </td>
+                    )}
                     <td className="px-6 py-3 text-sm font-medium text-center">
                       <span className={guest.no_show_count > 0 ? 'text-red-600' : 'text-black'}>{guest.no_show_count}</span>
                     </td>

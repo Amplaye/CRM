@@ -23,7 +23,9 @@ import {
   Star,
   MinusCircle,
   Palette,
+  Camera,
 } from "lucide-react";
+import { CameraScanner } from "@/components/scanner/CameraScanner";
 import { useLanguage } from "@/lib/contexts/LanguageContext";
 import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent } from "react";
 import { createClient } from "@/lib/supabase/client";
@@ -2201,6 +2203,9 @@ function ImportMenuModal({
   // While a multi-image batch runs: which image we're on (1-based) and how many.
   const [batch, setBatch] = useState<{ index: number; total: number } | null>(null);
   const [url, setUrl] = useState("");
+  // Phone-camera QR scan → fills `url` (was: open the QR by hand, copy, paste).
+  const [scanOpen, setScanOpen] = useState(false);
+  const [scanError, setScanError] = useState<string | null>(null);
   const [stage, setStage] = useState<"idle" | "uploading" | "processing" | "pairing" | "preview" | "saving" | "done">("idle");
   const [extracted, setExtracted] = useState<ExtractedMenu | null>(null);
   // Dish-photo import. `photos` = every candidate pulled from the PDF (WebP +
@@ -3007,10 +3012,52 @@ function ImportMenuModal({
                     className="w-full border-2 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-[#c4956a]"
                     style={{ borderColor: "#c4956a", background: "rgba(252,246,237,0.6)" }}
                   />
+                  {/* Scan the QR with the phone camera instead of opening it by
+                      hand and pasting the URL back in — the hint below used to
+                      literally ask the owner to do that manually. */}
+                  <button
+                    type="button"
+                    onClick={() => setScanOpen(true)}
+                    className="mt-2 inline-flex items-center gap-1.5 rounded-lg border-2 px-3 py-2 text-sm font-bold text-black cursor-pointer"
+                    style={{ borderColor: "#c4956a", background: "rgba(252,246,237,0.6)" }}
+                  >
+                    <Camera className="w-4 h-4" /> {t("scan_qr_btn")}
+                  </button>
+                  {scanError && <p className="text-xs font-bold text-red-700 mt-2">{scanError}</p>}
                   <p className="text-xs text-black mt-2">
                     {t("menu_import_url_hint") ||
                       "Scansiona il QR del ristorante con il telefono, copia l'URL che si apre e incollalo qui. Funziona con PDF, immagini o siti web semplici."}
                   </p>
+
+                  {scanOpen && (
+                    <CameraScanner
+                      mode="qr"
+                      onClose={() => setScanOpen(false)}
+                      onResult={(text) => {
+                        setScanOpen(false);
+                        // A menu QR encodes a link. Anything else (vCard, plain
+                        // text, wifi config) can't be imported — say so instead of
+                        // silently dropping it into a url input the server will reject.
+                        const v = text.trim();
+                        if (!/^https?:\/\//i.test(v)) {
+                          setScanError(t("scan_err_not_url"));
+                          return;
+                        }
+                        setScanError(null);
+                        setUrl(v);
+                      }}
+                      strings={{
+                        title: t("scan_qr_title"),
+                        hint: t("scan_qr_hint"),
+                        cancel: t("scan_cancel"),
+                        retry: t("scan_retry"),
+                        errPermission: t("scan_err_permission"),
+                        errNoCamera: t("scan_err_no_camera"),
+                        errInsecure: t("scan_err_insecure"),
+                        errGeneric: t("scan_err_generic"),
+                      }}
+                    />
+                  )}
                 </div>
               )}
 

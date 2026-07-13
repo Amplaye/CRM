@@ -39,6 +39,26 @@ function NotifIcon({ type }: { type: Notification["type"] }) {
   );
 }
 
+// Which CHANNEL the booking arrived on, as a small badge next to the message —
+// answering "who took this?" at a glance. `web` (the booking widget on the
+// public site / micro-site) gets the browser globe; `staff` is filtered out of
+// the feed upstream and needs no badge.
+function SourceBadge({ source }: { source: Notification["source"] }) {
+  const map = {
+    ai_voice: { Icon: Phone, title: "AI Voice", cls: "bg-indigo-50 text-indigo-600 ring-indigo-200" },
+    ai_chat: { Icon: MessageSquare, title: "AI WhatsApp", cls: "bg-terracotta-50 text-terracotta-600 ring-terracotta-200" },
+    web: { Icon: Globe, title: "Sito web", cls: "bg-sky-50 text-sky-600 ring-sky-200" },
+  } as const;
+  const entry = source ? map[source as keyof typeof map] : undefined;
+  if (!entry) return null;
+  const { Icon, title, cls } = entry;
+  return (
+    <span title={title} className={`flex h-6 w-6 items-center justify-center rounded ring-1 flex-shrink-0 ${cls}`}>
+      <Icon className="h-3 w-3" />
+    </span>
+  );
+}
+
 interface TopbarProps {
   onMenuToggle?: () => void;
 }
@@ -332,11 +352,13 @@ export function Topbar({ onMenuToggle }: TopbarProps) {
         },
         (payload: any) => {
           const res = payload.new;
+          // Carry `source` here too: a cancellation of a booking that came from
+          // the website should still be badged as a website booking.
           if (res.status === 'cancelled') {
-            const n: Notification = { id: res.id + '-cancel', type: "reservation", message: `${t("topbar_reservation_cancelled")}: ${res.date} ${res.time}`, time: new Date().toLocaleTimeString(), read: false, href: `/reservations?date=${res.date}` };
+            const n: Notification = { id: res.id + '-cancel', type: "reservation", message: `${t("topbar_reservation_cancelled")}: ${res.date} ${res.time}`, time: new Date().toLocaleTimeString(), read: false, href: `/reservations?date=${res.date}`, source: res.source ?? null };
             pushNotification(n);
           } else if (res.status === 'no_show') {
-            const n: Notification = { id: res.id + '-noshow', type: "incident", message: `${t("topbar_noshow")}: ${res.date} ${res.time}`, time: new Date().toLocaleTimeString(), read: false, href: `/reservations?date=${res.date}` };
+            const n: Notification = { id: res.id + '-noshow', type: "incident", message: `${t("topbar_noshow")}: ${res.date} ${res.time}`, time: new Date().toLocaleTimeString(), read: false, href: `/reservations?date=${res.date}`, source: res.source ?? null };
             pushNotification(n);
           }
         }
@@ -502,16 +524,7 @@ export function Topbar({ onMenuToggle }: TopbarProps) {
                         <div className="flex-1 min-w-0">
                           <p className="text-sm text-black flex items-center gap-1.5">
                             <span>{n.message}</span>
-                            {n.source === 'ai_voice' && (
-                              <span title="AI Voice" className="flex h-6 w-6 items-center justify-center rounded bg-indigo-50 text-indigo-600 ring-1 ring-indigo-200 flex-shrink-0">
-                                <Phone className="h-3 w-3" />
-                              </span>
-                            )}
-                            {n.source === 'ai_chat' && (
-                              <span title="AI WhatsApp" className="flex h-6 w-6 items-center justify-center rounded bg-terracotta-50 text-terracotta-600 ring-1 ring-terracotta-200 flex-shrink-0">
-                                <MessageSquare className="h-3 w-3" />
-                              </span>
-                            )}
+                            <SourceBadge source={n.source} />
                           </p>
                           <p className="text-xs text-black mt-1">{n.time}</p>
                         </div>
@@ -553,16 +566,7 @@ export function Topbar({ onMenuToggle }: TopbarProps) {
                         <div className="flex-1 min-w-0">
                           <p className="text-sm text-black flex items-center gap-1.5">
                             <span>{n.message}</span>
-                            {n.source === 'ai_voice' && (
-                              <span title="AI Voice" className="flex h-6 w-6 items-center justify-center rounded bg-indigo-50 text-indigo-600 ring-1 ring-indigo-200 flex-shrink-0">
-                                <Phone className="h-3 w-3" />
-                              </span>
-                            )}
-                            {n.source === 'ai_chat' && (
-                              <span title="AI WhatsApp" className="flex h-6 w-6 items-center justify-center rounded bg-terracotta-50 text-terracotta-600 ring-1 ring-terracotta-200 flex-shrink-0">
-                                <MessageSquare className="h-3 w-3" />
-                              </span>
-                            )}
+                            <SourceBadge source={n.source} />
                           </p>
                           <p className="text-xs text-black mt-1">{n.time}</p>
                         </div>

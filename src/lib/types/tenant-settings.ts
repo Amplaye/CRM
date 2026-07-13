@@ -262,6 +262,14 @@ export interface TenantSettings {
    * `--c1..--cN` onto the wrapper; each template reads those vars with its own
    * hex as the fallback, so an unset palette is byte-identical to today. */
   site_palette?: Partial<Record<SiteTemplateKey, string[]>>;
+  /** Gift-card DESIGNS — the sellable cards the owner composes in the Gift Cards
+   * dashboard, rendered as-is on the public /g/<slug> page. Each entry is one
+   * card: fixed amount + look (title, subtitle, colours or a photo). Absent or
+   * empty → the public page falls back to the historical preset amounts, so a
+   * tenant that never opens the editor keeps today's page. Shape + validation
+   * live in src/lib/gift-cards/designs.ts (never read this array raw — go through
+   * publishedGiftDesigns()). */
+  gift_designs?: import("@/lib/gift-cards/designs").GiftDesign[];
   /** Loyalty programme config (Fase 6). Read via getLoyaltyConfig() which
    * applies defaults/clamping — points accrue on completed reservations,
    * rewards are redeemed by staff from the guest panel. */

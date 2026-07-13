@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { createServiceRoleClient } from "@/lib/supabase/server";
 import { getFeatures, type TenantSettings } from "@/lib/types/tenant-settings";
 import { hasActivePlan } from "@/lib/billing/entitlements";
+import { publishedGiftDesigns } from "@/lib/gift-cards/designs";
 import GiftForm, { type GiftFormStrings } from "./GiftForm";
 
 // Public gift-card purchase page ("Regala una cena") — same guest-page
@@ -28,6 +29,7 @@ const STRINGS: Record<
     paidOk: "Pagamento riuscito! Il buono arriverà via email tra pochi minuti.",
     paidKo: "Pagamento annullato. Nessun addebito effettuato.",
     amountLabel: "Importo",
+    chooseCard: "Scegli il buono",
     customAmount: "Altro importo (€)",
     buyerName: "Il tuo nome",
     buyerEmail: "La tua email",
@@ -45,6 +47,7 @@ const STRINGS: Record<
     paidOk: "¡Pago realizado! El vale llegará por email en unos minutos.",
     paidKo: "Pago cancelado. No se ha realizado ningún cargo.",
     amountLabel: "Importe",
+    chooseCard: "Elige el vale",
     customAmount: "Otro importe (€)",
     buyerName: "Tu nombre",
     buyerEmail: "Tu email",
@@ -62,6 +65,7 @@ const STRINGS: Record<
     paidOk: "Payment successful! The voucher will arrive by email in a few minutes.",
     paidKo: "Payment cancelled. Nothing was charged.",
     amountLabel: "Amount",
+    chooseCard: "Choose your card",
     customAmount: "Other amount (€)",
     buyerName: "Your name",
     buyerEmail: "Your email",
@@ -79,6 +83,7 @@ const STRINGS: Record<
     paidOk: "Zahlung erfolgreich! Der Gutschein kommt in wenigen Minuten per E-Mail.",
     paidKo: "Zahlung abgebrochen. Es wurde nichts belastet.",
     amountLabel: "Betrag",
+    chooseCard: "Gutschein wählen",
     customAmount: "Anderer Betrag (€)",
     buyerName: "Ihr Name",
     buyerEmail: "Ihre E-Mail",
@@ -141,7 +146,14 @@ export default async function GiftCardPage({
           </div>
         ) : null}
 
-        {paid !== true ? <GiftForm slug={tenant.slug} accent={accent} strings={ui} /> : null}
+        {paid !== true ? (
+          <GiftForm
+            slug={tenant.slug}
+            accent={accent}
+            strings={ui}
+            designs={publishedGiftDesigns(tenant.settings?.gift_designs)}
+          />
+        ) : null}
       </div>
     </div>
   );

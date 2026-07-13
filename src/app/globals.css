@@ -470,6 +470,23 @@ body.cassa-overlay-open .assistant-fab {
 .bw2-dot-active { background: color-mix(in srgb, var(--bw-accent, #000) 55%, rgba(0,0,0,0.12)); }
 .bw2-dot-done { background: var(--bw-accent, #000); }
 
+/* Step header: back arrow + a one-line recap of what's already chosen. Each step
+   REPLACES the previous screen (rather than stacking below it), so this line is
+   what keeps the earlier answers visible without spending vertical space. */
+.bw2-head { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
+.bw2-back {
+  display: inline-flex; align-items: center; justify-content: center;
+  height: 28px; width: 28px; flex-shrink: 0; border-radius: 9999px;
+  border: 1.5px solid rgba(0,0,0,0.12); background: #fff; color: #111;
+  cursor: pointer; transition: border-color 0.2s ease, background-color 0.2s ease;
+}
+.bw2-back:hover { border-color: var(--bw-accent, #000); background: rgba(0,0,0,0.03); }
+.bw2-back svg { height: 15px; width: 15px; }
+.bw2-recap {
+  font-size: 12px; font-weight: 600; color: rgba(0,0,0,0.6);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+
 .bw2-group { display: flex; flex-direction: column; gap: 6px; }
 .bw2-label { font-size: 11px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: rgba(0,0,0,0.55); }
 

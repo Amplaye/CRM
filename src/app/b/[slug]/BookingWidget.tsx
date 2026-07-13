@@ -3,14 +3,21 @@
 import { useState } from "react";
 import { isValidPhoneNumber } from "libphonenumber-js";
 
-// Multi-step widget: (1) date + people → (2) room, only when the venue has more
-// than one → (3) slot grid from /api/public/availability (already trimmed to
-// bookable times — nothing past the last-reservation cut-off) → (4)
+// Multi-step widget: (1) date + people (+ room, when the venue has more than
+// one) → (2) slot grid from /api/public/availability (already trimmed to
+// bookable times — nothing past the last-reservation cut-off) → (3)
 // name/phone/email(+notes) → /api/public/book. Every field except notes is
 // required and validated (real email + phone) before the button enables.
 // Outcomes mirror the AI pipeline: confirmed / pending / waitlist / full /
-// error. Strings arrive pre-localized from the server. Rendered both inside the
-// FloatingBookingWidget panel and standalone on /b/<slug>.
+// error. Strings arrive pre-localized from the server (site locale =
+// tenants.settings.crm_locale). Rendered both inside the FloatingBookingWidget
+// panel and standalone on /b/<slug>.
+//
+// One step = ONE SCREEN: each step REPLACES the previous one instead of stacking
+// under it. The panel is 380 px wide and capped at 86vh, so a stacking form put
+// the submit button below the fold by step 3; swapping screens keeps the widget
+// short and the current question the only thing on it. What's already chosen
+// stays visible as a compact recap line, and a back arrow returns to it.
 
 export interface BookingStrings {
   dateLabel: string;
@@ -18,6 +25,7 @@ export interface BookingStrings {
   roomLabel: string;
   roomHint: string;
   timeLabel: string;
+  detailsLabel: string;
   checkBtn: string;
   checking: string;
   closedDay: string;
@@ -27,6 +35,7 @@ export interface BookingStrings {
   emailLabel: string;
   notesLabel: string;
   notesPh: string;
+  backBtn: string;
   bookBtn: string;
   booking: string;
   okConfirmed: string;
@@ -40,6 +49,7 @@ export interface BookingStrings {
   koEmail: string;
   koGeneric: string;
   newBooking: string;
+  peopleShort: string;
 }
 
 type Outcome = {
@@ -281,6 +291,37 @@ export default function BookingWidget({
     );
   }
 
+  // Human-readable date for the recap line, in the site's own locale.
+  const prettyDate = (() => {
+    const [y, m, d] = date.split("-").map(Number);
+    if (!y || !m || !d) return date;
+    return new Date(y, m - 1, d).toLocaleDateString(undefined, { day: "numeric", month: "short" });
+  })();
+
+  // Back button: one step at a time, undoing exactly what that step chose.
+  const back = () => {
+    if (step === 2) setTime(null);
+    else if (step === 1) invalidateSlots();
+    setError(null);
+  };
+
+  const BackBtn = () => (
+    <button type="button" onClick={back} className="bw2-back" aria-label={ui.backBtn}>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <path d="M15 18l-6-6 6-6" />
+      </svg>
+    </button>
+  );
+
+  // What's already been chosen, so replacing the screen never loses context.
+  const recap = (
+    <span className="bw2-recap">
+      {prettyDate} · {people} {ui.peopleShort}
+      {hasRooms && room ? ` · ${room}` : ""}
+      {step === 2 && time ? ` · ${time}` : ""}
+    </span>
+  );
+
   return (
     <div className="bw2" style={vars}>
       {/* Progress rail */}
@@ -290,71 +331,85 @@ export default function BookingWidget({
         ))}
       </div>
 
-      {/* Step 0 — date + people */}
-      <div key={`s-${step}`} className="bw2-screen bw2-fade-in space-y-4">
-        <div className="grid grid-cols-2 gap-3">
-          <label className="bw2-group">
-            <span className="bw2-label">{ui.dateLabel}</span>
-            <input
-              type="date"
-              value={date}
-              min={todayYmd()}
-              onChange={(e) => {
-                setDate(e.target.value);
-                invalidateSlots();
-              }}
-              className="bw2-input"
-            />
-          </label>
-          <label className="bw2-group">
-            <span className="bw2-label">{ui.peopleLabel}</span>
-            <div className="bw2-stepper">
-              <button type="button" onClick={() => { setPeople((n) => Math.max(1, n - 1)); invalidateSlots(); }} className="bw2-step-btn" aria-label="-">
-                −
-              </button>
-              <span className="bw2-step-val">{people}</span>
-              <button type="button" onClick={() => { setPeople((n) => Math.min(20, n + 1)); invalidateSlots(); }} className="bw2-step-btn" aria-label="+">
-                +
-              </button>
-            </div>
-          </label>
+      {/* Header: back + recap. Absent on the first step — nothing to go back to. */}
+      {step > 0 ? (
+        <div className="bw2-head">
+          <BackBtn />
+          {recap}
         </div>
+      ) : null}
 
-        {/* Room step — only when the venue has more than one room */}
-        {hasRooms ? (
-          <div className="bw2-group">
-            <span className="bw2-label">{ui.roomLabel}</span>
-            <div className="grid grid-cols-2 gap-2">
-              {rooms.map((r) => (
-                <button
-                  key={r}
-                  type="button"
-                  onClick={() => { setRoom(r); invalidateSlots(); }}
-                  className={`bw2-chip ${room === r ? "bw2-chip-on" : ""}`}
-                >
-                  {r}
-                </button>
-              ))}
+      {/* Each step is its own screen — keyed on `step` so switching re-runs the
+          fade-in and the panel never grows taller than one question. */}
+      <div key={`s-${step}`} className="bw2-screen bw2-fade-in space-y-4">
+        {/* ——— Step 0 — date + people (+ room) ——— */}
+        {step === 0 ? (
+          <>
+            <div className="grid grid-cols-2 gap-3">
+              <label className="bw2-group">
+                <span className="bw2-label">{ui.dateLabel}</span>
+                <input
+                  type="date"
+                  value={date}
+                  min={todayYmd()}
+                  onChange={(e) => {
+                    setDate(e.target.value);
+                    invalidateSlots();
+                  }}
+                  className="bw2-input"
+                />
+              </label>
+              <label className="bw2-group">
+                <span className="bw2-label">{ui.peopleLabel}</span>
+                <div className="bw2-stepper">
+                  <button type="button" onClick={() => { setPeople((n) => Math.max(1, n - 1)); invalidateSlots(); }} className="bw2-step-btn" aria-label="-">
+                    −
+                  </button>
+                  <span className="bw2-step-val">{people}</span>
+                  <button type="button" onClick={() => { setPeople((n) => Math.min(20, n + 1)); invalidateSlots(); }} className="bw2-step-btn" aria-label="+">
+                    +
+                  </button>
+                </div>
+              </label>
             </div>
-            {!room ? <p className="bw2-hint mt-1">{ui.roomHint}</p> : null}
-          </div>
+
+            {/* Room — only when the venue has more than one */}
+            {hasRooms ? (
+              <div className="bw2-group">
+                <span className="bw2-label">{ui.roomLabel}</span>
+                <div className="grid grid-cols-2 gap-2">
+                  {rooms.map((r) => (
+                    <button
+                      key={r}
+                      type="button"
+                      onClick={() => { setRoom(r); invalidateSlots(); }}
+                      className={`bw2-chip ${room === r ? "bw2-chip-on" : ""}`}
+                    >
+                      {r}
+                    </button>
+                  ))}
+                </div>
+                {!room ? <p className="bw2-hint mt-1">{ui.roomHint}</p> : null}
+              </div>
+            ) : null}
+
+            <button type="button" onClick={check} disabled={busy !== null || !date || !roomReady} className="bw2-btn bw2-btn-primary">
+              {busy === "check" ? (
+                <span className="inline-flex items-center gap-2">
+                  <span className="bw2-spinner" /> {ui.checking}
+                </span>
+              ) : (
+                ui.checkBtn
+              )}
+            </button>
+
+            {slotsMsg ? <p className="bw2-note">{slotsMsg}</p> : null}
+          </>
         ) : null}
 
-        <button type="button" onClick={check} disabled={busy !== null || !date || !roomReady} className="bw2-btn bw2-btn-primary">
-          {busy === "check" ? (
-            <span className="inline-flex items-center gap-2">
-              <span className="bw2-spinner" /> {ui.checking}
-            </span>
-          ) : (
-            ui.checkBtn
-          )}
-        </button>
-
-        {slotsMsg ? <p className="bw2-note">{slotsMsg}</p> : null}
-
-        {/* Step 1 — slot grid */}
-        {slots ? (
-          <div className="bw2-slide-in">
+        {/* ——— Step 1 — pick a time ——— */}
+        {step === 1 && slots ? (
+          <div>
             <span className="bw2-label mb-2 block">{ui.timeLabel}</span>
             <div className="grid grid-cols-4 gap-2">
               {slots.map((s, i) => (
@@ -362,7 +417,7 @@ export default function BookingWidget({
                   key={s.time}
                   type="button"
                   onClick={() => setTime(s.time)}
-                  className={`bw2-chip ${time === s.time ? "bw2-chip-on" : ""}`}
+                  className="bw2-chip"
                   style={{ animationDelay: `${Math.min(i, 16) * 26}ms` }}
                 >
                   {s.time}
@@ -372,9 +427,10 @@ export default function BookingWidget({
           </div>
         ) : null}
 
-        {/* Step 2 — guest details (all required except notes) */}
-        {time ? (
-          <div className="bw2-slide-in space-y-3 pt-1">
+        {/* ——— Step 2 — guest details (all required except notes) ——— */}
+        {step === 2 && time ? (
+          <div className="space-y-3">
+            <span className="bw2-label block">{ui.detailsLabel}</span>
             <input value={name} onChange={(e) => setName(e.target.value)} placeholder={ui.nameLabel} className="bw2-input" autoComplete="name" />
             <input type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder={ui.phoneLabel} className="bw2-input" autoComplete="tel" inputMode="tel" />
             <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder={ui.emailLabel} className="bw2-input" autoComplete="email" inputMode="email" />

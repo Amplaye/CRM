@@ -2,13 +2,21 @@
 
 import { useState } from "react";
 import { GIFT_MAX_CENTS, GIFT_MIN_CENTS, GIFT_PRESETS_CENTS } from "@/lib/gift-cards/gift-cards";
+import type { GiftDesign } from "@/lib/gift-cards/designs";
+import { GiftCardPreview } from "@/components/gift-cards/GiftCardPreview";
 
 // The purchase form on /g/<slug>. Client-side because it needs local state,
 // but ALL validation that matters re-runs server-side in the checkout route.
 // Strings come pre-localized from the server page.
+//
+// Two modes, decided by the owner: when they have designed cards in the Gift
+// Cards dashboard, the guest PICKS A CARD (fixed amount, the design they see is
+// what they buy). When they haven't, the page falls back to the historical
+// preset-amount buttons — so a tenant that never opens the editor is unaffected.
 
 export interface GiftFormStrings {
   amountLabel: string;
+  chooseCard: string;
   customAmount: string;
   buyerName: string;
   buyerEmail: string;
@@ -27,11 +35,16 @@ export default function GiftForm({
   slug,
   accent,
   strings: ui,
+  designs = [],
 }: {
   slug: string;
   accent: string;
   strings: GiftFormStrings;
+  /** Published cards. Empty → preset-amount fallback. */
+  designs?: GiftDesign[];
 }) {
+  const hasDesigns = designs.length > 0;
+  const [designId, setDesignId] = useState<string | null>(hasDesigns ? designs[0].id : null);
   const [amountCents, setAmountCents] = useState<number>(GIFT_PRESETS_CENTS[1]);
   const [customStr, setCustomStr] = useState("");
   const [buyerName, setBuyerName] = useState("");
@@ -42,11 +55,17 @@ export default function GiftForm({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const chosen = hasDesigns ? designs.find((d) => d.id === designId) ?? null : null;
   const customCents = Math.round(Number(customStr.replace(",", ".")) * 100);
-  const effectiveCents = customStr.trim() !== "" ? customCents : amountCents;
+  // A card carries its own price; the free-amount input only exists in fallback mode.
+  const effectiveCents = chosen
+    ? chosen.amount_cents
+    : customStr.trim() !== ""
+      ? customCents
+      : amountCents;
   const amountOk =
     Number.isInteger(effectiveCents) && effectiveCents >= GIFT_MIN_CENTS && effectiveCents <= GIFT_MAX_CENTS;
-  const canSubmit = amountOk && buyerEmail.includes("@") && !busy;
+  const canSubmit = amountOk && buyerEmail.includes("@") && !busy && (!hasDesigns || !!chosen);
 
   const submit = async () => {
     if (!canSubmit) return;
@@ -58,6 +77,8 @@ export default function GiftForm({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           slug,
+          // The server re-reads the design and trusts ITS amount, never this one.
+          design_id: chosen?.id ?? null,
           amount_cents: effectiveCents,
           buyer_name: buyerName,
           buyer_email: buyerEmail,
@@ -80,36 +101,52 @@ export default function GiftForm({
 
   return (
     <div className="mt-6 space-y-4 rounded-xl border-2 bg-white p-5" style={{ borderColor: accent }}>
-      <div>
-        <label className="mb-2 block text-sm font-bold text-black">{ui.amountLabel}</label>
-        <div className="flex flex-wrap gap-2">
-          {GIFT_PRESETS_CENTS.map((c) => {
-            const active = customStr.trim() === "" && amountCents === c;
-            return (
-              <button
-                key={c}
-                type="button"
-                onClick={() => {
-                  setAmountCents(c);
-                  setCustomStr("");
-                }}
-                className={`h-11 min-w-16 rounded-lg border-2 px-3 text-base font-bold ${active ? "text-white" : "text-black"}`}
-                style={active ? { background: accent, borderColor: accent } : { borderColor: accent }}
-              >
-                {c / 100} €
-              </button>
-            );
-          })}
+      {hasDesigns ? (
+        <div>
+          <label className="mb-2 block text-sm font-bold text-black">{ui.chooseCard}</label>
+          <div className="grid gap-3 sm:grid-cols-2">
+            {designs.map((d) => (
+              <GiftCardPreview
+                key={d.id}
+                design={d}
+                selected={d.id === designId}
+                onClick={() => setDesignId(d.id)}
+              />
+            ))}
+          </div>
         </div>
-        <input
-          inputMode="decimal"
-          value={customStr}
-          onChange={(e) => setCustomStr(e.target.value)}
-          placeholder={ui.customAmount}
-          className={`${INPUT} mt-2`}
-          style={{ borderColor: accent }}
-        />
-      </div>
+      ) : (
+        <div>
+          <label className="mb-2 block text-sm font-bold text-black">{ui.amountLabel}</label>
+          <div className="flex flex-wrap gap-2">
+            {GIFT_PRESETS_CENTS.map((c) => {
+              const active = customStr.trim() === "" && amountCents === c;
+              return (
+                <button
+                  key={c}
+                  type="button"
+                  onClick={() => {
+                    setAmountCents(c);
+                    setCustomStr("");
+                  }}
+                  className={`h-11 min-w-16 rounded-lg border-2 px-3 text-base font-bold ${active ? "text-white" : "text-black"}`}
+                  style={active ? { background: accent, borderColor: accent } : { borderColor: accent }}
+                >
+                  {c / 100} €
+                </button>
+              );
+            })}
+          </div>
+          <input
+            inputMode="decimal"
+            value={customStr}
+            onChange={(e) => setCustomStr(e.target.value)}
+            placeholder={ui.customAmount}
+            className={`${INPUT} mt-2`}
+            style={{ borderColor: accent }}
+          />
+        </div>
+      )}
 
       <div className="grid gap-3 sm:grid-cols-2">
         <input
