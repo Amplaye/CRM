@@ -1973,4 +1973,75 @@ export const de: Dictionary = {
   offline_stale_data: "Offline — gespeicherte Daten werden angezeigt",
   offline_last_updated: "aktualisiert {time}",
   offline_action_unavailable: "Offline nicht verfügbar — bitte wieder verbinden.",
+
+  // Einstellungen → E-Mail (das Resend-Konto des Lokals)
+  // "Email" (not "E-Mail") to match the settings tab label, which is "Email" in every language.
+  email_title: "Email",
+  email_intro:
+    "Die E-Mails Ihres CRM gehen über Ihr Resend-Konto raus. Verbinden Sie hier Ihren Schlüssel: solange das nicht passiert, versendet das CRM überhaupt keine E-Mails — weder Marketing-Kampagnen noch Coupons, Geschenkgutscheine oder Bestätigungen. Ein Resend-Konto ist kostenlos und gibt Ihnen 1.000 Marketing- und 3.000 transaktionale E-Mails pro Monat.",
+  email_status_connected: "Mit Ihrem Resend-Konto verbunden",
+  email_status_off: "E-Mail deaktiviert",
+  email_status_connected_hint: "Die E-Mails gehen von {from} raus und verbrauchen Ihr Freikontingent.",
+  email_status_off_hint: "Kein Schlüssel verbunden: Das CRM versendet für dieses Lokal keine einzige E-Mail.",
+  email_quota_marketing: "Marketing (dieser Monat)",
+  email_quota_transactional: "Transaktional (dieser Monat)",
+  email_quota_marketing_hint: "An Ihre Kontakte versendete Kampagnen. Wird am 1. des Monats zurückgesetzt.",
+  email_quota_marketing_off: "Es kann keine Kampagne rausgehen, solange der Schlüssel nicht verbunden ist.",
+  email_quota_transactional_hint:
+    "Bestätigungen, Coupons, Geschenkgutscheine. Wird am 1. des Monats zurückgesetzt.",
+  email_quota_transactional_off: "Bestätigungen, Coupons und Geschenkgutscheine werden nicht versendet.",
+  email_sender_label: "Absenderadresse",
+  email_sender_ph: "noreply@ihredomain.com",
+  email_sender_hint:
+    "Sie muss auf einer in Ihrem Resend-Konto verifizierten Domain liegen, sonst wird der Versand abgelehnt.",
+  email_sender_full_hint:
+    "Mit einem Full access-Schlüssel können Sie das Feld leer lassen: Wir verwenden noreply@ auf der von Ihnen verifizierten Domain. Mit einem Sending access-Schlüssel ist es Pflicht.",
+  email_sender_update: "Absender aktualisieren",
+  email_key_label: "Resend-API-Schlüssel",
+  email_key_replace_label: "API-Schlüssel ersetzen",
+  email_key_replace_btn: "Schlüssel ersetzen",
+  email_disconnect: "Trennen",
+  email_disconnect_warning: "Beim Trennen versendet das CRM für dieses Lokal keine E-Mails mehr.",
+  email_disconnected_ok: "Getrennt. Ab jetzt versendet dieses Lokal keine einzige E-Mail mehr.",
+  email_test_btn: "Verbindung testen",
+  email_save_btn: "Speichern und verbinden",
+  email_generic_error: "Fehler",
+  email_connect_failed: "Verbindung fehlgeschlagen",
+  email_howto_title: "So verbinden Sie Ihr Konto (5 Minuten)",
+  email_howto_1_pre: "Gehen Sie auf",
+  email_howto_1_post: "und erstellen Sie ein kostenloses Konto (keine Karte nötig).",
+  email_howto_2:
+    "Öffnen Sie Domains → Add Domain, fügen Sie die Domain Ihrer Website hinzu und kopieren Sie die DNS-Einträge, die Resend anzeigt, in das Panel Ihres Providers. Warten Sie, bis sie auf verified springt: ohne verifizierte Domain schickt Resend nichts raus.",
+  email_howto_3:
+    "Öffnen Sie API Keys → Create API Key und kopieren Sie den Schlüssel (er beginnt mit re_). Mit der Berechtigung Full access finden wir die verifizierte Domain selbst; mit Sending access funktioniert es auch, aber den Absender müssen Sie unten selbst eintragen.",
+  email_howto_4: 'Fügen Sie den Schlüssel unten ein und drücken Sie "Speichern und verbinden".',
+  email_needs_domain:
+    "Der Schlüssel stimmt, aber Sie haben auf Resend noch keine verifizierte Domain: ohne die lehnt Resend jeden Versand ab.",
+  email_needs_domain_pending:
+    "Sie haben {domains} hinzugefügt, aber die DNS-Einträge sind noch nicht verifiziert.",
+  email_needs_domain_open: "Öffnen Sie",
+  email_needs_domain_tail:
+    ", fügen Sie die Domain Ihrer Website hinzu, kopieren Sie die DNS-Einträge zu Ihrem Provider und versuchen Sie es hier erneut.",
+  email_needs_sender:
+    'Tragen Sie die Absenderadresse im Feld unten ein und drücken Sie erneut "Speichern und verbinden": Wir schicken Ihnen eine Test-E-Mail, um zu bestätigen, dass Resend sie akzeptiert.',
+  // Meldungen, die von der API zurückkommen (über `code` zugeordnet)
+  email_msg_key_ok_verified: "Schlüssel gültig — verifizierte Domain: {domains}.",
+  email_msg_key_ok_no_domain:
+    "Schlüssel gültig, aber keine verifizierte Domain auf Resend: ohne verifizierte Domain lehnt Resend den Versand ab.",
+  email_msg_key_sending_only:
+    "Schlüssel gültig (Typ „Sending access“): Er kann versenden, lässt uns aber Ihre Domains nicht auslesen.",
+  email_msg_key_rejected: "Schlüssel von Resend abgelehnt. Prüfen Sie, ob Sie ihn vollständig kopiert haben.",
+  email_msg_resend_status: "Resend hat mit {status} geantwortet. Versuchen Sie es gleich noch einmal.",
+  email_msg_resend_unreachable: "Resend ist nicht erreichbar. Prüfen Sie die Verbindung und versuchen Sie es erneut.",
+  email_msg_probe_sent: "Verbunden: Wir haben Ihnen eine Test-E-Mail an {to} geschickt.",
+  email_msg_domain_not_verified:
+    "Die Domain von {from} ist in Ihrem Resend-Konto nicht verifiziert. Fügen Sie sie auf resend.com/domains hinzu, setzen Sie die DNS-Einträge und versuchen Sie es erneut.",
+  email_msg_sender_not_verified:
+    "Die Absenderadresse muss auf einer in Ihrem Resend-Konto verifizierten Domain liegen ({domains}).",
+  email_msg_connected_from: "Verbunden. Die E-Mails gehen von {from} raus.",
+  email_msg_need_sender:
+    "Mit einem „Sending access“-Schlüssel können wir Ihre Domains nicht auslesen: Tragen Sie unten die Absenderadresse ein (z. B. noreply@ihredomain.com).",
+  email_msg_resend_dev:
+    "resend.dev ist die Testadresse von Resend: Sie erreicht nur Sie, nicht Ihre Kunden. Verifizieren Sie Ihre Domain auf resend.com/domains und verwenden Sie eine Adresse auf dieser Domain.",
+  email_msg_no_owner_email: "Wir können Ihre E-Mail-Adresse für den Testversand nicht auslesen.",
 };

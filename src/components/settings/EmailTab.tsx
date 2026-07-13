@@ -3,6 +3,8 @@
 import { useEffect, useState } from "react";
 import { Mail, CheckCircle2, XCircle, Loader2, KeyRound, ExternalLink, Unplug, AlertTriangle } from "lucide-react";
 import { useTenant } from "@/lib/contexts/TenantContext";
+import { useLanguage } from "@/lib/contexts/LanguageContext";
+import type { Dictionary } from "@/lib/i18n/dictionaries/en";
 
 // Settings → Email. The tenant's own Resend account, same self-service shape as
 // Settings → Cassa: paste the key, test it, save it.
@@ -24,6 +26,12 @@ import { useTenant } from "@/lib/contexts/TenantContext";
 //
 // The key goes to /api/marketing/email-provider and is encrypted server-side — it
 // is never stored in tenants.settings and never comes back down to the browser.
+//
+// Every string here comes from the dictionary: the dashboard runs in it/en/es/de
+// and an owner in Berlin must not hit a wall of Italian in the one panel that
+// decides whether their venue can send email at all. The API answers with a
+// dictionary key (`code`) plus its variables rather than a sentence, so its
+// messages land in the owner's language too.
 
 interface Quota {
   sent: number;
@@ -42,11 +50,19 @@ interface ApiResult {
   ok: boolean;
   msg: string;
   needsDomain?: boolean;
-  /** Chiave "Sending access": non ci lascia leggere i domini, quindi il mittente
-   *  lo deve scrivere lui e lo verifichiamo con un'email di prova. */
+  /** "Sending access" key: it won't let us read the domains, so the owner types
+   *  the sender and we prove it with a test email. */
   needsSender?: boolean;
   verified?: string[];
   pending?: string[];
+}
+
+/** The API's message shape: a dictionary key and its variables, with an English
+ *  sentence as the fallback for anything we don't have a translation for. */
+interface ApiMsg {
+  code?: string;
+  vars?: Record<string, string>;
+  detail?: string;
 }
 
 function QuotaBar({ label, quota, hint, off }: { label: string; quota: Quota; hint: string; off: boolean }) {
@@ -74,6 +90,7 @@ function QuotaBar({ label, quota, hint, off }: { label: string; quota: Quota; hi
 
 export function EmailTab() {
   const { activeTenant: tenant } = useTenant();
+  const { t } = useLanguage();
   const [apiKey, setApiKey] = useState("");
   const [connected, setConnected] = useState(false);
   const [fromAddress, setFromAddress] = useState<string | null>(null);
@@ -81,6 +98,20 @@ export function EmailTab() {
   const [usage, setUsage] = useState<Usage | null>(null);
   const [phase, setPhase] = useState<Phase>("idle");
   const [result, setResult] = useState<ApiResult | null>(null);
+
+  /** Dictionary lookup with {placeholder} substitution. */
+  const tx = (key: string, vars?: Record<string, string>) => {
+    const raw = t(key as keyof Dictionary) || key;
+    return vars ? raw.replace(/\{(\w+)\}/g, (m, k) => vars[k] ?? m) : raw;
+  };
+
+  /** Render whatever the API said in the owner's language. Falls back to the
+   *  API's own English sentence when it had nothing better to offer (e.g. an
+   *  error message forwarded straight from Resend). */
+  const say = (msg: ApiMsg | undefined, fallback: string) => {
+    if (msg?.code) return tx(msg.code, msg.vars);
+    return msg?.detail || fallback;
+  };
 
   const load = async () => {
     if (!tenant?.id) return;
@@ -127,17 +158,12 @@ export function EmailTab() {
       if (action === "disconnect") {
         setResult({
           ok: !!data?.ok,
-          msg: data?.ok
-            ? "Disconnesso. Da adesso questo locale non invia più nessuna email."
-            : data?.error || "Errore",
+          msg: data?.ok ? tx("email_disconnected_ok") : data?.error || tx("email_generic_error"),
         });
       } else {
         setResult({
           ok: !!data?.ok,
-          msg:
-            data?.test?.detail ||
-            data?.error ||
-            (data?.ok ? "OK" : "Connessione non riuscita"),
+          msg: say(data?.test as ApiMsg, data?.error || (data?.ok ? "OK" : tx("email_connect_failed"))),
           needsDomain: !!data?.needs_domain,
           needsSender: !!data?.needs_sender,
           verified: data?.verified,
@@ -147,7 +173,7 @@ export function EmailTab() {
       }
       await load();
     } catch (e) {
-      setResult({ ok: false, msg: e instanceof Error ? e.message : "Errore" });
+      setResult({ ok: false, msg: e instanceof Error ? e.message : tx("email_generic_error") });
     } finally {
       setPhase("idle");
     }
@@ -174,15 +200,11 @@ export function EmailTab() {
         </div>
         {result.needsDomain && (
           <div className="text-xs text-black">
-            La chiave è giusta, ma su Resend non hai ancora un <strong>dominio verificato</strong>: senza, Resend
-            rifiuta ogni invio.{" "}
+            {tx("email_needs_domain")}{" "}
             {result.pending?.length ? (
-              <>
-                Hai aggiunto <strong>{result.pending.join(", ")}</strong> ma i record DNS non risultano ancora
-                verificati.{" "}
-              </>
+              <>{tx("email_needs_domain_pending", { domains: result.pending.join(", ") })} </>
             ) : null}
-            Apri{" "}
+            {tx("email_needs_domain_open")}{" "}
             <a
               href="https://resend.com/domains"
               target="_blank"
@@ -192,15 +214,10 @@ export function EmailTab() {
             >
               resend.com/domains
             </a>
-            , aggiungi il dominio del tuo sito, copia i record DNS dal tuo provider e riprova qui.
+            {tx("email_needs_domain_tail")}
           </div>
         )}
-        {result.needsSender && (
-          <div className="text-xs text-black">
-            Scrivi l&apos;indirizzo mittente nel campo qui sotto e premi di nuovo &quot;Salva e collega&quot;: ti
-            mandiamo un&apos;email di prova per confermare che Resend lo accetti.
-          </div>
-        )}
+        {result.needsSender && <div className="text-xs text-black">{tx("email_needs_sender")}</div>}
       </div>
     ) : null;
 
@@ -208,13 +225,9 @@ export function EmailTab() {
     <div className="space-y-6">
       <div>
         <h2 className="text-lg font-bold text-black flex items-center gap-2">
-          <Mail className="w-5 h-5" /> Email
+          <Mail className="w-5 h-5" /> {tx("email_title")}
         </h2>
-        <p className="mt-1 text-sm text-black">
-          Le email del tuo CRM partono dal <strong>tuo</strong> account Resend. Collega la tua chiave qui: finché non
-          lo fai, il CRM non invia nessuna email — né campagne marketing, né coupon, né gift card, né conferme.
-          L&apos;account Resend è gratuito e ti dà 1.000 email marketing e 3.000 transazionali al mese.
-        </p>
+        <p className="mt-1 text-sm text-black">{tx("email_intro")}</p>
       </div>
 
       {/* Status + monthly counter */}
@@ -227,16 +240,12 @@ export function EmailTab() {
           )}
           <div>
             <div className="font-bold text-black">
-              {connected ? "Collegato al tuo account Resend" : "Email disattivate"}
+              {connected ? tx("email_status_connected") : tx("email_status_off")}
             </div>
             <div className="text-xs text-black">
-              {connected ? (
-                <>
-                  Le email partono da <strong>{fromAddress}</strong> e consumano le tue quote gratuite.
-                </>
-              ) : (
-                "Nessuna chiave collegata: il CRM non sta inviando nessuna email per questo locale."
-              )}
+              {connected
+                ? tx("email_status_connected_hint", { from: fromAddress || "" })
+                : tx("email_status_off_hint")}
             </div>
           </div>
         </div>
@@ -244,24 +253,16 @@ export function EmailTab() {
         {usage && (
           <div className="grid gap-4 sm:grid-cols-2 pt-1">
             <QuotaBar
-              label="Marketing (questo mese)"
+              label={tx("email_quota_marketing")}
               quota={usage.marketing}
               off={!connected}
-              hint={
-                connected
-                  ? "Campagne inviate ai tuoi contatti. Si azzera il 1° del mese."
-                  : "Nessuna campagna può partire finché non colleghi la chiave."
-              }
+              hint={connected ? tx("email_quota_marketing_hint") : tx("email_quota_marketing_off")}
             />
             <QuotaBar
-              label="Transazionali (questo mese)"
+              label={tx("email_quota_transactional")}
               quota={usage.transactional}
               off={!connected}
-              hint={
-                connected
-                  ? "Conferme, coupon, gift card. Si azzera il 1° del mese."
-                  : "Conferme, coupon e gift card non vengono inviati."
-              }
+              hint={connected ? tx("email_quota_transactional_hint") : tx("email_quota_transactional_off")}
             />
           </div>
         )}
@@ -272,19 +273,17 @@ export function EmailTab() {
         <div className="rounded-lg border-2 p-4 space-y-4" style={panelStyle}>
           <label className="flex flex-col gap-1">
             <span className="text-sm font-bold text-black flex items-center gap-1">
-              <Mail className="w-4 h-4" /> Indirizzo mittente
+              <Mail className="w-4 h-4" /> {tx("email_sender_label")}
             </span>
             <input
               value={senderDraft}
               onChange={(e) => setSenderDraft(e.target.value)}
               className={inputCls}
               style={inputStyle}
-              placeholder="noreply@iltuodominio.com"
+              placeholder={tx("email_sender_ph")}
               autoComplete="off"
             />
-            <span className="text-xs text-black">
-              Deve stare su un dominio verificato nel tuo account Resend, altrimenti l&apos;invio viene rifiutato.
-            </span>
+            <span className="text-xs text-black">{tx("email_sender_hint")}</span>
           </label>
           <button
             onClick={() => call("sender")}
@@ -293,13 +292,13 @@ export function EmailTab() {
             style={{ borderColor: "#c4956a", color: "#8b6540" }}
           >
             {phase === "sender" ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
-            Aggiorna mittente
+            {tx("email_sender_update")}
           </button>
 
           <div className="pt-3 border-t space-y-3" style={{ borderColor: "rgba(196,149,106,0.4)" }}>
             <label className="flex flex-col gap-1">
               <span className="text-sm font-bold text-black flex items-center gap-1">
-                <KeyRound className="w-4 h-4" /> Sostituisci la chiave API
+                <KeyRound className="w-4 h-4" /> {tx("email_key_replace_label")}
               </span>
               <input
                 type="password"
@@ -319,7 +318,7 @@ export function EmailTab() {
                 style={{ background: "linear-gradient(135deg, #d4a574, #c4956a)" }}
               >
                 {phase === "saving" ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
-                Sostituisci chiave
+                {tx("email_key_replace_btn")}
               </button>
               <button
                 onClick={() => call("disconnect")}
@@ -328,22 +327,20 @@ export function EmailTab() {
                 style={{ borderColor: "#dc2626", color: "#dc2626" }}
               >
                 {phase === "disconnecting" ? <Loader2 className="w-4 h-4 animate-spin" /> : <Unplug className="w-4 h-4" />}
-                Disconnetti
+                {tx("email_disconnect")}
               </button>
             </div>
-            <p className="text-xs font-semibold text-red-600">
-              Disconnettendo, il CRM smette di inviare qualsiasi email per questo locale.
-            </p>
+            <p className="text-xs font-semibold text-red-600">{tx("email_disconnect_warning")}</p>
           </div>
           <Feedback />
         </div>
       ) : (
         <div className="rounded-lg border-2 p-4 space-y-4" style={panelStyle}>
           <div className="space-y-2">
-            <span className="text-sm font-bold text-black">Come collegare il tuo account (5 minuti)</span>
+            <span className="text-sm font-bold text-black">{tx("email_howto_title")}</span>
             <ol className="text-sm text-black space-y-1.5 list-decimal pl-5">
               <li>
-                Vai su{" "}
+                {tx("email_howto_1_pre")}{" "}
                 <a
                   href="https://resend.com/signup"
                   target="_blank"
@@ -353,25 +350,17 @@ export function EmailTab() {
                 >
                   resend.com/signup <ExternalLink className="w-3 h-3" />
                 </a>{" "}
-                e crea un account gratuito (non serve la carta).
+                {tx("email_howto_1_post")}
               </li>
-              <li>
-                Apri <strong>Domains → Add Domain</strong>, aggiungi il dominio del tuo sito e copia i record DNS che
-                Resend ti mostra nel pannello del tuo provider. Aspetta che diventi <strong>verified</strong>: senza
-                dominio verificato Resend non fa partire nulla.
-              </li>
-              <li>
-                Apri <strong>API Keys → Create API Key</strong> e copia la chiave (inizia con <code>re_</code>). Con
-                il permesso <strong>Full access</strong> troviamo da soli il dominio verificato; con{" "}
-                <strong>Sending access</strong> funziona lo stesso, ma il mittente devi scriverlo tu qui sotto.
-              </li>
-              <li>Incolla la chiave qui sotto e premi &quot;Salva e collega&quot;.</li>
+              <li>{tx("email_howto_2")}</li>
+              <li>{tx("email_howto_3")}</li>
+              <li>{tx("email_howto_4")}</li>
             </ol>
           </div>
 
           <label className="flex flex-col gap-1">
             <span className="text-sm font-bold text-black flex items-center gap-1">
-              <KeyRound className="w-4 h-4" /> Chiave API Resend
+              <KeyRound className="w-4 h-4" /> {tx("email_key_label")}
             </span>
             <input
               type="password"
@@ -386,20 +375,17 @@ export function EmailTab() {
 
           <label className="flex flex-col gap-1">
             <span className="text-sm font-bold text-black flex items-center gap-1">
-              <Mail className="w-4 h-4" /> Indirizzo mittente
+              <Mail className="w-4 h-4" /> {tx("email_sender_label")}
             </span>
             <input
               value={senderDraft}
               onChange={(e) => setSenderDraft(e.target.value)}
               className={inputCls}
               style={inputStyle}
-              placeholder="noreply@iltuodominio.com"
+              placeholder={tx("email_sender_ph")}
               autoComplete="off"
             />
-            <span className="text-xs text-black">
-              Con una chiave <strong>Full access</strong> puoi lasciarlo vuoto: usiamo <code>noreply@</code> sul
-              dominio che hai verificato. Con una chiave <strong>Sending access</strong> è obbligatorio.
-            </span>
+            <span className="text-xs text-black">{tx("email_sender_full_hint")}</span>
           </label>
 
           <div className="flex flex-wrap items-center gap-3">
@@ -410,7 +396,7 @@ export function EmailTab() {
               style={{ borderColor: "#c4956a", color: "#8b6540" }}
             >
               {phase === "testing" ? <Loader2 className="w-4 h-4 animate-spin" /> : <KeyRound className="w-4 h-4" />}
-              Prova connessione
+              {tx("email_test_btn")}
             </button>
             <button
               onClick={() => call("save")}
@@ -419,7 +405,7 @@ export function EmailTab() {
               style={{ background: "linear-gradient(135deg, #d4a574, #c4956a)" }}
             >
               {phase === "saving" ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
-              Salva e collega
+              {tx("email_save_btn")}
             </button>
           </div>
 

@@ -1973,4 +1973,73 @@ export const es: Dictionary = {
   offline_stale_data: "Sin conexión — mostrando datos guardados",
   offline_last_updated: "actualizado {time}",
   offline_action_unavailable: "No disponible sin conexión — vuelve a conectarte para continuar.",
+
+  // Ajustes → Email (la cuenta de Resend del local)
+  email_title: "Email",
+  email_intro:
+    "Los emails de tu CRM salen desde tu cuenta de Resend. Conecta aquí tu clave: hasta que lo hagas, el CRM no envía ningún email — ni campañas de marketing, ni cupones, ni tarjetas regalo, ni confirmaciones. La cuenta de Resend es gratuita y te da 1.000 emails de marketing y 3.000 transaccionales al mes.",
+  email_status_connected: "Conectado a tu cuenta de Resend",
+  email_status_off: "Email desactivado",
+  email_status_connected_hint: "Los emails salen desde {from} y consumen tus cuotas gratuitas.",
+  email_status_off_hint: "Ninguna clave conectada: el CRM no está enviando ningún email para este local.",
+  email_quota_marketing: "Marketing (este mes)",
+  email_quota_transactional: "Transaccionales (este mes)",
+  email_quota_marketing_hint: "Campañas enviadas a tus contactos. Se reinicia el día 1 del mes.",
+  email_quota_marketing_off: "Ninguna campaña puede salir hasta que conectes la clave.",
+  email_quota_transactional_hint: "Confirmaciones, cupones, tarjetas regalo. Se reinicia el día 1 del mes.",
+  email_quota_transactional_off: "Las confirmaciones, cupones y tarjetas regalo no se están enviando.",
+  email_sender_label: "Dirección del remitente",
+  email_sender_ph: "noreply@tudominio.com",
+  email_sender_hint:
+    "Debe estar en un dominio verificado en tu cuenta de Resend, de lo contrario el envío se rechaza.",
+  email_sender_full_hint:
+    "Con una clave Full access puedes dejarlo vacío: usamos noreply@ en el dominio que has verificado. Con una clave Sending access es obligatorio.",
+  email_sender_update: "Actualizar remitente",
+  email_key_label: "Clave API de Resend",
+  email_key_replace_label: "Sustituir la clave API",
+  email_key_replace_btn: "Sustituir clave",
+  email_disconnect: "Desconectar",
+  email_disconnect_warning: "Si desconectas, el CRM dejará de enviar cualquier email para este local.",
+  email_disconnected_ok: "Desconectado. A partir de ahora este local no envía ningún email.",
+  email_test_btn: "Probar conexión",
+  email_save_btn: "Guardar y conectar",
+  email_generic_error: "Error",
+  email_connect_failed: "Conexión fallida",
+  email_howto_title: "Cómo conectar tu cuenta (5 minutos)",
+  email_howto_1_pre: "Entra en",
+  email_howto_1_post: "y crea una cuenta gratuita (no hace falta tarjeta).",
+  email_howto_2:
+    "Abre Domains → Add Domain, añade el dominio de tu web y copia los registros DNS que Resend te muestra en el panel de tu proveedor. Espera a que aparezca como verified: sin dominio verificado Resend no envía nada.",
+  email_howto_3:
+    "Abre API Keys → Create API Key y copia la clave (empieza por re_). Con el permiso Full access encontramos solos el dominio verificado; con Sending access también funciona, pero el remitente tienes que escribirlo tú aquí abajo.",
+  email_howto_4: 'Pega la clave aquí abajo y pulsa "Guardar y conectar".',
+  email_needs_domain:
+    "La clave es correcta, pero en Resend todavía no tienes un dominio verificado: sin él, Resend rechaza todos los envíos.",
+  email_needs_domain_pending:
+    "Has añadido {domains} pero los registros DNS aún no aparecen verificados.",
+  email_needs_domain_open: "Abre",
+  email_needs_domain_tail:
+    ", añade el dominio de tu web, copia los registros DNS en tu proveedor y vuelve a intentarlo aquí.",
+  email_needs_sender:
+    'Escribe la dirección del remitente en el campo de abajo y pulsa de nuevo "Guardar y conectar": te enviaremos un email de prueba para confirmar que Resend la acepta.',
+  // Mensajes que devuelve la API (emparejados por `code`)
+  email_msg_key_ok_verified: "Clave válida — dominio verificado: {domains}.",
+  email_msg_key_ok_no_domain:
+    "Clave válida, pero ningún dominio verificado en Resend: sin dominio verificado Resend rechaza los envíos.",
+  email_msg_key_sending_only:
+    "Clave válida (tipo “Sending access”): puede enviar, pero no nos deja leer tus dominios.",
+  email_msg_key_rejected: "Clave rechazada por Resend. Comprueba que la has copiado entera.",
+  email_msg_resend_status: "Resend ha respondido {status}. Inténtalo de nuevo en un momento.",
+  email_msg_resend_unreachable: "No se puede contactar con Resend. Comprueba la conexión y vuelve a intentarlo.",
+  email_msg_probe_sent: "Conectado: te hemos enviado un email de prueba a {to}.",
+  email_msg_domain_not_verified:
+    "El dominio de {from} no está verificado en tu cuenta de Resend. Añádelo en resend.com/domains, pon los registros DNS y vuelve a intentarlo.",
+  email_msg_sender_not_verified:
+    "La dirección del remitente debe estar en un dominio verificado en tu cuenta de Resend ({domains}).",
+  email_msg_connected_from: "Conectado. Los emails saldrán desde {from}.",
+  email_msg_need_sender:
+    "Con una clave “Sending access” no podemos leer tus dominios: escribe aquí abajo la dirección del remitente (p. ej. noreply@tudominio.com).",
+  email_msg_resend_dev:
+    "resend.dev es la dirección de prueba de Resend: solo te llega a ti, no a tus clientes. Verifica tu dominio en resend.com/domains y usa una dirección de ese dominio.",
+  email_msg_no_owner_email: "No conseguimos leer tu email para el envío de prueba.",
 };

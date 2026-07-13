@@ -1970,6 +1970,73 @@ export const en = {
   offline_stale_data: "Offline — showing saved data",
   offline_last_updated: "updated {time}",
   offline_action_unavailable: "Not available offline — reconnect to continue.",
+
+  // Settings → Email (the venue's own Resend account)
+  email_title: "Email",
+  email_intro:
+    "Your CRM's emails go out from your Resend account. Connect your key here: until you do, the CRM sends no email at all — no marketing campaigns, no coupons, no gift cards, no confirmations. A Resend account is free and gives you 1,000 marketing and 3,000 transactional emails a month.",
+  email_status_connected: "Connected to your Resend account",
+  email_status_off: "Email is off",
+  email_status_connected_hint: "Emails go out from {from} and use up your free quota.",
+  email_status_off_hint: "No key connected: the CRM is sending no email at all for this venue.",
+  email_quota_marketing: "Marketing (this month)",
+  email_quota_transactional: "Transactional (this month)",
+  email_quota_marketing_hint: "Campaigns sent to your contacts. Resets on the 1st of the month.",
+  email_quota_marketing_off: "No campaign can go out until you connect the key.",
+  email_quota_transactional_hint: "Confirmations, coupons, gift cards. Resets on the 1st of the month.",
+  email_quota_transactional_off: "Confirmations, coupons and gift cards are not being sent.",
+  email_sender_label: "Sender address",
+  email_sender_ph: "noreply@yourdomain.com",
+  email_sender_hint:
+    "It must sit on a domain verified in your Resend account, otherwise the send is rejected.",
+  email_sender_full_hint:
+    "With a Full access key you can leave this empty: we use noreply@ on the domain you verified. With a Sending access key it is required.",
+  email_sender_update: "Update sender",
+  email_key_label: "Resend API key",
+  email_key_replace_label: "Replace the API key",
+  email_key_replace_btn: "Replace key",
+  email_disconnect: "Disconnect",
+  email_disconnect_warning: "If you disconnect, the CRM stops sending any email for this venue.",
+  email_disconnected_ok: "Disconnected. From now on this venue sends no email at all.",
+  email_test_btn: "Test connection",
+  email_save_btn: "Save and connect",
+  email_generic_error: "Error",
+  email_connect_failed: "Connection failed",
+  email_howto_title: "How to connect your account (5 minutes)",
+  email_howto_1_pre: "Go to",
+  email_howto_1_post: "and create a free account (no card needed).",
+  email_howto_2:
+    "Open Domains → Add Domain, add your website's domain and copy the DNS records Resend shows you into your provider's panel. Wait until it turns verified: without a verified domain Resend sends nothing.",
+  email_howto_3:
+    "Open API Keys → Create API Key and copy the key (it starts with re_). With Full access we find the verified domain ourselves; with Sending access it works too, but you have to type the sender below.",
+  email_howto_4: 'Paste the key below and press "Save and connect".',
+  email_needs_domain:
+    "The key is right, but you don't have a verified domain on Resend yet: without one, Resend rejects every send.",
+  email_needs_domain_pending: "You added {domains} but the DNS records aren't verified yet.",
+  email_needs_domain_open: "Open",
+  email_needs_domain_tail:
+    ", add your website's domain, copy the DNS records into your provider and try again here.",
+  email_needs_sender:
+    'Type the sender address in the field below and press "Save and connect" again: we will send you a test email to confirm Resend accepts it.',
+  // Messages coming back from the API (matched on `code`)
+  email_msg_key_ok_verified: "Key valid — verified domain: {domains}.",
+  email_msg_key_ok_no_domain:
+    "Key valid, but no verified domain on Resend: without a verified domain Resend rejects every send.",
+  email_msg_key_sending_only: "Key valid (“Sending access” type): it can send, but it can't read your domains for us.",
+  email_msg_key_rejected: "Key rejected by Resend. Check you copied it in full.",
+  email_msg_resend_status: "Resend replied {status}. Try again shortly.",
+  email_msg_resend_unreachable: "Can't reach Resend. Check your connection and try again.",
+  email_msg_probe_sent: "Connected: we sent a test email to {to}.",
+  email_msg_domain_not_verified:
+    "The domain of {from} is not verified in your Resend account. Add it on resend.com/domains, set the DNS records and try again.",
+  email_msg_sender_not_verified:
+    "The sender address must sit on a domain verified in your Resend account ({domains}).",
+  email_msg_connected_from: "Connected. Emails will go out from {from}.",
+  email_msg_need_sender:
+    "With a “Sending access” key we can't read your domains: type the sender address below (e.g. noreply@yourdomain.com).",
+  email_msg_resend_dev:
+    "resend.dev is Resend's test address: it only reaches you, not your customers. Verify your domain on resend.com/domains and use an address on that domain.",
+  email_msg_no_owner_email: "We can't read your email address to send the test message.",
 };
 
 export type Dictionary = typeof en;

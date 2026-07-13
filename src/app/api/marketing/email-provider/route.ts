@@ -4,6 +4,7 @@ import { verifyTenantMembership } from "@/lib/tenant-membership";
 import { encryptEmailSecret, readEmailSecret } from "@/lib/email/credentials";
 import { getEmailUsageThisMonth } from "@/lib/email/usage";
 import { defaultSenderAddress, senderOnVerifiedDomain, isEmailAddress, addressOf, domainOf } from "@/lib/email/from";
+import { ownerLangFromSettings, type OwnerLang } from "@/lib/owner-locale";
 
 // Settings → Email: the tenant's OWN Resend account, mirroring /api/pos/connect.
 //
@@ -33,9 +34,18 @@ interface ResendDomain {
   status: string;
 }
 
-interface KeyCheck {
-  ok: boolean;
+/** Every message this route hands back is a dictionary key, not a sentence: the
+ * dashboard speaks four languages and the copy lives in src/lib/i18n. `detail`
+ * stays as an English fallback for anything reading the API directly (curl, a
+ * log line), but the browser renders `code` + `vars` through t(). */
+interface Msg {
+  code: string;
+  vars?: Record<string, string>;
   detail: string;
+}
+
+interface KeyCheck extends Msg {
+  ok: boolean;
   /** false → a "Sending access" key: valid, but Resend won't let it read the
    *  account's domains, so we can't discover the sender for the owner. */
   canListDomains: boolean;
@@ -46,6 +56,29 @@ interface KeyCheck {
    *  "I added it on Resend" is the state an owner most often mistakes for done. */
   pending: string[];
 }
+
+/** The one email this route actually sends: the proof-of-life to the owner's own
+ * inbox when a "Sending access" key is connected. It lands in a real person's
+ * mailbox, so it speaks the language they chose for the dashboard — same shape
+ * as the gift-card and campaign copy. */
+const PROBE_EMAIL: Record<OwnerLang, { subject: string; body: (from: string) => string }> = {
+  it: {
+    subject: "Email collegata correttamente",
+    body: (from) => `Il tuo account Resend è collegato al CRM. Le email partiranno da <strong>${from}</strong>.`,
+  },
+  es: {
+    subject: "Email conectado correctamente",
+    body: (from) => `Tu cuenta de Resend está conectada al CRM. Los emails saldrán desde <strong>${from}</strong>.`,
+  },
+  en: {
+    subject: "Email connected successfully",
+    body: (from) => `Your Resend account is connected to the CRM. Emails will go out from <strong>${from}</strong>.`,
+  },
+  de: {
+    subject: "E-Mail erfolgreich verbunden",
+    body: (from) => `Ihr Resend-Konto ist mit dem CRM verbunden. Die E-Mails gehen von <strong>${from}</strong> raus.`,
+  },
+};
 
 /** Cheapest authenticated Resend call: 200 lists the account's domains — which is
  * also exactly what we need to pick a sender, so one round-trip answers both "is
@@ -66,8 +99,10 @@ interface KeyCheck {
  * or restricted Authorization. So a bad key must be recognised by its error name,
  * never by the status alone. */
 async function checkResendKey(apiKey: string): Promise<KeyCheck> {
-  const fail = (detail: string): KeyCheck => ({
+  const fail = (code: string, detail: string, vars?: Record<string, string>): KeyCheck => ({
     ok: false,
+    code,
+    vars,
     detail,
     canListDomains: false,
     verified: [],
@@ -92,9 +127,17 @@ async function checkResendKey(apiKey: string): Promise<KeyCheck> {
         canListDomains: true,
         verified,
         pending,
-        detail: verified.length
-          ? `Chiave valida — dominio verificato: ${verified.join(", ")}.`
-          : "Chiave valida, ma nessun dominio verificato su Resend: senza dominio verificato Resend rifiuta gli invii.",
+        ...(verified.length
+          ? {
+              code: "email_msg_key_ok_verified",
+              vars: { domains: verified.join(", ") },
+              detail: `Key valid — verified domain: ${verified.join(", ")}.`,
+            }
+          : {
+              code: "email_msg_key_ok_no_domain",
+              detail:
+                "Key valid, but no verified domain on Resend: without a verified domain Resend rejects every send.",
+            }),
       };
     }
 
@@ -104,15 +147,20 @@ async function checkResendKey(apiKey: string): Promise<KeyCheck> {
         canListDomains: false,
         verified: [],
         pending: [],
-        detail: "Chiave valida (tipo “Sending access”): può inviare, ma non ci lascia leggere i tuoi domini.",
+        code: "email_msg_key_sending_only",
+        detail: "Key valid (“Sending access” type): it can send, but it can't read your domains for us.",
       };
     }
 
     const rejected = json?.name === "validation_error" || /api key/i.test(json?.message || "");
-    if (rejected) return fail("Chiave rifiutata da Resend. Controlla di averla copiata per intero.");
-    return fail(`Resend ha risposto ${res.status}. Riprova tra poco.`);
+    if (rejected) {
+      return fail("email_msg_key_rejected", "Key rejected by Resend. Check you copied it in full.");
+    }
+    return fail("email_msg_resend_status", `Resend replied ${res.status}. Try again shortly.`, {
+      status: String(res.status),
+    });
   } catch {
-    return fail("Impossibile contattare Resend. Controlla la connessione e riprova.");
+    return fail("email_msg_resend_unreachable", "Can't reach Resend. Check your connection and try again.");
   }
 }
 
@@ -129,7 +177,9 @@ async function probeSender(
   fromAddress: string,
   tenantName: string,
   to: string,
-): Promise<{ ok: boolean; detail: string }> {
+  lang: OwnerLang,
+): Promise<{ ok: boolean } & Msg> {
+  const copy = PROBE_EMAIL[lang];
   try {
     const res = await fetch("https://api.resend.com/emails", {
       method: "POST",
@@ -137,23 +187,43 @@ async function probeSender(
       body: JSON.stringify({
         from: `${tenantName || "CRM"} <${fromAddress}>`,
         to: [to],
-        subject: "Email collegata correttamente",
-        html: `<p>Il tuo account Resend è collegato al CRM. Le email partiranno da <strong>${fromAddress}</strong>.</p>`,
+        subject: copy.subject,
+        html: `<p>${copy.body(fromAddress)}</p>`,
       }),
     });
-    if (res.ok) return { ok: true, detail: `Collegato: ti abbiamo mandato un'email di prova a ${to}.` };
+    if (res.ok) {
+      return {
+        ok: true,
+        code: "email_msg_probe_sent",
+        vars: { to },
+        detail: `Connected: we sent a test email to ${to}.`,
+      };
+    }
 
     const json = (await res.json().catch(() => ({}))) as { message?: string };
-    const msg = json?.message || `Resend ha risposto ${res.status}.`;
+    const msg = json?.message || "";
     if (/not verified/i.test(msg)) {
       return {
         ok: false,
-        detail: `Il dominio di ${fromAddress} non è verificato nel tuo account Resend. Aggiungilo su resend.com/domains, metti i record DNS e riprova.`,
+        code: "email_msg_domain_not_verified",
+        vars: { from: fromAddress },
+        detail: `The domain of ${fromAddress} is not verified in your Resend account. Add it on resend.com/domains, set the DNS records and try again.`,
       };
     }
-    return { ok: false, detail: msg };
+    // Resend's own wording, in English, with nothing better to say — pass it through.
+    if (msg) return { ok: false, code: "", detail: msg };
+    return {
+      ok: false,
+      code: "email_msg_resend_status",
+      vars: { status: String(res.status) },
+      detail: `Resend replied ${res.status}. Try again shortly.`,
+    };
   } catch {
-    return { ok: false, detail: "Impossibile contattare Resend. Riprova tra poco." };
+    return {
+      ok: false,
+      code: "email_msg_resend_unreachable",
+      detail: "Can't reach Resend. Check your connection and try again.",
+    };
   }
 }
 
@@ -272,7 +342,9 @@ export async function POST(req: Request) {
         test: {
           ...check,
           ok: false,
-          detail: `L'indirizzo mittente deve stare su un dominio verificato nel tuo account Resend (${check.verified.join(", ")}).`,
+          code: "email_msg_sender_not_verified",
+          vars: { domains: check.verified.join(", ") },
+          detail: `The sender address must sit on a domain verified in your Resend account (${check.verified.join(", ")}).`,
         },
       });
     }
@@ -285,7 +357,12 @@ export async function POST(req: Request) {
       connected: true,
       from_address: fromAddress,
       verified: check.verified,
-      test: { ...check, detail: `Collegato. Le email partiranno da ${fromAddress}.` },
+      test: {
+        ...check,
+        code: "email_msg_connected_from",
+        vars: { from: fromAddress },
+        detail: `Connected. Emails will go out from ${fromAddress}.`,
+      },
     });
   }
 
@@ -301,8 +378,9 @@ export async function POST(req: Request) {
       test: {
         ...check,
         ok: false,
+        code: "email_msg_need_sender",
         detail:
-          "Con una chiave “Sending access” non possiamo leggere i tuoi domini: scrivi qui sotto l'indirizzo mittente (es. noreply@iltuodominio.com).",
+          "With a “Sending access” key we can't read your domains: type the sender address below (e.g. noreply@yourdomain.com).",
       },
     });
   }
@@ -318,30 +396,38 @@ export async function POST(req: Request) {
       test: {
         ...check,
         ok: false,
+        code: "email_msg_resend_dev",
         detail:
-          "resend.dev è l'indirizzo di prova di Resend: raggiunge solo te, non i tuoi clienti. Verifica il tuo dominio su resend.com/domains e usa un indirizzo su quel dominio.",
+          "resend.dev is Resend's test address: it only reaches you, not your customers. Verify your domain on resend.com/domains and use an address on that domain.",
       },
     });
   }
 
   const [{ data: tenant }, { data: authUser }] = await Promise.all([
-    svc.from("tenants").select("name").eq("id", tenantId).maybeSingle(),
+    svc.from("tenants").select("name, settings").eq("id", tenantId).maybeSingle(),
     svc.auth.admin.getUserById(member.userId),
   ]);
   const ownerEmail = authUser?.user?.email || "";
   if (!ownerEmail) {
     return NextResponse.json({
       ok: false,
-      test: { ...check, ok: false, detail: "Non riusciamo a leggere la tua email per l'invio di prova." },
+      test: {
+        ...check,
+        ok: false,
+        code: "email_msg_no_owner_email",
+        detail: "We can't read your email address to send the test message.",
+      },
     });
   }
 
-  const probe = await probeSender(apiKey, requested, tenant?.name || "", ownerEmail);
+  // The probe email lands in the owner's inbox, so it speaks their dashboard language.
+  const lang = ownerLangFromSettings(tenant?.settings);
+  const probe = await probeSender(apiKey, requested, tenant?.name || "", ownerEmail, lang);
   if (!probe.ok) {
     return NextResponse.json({
       ok: false,
       invalid_sender: true,
-      test: { ...check, ok: false, detail: probe.detail },
+      test: { ...check, ok: false, code: probe.code, vars: probe.vars, detail: probe.detail },
     });
   }
 
@@ -352,7 +438,7 @@ export async function POST(req: Request) {
     ok: true,
     connected: true,
     from_address: requested,
-    test: { ...check, detail: probe.detail },
+    test: { ...check, code: probe.code, vars: probe.vars, detail: probe.detail },
   });
 }
 
