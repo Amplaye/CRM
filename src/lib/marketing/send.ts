@@ -15,6 +15,7 @@
 // campaigns outgrow a single Vercel invocation — see project_n8n_scaling.
 
 import { sendEmail } from "@/lib/email/send";
+import { resolveEmailApiKey } from "@/lib/email/credentials";
 import { resolveEmailFrom } from "@/lib/email/from";
 import { renderEmailLayout, escapeHtml } from "@/lib/email/templates/base";
 import { sendWhatsAppTemplate } from "@/lib/whatsapp/meta";
@@ -132,6 +133,12 @@ export async function sendCampaign(
   // the platform's verified no-reply domain. Campaigns are send-only by design —
   // no Reply-To is set, and the body says so, so nobody writes into a void.
   const emailFrom = resolveEmailFrom(tenant.settings, tenant.name);
+  // Whose Resend account this campaign goes out on: the tenant's own key when it
+  // connected one (its free tier), otherwise null → the platform's shared pool.
+  // Resolved ONCE for the whole campaign, not per recipient — it's a decrypt +
+  // a query, and it cannot change mid-send.
+  const tenantEmailKey =
+    campaign.channel === "email" ? await resolveEmailApiKey(svc, campaign.tenant_id) : null;
   const branding = {
     name: tenant.name,
     brand_color: tenant.settings?.menu_branding?.brand_color,
@@ -178,6 +185,9 @@ export async function sendCampaign(
           from: emailFrom,
           // No replyTo on purpose: campaigns are send-only (owner decision).
           idempotencyKey: `campaign_${campaign.id}_${g.id}`,
+          ...(tenantEmailKey ? { apiKey: tenantEmailKey } : {}),
+          tenantId: campaign.tenant_id,
+          kind: "marketing",
         });
         sent++; await mark("sent");
         // Debited per delivered message, not per intended one: a resumed campaign

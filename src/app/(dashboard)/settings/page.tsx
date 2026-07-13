@@ -171,7 +171,7 @@ function SettingsContent() {
             style={tab === "email" ? { borderColor: "#c4956a" } : {}}
           >
             <Mail className="w-4 h-4" />
-            {t("settings_tab_email" as never) || "Email"}
+            {t("settings_tab_email") || "Email"}
           </button>
         )}
         {canSeePaymentsTab && (

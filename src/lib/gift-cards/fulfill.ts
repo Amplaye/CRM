@@ -7,6 +7,7 @@
 
 import { generateGiftCode, formatGiftCents } from "./gift-cards";
 import { sendEmail, emailConfigured } from "@/lib/email/send";
+import { resolveEmailApiKey } from "@/lib/email/credentials";
 import { renderEmailLayout, escapeHtml } from "@/lib/email/templates/base";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -150,11 +151,15 @@ export async function fulfillGiftCardSession(
         logo_url: tenant?.settings?.menu_branding?.logo_url,
       };
       try {
+        const tenantEmailKey = await resolveEmailApiKey(svc, tenantId);
         await sendEmail({
           to,
           subject: c.subject(venueName),
           html: renderEmailLayout({ branding, preheader: c.subject(venueName), bodyHtml }),
           idempotencyKey: `gift_${session.id}`,
+          ...(tenantEmailKey ? { apiKey: tenantEmailKey } : {}),
+          tenantId,
+          kind: "transactional",
         });
       } catch (e) {
         // Voucher exists and is paid — an email hiccup must not fail the webhook.
