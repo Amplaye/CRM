@@ -1653,6 +1653,7 @@ export const en = {
 
   // WhatsApp Business connection (Settings → WhatsApp)
   settings_tab_whatsapp: "WhatsApp",
+  settings_tab_email: "Email",
   settings_wa_title: "WhatsApp Business",
   settings_wa_subtitle: "Connect your own WhatsApp number so the assistant replies and reminders go out from your restaurant.",
   settings_wa_status_label: "Status",

@@ -36,13 +36,27 @@ export interface SendEmailParams {
    * stable id (e.g. `campaign_${campaignId}_${guestId}`) wherever a retry
    * must not double-send. */
   idempotencyKey?: string;
+  /** The tenant's OWN Resend key (see src/lib/email/credentials.ts). When set,
+   * the send lands on that tenant's free-tier quota instead of the platform's
+   * shared account. Omit → shared pool (RESEND_API_KEY), which is the default
+   * and unchanged behaviour for every tenant that hasn't connected a key. */
+  apiKey?: string;
+  /** Set to count this send in the tenant's monthly email counter. Skipping it
+   * only means the send goes unlogged — it never blocks delivery. */
+  tenantId?: string;
+  /** Which of the two Resend quotas this send draws from. Campaign sends pass
+   * 'marketing'; everything else is transactional. */
+  kind?: EmailKind;
 }
+
+export type EmailKind = "marketing" | "transactional";
 
 /** Send one transactional email via Resend. Returns the Resend email id.
  * Throws on HTTP/API errors — callers decide whether that's fatal (checkout
  * receipt) or loggable (marketing follow-up). */
 export async function sendEmail(params: SendEmailParams): Promise<{ id: string }> {
-  const key = process.env.RESEND_API_KEY;
+  const ownKey = !!params.apiKey;
+  const key = params.apiKey || process.env.RESEND_API_KEY;
   if (!key) throw new Error("RESEND_API_KEY not set");
   const headers: Record<string, string> = {
     Authorization: `Bearer ${key}`,
@@ -65,7 +79,24 @@ export async function sendEmail(params: SendEmailParams): Promise<{ id: string }
     message?: string;
   };
   if (!res.ok) throw new Error(json?.message || `Resend ${res.status}`);
+  await logEmailSend(params.tenantId, params.kind || "transactional", ownKey);
   return { id: String(json.id) };
+}
+
+/** Append one row to email_send_log so Settings → Email can say "742 / 1.000 this
+ * month". Best-effort by design: this runs AFTER Resend already accepted the
+ * email, so a logging failure must never surface as a send failure — the counter
+ * being off by one is strictly better than a lost booking confirmation. */
+async function logEmailSend(tenantId: string | undefined, kind: EmailKind, ownKey: boolean): Promise<void> {
+  if (!tenantId) return;
+  try {
+    const { createServiceRoleClient } = await import("@/lib/supabase/server");
+    await createServiceRoleClient()
+      .from("email_send_log")
+      .insert({ tenant_id: tenantId, kind, own_key: ownKey });
+  } catch {
+    // swallow — see above
+  }
 }
 
 // ---------------------------------------------------------------------------

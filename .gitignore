@@ -58,3 +58,4 @@ _creds_tmp.md
 # Twilio tokens + a Supabase JWT, so they must NEVER enter git history.
 N8N/
 supabase/.temp/
+stripe.env

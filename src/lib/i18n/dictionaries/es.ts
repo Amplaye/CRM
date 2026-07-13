@@ -1656,6 +1656,7 @@ export const es: Dictionary = {
 
   // WhatsApp Business connection (Settings → WhatsApp)
   settings_tab_whatsapp: "WhatsApp",
+  settings_tab_email: "Email",
   settings_wa_title: "WhatsApp Business",
   settings_wa_subtitle: "Conecta tu propio número de WhatsApp para que el asistente responda y los recordatorios salgan desde tu restaurante.",
   settings_wa_status_label: "Estado",
