@@ -1,5 +1,5 @@
 import { describe, it, expect, afterEach } from "vitest";
-import { resolveEmailFrom, addressOf, emailSenderConfigured } from "./from";
+import { resolveEmailFrom, resolveEmailBranding, addressOf, emailSenderConfigured } from "./from";
 import type { TenantSettings } from "@/lib/types/tenant-settings";
 
 const ORIGINAL = process.env.EMAIL_FROM;
@@ -62,5 +62,42 @@ describe("emailSenderConfigured", () => {
   it("is true once EMAIL_FROM is set", () => {
     process.env.EMAIL_FROM = "TableFlow <no-reply@crm.example.com>";
     expect(emailSenderConfigured()).toBe(true);
+  });
+});
+
+// Il logo può stare in due posti indipendenti (branding CRM, menu) a
+// seconda di dove il titolare l'ha caricato. Le campagne leggevano SOLO
+// menu_branding: un ristorante col logo caricato altrove riceveva un'email senza
+// logo pur avendone uno (caso reale: tenant Oraz, logo in `branding`).
+describe("resolveEmailBranding", () => {
+  const url = (s: string) => `https://cdn.example.com/${s}.webp`;
+
+  it("preferisce il logo del CRM a quello del menu", () => {
+    const b = resolveEmailBranding(
+      { branding: { logo_url: url("crm") }, menu_branding: { logo_url: url("menu") } } as never,
+      "Picnic",
+    );
+    expect(b.logo_url).toBe(url("crm"));
+    expect(b.name).toBe("Picnic");
+  });
+
+  it("NON usa site_branding.hero_url come logo (è una foto di copertina)", () => {
+    const b = resolveEmailBranding({ site_branding: { hero_url: url("hero") } } as never, "X");
+    expect(b.logo_url).toBeUndefined();
+  });
+
+  it("ripiega sul logo del CRM — il caso che prima usciva senza logo", () => {
+    const b = resolveEmailBranding({ branding: { logo_url: url("crm") } } as never, "Oraz");
+    expect(b.logo_url).toBe(url("crm"));
+  });
+
+  it("ripiega sul logo del menu quando è l'unico presente", () => {
+    const b = resolveEmailBranding({ menu_branding: { logo_url: url("menu") } } as never, "X");
+    expect(b.logo_url).toBe(url("menu"));
+  });
+
+  it("nessun logo → undefined (il layout mostra il nome come wordmark)", () => {
+    expect(resolveEmailBranding({} as never, "X").logo_url).toBeUndefined();
+    expect(resolveEmailBranding(null, "X").logo_url).toBeUndefined();
   });
 });

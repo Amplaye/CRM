@@ -56,3 +56,28 @@ export function resolveEmailFrom(
 
   return name ? `${name} <${address}>` : platform;
 }
+
+/**
+ * Branding for the email header — the logo renderEmailLayout puts top-centre.
+ *
+ * The logo lives in TWO independent places depending on where the owner uploaded
+ * it: the CRM chrome (`branding.logo_url`) or the public menu
+ * (`menu_branding.logo_url`). Campaigns used to read ONLY `menu_branding`, so a
+ * restaurant whose logo sat in `branding` got a logo-less email while its logo
+ * was right there in settings (real case: tenant Oraz). Resolving both in one
+ * place is what keeps that from regressing.
+ *
+ * Note `site_branding` has NO logo — it carries `hero_url`, a cover photo. Using
+ * it here would put a wide hero shot where a logo belongs.
+ */
+export function resolveEmailBranding(
+  settings: TenantSettings | null | undefined,
+  tenantName?: string | null,
+): { name: string; brand_color?: string; logo_url?: string } {
+  const s = settings as (TenantSettings & { branding?: { logo_url?: string } }) | null | undefined;
+  return {
+    name: tenantName?.trim() || "",
+    brand_color: s?.site_branding?.brand_color || s?.menu_branding?.brand_color,
+    logo_url: s?.branding?.logo_url || s?.menu_branding?.logo_url,
+  };
+}

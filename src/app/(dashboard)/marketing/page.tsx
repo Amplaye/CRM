@@ -42,6 +42,16 @@ interface SenderConfig {
   domain_configured: boolean;
 }
 
+/** Monthly email quota, from /api/marketing/email-provider. `limit` is null on the
+ *  platform's shared plan — that quota isn't the tenant's to spend, so we show the
+ *  count without a ceiling. It's a real number only once they connect their own
+ *  Resend key (Impostazioni → Email). */
+interface EmailUsage {
+  ownKey: boolean;
+  marketing: { sent: number; limit: number | null };
+  transactional: { sent: number; limit: number | null };
+}
+
 interface PreviewResult {
   total: number;
   with_email: number;
@@ -87,6 +97,7 @@ export default function MarketingPage() {
   const [recipients, setRecipients] = useState<RecipientRow[] | null>(null);
   const [sender, setSender] = useState<SenderConfig | null>(null);
   const [senderSaved, setSenderSaved] = useState(false);
+  const [emailUsage, setEmailUsage] = useState<EmailUsage | null>(null);
 
   const segment: SegmentDef = useMemo(() => {
     switch (segKind) {
@@ -136,6 +147,18 @@ export default function MarketingPage() {
     return () => { alive = false; };
   }, [activeTenant?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Monthly email quota, shown right where the owner decides to send: no point
+  // making them open Settings to find out they're at 980/1.000. Re-read after
+  // every send (loadEmailUsage is called there) so the number stays honest.
+  const loadEmailUsage = async () => {
+    if (!activeTenant) return;
+    try {
+      const j = await (await fetch(`/api/marketing/email-provider?tenant_id=${activeTenant.id}`)).json();
+      if (j?.success) setEmailUsage(j.usage as EmailUsage);
+    } catch { /* a missing counter must never block the campaign form */ }
+  };
+  useEffect(() => { void loadEmailUsage(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [activeTenant?.id]);
+
   const saveSender = async () => {
     if (!sender) return;
     const json = await post("/api/marketing/sender", { sender_name: sender.sender_name }, "PATCH");
@@ -184,6 +207,7 @@ export default function MarketingPage() {
       setResult(t("mkt_sent_result").replace("{sent}", String(json.sent)).replace("{total}", String(json.recipients)));
       setName(""); setSubject(""); setBody(""); setBrief(""); setPreview(null);
       void loadCampaigns();
+      void loadEmailUsage(); // il contatore deve riflettere l'invio appena fatto
     } else {
       setResult(json?.detail || json?.error || "Error");
     }
@@ -318,6 +342,47 @@ export default function MarketingPage() {
               <p className="text-xs text-black">{t("mkt_sender_noreply_note")}</p>
               {!sender.domain_configured && (
                 <p className="text-xs font-semibold text-amber-700">{t("mkt_sender_domain_warning")}</p>
+              )}
+
+              {/* Quota del mese, qui e non solo in Impostazioni: è QUI che si decide
+                  di inviare, ed è qui che serve sapere quante email restano. */}
+              {emailUsage && (
+                <div className="pt-2 border-t" style={{ borderColor: "rgba(196,149,106,0.4)" }}>
+                  {emailUsage.marketing.limit ? (() => {
+                    const { sent, limit } = emailUsage.marketing;
+                    const left = Math.max(0, limit - sent);
+                    const pct = Math.min(100, Math.round((sent / limit) * 100));
+                    // Ambra oltre l'80%: deve accorgersene PRIMA di restare a secco.
+                    const bar = pct >= 100 ? "#dc2626" : pct >= 80 ? "#d97706" : "#c4956a";
+                    return (
+                      <>
+                        <div className="flex items-baseline justify-between gap-2">
+                          <span className="text-xs font-bold text-black">Email rimaste questo mese</span>
+                          <span className="text-xs font-bold text-black tabular-nums">
+                            {left.toLocaleString()} su {limit.toLocaleString()}
+                          </span>
+                        </div>
+                        <div className="mt-1 h-1.5 rounded-full overflow-hidden" style={{ background: "rgba(196,149,106,0.2)" }}>
+                          <div className="h-full rounded-full transition-all" style={{ width: `${pct}%`, background: bar }} />
+                        </div>
+                        {left === 0 && (
+                          <p className="mt-1 text-xs font-semibold text-red-600">
+                            Quota esaurita: le prossime email verranno rifiutate da Resend fino al 1° del mese.
+                          </p>
+                        )}
+                      </>
+                    );
+                  })() : (
+                    <p className="text-xs text-black">
+                      <span className="font-bold">{emailUsage.marketing.sent.toLocaleString()}</span> email inviate questo mese ·
+                      piano condiviso, nessun limite per te.{" "}
+                      <Link href="/settings?tab=email" className="font-semibold underline" style={{ color: "#8b6540" }}>
+                        Collega il tuo account Resend
+                      </Link>{" "}
+                      per avere 1.000 email gratis al mese.
+                    </p>
+                  )}
+                </div>
               )}
             </div>
           )}

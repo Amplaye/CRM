@@ -8,6 +8,7 @@
 import { generateGiftCode, formatGiftCents } from "./gift-cards";
 import { sendEmail, emailConfigured } from "@/lib/email/send";
 import { resolveEmailApiKey } from "@/lib/email/credentials";
+import { resolveEmailBranding } from "@/lib/email/from";
 import { renderEmailLayout, escapeHtml } from "@/lib/email/templates/base";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -145,11 +146,7 @@ export async function fulfillGiftCardSession(
           <div style="margin-top:6px;font-size:14px;color:#111827;">${c.valueLabel}: <strong>${formatGiftCents(amountCents, currency)}</strong></div>
         </div>
         <p>${c.how}</p>`;
-      const branding = {
-        name: venueName,
-        brand_color: tenant?.settings?.site_branding?.brand_color || tenant?.settings?.menu_branding?.brand_color,
-        logo_url: tenant?.settings?.menu_branding?.logo_url,
-      };
+      const branding = resolveEmailBranding(tenant?.settings, venueName);
       try {
         const tenantEmailKey = await resolveEmailApiKey(svc, tenantId);
         await sendEmail({

@@ -36,8 +36,8 @@ function QuotaBar({ label, quota, hint }: { label: string; quota: Quota; hint: s
         <span className="text-sm font-bold text-black">{label}</span>
         <span className="text-sm text-black tabular-nums">
           {quota.limit
-            ? `${quota.sent.toLocaleString("it-IT")} / ${quota.limit.toLocaleString("it-IT")}`
-            : `${quota.sent.toLocaleString("it-IT")} inviate`}
+            ? `${quota.sent.toLocaleString()} / ${quota.limit.toLocaleString()}`
+            : `${quota.sent.toLocaleString()} inviate`}
         </span>
       </div>
       {quota.limit ? (

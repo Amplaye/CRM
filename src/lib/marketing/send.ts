@@ -16,7 +16,7 @@
 
 import { sendEmail } from "@/lib/email/send";
 import { resolveEmailApiKey } from "@/lib/email/credentials";
-import { resolveEmailFrom } from "@/lib/email/from";
+import { resolveEmailFrom, resolveEmailBranding } from "@/lib/email/from";
 import { renderEmailLayout, escapeHtml } from "@/lib/email/templates/base";
 import { sendWhatsAppTemplate } from "@/lib/whatsapp/meta";
 import { tenantWhatsAppFrom } from "@/lib/whatsapp/from";
@@ -139,11 +139,9 @@ export async function sendCampaign(
   // a query, and it cannot change mid-send.
   const tenantEmailKey =
     campaign.channel === "email" ? await resolveEmailApiKey(svc, campaign.tenant_id) : null;
-  const branding = {
-    name: tenant.name,
-    brand_color: tenant.settings?.menu_branding?.brand_color,
-    logo_url: tenant.settings?.menu_branding?.logo_url,
-  };
+  // Logo in alto al centro nell'email: risolto da site/CRM/menu branding, non
+  // solo da menu_branding (vedi resolveEmailBranding).
+  const branding = resolveEmailBranding(tenant.settings, tenant.name);
   const lang = (tenant.settings?.bot_config?.primary_language || "es").slice(0, 2);
   const UNSUB = { es: "Darse de baja", it: "Disiscriviti", en: "Unsubscribe", de: "Abmelden" } as const;
   const unsubLabel = UNSUB[lang as keyof typeof UNSUB] || UNSUB.es;
