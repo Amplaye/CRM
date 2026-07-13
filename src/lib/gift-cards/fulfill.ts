@@ -6,9 +6,9 @@
 // retry can never mint a second voucher or double-send.
 
 import { generateGiftCode, formatGiftCents } from "./gift-cards";
-import { sendEmail, emailConfigured } from "@/lib/email/send";
-import { resolveEmailApiKey } from "@/lib/email/credentials";
-import { resolveEmailBranding } from "@/lib/email/from";
+import { sendEmail } from "@/lib/email/send";
+import { resolveTenantEmail } from "@/lib/email/credentials";
+import { resolveEmailBranding, resolveEmailFrom } from "@/lib/email/from";
 import { renderEmailLayout, escapeHtml } from "@/lib/email/templates/base";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -123,8 +123,17 @@ export async function fulfillGiftCardSession(
     }
 
     // Email the recipient (fall back to the buyer buying for themselves).
+    //
+    // The voucher is already minted and PAID at this point, so a tenant with no
+    // Resend key of its own doesn't lose the sale — it loses the delivery email,
+    // and the code is still redeemable at the till. Returning the reason (rather
+    // than silently doing nothing) is what lets the webhook log say why the buyer
+    // never got their mail.
     const to = meta.recipient_email || buyerEmail;
-    if (to && emailConfigured()) {
+    const emailCfg = to ? await resolveTenantEmail(svc, tenantId) : null;
+    if (to && !emailCfg) return { ok: true, code, error: "email_not_configured" };
+
+    if (to && emailCfg) {
       const { data: tenant } = await svc
         .from("tenants")
         .select("name, settings")
@@ -148,13 +157,13 @@ export async function fulfillGiftCardSession(
         <p>${c.how}</p>`;
       const branding = resolveEmailBranding(tenant?.settings, venueName);
       try {
-        const tenantEmailKey = await resolveEmailApiKey(svc, tenantId);
         await sendEmail({
           to,
           subject: c.subject(venueName),
           html: renderEmailLayout({ branding, preheader: c.subject(venueName), bodyHtml }),
           idempotencyKey: `gift_${session.id}`,
-          ...(tenantEmailKey ? { apiKey: tenantEmailKey } : {}),
+          apiKey: emailCfg.apiKey,
+          from: resolveEmailFrom(tenant?.settings, venueName, emailCfg.fromAddress),
           tenantId,
           kind: "transactional",
         });

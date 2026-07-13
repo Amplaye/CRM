@@ -161,12 +161,14 @@ export interface TenantSettings {
    * number (e.g. "whatsapp:+34..."); unset → platform default. Resolved in one
    * place by src/lib/whatsapp/from.ts (Mossa 5: sending number is config, not code). */
   whatsapp?: { from?: string };
-  /** Per-tenant EMAIL sender config (Marketing → mittente). `sender_name` is the
-   *  display name the guest sees ("Ristorante Picnic"); the technical address
-   *  stays on the platform's DNS-verified no-reply domain (EMAIL_FROM), because
-   *  an ESP refuses to send from a domain it hasn't verified — an arbitrary
-   *  owner-typed from-address would bounce or land in spam. Campaigns are
-   *  send-only: no Reply-To. Resolved in one place by src/lib/email/from.ts. */
+  /** Per-tenant EMAIL sender config (Marketing → mittente). Only the display name
+   *  the guest sees ("Ristorante Picnic") lives here. The technical address does
+   *  NOT: it comes from the tenant's own Resend account (email_secrets.from_address,
+   *  on a domain that account has DNS-verified), because an ESP refuses to send
+   *  from a domain it hasn't verified — and every CRM email now goes out on the
+   *  tenant's own key, never a shared platform one. A key is also a secret and
+   *  settings are browser-readable, which is the other reason it isn't here.
+   *  Campaigns are send-only: no Reply-To. Resolved by src/lib/email/from.ts. */
   marketing_email?: { sender_name?: string };
   /** Which POS adapter feeds the canonical pos_sales tables. `mock` (default)
    * generates realistic fake sales; the real tills drop in later. Resolved in one

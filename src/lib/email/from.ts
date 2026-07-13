@@ -1,22 +1,22 @@
 // Single source of truth for the email "From" — mirrors src/lib/whatsapp/from.ts.
 //
-// WHY the owner cannot simply type any sender address: an ESP (Resend) only
-// sends from a domain it has DNS-verified (SPF/DKIM). Putting
-// "info@ristorantepippo.com" in the From of a mail relayed by our infrastructure
-// gets rejected outright, or — worse — delivered and marked as spam because it
-// fails DMARC. So the sending ADDRESS is a platform concern (EMAIL_FROM, one
-// verified no-reply domain shared by every tenant), while the tenant controls
-// the display NAME the guest actually reads ("Ristorante Picnic").
+// An ESP only relays a From on a domain it has DNS-verified (SPF/DKIM) IN THE
+// ACCOUNT THE KEY BELONGS TO. Since every CRM email now goes out on the tenant's
+// own Resend key, the address has to sit on the TENANT's own verified domain —
+// the platform's no-reply domain would come back `403 "The <domain> domain is
+// not verified"` (reproduced against the live API), because that domain is
+// verified in OUR account, not theirs.
 //
-// Result: `Ristorante Picnic <no-reply@crm.example.com>`.
+// So the address travels with the key (email_secrets.from_address, chosen from
+// the domains the tenant verified on Resend) and the tenant controls only the
+// display NAME laid on top of it.
+//
+// Result: `Ristorante Picnic <noreply@ristorantepicnic.com>`.
 //
 // Campaigns are SEND-ONLY by owner decision: no Reply-To is set and the email
-// body tells the guest not to reply (see marketing/send.ts). A tenant that later
-// verifies its OWN domain in Resend becomes a config change here, not a code one.
+// body tells the guest not to reply (see marketing/send.ts).
 
 import type { TenantSettings } from "@/lib/types/tenant-settings";
-
-const PLATFORM_FALLBACK = "TableFlow <onboarding@resend.dev>";
 
 /** Bare address out of an RFC-5322 `Name <addr@host>` (or a bare address). */
 export function addressOf(raw: string): string {
@@ -31,30 +31,49 @@ function sanitizeDisplayName(raw: string): string {
   return /[,;:]/.test(clean) ? `"${clean}"` : clean;
 }
 
-/** True once a platform sender domain is configured (EMAIL_FROM). Without it we
- *  fall back to Resend's sandbox address, which only reaches the Resend account
- *  owner — fine in dev, useless for real guests. */
-export function emailSenderConfigured(): boolean {
-  return !!process.env.EMAIL_FROM;
+/** Domain part, lowercased. "" when the input isn't an address. */
+export function domainOf(raw: string): string {
+  return (addressOf(raw).split("@")[1] || "").toLowerCase().trim();
+}
+
+const ADDRESS_RE = /^[^\s@<>",;]+@[^\s@<>",;]+\.[a-z]{2,}$/i;
+
+/** Shape check only — whether Resend will ACCEPT it depends on the domain being
+ *  verified in the tenant's account (senderOnVerifiedDomain). */
+export function isEmailAddress(raw: string): boolean {
+  return ADDRESS_RE.test(raw.trim());
+}
+
+/** What we propose the moment a tenant connects a key: a no-reply on the domain
+ *  it just verified. Campaigns are send-only, so no-reply is the honest local
+ *  part — and it's an address Resend will accept without further DNS work. */
+export function defaultSenderAddress(domain: string): string {
+  return `noreply@${domain.toLowerCase().trim()}`;
+}
+
+/** The one check that decides whether a send will be accepted or 403'd: the
+ *  address must be on a domain the tenant verified in ITS OWN Resend account. */
+export function senderOnVerifiedDomain(address: string, verifiedDomains: string[]): boolean {
+  const d = domainOf(address);
+  if (!d || !isEmailAddress(addressOf(address))) return false;
+  return verifiedDomains.some((v) => v.toLowerCase().trim() === d);
 }
 
 /**
  * Resolve the From header for a tenant's outbound email.
- * Display name: tenant's `sender_name` → tenant name → platform default.
- * Address: ALWAYS the platform's verified address (EMAIL_FROM).
+ * Display name: tenant's `sender_name` → tenant name → the address's local part.
+ * Address: the tenant's OWN verified sender (email_secrets.from_address).
  */
 export function resolveEmailFrom(
   settings: TenantSettings | null | undefined,
-  tenantName?: string | null,
+  tenantName: string | null | undefined,
+  fromAddress: string,
 ): string {
-  const platform = process.env.EMAIL_FROM || PLATFORM_FALLBACK;
-  const address = addressOf(platform);
-
+  const address = addressOf(fromAddress);
   const configured = settings?.marketing_email?.sender_name?.trim();
-  const raw = configured || tenantName?.trim() || addressOf(platform).split("@")[0];
+  const raw = configured || tenantName?.trim() || address.split("@")[0];
   const name = sanitizeDisplayName(raw);
-
-  return name ? `${name} <${address}>` : platform;
+  return name ? `${name} <${address}>` : address;
 }
 
 /**

@@ -39,19 +39,28 @@ export function decryptEmailSecret(secretEnc: string): Record<string, unknown> {
   return JSON.parse(dec.toString("utf8"));
 }
 
-/** The tenant's own Resend key, or null when it's on the shared platform pool
- * (the default). Fails soft: a decrypt error or a missing encryption key must
- * degrade to "use the shared pool" — an unreadable secret must never stop a
- * restaurant's booking confirmation from going out. Takes a service-role client
- * (RLS forbids members from reading email_secrets at all).
+/** A tenant's email setup: its own Resend key AND the address it sends from.
  *
- * The empty-string guard matters: `apiKey: ""` downstream would be a truthy-less
- * value that silently falls back anyway, but returning null makes it explicit. */
-export async function resolveEmailApiKey(
+ * The two are inseparable, which is why they travel together. Resend only
+ * relays a From on a domain verified inside the SAME account the key belongs
+ * to — anything else comes back `403 "The <domain> domain is not verified"`
+ * (reproduced against the live API). So a key with no sender address of its own
+ * isn't a half-configured tenant, it's one whose every send would bounce. */
+export interface TenantEmailConfig {
+  apiKey: string;
+  /** Bare address on a domain THIS tenant verified in ITS Resend account. */
+  fromAddress: string;
+}
+
+/** Raw read of the stored secret. `fromAddress` may be "" — that's a tenant that
+ * pasted a key but hasn't picked a sender yet, which only the Settings route
+ * cares about (it needs the key to re-validate a new address against Resend).
+ * Everything that SENDS must go through resolveTenantEmail() instead. */
+export async function readEmailSecret(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   svc: any,
   tenantId: string,
-): Promise<string | null> {
+): Promise<{ apiKey: string; fromAddress: string } | null> {
   if (!tenantId) return null;
   try {
     const { data } = await svc
@@ -61,9 +70,33 @@ export async function resolveEmailApiKey(
       .eq("provider", "resend")
       .maybeSingle();
     if (!data?.secret_enc) return null;
-    const key = decryptEmailSecret(data.secret_enc).api_key;
-    return typeof key === "string" && key ? key : null;
+    const blob = decryptEmailSecret(data.secret_enc);
+    const apiKey = typeof blob.api_key === "string" ? blob.api_key.trim() : "";
+    if (!apiKey) return null;
+    const fromAddress = typeof blob.from_address === "string" ? blob.from_address.trim() : "";
+    return { apiKey, fromAddress };
   } catch {
     return null;
   }
+}
+
+/** The tenant's email setup, or null when it cannot legally send.
+ *
+ * Null means one thing, everywhere: THIS TENANT SENDS NO EMAIL. There is no
+ * shared platform account to fall back on (owner decision) — no campaigns, no
+ * gift cards, no coupons, nothing. Callers must skip the send and say why, never
+ * substitute another key.
+ *
+ * Fails soft to null on a decrypt/env error, and that direction is deliberate:
+ * an unreadable secret degrades to "no email", never to "send it on somebody
+ * else's account". Takes a service-role client (RLS forbids members from reading
+ * email_secrets at all). */
+export async function resolveTenantEmail(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  svc: any,
+  tenantId: string,
+): Promise<TenantEmailConfig | null> {
+  const secret = await readEmailSecret(svc, tenantId);
+  if (!secret?.fromAddress) return null;
+  return { apiKey: secret.apiKey, fromAddress: secret.fromAddress };
 }

@@ -11,11 +11,12 @@
 // segment of 100 delivered 87.
 //
 // Scale note (dev stage, no real clients): delivery is an inline loop capped
-// at MAX_RECIPIENTS. The n8n bulk path (enqueueBulkEmail) takes over when
-// campaigns outgrow a single Vercel invocation — see project_n8n_scaling.
+// at MAX_RECIPIENTS. When campaigns outgrow a single Vercel invocation the fan-out
+// moves to n8n — but the tenant's own key has to travel with the job, since there
+// is no shared account to send on (see project_n8n_scaling).
 
 import { sendEmail } from "@/lib/email/send";
-import { resolveEmailApiKey } from "@/lib/email/credentials";
+import { resolveTenantEmail } from "@/lib/email/credentials";
 import { resolveEmailFrom, resolveEmailBranding } from "@/lib/email/from";
 import { renderEmailLayout, escapeHtml } from "@/lib/email/templates/base";
 import { sendWhatsAppTemplate } from "@/lib/whatsapp/meta";
@@ -73,13 +74,33 @@ export async function resolveRecipients(
 
 /** Send (or resume) a campaign. Returns the updated counters.
  *
- * `credits_exhausted` in the return means the wallet couldn't cover the whole
- * send and NOTHING was sent — see the pre-flight below. */
+ * `credits_exhausted` and `email_not_configured` in the return both mean the same
+ * shape of outcome: the job was refused whole and NOTHING was sent — see the two
+ * pre-flights below. */
 export async function sendCampaign(
   svc: Svc,
   campaign: CampaignRow,
   tenant: TenantRow,
-): Promise<{ recipients: number; sent: number; failed: number; skipped: number; credits_exhausted?: boolean }> {
+): Promise<{
+  recipients: number;
+  sent: number;
+  failed: number;
+  skipped: number;
+  credits_exhausted?: boolean;
+  email_not_configured?: boolean;
+}> {
+  // Email pre-flight, before anything else. No Resend key of their own → no
+  // email, full stop: there is no shared platform account to fall back on (owner
+  // decision), and Resend would 403 the send anyway because the From has to be on
+  // a domain verified inside the TENANT's account. Refusing the whole campaign
+  // here — before a single ledger row is claimed or a single credit debited — is
+  // the same recoverable contract as credits_exhausted: connect the key in
+  // Settings → Email, press send again, nothing was consumed in the meantime.
+  const emailCfg = campaign.channel === "email" ? await resolveTenantEmail(svc, campaign.tenant_id) : null;
+  if (campaign.channel === "email" && !emailCfg) {
+    return { recipients: 0, sent: 0, failed: 0, skipped: 0, email_not_configured: true };
+  }
+
   const { eligible } = await resolveRecipients(svc, campaign.tenant_id, campaign.segment);
   const capped = eligible.slice(0, MAX_RECIPIENTS);
 
@@ -129,16 +150,11 @@ export async function sendCampaign(
 
   const origin = process.env.NEXT_PUBLIC_APP_URL || "https://crm.baliflowagency.com";
   const from = tenantWhatsAppFrom(tenant.settings);
-  // Email identity: the guest reads the venue's NAME, while the address stays on
-  // the platform's verified no-reply domain. Campaigns are send-only by design —
-  // no Reply-To is set, and the body says so, so nobody writes into a void.
-  const emailFrom = resolveEmailFrom(tenant.settings, tenant.name);
-  // Whose Resend account this campaign goes out on: the tenant's own key when it
-  // connected one (its free tier), otherwise null → the platform's shared pool.
-  // Resolved ONCE for the whole campaign, not per recipient — it's a decrypt +
-  // a query, and it cannot change mid-send.
-  const tenantEmailKey =
-    campaign.channel === "email" ? await resolveEmailApiKey(svc, campaign.tenant_id) : null;
+  // Email identity: the guest reads the venue's NAME, on top of the venue's OWN
+  // verified sending address (emailCfg.fromAddress — the platform's domain would
+  // be refused by the tenant's Resend account). Campaigns are send-only by design
+  // — no Reply-To is set, and the body says so, so nobody writes into a void.
+  const emailFrom = emailCfg ? resolveEmailFrom(tenant.settings, tenant.name, emailCfg.fromAddress) : "";
   // Logo in alto al centro nell'email: risolto da site/CRM/menu branding, non
   // solo da menu_branding (vedi resolveEmailBranding).
   const branding = resolveEmailBranding(tenant.settings, tenant.name);
@@ -166,6 +182,7 @@ export async function sendCampaign(
 
     try {
       if (campaign.channel === "email") {
+        if (!emailCfg) { skipped++; await mark("skipped", "email_not_configured"); continue; }
         if (!g.email) { skipped++; await mark("skipped", "no_email"); continue; }
         const unsubUrl = `${origin}/u/${createUnsubscribeToken({ g: g.id, t: campaign.tenant_id })}`;
         const html = renderEmailLayout({
@@ -183,7 +200,7 @@ export async function sendCampaign(
           from: emailFrom,
           // No replyTo on purpose: campaigns are send-only (owner decision).
           idempotencyKey: `campaign_${campaign.id}_${g.id}`,
-          ...(tenantEmailKey ? { apiKey: tenantEmailKey } : {}),
+          apiKey: emailCfg.apiKey,
           tenantId: campaign.tenant_id,
           kind: "marketing",
         });

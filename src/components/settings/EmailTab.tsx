@@ -1,32 +1,46 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Mail, CheckCircle2, XCircle, Loader2, KeyRound, ExternalLink, Unplug } from "lucide-react";
+import { Mail, CheckCircle2, XCircle, Loader2, KeyRound, ExternalLink, Unplug, AlertTriangle } from "lucide-react";
 import { useTenant } from "@/lib/contexts/TenantContext";
 
-// Settings → Email. Optional BYO Resend account, same self-service shape as
-// Settings → Cassa: paste the key, test it, save it. Connecting one moves this
-// tenant's sends onto its OWN free tier (1.000 marketing / 3.000 transactional
-// per month); doing nothing keeps it on the platform's shared plan, which is the
-// default and costs the tenant nothing to keep.
+// Settings → Email. The tenant's own Resend account, same self-service shape as
+// Settings → Cassa: paste the key, test it, save it.
 //
-// The key goes to /api/marketing/email-provider and is encrypted server-side —
-// it is never stored in tenants.settings and never comes back down to the browser.
+// NOT optional: with no key connected the CRM sends this venue NO email at all —
+// campaigns, coupons, gift cards, confirmations, everything is off. There is no
+// shared platform plan behind it. So this panel's job is to make the OFF state
+// impossible to mistake for a working one.
+//
+// Two things are needed, not one: the key, and a domain verified inside that same
+// Resend account. Resend refuses to send from a domain it hasn't verified, so a
+// key on its own would show "connected" while every guest email bounced.
+//
+// The key goes to /api/marketing/email-provider and is encrypted server-side — it
+// is never stored in tenants.settings and never comes back down to the browser.
 
 interface Quota {
   sent: number;
-  limit: number | null;
+  limit: number;
 }
 
 interface Usage {
-  ownKey: boolean;
+  connected: boolean;
   marketing: Quota;
   transactional: Quota;
 }
 
-type Phase = "idle" | "testing" | "saving" | "disconnecting";
+type Phase = "idle" | "testing" | "saving" | "disconnecting" | "sender";
 
-function QuotaBar({ label, quota, hint }: { label: string; quota: Quota; hint: string }) {
+interface ApiResult {
+  ok: boolean;
+  msg: string;
+  needsDomain?: boolean;
+  verified?: string[];
+  pending?: string[];
+}
+
+function QuotaBar({ label, quota, hint, off }: { label: string; quota: Quota; hint: string; off: boolean }) {
   const pct = quota.limit ? Math.min(100, Math.round((quota.sent / quota.limit) * 100)) : 0;
   // Amber past 80%: the owner should hear about a quota BEFORE it stops their sends.
   const bar = pct >= 100 ? "#dc2626" : pct >= 80 ? "#d97706" : "#c4956a";
@@ -35,16 +49,15 @@ function QuotaBar({ label, quota, hint }: { label: string; quota: Quota; hint: s
       <div className="flex items-baseline justify-between gap-3">
         <span className="text-sm font-bold text-black">{label}</span>
         <span className="text-sm text-black tabular-nums">
-          {quota.limit
-            ? `${quota.sent.toLocaleString()} / ${quota.limit.toLocaleString()}`
-            : `${quota.sent.toLocaleString()} inviate`}
+          {off ? "—" : `${quota.sent.toLocaleString()} / ${quota.limit.toLocaleString()}`}
         </span>
       </div>
-      {quota.limit ? (
-        <div className="h-2 rounded-full overflow-hidden" style={{ background: "rgba(196,149,106,0.18)" }}>
-          <div className="h-full rounded-full transition-all" style={{ width: `${pct}%`, background: bar }} />
-        </div>
-      ) : null}
+      <div className="h-2 rounded-full overflow-hidden" style={{ background: "rgba(196,149,106,0.18)" }}>
+        <div
+          className="h-full rounded-full transition-all"
+          style={{ width: off ? "0%" : `${pct}%`, background: bar }}
+        />
+      </div>
       <p className="text-xs text-black">{hint}</p>
     </div>
   );
@@ -54,9 +67,11 @@ export function EmailTab() {
   const { activeTenant: tenant } = useTenant();
   const [apiKey, setApiKey] = useState("");
   const [connected, setConnected] = useState(false);
+  const [fromAddress, setFromAddress] = useState<string | null>(null);
+  const [senderDraft, setSenderDraft] = useState("");
   const [usage, setUsage] = useState<Usage | null>(null);
   const [phase, setPhase] = useState<Phase>("idle");
-  const [result, setResult] = useState<{ ok: boolean; msg: string } | null>(null);
+  const [result, setResult] = useState<ApiResult | null>(null);
 
   const load = async () => {
     if (!tenant?.id) return;
@@ -64,6 +79,8 @@ export function EmailTab() {
       const res = await fetch(`/api/marketing/email-provider?tenant_id=${tenant.id}`);
       const data = await res.json();
       setConnected(!!data?.connected);
+      setFromAddress(data?.from_address || null);
+      setSenderDraft(data?.from_address || "");
       setUsage((data?.usage as Usage) || null);
     } catch {
       // A failed status read just leaves the panel on its defaults.
@@ -75,28 +92,48 @@ export function EmailTab() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tenant?.id]);
 
-  async function call(action: "test" | "save" | "disconnect") {
+  async function call(action: "test" | "save" | "sender" | "disconnect") {
     if (!tenant?.id) return;
     setResult(null);
-    setPhase(action === "test" ? "testing" : action === "save" ? "saving" : "disconnecting");
+    setPhase(
+      action === "test" ? "testing" : action === "save" ? "saving" : action === "sender" ? "sender" : "disconnecting",
+    );
     try {
       const res = await fetch("/api/marketing/email-provider", {
         method: action === "disconnect" ? "DELETE" : "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           tenant_id: tenant.id,
-          ...(action !== "disconnect" ? { api_key: apiKey.trim(), action } : {}),
+          ...(action === "disconnect"
+            ? {}
+            : {
+                action,
+                ...(action !== "sender" ? { api_key: apiKey.trim() } : {}),
+                ...(senderDraft.trim() ? { from_address: senderDraft.trim() } : {}),
+              }),
         }),
       });
       const data = await res.json();
+
       if (action === "disconnect") {
         setResult({
           ok: !!data?.ok,
-          msg: data?.ok ? "Disconnesso. Le email tornano sul piano condiviso." : data?.error || "Errore",
+          msg: data?.ok
+            ? "Disconnesso. Da adesso questo locale non invia più nessuna email."
+            : data?.error || "Errore",
         });
       } else {
-        setResult({ ok: !!data?.ok, msg: data?.test?.detail || data?.error || (data?.ok ? "OK" : "Connessione non riuscita") });
-        if (action === "save" && data?.ok) setApiKey("");
+        setResult({
+          ok: !!data?.ok,
+          msg:
+            data?.test?.detail ||
+            data?.error ||
+            (data?.ok ? "OK" : "Connessione non riuscita"),
+          needsDomain: !!data?.needs_domain,
+          verified: data?.verified,
+          pending: data?.pending,
+        });
+        if ((action === "save" || action === "sender") && data?.ok) setApiKey("");
       }
       await load();
     } catch (e) {
@@ -111,6 +148,46 @@ export function EmailTab() {
   const inputStyle = { borderColor: "#c4956a", background: "rgba(252,246,237,0.6)" };
   const panelStyle = { borderColor: "#c4956a", background: "rgba(252,246,237,0.6)" };
 
+  const Feedback = () =>
+    result ? (
+      <div
+        className={`space-y-2 text-sm rounded-lg p-3 ${result.ok ? "text-emerald-700" : "text-red-600"}`}
+        style={{ background: result.ok ? "rgba(16,185,129,0.08)" : "rgba(220,38,38,0.06)" }}
+      >
+        <div className="flex items-start gap-2">
+          {result.ok ? (
+            <CheckCircle2 className="w-4 h-4 mt-0.5 shrink-0" />
+          ) : (
+            <XCircle className="w-4 h-4 mt-0.5 shrink-0" />
+          )}
+          <span>{result.msg}</span>
+        </div>
+        {result.needsDomain && (
+          <div className="text-xs text-black">
+            La chiave è giusta, ma su Resend non hai ancora un <strong>dominio verificato</strong>: senza, Resend
+            rifiuta ogni invio.{" "}
+            {result.pending?.length ? (
+              <>
+                Hai aggiunto <strong>{result.pending.join(", ")}</strong> ma i record DNS non risultano ancora
+                verificati.{" "}
+              </>
+            ) : null}
+            Apri{" "}
+            <a
+              href="https://resend.com/domains"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="font-bold underline"
+              style={{ color: "#8b6540" }}
+            >
+              resend.com/domains
+            </a>
+            , aggiungi il dominio del tuo sito, copia i record DNS dal tuo provider e riprova qui.
+          </div>
+        )}
+      </div>
+    ) : null;
+
   return (
     <div className="space-y-6">
       <div>
@@ -118,9 +195,9 @@ export function EmailTab() {
           <Mail className="w-5 h-5" /> Email
         </h2>
         <p className="mt-1 text-sm text-black">
-          Vuoi email marketing e transazionali gratuite fino a 1.000 contatti al mese, invece di usare il piano
-          condiviso? Crea un account gratuito su Resend e collega la tua chiave. È facoltativo: se non fai nulla,
-          continui a inviare sul piano condiviso come oggi.
+          Le email del tuo CRM partono dal <strong>tuo</strong> account Resend. Collega la tua chiave qui: finché non
+          lo fai, il CRM non invia nessuna email — né campagne marketing, né coupon, né gift card, né conferme.
+          L&apos;account Resend è gratuito e ti dà 1.000 email marketing e 3.000 transazionali al mese.
         </p>
       </div>
 
@@ -130,16 +207,20 @@ export function EmailTab() {
           {connected ? (
             <CheckCircle2 className="w-5 h-5 text-emerald-600" />
           ) : (
-            <Mail className="w-5 h-5" style={{ color: "#8b6540" }} />
+            <AlertTriangle className="w-5 h-5 text-red-600" />
           )}
           <div>
             <div className="font-bold text-black">
-              {connected ? "Collegato al tuo account Resend" : "Piano condiviso"}
+              {connected ? "Collegato al tuo account Resend" : "Email disattivate"}
             </div>
             <div className="text-xs text-black">
-              {connected
-                ? "Le email partono dal tuo account e consumano le tue quote gratuite."
-                : "Le email partono dall'account della piattaforma. Nessun costo per te."}
+              {connected ? (
+                <>
+                  Le email partono da <strong>{fromAddress}</strong> e consumano le tue quote gratuite.
+                </>
+              ) : (
+                "Nessuna chiave collegata: il CRM non sta inviando nessuna email per questo locale."
+              )}
             </div>
           </div>
         </div>
@@ -149,80 +230,101 @@ export function EmailTab() {
             <QuotaBar
               label="Marketing (questo mese)"
               quota={usage.marketing}
+              off={!connected}
               hint={
-                usage.marketing.limit
+                connected
                   ? "Campagne inviate ai tuoi contatti. Si azzera il 1° del mese."
-                  : "Campagne inviate sul piano condiviso: nessun limite per te."
+                  : "Nessuna campagna può partire finché non colleghi la chiave."
               }
             />
             <QuotaBar
               label="Transazionali (questo mese)"
               quota={usage.transactional}
+              off={!connected}
               hint={
-                usage.transactional.limit
-                  ? "Conferme, gift card, promemoria. Si azzera il 1° del mese."
-                  : "Conferme, gift card, promemoria: nessun limite per te."
+                connected
+                  ? "Conferme, coupon, gift card. Si azzera il 1° del mese."
+                  : "Conferme, coupon e gift card non vengono inviati."
               }
             />
           </div>
         )}
       </div>
 
-      {/* Connect / disconnect */}
+      {/* Connect / manage */}
       {connected ? (
-        <div className="rounded-lg border-2 p-4 space-y-3" style={panelStyle}>
-          <p className="text-sm text-black">
-            Puoi sostituire la chiave incollandone una nuova qui sotto, oppure disconnettere il tuo account e
-            tornare al piano condiviso.
-          </p>
+        <div className="rounded-lg border-2 p-4 space-y-4" style={panelStyle}>
           <label className="flex flex-col gap-1">
             <span className="text-sm font-bold text-black flex items-center gap-1">
-              <KeyRound className="w-4 h-4" /> Nuova chiave API Resend
+              <Mail className="w-4 h-4" /> Indirizzo mittente
             </span>
             <input
-              type="password"
-              value={apiKey}
-              onChange={(e) => setApiKey(e.target.value)}
+              value={senderDraft}
+              onChange={(e) => setSenderDraft(e.target.value)}
               className={inputCls}
               style={inputStyle}
-              placeholder="re_..."
+              placeholder="noreply@iltuodominio.com"
               autoComplete="off"
             />
+            <span className="text-xs text-black">
+              Deve stare su un dominio verificato nel tuo account Resend, altrimenti l&apos;invio viene rifiutato.
+            </span>
           </label>
-          <div className="flex flex-wrap items-center gap-3">
-            <button
-              onClick={() => call("save")}
-              disabled={busy || !apiKey.trim()}
-              className="inline-flex items-center gap-2 px-4 py-2 text-white text-sm font-bold rounded-lg disabled:opacity-40 cursor-pointer disabled:cursor-not-allowed"
-              style={{ background: "linear-gradient(135deg, #d4a574, #c4956a)" }}
-            >
-              {phase === "saving" ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
-              Sostituisci chiave
-            </button>
-            <button
-              onClick={() => call("disconnect")}
-              disabled={busy}
-              className="inline-flex items-center gap-2 px-4 py-2 text-sm font-bold rounded-lg border-2 disabled:opacity-40 cursor-pointer disabled:cursor-not-allowed"
-              style={{ borderColor: "#c4956a", color: "#8b6540" }}
-            >
-              {phase === "disconnecting" ? <Loader2 className="w-4 h-4 animate-spin" /> : <Unplug className="w-4 h-4" />}
-              Disconnetti
-            </button>
-          </div>
-          {result && (
-            <div
-              className={`flex items-start gap-2 text-sm rounded-lg p-3 ${result.ok ? "text-emerald-700" : "text-red-600"}`}
-              style={{ background: result.ok ? "rgba(16,185,129,0.08)" : "rgba(220,38,38,0.06)" }}
-            >
-              {result.ok ? <CheckCircle2 className="w-4 h-4 mt-0.5 shrink-0" /> : <XCircle className="w-4 h-4 mt-0.5 shrink-0" />}
-              <span>{result.msg}</span>
+          <button
+            onClick={() => call("sender")}
+            disabled={busy || !senderDraft.trim() || senderDraft.trim() === fromAddress}
+            className="inline-flex items-center gap-2 px-4 py-2 text-sm font-bold rounded-lg border-2 disabled:opacity-40 cursor-pointer disabled:cursor-not-allowed"
+            style={{ borderColor: "#c4956a", color: "#8b6540" }}
+          >
+            {phase === "sender" ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
+            Aggiorna mittente
+          </button>
+
+          <div className="pt-3 border-t space-y-3" style={{ borderColor: "rgba(196,149,106,0.4)" }}>
+            <label className="flex flex-col gap-1">
+              <span className="text-sm font-bold text-black flex items-center gap-1">
+                <KeyRound className="w-4 h-4" /> Sostituisci la chiave API
+              </span>
+              <input
+                type="password"
+                value={apiKey}
+                onChange={(e) => setApiKey(e.target.value)}
+                className={inputCls}
+                style={inputStyle}
+                placeholder="re_..."
+                autoComplete="off"
+              />
+            </label>
+            <div className="flex flex-wrap items-center gap-3">
+              <button
+                onClick={() => call("save")}
+                disabled={busy || !apiKey.trim()}
+                className="inline-flex items-center gap-2 px-4 py-2 text-white text-sm font-bold rounded-lg disabled:opacity-40 cursor-pointer disabled:cursor-not-allowed"
+                style={{ background: "linear-gradient(135deg, #d4a574, #c4956a)" }}
+              >
+                {phase === "saving" ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
+                Sostituisci chiave
+              </button>
+              <button
+                onClick={() => call("disconnect")}
+                disabled={busy}
+                className="inline-flex items-center gap-2 px-4 py-2 text-sm font-bold rounded-lg border-2 disabled:opacity-40 cursor-pointer disabled:cursor-not-allowed"
+                style={{ borderColor: "#dc2626", color: "#dc2626" }}
+              >
+                {phase === "disconnecting" ? <Loader2 className="w-4 h-4 animate-spin" /> : <Unplug className="w-4 h-4" />}
+                Disconnetti
+              </button>
             </div>
-          )}
+            <p className="text-xs font-semibold text-red-600">
+              Disconnettendo, il CRM smette di inviare qualsiasi email per questo locale.
+            </p>
+          </div>
+          <Feedback />
         </div>
       ) : (
         <div className="rounded-lg border-2 p-4 space-y-4" style={panelStyle}>
           <div className="space-y-2">
-            <span className="text-sm font-bold text-black">Come collegare il tuo account (2 minuti)</span>
+            <span className="text-sm font-bold text-black">Come collegare il tuo account (5 minuti)</span>
             <ol className="text-sm text-black space-y-1.5 list-decimal pl-5">
               <li>
                 Vai su{" "}
@@ -237,8 +339,14 @@ export function EmailTab() {
                 </a>{" "}
                 e crea un account gratuito (non serve la carta).
               </li>
-              <li>Nel pannello Resend, apri Domains → Add Domain e verifica un dominio che possiedi.</li>
-              <li>Apri API Keys → Create API Key e copia la chiave (inizia con <code>re_</code>).</li>
+              <li>
+                Apri <strong>Domains → Add Domain</strong>, aggiungi il dominio del tuo sito e copia i record DNS che
+                Resend ti mostra nel pannello del tuo provider. Aspetta che diventi <strong>verified</strong>: senza
+                dominio verificato Resend non fa partire nulla.
+              </li>
+              <li>
+                Apri <strong>API Keys → Create API Key</strong> e copia la chiave (inizia con <code>re_</code>).
+              </li>
               <li>Incolla la chiave qui sotto e premi &quot;Salva e collega&quot;.</li>
             </ol>
           </div>
@@ -256,6 +364,23 @@ export function EmailTab() {
               placeholder="re_..."
               autoComplete="off"
             />
+          </label>
+
+          <label className="flex flex-col gap-1">
+            <span className="text-sm font-bold text-black flex items-center gap-1">
+              <Mail className="w-4 h-4" /> Indirizzo mittente (facoltativo)
+            </span>
+            <input
+              value={senderDraft}
+              onChange={(e) => setSenderDraft(e.target.value)}
+              className={inputCls}
+              style={inputStyle}
+              placeholder="noreply@iltuodominio.com"
+              autoComplete="off"
+            />
+            <span className="text-xs text-black">
+              Se lo lasci vuoto usiamo <code>noreply@</code> sul dominio che hai verificato.
+            </span>
           </label>
 
           <div className="flex flex-wrap items-center gap-3">
@@ -279,15 +404,7 @@ export function EmailTab() {
             </button>
           </div>
 
-          {result && (
-            <div
-              className={`flex items-start gap-2 text-sm rounded-lg p-3 ${result.ok ? "text-emerald-700" : "text-red-600"}`}
-              style={{ background: result.ok ? "rgba(16,185,129,0.08)" : "rgba(220,38,38,0.06)" }}
-            >
-              {result.ok ? <CheckCircle2 className="w-4 h-4 mt-0.5 shrink-0" /> : <XCircle className="w-4 h-4 mt-0.5 shrink-0" />}
-              <span>{result.msg}</span>
-            </div>
-          )}
+          <Feedback />
         </div>
       )}
     </div>

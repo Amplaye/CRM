@@ -76,6 +76,17 @@ export async function POST(req: Request) {
 
     const counters = await sendCampaign(svc, campaign, tenant);
 
+    // No Resend key of their own → the CRM sends this tenant no email at all, and
+    // nothing was attempted. Told apart from a generic failure on purpose: the fix
+    // is one screen away (Settings → Email), and a campaign that comes back
+    // "internal error" would send the owner hunting for a bug instead.
+    if (counters.email_not_configured) {
+      return NextResponse.json(
+        { error: "email_not_configured", campaign_id: campaign.id },
+        { status: 403 },
+      );
+    }
+
     // Wallet couldn't cover the whole send, so NOTHING went out (sendCampaign
     // refuses the job rather than half-sending it). Same 403 contract as the
     // other credit-gated routes, so the UI shows the one top-up banner it knows.

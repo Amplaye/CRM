@@ -33,23 +33,23 @@ interface RecipientRow {
   guests: { name: string | null; phone: string | null; email: string | null } | null;
 }
 
-/** Email identity. The ADDRESS is fixed to the platform's verified no-reply
- *  domain — an ESP won't send from an unverified one — so the tenant owns only
- *  the display name. Campaigns are send-only. See src/lib/email/from.ts. */
+/** Email identity. The ADDRESS comes from the venue's OWN Resend account (an ESP
+ *  won't send from a domain it hasn't verified), so the tenant owns the display
+ *  name on top of it. `connected: false` → no key, hence no From and no send at
+ *  all. Campaigns are send-only. See src/lib/email/from.ts. */
 interface SenderConfig {
   sender_name: string;
-  resolved_from: string;
-  domain_configured: boolean;
+  resolved_from: string | null;
+  connected: boolean;
 }
 
-/** Monthly email quota, from /api/marketing/email-provider. `limit` is null on the
- *  platform's shared plan — that quota isn't the tenant's to spend, so we show the
- *  count without a ceiling. It's a real number only once they connect their own
- *  Resend key (Impostazioni → Email). */
+/** Monthly email quota, from /api/marketing/email-provider. Always the venue's own
+ *  Resend free tier — the only account its email goes out on. `connected: false`
+ *  means nothing is being sent at all (Impostazioni → Email). */
 interface EmailUsage {
-  ownKey: boolean;
-  marketing: { sent: number; limit: number | null };
-  transactional: { sent: number; limit: number | null };
+  connected: boolean;
+  marketing: { sent: number; limit: number };
+  transactional: { sent: number; limit: number };
 }
 
 interface PreviewResult {
@@ -208,6 +208,11 @@ export default function MarketingPage() {
       setName(""); setSubject(""); setBody(""); setBrief(""); setPreview(null);
       void loadCampaigns();
       void loadEmailUsage(); // il contatore deve riflettere l'invio appena fatto
+    } else if (json?.error === "email_not_configured") {
+      // Niente è partito e niente è stato addebitato: la campagna si ripreme
+      // com'è appena collegata la chiave.
+      setResult(t("mkt_err_email_not_configured"));
+      void loadEmailUsage();
     } else {
       setResult(json?.detail || json?.error || "Error");
     }
@@ -228,7 +233,12 @@ export default function MarketingPage() {
     );
   }
 
-  const canSend = !!name.trim() && !!body.trim() && (channel !== "email" || !!subject.trim());
+  // No Resend key of their own → the CRM sends this venue no email at all, so the
+  // send button has to refuse BEFORE the click, not come back with a 403 after it.
+  // `sender !== null` keeps it from flashing the warning while the status loads.
+  const emailBlocked = channel === "email" && sender !== null && !sender.connected;
+  const canSend =
+    !!name.trim() && !!body.trim() && (channel !== "email" || (!!subject.trim() && !emailBlocked));
   const reachOnChannel = preview ? (channel === "email" ? preview.with_email : preview.with_phone) : null;
 
   // Raw ledger errors → something the owner can act on. Unknown provider errors
@@ -236,6 +246,7 @@ export default function MarketingPage() {
   const humanError = (error: string): string => {
     if (error === "no_email") return t("mkt_err_no_email");
     if (error === "no_phone") return t("mkt_err_no_phone");
+    if (error === "email_not_configured") return t("mkt_err_email_not_configured");
     if (error.includes("131030")) return t("mkt_err_not_allowed");
     if (error.includes("132001")) return t("mkt_err_no_template");
     return error;
@@ -316,10 +327,25 @@ export default function MarketingPage() {
             </div>
           </div>
 
-          {/* Email identity. The address is locked to the platform's verified
-              domain (an ESP won't relay an unverified one), so what the owner
-              controls is the NAME the guest reads and where a Reply lands. */}
-          {channel === "email" && sender && (
+          {/* Email identity. The venue sends on ITS OWN Resend account, so the
+              address comes from the domain IT verified — the owner controls the
+              NAME laid on top. No key connected → no email leaves at all, and
+              that has to be said here, where the send button is. */}
+          {channel === "email" && sender && !sender.connected && (
+            <div className="rounded-lg border-2 p-3 space-y-2" style={{ borderColor: "#dc2626", background: "rgba(220,38,38,0.06)" }}>
+              <p className="text-sm font-bold text-red-600">{t("mkt_email_off_title")}</p>
+              <p className="text-xs text-black">{t("mkt_email_off_body")}</p>
+              <Link
+                href="/settings?tab=email"
+                className="inline-block text-xs font-bold underline"
+                style={{ color: "#8b6540" }}
+              >
+                {t("mkt_email_off_cta")}
+              </Link>
+            </div>
+          )}
+
+          {channel === "email" && sender?.connected && (
             <div className="rounded-lg border-2 p-3 space-y-3" style={{ borderColor: "rgba(196,149,106,0.5)", background: "rgba(196,149,106,0.08)" }}>
               <div className="flex items-center justify-between gap-2">
                 <label className="text-sm font-bold text-black">{t("mkt_sender_label")}</label>
@@ -340,50 +366,34 @@ export default function MarketingPage() {
                 {t("mkt_sender_from_note")} <span className="font-semibold">{sender.resolved_from}</span>
               </p>
               <p className="text-xs text-black">{t("mkt_sender_noreply_note")}</p>
-              {!sender.domain_configured && (
-                <p className="text-xs font-semibold text-amber-700">{t("mkt_sender_domain_warning")}</p>
-              )}
 
               {/* Quota del mese, qui e non solo in Impostazioni: è QUI che si decide
                   di inviare, ed è qui che serve sapere quante email restano. */}
-              {emailUsage && (
-                <div className="pt-2 border-t" style={{ borderColor: "rgba(196,149,106,0.4)" }}>
-                  {emailUsage.marketing.limit ? (() => {
-                    const { sent, limit } = emailUsage.marketing;
-                    const left = Math.max(0, limit - sent);
-                    const pct = Math.min(100, Math.round((sent / limit) * 100));
-                    // Ambra oltre l'80%: deve accorgersene PRIMA di restare a secco.
-                    const bar = pct >= 100 ? "#dc2626" : pct >= 80 ? "#d97706" : "#c4956a";
-                    return (
-                      <>
-                        <div className="flex items-baseline justify-between gap-2">
-                          <span className="text-xs font-bold text-black">Email rimaste questo mese</span>
-                          <span className="text-xs font-bold text-black tabular-nums">
-                            {left.toLocaleString()} su {limit.toLocaleString()}
-                          </span>
-                        </div>
-                        <div className="mt-1 h-1.5 rounded-full overflow-hidden" style={{ background: "rgba(196,149,106,0.2)" }}>
-                          <div className="h-full rounded-full transition-all" style={{ width: `${pct}%`, background: bar }} />
-                        </div>
-                        {left === 0 && (
-                          <p className="mt-1 text-xs font-semibold text-red-600">
-                            Quota esaurita: le prossime email verranno rifiutate da Resend fino al 1° del mese.
-                          </p>
-                        )}
-                      </>
-                    );
-                  })() : (
-                    <p className="text-xs text-black">
-                      <span className="font-bold">{emailUsage.marketing.sent.toLocaleString()}</span> email inviate questo mese ·
-                      piano condiviso, nessun limite per te.{" "}
-                      <Link href="/settings?tab=email" className="font-semibold underline" style={{ color: "#8b6540" }}>
-                        Collega il tuo account Resend
-                      </Link>{" "}
-                      per avere 1.000 email gratis al mese.
-                    </p>
-                  )}
-                </div>
-              )}
+              {emailUsage && (() => {
+                const { sent, limit } = emailUsage.marketing;
+                const left = Math.max(0, limit - sent);
+                const pct = Math.min(100, Math.round((sent / limit) * 100));
+                // Ambra oltre l'80%: deve accorgersene PRIMA di restare a secco.
+                const bar = pct >= 100 ? "#dc2626" : pct >= 80 ? "#d97706" : "#c4956a";
+                return (
+                  <div className="pt-2 border-t" style={{ borderColor: "rgba(196,149,106,0.4)" }}>
+                    <div className="flex items-baseline justify-between gap-2">
+                      <span className="text-xs font-bold text-black">Email rimaste questo mese</span>
+                      <span className="text-xs font-bold text-black tabular-nums">
+                        {left.toLocaleString()} su {limit.toLocaleString()}
+                      </span>
+                    </div>
+                    <div className="mt-1 h-1.5 rounded-full overflow-hidden" style={{ background: "rgba(196,149,106,0.2)" }}>
+                      <div className="h-full rounded-full transition-all" style={{ width: `${pct}%`, background: bar }} />
+                    </div>
+                    {left === 0 && (
+                      <p className="mt-1 text-xs font-semibold text-red-600">
+                        Quota esaurita: le prossime email verranno rifiutate da Resend fino al 1° del mese.
+                      </p>
+                    )}
+                  </div>
+                );
+              })()}
             </div>
           )}
 

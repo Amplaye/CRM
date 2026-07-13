@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll } from "vitest";
+import { describe, it, expect } from "vitest";
 import { encryptEmailSecret } from "./credentials";
 import {
   getEmailUsageThisMonth,
@@ -6,13 +6,13 @@ import {
   RESEND_FREE_TRANSACTIONAL_LIMIT,
 } from "./usage";
 
-// The counter's job: report a limit the tenant can act on. That only exists when
-// the tenant owns the Resend account — on the shared pool the quota isn't theirs,
-// so `limit` must be null rather than a made-up slice of the platform's plan.
+// `connected` is the load-bearing flag: false means this tenant sends NO email at
+// all (no shared platform pool to fall back on), not that it sends somewhere else.
+// And it takes BOTH halves — a key with no verified sender address can't send a
+// single mail, so it must not read as connected.
 
-beforeAll(() => {
-  process.env.EMAIL_CRED_ENC_KEY = "b".repeat(64);
-});
+// Set before the fixtures below encrypt anything — a beforeAll() would run too late.
+process.env.EMAIL_CRED_ENC_KEY = "b".repeat(64);
 
 /** Stands in for the service-role client: one email_secrets row (or none) and a
  * per-kind count for email_send_log. */
@@ -44,30 +44,36 @@ function fakeSvc(opts: { secretEnc?: string | null; counts?: Record<string, numb
   };
 }
 
+const connectedSecret = encryptEmailSecret({
+  api_key: "re_own",
+  from_address: "noreply@ristorantepicnic.com",
+});
+
 describe("getEmailUsageThisMonth", () => {
-  it("reports the Resend free-tier limits when the tenant owns the account", async () => {
-    const svc = fakeSvc({
-      secretEnc: encryptEmailSecret({ api_key: "re_own" }),
-      counts: { marketing: 742, transactional: 120 },
-    });
+  it("reports the tenant's own Resend free-tier limits once it's connected", async () => {
+    const svc = fakeSvc({ secretEnc: connectedSecret, counts: { marketing: 742, transactional: 120 } });
     const usage = await getEmailUsageThisMonth("tenant-1", svc);
-    expect(usage.ownKey).toBe(true);
+    expect(usage.connected).toBe(true);
     expect(usage.marketing).toEqual({ sent: 742, limit: RESEND_FREE_MARKETING_LIMIT });
     expect(usage.transactional).toEqual({ sent: 120, limit: RESEND_FREE_TRANSACTIONAL_LIMIT });
   });
 
-  it("reports no limit on the shared pool — the quota isn't the tenant's to spend", async () => {
-    const svc = fakeSvc({ secretEnc: null, counts: { marketing: 12, transactional: 30 } });
-    const usage = await getEmailUsageThisMonth("tenant-1", svc);
-    expect(usage.ownKey).toBe(false);
-    expect(usage.marketing).toEqual({ sent: 12, limit: null });
-    expect(usage.transactional).toEqual({ sent: 30, limit: null });
-  });
-
-  it("counts zero when the tenant has sent nothing this month", async () => {
+  it("is NOT connected with no key — the tenant sends nothing at all", async () => {
     const usage = await getEmailUsageThisMonth("tenant-1", fakeSvc({ secretEnc: null }));
+    expect(usage.connected).toBe(false);
     expect(usage.marketing.sent).toBe(0);
     expect(usage.transactional.sent).toBe(0);
+  });
+
+  it("is NOT connected with a key but no verified sender — every send would 403", async () => {
+    const svc = fakeSvc({ secretEnc: encryptEmailSecret({ api_key: "re_own" }) });
+    expect((await getEmailUsageThisMonth("tenant-1", svc)).connected).toBe(false);
+  });
+
+  it("still reports the real limits, so the bar has a ceiling to fill", async () => {
+    const usage = await getEmailUsageThisMonth("tenant-1", fakeSvc({ secretEnc: null }));
+    expect(usage.marketing.limit).toBe(RESEND_FREE_MARKETING_LIMIT);
+    expect(usage.transactional.limit).toBe(RESEND_FREE_TRANSACTIONAL_LIMIT);
   });
 
   it("fails soft to zeros when the log query blows up", async () => {

@@ -3,18 +3,16 @@
 //
 // Source of truth is email_send_log — one row per email Resend accepted, written
 // by sendEmail(). campaign_recipients would only cover campaigns, and the free
-// tier is consumed by transactional sends too (gift cards, deposit links), so
-// counting from the log is the only way the number matches reality.
+// tier is consumed by transactional sends too (gift cards, coupons), so counting
+// from the log is the only way the number matches reality.
 //
-// The limits reported depend on WHOSE Resend account the send lands on:
-//   own key    → the tenant's free tier: 1.000 marketing contacts, 3.000
-//                transactional emails per month (resend.com/pricing).
-//   shared pool → the platform's account, which the tenant doesn't own and whose
-//                quota it shares with every other tenant. Reporting the tenant a
-//                slice of that would be a number it can't act on, so `limit` is
-//                null there — the UI says "shared plan" and shows only the count.
+// The limits are always the tenant's OWN free tier, because that is the only
+// account its email ever goes out on: 1.000 marketing contacts and 3.000
+// transactional emails per month (resend.com/pricing). There is no shared
+// platform plan to report a slice of — `connected: false` means nothing is being
+// sent at all, not that it's being sent somewhere else.
 
-import { resolveEmailApiKey } from "./credentials";
+import { resolveTenantEmail } from "./credentials";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Svc = any;
@@ -25,13 +23,13 @@ export const RESEND_FREE_TRANSACTIONAL_LIMIT = 3000;
 
 export interface EmailQuota {
   sent: number;
-  /** null = no per-tenant cap to show (shared platform pool). */
-  limit: number | null;
+  limit: number;
 }
 
 export interface EmailUsage {
-  /** true → sends go out on the tenant's own Resend account. */
-  ownKey: boolean;
+  /** false → this tenant has no Resend key (or no verified sender) connected,
+   *  so the CRM sends NO email for it: not campaigns, not coupons, nothing. */
+  connected: boolean;
   marketing: EmailQuota;
   transactional: EmailQuota;
 }
@@ -45,10 +43,12 @@ function monthStartIso(now = new Date()): string {
 /** Sends this tenant made this month, split by quota. Fails soft to zeros: a
  * broken counter must not break the Settings page. */
 export async function getEmailUsageThisMonth(tenantId: string, svc: Svc): Promise<EmailUsage> {
-  const ownKey = !!(await resolveEmailApiKey(svc, tenantId));
-  const limits = ownKey
-    ? { marketing: RESEND_FREE_MARKETING_LIMIT, transactional: RESEND_FREE_TRANSACTIONAL_LIMIT }
-    : { marketing: null, transactional: null };
+  const connected = !!(await resolveTenantEmail(svc, tenantId));
+  const zero: EmailUsage = {
+    connected,
+    marketing: { sent: 0, limit: RESEND_FREE_MARKETING_LIMIT },
+    transactional: { sent: 0, limit: RESEND_FREE_TRANSACTIONAL_LIMIT },
+  };
 
   const since = monthStartIso();
   const count = async (kind: "marketing" | "transactional"): Promise<number> => {
@@ -64,15 +64,11 @@ export async function getEmailUsageThisMonth(tenantId: string, svc: Svc): Promis
   try {
     const [marketing, transactional] = await Promise.all([count("marketing"), count("transactional")]);
     return {
-      ownKey,
-      marketing: { sent: marketing, limit: limits.marketing },
-      transactional: { sent: transactional, limit: limits.transactional },
+      connected,
+      marketing: { sent: marketing, limit: RESEND_FREE_MARKETING_LIMIT },
+      transactional: { sent: transactional, limit: RESEND_FREE_TRANSACTIONAL_LIMIT },
     };
   } catch {
-    return {
-      ownKey,
-      marketing: { sent: 0, limit: limits.marketing },
-      transactional: { sent: 0, limit: limits.transactional },
-    };
+    return zero;
   }
 }
