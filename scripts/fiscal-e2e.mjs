@@ -362,6 +362,151 @@ async function main() {
     console.log("   ↩ rolled back — no test receipt in anyone's till");
   }
 
+  // ------------------------------------------------- 8) The partial refund (R5)
+  //
+  // The case the till could not express until now: five beers paid, two returned.
+  // Voiding the whole receipt to hand back 9 € out of 36 would erase an income that
+  // really happened. The right shape is a NEW document — a rectificativa (R5) that
+  // points at the original and carries only the DELTA, negative.
+  //
+  // What must hold, and is checked here against the real database:
+  //   • the original receipt is still `paid` and physically untouched;
+  //   • the R5 gets its OWN number from the same series;
+  //   • it chains onto the original's huella (prev = the alta's huella);
+  //   • pos_sales gains a negative row, and the pair sums to what was really kept;
+  //   • the chain still verifies from scratch;
+  //   • refunding beyond the residual is REFUSED.
+  console.log("\n8. A partial refund is a rectificativa (R5), not a deletion (rolled back)");
+  {
+    const res = await sql(`
+      do $r5$
+      declare
+        v_tenant uuid;
+        v_ob uuid;
+        v_order uuid;
+        v_paid jsonb;
+        v_rect jsonb;
+        v_alta public.fiscal_records%rowtype;
+        v_r5 public.fiscal_records%rowtype;
+        v_order_after public.cassa_orders%rowtype;
+        v_sales numeric;
+        v_chain record;
+        v_over boolean := false;
+        v_result jsonb;
+      begin
+        select id into v_tenant from public.tenants order by created_at limit 1;
+
+        -- A throwaway obligado in mode 'none': by the queue's own filter (block 6)
+        -- a non-native obligado is NEVER transmitted, so even the rows we chain here
+        -- could not reach AEAT. Belt and braces on top of the rollback.
+        insert into public.fiscal_obligados (nif, razon_social, regimen, sif_mode)
+        values ('X9999999R', 'E2E Rectificativa', 'iva_peninsular', 'none')
+        on conflict (nif) do update set razon_social = excluded.razon_social
+        returning id into v_ob;
+
+        insert into public.cassa_orders (tenant_id, table_name, channel, covers, cover_unit)
+        values (v_tenant, 'E2E-R5', 'sala', 0, 0)
+        returning id into v_order;
+
+        -- 40.00 gross at 10% → base 36.36 + cuota 3.64.
+        v_paid := public.fn_cassa_pay_atomic(
+          v_tenant, v_order, null, current_date, extract(year from current_date)::int, now(),
+          40.00, 40.00, 0, 36.36, 3.64,
+          '[{"Impuesto":"01","ClaveRegimen":"01","CalificacionOperacion":"S1","TipoImpositivo":"10.00","BaseImponible":"36.36","CuotaRepercutida":"3.64"}]'::jsonb,
+          'sala', 0, 'cash',
+          true, v_ob, '', to_char(now(), 'YYYY-MM-DD"T"HH24:MI:SS+02:00'), '{}'::jsonb);
+
+        -- Now return 10.00 of it: base 9.09 + cuota 0.91, all NEGATIVE.
+        v_rect := public.fn_cassa_rectify_atomic(
+          v_tenant, v_order, 'due birre sbagliate', null,
+          current_date, extract(year from current_date)::int, now(),
+          -9.09, -0.91, -10.00,
+          '[{"Impuesto":"01","ClaveRegimen":"01","CalificacionOperacion":"S1","TipoImpositivo":"10.00","BaseImponible":"-9.09","CuotaRepercutida":"-0.91"}]'::jsonb,
+          true, v_ob, '', to_char(now(), 'YYYY-MM-DD"T"HH24:MI:SS+02:00'), '{}'::jsonb);
+
+        select * into v_alta from public.fiscal_records where id = (v_paid->>'fiscal_record_id')::uuid;
+        select * into v_r5   from public.fiscal_records where id = (v_rect->>'fiscal_record_id')::uuid;
+        select * into v_order_after from public.cassa_orders where id = v_order;
+
+        -- What the books now say was kept: 40 − 10 = 30.
+        select coalesce(sum(gross_total), 0) into v_sales
+          from public.pos_sales
+         where tenant_id = v_tenant and external_id like v_order::text || '%';
+
+        select * into v_chain from public.fn_fiscal_verify_chain(v_ob);
+
+        -- Refunding beyond the residual must be refused (30 left, ask for 31).
+        begin
+          perform public.fn_cassa_rectify_atomic(
+            v_tenant, v_order, 'troppo', null,
+            current_date, extract(year from current_date)::int, now(),
+            -28.18, -2.82, -31.00, '[]'::jsonb,
+            false, null, '', null, '{}'::jsonb);
+        exception when others then
+          v_over := true;
+        end;
+
+        v_result := jsonb_build_object(
+          'rectified',        v_rect->'rectified',
+          'original_paid',    v_order_after.status = 'paid',
+          'new_number',       (v_rect->>'receipt_number')::int = (v_paid->>'receipt_number')::int + 1,
+          'r5_tipo',          v_r5.tipo_factura,
+          'r5_is_alta',       v_r5.tipo = 'alta',
+          'r5_amount',        v_r5.importe_total,
+          'chains_on_alta',   v_r5.prev_huella = v_alta.huella,
+          'points_at_orig',   v_r5.rectifica->>'num_serie' = (v_paid->>'num_serie'),
+          'por_diferencias',  v_r5.rectifica->>'tipo' = 'por_diferencias',
+          'sales_net',        v_sales,
+          'refunded_total',   v_order_after.refunded_total,
+          'chain_ok',         v_chain.ok,
+          'over_refund_refused', v_over
+        );
+
+        raise exception 'E2E_RESULT:%', v_result::text;
+      end
+      $r5$;
+    `).then(
+      () => {
+        throw new Error("the R5 E2E block committed — it was supposed to roll back");
+      },
+      (err) => {
+        const m = String(err.dbMessage || err.message).match(/E2E_RESULT:(\{.*\})/s);
+        if (!m) throw err;
+        return JSON.parse(m[1]);
+      },
+    );
+
+    res.rectified ? ok("the refund went through") : fail("the refund did not happen");
+    res.original_paid
+      ? ok("the ORIGINAL receipt is still `paid` — nothing was erased or rewritten")
+      : fail("the original receipt was altered");
+    res.new_number
+      ? ok("the rectificativa took its OWN number, next in the same series")
+      : fail("the rectificativa did not mint a new number");
+    res.r5_is_alta && res.r5_tipo === "R5"
+      ? ok("it entered the chain as an `alta` of type R5 (a new document, not an annulment)")
+      : fail(`wrong record type: tipo=${res.r5_tipo}`);
+    Number(res.r5_amount) === -10
+      ? ok("it carries only the DELTA, negative (−10.00)")
+      : fail(`the R5 amount is ${res.r5_amount}, expected −10.00`);
+    res.chains_on_alta
+      ? ok("its prev_huella is the original's huella — the chain is unbroken")
+      : fail("the R5 did not chain onto the original");
+    res.points_at_orig && res.por_diferencias
+      ? ok("`rectifica` names the original invoice, por diferencias")
+      : fail("the R5 does not point at the invoice it rectifies");
+    Number(res.sales_net) === 30 && Number(res.refunded_total) === 10
+      ? ok("pos_sales sums to 30.00 kept (40 paid − 10 returned), refunded_total = 10.00")
+      : fail(`the books say ${res.sales_net} kept / ${res.refunded_total} refunded, expected 30 / 10`);
+    res.chain_ok
+      ? ok("the whole chain still verifies from scratch")
+      : fail("the chain no longer verifies after the rectificativa");
+    res.over_refund_refused
+      ? ok("refunding beyond the residual is REFUSED (31 € on a 30 € remainder)")
+      : fail("the till allowed a refund larger than what was kept");
+    console.log("   ↩ rolled back — no test receipt in anyone's till");
+  }
+
   console.log(
     failures === 0
       ? "\n✅ VERI*FACTU register E2E: all checks passed"

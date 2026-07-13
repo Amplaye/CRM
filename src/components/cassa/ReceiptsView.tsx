@@ -1,13 +1,15 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Printer, Ban, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, ReceiptText, CalendarDays, X } from "lucide-react";
+import { Printer, Ban, Undo2, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, ReceiptText, CalendarDays, X } from "lucide-react";
 import { useLanguage } from "@/lib/contexts/LanguageContext";
 import { createClient } from "@/lib/supabase/client";
 import { fmtEur } from "@/lib/cassa/totals";
+import type { RefundSelection } from "@/lib/cassa/refund";
 import type { CassaOrderFull } from "@/lib/cassa/types";
 import { methodLabelKey } from "./PayModal";
 import { MonthCalendar, monthOf } from "./MonthCalendar";
+import { RefundModal } from "./RefundModal";
 import type { Dictionary } from "@/lib/i18n/dictionaries/en";
 
 // The day's journal (giornale scontrini): every receipt with its number,
@@ -31,12 +33,15 @@ interface ReceiptsViewProps {
   busy: boolean;
   onReprint: (order: CassaOrderFull) => void;
   onVoid: (order: CassaOrderFull, reason: string) => void;
+  /** Reso parziale (rettificativa R5): rende alcune righe, non tutto lo scontrino. */
+  onRefund: (order: CassaOrderFull, lines: RefundSelection[], reason: string) => void;
 }
 
-export function ReceiptsView({ tenantId, receipts, businessDate, today, isToday, onShiftDay, onPickDay, canVoid, busy, onReprint, onVoid }: ReceiptsViewProps) {
+export function ReceiptsView({ tenantId, receipts, businessDate, today, isToday, onShiftDay, onPickDay, canVoid, busy, onReprint, onVoid, onRefund }: ReceiptsViewProps) {
   const { t, language } = useLanguage();
   const supabase = useMemo(() => createClient(), []);
   const [openId, setOpenId] = useState<string | null>(null);
+  const [refunding, setRefunding] = useState<CassaOrderFull | null>(null);
   const [showCal, setShowCal] = useState(false);
   const [calMonth, setCalMonth] = useState(monthOf(businessDate || today));
   // Days of the visible month that actually have receipts → calendar dots.
@@ -131,6 +136,11 @@ export function ReceiptsView({ tenantId, receipts, businessDate, today, isToday,
                       {t("cassa_voided")}
                     </span>
                   )}
+                  {r.status === "paid" && Number(r.refunded_total || 0) > 0 && (
+                    <span className="text-[11px] font-bold text-black border rounded px-1.5 py-0.5" style={{ borderColor: "#c4956a" }}>
+                      −{fmtEur(r.refunded_total)}
+                    </span>
+                  )}
                   <span className="font-bold text-black">{fmtEur(r.total)}</span>
                   {expanded ? <ChevronUp className="w-4 h-4 text-black" /> : <ChevronDown className="w-4 h-4 text-black" />}
                 </button>
@@ -174,6 +184,16 @@ export function ReceiptsView({ tenantId, receipts, businessDate, today, isToday,
                       </button>
                       {canVoid && r.status === "paid" && (
                         <button
+                          disabled={busy || Number(r.refunded_total || 0) >= Number(r.total || 0)}
+                          onClick={() => setRefunding(r)}
+                          className="h-10 px-3 rounded-lg border-2 text-xs font-bold text-black hover:bg-[#c4956a]/10 disabled:opacity-40 cursor-pointer inline-flex items-center gap-1.5"
+                          style={{ borderColor: "#c4956a" }}
+                        >
+                          <Undo2 className="w-3.5 h-3.5" /> {t("cassa_refund")}
+                        </button>
+                      )}
+                      {canVoid && r.status === "paid" && (
+                        <button
                           disabled={busy}
                           onClick={() => {
                             const reason = window.prompt(t("cassa_void_prompt"));
@@ -191,6 +211,19 @@ export function ReceiptsView({ tenantId, receipts, businessDate, today, isToday,
             );
           })}
         </div>
+      )}
+
+      {refunding && (
+        <RefundModal
+          order={refunding}
+          alreadyRefunded={Number(refunding.refunded_total || 0)}
+          busy={busy}
+          onClose={() => setRefunding(null)}
+          onConfirm={(lines, reason) => {
+            onRefund(refunding, lines, reason);
+            setRefunding(null);
+          }}
+        />
       )}
 
       {showCal && (

@@ -263,6 +263,16 @@ describe("vatBreakdown", () => {
     expect(v[0].tax).toBe(3);
   });
 
+  it("falls back for an EXPLICIT null rate, not just a missing one", () => {
+    // Regressione: Number(null) è 0, che è finito e dentro [0,100] — passava il
+    // controllo e la riga veniva scorporata allo 0% (imponibile = lordo, imposta 0).
+    // Le righe pre-v2 hanno vat_rate null, e sotto VeriFactu quel desglose finisce
+    // in AEAT esattamente com'è.
+    const v = vatBreakdown({}, [{ unit_price: 11, qty: 1, vat_rate: null }]);
+    expect(v).toHaveLength(1);
+    expect(v[0]).toEqual({ rate: 10, gross: 11, net: 10, tax: 1 });
+  });
+
   it("ignores cancelled lines and returns [] on a zero bill", () => {
     expect(vatBreakdown({}, [{ unit_price: 10, qty: 1, status: "cancelled", vat_rate: 10 }])).toEqual([]);
     expect(vatBreakdown({}, [])).toEqual([]);

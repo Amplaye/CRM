@@ -24,6 +24,7 @@ import {
   type SessionSummary,
 } from "@/lib/cassa/totals";
 import type { FiscalStatus } from "@/lib/fiscal/status";
+import type { RefundSelection } from "@/lib/cassa/refund";
 import type {
   CassaDraftLine,
   CassaOrderFull,
@@ -955,6 +956,23 @@ export default function CassaPage() {
     }
   };
 
+  // Reso parziale: emette una rettificativa R5 (documento NUOVO che punta
+  // all'originale), non un annullo. Lo scontrino originale resta valido.
+  const refundReceipt = async (order: CassaOrderFull, lines: RefundSelection[], reason: string) => {
+    setBusy(true);
+    try {
+      await api(`/api/cassa/orders/${order.id}/rectify`, {
+        method: "POST",
+        body: JSON.stringify({ tenant_id: tenantId, lines, reason }),
+      });
+      await Promise.all([loadReceipts(), loadSession()]);
+    } catch (err) {
+      fail(err);
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const openSession = async (openingFloat: number) => {
     setBusy(true);
     try {
@@ -1212,6 +1230,7 @@ export default function CassaPage() {
             busy={busy}
             onReprint={(order) => enqueuePrint(buildReceiptPayload(order))}
             onVoid={voidReceipt}
+            onRefund={refundReceipt}
           />
         ) : view === "close" ? (
           <SessionView

@@ -203,6 +203,11 @@ export interface VatLine {
 }
 
 function normalizeRate(rate: number | null | undefined, fallback: number): number {
+  // `null` PRIMA di Number(): Number(null) è 0, che è finito e dentro [0,100] —
+  // passerebbe il controllo qui sotto e archivierebbe la riga allo 0% di IVA invece
+  // che al fallback. Le righe pre-v2 hanno vat_rate null (vedi cassa/types.ts), e
+  // sotto VeriFactu quel desglose viene registrato in AEAT così com'è.
+  if (rate === null || rate === undefined) return fallback;
   const r = Number(rate);
   return Number.isFinite(r) && r >= 0 && r <= 100 ? Math.round(r * 100) / 100 : fallback;
 }

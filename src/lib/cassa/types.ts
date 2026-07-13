@@ -38,6 +38,10 @@ export interface CassaOrderRow {
    * else). Present on the order so a receipt can be re-printed WITH its QR long
    * after the payment, without walking the hash chain to find it. */
   fiscal_num_serie?: string | null;
+  /** Totale già reso su questo scontrino via rettificative (R5), in €. 0 = intatto.
+   * Specchio del registro (fiscal_records), tenuto sull'ordine perché la UI non
+   * debba percorrere la catena per stampare un badge. */
+  refunded_total?: number | null;
   void_reason: string | null;
   created_at: string;
   updated_at: string;
