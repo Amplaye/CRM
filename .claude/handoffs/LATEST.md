@@ -1,158 +1,199 @@
-# Handoff: Website templates — palette per-sezione (6 colori), fix bottone Trattoria, widget overlay, menù in-site (SHIPPED)
+# Handoff: Sistema Crediti BaliFlow CRM — SHIPPED (manca solo il deploy del gate n8n)
 
 ## Session Metadata
-- Created: 2026-07-11 19:46:13
+- Created: 2026-07-13 16:17:15
 - Project: /Users/amplaye/CRM
-- Branch: main
-- Session duration: ~1h30
+- Branch: `feature/verifactu` (ma **il lavoro crediti è su `main`**, vedi Gotchas)
+- Session duration: ~3h
 
 ### Recent Commits (for context)
-  - 7877b85 Sito web: palette per-sezione (6 colori), fix bottone Trattoria, menù in-site cliccabile  ← QUESTA SESSIONE
-  - 0d948dd Sito web: editor colori per i template (3 colori chiave per template)
-  - 7f050b7 Staff polish: compact weekday pills + platform-admin team management
-  - 62e6cc6 Staff: bulk rota tool, copy-week, absence management, pending-invite visibility
-  - 35db3fd Widget prenotazioni flottante animato + fix bug past_time + stile nuovo
+  - d7359e4 VeriFactu: la cassa diventa un SIF spagnolo — **NON MIO** (altra sessione, committato mentre lavoravo)
+  - 6ea2cc2 Crediti: metering translate-note, ricarica manuale per tenant (admin), icona Coins — **MIO**
+  - 5c65c47 Sistema crediti: catalogo, metering runtime, API, badge topbar e tab Impostazioni — **MIO**
+  - 2370776 Marketing email: campagne send-only (no-reply)
+  - ea10d3e Marketing: campagne cliccabili + identità mittente email
 
 ## Handoff Chain
 
-- **Continues from**: [2026-07-11-173327-staff-overhaul-shipped.md](./2026-07-11-173327-staff-overhaul-shipped.md)
-  - Previous title: Staff section overhaul (SHIPPED) — argomento DIVERSO, non collegato al lavoro di questa sessione.
+- **Continues from**: [2026-07-11-194613-website-templates-colors-menu-overlay.md](./2026-07-11-194613-website-templates-colors-menu-overlay.md)
+  - Previous title: Website templates — palette per-sezione (6 colori), fix bottone Trattoria, widget overlay, menù in-site (SHIPPED)
 - **Supersedes**: None
-
-> Il collegamento allo staff handoff è solo cronologico (lo scaffold linka l'ultimo). Questa sessione NON continua lo staff: è un lavoro nuovo sui template del sito web.
+- ⚠️ **Sessione PARALLELA, stesso giorno**: [2026-07-13-161815-verifactu-fiscal-cassa.md](./2026-07-13-161815-verifactu-fiscal-cassa.md) — VeriFactu/cassa fiscale. È il lavoro che trovi non committato nel working tree (più le tab Fiscale/Email in `settings/page.tsx`). **Leggilo prima di committare qualsiasi cosa**: i due lavori si toccano solo in `settings/page.tsx`, ma un `git add -A` mescolerebbe tutto.
 
 ## Current State Summary
 
-Lavoro **COMPLETATO e PUSHATO su main** (commit 7877b85, Vercel in auto-deploy). L'utente aveva chiesto 4 cose sui template dei siti web pubblici (`/s/<slug>`): (1) migliorare i colori perché alcune sezioni non erano ricolorabili; (2) sistemare il bottone "Prenota tavolo" gigante nel template Trattoria; (3) togliere l'overlay scuro del widget di prenotazione che rallentava l'animazione; (4) rendere i piatti del menù cliccabili sul sito e far sì che "menù completo" apra qualcosa di **coerente con lo stile del sito** invece di caricare uno dei template menù separati di `/m`. Tutti e 4 fatti, verificati (tsc 0, 909/909 vitest, build ok su main, E2E `site-templates-e2e.mjs` TUTTO VERDE), committati e pushati. **Non resta lavoro attivo** — solo eventuali rifiniture se l'utente dà feedback.
+Ho costruito **da zero il sistema di crediti prepagati** del CRM (piano: `~/.claude/plans/creami-questo-sistema-di-golden-lemur.md`). Prima di questa sessione il CRM **non misurava nulla** di ciò che consumava: ogni chiamata OpenAI, ogni conversazione Meta, ogni minuto di voce era un costo vivo senza tetto (`/api/admin/usage` *fingeva* di misurare: contava righe DB × costanti hardcoded).
+
+Ora: 2 tabelle + 2 RPC atomiche, catalogo prezzi puro, metering su **9 call-site reali**, badge in topbar (realtime), tab Impostazioni → Crediti, ricarica Stripe, reset mensile, e ricarica manuale per-tenant dall'admin.
+
+**Tutto committato e pushato su `main` (5c65c47 + 6ea2cc2). Migration applicata sul DB live e testata.**
+
+**L'UNICA cosa non finita: il gate nel motore n8n è scritto, validato (dry-run + `node --check`) ma NON DEPLOYATO** perché il server n8n rifiuta l'handshake TLS (è giù). Vedi "Immediate Next Steps".
 
 ## Codebase Understanding
 
-### Architecture Overview
+## Architecture Overview
 
-Micro-sito pubblico `/s/[slug]` ha 2 path: `classic` (design originale form-driven, invariato) e 7 template demo full-bleed (suerte/dolcevita/champinoneria/picnic/perezbeers/vasco/montesdeoca). Ogni template demo:
-- È un client component in `src/components/site-templates/<Name>Template.tsx`; ha un `const C = {...}` con i colori, e i testi/immagini passano da `<EditableText/EditableImage id>` (`src/lib/site/content.tsx`) → pubblico=markup piatto, editor=click-to-edit.
-- Riceve i dati da `buildSiteData` (`src/lib/site/data.ts`), builder UNICO usato sia dalla pagina server (`src/app/s/[slug]/page.tsx`) sia dall'editor client (`src/app/(dashboard)/website/editor/page.tsx`).
-- Il registry (`src/components/site-templates/registry.ts`) ha per ogni template: `component`, `defaults`, `swatches` (colori chiave), `paletteLabels`, `accentIndex`, `accent`, font.
+**Modello economico**: 1 credito = €0,20. Salvato in **millicrediti** (`bigint`, 1 cr = 1000 mc) — mai float. Un messaggio bot costa 0,04 cr = 40 mc; come float, sottratto centinaia di migliaia di volte, il saldo driftterebbe. Come intero, no.
 
-**Palette (colori editabili)**: i colori chiave leggono `var(--cN, #fallback-hex)`; il wrapper del template su `/s` e nell'editor riceve `--cN` via `paletteVars()`. **Palette non impostata = 0 var emesse = output byte-identico**. Override salvato in `settings.site_palette[templateKey]` (solo diff vs swatches).
+**Due tipi di credito**:
+- `included_remaining_mc` — quota del piano, **resettata** a ogni rinnovo (use-it-or-lose-it). Premium 2.000 cr/mese, Business 1.250.
+- `purchased_remaining_mc` — comprati (pacchetti Stripe one-off) o regalati dall'admin. **Non scadono mai.**
+- Ordine di spesa: **prima gli inclusi, poi gli acquistati** (i perituri per primi — è quello che sceglierebbe il cliente).
 
-**Widget prenotazione** = `FloatingBookingWidget.tsx`, montato UNA volta a livello pagina (pill flottante in basso a destra), NON dentro i template. I template usano `<BookingCta>` (dispatcha `open-booking`).
+**A crediti zero si blocca SOLO ciò che costa** (bot WhatsApp, voce, campagne, OCR, import menu, generazioni AI). **Prenotazioni, tavoli, ospiti, POS continuano a funzionare.** Un ristorante non deve mai smettere di lavorare per un problema di billing.
 
-### Critical Files
+**Fail-OPEN nel metering** (al contrario di `guard.ts` che è fail-CLOSED): se Supabase fa un blip o la RPC manca, l'azione **passa** e ci mangiamo i centesimi. Un bug del *nostro* metering non deve zittire il bot durante il servizio. `guard.ts` fallisce chiuso perché è un gate su feature *pagate*; il metering è un *contatore*, non un cancello.
+
+## Critical Files
 
 | File | Purpose | Relevance |
 |------|---------|-----------|
-| src/components/site-templates/registry.ts | swatches/paletteLabels (ora `string[]`, non più tuple di 3), helper `resolvePalette`/`paletteVars`/`paletteAccent`/`isHexColor` | Cuore della palette; length-agnostici |
-| src/components/site-templates/SiteMenuOverlay.tsx | **NUOVO** — overlay menù in-site (scheda piatto + menù completo), listener delegato, `resolveMenuClick` (pura), `dishCardProps`, `openDish`/`openFullMenu` | Feature menù cliccabile |
-| src/components/site-templates/*Template.tsx (×7) | `const C` migrati a `var(--c4/5/6, hex)`; card piatti con `{...dishCardProps(it.id)}` + cursor; import di SiteMenuOverlay | Migrazione colori + click piatti |
-| src/lib/site/data.ts | `buildSiteData` ora produce `fullMenu` via `buildFullMenu`; `RawMenuItemRow` ha allergens/tags/category_id opzionali; `shapeMenuItem` | Dati menù completo |
-| src/lib/site/types.ts | `SiteMenuItem` +allergens/tags; nuovo `SiteMenuCategory`; `SiteData.fullMenu`; `SiteLabels` +allergens/close | Contratto dati |
-| src/lib/site/labels.ts | +`allergens`/`close` nelle 4 lingue | i18n overlay |
-| src/lib/types/tenant-settings.ts | `site_palette` → `Partial<Record<key, string[]>>` (era tuple di 3) | Tipo persistenza |
-| src/app/s/[slug]/page.tsx | query menù estesa (allergens/tags/category_id + menu_categories), monta `<SiteMenuOverlay>` | Path pubblico |
-| src/app/(dashboard)/website/editor/page.tsx | palette state `string[]`, fetch categorie, pannello colori griglia 2-col, monta `<SiteMenuOverlay>` | Editor |
-| src/app/globals.css | `.fbw-backdrop` reso trasparente; nuove classi `.smo-*` per l'overlay menù | Widget + overlay styling |
-| scripts/site-templates-e2e.mjs | E2E esteso §②bis(--c4)/§②ter(dish+fullmenu); widget check reso non-bloccante | Test |
+| `supabase/migrations/20260713_credits.sql` | Tabelle `credit_balances` + `credit_events`, RPC `consume_credits` + `grant_credits`, RLS, publication realtime | **Già applicata sul DB live** e testata |
+| `src/lib/billing/credits-catalog.ts` | Catalogo puro: `ACTION_MC`, `PLAN_CREDITS_MC`, `CREDIT_PACKS`, `mcFor()`, `formatCredits()` | Unica fonte di verità dei prezzi. Importato sia da server sia da client |
+| `src/lib/billing/credits.ts` | Runtime: `assertCredits()` (gate, non addebita), `consumeCredits()` (addebita, RPC atomica), `grantPurchasedCredits()`, `resetIncludedCredits()`, `getCreditBalance()` | Il pattern `assertX → NextResponse\|null` ricalca `guard.ts` |
+| `src/lib/billing/credits-catalog.test.ts` | 23 test | Hanno pescato un bug vero (vedi Gotchas) |
+| `src/app/api/credits/{balance,events,consume}/route.ts` | API tenant-scoped. `/consume` è per il motore n8n (auth `x-ai-secret`) | `/consume` **CHECK+DEBIT in un colpo solo** (vedi Decisioni) |
+| `src/app/api/admin/credits/route.ts` | GET saldo + POST ricarica/storno per-tenant (`assertPlatformAdmin`) | L'unico modo di dare crediti |
+| `src/app/api/cron/credits-reset/route.ts` | Backstop giornaliero del reset mensile | Cron in `vercel.json` (`20 5 * * *`) |
+| `src/components/layout/CreditsBadge.tsx` | Badge topbar, realtime, rosso sotto il 10% | Icona `Coins` |
+| `src/components/settings/CreditsTab.tsx` | Saldo + 3 pacchetti + **tabella prezzi** + storico | La tabella prezzi è generata da `ACTION_MC`: non può divergere dall'addebito |
+| `N8N/picnic/deploy_credits_gate.mjs` | **Script di deploy del gate nel motore 166 — DA ESEGUIRE** | Gitignored (`N8N/`). Idempotente |
 
 ### Key Patterns Discovered
 
-- **Retrocompatibilità palette CRITICA**: i primi 3 slot di `swatches`/`site_palette` DEVONO mantenere significato storico (var `--c1/2/3` invariate), gli slot nuovi si APPENDONO (`--c4/5/6`). Così gli override a 3 colori già salvati risolvono ancora (gli slot extra restano al default). NON riordinare mai i primi 3.
-- **Colori dentro le stringhe CSS template-literal**: `C.charcoal` ora è `"var(--c4, #2a2420)"`; interpolarlo in una stringa CSS (es. `box-shadow: 1px 1px 0 ${C.charcoal}`) produce CSS valido `var(--c4, #2a2420)` → funziona.
-- **Listener delegato invece di rewiring per-elemento**: `SiteMenuOverlay` mette UN solo listener su `document` (via `resolveMenuClick` pura) che intercetta `[data-dish-id]` e `a[href="/m/<slug>"]`, fa `preventDefault`. Degrada a `/m` senza JS. Molto meno invasivo che editare i ~30 link `/m/` e i 7 grid di card.
-- **Verifica in ambiente locale**: vedi Gotchas — `next start` locale NON idrata il JS.
+- **`grant_credits` è REVOCATA da `authenticated`/`anon` a livello DB** (`grant execute ... to service_role` only). Verificato sul DB live. Un tenant loggato **non può auto-ricaricarsi** anche se chiamasse la RPC direttamente.
+- **`credit_balances` è nella publication `supabase_realtime`** (come `tenants`, che ha avuto bisogno della stessa migration). Senza, il badge si iscrive con successo e poi **non riceve niente in silenzio**.
+- Il webhook Stripe discrimina con `metadata.kind` (`deposit` | `gift_card` | `plan` | `addon` | `bundle` | **`credits`** nuovo).
+- Cron Vercel Hobby: **solo minuto+ora fissi** (no `*/N`) o il deploy fallisce.
+- i18n: `Dictionary = typeof en` → una chiave nuova va messa in **tutti e 4** i dizionari (en/it/es/de) o `tsc` fallisce.
 
 ## Work Completed
 
 ### Tasks Finished
 
-- [x] Overlay scuro widget rimosso (`.fbw-backdrop` background:transparent, niente fade animation; click-catcher invisibile resta per tap-fuori-chiude)
-- [x] Bottone "Prenota tavolo" Trattoria (suerte) sistemato (era lone grid-item stirato → wrappato in `flex justify-center md:justify-start` = larghezza naturale ~12% sezione)
-- [x] Palette estesa da 3 a fino a 6 colori per template; TUTTI i `const C` dei 7 template migrati a var; le sezioni prima non ricolorabili ora si cambiano
-- [x] Piatti cliccabili → scheda dettaglio (foto/descrizione/prezzo/allergeni/tag)
-- [x] "Menù completo" → overlay in-pagina coerente col template (accent del sito) invece del `/m` con stile diverso
-- [x] Type/tests/build/E2E verdi; commit + push su main
+- [x] Migration DB (2 tabelle, 2 RPC atomiche, RLS, realtime publication) — **applicata sul live e testata**
+- [x] `credits-catalog.ts` puro + 23 test
+- [x] `credits.ts` (gate + consumo + grant + reset)
+- [x] 4 route API (`/credits/balance`, `/events`, `/consume`, `/cron/credits-reset`)
+- [x] Metering su **9 call-site**: invoice OCR, transcribe, marketing/generate, reviews/suggest-reply, conversation-summary, **translate-note**, marketing send (WA+email), menu import, **voce (end-of-call)**
+- [x] Checkout pacchetti crediti + branch `credits` nel webhook Stripe + reset su `invoice.paid`
+- [x] Badge topbar (realtime) + tab Impostazioni + i18n ×4 lingue
+- [x] **Admin: ricarica/storno manuale per-tenant** (`/api/admin/credits` + card in `/admin/tenant/[id]`)
+- [x] Icona crediti `Zap` → `Coins` (badge, tab, admin)
+- [x] Gate n8n **scritto e validato** (dry-run OK, `node --check` OK) — **non deployato**
 
-### Files Modified
+## Files Modified
 
 | File | Changes | Rationale |
 |------|---------|-----------|
-| registry.ts | swatches/paletteLabels → string[]; +3 slot per template; resolvePalette length-agnostico | Più colori editabili |
-| 7× *Template.tsx | const C → var(--cN); card +dishCardProps+cursor; +import | Colori sezioni + click piatti |
-| SiteMenuOverlay.tsx (NUOVO) | overlay + logica delegata | Menù in-site |
-| data.ts / types.ts / labels.ts | fullMenu, allergens/tags, buildFullMenu, labels overlay | Dati + i18n |
-| tenant-settings.ts | site_palette → string[] | Persistenza |
-| s/[slug]/page.tsx, website/editor/page.tsx | query estese, monta overlay, palette string[] | Wiring pagine |
-| globals.css | .fbw-backdrop trasparente, classi .smo-* | Styling |
-| site-templates-e2e.mjs | §②bis/§②ter, widget non-bloccante | Test |
-| palette.test.ts (+11), data.test.ts (+4), site-menu-overlay.test.ts (NUOVO +7) | copertura | 909/909 |
+| `src/app/api/voice/assistant-request/route.ts` | Intercetta `end-of-call-report` (**prima veniva BUTTATO VIA**) → `meterCall()` con durata+costo reali. + gate: rifiuta di rispondere al telefono a saldo zero | La voce era il costo **più fuori controllo**: nessuno sapeva nemmeno che una chiamata fosse avvenuta. Una chiamata non si può fermare a metà → il gate deve stare al momento della risposta |
+| `src/lib/marketing/send.ts` | Pre-flight sul **totale** prima del loop; consumo **per destinatario** con `costEur` = prezzo Meta reale del paese | Un check per-destinatario finirebbe i crediti al 180° di 300 → campagna mezza inviata, Meta ci ha già fatturato 180. Rifiutare **tutto** in anticipo è l'unico esito recuperabile |
+| `src/app/api/translate-note/route.ts` | Gate + consumo `ai_text`; tenant risolto **server-side** dalla membership | Il componente chiamante (`TranslateNoteButton`) riceve **solo il testo**, non ha tenant. Passare `tenant_id` dal client andrebbe comunque verificato → tanto vale risolverlo lato server |
+| `src/app/api/ai/conversation-summary/route.ts` | Aggiunto `tenant_id` ai `select` (**non c'era**) + gate sincrono prima di `after()` | Il job gira dopo la risposta: un rifiuto lì sarebbe invisibile al chiamante |
+| `src/app/api/billing/webhook/stripe/route.ts` | Branch `kind === "credits"`; grant allowance su piano/bundle; **nuovo case `invoice.paid`** per il reset al rinnovo | Il pack si legge **dal catalogo per id**, mai dall'importo della sessione |
+| `src/app/api/billing/checkout/route.ts` | `kind: "credits"` + `pack`, `mode: "payment"` | I crediti comprati non scadono → non c'è nulla di ricorrente da modellare |
+| `src/lib/billing/credits.ts` | `grantPurchasedCredits` ora accetta `action` (`topup` \| `admin_grant`) | Un regalo e un acquisto pagato aggiungono entrambi crediti, ma confonderli nel ledger **farebbe mentire i ricavi** |
+| `src/app/(dashboard)/admin/tenant/[id]/page.tsx` | Card Crediti: saldo, ricarica/storno + motivo, ultime ricariche | Rimettere in piedi un ristorante a secco di sabato sera (un checkout Stripe richiede minuti che non hanno) |
+| `src/app/(dashboard)/settings/page.tsx` | Tab "credits" + icona `Coins` | ⚠️ **Contiene anche le tab Fiscale/Email di un'altra sessione** — vedi Gotchas |
 
-### Decisions Made
+## Decisions Made
 
 | Decision | Options Considered | Rationale |
 |----------|-------------------|-----------|
-| Palette: più slot (fino a 6) NON colore-per-sezione indipendente | (a) 6 colori globali che coprono più sezioni; (b) colore diverso per ogni sezione | Utente ha scelto (a) a voce ("la prima opzione mi piace di più"). Semplice, copre il reclamo reale (sezioni non ricolorabili) senza esplosione di stato |
-| Menù completo = overlay in-site, NON pagina `/m` ridisegnata per template | (a) overlay in-pagina; (b) `/m` restilizzato per template | Utente si è fidato ("vedi tu"). Overlay = massima coerenza + zero manutenzione di una `/m` parallela per 7 template. `/m` resta per QR/self-order/classic |
-| Rimuovere overlay widget = renderlo TRASPARENTE, non eliminare l'elemento | eliminare del tutto vs trasparente | Il click-catcher serve ancora (tap-fuori-chiude, bottom-sheet mobile). Trasparente = tolgo esattamente ciò che l'utente non voleva (dim + blur = il vero rallenta-animazione) preservando il comportamento |
-| Fix bottone = flex wrapper | vari | Causa strutturale: un `<button>` lone grid-item eredita `align/justify: stretch` → si allarga alla colonna. Wrapper flex lo lascia dimensionare al contenuto |
-| Commit su main (non sul branch marketing) | main vs branch marketing corrente | Utente ha detto a voce "comita pure sul main". Il mio lavoro è disgiunto dal marketing WIP |
+| **Millicrediti interi**, non float | Float `0.04` | Un float sottratto 100k volte drifta. `40` no. `formatCredits()` è l'unico posto dove si divide per 1000 |
+| **RPC atomica** `consume_credits` con `FOR UPDATE` | Read-then-write in app | Il bot risponde a più conversazioni **in parallelo**: due consumi concorrenti leggerebbero entrambi "40 mc rimasti", passerebbero entrambi, e andrebbero in rosso. Il row-lock serializza |
+| `/api/credits/consume` **CHECK+DEBIT in una sola chiamata** | `/check` poi `/consume` | Due chiamate separate lascerebbero passare due conversazioni parallele sugli stessi ultimi 40 mc. Con una sola, decide il lock e il perdente riceve `ok:false` |
+| **Fail-OPEN** nel metering | Fail-closed come `guard.ts` | Il metering è un *contatore*, non un *cancello*. Se si rompe, il ristorante deve continuare a lavorare e noi ci mangiamo i centesimi |
+| Gate campagne **sul totale, in anticipo** | Per-destinatario | Vedi sopra: mezza campagna inviata non è recuperabile |
+| Ledger `admin_grant` ≠ `topup` | Riusare `topup` | Confonderli falserebbe i ricavi |
+| Storno **limitato a quanto ha davvero** | Permettere saldo negativo | Un saldo negativo verrebbe letto come "esaurito" **per sempre** da ogni gate |
+| Tetto ricarica admin **50.000 cr** | Nessun limite | Un errore di battitura con tre zeri di troppo deve rimbalzare, non passare |
+| Alert titolare **max 1 ogni 6h** | A ogni messaggio | Un sabato pieno con wallet vuoto lo spammerebbe decine di volte |
+| Gate n8n **in fondo al nodo Fetch** | In un nodo nuovo / all'inizio | Deve stare **dopo** tutti gli skip (pausa bot, debounce, reset) — così non si addebita un messaggio a cui il bot non avrebbe risposto — **dopo** che `lang` è risolto (messaggio di cortesia nella lingua giusta) e **prima** del nodo OpenAI |
+
+## Pending Work
 
 ## Immediate Next Steps
 
-**NON c'è lavoro attivo obbligatorio.** Se l'utente dà feedback sulle rifiniture:
-1. Le etichette dei nuovi slot colore per template stanno in `registry.ts` → `paletteLabels` (es. suerte = `["Sfondo","Accento","Secondario","Testo","Dettagli","Ombre"]`). Se un colore non cambia la sezione giusta, controlla la mappatura slot→chiave nel `const C` di quel template (es. suerte: c4=charcoal, c5=mustard, c6=tile).
-2. Se serve verificare le INTERAZIONI (click piatto/menù/widget) in un browser reale: NON usare `next start` locale (non idrata, vedi Gotcha). Deployare su Vercel o girare l'E2E dove l'hydration funziona.
-3. Lo stile dell'overlay menù è in `globals.css` classi `.smo-*` (scrim `rgba(12,10,9,0.55)`, sheet bianco, accent = `--smo-accent`).
+1. **DEPLOYARE IL GATE n8n** (l'unica cosa non finita). Quando `n8n.srv1468837.hstgr.cloud` torna su:
+   ```bash
+   cd /Users/amplaye/CRM
+   N8N_API_KEY=<chiave da memory credentials.md, sezione "n8n"> node N8N/picnic/deploy_credits_gate.mjs
+   ```
+   È **idempotente** (marker `PATCH:credits-gate-v1`), scrive uno snapshot di rollback, fa `node --check` prima di pushare, e **si rifiuta di partire se il nodo ha cambiato forma**. Dry-run per provare senza deployare: `node N8N/picnic/deploy_credits_gate.mjs --dry`.
+   Verificare poi con un E2E (`scripts/motore-e2e/`, keyword utente "stress test chat"): una conversazione normale deve scalare 40 mc/messaggio; a saldo zero il bot manda il messaggio di cortesia e **non chiama OpenAI**.
+
+2. **Env Stripe su Vercel** (senza, il checkout ricarica risponde 503 pulito, non crasha):
+   `STRIPE_PRICE_CREDITS_500`, `STRIPE_PRICE_CREDITS_1500`, `STRIPE_PRICE_CREDITS_5000`
+
+3. **Aggiungere l'evento `invoice.paid`** all'endpoint webhook Stripe. Senza, il reset mensile dell'allowance arriva **solo** dal cron di backup (`/api/cron/credits-reset`, giornaliero) — funziona, ma con un giorno di ritardo.
 
 ### Blockers/Open Questions
 
-- Nessun blocker. L'unico limite è ambientale (verifica interattiva locale, vedi Gotcha), non un difetto del codice.
+- [x] ~~n8n irraggiungibile~~ → **BLOCCANTE, ancora aperto**: `n8n.srv1468837.hstgr.cloud` accetta il TCP sulla 443 ma **rifiuta l'handshake TLS** (`SSL_ERROR_SYSCALL`). DNS risolve, la porta è aperta. Non è la rete locale: `crm.baliflowagency.com` risponde normalmente dalla stessa macchina. **Il server n8n (o il suo reverse proxy) è giù.**
+- [ ] `settings/page.tsx` non è committato: contiene il mio cambio d'icona **insieme** alle tab Fiscale/Email di un'altra sessione (vedi Gotchas).
 
 ### Deferred Items
 
-- Verifica visiva in-browser dei click flow (dish modal / full-menu overlay / widget open): rimandata all'ambiente Vercel perché `next start` locale non idrata. La logica è coperta da unit test (`resolveMenuClick`) e l'SSR/CSS è verificato.
+- **Colonna "Crediti" nella tabella tenant dell'admin home** (`/admin`): richiederebbe di aggiungere il saldo a `/api/admin/overview`. Non richiesto, non fatto.
+- **Metering di `sendWhatsAppTemplate` globale** (reminder, no-show, follow-up recensioni): oggi si misurano solo le campagne marketing. I template transazionali costano comunque a Meta. Non richiesto.
+
+## Context for Resuming Agent
 
 ## Important Context
 
-**IL LAVORO È GIÀ SHIPPATO** (main @ 7877b85, pushato, Vercel in deploy). Non ri-fare nulla. Se l'utente torna, molto probabilmente è per: (a) confermare che su Vercel funziona, (b) chiedere rifiniture (nomi colori, layout overlay, quali colori mappare a quali sezioni).
+**Il lavoro crediti è su `main` (5c65c47 + 6ea2cc2), MA il branch checked-out è `feature/verifactu`.** Entrambi puntavano allo stesso commit a un certo punto; poi un'altra sessione ha committato VeriFactu (`d7359e4`) sopra. Prima di committare qualsiasi cosa: **controlla su che branch sei e cosa stai per staggiare.**
 
-**⚠️ CONTESTO GIT DELICATO**: la sessione è partita sul branch `feature/marketing-two-block-preview`, che conteneva lavoro MARKETING altrui (commit `f42da48` + WIP che rompeva la build: `de.ts` aveva meno chiavi `mkt_*` di `en.ts` → type error). Il mio lavoro sui template è **disgiunto** (file completamente diversi). Su richiesta dell'utente ("comita pure sul main") ho spostato SOLO i miei file su `main` e committato lì (7877b85). Il branch `feature/marketing-two-block-preview` è **intatto** con il suo `f42da48` — NON toccato. Se l'utente vuole finire il marketing, si lavora là (bilanciare `de.ts` con le chiavi `mkt_*` di `en.ts`).
+**NEL WORKING TREE C'È LAVORO DI ALTRE SESSIONI, NON COMMITTATO** (VeriFactu/cassa/fiscal, email BYO-key Resend). **NON fare `git add -A`** — trascineresti dentro lavoro altrui a metà. Io ho staggiato solo i miei file, uno per uno.
 
-### Assumptions Made
+**Due test rossi nel repo NON sono miei**: `src/lib/types/tenant-settings.test.ts` (FEATURE_FLAGS: il file ha guadagnato un flag che il test non si aspetta ancora) e `src/lib/email/live-roundtrip.manual.test.ts` (test *manuale* che richiede rete live). Appartengono al lavoro email/VeriFactu in corso. **I miei: 105/105 billing verdi, tsc pulito, build ok.**
 
-- Il tenant QA per l'E2E è `bali-rest-ghl8po` (BALI Rest), come nelle sessioni precedenti. L'E2E ripristina i suoi settings a fine run.
-- "template trattoria" nel linguaggio utente = `suerte` (label registry = "Trattoria").
-- `/m/<slug>` va MANTENUTO (QR sui tavoli, self-order, template classic ci puntano) — non l'ho toccato/rimosso.
+## Assumptions Made
 
-### Potential Gotchas
+- Il progetto lavora **direttamente su `main`** (memoria: `feedback_baliflow_crm_no_branches` — fase demo, nessun cliente reale). Ho pushato su `main`.
+- I prezzi per azione (`ACTION_MC`) e i pacchetti sono quelli **già decisi col cliente** nel piano. Non li ho rinegoziati.
+- `costEur` è una **stima** del nostro costo vivo, tranne per WhatsApp marketing (prezzo Meta reale per paese via `whatsappPriceForPhone()`) e voce (`cost` reale da Vapi).
 
-- **`next start` locale NON idrata il JS** (chunk serviti con MIME `text/plain` + un chunk 500 + CSP `style-src 'self'` blocca Google Fonts) → i click Playwright non aprono modali/widget. NON è un bug del codice: è confermato da sessioni precedenti (obs 29702 "CSP and MIME type errors"). Il curl diretto ai chunk .js/.css invece dà i MIME giusti → il problema è la confusione workspace-root (due lockfile: package-lock.json in /Users/amplaye e in /Users/amplaye/CRM). Verifica quindi via: SSR HTML (grep `data-dish-id`, `href="/m/..."`), computed CSS (palette cascade), unit test della logica. Prova visiva: screenshot SSR (i colori CSS rendono anche senza JS).
-- **NON riordinare i primi 3 slot palette** (romperebbe gli override già salvati).
-- **`npm run build` su main è verde**; sul branch marketing FALLISCE per `de.ts` incompleto (non è roba mia).
-- **MAI `npm run dev`** (regola progetto). Un solo processo pesante alla volta (vitest/tsc/build separati).
-- File handoff staff (`.claude/handoffs/2026-07-11-1733*.md`) e `.claude/handoffs/LATEST.md` sono di sessioni precedenti, non miei — lasciati untracked/non committati.
+## Potential Gotchas
+
+- ⚠️ **`toLocaleString("es-ES")` NON mette il separatore sui numeri a 4 cifre.** Un saldo di 1.847 crediti sarebbe uscito come `"1847"` mentre 12.500 usciva `"12.500"` — due convenzioni sulla stessa schermata. Risolto con `useGrouping: "always"` in `formatCredits()`. **I test l'hanno pescato**, non io.
+- ⚠️ La tabella **`campaigns` NON ha una colonna `error`** (e non è nemmeno nel SQL del repo — vive solo sul DB live, come `atomic_book_tables`). Non provare a scriverci sopra.
+- ⚠️ `credit_balances` **deve stare nella publication `supabase_realtime`** o il badge si iscrive e non riceve nulla, **in silenzio**.
+- ⚠️ Nel motore n8n, `this.helpers.httpRequest` **lancia** sui non-2xx: senza `ignoreHttpStatusErrors: true` il 403 `credits_exhausted` finirebbe nel catch → fail-open → un tenant senza crediti continuerebbe a bruciare il nostro budget OpenAI. È nel gate, non toglierlo.
+- ⚠️ Una nuova chiave i18n va in **tutti e 4** i dizionari o `tsc` fallisce (`Dictionary = typeof en`).
+- ⚠️ Supabase Management API dietro Cloudflare: serve uno **User-Agent da browser** o risponde 403 (code 1010).
+- Il token Management API del CRM è **specifico per progetto** (`azhlnybiqlkbhbboyvud`) — in `credentials.md` sotto "BaliFlow CRM (Supabase)", **non** quello di RaffleMania in cima al file.
 
 ## Environment State
 
 ### Tools/Services Used
 
-- Playwright (in node_modules del progetto — gli script E2E vanno lanciati con cwd = /Users/amplaye/CRM, o messi in scripts/).
-- Supabase service-role (letto dal file .env.local del progetto) per settare template/palette del tenant QA nell'E2E.
-- Voce: `/Users/amplaye/.claude/voice/ask_voice.sh` per le domande (2 decisioni prese così: scelta palette, branch di commit).
+- **Supabase** (`azhlnybiqlkbhbboyvud`): migration applicata via Management API SQL endpoint. Testata la RPC (atomicità, ordine di spesa, RLS, grants). **Dati di test ripuliti** (0 righe in entrambe le tabelle).
+- **n8n** (`n8n.srv1468837.hstgr.cloud`): **GIÙ** (TLS refused). Motore unico = workflow `166QnQsGHqXDpBxa`, nodo `Fetch History + Check Availability`.
+- **Stripe**: pacchetti crediti da configurare (env, vedi Next Steps).
+- Git: `main` = 6ea2cc2 (pushato).
 
 ### Active Processes
 
-- **Nessuno.** Il server `next start -p 3010` avviato durante la verifica è stato **fermato** (pkill confermato). Nessun processo in background attivo.
+- Nessuno. (Mai `npm run dev` in questo progetto — usa `npx tsc --noEmit`, `npx vitest run`, `npm run build`, uno alla volta.)
 
 ### Environment Variables
 
-- Il file `.env.local` (in /Users/amplaye/CRM) contiene `NEXT_PUBLIC_SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` (usati dall'E2E). `CRM_PASSWORD` NON presente → la parte editor autenticata dell'E2E (§③) fa SKIP; il resto gira lo stesso. (Nomi soltanto — nessun valore qui.)
+Nomi soltanto (valori: Vercel / `credentials.md`, MAI in git):
+- `STRIPE_PRICE_CREDITS_500`, `STRIPE_PRICE_CREDITS_1500`, `STRIPE_PRICE_CREDITS_5000` — **da creare**
+- `AI_WEBHOOK_SECRET` (auth `x-ai-secret` per `/api/credits/consume`), `CRON_SECRET`, `OPENAI_API_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `NEXT_PUBLIC_SUPABASE_URL`, `STRIPE_WEBHOOK_SECRET`
+- `N8N_API_KEY` (per lo script di deploy del gate)
 
 ## Related Resources
 
-- Memoria aggiornata: `/Users/amplaye/.claude/projects/-Users-amplaye/memory/feature_crm_website_templates_editor.md` (blocco "Palette per-sezione (fino a 6 colori)…" + nota contesto git).
-- E2E: `scripts/site-templates-e2e.mjs` (`npm run build && npx next start -p 3010 &` poi `node scripts/site-templates-e2e.mjs`).
-- Reference correlate in memoria: `reference_crm_floating_booking_widget.md`, `reference_nextjs_client_module_value_import.md`.
+- Piano originale: `~/.claude/plans/creami-questo-sistema-di-golden-lemur.md`
+- Migration: [supabase/migrations/20260713_credits.sql](../../supabase/migrations/20260713_credits.sql)
+- Catalogo: [src/lib/billing/credits-catalog.ts](../../src/lib/billing/credits-catalog.ts)
+- Runtime: [src/lib/billing/credits.ts](../../src/lib/billing/credits.ts)
+- Deploy gate n8n: `N8N/picnic/deploy_credits_gate.mjs` (gitignored)
+- Memoria: `reference_stress_test_chat.md` (E2E motore), `reference_supabase_mgmt_cloudflare_ua.md`, `reference_crm_atomic_book_tables_rpc.md`, `feedback_no_dev_server.md`
 
 ---
 
-**Security Reminder**: nessun secret in questo file (solo NOMI di env var). Validato con validate_handoff.py.
+**Security Reminder**: nessun segreto in questo file — solo NOMI di env var e riferimenti a `credentials.md`.
