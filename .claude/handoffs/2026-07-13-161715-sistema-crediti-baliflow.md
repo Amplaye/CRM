@@ -115,6 +115,23 @@ Ora: 2 tabelle + 2 RPC atomiche, catalogo prezzi puro, metering su **9 call-site
 
 ## Immediate Next Steps
 
+> **AGGIORNAMENTO 2026-07-13 ~16:50 (sessione di verifica).** Ricontrollati tutti i punti qui sotto.
+> Risultato: **resta aperto solo il deploy del gate n8n (#1), e non per colpa nostra.**
+>
+> - ~~#2 env Stripe~~ e ~~#3 evento `invoice.paid`~~ → **RINVIATI SU DECISIONE DEL TITOLARE.** I prezzi
+>   dei pacchetti (€19/€49/€149) sono **provvisori**: i prodotti su Stripe si creano quando i prezzi
+>   saranno decisi. **Non creare prodotti/prezzi su Stripe LIVE** finché non arriva il via libera —
+>   anche se `CREDIT_PACKS` in `credits-catalog.ts` li mostra come se fossero definitivi. Verificato
+>   sull'account LIVE: **zero prezzi crediti** e **nessuno dei due webhook endpoint è iscritto a
+>   `invoice.paid`** (il *case* `invoice.paid` nel codice c'è già, `webhook/stripe/route.ts:228` — è
+>   solo Stripe che non glielo manda). Conseguenza accettata: il reset mensile dell'allowance arriva
+>   dal cron giornaliero, quindi **fino a 24h di ritardo**. Non è rotto.
+> - ~~blocker `settings/page.tsx` non committato~~ → **RISOLTO**: `feature/verifactu` è stato mergiato
+>   in `main` (`1695df0`) e anche l'email BYO-key è dentro. Working tree pulito.
+> - **Icona crediti** → cambiata: non più `Coins` di lucide ma una **moneta fisica in euro**
+>   (`src/components/ui/CoinIcon.tsx`, SVG inline). Ionicons — chiesta esplicitamente — **non ha
+>   nessuna icona moneta**: l'unico match su "coin" è `logo-bitcoin`. Commit `85fa10c` su `main`.
+
 1. **DEPLOYARE IL GATE n8n** (l'unica cosa non finita). Quando `n8n.srv1468837.hstgr.cloud` torna su:
    ```bash
    cd /Users/amplaye/CRM
@@ -130,8 +147,23 @@ Ora: 2 tabelle + 2 RPC atomiche, catalogo prezzi puro, metering su **9 call-site
 
 ### Blockers/Open Questions
 
-- [x] ~~n8n irraggiungibile~~ → **BLOCCANTE, ancora aperto**: `n8n.srv1468837.hstgr.cloud` accetta il TCP sulla 443 ma **rifiuta l'handshake TLS** (`SSL_ERROR_SYSCALL`). DNS risolve, la porta è aperta. Non è la rete locale: `crm.baliflowagency.com` risponde normalmente dalla stessa macchina. **Il server n8n (o il suo reverse proxy) è giù.**
-- [ ] `settings/page.tsx` non è committato: contiene il mio cambio d'icona **insieme** alle tab Fiscale/Email di un'altra sessione (vedi Gotchas).
+- [ ] **n8n irraggiungibile — BLOCCANTE, ancora aperto.** Ri-diagnosticato il 2026-07-13 ~16:45, più
+  preciso di prima: **non è "il TLS che viene rifiutato", è il server che non parla proprio.**
+  - TCP sulla 443 si apre, ma l'handshake muore con `SSL handshake has read 0 bytes and written 1564`:
+    gli mandiamo il ClientHello e **lui non risponde un solo byte**. Non è un errore TLS, è silenzio.
+  - **Porta 80: nessuna risposta.** **ICMP: 100% packet loss.** Non risponde su *niente*.
+  - DNS coerente su locale, `8.8.8.8` e `1.1.1.1` → `187.124.30.125` (record autoritativo, non è
+    avvelenamento DNS locale).
+  - **Non è la nostra rete**: `crm.baliflowagency.com` risponde `307` dalla stessa macchina nello
+    stesso istante.
+  - ⚠️ Correzione a una nota precedente: *non* è il caso "openssl funziona, LibreSSL/curl no". **Non
+    funziona con nessuno dei due.** Se una sessione passata ha concluso il contrario, era un
+    artefatto: `s_client` stampa `Verification: OK` e `Protocol: TLSv1.3` **anche quando l'handshake
+    fallisce**, e lì sotto c'è `Cipher is (NONE)`.
+  - **Conclusione: è giù l'intera VPS Hostinger, non solo n8n o il suo reverse proxy.** Fuori dal
+    nostro controllo: va riacceso il server (o rifatto puntare il DNS). Nessuna azione possibile da
+    qui — lo script di deploy è pronto e idempotente, si lancia appena l'host risponde.
+- [x] ~~`settings/page.tsx` non committato~~ → **RISOLTO**: mergiato in `main` con `1695df0`.
 
 ### Deferred Items
 
