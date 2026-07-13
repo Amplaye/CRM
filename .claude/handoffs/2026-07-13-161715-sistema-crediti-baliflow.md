@@ -132,38 +132,51 @@ Ora: 2 tabelle + 2 RPC atomiche, catalogo prezzi puro, metering su **9 call-site
 >   (`src/components/ui/CoinIcon.tsx`, SVG inline). Ionicons — chiesta esplicitamente — **non ha
 >   nessuna icona moneta**: l'unico match su "coin" è `logo-bitcoin`. Commit `85fa10c` su `main`.
 
-> ## 🔴🔴 STOP — NON DEPLOYARE IL GATE n8n. Il punto 1 qui sotto è SBAGLIATO.
+> ## ✅ CHIUSO — il gate n8n è DEPLOYATO e funziona. Ma leggi come ci si è arrivati.
 >
-> **Aggiornamento 2026-07-13 ~17:10.** Il gate è stato deployato davvero, e **zittisce il bot di
-> TUTTI e 5 i ristoranti attivi** (Lugares Mágicos, WoodWay, Oraz, BALI Rest, PICNIC). Rollback
-> fatto in pochi minuti; **zero clienti colpiti solo per fortuna** — nessun messaggio è arrivato in
-> quella finestra. Backup del pre-gate: `N8N/picnic/Chatbot_166.ROLLBACK_pre_credits_gate_2026-07-13.json`.
+> **Aggiornamento finale 2026-07-13 ~17:55.** Il punto 1 qui sotto ("deploya il gate") era, preso
+> alla lettera, **un'istruzione che rompeva la produzione**. Ora è fatto, ma solo dopo aver corretto
+> il difetto che lo rendeva letale.
 >
-> **Perché è letale** (ogni anello verificato sul DB live, non dedotto):
-> 1. `credit_balances` = **0 righe**. Nessun tenant ha crediti.
-> 2. `subscriptions` = **0 righe**. Fase demo: nessuno paga.
-> 3. Il cron `credits-reset` semina **solo** chi ha abbonamento `active`/`trialing` con `plan` non
->    nullo → con `subscriptions` vuota **non semina nessuno**.
-> 4. `invoice.paid` non è iscritto su Stripe (rinviato dal titolare) → nemmeno lì arrivano crediti.
-> 5. `consume_credits` **crea la riga mancante a 0**, poi `0 < 40` → `ok=false`.
-> 6. `/api/credits/consume` chiama `getCreditBalance`, che per un tenant senza riga torna
->    **`{...EMPTY}` → saldo 0, NON `null`** → `genuinelyExhausted = true` → `403 credits_exhausted`
->    → il gate manda *"non posso risponderti, chiamaci"* e non chiama OpenAI.
+> ### Cosa era rotto
+> Deployato la prima volta, il gate era pronto a **zittire il bot di tutti e 5 i ristoranti vivi**
+> (Lugares Mágicos, WoodWay, Oraz, BALI Rest, PICNIC). Rollback in pochi minuti, **zero clienti
+> colpiti — per fortuna, non per progetto**: nessun messaggio è arrivato in quella finestra.
 >
-> **Il difetto vero: il sistema confonde "saldo zero" con "non ancora iscritto al sistema crediti".**
-> Un tenant senza wallet e senza abbonamento non è a secco — è fuori dal perimetro, e va lasciato
-> passare.
+> La catena, ogni anello verificato sul DB live: `credit_balances` vuota · `subscriptions` vuota ·
+> il cron semina solo gli abbonati · `invoice.paid` scollegato → **nessun percorso dava crediti a
+> nessuno**. `consume_credits` crea la riga mancante **a zero**, `getCreditBalance` torna
+> `{...EMPTY}` e **non `null`**, e zero veniva letto come *speso* → `403 credits_exhausted`.
+> Lo **stesso difetto era già LIVE** in `assertCredits`: le **7 route AI** del CRM rispondevano
+> `credits_exhausted` ai tenant reali.
 >
-> **Prima di poter deployare serve una delle due:**
-> - **(a)** seminare i crediti ai 5 tenant (grant admin, `/api/admin/credits`) — ma *quanti* è una
->   decisione del titolare, e i prezzi sono ancora provvisori;
-> - **(b)** far distinguere alla route **"wallet assente"** da **"wallet vuoto"** e **fallire aperto**
->   sul primo. È la correzione giusta; la (a) serve comunque quando si inizierà ad addebitare davvero.
+> ### La correzione (commit `42f71a1`)
+> **Un saldo a zero sono due situazioni diverse con la stessa faccia**: *prosciugato* (aveva crediti,
+> li ha spesi → **bloccare**) e *mai riempito* (nessuno gliene ha mai dati → **lasciar passare**: non
+> è a secco, è *fuori* dal sistema crediti). `credit_balances` non sa distinguerli — è la domanda
+> stessa a creare la riga. **Solo il ledger ricorda**: un wallet finanziato ha una riga positiva in
+> `credit_events`. Da qui **`walletEverFunded()`**, usata da `assertCredits` e da `/consume`.
+> **Non rimuoverla.** 12 test nuovi in `credits.test.ts` (che non esisteva).
 >
-> ⚠️ Nota sullo script: `deploy_credits_gate.mjs` **non** salva un backup di rollback dello stato
-> vivo (scrive lo snapshot *dopo* la patch). Scaricalo a mano **prima** di qualsiasi PUT.
+> ### Verificato in produzione, non dedotto
+> | caso | risposta | |
+> |---|---|---|
+> | wallet mai finanziato | `ok:true, metered:false` | passa, non addebita ✓ |
+> | wallet finanziato | `ok:true, metered:true` → −40 mc | addebita ✓ |
+> | finanziato e prosciugato | `403 credits_exhausted` | blocca ✓ |
+>
+> **E2E reale sul motore**: messaggio WhatsApp → il bot risponde (*"¡Hola! Sí, hay sitio…"*) →
+> saldo −40 mc. I 5 tenant hanno **100 crediti** ciascuno (grant admin ≈ 2.500 messaggi bot).
+>
+> ### Ancora da sapere
+> - ⚠️ Il ramo **crediti esauriti dentro il gate n8n** (messaggio di cortesia + alert al titolare)
+>   **non è stato esercitato in produzione**: manderebbe un WhatsApp vero a un titolare vero.
+>   Fallisce comunque **sicuro** (eccezione → `try/catch` esterno → fail-open → il bot risponde).
+> - ⚠️ `deploy_credits_gate.mjs` **non** salva un backup di rollback dello stato vivo (scrive lo
+>   snapshot *dopo* la patch). **Scaricalo a mano prima di qualsiasi PUT.** Il backup pre-gate è
+>   `N8N/picnic/Chatbot_166.ROLLBACK_pre_credits_gate_2026-07-13.json`.
 
-1. ~~**DEPLOYARE IL GATE n8n**~~ — **NO, vedi il riquadro qui sopra.** *(Testo originale, ormai superato:)* Quando `n8n.srv1468837.hstgr.cloud` torna su:
+1. ~~**DEPLOYARE IL GATE n8n**~~ → **FATTO** (vedi sopra). *(Testo originale, storico:)* Quando `n8n.srv1468837.hstgr.cloud` torna su:
    ```bash
    cd /Users/amplaye/CRM
    N8N_API_KEY=<chiave da memory credentials.md, sezione "n8n"> node N8N/picnic/deploy_credits_gate.mjs
