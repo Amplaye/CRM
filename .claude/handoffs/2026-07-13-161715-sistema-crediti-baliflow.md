@@ -132,7 +132,38 @@ Ora: 2 tabelle + 2 RPC atomiche, catalogo prezzi puro, metering su **9 call-site
 >   (`src/components/ui/CoinIcon.tsx`, SVG inline). Ionicons — chiesta esplicitamente — **non ha
 >   nessuna icona moneta**: l'unico match su "coin" è `logo-bitcoin`. Commit `85fa10c` su `main`.
 
-1. **DEPLOYARE IL GATE n8n** (l'unica cosa non finita). Quando `n8n.srv1468837.hstgr.cloud` torna su:
+> ## 🔴🔴 STOP — NON DEPLOYARE IL GATE n8n. Il punto 1 qui sotto è SBAGLIATO.
+>
+> **Aggiornamento 2026-07-13 ~17:10.** Il gate è stato deployato davvero, e **zittisce il bot di
+> TUTTI e 5 i ristoranti attivi** (Lugares Mágicos, WoodWay, Oraz, BALI Rest, PICNIC). Rollback
+> fatto in pochi minuti; **zero clienti colpiti solo per fortuna** — nessun messaggio è arrivato in
+> quella finestra. Backup del pre-gate: `N8N/picnic/Chatbot_166.ROLLBACK_pre_credits_gate_2026-07-13.json`.
+>
+> **Perché è letale** (ogni anello verificato sul DB live, non dedotto):
+> 1. `credit_balances` = **0 righe**. Nessun tenant ha crediti.
+> 2. `subscriptions` = **0 righe**. Fase demo: nessuno paga.
+> 3. Il cron `credits-reset` semina **solo** chi ha abbonamento `active`/`trialing` con `plan` non
+>    nullo → con `subscriptions` vuota **non semina nessuno**.
+> 4. `invoice.paid` non è iscritto su Stripe (rinviato dal titolare) → nemmeno lì arrivano crediti.
+> 5. `consume_credits` **crea la riga mancante a 0**, poi `0 < 40` → `ok=false`.
+> 6. `/api/credits/consume` chiama `getCreditBalance`, che per un tenant senza riga torna
+>    **`{...EMPTY}` → saldo 0, NON `null`** → `genuinelyExhausted = true` → `403 credits_exhausted`
+>    → il gate manda *"non posso risponderti, chiamaci"* e non chiama OpenAI.
+>
+> **Il difetto vero: il sistema confonde "saldo zero" con "non ancora iscritto al sistema crediti".**
+> Un tenant senza wallet e senza abbonamento non è a secco — è fuori dal perimetro, e va lasciato
+> passare.
+>
+> **Prima di poter deployare serve una delle due:**
+> - **(a)** seminare i crediti ai 5 tenant (grant admin, `/api/admin/credits`) — ma *quanti* è una
+>   decisione del titolare, e i prezzi sono ancora provvisori;
+> - **(b)** far distinguere alla route **"wallet assente"** da **"wallet vuoto"** e **fallire aperto**
+>   sul primo. È la correzione giusta; la (a) serve comunque quando si inizierà ad addebitare davvero.
+>
+> ⚠️ Nota sullo script: `deploy_credits_gate.mjs` **non** salva un backup di rollback dello stato
+> vivo (scrive lo snapshot *dopo* la patch). Scaricalo a mano **prima** di qualsiasi PUT.
+
+1. ~~**DEPLOYARE IL GATE n8n**~~ — **NO, vedi il riquadro qui sopra.** *(Testo originale, ormai superato:)* Quando `n8n.srv1468837.hstgr.cloud` torna su:
    ```bash
    cd /Users/amplaye/CRM
    N8N_API_KEY=<chiave da memory credentials.md, sezione "n8n"> node N8N/picnic/deploy_credits_gate.mjs
@@ -147,8 +178,23 @@ Ora: 2 tabelle + 2 RPC atomiche, catalogo prezzi puro, metering su **9 call-site
 
 ### Blockers/Open Questions
 
-- [ ] **n8n irraggiungibile — BLOCCANTE, ancora aperto.** Ri-diagnosticato il 2026-07-13 ~16:45, più
-  preciso di prima: **non è "il TLS che viene rifiutato", è il server che non parla proprio.**
+- [x] ~~**n8n irraggiungibile**~~ → **NON ERA VERO. Il server non è MAI stato giù. Era la VPN.**
+  Risolto il 2026-07-13 ~17:00. Sul Mac girava una VPN (tunnel `utun8`, uscita **Datacamp/Madrid**,
+  `77.243.86.183`): da quell'IP la VPS Hostinger non risponde (connessione che scade, zero byte —
+  sintomo di un `DROP` firewall sull'IP sorgente). **Spenta la VPN, n8n risponde HTTP 200 in 0,35s.**
+  - Prova esterna schiacciante: **check-host.net, 8 nodi su 8 nel mondo si connettono** (0,02–0,57s) e
+    **5 su 5 ottengono HTTP 200**. Era solo questa macchina a non arrivarci.
+  - ⚠️ **Come ci si è sbagliati due volte** (non ripetere): `crm.baliflowagency.com` funziona
+    *attraverso* la stessa VPN, quindi sembra che "la rete vada"; il ping fallisce e la porta 80 tace,
+    e sembra confermare "host morto"; e `openssl s_client` stampa `Verification: OK` +
+    `Protocol: TLSv1.3` **anche quando l'handshake fallisce** (va letto `Cipher is (NONE)` e
+    `read 0 bytes`), da cui la falsa pista "openssl funziona, LibreSSL no".
+  - **Regola:** prima di dichiarare n8n giù → `route -n get 187.124.30.125 | grep interface`. Se dice
+    `utun*` e non `en0`, stai passando dalla VPN: spegnila. Vedi memoria
+    `reference_vpn_blocks_n8n_hostinger.md`.
+
+- [ ] ~~vecchia diagnosi (SBAGLIATA, tenuta solo come monito)~~: *"non è il TLS che viene rifiutato, è
+  il server che non parla proprio"*
   - TCP sulla 443 si apre, ma l'handshake muore con `SSL handshake has read 0 bytes and written 1564`:
     gli mandiamo il ClientHello e **lui non risponde un solo byte**. Non è un errore TLS, è silenzio.
   - **Porta 80: nessuna risposta.** **ICMP: 100% packet loss.** Non risponde su *niente*.
