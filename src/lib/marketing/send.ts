@@ -15,6 +15,7 @@
 // campaigns outgrow a single Vercel invocation — see project_n8n_scaling.
 
 import { sendEmail } from "@/lib/email/send";
+import { resolveEmailFrom, tenantReplyTo } from "@/lib/email/from";
 import { renderEmailLayout, escapeHtml } from "@/lib/email/templates/base";
 import { sendWhatsAppTemplate } from "@/lib/whatsapp/meta";
 import { tenantWhatsAppFrom } from "@/lib/whatsapp/from";
@@ -98,6 +99,10 @@ export async function sendCampaign(
 
   const origin = process.env.NEXT_PUBLIC_APP_URL || "https://crm.baliflowagency.com";
   const from = tenantWhatsAppFrom(tenant.settings);
+  // Email identity: the guest reads the venue's name, and a Reply lands in the
+  // venue's inbox — while the address stays on the platform's verified domain.
+  const emailFrom = resolveEmailFrom(tenant.settings, tenant.name);
+  const replyTo = tenantReplyTo(tenant.settings);
   const branding = {
     name: tenant.name,
     brand_color: tenant.settings?.menu_branding?.brand_color,
@@ -132,6 +137,8 @@ export async function sendCampaign(
           to: g.email,
           subject: campaign.subject || tenant.name,
           html,
+          from: emailFrom,
+          replyTo,
           idempotencyKey: `campaign_${campaign.id}_${g.id}`,
         });
         sent++; await mark("sent");

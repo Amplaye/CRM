@@ -150,6 +150,14 @@ export interface TenantSettings {
    * number (e.g. "whatsapp:+34..."); unset → platform default. Resolved in one
    * place by src/lib/whatsapp/from.ts (Mossa 5: sending number is config, not code). */
   whatsapp?: { from?: string };
+  /** Per-tenant EMAIL sender config (Marketing → mittente).
+   *  - `sender_name` is the display name the guest sees ("Ristorante Picnic").
+   *  - `reply_to` is where the guest's Reply actually lands (the venue's inbox).
+   *  The technical address stays on the platform's DNS-verified domain (EMAIL_FROM):
+   *  an ESP refuses to send from a domain it hasn't verified, so an arbitrary
+   *  owner-typed from-address would bounce or land in spam. Resolved in one place
+   *  by src/lib/email/from.ts (same idiom as whatsapp/from.ts). */
+  marketing_email?: { sender_name?: string; reply_to?: string };
   /** Which POS adapter feeds the canonical pos_sales tables. `mock` (default)
    * generates realistic fake sales; the real tills drop in later. Resolved in one
    * place by src/lib/pos/pos-provider.ts (same single-resolution-point idiom as

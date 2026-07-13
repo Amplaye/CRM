@@ -6,7 +6,7 @@ import { useLanguage } from "@/lib/contexts/LanguageContext";
 import { useTenant } from "@/lib/contexts/TenantContext";
 import { createClient } from "@/lib/supabase/client";
 import { useEffect, useMemo, useState } from "react";
-import { Megaphone, Sparkles, Send, Mail, MessageCircle, Users as UsersIcon, Euro } from "lucide-react";
+import { Megaphone, Sparkles, Send, Mail, MessageCircle, Users as UsersIcon, Euro, ChevronRight, X, CheckCircle2, XCircle, MinusCircle } from "lucide-react";
 import Link from "next/link";
 import type { SegmentDef } from "@/lib/guests/segmentation";
 
@@ -19,6 +19,29 @@ interface CampaignListRow {
   sent_count: number;
   failed_count: number;
   created_at: string;
+  // Loaded up-front so opening a campaign shows its content with no extra roundtrip.
+  subject: string | null;
+  body: string;
+  segment: SegmentDef;
+}
+
+/** One delivery row of an opened campaign — this is WHERE a send actually failed. */
+interface RecipientRow {
+  id: string;
+  status: "pending" | "sent" | "failed" | "skipped";
+  error: string | null;
+  guests: { name: string | null; phone: string | null; email: string | null } | null;
+}
+
+/** Email identity. The ADDRESS is fixed to the platform's verified domain — an
+ *  ESP won't send from an unverified one — so the tenant owns the display name
+ *  and the reply-to. See src/lib/email/from.ts. */
+interface SenderConfig {
+  sender_name: string;
+  reply_to: string;
+  resolved_from: string;
+  resolved_reply_to: string | null;
+  domain_configured: boolean;
 }
 
 interface PreviewResult {
@@ -62,6 +85,10 @@ export default function MarketingPage() {
   const [preview, setPreview] = useState<PreviewResult | null>(null);
   const [busy, setBusy] = useState<"ai" | "preview" | "send" | null>(null);
   const [result, setResult] = useState<string | null>(null);
+  const [openedCampaign, setOpenedCampaign] = useState<CampaignListRow | null>(null);
+  const [recipients, setRecipients] = useState<RecipientRow[] | null>(null);
+  const [sender, setSender] = useState<SenderConfig | null>(null);
+  const [senderSaved, setSenderSaved] = useState(false);
 
   const segment: SegmentDef = useMemo(() => {
     switch (segKind) {
@@ -78,13 +105,51 @@ export default function MarketingPage() {
     if (!activeTenant) return;
     const { data } = await supabase
       .from("campaigns")
-      .select("id, name, channel, status, recipient_count, sent_count, failed_count, created_at")
+      .select("id, name, channel, status, recipient_count, sent_count, failed_count, created_at, subject, body, segment")
       .eq("tenant_id", activeTenant.id)
       .order("created_at", { ascending: false })
       .limit(50);
     setCampaigns((data || []) as CampaignListRow[]);
   };
+
+  // Open a past campaign: show what was sent and, per recipient, what happened
+  // (sent / skipped-no-email / failed-with-Meta-error). This is the only place
+  // the owner can see WHY a send of 11 delivered 9.
+  const openCampaign = async (c: CampaignListRow) => {
+    setOpenedCampaign(c);
+    setRecipients(null);
+    const { data } = await supabase
+      .from("campaign_recipients")
+      .select("id, status, error, guests(name, phone, email)")
+      .eq("campaign_id", c.id)
+      .order("status");
+    setRecipients((data || []) as unknown as RecipientRow[]);
+  };
   useEffect(() => { void loadCampaigns(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [activeTenant?.id]);
+
+  // Email identity (display name + reply-to) — what the guest sees in the inbox.
+  useEffect(() => {
+    if (!activeTenant) return;
+    let alive = true;
+    void fetch(`/api/marketing/sender?tenant_id=${activeTenant.id}`)
+      .then((r) => r.json())
+      .then((j) => { if (alive && j?.success) setSender(j as SenderConfig); })
+      .catch(() => {});
+    return () => { alive = false; };
+  }, [activeTenant?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const saveSender = async () => {
+    if (!sender) return;
+    const json = await post("/api/marketing/sender", {
+      sender_name: sender.sender_name,
+      reply_to: sender.reply_to,
+    }, "PATCH");
+    if (json?.success) {
+      setSender({ ...sender, resolved_from: json.resolved_from, resolved_reply_to: json.resolved_reply_to });
+      setSenderSaved(true);
+      setTimeout(() => setSenderSaved(false), 2000);
+    }
+  };
 
   // Segment or channel changed → the last preview no longer matches.
   useEffect(() => { setPreview(null); }, [segKind, segDays, segTag, segMonth, channel]);
@@ -146,6 +211,16 @@ export default function MarketingPage() {
 
   const canSend = !!name.trim() && !!body.trim() && (channel !== "email" || !!subject.trim());
   const reachOnChannel = preview ? (channel === "email" ? preview.with_email : preview.with_phone) : null;
+
+  // Raw ledger errors → something the owner can act on. Unknown provider errors
+  // pass through verbatim (a Meta code beats a shrug).
+  const humanError = (error: string): string => {
+    if (error === "no_email") return t("mkt_err_no_email");
+    if (error === "no_phone") return t("mkt_err_no_phone");
+    if (error.includes("131030")) return t("mkt_err_not_allowed");
+    if (error.includes("132001")) return t("mkt_err_no_template");
+    return error;
+  };
 
   return (
     <div className="p-4 sm:p-8 space-y-6">
@@ -222,6 +297,49 @@ export default function MarketingPage() {
             </div>
           </div>
 
+          {/* Email identity. The address is locked to the platform's verified
+              domain (an ESP won't relay an unverified one), so what the owner
+              controls is the NAME the guest reads and where a Reply lands. */}
+          {channel === "email" && sender && (
+            <div className="rounded-lg border-2 p-3 space-y-3" style={{ borderColor: "rgba(196,149,106,0.5)", background: "rgba(196,149,106,0.08)" }}>
+              <div className="flex items-center justify-between gap-2">
+                <label className="text-sm font-bold text-black">{t("mkt_sender_label")}</label>
+                {senderSaved && <span className="text-xs font-semibold text-emerald-700">{t("mkt_sender_saved")}</span>}
+              </div>
+              <div className="grid sm:grid-cols-2 gap-2">
+                <div>
+                  <label className="block text-xs font-semibold text-black mb-1">{t("mkt_sender_name")}</label>
+                  <input
+                    value={sender.sender_name}
+                    onChange={(e) => setSender({ ...sender, sender_name: e.target.value })}
+                    onBlur={() => void saveSender()}
+                    placeholder={activeTenant?.name || ""}
+                    className={INPUT}
+                    style={{ ...INPUT_STYLE, background: "#fff" }}
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-black mb-1">{t("mkt_sender_replyto")}</label>
+                  <input
+                    type="email"
+                    value={sender.reply_to}
+                    onChange={(e) => setSender({ ...sender, reply_to: e.target.value })}
+                    onBlur={() => void saveSender()}
+                    placeholder="info@ristorante.com"
+                    className={INPUT}
+                    style={{ ...INPUT_STYLE, background: "#fff" }}
+                  />
+                </div>
+              </div>
+              <p className="text-xs text-black">
+                {t("mkt_sender_from_note")} <span className="font-semibold">{sender.resolved_from}</span>
+              </p>
+              {!sender.domain_configured && (
+                <p className="text-xs font-semibold text-amber-700">{t("mkt_sender_domain_warning")}</p>
+              )}
+            </div>
+          )}
+
           {channel === "email" && (
             <div>
               <label className="block text-sm font-bold text-black mb-1">{t("mkt_subject_label")}</label>
@@ -250,7 +368,7 @@ export default function MarketingPage() {
 
           <PhoneMock
             channel={channel}
-            senderName={activeTenant?.name || ""}
+            senderName={(channel === "email" && sender?.sender_name.trim()) || activeTenant?.name || ""}
             subject={subject}
             body={body}
             sampleName={t("mkt_preview_sample_name")}
@@ -317,20 +435,110 @@ export default function MarketingPage() {
         ) : (
           <div className="rounded-xl border-2 overflow-hidden" style={CARD}>
             {campaigns.map((c, i) => (
-              <div key={c.id} className={`flex items-center justify-between gap-2 px-4 py-3 ${i ? "border-t" : ""}`} style={{ borderColor: "rgba(196,149,106,0.3)" }}>
+              <button
+                key={c.id}
+                type="button"
+                onClick={() => void openCampaign(c)}
+                className={`w-full text-left flex items-center justify-between gap-2 px-4 py-3 cursor-pointer hover:bg-[#c4956a]/10 ${i ? "border-t" : ""}`}
+                style={{ borderColor: "rgba(196,149,106,0.3)" }}
+              >
                 <div className="min-w-0">
                   <p className="text-sm font-bold text-black truncate">{c.name}</p>
                   <p className="text-xs text-black">{new Date(c.created_at).toLocaleDateString()} · {c.channel}</p>
                 </div>
-                <div className="text-right shrink-0">
-                  <p className="text-sm font-bold text-black">{c.sent_count}/{c.recipient_count}</p>
-                  <p className={`text-[10px] font-bold uppercase ${c.status === "sent" ? "text-emerald-700" : c.status === "failed" ? "text-red-600" : "text-black"}`}>{c.status}</p>
+                <div className="flex items-center gap-2 shrink-0">
+                  <div className="text-right">
+                    <p className="text-sm font-bold text-black">{c.sent_count}/{c.recipient_count}</p>
+                    <p className={`text-[10px] font-bold uppercase ${c.status === "sent" ? "text-emerald-700" : c.status === "failed" ? "text-red-600" : "text-black"}`}>{c.status}</p>
+                  </div>
+                  <ChevronRight className="w-4 h-4 text-black" />
                 </div>
-              </div>
+              </button>
             ))}
           </div>
         )}
       </div>
+
+      {/* Campaign detail drawer — what was sent, and what happened to each recipient */}
+      {openedCampaign && (
+        <>
+          <div className="fixed inset-0 bg-black/30 z-40" onClick={() => setOpenedCampaign(null)} />
+          <div className="fixed inset-y-0 right-0 w-full sm:w-[440px] border-l shadow-2xl z-50 flex flex-col"
+            style={{ background: "rgba(252,246,237,0.98)", borderColor: "#c4956a" }}>
+            <div className="px-5 py-4 flex items-start justify-between border-b" style={{ borderColor: "#c4956a" }}>
+              <div className="min-w-0">
+                <h2 className="text-lg font-bold text-black truncate">{openedCampaign.name}</h2>
+                <p className="text-xs text-black">
+                  {new Date(openedCampaign.created_at).toLocaleString()} · {openedCampaign.channel === "email" ? "Email" : "WhatsApp"}
+                </p>
+              </div>
+              <button onClick={() => setOpenedCampaign(null)} className="p-2 hover:bg-[#c4956a]/10 rounded-full cursor-pointer">
+                <X className="w-5 h-5 text-black" />
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-5 space-y-5">
+              {/* Outcome counters */}
+              <div className="grid grid-cols-3 gap-2">
+                {([
+                  ["sent", openedCampaign.sent_count, "text-emerald-700"],
+                  ["failed", openedCampaign.failed_count, "text-red-600"],
+                  ["total", openedCampaign.recipient_count, "text-black"],
+                ] as const).map(([key, val, cls]) => (
+                  <div key={key} className="rounded-lg border-2 p-2 text-center" style={{ borderColor: "#c4956a", background: "rgba(252,246,237,0.6)" }}>
+                    <p className={`text-xl font-extrabold ${cls}`}>{val}</p>
+                    <p className="text-[10px] font-bold uppercase text-black">{t(`mkt_detail_${key}`)}</p>
+                  </div>
+                ))}
+              </div>
+
+              {/* What was actually sent */}
+              <div>
+                <h3 className="text-xs font-bold text-black uppercase tracking-wider mb-2">{t("mkt_detail_content")}</h3>
+                <div className="rounded-lg border-2 p-3 space-y-2" style={{ borderColor: "#c4956a", background: "#fff" }}>
+                  {openedCampaign.subject && (
+                    <p className="text-sm font-bold text-black border-b pb-2" style={{ borderColor: "rgba(196,149,106,0.3)" }}>
+                      {openedCampaign.subject}
+                    </p>
+                  )}
+                  <p className="text-sm text-black whitespace-pre-wrap leading-relaxed">{openedCampaign.body}</p>
+                </div>
+              </div>
+
+              {/* Per-recipient outcome — the "why" behind a partial delivery */}
+              <div>
+                <h3 className="text-xs font-bold text-black uppercase tracking-wider mb-2">{t("mkt_detail_recipients")}</h3>
+                {recipients === null ? (
+                  <p className="text-sm text-black">…</p>
+                ) : recipients.length === 0 ? (
+                  <p className="text-sm text-black italic">{t("mkt_detail_no_recipients")}</p>
+                ) : (
+                  <div className="rounded-lg border-2 overflow-hidden" style={{ borderColor: "#c4956a" }}>
+                    {recipients.map((r, i) => {
+                      const Icon = r.status === "sent" ? CheckCircle2 : r.status === "failed" ? XCircle : MinusCircle;
+                      const cls = r.status === "sent" ? "text-emerald-700" : r.status === "failed" ? "text-red-600" : "text-black";
+                      const contact = openedCampaign.channel === "email" ? r.guests?.email : r.guests?.phone;
+                      return (
+                        <div key={r.id} className={`flex items-start gap-2 px-3 py-2 ${i ? "border-t" : ""}`}
+                          style={{ borderColor: "rgba(196,149,106,0.3)", background: "rgba(252,246,237,0.6)" }}>
+                          <Icon className={`w-4 h-4 mt-0.5 shrink-0 ${cls}`} />
+                          <div className="min-w-0 flex-1">
+                            <p className="text-sm font-semibold text-black truncate">{r.guests?.name || "—"}</p>
+                            <p className="text-xs text-black truncate">{contact || "—"}</p>
+                            {r.error && (
+                              <p className={`text-xs font-medium mt-0.5 ${cls}`}>{humanError(r.error)}</p>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </>
+      )}
     </div>
   );
 }
