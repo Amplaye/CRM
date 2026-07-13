@@ -7,8 +7,9 @@ import Link from "next/link";
 import {
   ArrowLeft, Bot, AlertTriangle, MessageSquare, Calendar,
   Phone, TrendingUp, UserX, Zap, Clock, Lightbulb, DollarSign, ShieldCheck, Eye,
-  CheckCircle2, XCircle, AlertCircle, Package, LogIn, Sliders, StickyNote, Trash2, Save, CreditCard, ExternalLink, Coins,
+  CheckCircle2, XCircle, AlertCircle, Package, LogIn, Sliders, StickyNote, Trash2, Save, CreditCard, ExternalLink,
 } from "lucide-react";
+import { CoinIcon } from "@/components/ui/CoinIcon";
 import { TENANT_STATUSES, type TenantStatus } from "@/lib/tenants/status";
 import { getRawFeatures, type TenantFeatures } from "@/lib/types/tenant-settings";
 import { entitlementFor, hasActivePlan } from "@/lib/billing/entitlements";
@@ -986,7 +987,7 @@ export default function TenantDetailPage() {
           read as "exhausted" forever). */}
       <div className="rounded-xl border-2 p-4" style={cardStyle}>
         <div className="flex items-center gap-2 mb-3">
-          <Coins className="w-4 h-4 text-[#c4956a]" />
+          <CoinIcon className="w-4 h-4 text-[#c4956a]" />
           <h3 className="text-xs font-bold text-black uppercase tracking-wider">Crediti</h3>
         </div>
 

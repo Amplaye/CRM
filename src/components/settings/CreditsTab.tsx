@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
-import { Coins, Loader2, CheckCircle2 } from "lucide-react";
+import { Loader2, CheckCircle2 } from "lucide-react";
+import { CoinIcon } from "@/components/ui/CoinIcon";
 import { createClient } from "@/lib/supabase/client";
 import { useTenant } from "@/lib/contexts/TenantContext";
 import { useLanguage } from "@/lib/contexts/LanguageContext";
@@ -203,7 +204,7 @@ export function CreditsTab() {
     <div className="space-y-6">
       <div>
         <h2 className="text-lg font-bold text-black flex items-center gap-2">
-          <Coins className="w-5 h-5" />
+          <CoinIcon className="w-5 h-5" />
           {t(tk("credits_title")) || "Crediti"}
         </h2>
         <p className="text-sm text-black mt-1">

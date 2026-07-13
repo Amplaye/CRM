@@ -1,7 +1,8 @@
 "use client";
 
 import { Suspense, useState, useEffect } from "react";
-import { Settings as SettingsIcon, ToggleRight, CalendarClock, LineChart, Plug, CreditCard, Tags, MessageCircle, Coins, Mail, Landmark } from "lucide-react";
+import { Settings as SettingsIcon, ToggleRight, CalendarClock, LineChart, Plug, CreditCard, Tags, MessageCircle, Mail, Landmark } from "lucide-react";
+import { CoinIcon } from "@/components/ui/CoinIcon";
 import { useSearchParams, useRouter, usePathname } from "next/navigation";
 import { useLanguage } from "@/lib/contexts/LanguageContext";
 import { useTenant } from "@/lib/contexts/TenantContext";
@@ -200,7 +201,7 @@ function SettingsContent() {
             className={`inline-flex shrink-0 whitespace-nowrap items-center gap-2 px-4 py-2 text-sm font-medium border-b-2 transition-colors cursor-pointer ${tab === "credits" ? "text-black" : "text-black hover:text-black border-transparent"}`}
             style={tab === "credits" ? { borderColor: "#c4956a" } : {}}
           >
-            <Coins className="w-4 h-4" />
+            <CoinIcon className="w-4 h-4" />
             {t("settings_tab_credits") || "Crediti"}
           </button>
         )}
