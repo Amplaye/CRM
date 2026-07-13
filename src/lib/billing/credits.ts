@@ -70,6 +70,56 @@ export async function getCreditBalance(
 }
 
 /**
+ * Has this wallet EVER been funded?
+ *
+ * A zero balance is two completely different situations wearing the same face:
+ *
+ *   1. The tenant was sold credits and has spent them all. They are OUT, and the
+ *      gates should stop them. That is the system working.
+ *   2. The tenant was NEVER put on the credits system at all — nobody granted
+ *      them an allowance, they have no subscription, nobody ever charged them.
+ *      They are not out of credits; they are OUTSIDE the credits system.
+ *
+ * The balance alone cannot tell them apart, and `credit_balances` having a row
+ * proves nothing either: `consume_credits` materializes a zeroed row on first
+ * use, so the very act of checking creates the evidence. The ledger is the only
+ * durable witness — a wallet that was ever funded has at least one positive
+ * `credit_events` entry (every grant writes one, plan resets and admin gifts
+ * alike).
+ *
+ * Getting this wrong is not a rounding error. Treating (2) as (1) silences the
+ * WhatsApp bot of every restaurant we never provisioned, and makes the CRM refuse
+ * its own AI features — a blackout caused entirely by billing WE never set up.
+ * That is exactly what happened on 2026-07-13.
+ *
+ * Fails toward "not funded" — i.e. toward letting the action through — for the
+ * same reason as everything else in this file: a broken meter must not close a
+ * restaurant.
+ */
+export async function walletEverFunded(
+  tenantId: string,
+  client?: ServiceClient,
+): Promise<boolean> {
+  try {
+    const svc = client ?? createServiceRoleClient();
+    const { data, error } = await svc
+      .from("credit_events")
+      .select("id")
+      .eq("tenant_id", tenantId)
+      .gt("credits_mc", 0)
+      .limit(1);
+    if (error) {
+      console.error("[credits] ledger read failed, treating as unfunded", tenantId, error.message);
+      return false; // fail-open: unfunded ⇒ never blocked
+    }
+    return Array.isArray(data) && data.length > 0;
+  } catch (e) {
+    console.error("[credits] ledger read threw, treating as unfunded", tenantId, e);
+    return false; // fail-open
+  }
+}
+
+/**
  * 403 `{ error: "credits_exhausted", needed_mc, remaining_mc }` when the wallet
  * can't cover the action; `null` when it can (caller proceeds).
  *
@@ -78,7 +128,8 @@ export async function getCreditBalance(
  * chunks) so we refuse the WHOLE job up front instead of running out halfway
  * through and leaving a campaign half-sent.
  *
- * Fails OPEN: an unreadable wallet lets the action through (see the file header).
+ * Fails OPEN: an unreadable wallet lets the action through (see the file header),
+ * and so does a wallet that was never funded (see walletEverFunded).
  */
 export async function assertCredits(
   tenantId: string,
@@ -98,6 +149,12 @@ export async function assertCredits(
   }
 
   if (balance.totalRemainingMc < needed) {
+    // Empty — but only block a tenant who actually HAS a wallet to empty.
+    // A tenant nobody ever granted credits to is not out of credits; refusing
+    // them would be us breaking their restaurant over our own un-provisioned
+    // billing. Let them through, unmetered.
+    if (!(await walletEverFunded(tenantId, client))) return null;
+
     return NextResponse.json(
       {
         error: "credits_exhausted",

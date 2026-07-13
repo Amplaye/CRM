@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { assertAiSecret } from "@/lib/ai-auth";
 import { assertRateLimit } from "@/lib/rate-limit";
-import { consumeCredits, getCreditBalance } from "@/lib/billing/credits";
+import { consumeCredits, getCreditBalance, walletEverFunded } from "@/lib/billing/credits";
 import { ACTION_MC, type CreditAction } from "@/lib/billing/credits-catalog";
 
 // POST /api/credits/consume — the meter for work that happens OUTSIDE the CRM.
@@ -55,17 +55,33 @@ export async function POST(request: Request) {
   });
 
   if (!result.ok) {
-    // Two different reasons land here: the wallet is genuinely empty, or the
-    // debit itself failed (DB blip). Tell them apart — an empty wallet must
-    // silence the bot, but OUR outage must not. Read the balance: if there's
-    // credit there, the failure was ours, so let the bot answer (fail-open,
-    // consistent with credits.ts) and eat the cost.
+    // THREE different reasons land here, and only one of them may silence a bot:
+    //
+    //   a) the debit itself failed (DB blip) — OUR outage. Let the bot answer.
+    //   b) the tenant was never put on the credits system at all — nobody granted
+    //      them anything. They are not out of credits, they are outside the
+    //      system. Blocking them would take a restaurant's bot down over billing
+    //      WE never provisioned. Let the bot answer, unmetered.
+    //   c) the tenant HAD credits and has spent them. Out. Block — that is the
+    //      whole point of the meter.
+    //
+    // (b) is not hypothetical: on 2026-07-13 this branch, which then only knew
+    // about (a) and (c), read every un-provisioned tenant as "exhausted" and the
+    // gate went out ready to silence all five live restaurants. A zero balance
+    // does not mean spent — walletEverFunded is what tells (b) from (c).
     const balance = await getCreditBalance(tenantId).catch(() => null);
     const needed = ACTION_MC[action as CreditAction] * Math.max(1, Math.ceil(qty));
-    const genuinelyExhausted = balance !== null && balance.totalRemainingMc < needed;
+    const emptyWallet = balance !== null && balance.totalRemainingMc < needed;
+    const genuinelyExhausted = emptyWallet && (await walletEverFunded(tenantId));
 
     if (!genuinelyExhausted) {
-      console.error("[credits/consume] debit failed but wallet looks funded — allowing", tenantId, action);
+      console.error(
+        emptyWallet
+          ? "[credits/consume] wallet never funded — tenant is not on the credits system, allowing"
+          : "[credits/consume] debit failed but wallet looks funded — allowing",
+        tenantId,
+        action,
+      );
       return NextResponse.json({
         ok: true,
         metered: false, // we let it through without charging
