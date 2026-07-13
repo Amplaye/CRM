@@ -53,18 +53,29 @@ describe('FEATURE_FLAGS', () => {
   // (smart_inventory): it must NOT appear as a client toggle (that would let an
   // owner unlock the gestionale for free). It's unlocked by purchase or the admin
   // manual override instead.
-  const PAID_ADDON_FLAGS = ['management_enabled'];
+  // `fiscal_enabled` is withheld for a different and heavier reason: flipping it
+  // makes the till a Spanish fiscal system (SIF), filing hash-chained records with
+  // the Agencia Tributaria under the client's own NIF — and making it REFUSE
+  // payments when the fiscal identity isn't configured. That follows a signed
+  // representation mandate, never a switch the client can find on their own.
+  const NOT_SELF_SERVE = ['management_enabled', 'fiscal_enabled'];
 
   it('lists exactly the self-serve keys of TenantFeatures (paid add-ons excluded)', () => {
     const listed = FEATURE_FLAGS.map((f) => f.key).sort();
     const expected = Object.keys(DEFAULT_FEATURES)
-      .filter((k) => !PAID_ADDON_FLAGS.includes(k))
+      .filter((k) => !NOT_SELF_SERVE.includes(k))
       .sort();
     expect(listed).toEqual(expected);
   });
 
   it('does NOT expose management_enabled as a client toggle', () => {
     expect(FEATURE_FLAGS.map((f) => f.key)).not.toContain('management_enabled');
+  });
+
+  it('does NOT expose fiscal_enabled as a client toggle', () => {
+    // A client who could switch this on would be declaring their own till a fiscal
+    // system, under their own NIF, without a mandate. It lives in Settings → Fiscale.
+    expect(FEATURE_FLAGS.map((f) => f.key)).not.toContain('fiscal_enabled');
   });
 });
 

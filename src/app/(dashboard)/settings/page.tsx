@@ -1,7 +1,7 @@
 "use client";
 
 import { Suspense, useState, useEffect } from "react";
-import { Settings as SettingsIcon, ToggleRight, CalendarClock, LineChart, Plug, CreditCard, Tags, MessageCircle, Zap } from "lucide-react";
+import { Settings as SettingsIcon, ToggleRight, CalendarClock, LineChart, Plug, CreditCard, Tags, MessageCircle, Coins, Mail, Landmark } from "lucide-react";
 import { useSearchParams, useRouter, usePathname } from "next/navigation";
 import { useLanguage } from "@/lib/contexts/LanguageContext";
 import { useTenant } from "@/lib/contexts/TenantContext";
@@ -12,11 +12,13 @@ import { ManagementTab } from "@/components/settings/ManagementTab";
 import { PosTab } from "@/components/settings/PosTab";
 import { PaymentsTab } from "@/components/settings/PaymentsTab";
 import { CreditsTab } from "@/components/settings/CreditsTab";
+import { FiscalTab } from "@/components/settings/FiscalTab";
 import { CommercialInfoTab } from "@/components/settings/CommercialInfoTab";
 import { WhatsAppTab } from "@/components/settings/WhatsAppTab";
+import { EmailTab } from "@/components/settings/EmailTab";
 import { getFeatures } from "@/lib/types/tenant-settings";
 
-type Tab = "general" | "booking" | "features" | "commercial" | "management" | "pos" | "payments" | "credits" | "whatsapp";
+type Tab = "general" | "booking" | "features" | "commercial" | "management" | "pos" | "payments" | "credits" | "whatsapp" | "email" | "fiscal";
 
 function SettingsContent() {
   const { t } = useLanguage();
@@ -25,7 +27,7 @@ function SettingsContent() {
   const router = useRouter();
   const pathname = usePathname();
 
-  const TABS: Tab[] = ["general", "booking", "features", "commercial", "management", "pos", "payments", "credits", "whatsapp"];
+  const TABS: Tab[] = ["general", "booking", "features", "commercial", "management", "pos", "payments", "credits", "whatsapp", "email"];
   const initial = (searchParams.get("tab") as Tab) || "general";
   const [tab, setTab] = useState<Tab>(TABS.includes(initial) ? initial : "general");
 
@@ -64,9 +66,18 @@ function SettingsContent() {
   // Credits = the prepaid AI meter + top-ups. Same authority as Payments: the
   // person who can see the balance is the person who pays to refill it.
   const canSeeCreditsTab = activeRole === "owner" || globalRole === "platform_admin";
+  // Fiscale = VERI*FACTU (Spain). Shown only to Spanish tenants — for everyone else
+  // the tab would be an invitation to configure a tax regime they are not under. It
+  // is where the till becomes a fiscal system, so: owner (or Bali Flow staff) only.
+  const isSpanish = (activeTenant?.settings as any)?.compliance?.country === "ES";
+  const canSeeFiscalTab = (activeRole === "owner" || globalRole === "platform_admin") && isSpanish;
   // WhatsApp = self-service Meta connection. Owner-level (or Bali Flow staff
   // impersonating); every restaurant connects its own number, no add-on gate.
   const canSeeWhatsAppTab = activeRole === "owner" || globalRole === "platform_admin";
+  // Email = optional BYO Resend account + the monthly send counter. Owner-level:
+  // connecting an own account is a billing-shaped decision (it moves the send cost
+  // off the platform's plan and onto the tenant's own free tier).
+  const canSeeEmailTab = activeRole === "owner" || globalRole === "platform_admin";
 
   const setActiveTab = (next: Tab) => {
     setTab(next);
@@ -153,6 +164,16 @@ function SettingsContent() {
             {t("settings_tab_whatsapp") || "WhatsApp"}
           </button>
         )}
+        {canSeeEmailTab && (
+          <button
+            onClick={() => setActiveTab("email")}
+            className={`inline-flex shrink-0 whitespace-nowrap items-center gap-2 px-4 py-2 text-sm font-medium border-b-2 transition-colors cursor-pointer ${tab === "email" ? "text-black" : "text-black hover:text-black border-transparent"}`}
+            style={tab === "email" ? { borderColor: "#c4956a" } : {}}
+          >
+            <Mail className="w-4 h-4" />
+            {t("settings_tab_email" as never) || "Email"}
+          </button>
+        )}
         {canSeePaymentsTab && (
           <button
             onClick={() => setActiveTab("payments")}
@@ -163,13 +184,23 @@ function SettingsContent() {
             {t("settings_tab_payments") || "Pagamenti"}
           </button>
         )}
+        {canSeeFiscalTab && (
+          <button
+            onClick={() => setActiveTab("fiscal")}
+            className={`inline-flex shrink-0 whitespace-nowrap items-center gap-2 px-4 py-2 text-sm font-medium border-b-2 transition-colors cursor-pointer ${tab === "fiscal" ? "text-black" : "text-black hover:text-black border-transparent"}`}
+            style={tab === "fiscal" ? { borderColor: "#c4956a" } : {}}
+          >
+            <Landmark className="w-4 h-4" />
+            {t("settings_tab_fiscal")}
+          </button>
+        )}
         {canSeeCreditsTab && (
           <button
             onClick={() => setActiveTab("credits")}
             className={`inline-flex shrink-0 whitespace-nowrap items-center gap-2 px-4 py-2 text-sm font-medium border-b-2 transition-colors cursor-pointer ${tab === "credits" ? "text-black" : "text-black hover:text-black border-transparent"}`}
             style={tab === "credits" ? { borderColor: "#c4956a" } : {}}
           >
-            <Zap className="w-4 h-4" />
+            <Coins className="w-4 h-4" />
             {t("settings_tab_credits") || "Crediti"}
           </button>
         )}
@@ -183,7 +214,9 @@ function SettingsContent() {
       {tab === "pos" && canSeePosTab && <PosTab />}
       {tab === "payments" && canSeePaymentsTab && <PaymentsTab />}
       {tab === "credits" && canSeeCreditsTab && <CreditsTab />}
+      {tab === "fiscal" && canSeeFiscalTab && <FiscalTab />}
       {tab === "whatsapp" && canSeeWhatsAppTab && <WhatsAppTab />}
+      {tab === "email" && canSeeEmailTab && <EmailTab />}
     </div>
   );
 }

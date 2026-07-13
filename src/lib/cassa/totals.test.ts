@@ -319,3 +319,39 @@ describe("comandaStations", () => {
     expect(groups).toEqual([{ station: null, lines: [{ unit_price: 5, qty: 1, station: "  " }] }]);
   });
 });
+
+describe("vatBreakdown across tax regimes", () => {
+  // The cover charge used to be hardcoded at 10% — the Italian somministrazione
+  // rate. Under IGIC there IS no 10% band, so a Canary receipt built on that
+  // constant is not slightly wrong, it is unfileable.
+  const IGIC = { defaultRate: 7, coverRate: 7 };
+
+  it("puts un-rated lines on the regime's service rate, not on Italy's", () => {
+    const rows = vatBreakdown({ covers: 0 }, [{ unit_price: 10.7, qty: 1 }], IGIC);
+    expect(rows).toEqual([{ rate: 7, gross: 10.7, net: 10.0, tax: 0.7 }]);
+  });
+
+  it("puts the coperto on the regime's service rate", () => {
+    const rows = vatBreakdown({ covers: 2, cover_unit: 1.07 }, [], IGIC);
+    expect(rows).toEqual([{ rate: 7, gross: 2.14, net: 2.0, tax: 0.14 }]);
+  });
+
+  it("keeps Italy's 10% when no regime is passed (every existing caller)", () => {
+    const rows = vatBreakdown({ covers: 1, cover_unit: 2.2 }, [{ unit_price: 11, qty: 1 }]);
+    expect(rows).toEqual([{ rate: 10, gross: 13.2, net: 12.0, tax: 1.2 }]);
+  });
+
+  it("still sums EXACTLY to the bill total under a discount — now a legal property, not a cosmetic one", () => {
+    const order = { covers: 2, cover_unit: 1.5, discount_type: "percent", discount_value: 13 };
+    const lines = [
+      { unit_price: 3.33, qty: 3, vat_rate: 3 },
+      { unit_price: 7.77, qty: 1, vat_rate: 7 },
+    ];
+    const rows = vatBreakdown(order, lines, IGIC);
+    const gross = rows.reduce((s, r) => s + Math.round(r.gross * 100), 0);
+    expect(gross).toBe(Math.round(computeTotals(order, lines).total * 100));
+    for (const r of rows) {
+      expect(Math.round(r.net * 100) + Math.round(r.tax * 100)).toBe(Math.round(r.gross * 100));
+    }
+  });
+});

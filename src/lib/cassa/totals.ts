@@ -172,11 +172,24 @@ export function businessDateOf(timezone: string | null | undefined, at: Date = n
 // IVA (scorporo) — prices are VAT-INCLUSIVE, the receipt shows the breakdown
 // ---------------------------------------------------------------------------
 
-/** Restaurant service (somministrazione) default when an item has no rate. */
+/** Restaurant service (somministrazione) default when an item has no rate — the
+ * ITALIAN one. It used to be the only truth in the codebase; it is now merely the
+ * default, because a Canary tenant is on IGIC and has no 10% band at all. The
+ * effective rates arrive as a VatConfig from src/lib/fiscal/regions.ts. */
 export const DEFAULT_VAT_RATE = 10;
 
 /** The coperto is part of the service, so it carries the somministrazione rate. */
 export const COVER_VAT_RATE = 10;
+
+/** The two numbers the money math needs from the tenant's tax regime. Structurally
+ * identical to fiscal/regions.ts VatConfig, declared here so totals.ts stays pure:
+ * it RECEIVES the config, it never goes looking for one. */
+export interface VatConfig {
+  defaultRate: number;
+  coverRate: number;
+}
+
+const IT_VAT: VatConfig = { defaultRate: DEFAULT_VAT_RATE, coverRate: COVER_VAT_RATE };
 
 export interface VatLine {
   /** % rate, e.g. 10. */
@@ -189,9 +202,9 @@ export interface VatLine {
   tax: number;
 }
 
-function normalizeRate(rate: number | null | undefined): number {
+function normalizeRate(rate: number | null | undefined, fallback: number): number {
   const r = Number(rate);
-  return Number.isFinite(r) && r >= 0 && r <= 100 ? Math.round(r * 100) / 100 : DEFAULT_VAT_RATE;
+  return Number.isFinite(r) && r >= 0 && r <= 100 ? Math.round(r * 100) / 100 : fallback;
 }
 
 /**
@@ -199,20 +212,29 @@ function normalizeRate(rate: number | null | undefined): number {
  * spread across the rates proportionally to their gross, with the remainder
  * cents assigned largest-share-first so the rows always sum EXACTLY to the
  * bill total. Rates ascending; empty when the bill is zero.
+ *
+ * `vat` carries the tenant's regime (Italian rates when omitted, which is what
+ * every existing caller had baked in). Under VeriFactu this breakdown stops being
+ * a printout detail and becomes the desglose AEAT registers, so the rows summing
+ * exactly to the total is now a legal property, not a cosmetic one.
  */
-export function vatBreakdown(order: CassaOrderLike, lines: CassaLineLike[]): VatLine[] {
+export function vatBreakdown(
+  order: CassaOrderLike,
+  lines: CassaLineLike[],
+  vat: VatConfig = IT_VAT,
+): VatLine[] {
   // 1) gross per rate (line prices already include IVA and any variant delta)
   const grossC = new Map<number, number>();
   for (const l of lines) {
     if (!isActiveLine(l)) continue;
     const cents = Math.round((Number(l.qty) || 0) * toCents(l.unit_price));
     if (cents === 0) continue;
-    const rate = normalizeRate(l.vat_rate);
+    const rate = normalizeRate(l.vat_rate, vat.defaultRate);
     grossC.set(rate, (grossC.get(rate) || 0) + cents);
   }
   const covers = Math.max(0, Math.round(Number(order.covers) || 0));
   const coverC = covers * Math.max(0, toCents(order.cover_unit));
-  if (coverC > 0) grossC.set(COVER_VAT_RATE, (grossC.get(COVER_VAT_RATE) || 0) + coverC);
+  if (coverC > 0) grossC.set(vat.coverRate, (grossC.get(vat.coverRate) || 0) + coverC);
 
   const baseC = [...grossC.values()].reduce((s, c) => s + c, 0);
   if (baseC <= 0) return [];

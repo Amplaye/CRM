@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { requireCassaAccess, isAccess, loadOrder, getCassaSettings } from "@/lib/cassa/server";
 import {
   computeTotals,
+  vatBreakdown,
   remainingDue,
   toCents,
   fromCents,
@@ -13,6 +14,8 @@ import {
 import { logAuditEvent } from "@/lib/audit";
 import { logSystemEvent } from "@/lib/system-log";
 import { normalizeGiftCode } from "@/lib/gift-cards/gift-cards";
+import { getFiscalContext, assertFiscal, fiscalNow, toDesglose } from "@/lib/fiscal/server";
+import { flushSubmission } from "@/lib/fiscal/queue";
 
 // Settle a bill — the money moment of the whole cassa.
 //
@@ -20,17 +23,27 @@ import { normalizeGiftCode } from "@/lib/gift-cards/gift-cards";
 //   { tenant_id, payments: [{ method, amount, received? }] }
 //
 // What happens, in order:
-//   1. totals are recomputed server-side from the stored lines (client math is
-//      display-only, never trusted);
-//   2. the order is CLAIMED atomically (open → paid) so a double tap can't
-//      cash the same bill twice;
-//   3. a per-tenant/year receipt number is assigned (fn_cassa_next_receipt);
+//   1. the fiscal guard decides whether this till is even ALLOWED to issue a
+//      ticket (Spain: only when it is the declared SIF for its NIF);
+//   2. totals and the per-rate VAT breakdown are recomputed server-side from the
+//      stored lines (client math is display-only, never trusted);
+//   3. ONE transaction — fn_cassa_pay_atomic — claims the bill (open → paid),
+//      mints the receipt number, writes the canonical pos_sales row WITH its
+//      breakdown, and (Spain) chains + queues the fiscal record;
 //   4. payment rows are recorded (split bills = several rows);
-//   5. the sale is mirrored into pos_sales/pos_sale_items (provider "cassa") —
-//      the canonical feed P&L, food cost and menu engineering already read;
-//   6. stock is depleted per recipe via fn_consume_stock_for_sale_item.
-// Steps 5-6 are best-effort: a hiccup there must never un-cash a paid bill —
-// it gets logged to system_logs instead.
+//   5. sale lines are mirrored into pos_sale_items;
+//   6. stock is depleted per recipe via fn_consume_stock_for_sale_item;
+//   7. (Spain) the queued record is pushed to AEAT immediately, fire-and-forget.
+//
+// Step 3 is the change that matters. The claim and the receipt number used to be
+// two separate statements: if the second failed, the number was burned and the
+// sequence had a hole. Merely annoying in Italy — fatal under a hash-chained
+// register, where a hole is an unexplainable gap. Now the whole money moment
+// commits or none of it does.
+//
+// Steps 4-7 remain best-effort: a hiccup there must never un-cash a paid bill —
+// it gets logged to system_logs instead. The fiscal record is NOT in that group:
+// it is inside the transaction, because an unregistered sale is the offence.
 
 const METHODS: CassaPaymentMethod[] = ["cash", "card", "online", "meal_voucher", "bank_transfer", "gift_card", "other"];
 
@@ -47,6 +60,13 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
   const access = await requireCassaAccess(tenantId);
   if (!isAccess(access)) return access;
   const { svc, userId } = access;
+
+  // May this till legally issue a ticket at all? Asked BEFORE anything is claimed:
+  // a Spanish venue whose invoices come out of an external POS, or whose fiscal
+  // identity was never configured, must be told no while it can still be told no.
+  const fiscal = await getFiscalContext(svc, tenantId!);
+  const denied = assertFiscal(fiscal);
+  if (denied) return denied;
 
   const loaded = await loadOrder(svc, id);
   if (!loaded || loaded.order.tenant_id !== tenantId) {
@@ -168,49 +188,59 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
     session = created;
   }
 
-  // ---- claim the bill atomically (double-tap safe) ---------------------------
-  const nowIso = new Date().toISOString();
+  // ---- the money moment: ONE transaction -------------------------------------
+  // Claim + receipt number + canonical sale + (Spain) the chained fiscal record.
+  // If the fiscal record is rejected — a desglose that doesn't add up, a broken
+  // chain — the whole thing rolls back: the order stays OPEN, the counter doesn't
+  // move, and the till says no. A refused payment is recoverable; an unregistered
+  // one is an offence.
+  const now = new Date();
+  const nowIso = now.toISOString();
   const { timezone } = await getCassaSettings(svc, tenantId!);
   const businessDate = businessDateOf(timezone);
   const receiptYear = Number(businessDate.slice(0, 4));
 
-  const { data: claimed, error: claimErr } = await svc
-    .from("cassa_orders")
-    .update({
-      status: "paid",
-      closed_at: nowIso,
-      session_id: session.id,
-      subtotal: totals.subtotal,
-      total: totals.total,
-      receipt_date: businessDate,
-      receipt_year: receiptYear,
-      updated_at: nowIso,
-    })
-    .eq("id", id)
-    .eq("status", "open")
-    .select("id")
-    .maybeSingle();
-  if (claimErr) return NextResponse.json({ error: claimErr.message }, { status: 500 });
-  if (!claimed) return NextResponse.json({ error: "order_not_open" }, { status: 409 });
+  const vatRows = vatBreakdown(order, items, fiscal.vat);
+  const cuotaTotal = fromCents(vatRows.reduce((s, r) => s + toCents(r.tax), 0));
+  const netTotal = fromCents(vatRows.reduce((s, r) => s + toCents(r.net), 0));
 
-  // ---- receipt number --------------------------------------------------------
-  let receiptNumber: number | null = null;
-  const { data: nextNo, error: counterErr } = await svc.rpc("fn_cassa_next_receipt", {
+  const { data: paid, error: payRpcErr } = await svc.rpc("fn_cassa_pay_atomic", {
     p_tenant_id: tenantId,
+    p_order_id: id,
+    p_session_id: session.id,
+    p_business_date: businessDate,
     p_year: receiptYear,
+    p_closed_at: nowIso,
+    p_subtotal: totals.subtotal,
+    p_total: totals.total,
+    p_discount: totals.discountAmount,
+    p_net_total: netTotal,
+    p_cuota_total: cuotaTotal,
+    p_desglose: toDesglose(fiscal, vatRows),
+    p_channel: order.channel,
+    p_covers: order.covers,
+    p_payment_method: payments.length > 0 ? dominantMethod(payments) : "other",
+    p_fiscal: fiscal.register,
+    p_obligado_id: fiscal.obligadoId,
+    p_serie: fiscal.serie,
+    p_fecha_hora_huso: fiscal.register ? fiscalNow(fiscal, now) : null,
+    p_sistema: fiscal.sistema,
   });
-  if (!counterErr && typeof nextNo === "number") {
-    receiptNumber = nextNo;
-    await svc.from("cassa_orders").update({ receipt_number: receiptNumber }).eq("id", id);
-  } else {
+  if (payRpcErr) {
     await logSystemEvent({
       tenant_id: tenantId,
       category: "api_error",
-      severity: "high",
-      title: "Cassa: numero scontrino non assegnato",
-      description: `Ordine ${id} pagato ma fn_cassa_next_receipt è fallita: ${counterErr?.message || "no number"}`,
+      severity: "critical",
+      title: "Cassa: pagamento rifiutato",
+      description: `Ordine ${id} NON incassato (transazione annullata): ${payRpcErr.message}`,
     });
+    return NextResponse.json({ error: "pay_failed", detail: payRpcErr.message }, { status: 500 });
   }
+  if (!paid?.claimed) return NextResponse.json({ error: "order_not_open" }, { status: 409 });
+
+  const receiptNumber: number | null = paid.receipt_number ?? null;
+  const saleId: string | null = paid.sale_id ?? null;
+  const fiscalRecordId: string | null = paid.fiscal_record_id ?? null;
 
   // ---- gift cards: burn the balance now that the bill is claimed --------------
   // Optimistic lock on the balance we just read: a concurrent redemption of the
@@ -296,8 +326,13 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
     }
   }
 
-  // ---- best-effort side effects: canonical sale + stock ------------------------
+  // ---- best-effort side effects: sale lines + stock ----------------------------
+  // The pos_sales HEADER is written by the RPC (in the paid transaction, with its
+  // net_total/tax_total finally populated). Only the LINES are written here: they
+  // feed menu engineering, and a hiccup on them must not un-cash a paid bill.
   try {
+    if (!saleId) throw new Error("pos_sales header missing from fn_cassa_pay_atomic");
+
     // Category names give menu engineering its grouping for free.
     const menuIds = [...new Set(activeItems.map((i) => i.menu_item_id).filter(Boolean))] as string[];
     const categoryByMenuId = new Map<string, string | null>();
@@ -311,30 +346,9 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
       }
     }
 
-    const { data: sale, error: saleErr } = await svc
-      .from("pos_sales")
-      .insert({
-        tenant_id: tenantId,
-        provider: "cassa",
-        external_id: id,
-        channel: order.channel,
-        business_date: businessDate,
-        closed_at: nowIso,
-        currency: "EUR",
-        gross_total: totals.total,
-        discount_total: totals.discountAmount,
-        covers: order.channel === "sala" && order.covers > 0 ? order.covers : null,
-        payment_method: payments.length > 0 ? dominantMethod(payments) : "other",
-        order_ref: receiptNumber ? `cassa #${receiptNumber}/${receiptYear}` : `cassa ${id.slice(0, 8)}`,
-        raw_payload: { source: "cassa_nativa", order_id: id, receipt_number: receiptNumber, receipt_year: receiptYear },
-      })
-      .select("id")
-      .single();
-    if (saleErr) throw new Error(`pos_sales: ${saleErr.message}`);
-
     const saleItems = activeItems.map((i) => ({
       tenant_id: tenantId,
-      sale_id: sale.id,
+      sale_id: saleId,
       name: i.name,
       category: i.menu_item_id ? categoryByMenuId.get(i.menu_item_id) ?? null : null,
       quantity: i.qty,
@@ -346,7 +360,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
     if (totals.coverTotal > 0) {
       saleItems.push({
         tenant_id: tenantId as any,
-        sale_id: sale.id,
+        sale_id: saleId,
         name: "Coperto",
         category: null,
         quantity: order.covers,
@@ -365,7 +379,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
       tenant_id: tenantId,
       category: "api_error",
       severity: "high",
-      title: "Cassa: vendita non replicata su pos_sales",
+      title: "Cassa: righe vendita non replicate su pos_sale_items",
       description: `Ordine ${id} (scontrino ${receiptNumber ?? "—"}): ${err instanceof Error ? err.message : String(err)}`,
     });
   }
@@ -391,6 +405,15 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
     }
   }
 
+  // ---- push the record to AEAT, now, without making the guest wait -------------
+  // The record is already committed and queued, so this is pure latency reduction:
+  // if the network is down the submission stays `pending` and the hourly flush
+  // picks it up. The one thing that must never happen is the till refusing to take
+  // money because the Agencia Tributaria is slow.
+  if (fiscalRecordId) {
+    await flushSubmission(svc, fiscalRecordId).catch(() => {});
+  }
+
   await logAuditEvent({
     tenant_id: tenantId!,
     action: "cassa.pay",
@@ -403,6 +426,9 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
       payments: payments.map((p) => ({ method: p.method, amount: p.amount })),
       covers: order.covers,
       table: order.table_name,
+      num_serie: paid.num_serie ?? null,
+      fiscal_record_id: fiscalRecordId,
+      huella: paid.huella ?? null,
     },
   });
 
@@ -423,5 +449,17 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
     receipt_number: receiptNumber,
     receipt_year: receiptYear,
     change: fromCents(changeC),
+    // The printout needs these to draw the QR and the VERI*FACTU legend. Absent for
+    // Italy, and PrintSheet keys off exactly that absence.
+    fiscal: fiscalRecordId
+      ? {
+          record_id: fiscalRecordId,
+          num_serie: paid.num_serie as string,
+          huella: paid.huella as string,
+          nif: fiscal.nif,
+          fecha: businessDate,
+          importe: totals.total,
+        }
+      : null,
   });
 }

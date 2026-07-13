@@ -4,6 +4,7 @@
     { "path": "/api/cron/pos-sync", "schedule": "30 2 * * *" },
     { "path": "/api/cron/reconcile-provisioning", "schedule": "15 4 * * *" },
     { "path": "/api/cron/data-retention", "schedule": "45 4 * * *" },
-    { "path": "/api/cron/credits-reset", "schedule": "20 5 * * *" }
+    { "path": "/api/cron/credits-reset", "schedule": "20 5 * * *" },
+    { "path": "/api/cron/fiscal-flush", "schedule": "50 5 * * *" }
   ]
 }

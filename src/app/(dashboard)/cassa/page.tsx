@@ -23,6 +23,7 @@ import {
   DEFAULT_VAT_RATE,
   type SessionSummary,
 } from "@/lib/cassa/totals";
+import type { FiscalStatus } from "@/lib/fiscal/status";
 import type {
   CassaDraftLine,
   CassaOrderFull,
@@ -82,6 +83,7 @@ export default function CassaPage() {
   const [receiptsDate, setReceiptsDate] = useState("");
   const [payOpen, setPayOpen] = useState(false);
   const [payResult, setPayResult] = useState<{ receiptNumber: number | null; receiptYear: number | null; change: number } | null>(null);
+  const [fiscal, setFiscal] = useState<FiscalStatus | null>(null);
   const [paidOrder, setPaidOrder] = useState<CassaOrderFull | null>(null);
   // FIFO of sheets to print: a multi-station comanda queues one sheet per
   // reparto and PrintSheet consumes the head, one print dialog after the other.
@@ -409,6 +411,26 @@ export default function CassaPage() {
   useEffect(() => {
     void loadReceipts();
   }, [loadReceipts]);
+
+  // The tenant's fiscal posture: which VAT regime the bill math runs on, and
+  // (Spain) the NIF the printed QR points at. Loaded once — it changes when an
+  // owner signs a mandate, not between two coffees.
+  useEffect(() => {
+    if (!tenantId) return;
+    let alive = true;
+    api<FiscalStatus>(`/api/fiscal/status?tenant_id=${tenantId}`)
+      .then((s) => {
+        if (alive) setFiscal(s);
+      })
+      .catch(() => {
+        // A till must not stop selling because a status probe failed. Falling back
+        // to null keeps today's Italian behaviour, and the SERVER re-checks the
+        // fiscal rules on every payment anyway — this is display, not enforcement.
+      });
+    return () => {
+      alive = false;
+    };
+  }, [tenantId]);
 
   useEffect(() => {
     if (view === "receipts") void loadReceipts();
@@ -870,10 +892,24 @@ export default function CassaPage() {
         total: fromCents(Math.round(i.qty * toCents(i.unit_price))),
       })),
       totals,
-      vat: vatBreakdown(order, order.items),
+      // The breakdown runs on the tenant's REGIME, not on Italy's 10%: a Canary
+      // till is on IGIC, where a 10% band does not exist.
+      vat: vatBreakdown(order, order.items, fiscal ? { defaultRate: fiscal.regime.defaultRate, coverRate: fiscal.regime.coverRate } : undefined),
       receipt: { number: order.receipt_number, year: order.receipt_year },
       payments: (order.payments || []).map((p) => ({ method: p.method, amount: p.amount, received: p.received })),
       change: fromCents(changeC),
+      // Only a ticket that was actually registered gets a QR. `fiscal_num_serie` is
+      // written by the payment transaction itself, so its presence means "AEAT has
+      // this one" — never a guess made at print time.
+      fiscal:
+        order.fiscal_num_serie && fiscal?.nif
+          ? {
+              nif: fiscal.nif,
+              numSerie: order.fiscal_num_serie,
+              fecha: order.receipt_date || (order.closed_at || "").slice(0, 10),
+              importe: totals.total,
+            }
+          : null,
     };
   };
 
@@ -1062,6 +1098,18 @@ export default function CassaPage() {
               {t("cassa_setup_needed_body")} <code>scripts/migrations/2026-07-04-cassa.sql</code>
             </p>
           </div>
+        </div>
+      )}
+
+      {/* Records the Agencia Tributaria hasn't accepted yet. Showing this is a legal
+          duty, not a courtesy — and it is deliberately not alarming: the tickets ARE
+          issued and chained, they just haven't gone out. A number that stays up for
+          hours is the signal that something needs looking at. */}
+      {fiscal && fiscal.pending > 0 && (
+        <div className="mb-4 rounded-xl border-2 border-amber-500 bg-amber-50 p-3 flex items-center gap-2 text-sm text-amber-900">
+          <AlertTriangle className="w-4 h-4 shrink-0" />
+          <span className="font-semibold">{fiscal.pending}</span>
+          <span>{t("fiscal_pending_badge")}</span>
         </div>
       )}
 

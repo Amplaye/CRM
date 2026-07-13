@@ -57,6 +57,7 @@ export interface TenantFeatures {
   website_enabled: boolean;    // public template micro-site at /s/<slug>
   gift_cards_enabled: boolean; // sell + redeem gift vouchers (public /g/<slug> + cassa redemption)
   loyalty_enabled: boolean;    // points/rewards per visit or spend
+  fiscal_enabled: boolean;     // Spain/VeriFactu: the cassa is a SIF — it chains and files every ticket with AEAT
 }
 
 /** Sensible defaults for an average restaurant. Chosen so existing tenants keep
@@ -97,6 +98,12 @@ export const DEFAULT_FEATURES: TenantFeatures = {
   website_enabled: false,
   gift_cards_enabled: false,
   loyalty_enabled: false,
+  // OFF by default, and NOT in FEATURE_FLAGS below — a client must never be able to
+  // switch this on themselves. Flipping it turns their till into a SIF: every ticket
+  // gets chained and filed with the Agencia Tributaria under their NIF, and the till
+  // starts REFUSING payments when the fiscal identity isn't configured. That is a
+  // decision that follows a signed representation mandate, not a toggle.
+  fiscal_enabled: false,
 };
 
 /** Ordered list driving the client-facing Settings → Funzionalità UI (label/hint
@@ -104,7 +111,11 @@ export const DEFAULT_FEATURES: TenantFeatures = {
  * not a free self-serve toggle. Owners unlock the gestionale by buying the add-on
  * (or we enable it for them via the admin manual override) — never by flipping a
  * switch in their own settings. Keeping it out of this list is what stops a client
- * from turning the paid module on for free. */
+ * from turning the paid module on for free.
+ *
+ * `fiscal_enabled` is ABSENT for the same structural reason and a heavier one: it
+ * makes the till a fiscal system filing under the client's NIF. It is turned on
+ * from Settings → Fiscale, and only once the obligado and the signed mandate exist. */
 export const FEATURE_FLAGS: ReadonlyArray<{ key: keyof TenantFeatures; labelKey: string; hintKey: string }> = [
   { key: "waitlist_enabled", labelKey: "settings_feature_waitlist", hintKey: "settings_feature_waitlist_hint" },
   { key: "double_shift", labelKey: "settings_feature_double_shift", hintKey: "settings_feature_double_shift_hint" },

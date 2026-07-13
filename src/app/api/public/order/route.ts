@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServiceRoleClient } from "@/lib/supabase/server";
 import { getFeatures } from "@/lib/types/tenant-settings";
+import { getFiscalContext, assertFiscal } from "@/lib/fiscal/server";
 import { loadOrder, recomputeOrder, getCassaSettings } from "@/lib/cassa/server";
 import { assertRateLimit } from "@/lib/rate-limit";
 import type { MenuItemVariant } from "@/lib/types";
@@ -58,6 +59,15 @@ export async function POST(req: NextRequest) {
   if (!getFeatures(tenant.settings as any).self_order_enabled) {
     return NextResponse.json({ error: "self_order_disabled" }, { status: 403 });
   }
+
+  // The same fiscal guard the till itself runs. This endpoint takes NO
+  // authentication — it's a guest's phone scanning a QR on the table — so without
+  // it a venue whose invoices legally come out of an external POS (or which has no
+  // fiscal identity at all) could still have bills opened on a till that is not
+  // allowed to issue them, by anyone who walks past.
+  const fiscal = await getFiscalContext(svc, tenant.id);
+  const denied = assertFiscal(fiscal);
+  if (denied) return denied;
 
   // The table must belong to THIS tenant (the QR encodes the id, but never
   // trust it to be in-tenant).

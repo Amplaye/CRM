@@ -34,6 +34,10 @@ export interface CassaOrderRow {
   receipt_number: number | null;
   receipt_year: number | null;
   receipt_date: string | null;
+  /** The invoice number AEAT knows this ticket by (Spain only; null everywhere
+   * else). Present on the order so a receipt can be re-printed WITH its QR long
+   * after the payment, without walking the hash chain to find it. */
+  fiscal_num_serie?: string | null;
   void_reason: string | null;
   created_at: string;
   updated_at: string;

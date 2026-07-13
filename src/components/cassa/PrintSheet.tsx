@@ -2,19 +2,32 @@
 
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
+import { QRCodeSVG } from "qrcode.react";
 import { useLanguage } from "@/lib/contexts/LanguageContext";
 import type { Dictionary } from "@/lib/i18n/dictionaries/en";
 import { fmtEur, type CassaTotals, type VatLine } from "@/lib/cassa/totals";
+import { aeatQrUrl } from "@/lib/fiscal/qr";
 
 // Browser-print rendering for the three cassa documents: comanda (kitchen
-// ticket, no prices), preconto and scontrino (non-fiscal courtesy receipt).
+// ticket, no prices), preconto and scontrino.
 // 72mm column → prints correctly on an 80mm thermal roll AND as a narrow
 // column on A4. The `visibility` trick hides the whole app during print
 // without disturbing its layout; the sheet itself is display:none on screen.
 //
-// Fiscal note: the printed receipt is explicitly marked "DOCUMENTO GESTIONALE
-// — NON FISCALE". The legal receipt must come from a certified RT device; this
-// print is the management copy (and the RT bridge is a future adapter).
+// Fiscal note — TWO receipts now come out of this one component:
+//
+//   • Italy (and any tenant with no fiscal identity): unchanged. The ticket is a
+//     courtesy copy and says so — "DOCUMENTO DI GESTIONE — NON FISCALE". The legal
+//     receipt still comes from a certified RT device.
+//
+//   • Spain, when the till is the declared SIF: the ticket IS the factura
+//     simplificada. So the non-fiscal disclaimer is REMOVED (printing it on a filed
+//     invoice would be a false statement), and the QR tributario goes at the very
+//     top — above everything, as the spec requires — with its two mandatory legends.
+//     A guest scans it and AEAT itself confirms the ticket was registered.
+//
+// The switch between the two is the presence of `fiscal` in the payload. Nothing
+// else in the component knows about Spain.
 
 export interface PrintLine {
   qty: number;
@@ -53,6 +66,16 @@ export type PrintPayload =
       receipt?: { number: number | null; year: number | null } | null;
       payments?: Array<{ method: string; amount: number; received?: number | null }>;
       change?: number;
+      /** Present ONLY when this ticket is a registered Spanish factura simplificada.
+       * Its presence is what turns the courtesy receipt into a fiscal one: it adds
+       * the QR and removes the "non-fiscal document" line. */
+      fiscal?: {
+        nif: string;
+        numSerie: string;
+        /** Business date, YYYY-MM-DD. */
+        fecha: string;
+        importe: number;
+      } | null;
     };
 
 const METHOD_KEYS: Record<string, string> = {
@@ -148,6 +171,32 @@ export function PrintSheet({ payload, onDone }: { payload: PrintPayload | null; 
           @page { margin: 4mm; size: 72mm auto; }
         }
       `}</style>
+
+      {/* The QR goes ABOVE everything — AEAT requires it in the upper part of the
+          invoice, and the guest must find it without hunting. 35mm square, error
+          correction M, with 2mm of quiet zone so a thermal head's bleed can't eat
+          the finder patterns. qrcode.react emits SVG, so it stays sharp at whatever
+          resolution the printer runs at. */}
+      {payload.kind === "bill" && payload.variant === "scontrino" && payload.fiscal ? (
+        <div style={{ textAlign: "center", marginBottom: 4 }}>
+          <div style={{ fontSize: 10, fontWeight: 700 }}>{t("cassa_print_qr_above")}</div>
+          <div style={{ display: "flex", justifyContent: "center", padding: "2mm" }}>
+            <QRCodeSVG
+              value={aeatQrUrl({
+                nif: payload.fiscal.nif,
+                numSerie: payload.fiscal.numSerie,
+                fecha: payload.fiscal.fecha,
+                importe: payload.fiscal.importe,
+              })}
+              size={132}
+              level="M"
+              marginSize={0}
+              style={{ width: "35mm", height: "35mm" }}
+            />
+          </div>
+          <div style={{ fontSize: 11, fontWeight: 700 }}>{t("cassa_print_qr_below")}</div>
+        </div>
+      ) : null}
 
       <div style={{ textAlign: "center", fontWeight: 700, fontSize: 14 }}>{payload.venue}</div>
 
@@ -269,9 +318,20 @@ export function PrintSheet({ payload, onDone }: { payload: PrintPayload | null; 
             </>
           )}
           {sep}
-          <div style={{ textAlign: "center", fontWeight: 700, marginTop: 4 }}>
-            {t("cassa_print_nonfiscal")}
-          </div>
+          {payload.fiscal ? (
+            // A filed invoice must NOT claim to be a management document. The serie
+            // is printed because it is the number AEAT knows this ticket by — it's
+            // what the guest quotes if they ever have to.
+            <div style={{ textAlign: "center", marginTop: 4 }}>
+              <div style={{ fontSize: 11 }}>NIF: {payload.fiscal.nif}</div>
+              <div style={{ fontSize: 11 }}>{payload.fiscal.numSerie}</div>
+              <div style={{ fontSize: 10, marginTop: 2 }}>{t("cassa_print_fiscal_legend")}</div>
+            </div>
+          ) : (
+            <div style={{ textAlign: "center", fontWeight: 700, marginTop: 4 }}>
+              {t("cassa_print_nonfiscal")}
+            </div>
+          )}
           <div style={{ textAlign: "center", marginTop: 2 }}>{t("cassa_print_thanks")}</div>
         </>
       )}
