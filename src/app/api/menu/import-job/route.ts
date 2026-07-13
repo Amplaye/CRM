@@ -5,6 +5,7 @@ import { tryExtractDocText, resolveDocKind } from '@/lib/menu/doc-text';
 import { maybeSplitPdf } from '@/lib/menu/pdf-split';
 import { fetchUrlContent } from '@/lib/menu/fetch-url';
 import { MAX_UPLOAD_BYTES, MAX_UPLOAD_MB, resolveVisionMediaType, type VisionMediaType } from '@/lib/menu/limits';
+import { assertCredits, consumeCredits } from '@/lib/billing/credits';
 
 // Create an async menu-extraction job. Replaces the slow, synchronous
 // /api/menu/import-file: instead of blocking on the OpenAI call (which on a
@@ -96,6 +97,15 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Tenant not accessible' }, { status: 403 });
   }
 
+  // Credit gate BEFORE we store a multi-MB blob and wake the extractor. The
+  // vision cost scales with the number of chunks (a 4-page slice each), so a
+  // 20-page menu is charged as 5 units, not 1. A text-layer PDF/.docx/.csv comes
+  // through as a single non-vision unit (`file_chunks: null`).
+  const chunkCount =
+    payload.source === 'file' && payload.file_chunks ? payload.file_chunks.length : 1;
+  const credits = await assertCredits(tenantId, 'menu_import', chunkCount);
+  if (credits) return credits;
+
   // Insert the pending job via the service role (table writes are service-role
   // only by design — see the migration).
   const admin = createServiceRoleClient();
@@ -132,6 +142,16 @@ export async function POST(req: NextRequest) {
   } catch (e) {
     console.error('[menu import-job] worker kick threw', e);
   }
+
+  // Charged on dispatch, not on extraction success: the extractor runs in Deno
+  // (Supabase Edge) and can't reach this helper, and once it's awake it burns
+  // the vision tokens whether or not it ends up parsing a usable menu. Metering
+  // it here — where we know the tenant and the chunk count — is the honest place.
+  await consumeCredits(tenantId, 'menu_import', {
+    qty: chunkCount,
+    costEur: 0.05 * chunkCount,
+    metadata: { job_id: job.id, chunks: chunkCount, source: payload.source },
+  });
 
   return NextResponse.json({ ok: true, jobId: job.id }, { status: 202 });
 }

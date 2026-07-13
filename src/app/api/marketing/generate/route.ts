@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createServiceRoleClient } from "@/lib/supabase/server";
 import { verifyTenantMembership } from "@/lib/tenant-membership";
+import { assertCredits, consumeCredits } from "@/lib/billing/credits";
 
 // AI campaign copywriter (HappyChef-style): the owner gives a one-line brief
 // ("torna a trovarci, 10% sul menù degustazione"), the AI drafts the message
@@ -19,6 +20,9 @@ export async function POST(req: Request) {
 
     const key = process.env.OPENAI_API_KEY;
     if (!key) return NextResponse.json({ error: "ai_not_configured" }, { status: 503 });
+
+    const credits = await assertCredits(tenantId, "ai_text");
+    if (credits) return credits;
 
     const svc = createServiceRoleClient();
     const { data: tenant } = await svc.from("tenants").select("name, settings").eq("id", tenantId).maybeSingle();
@@ -47,6 +51,13 @@ export async function POST(req: Request) {
       json.output_text ||
       (json.output || []).flatMap((o) => o.content || []).map((c) => c.text || "").join("");
     const parsed = JSON.parse(text.replace(/^```json?\s*|\s*```$/g, ""));
+
+    // Charged on a usable draft only: a non-2xx OpenAI response threw above, and
+    // so does an unparseable one — both land in the catch, uncharged.
+    await consumeCredits(tenantId, "ai_text", {
+      costEur: 0.01,
+      metadata: { model: "gpt-4o", feature: "marketing_generate", channel },
+    });
 
     return NextResponse.json({ success: true, subject: parsed.subject || null, body: String(parsed.body || "") });
   } catch (e) {

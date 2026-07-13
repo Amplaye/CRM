@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createServiceRoleClient } from "@/lib/supabase/server";
 import { verifyTenantMembership } from "@/lib/tenant-membership";
+import { assertCredits, consumeCredits } from "@/lib/billing/credits";
 
 // AI-suggested reply to a guest review (owner approves/edits before saving —
 // this route only DRAFTS, it never writes). Same direct OpenAI Responses call
@@ -32,6 +33,9 @@ export async function POST(req: Request) {
       svc.from("tenants").select("name, settings").eq("id", tenantId).maybeSingle(),
     ]);
     if (!review || !tenant) return NextResponse.json({ error: "not_found" }, { status: 404 });
+
+    const credits = await assertCredits(tenantId, "ai_text");
+    if (credits) return credits;
 
     // Reply in the CRM dashboard language — the owner reads/approves it there.
     const locale = (tenant.settings as { crm_locale?: string } | null)?.crm_locale || "es";
@@ -66,6 +70,11 @@ export async function POST(req: Request) {
     const text =
       json.output_text ||
       (json.output || []).flatMap((o) => o.content || []).map((c) => c.text || "").join("");
+
+    await consumeCredits(tenantId, "ai_text", {
+      costEur: 0.01,
+      metadata: { model: "gpt-4o", feature: "review_reply", rating: review.rating },
+    });
 
     return NextResponse.json({ success: true, suggestion: text.trim() });
   } catch (e) {

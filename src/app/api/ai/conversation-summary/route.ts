@@ -4,6 +4,7 @@ import { createServiceRoleClient } from '@/lib/supabase/server';
 import { assertAiSecret } from '@/lib/ai-auth';
 import { logSystemEvent, resolveSystemEvents } from '@/lib/system-log';
 import { chatCompletion, chatCompletionsConfig } from '@/lib/openai-base-url';
+import { assertCredits, consumeCredits } from '@/lib/billing/credits';
 
 // Body:
 //   { conversation_id: string, language?: 'es'|'it'|'en', force?: boolean }
@@ -38,12 +39,15 @@ export async function POST(request: Request) {
     }
 
     const supabase = createServiceRoleClient();
-    let conv: { id: string; transcript: any; summary: string | null; language: string | null; channel: string; intent: string | null } | null = null;
+    // tenant_id is selected (not just taken from the body) because the
+    // conversation_id branch doesn't receive one — and without it the summary
+    // couldn't be metered against the tenant that's paying for it.
+    let conv: { id: string; tenant_id: string | null; transcript: any; summary: string | null; language: string | null; channel: string; intent: string | null } | null = null;
 
     if (conversation_id) {
       const { data, error } = await supabase
         .from('conversations')
-        .select('id, transcript, summary, language, channel, intent')
+        .select('id, tenant_id, transcript, summary, language, channel, intent')
         .eq('id', conversation_id)
         .maybeSingle();
       if (error) throw error;
@@ -69,7 +73,7 @@ export async function POST(request: Request) {
       }
       const { data: convs } = await supabase
         .from('conversations')
-        .select('id, transcript, summary, language, channel, intent')
+        .select('id, tenant_id, transcript, summary, language, channel, intent')
         .eq('tenant_id', tenant_id)
         .in('guest_id', matchIds)
         .gte('created_at', new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString())
@@ -85,6 +89,14 @@ export async function POST(request: Request) {
     const transcript = Array.isArray(conv.transcript) ? conv.transcript : [];
     if (transcript.length === 0) {
       return NextResponse.json({ ok: false, error: 'empty transcript' }, { status: 400 });
+    }
+
+    // Credit gate BEFORE queueing: the job runs after the response is sent, so a
+    // refusal in there would be invisible to the caller. Check here and 403 —
+    // the engine then knows the summary isn't coming.
+    if (conv.tenant_id) {
+      const credits = await assertCredits(conv.tenant_id, 'ai_text');
+      if (credits) return credits;
     }
 
     // Schedule the heavy work after the response is sent. The caller gets
@@ -105,7 +117,7 @@ export async function POST(request: Request) {
 }
 
 async function runSummaryJob(
-  conv: { id: string; transcript: any; summary: string | null; language: string | null; channel: string; intent: string | null },
+  conv: { id: string; tenant_id: string | null; transcript: any; summary: string | null; language: string | null; channel: string; intent: string | null },
   transcript: any[],
   requestedLang: string | undefined,
   force: boolean | undefined
@@ -187,6 +199,16 @@ async function runSummaryJob(
     const aiData = await aiResp.json();
     const summary = String(aiData?.choices?.[0]?.message?.content || '').trim();
     if (!summary) return;
+
+    // Charged on a real summary. (The gate ran in the POST handler; between it
+    // and here the balance can only have been spent by another action, and we're
+    // not going to refuse a summary we've already paid OpenAI for.)
+    if (conv.tenant_id) {
+      await consumeCredits(conv.tenant_id, 'ai_text', {
+        costEur: 0.01,
+        metadata: { model: 'gpt-5.1', feature: 'conversation_summary', conversation_id: conv.id },
+      });
+    }
 
     // Skip overwrite if existing summary is identical (idempotent re-trigger).
     if (!force && conv.summary === summary && conv.language === lang) return;

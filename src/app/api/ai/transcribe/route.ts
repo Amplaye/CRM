@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { createServiceRoleClient } from '@/lib/supabase/server';
 import { assertAiSecret } from '@/lib/ai-auth';
 import { assertRateLimit } from '@/lib/rate-limit';
+import { assertCredits, consumeCredits } from '@/lib/billing/credits';
 
 /**
  * Transcribe an inbound WhatsApp voice note so customers can book by audio.
@@ -54,6 +55,11 @@ export async function POST(request: Request) {
     console.error('[transcribe] OPENAI_API_KEY not set');
     return NextResponse.json({ error: 'Service misconfigured' }, { status: 503 });
   }
+
+  // Credit gate before we download the audio and call Whisper. The engine treats
+  // a 403 here as "no transcription available" and asks the customer to type.
+  const credits = await assertCredits(tenantId, 'transcription');
+  if (credits) return credits;
 
   // 1) Resolve the Meta access token + language hint for this tenant.
   let metaToken = (body.meta_token || '').trim();
@@ -143,6 +149,13 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Transcription failed', details: t.slice(0, 200) }, { status: 502 });
     }
     const text = (await whisperRes.text()).trim();
+
+    // Charged only on a transcription we actually got back.
+    await consumeCredits(tenantId, 'transcription', {
+      costEur: 0.003,
+      metadata: { model: 'whisper-1', bytes: bytes.length },
+    });
+
     return NextResponse.json({ text });
   } catch (e) {
     const msg = e instanceof Error ? e.message : 'Unknown error';

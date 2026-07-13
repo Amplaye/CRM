@@ -21,6 +21,9 @@ import { sendWhatsAppTemplate } from "@/lib/whatsapp/meta";
 import { tenantWhatsAppFrom } from "@/lib/whatsapp/from";
 import { createUnsubscribeToken } from "./unsubscribe";
 import { applySegment, type SegmentDef, type SegmentGuest, type SegmentReservation } from "@/lib/guests/segmentation";
+import { whatsappPriceForPhone, EMAIL_EUR_PER_SEND } from "@/lib/marketing/pricing";
+import { getCreditBalance, consumeCredits } from "@/lib/billing/credits";
+import { mcFor } from "@/lib/billing/credits-catalog";
 import type { TenantSettings } from "@/lib/types/tenant-settings";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -67,14 +70,40 @@ export async function resolveRecipients(
   return { eligible, optedOut: all.length - eligible.length };
 }
 
-/** Send (or resume) a campaign. Returns the updated counters. */
+/** Send (or resume) a campaign. Returns the updated counters.
+ *
+ * `credits_exhausted` in the return means the wallet couldn't cover the whole
+ * send and NOTHING was sent — see the pre-flight below. */
 export async function sendCampaign(
   svc: Svc,
   campaign: CampaignRow,
   tenant: TenantRow,
-): Promise<{ recipients: number; sent: number; failed: number; skipped: number }> {
+): Promise<{ recipients: number; sent: number; failed: number; skipped: number; credits_exhausted?: boolean }> {
   const { eligible } = await resolveRecipients(svc, campaign.tenant_id, campaign.segment);
   const capped = eligible.slice(0, MAX_RECIPIENTS);
+
+  // Credit pre-flight for the WHOLE campaign, before a single message goes out.
+  //
+  // Per-recipient checking would be worse than useless here: the wallet would
+  // run dry somewhere around recipient 180 of 300, Meta would already have
+  // billed us for those 180, and the owner would be left with a half-sent
+  // campaign — some customers told about tonight's offer and some not. Refusing
+  // the whole job up front is the only outcome that's actually recoverable: they
+  // top up and press send again, and the ledger resumes cleanly.
+  const action = campaign.channel === "email" ? "marketing_email" : "marketing_whatsapp";
+  if (capped.length) {
+    const needed = mcFor(action, capped.length);
+    const balance = await getCreditBalance(campaign.tenant_id, svc).catch(() => null);
+    // Fail-open on an unreadable wallet (as everywhere in the metering layer): a
+    // Supabase blip must not stop a restaurant's campaign.
+    if (balance && balance.totalRemainingMc < needed) {
+      // Leave the campaign 'draft', NOT 'failed': nothing was attempted, and the
+      // owner is meant to top up and press send again on this same campaign.
+      // (`campaigns` has no `error` column — the reason travels back in the
+      // return value, and the route turns it into a credits_exhausted response.)
+      return { recipients: capped.length, sent: 0, failed: 0, skipped: 0, credits_exhausted: true };
+    }
+  }
 
   // Claim ledger rows first (unique constraint = the idempotency).
   if (capped.length) {
@@ -151,6 +180,12 @@ export async function sendCampaign(
           idempotencyKey: `campaign_${campaign.id}_${g.id}`,
         });
         sent++; await mark("sent");
+        // Debited per delivered message, not per intended one: a resumed campaign
+        // skips already-'sent' rows above, so nobody is charged twice.
+        await consumeCredits(campaign.tenant_id, "marketing_email", {
+          costEur: EMAIL_EUR_PER_SEND,
+          metadata: { campaign_id: campaign.id, guest_id: g.id },
+        });
       } else if (campaign.channel === "whatsapp") {
         if (!g.phone) { skipped++; await mark("skipped", "no_phone"); continue; }
         const res = await sendWhatsAppTemplate(
@@ -160,7 +195,16 @@ export async function sendCampaign(
           [g.name || "", campaign.body],
           from,
         );
-        if (res.ok) { sent++; await mark("sent"); }
+        if (res.ok) {
+          sent++; await mark("sent");
+          // The tenant pays a FLAT 0,4 cr per recipient, but we record what Meta
+          // actually charges us for THAT country (€0.015 US → €0.14 Germany) —
+          // so the ledger shows the real margin per send instead of an assumed one.
+          await consumeCredits(campaign.tenant_id, "marketing_whatsapp", {
+            costEur: whatsappPriceForPhone(g.phone),
+            metadata: { campaign_id: campaign.id, guest_id: g.id },
+          });
+        }
         else { failed++; await mark("failed", res.errorMessage); }
       } else {
         // SMS: legacy Twilio path not wired for campaigns yet.

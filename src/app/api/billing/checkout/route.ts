@@ -9,6 +9,7 @@ import {
   type AddonId,
   type BillingCycle,
 } from "@/lib/billing/catalog";
+import { getCreditPack, resolveCreditPackPriceId, type CreditPackId } from "@/lib/billing/credits-catalog";
 import { stripeConfigured, createCheckoutSession } from "@/lib/billing/stripe";
 import { paypalConfigured, createSubscription } from "@/lib/billing/paypal";
 
@@ -22,8 +23,8 @@ import { paypalConfigured, createSubscription } from "@/lib/billing/paypal";
 // 503 with `reason: "not_configured"` so the UI can show "coming soon" instead of
 // a crash.
 //
-// Body: { tenant_id, provider: "stripe"|"paypal", kind: "plan"|"addon"|"bundle",
-//         plan?, cycle?, addon?, addons?, email? }
+// Body: { tenant_id, provider: "stripe"|"paypal", kind: "plan"|"addon"|"bundle"|"credits",
+//         plan?, cycle?, addon?, addons?, pack?, email? }
 //
 // "bundle" pays for a plan AND one or more recurring add-ons in a SINGLE Stripe
 // subscription checkout (one invoice, one renewal). It's Stripe-only: PayPal
@@ -31,6 +32,11 @@ import { paypalConfigured, createSubscription } from "@/lib/billing/paypal";
 // single PayPal subscription. One-off add-ons (website design) can't ride a
 // subscription session either, so they're dropped from the bundle and bought
 // separately.
+//
+// "credits" is a one-off top-up pack (mode: "payment"): the tenant ran out of
+// credits mid-month and buys more. Stripe-only for the same reason as one-off
+// add-ons — a PayPal *subscription* can't express a single charge. Bought credits
+// never expire, so there is nothing recurring to model.
 
 type Provider = "stripe" | "paypal";
 
@@ -45,12 +51,12 @@ export async function POST(req: Request) {
 
   const tenantId: string | undefined = body?.tenant_id;
   const provider: Provider | undefined = body?.provider;
-  const kind: "plan" | "addon" | "bundle" | undefined = body?.kind;
+  const kind: "plan" | "addon" | "bundle" | "credits" | undefined = body?.kind;
   if (!tenantId) return NextResponse.json({ error: "tenant_id_required" }, { status: 400 });
   if (provider !== "stripe" && provider !== "paypal") {
     return NextResponse.json({ error: "invalid_provider" }, { status: 400 });
   }
-  if (kind !== "plan" && kind !== "addon" && kind !== "bundle") {
+  if (kind !== "plan" && kind !== "addon" && kind !== "bundle" && kind !== "credits") {
     return NextResponse.json({ error: "invalid_kind" }, { status: 400 });
   }
 
@@ -64,9 +70,19 @@ export async function POST(req: Request) {
   let cycle: BillingCycle | undefined;
   let addonId: AddonId | undefined;
   let bundleAddonIds: AddonId[] = [];
+  let packId: CreditPackId | undefined;
   let isOneOff = false;
 
-  if (kind === "plan") {
+  if (kind === "credits") {
+    packId = body?.pack;
+    if (!packId || !getCreditPack(packId)) {
+      return NextResponse.json({ error: "invalid_pack" }, { status: 400 });
+    }
+    // A top-up is a single charge, so it takes the same one-off path as the
+    // website-design add-on: mode "payment", and PayPal (subscriptions only,
+    // here) refuses it below with `paypal_no_oneoff`.
+    isOneOff = true;
+  } else if (kind === "plan") {
     planId = body?.plan;
     cycle = body?.cycle === "yearly" ? "yearly" : "monthly";
     if (!PLANS.some((p) => p.id === planId)) {
@@ -102,8 +118,11 @@ export async function POST(req: Request) {
 
   const email: string | undefined = typeof body?.email === "string" ? body.email : undefined;
   const origin = req.headers.get("origin") || process.env.NEXT_PUBLIC_APP_URL || "https://crm.baliflowagency.com";
-  const successUrl = `${origin}/settings?tab=payments&checkout=success`;
-  const cancelUrl = `${origin}/settings?tab=payments&checkout=cancel`;
+  // A top-up starts and ends on the Credits tab — sending them back to Payments
+  // would hide the balance they just paid to refill.
+  const returnTab = kind === "credits" ? "credits" : "payments";
+  const successUrl = `${origin}/settings?tab=${returnTab}&checkout=success`;
+  const cancelUrl = `${origin}/settings?tab=${returnTab}&checkout=cancel`;
 
   // ---------------- STRIPE ----------------
   if (provider === "stripe") {
@@ -120,6 +139,10 @@ export async function POST(req: Request) {
       lineItems.push({ price: priceId, quantity: 1 });
     } else if (kind === "addon") {
       const priceId = resolveStripePriceId(addonId!);
+      if (!priceId) return NextResponse.json({ error: "not_configured", reason: "stripe_price_missing" }, { status: 503 });
+      lineItems.push({ price: priceId, quantity: 1 });
+    } else if (kind === "credits") {
+      const priceId = resolveCreditPackPriceId(packId!);
       if (!priceId) return NextResponse.json({ error: "not_configured", reason: "stripe_price_missing" }, { status: 503 });
       lineItems.push({ price: priceId, quantity: 1 });
     } else {
@@ -158,6 +181,10 @@ export async function POST(req: Request) {
           addon: addonId || "",
           // CSV of bundled add-on ids — the webhook activates each one.
           addons: bundleAddonIds.join(","),
+          // Top-up pack id. The webhook re-reads its size from the catalog rather
+          // than trusting an amount from the wire, so this is the only credits
+          // field it needs.
+          pack: packId || "",
         },
       });
       return NextResponse.json({ ok: true, url: session.url });

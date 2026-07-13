@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { extractInvoice } from "@/lib/invoices/extract";
 import { assertManagement } from "@/lib/billing/guard";
+import { assertCredits, consumeCredits } from "@/lib/billing/credits";
 import { suggestLineMatches } from "@/lib/management/ingredient-match";
 
 // Upload a supplier-invoice photo/PDF → OCR it synchronously (an invoice is a
@@ -45,6 +46,11 @@ export async function POST(req: NextRequest) {
   const gate = await assertManagement(tenantId);
   if (gate) return gate;
 
+  // Credit gate, same reason as the add-on gate above it: refuse BEFORE the OCR
+  // call, so an empty wallet costs us nothing.
+  const credits = await assertCredits(tenantId, "invoice_ocr");
+  if (credits) return credits;
+
   const mediaType = ALLOWED[(file.type || "").toLowerCase()];
   if (!mediaType) {
     return NextResponse.json({ error: `Unsupported file type: ${file.type}` }, { status: 400 });
@@ -56,8 +62,15 @@ export async function POST(req: NextRequest) {
   try {
     extracted = await extractInvoice(base64, mediaType);
   } catch (e: any) {
+    // Not charged: the extraction never produced anything.
     return NextResponse.json({ error: "Extraction failed", details: e?.message }, { status: 502 });
   }
+
+  // Charged only now that the OCR actually returned.
+  await consumeCredits(tenantId, "invoice_ocr", {
+    costEur: 0.03,
+    metadata: { media_type: mediaType },
+  });
 
   // Header
   const { data: invoice, error: invErr } = await supabase

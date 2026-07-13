@@ -76,6 +76,16 @@ export async function POST(req: Request) {
 
     const counters = await sendCampaign(svc, campaign, tenant);
 
+    // Wallet couldn't cover the whole send, so NOTHING went out (sendCampaign
+    // refuses the job rather than half-sending it). Same 403 contract as the
+    // other credit-gated routes, so the UI shows the one top-up banner it knows.
+    if (counters.credits_exhausted) {
+      return NextResponse.json(
+        { error: "credits_exhausted", campaign_id: campaign.id, recipients: counters.recipients },
+        { status: 403 },
+      );
+    }
+
     await logAuditEvent({
       tenant_id: tenantId,
       action: "campaign_sent",

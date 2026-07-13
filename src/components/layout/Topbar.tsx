@@ -10,6 +10,7 @@ import { useEffect, useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { safeLocal } from "@/lib/safe-storage";
+import { CreditsBadge } from "./CreditsBadge";
 
 interface Notification {
   id: string;
@@ -453,6 +454,10 @@ export function Topbar({ onMenuToggle }: TopbarProps) {
             </select>
           </div>
         )}
+
+        {/* Credit meter, immediately left of the bell — the two things the owner
+            glances at without being asked to look. */}
+        {isClient && <CreditsBadge />}
 
         <div className="relative" ref={dropdownRef}>
           <button

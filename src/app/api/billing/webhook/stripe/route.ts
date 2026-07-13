@@ -4,6 +4,8 @@ import { verifyWebhook } from "@/lib/billing/stripe";
 import { upsertSubscription } from "@/lib/billing/state";
 import { syncVoiceProviderFromBilling } from "@/lib/billing/voice-billing";
 import { PLANS, ADDONS } from "@/lib/billing/catalog";
+import { getCreditPack } from "@/lib/billing/credits-catalog";
+import { grantPurchasedCredits, resetIncludedCredits } from "@/lib/billing/credits";
 import { fulfillGiftCardSession } from "@/lib/gift-cards/fulfill";
 import { logSystemEvent } from "@/lib/system-log";
 
@@ -14,7 +16,9 @@ import { logSystemEvent } from "@/lib/system-log";
 //
 // Configure in Stripe: endpoint = /api/billing/webhook/stripe, events:
 //   checkout.session.completed, checkout.session.expired,
-//   customer.subscription.updated, customer.subscription.deleted.
+//   customer.subscription.updated, customer.subscription.deleted,
+//   invoice.paid  ← credit allowance reset on renewal; without it a tenant's
+//                   monthly credits only refill via the daily cron backstop.
 //
 // Booking deposits (metadata.kind = "deposit") also land here: same endpoint,
 // same secret — the metadata discriminates, and the deposit branch writes
@@ -98,6 +102,41 @@ export async function POST(req: Request) {
           break;
         }
 
+        if (kind === "credits") {
+          // Top-up paid → add the pack to the wallet. The pack SIZE is read from
+          // our catalog by id, never from the session amount: the metadata is
+          // attacker-visible-ish and the amount is a display value, whereas the
+          // catalog is the same source of truth the price id was built from.
+          const pack = getCreditPack(String(meta.pack || ""));
+          if (!pack) {
+            await logSystemEvent({
+              tenant_id: tenantId,
+              category: "api_error",
+              severity: "high",
+              title: "Ricarica crediti: pacchetto sconosciuto",
+              description: `Sessione ${s.id}: pack="${meta.pack}" non è nel catalogo. Il cliente ha pagato e NON ha ricevuto i crediti.`,
+            });
+            break;
+          }
+          const ok = await grantPurchasedCredits(tenantId, pack.creditsMc, {
+            pack: pack.id,
+            stripe_session_id: s.id,
+            amount_eur: pack.amount,
+          });
+          if (!ok) {
+            // Paid but not credited — this is money taken for nothing, so it's a
+            // high-severity log, not a silent failure.
+            await logSystemEvent({
+              tenant_id: tenantId,
+              category: "api_error",
+              severity: "high",
+              title: "Ricarica crediti: accredito fallito",
+              description: `Sessione ${s.id}: pagamento riuscito (${pack.id}, €${pack.amount}) ma grant_credits è fallito.`,
+            });
+          }
+          break;
+        }
+
         const isAddon = kind === "addon" && ADDON_IDS.has(meta.addon);
         const isPlan = kind === "plan" && PLAN_IDS.has(meta.plan);
         const isBundle = kind === "bundle" && PLAN_IDS.has(meta.plan);
@@ -127,6 +166,9 @@ export async function POST(req: Request) {
             addons: finalAddons,
           });
           await syncVoice(svc, tenantId, finalAddons);
+          // First month's credit allowance — without this the tenant starts a
+          // paid plan with an empty wallet and the bot won't answer.
+          await resetIncludedCredits(tenantId, meta.plan);
         } else if (isPlan) {
           await upsertSubscription(svc, tenantId, {
             plan: meta.plan,
@@ -136,6 +178,7 @@ export async function POST(req: Request) {
             stripe_customer_id: s.customer || null,
             stripe_subscription_id: s.subscription || null,
           });
+          await resetIncludedCredits(tenantId, meta.plan);
         } else if (isAddon) {
           // Merge the add-on into the existing add-on list.
           const { data: existing } = await svc
@@ -178,6 +221,32 @@ export async function POST(req: Request) {
             currency: String(s.currency || "eur"),
             stripe_checkout_session_id: s.id,
           });
+        }
+        break;
+      }
+
+      case "invoice.paid": {
+        // A recurring charge cleared → a new billing period began → the monthly
+        // credit allowance resets. This is the PRIMARY reset path; the daily cron
+        // (/api/cron/credits-reset) only catches the tenants this webhook missed.
+        //
+        // `billing_reason` matters: an invoice also gets paid when the plan is
+        // FIRST bought (subscription_create), and that one is already handled by
+        // checkout.session.completed above. Resetting again would be harmless
+        // (resetIncludedCredits SETS, never adds) but we'd log a phantom renewal.
+        const inv = event.data.object;
+        if (inv.billing_reason !== "subscription_cycle") break;
+        const subId = inv.subscription || inv.parent?.subscription_details?.subscription;
+        const tenantId = await tenantFromStripeSub(svc, subId, inv.customer);
+        if (!tenantId) break;
+        const { data: subRow } = await svc
+          .from("subscriptions")
+          .select("plan")
+          .eq("tenant_id", tenantId)
+          .maybeSingle();
+        const plan = subRow?.plan;
+        if (plan === "premium" || plan === "business") {
+          await resetIncludedCredits(tenantId, plan);
         }
         break;
       }
@@ -254,15 +323,20 @@ function mapStripeStatus(s: string): "active" | "trialing" | "past_due" | "cance
 async function tenantFromStripeSub(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   svc: any,
-  subscriptionId: string,
+  subscriptionId: string | undefined,
   customerId?: string,
 ): Promise<string | null> {
-  const { data: bySub } = await svc
-    .from("subscriptions")
-    .select("tenant_id")
-    .eq("stripe_subscription_id", subscriptionId)
-    .maybeSingle();
-  if (bySub?.tenant_id) return bySub.tenant_id;
+  // An invoice may carry no subscription id (one-off charges), so this is
+  // reachable with `undefined` — fall straight through to the customer lookup
+  // rather than sending `eq(col, undefined)` to postgrest.
+  if (subscriptionId) {
+    const { data: bySub } = await svc
+      .from("subscriptions")
+      .select("tenant_id")
+      .eq("stripe_subscription_id", subscriptionId)
+      .maybeSingle();
+    if (bySub?.tenant_id) return bySub.tenant_id;
+  }
   if (customerId) {
     const { data: byCust } = await svc
       .from("subscriptions")
