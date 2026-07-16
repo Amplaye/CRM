@@ -11,6 +11,7 @@ import {
 } from "@/lib/menu/labels";
 import MenuView, { type MenuViewSection } from "./MenuView";
 import SelfOrderMenu, { type SelfOrderSection, type SelfOrderStrings } from "./SelfOrderMenu";
+import TableBill, { type TableBillStrings } from "./TableBill";
 import { getFeatures } from "@/lib/types/tenant-settings";
 import type { MenuItemVariant } from "@/lib/types";
 
@@ -150,6 +151,79 @@ const SELF_ORDER_STRINGS: Record<MenuLocale, SelfOrderStrings> = {
   },
 };
 
+// Strings for the pay-at-table sheet (?table= + qr_pay_enabled), same
+// server-localized pattern as SELF_ORDER_STRINGS.
+const TABLE_PAY_STRINGS: Record<MenuLocale, TableBillStrings> = {
+  it: {
+    billButton: "Conto", billTitle: "Il tuo conto", loading: "Carico il conto…",
+    noBill: "Non c'è ancora un conto aperto per questo tavolo.",
+    covers: "Coperto", discount: "Sconto", total: "Totale", pay: "Paga con carta",
+    redirecting: "Apro il pagamento…",
+    notPayableStripe: "Il pagamento online non è disponibile: paga in cassa o chiama il personale.",
+    notPayableClosed: "La cassa è chiusa in questo momento: chiama il personale.",
+    confirming: "Confermiamo il pagamento…",
+    paidTitle: "Pagato, grazie!", paidBody: "Il conto è stato saldato e chiuso in cassa. Buona giornata!",
+    receipt: "Scontrino n.",
+    mismatchBody: "Il pagamento è andato a buon fine ma nel frattempo il conto è cambiato: il personale sistemerà la differenza. Grazie!",
+    alreadyClosedBody: "Il pagamento è andato a buon fine ma il conto risultava già chiuso: rivolgiti al personale per la verifica.",
+    needsStaffBody: "Pagamento ricevuto: il personale completerà la chiusura del conto. Grazie!",
+    unpaidBody: "Il pagamento non risulta completato.",
+    cancelledNote: "Pagamento annullato.", genericError: "Qualcosa è andato storto. Riprova o chiama il personale.",
+    close: "Chiudi", refresh: "Riprova",
+  },
+  es: {
+    billButton: "Cuenta", billTitle: "Tu cuenta", loading: "Cargando la cuenta…",
+    noBill: "Todavía no hay una cuenta abierta para esta mesa.",
+    covers: "Cubierto", discount: "Descuento", total: "Total", pay: "Pagar con tarjeta",
+    redirecting: "Abriendo el pago…",
+    notPayableStripe: "El pago online no está disponible: paga en caja o llama al personal.",
+    notPayableClosed: "La caja está cerrada ahora mismo: llama al personal.",
+    confirming: "Confirmando el pago…",
+    paidTitle: "¡Pagado, gracias!", paidBody: "La cuenta se ha saldado y cerrado en caja. ¡Buen día!",
+    receipt: "Ticket n.º",
+    mismatchBody: "El pago se realizó pero la cuenta cambió mientras tanto: el personal ajustará la diferencia. ¡Gracias!",
+    alreadyClosedBody: "El pago se realizó pero la cuenta ya estaba cerrada: consulta con el personal.",
+    needsStaffBody: "Pago recibido: el personal completará el cierre de la cuenta. ¡Gracias!",
+    unpaidBody: "El pago no consta como completado.",
+    cancelledNote: "Pago cancelado.", genericError: "Algo salió mal. Inténtalo de nuevo o llama al personal.",
+    close: "Cerrar", refresh: "Reintentar",
+  },
+  en: {
+    billButton: "Bill", billTitle: "Your bill", loading: "Loading your bill…",
+    noBill: "There's no open bill for this table yet.",
+    covers: "Cover charge", discount: "Discount", total: "Total", pay: "Pay by card",
+    redirecting: "Opening payment…",
+    notPayableStripe: "Online payment isn't available: pay at the till or call the staff.",
+    notPayableClosed: "The till is closed right now: please call the staff.",
+    confirming: "Confirming your payment…",
+    paidTitle: "Paid, thank you!", paidBody: "Your bill has been settled and closed at the till. Have a great day!",
+    receipt: "Receipt no.",
+    mismatchBody: "Your payment went through, but the bill changed in the meantime: the staff will sort out the difference. Thank you!",
+    alreadyClosedBody: "Your payment went through, but the bill was already closed: please check with the staff.",
+    needsStaffBody: "Payment received: the staff will finish closing the bill. Thank you!",
+    unpaidBody: "The payment doesn't appear to be completed.",
+    cancelledNote: "Payment cancelled.", genericError: "Something went wrong. Try again or call the staff.",
+    close: "Close", refresh: "Retry",
+  },
+  de: {
+    billButton: "Rechnung", billTitle: "Deine Rechnung", loading: "Rechnung wird geladen…",
+    noBill: "Für diesen Tisch gibt es noch keine offene Rechnung.",
+    covers: "Gedeck", discount: "Rabatt", total: "Gesamt", pay: "Mit Karte zahlen",
+    redirecting: "Zahlung wird geöffnet…",
+    notPayableStripe: "Online-Zahlung ist nicht verfügbar: an der Kasse zahlen oder das Personal rufen.",
+    notPayableClosed: "Die Kasse ist gerade geschlossen: bitte das Personal rufen.",
+    confirming: "Zahlung wird bestätigt…",
+    paidTitle: "Bezahlt, danke!", paidBody: "Die Rechnung wurde beglichen und an der Kasse geschlossen. Schönen Tag!",
+    receipt: "Bon Nr.",
+    mismatchBody: "Die Zahlung war erfolgreich, aber die Rechnung hat sich inzwischen geändert: das Personal klärt die Differenz. Danke!",
+    alreadyClosedBody: "Die Zahlung war erfolgreich, aber die Rechnung war bereits geschlossen: bitte beim Personal nachfragen.",
+    needsStaffBody: "Zahlung erhalten: das Personal schließt die Rechnung ab. Danke!",
+    unpaidBody: "Die Zahlung scheint nicht abgeschlossen zu sein.",
+    cancelledNote: "Zahlung abgebrochen.", genericError: "Etwas ist schiefgelaufen. Erneut versuchen oder das Personal rufen.",
+    close: "Schließen", refresh: "Erneut versuchen",
+  },
+};
+
 type CategoryRow = { id: string; name: string; sort_order: number };
 
 type CollectionRow = {
@@ -211,16 +285,31 @@ export default async function PublicMenuPage({
   // self-ordering ON and the id belongs to it, the page renders the ordering UI
   // instead of the showcase templates. Any mismatch degrades to the plain menu.
   const tableRaw = Array.isArray(sp.table) ? sp.table[0] : sp.table;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const features = getFeatures(tenant.settings as any);
   let orderTable: { id: string; name: string } | null = null;
-  if (tableRaw && getFeatures(tenant.settings as any).self_order_enabled) {
+  let payTable: { id: string; name: string } | null = null;
+  if (tableRaw && (features.self_order_enabled || features.qr_pay_enabled)) {
     const { data: tableRow } = await sb
       .from("restaurant_tables")
       .select("id, name")
       .eq("id", tableRaw)
       .eq("tenant_id", tenant.id)
       .maybeSingle();
-    if (tableRow) orderTable = { id: tableRow.id, name: tableRow.name || "" };
+    if (tableRow) {
+      const resolved = { id: tableRow.id, name: tableRow.name || "" };
+      if (features.self_order_enabled) orderTable = resolved;
+      // Pay-at-table rides the SAME QR: overlay the bill sheet on whichever
+      // menu mode renders (self-order UI or the showcase templates).
+      if (features.qr_pay_enabled) payTable = resolved;
+    }
   }
+
+  // Return leg from Stripe Checkout (?pay=success&cs=<session>|?pay=cancel).
+  const payRaw = Array.isArray(sp.pay) ? sp.pay[0] : sp.pay;
+  const csRaw = Array.isArray(sp.cs) ? sp.cs[0] : sp.cs;
+  const paySessionId = payTable && payRaw === "success" && typeof csRaw === "string" && csRaw ? csRaw : undefined;
+  const payCancelled = !!payTable && payRaw === "cancel";
 
   // Final template: a ?style preview override wins (transient), otherwise the
   // owner's saved choice, otherwise "1" (Immersive).
@@ -389,6 +478,15 @@ export default async function PublicMenuPage({
           strings={SELF_ORDER_STRINGS[locale]}
           emptyLabel={ui.updating}
         />
+        {payTable && (
+          <TableBill
+            slug={tenant.slug}
+            tableId={payTable.id}
+            strings={TABLE_PAY_STRINGS[locale]}
+            initialSessionId={paySessionId}
+            initialCancelled={payCancelled}
+          />
+        )}
       </div>
     );
   }
@@ -404,6 +502,15 @@ export default async function PublicMenuPage({
         sections={sections}
         logoUrl={mb?.logo_url}
       />
+      {payTable && (
+        <TableBill
+          slug={tenant.slug}
+          tableId={payTable.id}
+          strings={TABLE_PAY_STRINGS[locale]}
+          initialSessionId={paySessionId}
+          initialCancelled={payCancelled}
+        />
+      )}
     </div>
   );
 }

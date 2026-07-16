@@ -51,6 +51,7 @@ export interface TenantFeatures {
   commercial_info_enabled: boolean; // bot answers commercial questions (price lists, set menus, buffets, cakes) from `commerciale` KB articles + proactively offers them
   management_enabled: boolean; // iammi-style controllo gestione (POS sales, food cost, P&L, inventory, invoices)
   self_order_enabled: boolean; // QR self-ordering at the table: /m/<slug>?table=<id> lets guests send draft lines to the native cassa
+  qr_pay_enabled: boolean;     // pay-at-table: the same table QR lets guests view + pay their cassa bill on the TENANT'S OWN Stripe (BYO key in payment_secrets)
   deposits_enabled: boolean;   // real Stripe deposits on bookings (link to pay, no-show forfeiture)
   reviews_enabled: boolean;    // certified in-house reviews: /r/<slug> collects rating+comment before Google
   marketing_enabled: boolean;  // campaigns to guest segments via email/WhatsApp/SMS
@@ -88,6 +89,10 @@ export const DEFAULT_FEATURES: TenantFeatures = {
   // OFF by default: table QR ordering writes into the native cassa, so it only
   // makes sense once the owner uses /cassa and has printed the per-table QRs.
   self_order_enabled: false,
+  // OFF by default: paying the bill from the table QR needs the venue's own
+  // Stripe key first (Settings → Pagamenti) — without it every attempt would
+  // dead-end at "no_stripe".
+  qr_pay_enabled: false,
   // All-inclusive front-of-house modules (plan "7 funzioni", 2026-07). Core
   // features unlocked by the plan — NOT paid add-ons — but each defaults OFF
   // because it needs owner setup first (Stripe amounts, review link, verified
@@ -128,6 +133,7 @@ export const FEATURE_FLAGS: ReadonlyArray<{ key: keyof TenantFeatures; labelKey:
   { key: "followup_enabled", labelKey: "settings_feature_followup", hintKey: "settings_feature_followup_hint" },
   { key: "commercial_info_enabled", labelKey: "settings_feature_commercial_info", hintKey: "settings_feature_commercial_info_hint" },
   { key: "self_order_enabled", labelKey: "settings_feature_self_order", hintKey: "settings_feature_self_order_hint" },
+  { key: "qr_pay_enabled", labelKey: "settings_feature_qr_pay", hintKey: "settings_feature_qr_pay_hint" },
   { key: "deposits_enabled", labelKey: "settings_feature_deposits", hintKey: "settings_feature_deposits_hint" },
   { key: "reviews_enabled", labelKey: "settings_feature_reviews", hintKey: "settings_feature_reviews_hint" },
   { key: "marketing_enabled", labelKey: "settings_feature_marketing", hintKey: "settings_feature_marketing_hint" },
