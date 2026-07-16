@@ -1,0 +1,188 @@
+import { NextRequest, NextResponse } from "next/server";
+import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { assertManagement } from "@/lib/billing/guard";
+
+// Confirm a parsed supplier invoice. The owner may have edited line values and
+// mapped lines to ingredients. For every line that carries an ingredient_id we
+// INSERT a row into ingredient_cost_history with the line's unit price — the DB
+// trigger (fn_apply_ingredient_cost) then updates ingredients.current_unit_cost
+// (last-price-wins). The invoice flips to status 'confirmed'.
+//
+// Auth: signed-in dashboard user; RLS scopes everything to the tenant.
+
+export const runtime = "nodejs";
+
+type LineUpdate = {
+  id: string;
+  ingredient_id?: string | null;
+  unit_price?: number | null;
+  quantity?: number | null;
+  description?: string | null;
+  /** Create a brand-new warehouse ingredient for this line and map to it — the
+   * "the warehouse builds itself from invoices" path. Ignored when the line
+   * already carries an ingredient_id. */
+  create_ingredient?: { name: string; unit: string } | null;
+};
+
+type Body = {
+  tenant_id: string;
+  invoice_id: string;
+  lines?: LineUpdate[]; // edits + ingredient mappings; omitted → confirm as-is
+  /** When true, every mapped line with a quantity is also carried into stock as a
+   * 'receipt' movement (the invoices → warehouse seam), once each (received_at). */
+  receive_stock?: boolean;
+};
+
+export async function POST(req: NextRequest) {
+  const supabase = await createServerSupabaseClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  const body = (await req.json().catch(() => null)) as Body | null;
+  if (!body || typeof body.tenant_id !== "string" || typeof body.invoice_id !== "string") {
+    return NextResponse.json({ error: "Missing tenant_id or invoice_id" }, { status: 400 });
+  }
+
+  // Paid add-on gate: confirming an invoice (writes ingredient costs) is gestionale.
+  const gate = await assertManagement(body.tenant_id);
+  if (gate) return gate;
+
+  // The invoice header carries the supplier — stamped onto auto-created
+  // ingredients so the reorder list can group by supplier from day one.
+  const { data: invoiceHeader } = await supabase
+    .from("supplier_invoices")
+    .select("supplier_name")
+    .eq("id", body.invoice_id)
+    .eq("tenant_id", body.tenant_id)
+    .maybeSingle();
+
+  // Auto-create requested ingredients (dedup by name within this request, so two
+  // lines of the same product don't create twins).
+  let ingredientsCreated = 0;
+  const createdByName = new Map<string, string>();
+  for (const l of body.lines || []) {
+    if (!l.id || l.ingredient_id || !l.create_ingredient) continue;
+    const name = (l.create_ingredient.name || "").trim().slice(0, 120);
+    if (!name) continue;
+    const key = name.toLowerCase();
+    let newId = createdByName.get(key);
+    if (!newId) {
+      const { data: created, error: createErr } = await supabase
+        .from("ingredients")
+        .insert({
+          tenant_id: body.tenant_id,
+          name,
+          unit: (l.create_ingredient.unit || "pz").trim().slice(0, 10) || "pz",
+          current_unit_cost: 0, // the cost-history insert below sets the real price
+          stock_qty: 0,
+          par_level: 0,
+          supplier_name: invoiceHeader?.supplier_name || null,
+          archived: false,
+        })
+        .select("id")
+        .single();
+      if (createErr || !created) continue; // line simply stays unmapped
+      newId = created.id as string;
+      createdByName.set(key, newId);
+      ingredientsCreated++;
+    }
+    l.ingredient_id = newId;
+  }
+
+  // Apply per-line edits + ingredient mappings.
+  for (const l of body.lines || []) {
+    if (!l.id) continue;
+    const patch: Record<string, unknown> = {};
+    if ("ingredient_id" in l) patch.ingredient_id = l.ingredient_id ?? null;
+    if ("unit_price" in l) patch.unit_price = l.unit_price;
+    if ("quantity" in l) patch.quantity = l.quantity;
+    if ("description" in l && l.description != null) patch.description = l.description;
+    if (Object.keys(patch).length > 0) {
+      await supabase
+        .from("supplier_invoice_items")
+        .update(patch)
+        .eq("id", l.id)
+        .eq("tenant_id", body.tenant_id);
+    }
+  }
+
+  // Read back the lines that ended up mapped to an ingredient + have a price.
+  const { data: lines, error: linesErr } = await supabase
+    .from("supplier_invoice_items")
+    .select("id, ingredient_id, unit_price, quantity, received_at")
+    .eq("invoice_id", body.invoice_id)
+    .eq("tenant_id", body.tenant_id);
+  if (linesErr) {
+    return NextResponse.json({ error: "Invoice not accessible", details: linesErr.message }, { status: 403 });
+  }
+
+  const costRows = (lines || [])
+    .filter((l) => l.ingredient_id && l.unit_price != null)
+    .map((l) => ({
+      tenant_id: body.tenant_id,
+      ingredient_id: l.ingredient_id,
+      unit_cost: l.unit_price,
+      source: "invoice" as const,
+      invoice_item_id: l.id,
+    }));
+
+  let costsApplied = 0;
+  if (costRows.length > 0) {
+    // The AFTER INSERT trigger updates ingredients.current_unit_cost per row.
+    const { error: histErr } = await supabase.from("ingredient_cost_history").insert(costRows);
+    if (histErr) {
+      return NextResponse.json({ error: "Failed to apply costs", details: histErr.message }, { status: 500 });
+    }
+    costsApplied = costRows.length;
+  }
+
+  // Carry goods into stock (the invoices → warehouse seam). For every mapped line
+  // with a quantity not yet received, insert a 'receipt' movement (the trigger
+  // tops up ingredients.stock_qty) and stamp received_at so a re-confirm can't
+  // double-receive the same line.
+  let stockReceived = 0;
+  if (body.receive_stock) {
+    const toReceive = (lines || []).filter(
+      (l) => l.ingredient_id && l.quantity != null && Number(l.quantity) > 0 && !l.received_at,
+    );
+    if (toReceive.length > 0) {
+      const nowIso = new Date().toISOString();
+      const movements = toReceive.map((l) => ({
+        tenant_id: body.tenant_id,
+        ingredient_id: l.ingredient_id,
+        qty_delta: Number(l.quantity),
+        kind: "receipt" as const,
+        reason: "invoice",
+        unit_cost: l.unit_price ?? null,
+        ref_id: l.id,
+      }));
+      const { error: movErr } = await supabase.from("stock_movements").insert(movements);
+      if (!movErr) {
+        await supabase
+          .from("supplier_invoice_items")
+          .update({ received_at: nowIso })
+          .in("id", toReceive.map((l) => l.id))
+          .eq("tenant_id", body.tenant_id);
+        stockReceived = toReceive.length;
+      }
+    }
+  }
+
+  const { error: statusErr } = await supabase
+    .from("supplier_invoices")
+    .update({ status: "confirmed", updated_at: new Date().toISOString() })
+    .eq("id", body.invoice_id)
+    .eq("tenant_id", body.tenant_id);
+  if (statusErr) {
+    return NextResponse.json({ error: "Failed to confirm invoice", details: statusErr.message }, { status: 500 });
+  }
+
+  return NextResponse.json({
+    ok: true,
+    costs_applied: costsApplied,
+    stock_received: stockReceived,
+    ingredients_created: ingredientsCreated,
+  });
+}

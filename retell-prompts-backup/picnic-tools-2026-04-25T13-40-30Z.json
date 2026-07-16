@@ -1,0 +1,250 @@
+[
+  {
+    "speak_after_execution": false,
+    "name": "get_current_date",
+    "description": "Devuelve la fecha y hora actual en Atlantic/Canary más un calendario de 7 días.",
+    "type": "custom",
+    "speak_during_execution": false,
+    "parameters": {
+      "type": "object",
+      "properties": {}
+    },
+    "url": "https://n8n.srv1468837.hstgr.cloud/webhook/get-current-date"
+  },
+  {
+    "execution_message_description": "UNA frase muy breve neutra EN EL IDIOMA DEL CLIENTE. PROHIBIDO repetir fecha, hora, personas o cualquier dato del cliente. Ejemplos — ES: \"un momento\" o \"un segundo que lo miro\". IT: \"un attimo che controllo\". EN: \"one moment\". Elige el del idioma que el cliente está usando ahora.",
+    "speak_after_execution": true,
+    "name": "check_availability",
+    "description": "Verifica disponibilidad. Devuelve status: closed_day | outside_hours | after_last_reservation | no_tables | available. Pasa hora SIEMPRE.",
+    "type": "custom",
+    "speak_during_execution": true,
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "fecha": {
+          "type": "string"
+        },
+        "zona": {
+          "type": "string",
+          "enum": [
+            "interior",
+            "exterior"
+          ]
+        },
+        "personas": {
+          "type": "number"
+        },
+        "hora": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "fecha",
+        "hora",
+        "personas"
+      ]
+    },
+    "url": "https://n8n.srv1468837.hstgr.cloud/webhook/picnic-check-slots"
+  },
+  {
+    "execution_message_description": "UNA frase muy breve neutra EN EL IDIOMA DEL CLIENTE. PROHIBIDO repetir fecha, hora, personas, zona, nombre ni ningún dato. Ejemplos — ES: \"un segundo que lo registro\". IT: \"un attimo che lo registro\". EN: \"one moment\".",
+    "speak_after_execution": true,
+    "name": "book_table",
+    "description": "Crea una reserva NUEVA. Si devuelve reason=possible_duplicate, pregunta si MODIFICAR o NUEVA adicional (con force_new=true).",
+    "type": "custom",
+    "speak_during_execution": true,
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "fecha": {
+          "type": "string"
+        },
+        "zona": {
+          "type": "string",
+          "enum": [
+            "interior",
+            "exterior"
+          ]
+        },
+        "force_new": {
+          "type": "boolean"
+        },
+        "hora": {
+          "type": "string"
+        },
+        "notas": {
+          "type": "string"
+        },
+        "telefono": {
+          "type": "string",
+          "description": "Formato internacional con prefijo, solo dígitos con +"
+        },
+        "nombre": {
+          "type": "string"
+        },
+        "personas": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "nombre",
+        "telefono",
+        "fecha",
+        "hora",
+        "personas"
+      ]
+    },
+    "url": "https://n8n.srv1468837.hstgr.cloud/webhook/picnic-book"
+  },
+  {
+    "execution_message_description": "UNA frase muy breve neutra EN EL IDIOMA DEL CLIENTE. PROHIBIDO repetir datos. Ejemplos — ES: \"un momento que lo actualizo\". IT: \"un attimo che aggiorno\". EN: \"one moment\".",
+    "speak_after_execution": true,
+    "name": "modify_reservation",
+    "description": "Modifica reserva existente. Pasa SOLO los campos que cambian. DISAMBIGUACIÓN: si el cliente puede tener varias reservas (cliente habitual), incluye SIEMPRE `fecha_actual`, `hora_actual` y `personas_actual` de la reserva que quiere modificar. Para cambiar personas usa `personas` (total final) O `personas_delta` (cambio relativo). Para cambiar hora usa `hora` (absoluta) O `retraso_minutos` (delta). Cambio teléfono: `telefono`=ORIGINAL + `nuevo_telefono`=NUEVO.",
+    "type": "custom",
+    "speak_during_execution": true,
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "fecha": {
+          "type": "string",
+          "description": "NUEVA fecha (YYYY-MM-DD), si el cliente la cambia."
+        },
+        "personas_actual": {
+          "type": "number",
+          "description": "Personas ACTUALES de la reserva que el cliente quiere modificar. Disambiguator."
+        },
+        "hora": {
+          "type": "string",
+          "description": "NUEVA hora (HH:MM 24h), si el cliente la cambia."
+        },
+        "notas": {
+          "type": "string"
+        },
+        "fecha_actual": {
+          "type": "string",
+          "description": "Fecha ACTUAL de la reserva que el cliente quiere modificar (YYYY-MM-DD). Disambiguator para clientes con varias reservas activas."
+        },
+        "nuevo_telefono": {
+          "type": "string"
+        },
+        "retraso_minutos": {
+          "type": "number",
+          "description": "Minutos de retraso a sumar a la hora original. Usa este si el cliente dice \"llego 20 tarde\". El backend calcula la nueva hora. NO usarlo junto con `hora`."
+        },
+        "telefono": {
+          "type": "string"
+        },
+        "hora_actual": {
+          "type": "string",
+          "description": "Hora ACTUAL de la reserva que el cliente quiere modificar (HH:MM 24h). Disambiguator."
+        },
+        "personas": {
+          "type": "number",
+          "description": "NUEVO total de personas, si el cliente cambia el tamaño del grupo."
+        },
+        "nombre": {
+          "type": "string"
+        },
+        "personas_delta": {
+          "type": "number",
+          "description": "Cambio de personas relativo (+N o -N). Usa este si el cliente dice \"añade 3\" o \"quítame 2\". El backend calcula el total. NO usarlo junto con `personas`."
+        }
+      },
+      "required": [
+        "telefono"
+      ]
+    },
+    "url": "https://n8n.srv1468837.hstgr.cloud/webhook/picnic-modify"
+  },
+  {
+    "execution_message_description": "Frase corta EN EL IDIOMA DEL CLIENTE. PROHIBIDO repetir datos. Ejemplos — ES: \"vale, la cancelo\". IT: \"ok, la annullo\". EN: \"okay, cancelling\".",
+    "speak_after_execution": true,
+    "name": "cancel_reservation",
+    "description": "Cancela reserva por teléfono.",
+    "type": "custom",
+    "speak_during_execution": true,
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "telefono": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "telefono"
+      ]
+    },
+    "url": "https://n8n.srv1468837.hstgr.cloud/webhook/picnic-cancel"
+  },
+  {
+    "execution_message_description": "Frase corta EN EL IDIOMA DEL CLIENTE. PROHIBIDO repetir datos y PROHIBIDO afirmar como si ya estuviera hecho (no digas \"te apunto\" / \"ti ho messo\" / \"you're in\"). Ejemplos — ES: \"un momento que lo gestiono\". IT: \"un attimo che lo gestisco\". EN: \"one moment, let me process this\".",
+    "speak_after_execution": true,
+    "name": "add_waitlist",
+    "description": "Añade a lista de espera. SOLO si check_availability devolvió no_tables y el cliente rechazó las alternatives. ANTES de llamarla pregunta SIEMPRE preferencia de zona (interior/exterior) y si hay notas especiales (alergias, niños, mascota, celiaco, silla de ruedas, cumpleaños, mesa concreta).",
+    "type": "custom",
+    "speak_during_execution": true,
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "fecha": {
+          "type": "string"
+        },
+        "zona": {
+          "type": "string",
+          "description": "Zona preferida si la menciona. Omitir si le da igual.",
+          "enum": [
+            "interior",
+            "exterior"
+          ]
+        },
+        "hora": {
+          "type": "string"
+        },
+        "notas": {
+          "type": "string",
+          "description": "Peticiones especiales del cliente: alergias, niños, mascota, celiaco, silla de ruedas, cumpleaños, mesa concreta, etc. Cadena vacía si no hay nada."
+        },
+        "telefono": {
+          "type": "string"
+        },
+        "nombre": {
+          "type": "string"
+        },
+        "personas": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "nombre",
+        "telefono",
+        "fecha",
+        "hora",
+        "personas"
+      ]
+    },
+    "url": "https://n8n.srv1468837.hstgr.cloud/webhook/picnic-waitlist"
+  },
+  {
+    "transfer_destination": {
+      "type": "predefined",
+      "number": "+34641790137"
+    },
+    "execution_message_description": "Frase corta tipo \"claro, te paso con el responsable, un momento\".",
+    "speak_after_execution": true,
+    "name": "transfer_to_manager",
+    "description": "Transfiere la llamada al responsable. ÚSALO SOLO cuando el cliente pide EXPLÍCITAMENTE hablar con una persona/responsable. NUNCA para responder dudas (usa get_restaurant_info).",
+    "transfer_option": {
+      "type": "cold_transfer",
+      "enable_bridge_audio_cue": true
+    },
+    "type": "transfer_call",
+    "speak_during_execution": true
+  },
+  {
+    "name": "end_call",
+    "description": "Terminar la llamada cuando el cliente se despide o no necesita nada más.",
+    "type": "end_call",
+    "speak_after_execution": true
+  }
+]

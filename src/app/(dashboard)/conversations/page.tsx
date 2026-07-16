@@ -1,0 +1,634 @@
+"use client";
+
+import { LockedPreview } from "@/components/billing/LockedPreview";
+import { hasActivePlan } from "@/lib/billing/entitlements";
+
+import { useTenant } from "@/lib/contexts/TenantContext";
+import { useEffect, useState, useRef } from "react";
+import { useSearchParams } from "next/navigation";
+import { createClient } from "@/lib/supabase/client";
+import { Conversation, Guest, Reservation, ConversationAudit, AuditQuality, AuditOutcome } from "@/lib/types";
+import { useLanguage } from "@/lib/contexts/LanguageContext";
+import { MessageSquare, Phone, Search, X, AlertTriangle, Send, Bot, User, Trash2, Pause, Play, CheckCircle2, ShieldAlert } from "lucide-react";
+import { useSeenSnapshotAndMark } from "@/lib/hooks/useLastSeen";
+
+interface ConvoWithGuest extends Conversation {
+  guests?: Guest;
+  conversation_audits?: ConversationAudit[];
+}
+
+// `conversation_audits` is embedded as an array (one-to-many side of the FK).
+// We always have at most one row per conversation (UNIQUE constraint), so this
+// helper is just to flatten it for the UI.
+function getAudit(c: ConvoWithGuest): ConversationAudit | null {
+  const arr = c.conversation_audits;
+  return Array.isArray(arr) && arr.length > 0 ? arr[0] : null;
+}
+
+const QUALITY_STYLES: Record<AuditQuality, { dot: string; bg: string; text: string; ring: string }> = {
+  good:        { dot: "bg-emerald-500", bg: "bg-emerald-50",  text: "text-emerald-700", ring: "ring-emerald-200" },
+  minor_issue: { dot: "bg-amber-500",   bg: "bg-amber-50",    text: "text-amber-700",   ring: "ring-amber-200" },
+  major_issue: { dot: "bg-red-500",     bg: "bg-red-50",      text: "text-red-700",     ring: "ring-red-200" },
+};
+
+export default function ConversationsPage() {
+  const { activeTenant: tenant } = useTenant();
+  const { t } = useLanguage();
+  const supabase = createClient();
+  const searchParams = useSearchParams();
+  const guestParam = searchParams.get("guest");
+  const seenAt = useSeenSnapshotAndMark(tenant?.id, "conversations");
+
+  const [conversations, setConversations] = useState<ConvoWithGuest[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [selectedConvoId, setSelectedConvoId] = useState<string | null>(null);
+  const [autoSelected, setAutoSelected] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [channelFilter, setChannelFilter] = useState<"all" | "whatsapp" | "voice">("all");
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [deleting, setDeleting] = useState(false);
+  // Trash: soft-deleted conversations, restorable for 30 days
+  const [showTrash, setShowTrash] = useState(false);
+  const [trashedConvos, setTrashedConvos] = useState<ConvoWithGuest[]>([]);
+  const [trashLoading, setTrashLoading] = useState(false);
+  const [restoringId, setRestoringId] = useState<string | null>(null);
+  const [replyText, setReplyText] = useState("");
+  const [sending, setSending] = useState(false);
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  const fetchConversationsRef = useRef<(() => Promise<void>) | null>(null);
+
+  useEffect(() => {
+    if (!tenant) return;
+    setLoading(true);
+    let inFlight = false;
+    let lastSig = "";
+    const fetchConversations = async () => {
+      if (inFlight) return; // dedupe overlapping fetches
+      inFlight = true;
+      try {
+        const { data, error } = await supabase
+          .from("conversations")
+          .select("*, guests(*), conversation_audits(*)")
+          .eq("tenant_id", tenant.id)
+          .is("deleted_at", null)
+          .order("updated_at", { ascending: false })
+          .limit(50);
+        if (error) { console.error(error); return; }
+        const convos = (data || []) as ConvoWithGuest[];
+        // Skip the setState (and the resulting re-render of every row) when
+        // nothing meaningful changed. Conversations is the heaviest component
+        // on this page; polling it every few seconds with a fresh array
+        // reference was making the whole panel feel sluggish.
+        const sig = convos.map(c => `${c.id}:${c.updated_at}:${(c.guests as any)?.bot_paused_at || ""}:${(c.guests as any)?.bot_paused_hold ? 1 : 0}:${getAudit(c)?.id || ""}`).join("|");
+        if (sig !== lastSig) {
+          lastSig = sig;
+          setConversations(convos);
+        }
+        if (guestParam && !autoSelected) {
+          const match = convos.find(c => c.guest_id === guestParam);
+          if (match) { setSelectedConvoId(match.id); setAutoSelected(true); }
+        }
+      } finally {
+        inFlight = false;
+        setLoading(false);
+      }
+    };
+    fetchConversationsRef.current = fetchConversations;
+    fetchConversations();
+    // Short debounce so an inbound message lands in the open chat almost
+    // immediately. Was 500ms which felt sluggish when the user was watching
+    // a live conversation.
+    let debounceTimer: ReturnType<typeof setTimeout> | null = null;
+    const debouncedFetch = () => {
+      if (debounceTimer) clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(() => fetchConversations(), 120);
+    };
+    const channel = supabase.channel("conversations_realtime")
+      .on("postgres_changes", { event: "*", schema: "public", table: "conversations", filter: `tenant_id=eq.${tenant.id}` }, () => debouncedFetch())
+      // Also watch the guests table so that pausing/resuming the bot from
+      // another tab — or our own /resume-bot call — flips the banner without
+      // waiting for the next conversation update.
+      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "guests", filter: `tenant_id=eq.${tenant.id}` }, () => debouncedFetch())
+      .subscribe();
+    // No polling — Supabase realtime is the single source of truth for
+    // updates. The visibilitychange listener only re-aligns once when
+    // the tab becomes visible again (e.g. the OS suspended the
+    // WebSocket while the tab was hidden); it isn't a poll.
+    const onVisible = () => {
+      if (document.visibilityState === "visible") fetchConversations();
+    };
+    if (typeof document !== "undefined") document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      if (debounceTimer) clearTimeout(debounceTimer);
+      if (typeof document !== "undefined") document.removeEventListener("visibilitychange", onVisible);
+      supabase.removeChannel(channel);
+    };
+  }, [tenant]);
+
+  useEffect(() => {
+    if (guestParam && conversations.length > 0) {
+      const match = conversations.find(c => c.guest_id === guestParam);
+      if (match) setSelectedConvoId(match.id);
+    }
+  }, [guestParam, conversations]);
+
+  const selectedConvo = conversations.find(c => c.id === selectedConvoId) || null;
+  const selectedGuest = selectedConvo?.guests || null;
+
+  // Live "now" tick (1s) so the bot-pause cooldown countdown stays accurate.
+  // Only runs while a guest with an active pause flag is selected, to avoid
+  // a useless interval on every render of the conversations page.
+  const pausedAtRaw = (selectedGuest as any)?.bot_paused_at as string | null | undefined;
+  // Manual hold (Coexistence): the owner took over from the WhatsApp Business
+  // App. Unlike the 60s CRM-inbox cooldown, a hold never auto-resumes — the
+  // banner stays (no countdown) until "Completa col bot" is tapped.
+  const pauseHeld = !!(selectedGuest as any)?.bot_paused_hold;
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    if (!pausedAtRaw || pauseHeld) return; // no ticking needed while held
+    const id = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, [pausedAtRaw, pauseHeld]);
+  const COOLDOWN_MS = 60_000;
+  const pauseElapsed = pausedAtRaw ? now - new Date(pausedAtRaw).getTime() : Infinity;
+  const pauseRemainingSec = Math.max(0, Math.ceil((COOLDOWN_MS - pauseElapsed) / 1000));
+  const showPauseBanner = pauseHeld || (!!pausedAtRaw && pauseRemainingSec > 0);
+
+  useEffect(() => {
+    if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+  }, [selectedConvo?.transcript]);
+
+  const filtered = conversations.filter(conv => {
+    if (channelFilter !== "all" && conv.channel !== channelFilter) return false;
+    if (!searchQuery) return true;
+    const q = searchQuery.toLowerCase();
+    const auditSummary = getAudit(conv)?.summary?.toLowerCase() || "";
+    return (conv.guests?.name?.toLowerCase() || "").includes(q)
+      || (conv.guests?.phone?.toLowerCase() || "").includes(q)
+      || (conv.summary?.toLowerCase() || "").includes(q)
+      || auditSummary.includes(q);
+  });
+
+  const handleSend = async () => {
+    if (!replyText.trim() || !selectedConvo || !selectedGuest) return;
+    const text = replyText;
+    const convoId = selectedConvo.id;
+    const guestId = selectedGuest.id;
+    const phone = selectedGuest.phone;
+    const channel = selectedConvo.channel;
+    const wasAbandoned = selectedConvo.status === "abandoned";
+    const newMessage = { role: "staff" as const, content: text, timestamp: Date.now() };
+    const updatedTranscript = [...(selectedConvo.transcript || []), newMessage];
+
+    // Optimistic UI: show the message + clear the input immediately. The
+    // network round-trips (Twilio + Supabase update + takeover) run in
+    // parallel in the background so the user can keep typing.
+    setReplyText("");
+    setConversations(prev => prev.map(c =>
+      c.id === convoId
+        ? {
+            ...c,
+            transcript: updatedTranscript,
+            status: wasAbandoned ? "active" as const : c.status,
+            updated_at: Date.now() as any,
+            guests: c.guests ? { ...c.guests, bot_paused_at: new Date().toISOString() as any } as Guest : c.guests,
+          }
+        : c
+    ));
+
+    const updates: any = { transcript: updatedTranscript, updated_at: new Date().toISOString() };
+    if (wasAbandoned) updates.status = "active";
+
+    const tasks: Promise<unknown>[] = [
+      supabase.from("conversations").update(updates).eq("id", convoId),
+    ];
+    if (channel === "whatsapp" && phone) {
+      tasks.push(fetch("/api/send-whatsapp", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ to: phone, message: text, tenant_id: tenant?.id })
+      }));
+    }
+    if (guestId) {
+      tasks.push(fetch("/api/conversations/takeover", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ guest_id: guestId })
+      }));
+    }
+
+    Promise.allSettled(tasks).then(results => {
+      const failed = results.find(r => r.status === "rejected"
+        || (r.status === "fulfilled" && r.value instanceof Response && !r.value.ok));
+      if (failed) {
+        console.error("send failure", failed);
+        // Revert by refetching authoritative state.
+        fetchConversationsRef.current?.();
+      }
+    });
+  };
+
+  const handleResumeBot = async () => {
+    if (!selectedGuest?.id) return;
+    setSending(true);
+    const guestId = selectedGuest.id;
+    // Optimistic clear so the banner disappears immediately even before the
+    // server round-trip + refetch lands. The realtime/poll loop will reconcile
+    // if the API actually failed.
+    setConversations(prev => prev.map(c =>
+      c.guest_id === guestId && c.guests
+        ? { ...c, guests: { ...c.guests, bot_paused_at: null } as Guest }
+        : c
+    ));
+    try {
+      const res = await fetch("/api/conversations/resume-bot", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ guest_id: guestId })
+      });
+      if (!res.ok) throw new Error(`resume-bot failed: ${res.status}`);
+      // Re-fetch so the joined guest row in `conversations` reflects the
+      // cleared bot_paused_at, in case the realtime UPDATE on guests is
+      // delayed or dropped (Safari background tab, etc.).
+      await fetchConversationsRef.current?.();
+    } catch (err) {
+      console.error(err);
+      // Roll back the optimistic update on failure.
+      await fetchConversationsRef.current?.();
+    }
+    setSending(false);
+  };
+
+  const toggleSelect = (id: string) => { setSelectedIds(prev => { const n = new Set(prev); if (n.has(id)) n.delete(id); else n.add(id); return n; }); };
+  const selectAll = () => { selectedIds.size === filtered.length ? setSelectedIds(new Set()) : setSelectedIds(new Set(filtered.map(c => c.id))); };
+  const deleteSelected = async () => {
+    if (selectedIds.size === 0) return;
+    setDeleting(true);
+    const ids = Array.from(selectedIds);
+    // Soft delete: hide from the inbox but keep the row so it can be restored
+    // from the Trash for 30 days. The linked reservation is unaffected.
+    setConversations(prev => prev.filter(c => !selectedIds.has(c.id)));
+    if (selectedConvoId && selectedIds.has(selectedConvoId)) setSelectedConvoId(null);
+    setSelectedIds(new Set());
+    await supabase.from("conversations").update({ deleted_at: new Date().toISOString() }).in("id", ids);
+    setDeleting(false);
+  };
+
+  // Load soft-deleted conversations (most-recently-trashed first). We only show
+  // the last 30 days since the purge cron removes anything older for good.
+  const fetchTrashed = async () => {
+    if (!tenant) return;
+    setTrashLoading(true);
+    try {
+      const cutoff = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+      const { data, error } = await supabase
+        .from("conversations")
+        .select("*, guests(*), conversation_audits(*)")
+        .eq("tenant_id", tenant.id)
+        .not("deleted_at", "is", null)
+        .gte("deleted_at", cutoff)
+        .order("deleted_at", { ascending: false })
+        .limit(100);
+      if (error) { console.error(error); return; }
+      setTrashedConvos((data || []) as ConvoWithGuest[]);
+    } finally {
+      setTrashLoading(false);
+    }
+  };
+
+  const openTrash = () => {
+    setSelectedConvoId(null);
+    setSelectedIds(new Set());
+    setShowTrash(true);
+    fetchTrashed();
+  };
+
+  const restoreConvo = async (id: string) => {
+    setRestoringId(id);
+    // Optimistic: drop from the trash list immediately.
+    setTrashedConvos(prev => prev.filter(c => c.id !== id));
+    await supabase.from("conversations").update({ deleted_at: null }).eq("id", id);
+    // Pull it back into the active inbox.
+    await fetchConversationsRef.current?.();
+    setRestoringId(null);
+  };
+
+  const getGuestDisplay = (conv: ConvoWithGuest) => {
+    if (conv.guests?.name && conv.guests.name !== "Unknown Guest") return conv.guests.name;
+    return conv.guests?.phone || "Unknown Guest";
+  };
+
+  const getLastMessage = (conv: ConvoWithGuest) => {
+    const t = conv.transcript;
+    if (!Array.isArray(t) || t.length === 0) return conv.summary || "";
+    return t[t.length - 1]?.content || "";
+  };
+
+  const getMsgCount = (conv: ConvoWithGuest) => Array.isArray(conv.transcript) ? conv.transcript.length : 0;
+
+  // Plan gate: entry-package tenants (no active plan) see a locked preview.
+  if (!hasActivePlan(tenant?.settings)) return <LockedPreview section="conversations" />;
+
+  return (
+    <div className="flex h-[calc(100dvh-3.5rem)] md:h-[calc(100dvh-4rem)]">
+
+      {/* INBOX LIST */}
+      <div className={`flex flex-col border-r ${selectedConvo ? 'hidden md:flex md:w-[380px]' : 'w-full md:w-[380px]'}`} style={{ background: 'rgba(252,246,237,0.85)', borderColor: '#c4956a' }}>
+        <div className="p-4 md:p-5 border-b" style={{ borderColor: '#c4956a' }}>
+          <div className="flex items-center justify-between gap-2">
+            <h1 className="text-xl font-bold text-black">{showTrash ? t("conv_trash_title") : t("conv_title")}</h1>
+            <button
+              onClick={() => { if (showTrash) { setShowTrash(false); } else { openTrash(); } }}
+              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold border transition-colors cursor-pointer ${showTrash ? 'text-white border-transparent' : 'text-black border-[#c4956a]/40 hover:bg-[#c4956a]/10'}`}
+              style={showTrash ? { background: 'linear-gradient(135deg, #d4a574, #c4956a)' } : undefined}
+              title={showTrash ? t("conv_trash_back") : t("conv_trash_open")}
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+              {showTrash ? t("conv_trash_back") : t("conv_trash_open")}
+            </button>
+          </div>
+          {showTrash ? (
+            <p className="mt-2 text-[11px] text-black/70">{t("conv_trash_hint")}</p>
+          ) : (
+          <>
+          <div className="mt-3 relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-black" />
+            <input type="text" value={searchQuery} onChange={e => setSearchQuery(e.target.value)} placeholder={t("conv_search")}
+              className="w-full pl-9 pr-3 py-2 border-2 rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-[#c4956a]"
+              style={{ borderColor: '#c4956a', background: 'rgba(252,246,237,0.6)' }} />
+          </div>
+          <div className="mt-2 flex gap-1.5">
+            {([
+              { id: "all" as const, label: t("conv_all"), icon: null },
+              { id: "whatsapp" as const, label: t("conv_whatsapp"), icon: MessageSquare },
+              { id: "voice" as const, label: t("conv_voice"), icon: Phone },
+            ]).map(opt => {
+              const Icon = opt.icon;
+              const isActive = channelFilter === opt.id;
+              return (
+                <button key={opt.id} onClick={() => setChannelFilter(opt.id)}
+                  className={`flex items-center gap-1 px-3 py-1 rounded-full text-[11px] font-bold transition-all border-2 ${isActive ? 'text-white border-[#c4956a] shadow-md scale-105' : 'text-black border-[#c4956a]/40 hover:bg-[#c4956a]/10 hover:border-[#c4956a]/70'}`}
+                  style={isActive ? { background: 'linear-gradient(135deg, #d4a574, #c4956a)' } : undefined}>
+                  {Icon && <Icon className="w-3 h-3" />}
+                  {opt.label}
+                </button>
+              );
+            })}
+          </div>
+          {selectedIds.size > 0 && (
+            <div className="mt-2 flex items-center justify-between">
+              <button onClick={selectAll} className="text-xs font-medium text-black">{t("conv_select_all")}</button>
+              <button onClick={deleteSelected} disabled={deleting}
+                className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-bold text-red-600 bg-red-50 border border-red-200 disabled:opacity-50">
+                <Trash2 className="w-3 h-3" /> {selectedIds.size}
+              </button>
+            </div>
+          )}
+          </>
+          )}
+        </div>
+
+        <div className="flex-1 overflow-y-auto">
+          {showTrash ? (
+            trashLoading ? (
+              <div className="p-4 space-y-3">{[1,2,3].map(i => <div key={i} className="h-16 bg-zinc-100 rounded-xl animate-pulse" />)}</div>
+            ) : trashedConvos.length === 0 ? (
+              <div className="p-12 text-center">
+                <Trash2 className="w-10 h-10 text-black/20 mx-auto mb-3" />
+                <p className="text-sm font-medium text-black">{t("conv_trash_empty")}</p>
+              </div>
+            ) : (
+              <div className="divide-y" style={{ borderColor: 'rgba(196,149,106,0.2)' }}>
+                {trashedConvos.map(conv => (
+                  <div key={conv.id} className="px-4 py-3 flex items-center gap-3">
+                    <div className={`relative w-9 h-9 rounded-full flex items-center justify-center text-white font-bold text-sm flex-shrink-0 opacity-70 ${conv.channel === 'whatsapp' ? 'bg-emerald-500' : 'bg-indigo-500'}`}>
+                      {getGuestDisplay(conv).charAt(0).toUpperCase()}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <span className="font-bold text-sm text-black truncate block">{getGuestDisplay(conv)}</span>
+                      <p className="text-xs text-black truncate mt-0.5">{getLastMessage(conv)}</p>
+                      {conv.deleted_at && (
+                        <p className="text-[10px] text-black/60 mt-0.5">{t("conv_trash_deleted_on")} {new Date(conv.deleted_at).toLocaleDateString()}</p>
+                      )}
+                    </div>
+                    <button
+                      onClick={() => restoreConvo(conv.id)}
+                      disabled={restoringId === conv.id}
+                      className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 hover:bg-emerald-100 transition-colors cursor-pointer disabled:opacity-50 flex-shrink-0"
+                    >
+                      <Play className="w-3 h-3" /> {t("conv_trash_restore")}
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )
+          ) : loading ? (
+            <div className="p-4 space-y-3">{[1,2,3].map(i => <div key={i} className="h-16 bg-zinc-100 rounded-xl animate-pulse" />)}</div>
+          ) : filtered.length === 0 ? (
+            <div className="p-12 text-center">
+              <MessageSquare className="w-10 h-10 text-black/20 mx-auto mb-3" />
+              <p className="text-sm font-medium text-black">{t("conv_empty")}</p>
+            </div>
+          ) : (
+            <div className="divide-y" style={{ borderColor: 'rgba(196,149,106,0.2)' }}>
+              {(() => { let newRowIdx = 0; return filtered.map(conv => {
+                const convUpdated = (conv as any).updated_at || (conv as any).created_at;
+                const isNew = convUpdated && convUpdated > seenAt && selectedConvo?.id !== conv.id;
+                const rowIdx = isNew ? newRowIdx++ : 0;
+                return (
+                <div key={conv.id} onClick={() => setSelectedConvoId(conv.id)}
+                  className={`px-4 py-3 cursor-pointer transition-colors active:bg-[#c4956a]/10 ${selectedConvo?.id === conv.id ? 'bg-[#c4956a]/10' : ''} ${isNew ? 'is-new-row' : ''}`}
+                  style={isNew ? { ['--row-new-index' as any]: rowIdx } : undefined}>
+                  <div className="flex items-center gap-3">
+                    <input type="checkbox" checked={selectedIds.has(conv.id)}
+                      onChange={(e) => { e.stopPropagation(); toggleSelect(conv.id); }}
+                      className="w-4 h-4 rounded accent-[#c4956a] flex-shrink-0 cursor-pointer" />
+                    <div className={`relative w-9 h-9 rounded-full flex items-center justify-center text-white font-bold text-sm flex-shrink-0 ${conv.channel === 'whatsapp' ? 'bg-emerald-500' : 'bg-indigo-500'}`}>
+                      {getGuestDisplay(conv).charAt(0).toUpperCase()}
+                      <span className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full bg-white flex items-center justify-center ring-1 ring-black/10">
+                        {conv.channel === 'whatsapp'
+                          ? <MessageSquare className="w-3 h-3 text-emerald-600" />
+                          : <Phone className="w-3 h-3 text-indigo-600" />}
+                      </span>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex justify-between items-center">
+                        <span className="font-bold text-sm text-black truncate">{getGuestDisplay(conv)}</span>
+                        <span className="text-[10px] text-black flex-shrink-0 ml-2">
+                          {new Date(conv.updated_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+                        </span>
+                      </div>
+                      <p className="text-xs text-black truncate mt-0.5">{getLastMessage(conv)}</p>
+                    </div>
+                    <div className="flex flex-col items-end gap-1 flex-shrink-0">
+                      {conv.escalation_flag && <AlertTriangle className="w-3.5 h-3.5 text-red-500" />}
+                      {(() => {
+                        const a = getAudit(conv);
+                        if (!a) return null;
+                        const s = QUALITY_STYLES[a.quality];
+                        return (
+                          <span
+                            title={a.summary || t(`conv_audit_q_${a.quality === "good" ? "good" : a.quality === "minor_issue" ? "minor" : "major"}`)}
+                            className={`w-2 h-2 rounded-full ${s.dot}`}
+                          />
+                        );
+                      })()}
+                      {getMsgCount(conv) > 0 && (
+                        <span className="text-[9px] font-bold text-black bg-[#c4956a]/20 px-1.5 py-0.5 rounded-full">{getMsgCount(conv)}</span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+                );
+              }); })()}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* TRANSCRIPT — takes full remaining width */}
+      {selectedConvo ? (
+        <div className="fixed inset-0 md:static md:inset-auto flex-1 flex flex-col z-30 md:z-auto" style={{ background: '#EFEAE2' }}>
+          <div className="px-4 md:px-6 py-3 border-b flex justify-between items-center" style={{ background: 'rgba(252,246,237,0.95)', borderColor: '#c4956a' }}>
+            <div className="flex items-center gap-3">
+              <div className={`w-9 h-9 rounded-full flex items-center justify-center text-white font-bold text-sm ${selectedConvo.channel === 'whatsapp' ? 'bg-emerald-500' : 'bg-indigo-500'}`}>
+                {selectedGuest?.name ? selectedGuest.name.charAt(0).toUpperCase() : '?'}
+              </div>
+              <div>
+                <h3 className="font-bold text-sm text-black">{selectedGuest?.name || "Unknown Guest"}</h3>
+                <p className="text-xs text-black">{selectedGuest?.phone || ""} · {selectedConvo.channel === 'whatsapp' ? t("conv_whatsapp") : t("conv_call_channel")}</p>
+              </div>
+            </div>
+            <button onClick={() => setSelectedConvoId(null)} className="p-1.5 border-2 border-red-400 text-red-500 hover:bg-red-50 rounded-lg transition-colors cursor-pointer">
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+
+          {showPauseBanner && (
+            <div className="px-4 md:px-6 py-2 flex items-center justify-between gap-3" style={{ background: 'rgba(255,196,0,0.15)', borderBottom: '1px solid rgba(196,149,106,0.4)' }}>
+              <div className="flex items-center gap-2 text-[12px] text-black">
+                <Pause className="w-3.5 h-3.5" />
+                {pauseHeld ? (
+                  <span>
+                    <b>{t("conv_bot_held")}</b> — {t("conv_bot_held_hint")}
+                  </span>
+                ) : (
+                  <span>
+                    <b>{t("conv_bot_paused")}</b> — {t("conv_bot_paused_hint")}{" "}
+                    <span className="font-mono font-bold tabular-nums" style={{ color: '#be2e0b' }}>
+                      {pauseRemainingSec}s
+                    </span>
+                  </span>
+                )}
+              </div>
+              <button onClick={handleResumeBot}
+                className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-bold text-white"
+                style={{ background: 'linear-gradient(135deg, #d4a574, #c4956a)' }}>
+                <Play className="w-3.5 h-3.5" /> {pauseHeld ? t("conv_finish_with_bot") : t("conv_resume_bot")}
+              </button>
+            </div>
+          )}
+          <div ref={scrollRef} className="flex-1 overflow-y-auto p-4 md:p-6 space-y-2">
+            <div className="flex justify-center mb-3">
+              <span className="text-[10px] font-bold uppercase tracking-widest text-black bg-white/60 px-3 py-1 rounded-full">
+                {new Date(selectedConvo.created_at).toLocaleDateString()}
+              </span>
+            </div>
+            {(() => {
+              const audit = getAudit(selectedConvo);
+              if (!audit) return null;
+              const s = QUALITY_STYLES[audit.quality];
+              const qKey = audit.quality === "good" ? "good" : audit.quality === "minor_issue" ? "minor" : "major";
+              const Icon = audit.quality === "good" ? CheckCircle2 : audit.quality === "major_issue" ? ShieldAlert : AlertTriangle;
+              return (
+                <div className={`mb-4 rounded-2xl ring-1 ${s.ring} ${s.bg} p-3 md:p-4`}>
+                  <div className="flex items-start gap-3">
+                    <Icon className={`w-5 h-5 mt-0.5 ${s.text} flex-shrink-0`} />
+                    <div className="flex-1 min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className={`text-[11px] font-bold uppercase tracking-wider ${s.text}`}>
+                          {t("conv_audit_title")}
+                        </span>
+                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${s.bg} ${s.text} ring-1 ${s.ring}`}>
+                          {t(`conv_audit_q_${qKey}`)}
+                        </span>
+                        <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-white/70 text-black">
+                          {t(`conv_audit_o_${audit.outcome}`)}
+                        </span>
+                        {audit.divergence && (
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-purple-100 text-purple-800">
+                            ⇄ {t("conv_audit_divergence")}
+                          </span>
+                        )}
+                      </div>
+                      {audit.summary && (
+                        <p className="mt-1.5 text-[13px] text-black leading-snug">{audit.summary}</p>
+                      )}
+                      {Array.isArray(audit.issues) && audit.issues.length > 0 && (
+                        <div className="mt-2 flex flex-wrap gap-1">
+                          {audit.issues.map((iss, i) => (
+                            <span key={i} className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-white/70 text-black border border-black/5">
+                              {iss}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
+            {Array.isArray(selectedConvo.transcript) && selectedConvo.transcript.map((msg, i) => {
+              const isUser = msg.role === 'user';
+              const isStaff = msg.role === 'staff';
+              if (msg.role === 'system') return null;
+              return (
+                <div key={i} className={`flex ${isUser ? 'justify-start' : 'justify-end'}`}>
+                  <div className={`max-w-[80%] rounded-2xl px-4 py-2 shadow-sm ${
+                    isUser ? 'bg-white text-black rounded-bl-none' :
+                    isStaff ? 'bg-[#c4956a] text-white rounded-br-none' :
+                    'bg-emerald-100 text-black rounded-br-none'}`}>
+                    {!isUser && (
+                      <div className="flex items-center gap-1 mb-0.5 opacity-60">
+                        {isStaff ? <User className="w-3 h-3" /> : <Bot className="w-3 h-3" />}
+                        <span className="text-[9px] font-bold uppercase">{isStaff ? t("conv_staff") : t("conv_ai")}</span>
+                      </div>
+                    )}
+                    <p className="text-[13px] leading-relaxed whitespace-pre-wrap">{msg.content}</p>
+                    <p className="text-[9px] mt-0.5 text-right opacity-40">
+                      {msg.timestamp > 1000000000000 ? new Date(msg.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : ""}
+                    </p>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          <div className="p-3 border-t flex items-center gap-2" style={{ background: 'rgba(252,246,237,0.95)', borderColor: '#c4956a' }}>
+            <input type="text" value={replyText} onChange={e => setReplyText(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && handleSend()}
+              disabled={selectedConvo.status === "resolved"}
+              placeholder={selectedConvo.status === "resolved" ? t("conv_conversation_resolved") : t("conv_reply_placeholder")}
+              className="flex-1 border-2 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-[#c4956a] disabled:opacity-50"
+              style={{ borderColor: '#c4956a', background: 'rgba(252,246,237,0.6)' }} />
+            <button onClick={handleSend} disabled={!replyText.trim() || selectedConvo.status === "resolved"}
+              className="p-2.5 text-white rounded-xl disabled:opacity-50"
+              style={{ background: 'linear-gradient(135deg, #d4a574, #c4956a)' }}>
+              <Send className="w-5 h-5" />
+            </button>
+          </div>
+        </div>
+      ) : (
+        <div className="hidden md:flex flex-1 items-center justify-center" style={{ background: 'rgba(252,246,237,0.85)' }}>
+          <div className="text-center">
+            <MessageSquare className="w-12 h-12 text-black/10 mx-auto mb-3" />
+            <p className="text-sm font-medium text-black">{t("conv_empty")}</p>
+          </div>
+        </div>
+      )}
+
+      {/* Context panel removed — chat takes full width */}
+    </div>
+  );
+}

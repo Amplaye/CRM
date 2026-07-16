@@ -1,0 +1,864 @@
+"use client";
+
+import { LockedPreview } from "@/components/billing/LockedPreview";
+import { hasActivePlan } from "@/lib/billing/entitlements";
+
+import { Download, Upload, Search, X, CalendarCheck, User, LayoutGrid, List, Trash2, Phone, AlertOctagon, Accessibility, Users as UsersIcon, Utensils, Tag, Award, Mail, Cake } from "lucide-react";
+import { useLanguage } from "@/lib/contexts/LanguageContext";
+import { useEffect, useState, useRef, useMemo } from "react";
+import { useTenant } from "@/lib/contexts/TenantContext";
+import { Guest, Reservation } from "@/lib/types";
+import { createClient } from "@/lib/supabase/client";
+import { useSeenSnapshotAndMark } from "@/lib/hooks/useLastSeen";
+import { guestsToCsv, parseCsv as parseGuestCsv, rowsToGuestInputs, planImport, type ImportPlan } from "@/lib/guests/porting";
+import { getFeatures, type TenantSettings } from "@/lib/types/tenant-settings";
+import { getLoyaltyConfig } from "@/lib/loyalty/loyalty";
+
+const downloadText = (text: string, filename: string) => {
+  const blob = new Blob([text], { type: "text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+};
+
+export default function GuestsPage() {
+  const { t } = useLanguage();
+  const { activeTenant } = useTenant();
+  const supabase = createClient();
+  const seenAt = useSeenSnapshotAndMark(activeTenant?.id, "clients");
+
+  const [guests, setGuests] = useState<Guest[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState("");
+  const [selectedGuest, setSelectedGuest] = useState<Guest | null>(null);
+  const [guestReservations, setGuestReservations] = useState<Reservation[]>([]);
+  const [viewMode, setViewMode] = useState<"grid" | "list">("list");
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [deleting, setDeleting] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  // Import preview/confirm flow (parse → plan → confirm → write).
+  const [importPlan, setImportPlan] = useState<{ plan: ImportPlan; fileName: string } | null>(null);
+  const [importing, setImporting] = useState(false);
+  const [importResult, setImportResult] = useState<string | null>(null);
+  // Loyalty points for the whole book in ONE query, so the table can show a
+  // points column. (The drawer still reads a single guest's balance on open —
+  // that's the authoritative read after a redemption.)
+  const [pointsByGuest, setPointsByGuest] = useState<Record<string, number>>({});
+
+  const loyaltyOn = getFeatures(activeTenant?.settings as TenantSettings).loyalty_enabled;
+
+  // Full export: EVERY guest field (name, phone, email, tags, allergie/note
+  // dietetiche, accessibilità, famiglia, spesa…), so it's a lossless backup and
+  // can be re-imported elsewhere without losing data.
+  const handleExport = () => {
+    const stamp = new Date().toISOString().slice(0, 10);
+    const safe = (activeTenant?.name || "guests").replace(/[^\w.-]+/g, "_");
+    downloadText(guestsToCsv(guests), `${safe}_clienti_${stamp}.csv`);
+  };
+
+  // Import: parse the file, auto-detect the columns (EN/IT/ES/DE), plan inserts vs
+  // updates by matching phone against the current book, then show a preview. The
+  // actual writes happen only after the owner confirms (runImport).
+  const handleImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !activeTenant) return;
+    setImportResult(null);
+    const text = await file.text();
+    const rows = parseGuestCsv(text);
+    if (fileInputRef.current) fileInputRef.current.value = "";
+    if (rows.length < 2) { setImportResult("File vuoto o senza righe dati."); return; }
+    const { guests: incoming, skipped, mapping } = rowsToGuestInputs(rows);
+    if (mapping.name === undefined && mapping.phone === undefined) {
+      setImportResult("Non ho riconosciuto colonne Nome o Telefono nel file. Intestazioni supportate: Nome/Name/Nombre, Telefono/Phone, Email, Allergie, Note…");
+      return;
+    }
+    const plan = planImport(incoming, guests as any, skipped);
+    setImportPlan({ plan, fileName: file.name });
+  };
+
+  // Execute the confirmed plan: batched inserts + per-row updates, tenant-scoped
+  // (RLS enforces the tenant). Refetches the book at the end.
+  const runImport = async () => {
+    if (!importPlan || !activeTenant) return;
+    setImporting(true);
+    const { toInsert, toUpdate, skipped } = importPlan.plan;
+    let inserted = 0, updated = 0, failed = 0;
+    const BATCH = 400;
+    for (let i = 0; i < toInsert.length; i += BATCH) {
+      const batch = toInsert.slice(i, i + BATCH).map((g) => ({
+        tenant_id: activeTenant.id,
+        name: g.name, phone: g.phone, email: g.email,
+        notes: g.notes || "", dietary_notes: g.dietary_notes,
+        accessibility_notes: g.accessibility_notes, family_notes: g.family_notes,
+        tags: g.tags, estimated_spend: g.estimated_spend,
+        visit_count: 0, no_show_count: 0, cancellation_count: 0,
+      }));
+      const { error } = await supabase.from("guests").insert(batch);
+      if (error) failed += batch.length; else inserted += batch.length;
+    }
+    for (const u of toUpdate) {
+      const { error } = await supabase.from("guests").update(u.fields).eq("id", u.id);
+      if (error) failed++; else updated++;
+    }
+    // Refetch so the list reflects the import immediately (realtime also fires).
+    const { data } = await supabase.from("guests").select("*").eq("tenant_id", activeTenant.id);
+    setGuests((data || []) as Guest[]);
+    setImporting(false);
+    setImportPlan(null);
+    setImportResult(
+      `Import completato: ${inserted} nuovi, ${updated} aggiornati` +
+      (failed ? `, ${failed} falliti` : "") +
+      (skipped ? `. ${skipped} righe saltate (senza nome/telefono)` : "") + ".",
+    );
+  };
+
+  useEffect(() => {
+    if (!activeTenant) return;
+    setLoading(true);
+    const fetchGuests = async () => {
+      const { data } = await supabase.from("guests").select("*").eq("tenant_id", activeTenant.id);
+      setGuests((data || []) as Guest[]);
+      setLoading(false);
+    };
+    fetchGuests();
+    let debounceTimer: ReturnType<typeof setTimeout> | null = null;
+    const debouncedFetch = () => {
+      if (debounceTimer) clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(() => fetchGuests(), 500);
+    };
+    const channel = supabase.channel("guests_realtime")
+      .on("postgres_changes", { event: "*", schema: "public", table: "guests", filter: `tenant_id=eq.${activeTenant.id}` }, () => debouncedFetch())
+      .subscribe();
+    return () => {
+      if (debounceTimer) clearTimeout(debounceTimer);
+      supabase.removeChannel(channel);
+    };
+  }, [activeTenant]);
+
+  // Points for every guest at once. Skipped entirely when the loyalty module is
+  // off, so a tenant that doesn't use it pays for no extra query and sees no column.
+  useEffect(() => {
+    if (!activeTenant || !loyaltyOn) {
+      setPointsByGuest({});
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      const { data } = await supabase
+        .from("loyalty_accounts")
+        .select("guest_id, points")
+        .eq("tenant_id", activeTenant.id);
+      if (cancelled) return;
+      const map: Record<string, number> = {};
+      for (const row of (data || []) as { guest_id: string; points: number }[]) {
+        map[row.guest_id] = row.points ?? 0;
+      }
+      setPointsByGuest(map);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [activeTenant, loyaltyOn]);
+
+  useEffect(() => {
+    if (!selectedGuest || !activeTenant) return;
+    const fetchRes = async () => {
+      const { data } = await supabase.from("reservations").select("*").eq("tenant_id", activeTenant.id).eq("guest_id", selectedGuest.id);
+      const res = (data || []) as Reservation[];
+      res.sort((a, b) => b.date.localeCompare(a.date));
+      setGuestReservations(res);
+    };
+    fetchRes();
+  }, [selectedGuest, activeTenant]);
+
+  const toggleSelect = (id: string) => {
+    setSelectedIds(prev => { const next = new Set(prev); if (next.has(id)) next.delete(id); else next.add(id); return next; });
+  };
+  const selectAll = () => { selectedIds.size === guests.length ? setSelectedIds(new Set()) : setSelectedIds(new Set(guests.map(g => g.id))); };
+  const deleteSelected = async () => {
+    if (selectedIds.size === 0) return;
+    setDeleting(true);
+    const ids = Array.from(selectedIds);
+    setGuests(prev => prev.filter(g => !selectedIds.has(g.id)));
+    if (selectedGuest && selectedIds.has(selectedGuest.id)) setSelectedGuest(null);
+    setSelectedIds(new Set());
+    await supabase.from("guests").delete().in("id", ids);
+    setDeleting(false);
+  };
+  const deleteSingle = async (id: string) => {
+    setGuests(prev => prev.filter(g => g.id !== id));
+    if (selectedGuest?.id === id) setSelectedGuest(null);
+    await supabase.from("guests").delete().eq("id", id);
+  };
+
+  const filtered = useMemo(() => {
+    if (!search || !search.trim()) return guests;
+    const s = search.toLowerCase().trim();
+    return guests.filter(g => {
+      const name = (g.name || '').toLowerCase();
+      const phone = (g.phone || '').replace(/\D/g, '');
+      const searchDigits = s.replace(/\D/g, '');
+      if (searchDigits && searchDigits.length > 0) {
+        return name.includes(s) || phone.includes(searchDigits);
+      }
+      return name.includes(s);
+    });
+  }, [guests, search]);
+
+  // Plan gate: entry-package tenants (no active plan) see a locked preview.
+  if (!hasActivePlan(activeTenant?.settings)) return <LockedPreview section="guests" />;
+
+  return (
+    <div className="p-4 sm:p-6 lg:p-8 w-full space-y-4 sm:space-y-6">
+      {/* Import preview / confirm modal */}
+      {importPlan && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => !importing && setImportPlan(null)}>
+          <div className="w-full max-w-md rounded-2xl bg-white p-5 shadow-xl" onClick={(e) => e.stopPropagation()} style={{ border: '2px solid #c4956a' }}>
+            <div className="flex items-center gap-2 mb-3">
+              <Upload className="h-5 w-5 text-[#c4956a]" />
+              <h3 className="text-base font-bold text-black">Anteprima import</h3>
+            </div>
+            <p className="text-xs text-black mb-3 truncate">File: <span className="font-medium">{importPlan.fileName}</span></p>
+            <div className="space-y-2 mb-4">
+              <div className="flex items-center justify-between rounded-lg px-3 py-2" style={{ background: 'rgba(16,185,129,0.08)' }}>
+                <span className="text-sm text-black">Nuovi clienti</span>
+                <span className="text-sm font-bold text-emerald-700">{importPlan.plan.toInsert.length}</span>
+              </div>
+              <div className="flex items-center justify-between rounded-lg px-3 py-2" style={{ background: 'rgba(59,130,246,0.08)' }}>
+                <span className="text-sm text-black">Aggiornati (telefono già presente)</span>
+                <span className="text-sm font-bold text-blue-700">{importPlan.plan.toUpdate.length}</span>
+              </div>
+              {(importPlan.plan.skipped > 0 || importPlan.plan.duplicatesInFile > 0) && (
+                <div className="flex items-center justify-between rounded-lg px-3 py-2" style={{ background: 'rgba(120,120,120,0.08)' }}>
+                  <span className="text-sm text-black">Saltati / doppioni nel file</span>
+                  <span className="text-sm font-bold text-zinc-600">{importPlan.plan.skipped + importPlan.plan.duplicatesInFile}</span>
+                </div>
+              )}
+            </div>
+            <p className="text-[11px] text-black mb-4">
+              I clienti con lo stesso telefono vengono aggiornati (i campi vuoti non sovrascrivono i dati esistenti); i contatori visite/no-show restano invariati.
+            </p>
+            <div className="flex gap-2 justify-end">
+              <button onClick={() => setImportPlan(null)} disabled={importing}
+                className="px-4 py-2 rounded-lg border-2 text-xs font-bold text-black disabled:opacity-60" style={{ borderColor: '#c4956a' }}>
+                Annulla
+              </button>
+              <button onClick={runImport} disabled={importing || (importPlan.plan.toInsert.length + importPlan.plan.toUpdate.length === 0)}
+                className="px-4 py-2 rounded-lg bg-[#c4956a] text-white text-xs font-bold hover:opacity-90 disabled:opacity-60">
+                {importing ? "Importazione…" : `Importa ${importPlan.plan.toInsert.length + importPlan.plan.toUpdate.length}`}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {importResult && (
+        <div className="rounded-lg border-2 px-3 py-2 flex items-center justify-between" style={{ borderColor: '#c4956a', background: 'rgba(252,246,237,0.6)' }}>
+          <span className="text-xs text-black">{importResult}</span>
+          <button onClick={() => setImportResult(null)} className="text-black"><X className="h-3.5 w-3.5" /></button>
+        </div>
+      )}
+      <div className={`transition-all duration-300 ${selectedGuest ? 'pr-0 sm:pr-[400px]' : ''}`}>
+        {/* Header */}
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6">
+          <div>
+            <h1 className="text-xl sm:text-2xl font-bold text-black">{t("guests_title")}</h1>
+            <p className="text-xs sm:text-sm text-black mt-0.5">{t("guests_count").replace("{count}", String(filtered.length))}</p>
+          </div>
+          <div className="mt-3 sm:mt-0 flex items-center gap-2">
+            <div className="flex p-0.5 rounded-lg border-2" style={{ borderColor: '#c4956a', background: 'rgba(252,246,237,0.6)' }}>
+              <button onClick={() => setViewMode("list")} className={`p-1.5 rounded-md transition-colors`} style={{ background: viewMode === 'list' ? '#c4956a' : 'transparent' }}>
+                <List className={`h-4 w-4 ${viewMode === 'list' ? 'text-white' : 'text-black'}`} />
+              </button>
+              <button onClick={() => setViewMode("grid")} className={`p-1.5 rounded-md transition-colors`} style={{ background: viewMode === 'grid' ? '#c4956a' : 'transparent' }}>
+                <LayoutGrid className={`h-4 w-4 ${viewMode === 'grid' ? 'text-white' : 'text-black'}`} />
+              </button>
+            </div>
+            <button onClick={handleExport} className="inline-flex items-center px-3 py-2 border-2 text-xs font-medium rounded-lg text-black" style={{ borderColor: '#c4956a', background: 'rgba(252,246,237,0.6)' }}>
+              <Download className="h-3.5 w-3.5 mr-1.5" /> {t("guests_export_btn")}
+            </button>
+            <button onClick={() => fileInputRef.current?.click()} className="inline-flex items-center px-3 py-2 border-2 text-xs font-medium rounded-lg text-black" style={{ borderColor: '#c4956a', background: 'rgba(252,246,237,0.6)' }}>
+              <Upload className="h-3.5 w-3.5 mr-1.5" /> {t("guests_import_btn")}
+            </button>
+            <input ref={fileInputRef} type="file" accept=".csv" className="hidden" onChange={handleImport} />
+          </div>
+        </div>
+
+        {/* Search + bulk actions */}
+        <div className="flex items-center gap-3 mb-4">
+          <div className="relative flex-1 max-w-md">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-black" />
+            <input type="text" value={search} onChange={e => setSearch(e.target.value)} placeholder={t("guests_search_placeholder")} className="w-full pl-9 pr-3 py-2 border-2 rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-[#c4956a]" style={{ borderColor: '#c4956a', background: 'rgba(252,246,237,0.6)' }} />
+          </div>
+          {filtered.length > 0 && (
+            <button onClick={selectAll} className="text-xs font-medium text-black hover:text-black">
+              {selectedIds.size === guests.length ? t("guests_deselect") : t("guests_select_all")}
+            </button>
+          )}
+          {selectedIds.size > 0 && (
+            <button onClick={deleteSelected} disabled={deleting} className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-bold text-red-600 bg-red-50 border border-red-200 hover:bg-red-100 disabled:opacity-50">
+              <Trash2 className="w-3.5 h-3.5" /> {t("guests_delete").replace("{count}", String(selectedIds.size))}
+            </button>
+          )}
+        </div>
+
+        {/* Content */}
+        {loading ? (
+          <div className="text-sm text-black">{t("loading")}</div>
+        ) : filtered.length === 0 ? (
+          <div className="border-2 rounded-xl py-16 text-center" style={{ background: 'rgba(252,246,237,0.85)', borderColor: '#c4956a' }}>
+            <User className="mx-auto h-12 w-12 text-black mb-4" />
+            <h3 className="text-sm font-medium text-black">{search ? t("guests_no_results") : t("guests_no_clients")}</h3>
+          </div>
+        ) : viewMode === "grid" ? (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            {(() => { let newRowIdx = 0; return filtered.map(guest => {
+              const isNew = (guest as any).created_at && (guest as any).created_at > seenAt;
+              const rowIdx = isNew ? newRowIdx++ : 0;
+              return (
+              <div key={guest.id} onClick={() => setSelectedGuest(guest)}
+                className={`rounded-xl border-2 p-4 hover:shadow-md cursor-pointer transition-all ${isNew ? 'is-new-row' : ''}`}
+                style={{ background: 'rgba(252,246,237,0.85)', borderColor: '#c4956a', ...(isNew ? { ['--row-new-index' as any]: rowIdx } : {}) }}>
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="h-9 w-9 rounded-full flex items-center justify-center text-black font-bold text-sm flex-shrink-0" style={{ background: 'rgba(196,149,106,0.2)' }}>
+                      {guest.name.charAt(0).toUpperCase()}
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-sm font-bold text-black truncate">{guest.name}</p>
+                      <p className="text-xs text-black truncate">{guest.phone}</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-1.5 flex-shrink-0">
+                    <button onClick={(e) => { e.stopPropagation(); deleteSingle(guest.id); }} className="p-1 text-black hover:text-red-500"><Trash2 className="w-3.5 h-3.5" /></button>
+                    <input type="checkbox" checked={selectedIds.has(guest.id)} onChange={(e) => { e.stopPropagation(); toggleSelect(guest.id); }} className="w-4 h-4 rounded accent-[#c4956a] cursor-pointer" />
+                  </div>
+                </div>
+                <div className="flex gap-4 text-center">
+                  <div className="flex-1">
+                    <p className="text-lg font-bold text-black">{guest.visit_count}</p>
+                    <p className="text-[10px] text-black font-medium uppercase">{t("guests_visits_col")}</p>
+                  </div>
+                  <div className="flex-1 border-l" style={{ borderColor: 'rgba(196,149,106,0.3)' }}>
+                    <p className={`text-lg font-bold ${guest.no_show_count > 0 ? 'text-red-600' : 'text-black'}`}>{guest.no_show_count}</p>
+                    <p className="text-[10px] text-black font-medium uppercase">{t("guests_noshows_col")}</p>
+                  </div>
+                </div>
+              </div>
+              );
+            }); })()}
+          </div>
+        ) : (
+          <>
+          {/* Mobile: card list with all data visible */}
+          <div className="sm:hidden space-y-2">
+            {(() => { let newRowIdx = 0; return filtered.map(guest => {
+              const isNew = (guest as any).created_at && (guest as any).created_at > seenAt;
+              const rowIdx = isNew ? newRowIdx++ : 0;
+              return (
+              <div
+                key={guest.id}
+                onClick={() => toggleSelect(guest.id)}
+                className={`rounded-xl border-2 p-3 transition-all cursor-pointer ${selectedIds.has(guest.id) ? 'ring-2 ring-[#c4956a]' : ''} ${isNew ? 'is-new-row' : ''}`}
+                style={{ background: 'rgba(252,246,237,0.85)', borderColor: selectedIds.has(guest.id) ? '#c4956a' : 'rgba(196,149,106,0.4)', ...(isNew ? { ['--row-new-index' as any]: rowIdx } : {}) }}
+              >
+                <div className="flex items-center gap-3">
+                  <input type="checkbox" checked={selectedIds.has(guest.id)} onChange={() => toggleSelect(guest.id)} className="w-4 h-4 rounded accent-[#c4956a] cursor-pointer flex-shrink-0" />
+                  <div className="h-8 w-8 rounded-full flex items-center justify-center text-black font-bold text-sm flex-shrink-0" style={{ background: 'rgba(196,149,106,0.2)' }}>{guest.name.charAt(0).toUpperCase()}</div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-bold text-black truncate">{guest.name}</p>
+                    <p className="text-xs text-black truncate">{guest.phone || '—'}</p>
+                    {guest.email && <p className="text-xs text-black truncate opacity-70">{guest.email}</p>}
+                  </div>
+                  <div className="flex gap-3 text-center flex-shrink-0">
+                    <div>
+                      <p className="text-sm font-bold text-black">{guest.visit_count}</p>
+                      <p className="text-[9px] text-black uppercase">{t("guests_visits_col")}</p>
+                    </div>
+                    {loyaltyOn && (
+                      <div>
+                        <p className="text-sm font-bold text-black">{pointsByGuest[guest.id] ?? 0}</p>
+                        <p className="text-[9px] text-black uppercase">{t("guests_points_col")}</p>
+                      </div>
+                    )}
+                    <div>
+                      <p className={`text-sm font-bold ${guest.no_show_count > 0 ? 'text-red-600' : 'text-black'}`}>{guest.no_show_count}</p>
+                      <p className="text-[9px] text-black uppercase">No-show</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              );
+            }); })()}
+          </div>
+
+          {/* Desktop: full table */}
+          <div className="hidden sm:block border-2 rounded-xl overflow-hidden" style={{ background: 'rgba(252,246,237,0.85)', borderColor: '#c4956a' }}>
+            <table className="w-full divide-y" style={{ borderColor: '#c4956a' }}>
+              <thead>
+                <tr>
+                  <th className="px-3 py-3 w-10"></th>
+                  <th className="px-6 py-3 text-left text-xs font-semibold text-black uppercase">{t("guests_name")}</th>
+                  <th className="px-6 py-3 text-left text-xs font-semibold text-black uppercase">{t("guests_phone")}</th>
+                  {/* Email is what marketing campaigns and gift cards run on — a
+                      blank here is the reason a guest can't be reached, so it
+                      earns a column rather than hiding in the drawer. */}
+                  <th className="px-6 py-3 text-left text-xs font-semibold text-black uppercase">{t("guests_email_col")}</th>
+                  <th className="px-6 py-3 text-center text-xs font-semibold text-black uppercase">{t("guests_visits_col")}</th>
+                  {loyaltyOn && (
+                    <th className="px-6 py-3 text-center text-xs font-semibold text-black uppercase">{t("guests_points_col")}</th>
+                  )}
+                  <th className="px-6 py-3 text-center text-xs font-semibold text-black uppercase">{t("guests_noshows_col")}</th>
+                  <th className="px-3 py-3 w-10"></th>
+                </tr>
+              </thead>
+              <tbody className="divide-y" style={{ borderColor: 'rgba(196,149,106,0.3)' }}>
+                {(() => { let newRowIdx = 0; return filtered.map(guest => {
+                  const isNew = (guest as any).created_at && (guest as any).created_at > seenAt;
+                  const rowIdx = isNew ? newRowIdx++ : 0;
+                  return (
+                  <tr
+                    key={guest.id}
+                    onClick={() => setSelectedGuest(guest)}
+                    className={`hover:bg-[#c4956a]/10 transition-colors cursor-pointer ${isNew ? 'is-new-row' : ''}`}
+                    style={isNew ? { ['--row-new-index' as any]: rowIdx } : undefined}
+                  >
+                    <td className="px-3 py-3">
+                      <input type="checkbox" checked={selectedIds.has(guest.id)} onChange={(e) => { e.stopPropagation(); toggleSelect(guest.id); }} className="w-4 h-4 rounded accent-[#c4956a] cursor-pointer" />
+                    </td>
+                    <td className="px-6 py-3">
+                      <div className="flex items-center gap-2">
+                        <div className="h-7 w-7 rounded-full flex items-center justify-center text-black font-bold text-xs flex-shrink-0" style={{ background: 'rgba(196,149,106,0.2)' }}>{guest.name.charAt(0).toUpperCase()}</div>
+                        <span className="text-sm font-bold text-black">{guest.name}</span>
+                      </div>
+                    </td>
+                    <td className="px-6 py-3 text-sm text-black whitespace-nowrap">{guest.phone}</td>
+                    <td className="px-6 py-3 text-sm text-black">
+                      {guest.email ? (
+                        <span className="inline-flex items-center gap-1.5 max-w-[220px]">
+                          <Mail className="h-3.5 w-3.5 flex-shrink-0" style={{ color: '#c4956a' }} />
+                          <span className="truncate">{guest.email}</span>
+                        </span>
+                      ) : (
+                        <span className="text-black opacity-40">—</span>
+                      )}
+                    </td>
+                    <td className="px-6 py-3 text-sm font-medium text-black text-center">{guest.visit_count}</td>
+                    {loyaltyOn && (
+                      <td className="px-6 py-3 text-sm font-medium text-center">
+                        {pointsByGuest[guest.id] ? (
+                          <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 font-bold text-black"
+                            style={{ background: 'rgba(196,149,106,0.18)' }}>
+                            <Award className="h-3.5 w-3.5" /> {pointsByGuest[guest.id]}
+                          </span>
+                        ) : (
+                          <span className="text-black opacity-40">0</span>
+                        )}
+                      </td>
+                    )}
+                    <td className="px-6 py-3 text-sm font-medium text-center">
+                      <span className={guest.no_show_count > 0 ? 'text-red-600' : 'text-black'}>{guest.no_show_count}</span>
+                    </td>
+                    <td className="px-3 py-3">
+                      <button onClick={(e) => { e.stopPropagation(); deleteSingle(guest.id); }} className="p-1 text-black hover:text-red-500"><Trash2 className="w-3.5 h-3.5" /></button>
+                    </td>
+                  </tr>
+                  );
+                }); })()}
+              </tbody>
+            </table>
+          </div>
+          </>
+        )}
+      </div>
+
+      {/* Guest Detail Drawer — desktop only */}
+      {selectedGuest && (
+        <div className="hidden sm:flex fixed inset-y-0 right-0 sm:w-[400px] border-l shadow-2xl z-40 flex-col" style={{ background: 'rgba(252,246,237,0.98)', borderColor: '#c4956a' }}>
+          <div className="px-6 py-4 flex items-center justify-between border-b" style={{ borderColor: '#c4956a' }}>
+            <div className="flex items-center gap-3">
+              <div className="h-10 w-10 rounded-full flex items-center justify-center text-black font-bold" style={{ background: 'rgba(196,149,106,0.2)' }}>
+                {selectedGuest.name.charAt(0).toUpperCase()}
+              </div>
+              <div>
+                <h2 className="text-lg font-bold text-black">{selectedGuest.name}</h2>
+                <p className="text-xs text-black flex items-center gap-1"><Phone className="w-3 h-3" />{selectedGuest.phone}</p>
+              </div>
+            </div>
+            <button onClick={() => setSelectedGuest(null)} className="p-2 hover:bg-[#c4956a]/10 rounded-full"><X className="h-5 w-5 text-black" /></button>
+          </div>
+
+          <div className="flex-1 overflow-y-auto p-6 space-y-6">
+            {/* Stats */}
+            <div className="grid grid-cols-2 gap-3">
+              <div className="rounded-lg border-2 p-3 text-center" style={{ borderColor: '#c4956a', background: 'rgba(252,246,237,0.6)' }}>
+                <p className="text-2xl font-bold text-black">{selectedGuest.visit_count}</p>
+                <p className="text-xs text-black font-medium">{t("guests_visits_col")}</p>
+              </div>
+              <div className="rounded-lg border-2 p-3 text-center" style={{ borderColor: selectedGuest.no_show_count > 0 ? '#ef4444' : '#c4956a', background: selectedGuest.no_show_count > 0 ? 'rgba(239,68,68,0.05)' : 'rgba(252,246,237,0.6)' }}>
+                <p className={`text-2xl font-bold ${selectedGuest.no_show_count > 0 ? 'text-red-600' : 'text-black'}`}>{selectedGuest.no_show_count}</p>
+                <p className="text-xs text-black font-medium">{t("guests_noshows_col")}</p>
+              </div>
+            </div>
+
+            {/* Loyalty balance + reward redemption (only when the module is on). */}
+            {getFeatures(activeTenant?.settings).loyalty_enabled && activeTenant && (
+              <GuestLoyaltyPanel
+                key={`loyalty-${selectedGuest.id}`}
+                guest={selectedGuest}
+                tenantId={activeTenant.id}
+                settings={activeTenant.settings}
+              />
+            )}
+
+            {/* Contact & marketing data — email fuels email campaigns, birthday
+                fuels the birthday segment. Both were only importable via CSV
+                before; now the owner can capture them per guest. */}
+            <GuestContactEditor
+              key={`contact-${selectedGuest.id}`}
+              guest={selectedGuest}
+              onSaved={(updated) => {
+                setSelectedGuest({ ...selectedGuest, ...updated });
+                setGuests(prev => prev.map(g => g.id === selectedGuest.id ? { ...g, ...updated } : g));
+              }}
+            />
+
+            {/* Tags — the raw material of marketing segments (segmentation.ts
+                filters by tag), so the owner can finally curate them here. */}
+            <GuestTagsEditor
+              key={`tags-${selectedGuest.id}`}
+              guest={selectedGuest}
+              onSaved={(updated) => {
+                setSelectedGuest({ ...selectedGuest, ...updated });
+                setGuests(prev => prev.map(g => g.id === selectedGuest.id ? { ...g, ...updated } : g));
+              }}
+            />
+
+            {/* Guest profile notes (allergies, accessibility, family) */}
+            <GuestNotesEditor
+              key={selectedGuest.id}
+              guest={selectedGuest}
+              onSaved={(updated) => {
+                setSelectedGuest({ ...selectedGuest, ...updated });
+                setGuests(prev => prev.map(g => g.id === selectedGuest.id ? { ...g, ...updated } : g));
+              }}
+            />
+
+            {/* Reservation History */}
+            <div>
+              <h3 className="text-xs font-bold text-black uppercase tracking-wider mb-3">{t("guests_reservation_history")}</h3>
+              {guestReservations.length === 0 ? (
+                <p className="text-xs text-black italic">{t("guests_no_reservations")}</p>
+              ) : (
+                <div className="space-y-2">
+                  {guestReservations.map(res => (
+                    <div key={res.id} className="flex items-center justify-between border-2 rounded-lg p-3" style={{ borderColor: 'rgba(196,149,106,0.3)', background: 'rgba(252,246,237,0.6)' }}>
+                      <div className="flex items-center gap-2">
+                        <CalendarCheck className="w-4 h-4 text-[#c4956a] flex-shrink-0" />
+                        <div>
+                          <p className="text-sm font-bold text-black">{res.date}</p>
+                          <p className="text-xs text-black">{res.time} · {res.party_size}p</p>
+                        </div>
+                      </div>
+                      <span className={`text-[10px] font-bold uppercase px-2 py-1 rounded ${
+                        res.status === 'confirmed' ? 'bg-emerald-50 text-emerald-700' :
+                        res.status === 'cancelled' || res.status === 'no_show' ? 'bg-red-50 text-red-700' :
+                        'bg-zinc-100 text-black'
+                      }`}>{res.status.replace('_', ' ')}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function GuestLoyaltyPanel({ guest, tenantId, settings }: { guest: Guest; tenantId: string; settings: TenantSettings | undefined }) {
+  const { t } = useLanguage();
+  const supabase = createClient();
+  const cfg = getLoyaltyConfig(settings);
+  const [points, setPoints] = useState<number | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const { data } = await supabase
+        .from("loyalty_accounts")
+        .select("points")
+        .eq("tenant_id", tenantId)
+        .eq("guest_id", guest.id)
+        .maybeSingle();
+      if (!cancelled) setPoints(data?.points ?? 0);
+    })();
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [guest.id, tenantId]);
+
+  const redeem = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/loyalty/redeem", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tenant_id: tenantId, guest_id: guest.id }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (res.ok && json?.success) setPoints(Number(json.points) || 0);
+      else setError(t("loyalty_redeem_failed"));
+    } catch {
+      setError(t("loyalty_redeem_failed"));
+    }
+    setBusy(false);
+  };
+
+  const pts = points ?? 0;
+  const pct = Math.min(100, Math.round((pts / cfg.reward_points) * 100));
+  const canRedeem = pts >= cfg.reward_points;
+
+  return (
+    <div>
+      <h3 className="text-xs font-bold text-black uppercase tracking-wider mb-2 flex items-center gap-1.5">
+        <Award className="w-3.5 h-3.5" />
+        {t("loyalty_panel_title")}
+      </h3>
+      <div className="rounded-lg border-2 p-3 space-y-2" style={{ borderColor: '#c4956a', background: 'rgba(252,246,237,0.6)' }}>
+        <p className="text-sm text-black">
+          <span className="text-2xl font-bold">{points === null ? "…" : pts}</span>{" "}
+          / {cfg.reward_points} {t("loyalty_points_label")}
+        </p>
+        <div className="h-2 w-full rounded-full" style={{ background: 'rgba(196,149,106,0.25)' }}>
+          <div className="h-2 rounded-full" style={{ width: `${pct}%`, background: '#c4956a' }} />
+        </div>
+        {cfg.reward_label ? (
+          <p className="text-xs text-black">{t("loyalty_reward_label")}: <span className="font-semibold">{cfg.reward_label}</span></p>
+        ) : null}
+        {error ? <p className="text-xs font-semibold text-red-700">{error}</p> : null}
+        <button
+          onClick={redeem}
+          disabled={!canRedeem || busy}
+          className="w-full rounded-lg py-2 text-sm font-bold text-white disabled:opacity-40"
+          style={{ background: 'linear-gradient(135deg, #d4a574, #c4956a)' }}
+        >
+          {busy ? "…" : t("loyalty_redeem_btn")}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function GuestTagsEditor({ guest, onSaved }: { guest: Guest; onSaved: (updated: Partial<Guest>) => void }) {
+  const { t } = useLanguage();
+  const supabase = createClient();
+  const [tags, setTags] = useState<string[]>(guest.tags || []);
+  const [draft, setDraft] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  const persist = async (next: string[]) => {
+    setSaving(true);
+    const { error } = await supabase.from("guests").update({ tags: next }).eq("id", guest.id);
+    setSaving(false);
+    if (!error) { setTags(next); onSaved({ tags: next } as Partial<Guest>); }
+  };
+
+  const addTag = () => {
+    const v = draft.trim().toLowerCase();
+    setDraft("");
+    if (!v || tags.includes(v)) return;
+    persist([...tags, v]);
+  };
+
+  return (
+    <div>
+      <h3 className="text-xs font-bold text-black uppercase tracking-wider mb-2 flex items-center gap-1.5">
+        <Tag className="w-3.5 h-3.5" />
+        {t("guests_tags_label")}
+        {saving && <span className="text-[10px] text-black">…</span>}
+      </h3>
+      <div className="flex flex-wrap items-center gap-1.5">
+        {tags.map((tag) => (
+          <span key={tag} className="inline-flex items-center gap-1 rounded-full border-2 px-2.5 py-0.5 text-xs font-semibold text-black" style={{ borderColor: '#c4956a', background: 'rgba(196,149,106,0.15)' }}>
+            {tag}
+            <button onClick={() => persist(tags.filter((x) => x !== tag))} className="hover:text-red-600" aria-label={`remove ${tag}`}>
+              <X className="w-3 h-3" />
+            </button>
+          </span>
+        ))}
+        <input
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addTag(); } }}
+          onBlur={addTag}
+          placeholder={t("guests_tags_placeholder")}
+          className="border-2 rounded-full px-3 py-0.5 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-[#c4956a] w-32"
+          style={{ borderColor: 'rgba(196,149,106,0.5)', background: 'rgba(252,246,237,0.6)' }}
+        />
+      </div>
+    </div>
+  );
+}
+
+// Email + birthday capture. Email makes the guest reachable by email campaigns;
+// birthday makes them match the "compleanno nel mese" segment. Persist on blur,
+// same idiom as GuestNotesEditor — no explicit Save button.
+function GuestContactEditor({ guest, onSaved }: { guest: Guest; onSaved: (updated: Partial<Guest>) => void }) {
+  const { t } = useLanguage();
+  const supabase = createClient();
+  const [email, setEmail] = useState(guest.email || "");
+  const [birthday, setBirthday] = useState(guest.birthday || "");
+  const [savingField, setSavingField] = useState<string | null>(null);
+  const [emailError, setEmailError] = useState(false);
+
+  const persist = async (field: "email" | "birthday", value: string) => {
+    const current = (field === "email" ? guest.email : guest.birthday) || "";
+    if (value === current) return;
+    if (field === "email" && value && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(value)) {
+      setEmailError(true);
+      return;
+    }
+    setEmailError(false);
+    setSavingField(field);
+    const { error } = await supabase
+      .from("guests")
+      .update({ [field]: value || null })
+      .eq("id", guest.id);
+    setSavingField(null);
+    if (!error) onSaved({ [field]: value || null } as Partial<Guest>);
+  };
+
+  const cls = "block w-full border-2 rounded-lg px-3 py-2 text-sm font-medium text-black focus:outline-none focus:ring-2 focus:ring-[#c4956a]";
+  const style: React.CSSProperties = { borderColor: '#c4956a', background: 'rgba(252,246,237,0.6)' };
+
+  return (
+    <div className="space-y-3">
+      <h3 className="text-xs font-bold text-black uppercase tracking-wider">{t("guests_contact_title")}</h3>
+
+      <div>
+        <label className="flex items-center gap-1.5 text-xs font-semibold text-black mb-1">
+          <Mail className="w-3.5 h-3.5" />
+          <span>{t("guests_email_label")}</span>
+          {savingField === "email" && <span className="text-[10px] text-black">…</span>}
+        </label>
+        <input
+          type="email"
+          value={email}
+          onChange={(e) => { setEmail(e.target.value); setEmailError(false); }}
+          onBlur={() => persist("email", email.trim())}
+          placeholder={t("guests_email_ph")}
+          className={cls}
+          style={emailError ? { ...style, borderColor: '#ef4444' } : style}
+        />
+        {emailError && <p className="mt-1 text-[11px] font-semibold text-red-600">{t("guests_email_invalid")}</p>}
+      </div>
+
+      <div>
+        <label className="flex items-center gap-1.5 text-xs font-semibold text-black mb-1">
+          <Cake className="w-3.5 h-3.5" />
+          <span>{t("guests_birthday_label")}</span>
+          {savingField === "birthday" && <span className="text-[10px] text-black">…</span>}
+        </label>
+        <input
+          type="date"
+          value={birthday || ""}
+          onChange={(e) => setBirthday(e.target.value)}
+          onBlur={() => persist("birthday", birthday)}
+          className={cls}
+          style={style}
+        />
+      </div>
+    </div>
+  );
+}
+
+function GuestNotesEditor({ guest, onSaved }: { guest: Guest; onSaved: (updated: Partial<Guest>) => void }) {
+  const { t } = useLanguage();
+  const supabase = createClient();
+  const [dietary, setDietary] = useState(guest.dietary_notes || "");
+  const [accessibility, setAccessibility] = useState(guest.accessibility_notes || "");
+  const [family, setFamily] = useState(guest.family_notes || "");
+  const [savingField, setSavingField] = useState<string | null>(null);
+
+  const persist = async (field: "dietary_notes" | "accessibility_notes" | "family_notes", value: string) => {
+    const current = (guest as any)[field] || "";
+    if (value === current) return;
+    setSavingField(field);
+    const { error } = await supabase
+      .from("guests")
+      .update({ [field]: value || null })
+      .eq("id", guest.id);
+    setSavingField(null);
+    if (!error) onSaved({ [field]: value } as any);
+  };
+
+  const taCls = "block w-full border-2 rounded-lg px-3 py-2 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-[#c4956a]";
+  const taStyle: React.CSSProperties = { borderColor: '#c4956a', background: 'rgba(252,246,237,0.6)' };
+  const hasAny = !!(dietary || accessibility);
+
+  return (
+    <div className="space-y-3">
+      <h3 className="text-xs font-bold text-black uppercase tracking-wider flex items-center gap-1.5">
+        {hasAny && <AlertOctagon className="w-3.5 h-3.5 text-red-600" />}
+        {t("guests_profile_notes") || "Profilo & avvisi"}
+      </h3>
+
+      <div>
+        <label className="flex items-center gap-1.5 text-xs font-semibold text-black mb-1">
+          <Utensils className="w-3.5 h-3.5" />
+          <span>{t("guests_dietary_label") || "Allergie / dieta"}</span>
+          {savingField === "dietary_notes" && <span className="text-[10px] text-black">…</span>}
+        </label>
+        <textarea
+          value={dietary}
+          onChange={(e) => setDietary(e.target.value)}
+          onBlur={() => persist("dietary_notes", dietary)}
+          rows={2}
+          placeholder={t("guests_dietary_placeholder") || "Es. allergia ai crostacei, celiaco, vegano…"}
+          className={taCls}
+          style={taStyle}
+        />
+      </div>
+
+      <div>
+        <label className="flex items-center gap-1.5 text-xs font-semibold text-black mb-1">
+          <Accessibility className="w-3.5 h-3.5" />
+          <span>{t("guests_accessibility_label") || "Accessibilità"}</span>
+          {savingField === "accessibility_notes" && <span className="text-[10px] text-black">…</span>}
+        </label>
+        <textarea
+          value={accessibility}
+          onChange={(e) => setAccessibility(e.target.value)}
+          onBlur={() => persist("accessibility_notes", accessibility)}
+          rows={2}
+          placeholder={t("guests_accessibility_placeholder") || "Es. sedia a rotelle, ipovedente…"}
+          className={taCls}
+          style={taStyle}
+        />
+      </div>
+
+      <div>
+        <label className="flex items-center gap-1.5 text-xs font-semibold text-black mb-1">
+          <UsersIcon className="w-3.5 h-3.5" />
+          <span>{t("guests_family_label") || "Famiglia / note personali"}</span>
+          {savingField === "family_notes" && <span className="text-[10px] text-black">…</span>}
+        </label>
+        <textarea
+          value={family}
+          onChange={(e) => setFamily(e.target.value)}
+          onBlur={() => persist("family_notes", family)}
+          rows={2}
+          placeholder={t("guests_family_placeholder") || "Es. anniversario il 12 maggio, viene sempre con i 2 figli…"}
+          className={taCls}
+          style={taStyle}
+        />
+      </div>
+    </div>
+  );
+}

@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="it">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, viewport-fit=cover"
+    />
+    <meta name="theme-color" content="#FCF6ED" />
+    <title>BaliFlow CRM — Offline</title>
+    <style>
+      /* Self-contained: no external CSS/fonts/images beyond the precached logo,
+         so this renders with an otherwise-empty cache. */
+      * {
+        box-sizing: border-box;
+      }
+      html,
+      body {
+        margin: 0;
+        height: 100%;
+      }
+      body {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 24px;
+        background: #fcf6ed;
+        color: #4a3f35;
+        font-family:
+          -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica,
+          Arial, sans-serif;
+        -webkit-font-smoothing: antialiased;
+      }
+      .card {
+        max-width: 420px;
+        width: 100%;
+        text-align: center;
+      }
+      .logo {
+        width: 84px;
+        height: 84px;
+        border-radius: 20px;
+        object-fit: cover;
+        margin: 0 auto 24px;
+        box-shadow: 0 8px 24px rgba(196, 149, 106, 0.25);
+      }
+      h1 {
+        font-size: 22px;
+        font-weight: 600;
+        margin: 0 0 8px;
+        color: #3a3129;
+      }
+      p {
+        font-size: 15px;
+        line-height: 1.55;
+        margin: 0 0 6px;
+        color: #6b5d4f;
+      }
+      .en {
+        color: #a08a76;
+        font-size: 13px;
+        margin-top: 2px;
+      }
+      button {
+        margin-top: 24px;
+        appearance: none;
+        border: 1px solid #c4956a;
+        background: #c4956a;
+        color: #fff;
+        font-size: 15px;
+        font-weight: 600;
+        padding: 12px 28px;
+        border-radius: 12px;
+        cursor: pointer;
+        transition: filter 0.15s ease;
+      }
+      button:hover {
+        filter: brightness(0.95);
+      }
+      button:active {
+        filter: brightness(0.9);
+      }
+    </style>
+  </head>
+  <body>
+    <div class="card">
+      <img class="logo" src="/icons/icon-192.png" alt="BaliFlow" />
+      <h1>Sei offline</h1>
+      <p>
+        Nessuna connessione. I dati salvati (menù, tavoli) restano visibili
+        nell'app; alcune azioni richiedono la rete.
+      </p>
+      <p class="en">
+        You're offline. Saved data stays visible; some actions need a connection.
+      </p>
+      <button onclick="location.reload()">Riprova / Retry</button>
+    </div>
+  </body>
+</html>

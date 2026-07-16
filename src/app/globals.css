@@ -1,0 +1,707 @@
+@import "tailwindcss";
+
+/* Mobile: prevent any rogue child from causing horizontal page scroll, and
+   block the browser's own rubber-band bounce past the viewport edge in BOTH
+   axes — an extreme swipe would otherwise drag the whole layout off-screen
+   (sideways) or reveal the empty canvas behind the app (vertical pull). The
+   inner scroll region (<main>) also gets overscroll-behavior:contain so its
+   bounce never chains up to the document. */
+html, body { overflow-x: hidden; overscroll-behavior: none; }
+
+/* Buttons inside a scrollable list (e.g. the Cassa dish grid) can otherwise
+   have their tap mistaken for the start of a scroll/pan gesture on mobile,
+   dropping the click entirely — this tells the browser a button is always a
+   discrete tap target, never a pan surface. Also removes the ~300ms tap
+   delay and the double-tap-to-zoom that would fire on a fast double order. */
+button {
+  touch-action: manipulation;
+  cursor: pointer;
+}
+button:disabled,
+button[aria-disabled="true"] {
+  cursor: default;
+}
+/* Elements that behave as buttons but aren't <button> (role="button", or a
+   clickable label/summary) should read as clickable too. */
+[role="button"]:not(:disabled):not([aria-disabled="true"]),
+summary {
+  cursor: pointer;
+}
+
+@theme {
+  --color-terracotta-50: #fff3ec;
+  --color-terracotta-100: #ffe4d2;
+  --color-terracotta-200: #ffc9a9;
+  --color-terracotta-300: #ffa579;
+  --color-terracotta-400: #fb7740;
+  --color-terracotta-500: #f45517;
+  --color-terracotta-600: #e53f0c;
+  --color-terracotta-700: #be2e0b;
+  --color-terracotta-800: #972611;
+  --color-terracotta-900: #7a2211;
+
+  --color-olive-50: #f6f7f4;
+  --color-olive-100: #eaede5;
+  --color-olive-200: #d6ddcb;
+  --color-olive-300: #b8c6a9;
+  --color-olive-400: #95a881;
+  --color-olive-500: #768a61;
+  --color-olive-600: #5c6c4b;
+  --color-olive-700: #49563d;
+  --color-olive-800: #3c4633;
+  --color-olive-900: #333d2c;
+  
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+
+  --text-xs: 0.85rem;
+}
+
+/*
+  The default border color has changed to `currentColor` in Tailwind CSS v4,
+  so we've added these compatibility styles to make sure everything still
+  looks the same as it did with Tailwind CSS v3.
+
+  If we ever want to remove these styles, we need to add an explicit border
+  color utility to any element that depends on these defaults.
+*/
+@layer base {
+  *,
+  ::after,
+  ::before,
+  ::backdrop,
+  ::file-selector-button {
+    border-color: var(--color-gray-200, currentColor);
+  }
+}
+
+body {
+  color: var(--color-zinc-900);
+  background: linear-gradient(to top, #E1CAB2, #ECD7BF, #F4E4CD, #F7EEE0, #FCF6ED) fixed;
+  min-height: 100vh;
+}
+
+/* Prevent auto-zoom on input focus on ALL mobile browsers */
+@media screen and (max-width: 767px) {
+  input, select, textarea {
+    font-size: 16px !important;
+  }
+}
+
+/* Safari iOS fixes */
+@supports (-webkit-touch-callout: none) {
+  /* Fix 100dvh not supported in older Safari */
+  .h-\[100dvh\] {
+    height: -webkit-fill-available;
+    height: 100dvh;
+  }
+  /* Fix fixed positioning in Safari iOS */
+  .fixed {
+    -webkit-transform: translateZ(0);
+  }
+  /* Prevent elastic scroll bounce on drawers */
+  .overflow-hidden {
+    -webkit-overflow-scrolling: touch;
+  }
+  /* Fix sticky positioning */
+  .sticky {
+    position: -webkit-sticky;
+    position: sticky;
+  }
+}
+
+/* "New since last visit" effect for rows in dashboard sections.
+ * Two layers:
+ *   1) ::after  → cool neutral wash that darkens the row background, giving
+ *                 each new row clear weight on the page. Stays during shimmer,
+ *                 fades out after.
+ *   2) ::before → diagonal light sweep on top of the wash, L→R once.
+ * Both layers are staggered by --row-new-index (set inline) at 400ms steps,
+ * so a burst of N new rows pulses in sequence, not in unison.
+ * Used by useSeenSnapshotAndMark on /reservations, /pending, /waitlist,
+ * /conversations, /guests. Honors prefers-reduced-motion. */
+@keyframes new-row-shimmer {
+  0%   { transform: translateX(-110%) skewX(-18deg); opacity: 0; }
+  20%  { opacity: 1; }
+  80%  { opacity: 1; }
+  100% { transform: translateX(220%)  skewX(-18deg); opacity: 0; }
+}
+@keyframes new-row-wash {
+  0%   { opacity: 0; }
+  15%  { opacity: 1; }
+  70%  { opacity: 1; }
+  100% { opacity: 0; }
+}
+.is-new-row {
+  position: relative;
+  overflow: hidden;
+  z-index: 1;
+}
+/* Background darkening wash — warm bronze tone */
+.is-new-row::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  background: linear-gradient(
+    180deg,
+    rgba(196, 149, 106, 0.14) 0%,
+    rgba(196, 149, 106, 0.10) 100%
+  );
+  opacity: 0;
+  animation: new-row-wash 2.6s ease-out calc(var(--row-new-index, 0) * 400ms) 1 both;
+}
+/* Diagonal light sweep on top of the wash */
+.is-new-row::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  width: 45%;
+  pointer-events: none;
+  z-index: 1;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.0) 15%,
+    rgba(255, 255, 255, 0.65) 50%,
+    rgba(255, 255, 255, 0.0) 85%,
+    transparent 100%
+  );
+  transform: translateX(-110%) skewX(-18deg);
+  animation: new-row-shimmer 1.4s cubic-bezier(0.22, 1, 0.36, 1) calc(var(--row-new-index, 0) * 400ms + 200ms) 1 both;
+}
+.is-new-row > * {
+  position: relative;
+  z-index: 2;
+}
+@media (prefers-reduced-motion: reduce) {
+  .is-new-row,
+  .is-new-row::before,
+  .is-new-row::after {
+    animation: none;
+    background: none;
+  }
+  .is-new-row {
+    background-color: rgba(196, 149, 106, 0.06);
+  }
+}
+
+/* Table-row variant: <tr> can't host absolutely-positioned pseudo-elements
+ * cleanly without breaking table-fixed column geometry. Animate the diagonal
+ * sweep via background-position and the slate wash via background-color, so
+ * the row's own opacity stays at 1 throughout — otherwise `animation-fill-mode:
+ * both` would leave the row invisible after the keyframe ends. */
+@keyframes new-row-tr-shimmer {
+  0%   { background-position: -150% 0; background-color: rgba(196, 149, 106, 0); }
+  15%  { background-color: rgba(196, 149, 106, 0.12); }
+  70%  { background-color: rgba(196, 149, 106, 0.12); }
+  100% { background-position:  250% 0; background-color: rgba(196, 149, 106, 0); }
+}
+tr.is-new-row {
+  position: static;
+  overflow: visible;
+  z-index: auto;
+  background-image: linear-gradient(
+    100deg,
+    transparent 0%,
+    transparent 35%,
+    rgba(255, 255, 255, 0.0) 42%,
+    rgba(255, 255, 255, 0.45) 50%,
+    rgba(255, 255, 255, 0.0) 58%,
+    transparent 65%,
+    transparent 100%
+  );
+  background-size: 250% 100%;
+  background-position: -150% 0;
+  background-repeat: no-repeat;
+  animation: new-row-tr-shimmer 2.6s cubic-bezier(0.22, 1, 0.36, 1) calc(var(--row-new-index, 0) * 400ms) 1 both;
+}
+tr.is-new-row::before,
+tr.is-new-row::after {
+  display: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  tr.is-new-row {
+    animation: none;
+    background-image: none;
+    background-color: rgba(196, 149, 106, 0.06);
+  }
+}
+
+/* Notification dropdown items reuse the same "new row" treatment as the rest
+ * of the CRM (slate wash + diagonal white shimmer) so the visual language is
+ * consistent across reservations / waitlist / conversations / pending / guests
+ * / notifications. Items already enter staggered via JS setTimeout, so no
+ * extra CSS delay is needed. */
+.is-new-notif {
+  position: relative;
+  overflow: hidden;
+  z-index: 1;
+}
+.is-new-notif::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  background: linear-gradient(
+    180deg,
+    rgba(196, 149, 106, 0.14) 0%,
+    rgba(196, 149, 106, 0.10) 100%
+  );
+  opacity: 0;
+  animation: new-row-wash 2.6s ease-out 1 both;
+}
+.is-new-notif::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  width: 45%;
+  pointer-events: none;
+  z-index: 1;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.0) 15%,
+    rgba(255, 255, 255, 0.65) 50%,
+    rgba(255, 255, 255, 0.0) 85%,
+    transparent 100%
+  );
+  transform: translateX(-110%) skewX(-18deg);
+  animation: new-row-shimmer 1.4s cubic-bezier(0.22, 1, 0.36, 1) 200ms 1 both;
+}
+.is-new-notif > * {
+  position: relative;
+  z-index: 2;
+}
+@media (prefers-reduced-motion: reduce) {
+  .is-new-notif,
+  .is-new-notif::before,
+  .is-new-notif::after {
+    animation: none;
+    background: none;
+  }
+  .is-new-notif {
+    background-color: rgba(196, 149, 106, 0.06);
+  }
+}
+
+/* "Diamond" border for the Business plan card (Settings → Payments). An iridescent
+   gradient ring drawn on the outer wrapper's background; the inner card sits on top
+   via padding, leaving a 2px gradient frame. The slow hue drift gives the facet-like
+   shimmer of a cut diamond without a heavy animation. */
+.payments-diamond-border {
+  position: relative;
+  background: linear-gradient(
+    135deg,
+    #e9d8a6 0%,
+    #b8c6db 18%,
+    #f5f7fa 34%,
+    #c4956a 50%,
+    #f5f7fa 66%,
+    #b8c6db 82%,
+    #e9d8a6 100%
+  );
+  background-size: 300% 300%;
+  animation: payments-diamond-shimmer 6s ease-in-out infinite;
+  box-shadow: 0 0 0 1px rgba(196, 149, 106, 0.15), 0 8px 24px -8px rgba(120, 140, 170, 0.35);
+}
+@keyframes payments-diamond-shimmer {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .payments-diamond-border {
+    animation: none;
+  }
+}
+
+/* Dashboard entrance: one-shot fade + rise on first mount. Honors
+   prefers-reduced-motion. */
+.dashboard-enter {
+  animation: dashboard-enter 0.5s ease-out both;
+}
+@keyframes dashboard-enter {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .dashboard-enter {
+    animation: none;
+  }
+}
+
+/* Mobile nav drawer: slide the panel in from the left and fade the backdrop,
+   so opening/closing the menu feels smooth instead of popping in instantly.
+   Honors prefers-reduced-motion (then it just appears). */
+@keyframes drawer-backdrop-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes drawer-panel-in {
+  from { transform: translateX(-100%); }
+  to { transform: translateX(0); }
+}
+@keyframes drawer-backdrop-out {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+@keyframes drawer-panel-out {
+  from { transform: translateX(0); }
+  to { transform: translateX(-100%); }
+}
+.drawer-backdrop {
+  animation: drawer-backdrop-in 0.25s ease-out both;
+}
+.drawer-panel {
+  animation: drawer-panel-in 0.28s cubic-bezier(0.22, 1, 0.36, 1) both;
+  will-change: transform;
+}
+.drawer-backdrop--closing {
+  animation: drawer-backdrop-out 0.25s ease-in both;
+}
+.drawer-panel--closing {
+  animation: drawer-panel-out 0.28s cubic-bezier(0.4, 0, 1, 1) both;
+}
+@media (prefers-reduced-motion: reduce) {
+  .drawer-backdrop, .drawer-panel,
+  .drawer-backdrop--closing, .drawer-panel--closing { animation: none; }
+}
+
+/* Cassa mobile: the comanda (order ticket) opens as a bottom sheet that slides
+   up over the menu — only one scroll region is ever live at a time, which is
+   what makes dish taps reliable on iOS (competing nested scrollers were eating
+   the first tap). The sticky cart bar itself slides up from below on mount. */
+@keyframes sheet-in {
+  from { transform: translateY(100%); }
+  to { transform: translateY(0); }
+}
+@keyframes sheet-out {
+  from { transform: translateY(0); }
+  to { transform: translateY(100%); }
+}
+@keyframes cart-bar-in {
+  from { transform: translateY(120%); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+.sheet-panel {
+  animation: sheet-in 0.3s cubic-bezier(0.22, 1, 0.36, 1) both;
+  will-change: transform;
+}
+.sheet-panel--closing {
+  animation: sheet-out 0.26s cubic-bezier(0.4, 0, 1, 1) both;
+}
+.cart-bar {
+  animation: cart-bar-in 0.32s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* ── Floating assistant bubble vs the cassa ──────────────────────────────────
+   While a comanda is being composed on mobile the docked cart bar owns the
+   bottom edge, so the bubble hops just above it (never on top of it). While
+   the ticket sheet or the pay modal is up, the bubble hides completely — it
+   must never cover money buttons. Classes toggled by OrderView/PayModal. */
+@media (max-width: 1023px) {
+  body.cassa-order-open .assistant-fab {
+    bottom: calc(env(safe-area-inset-bottom, 0px) + 4.9rem);
+    transition: bottom 0.25s ease;
+  }
+}
+body.cassa-overlay-open .assistant-fab {
+  display: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .sheet-panel, .sheet-panel--closing, .cart-bar { animation: none; }
+}
+
+/* Horizontally-scrollable rows (mobile settings tabs, analytics period nav)
+   without a visible scrollbar — content stays on one line and swipes sideways. */
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+/* ── Printing the Cassa documents (comanda / preconto / scontrino) ────────────
+   PrintSheet portals its receipt to a DIRECT <body> child (.cassa-print), so at
+   print time we simply DISPLAY:NONE every other body child — the whole app shell
+   collapses to zero layout and the receipt is the only thing on the page. This
+   replaced a visibility:hidden approach that left the tall shell occupying its
+   full box → ~11 ghost pages on mobile. The receipt's own sizing lives in
+   PrintSheet's scoped @media block. */
+@media print {
+  html, body {
+    height: auto !important;
+    overflow: visible !important;
+    overscroll-behavior: auto !important;
+    background: #fff !important;
+  }
+  body > *:not(.cassa-print) {
+    display: none !important;
+  }
+}
+
+/* ── Booking widget v2 (bw2-*) + floating launcher (fbw-*) ────────────────────
+   Shared by the standalone /b/<slug> page and the FloatingBookingWidget panel
+   injected on every /s template site. A single accent (--bw-accent) tints
+   buttons, focus rings and the launcher pill per template. Everything animates:
+   step transitions, slot reveal, panel open/close. Honors reduced-motion. */
+
+@keyframes bw2-fade { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes bw2-slide { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes bw2-chip { from { opacity: 0; transform: translateY(6px) scale(0.95); } to { opacity: 1; transform: translateY(0) scale(1); } }
+@keyframes bw2-spin { to { transform: rotate(360deg); } }
+@keyframes bw2-pop { 0% { opacity: 0; transform: scale(0.4); } 60% { opacity: 1; transform: scale(1.12); } 100% { opacity: 1; transform: scale(1); } }
+
+.bw2 { color: #111; font-size: 14px; }
+.bw2-fade-in { animation: bw2-fade 0.4s cubic-bezier(0.16, 1, 0.3, 1) both; }
+.bw2-slide-in { animation: bw2-slide 0.38s cubic-bezier(0.16, 1, 0.3, 1) both; }
+
+/* Progress rail */
+.bw2-rail { display: flex; gap: 6px; margin-bottom: 14px; }
+.bw2-dot { height: 4px; flex: 1; border-radius: 9999px; background: rgba(0,0,0,0.1); transition: background-color 0.35s ease; }
+.bw2-dot-active { background: color-mix(in srgb, var(--bw-accent, #000) 55%, rgba(0,0,0,0.12)); }
+.bw2-dot-done { background: var(--bw-accent, #000); }
+
+/* Step header: back arrow + a one-line recap of what's already chosen. Each step
+   REPLACES the previous screen (rather than stacking below it), so this line is
+   what keeps the earlier answers visible without spending vertical space. */
+.bw2-head { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
+.bw2-back {
+  display: inline-flex; align-items: center; justify-content: center;
+  height: 28px; width: 28px; flex-shrink: 0; border-radius: 9999px;
+  border: 1.5px solid rgba(0,0,0,0.12); background: #fff; color: #111;
+  cursor: pointer; transition: border-color 0.2s ease, background-color 0.2s ease;
+}
+.bw2-back:hover { border-color: var(--bw-accent, #000); background: rgba(0,0,0,0.03); }
+.bw2-back svg { height: 15px; width: 15px; }
+.bw2-recap {
+  font-size: 12px; font-weight: 600; color: rgba(0,0,0,0.6);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+
+.bw2-group { display: flex; flex-direction: column; gap: 6px; }
+.bw2-label { font-size: 11px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: rgba(0,0,0,0.55); }
+
+.bw2-input {
+  width: 100%; border-radius: 12px; background: #fff; color: #111;
+  border: 1.5px solid rgba(0,0,0,0.12); padding: 11px 13px; font-size: 14px;
+  outline: none; transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+.bw2-input::placeholder { color: rgba(0,0,0,0.4); }
+.bw2-input:focus {
+  border-color: var(--bw-accent, #000);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--bw-accent, #000) 15%, transparent);
+}
+
+/* People stepper */
+.bw2-stepper { display: flex; align-items: center; justify-content: space-between; border-radius: 12px; border: 1.5px solid rgba(0,0,0,0.12); background: #fff; padding: 3px; }
+.bw2-step-btn {
+  width: 34px; height: 34px; border-radius: 9px; font-size: 20px; font-weight: 700; line-height: 1;
+  color: var(--bw-accent, #111); background: color-mix(in srgb, var(--bw-accent, #000) 8%, #fff);
+  transition: background-color 0.18s ease, transform 0.12s ease;
+}
+.bw2-step-btn:hover { background: color-mix(in srgb, var(--bw-accent, #000) 16%, #fff); }
+.bw2-step-btn:active { transform: scale(0.9); }
+.bw2-step-val { font-size: 16px; font-weight: 700; color: #111; min-width: 2ch; text-align: center; }
+
+/* Buttons */
+.bw2-btn {
+  display: flex; align-items: center; justify-content: center; width: 100%;
+  border-radius: 12px; padding: 13px 16px; font-size: 15px; font-weight: 700;
+  transition: transform 0.16s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.2s ease, filter 0.2s ease, opacity 0.2s ease;
+}
+.bw2-btn-primary {
+  color: #fff; background: var(--bw-accent, #111);
+  box-shadow: 0 8px 20px -8px color-mix(in srgb, var(--bw-accent, #000) 60%, transparent);
+}
+.bw2-btn-primary:not(:disabled):hover { transform: translateY(-1px); filter: brightness(1.06); box-shadow: 0 12px 26px -8px color-mix(in srgb, var(--bw-accent, #000) 70%, transparent); }
+.bw2-btn-primary:not(:disabled):active { transform: translateY(0) scale(0.99); }
+.bw2-btn-primary:disabled { opacity: 0.4; }
+.bw2-btn-ghost { color: #111; background: transparent; font-weight: 600; font-size: 13px; padding: 8px; }
+.bw2-btn-ghost:hover { color: var(--bw-accent, #111); }
+
+/* Slot chips */
+.bw2-chip {
+  height: 40px; border-radius: 10px; font-size: 13px; font-weight: 700; color: #111;
+  border: 1.5px solid rgba(0,0,0,0.14); background: #fff;
+  animation: bw2-chip 0.32s cubic-bezier(0.16, 1, 0.3, 1) both;
+  transition: transform 0.14s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.16s ease, background-color 0.16s ease, color 0.16s ease, border-color 0.16s ease;
+}
+.bw2-chip:not(.bw2-chip-on):hover { transform: translateY(-2px); border-color: var(--bw-accent, #000); box-shadow: 0 6px 14px -6px color-mix(in srgb, var(--bw-accent, #000) 55%, transparent); }
+.bw2-chip:active { transform: scale(0.95); }
+.bw2-chip-on { color: #fff; background: var(--bw-accent, #111); border-color: var(--bw-accent, #111); box-shadow: 0 6px 16px -6px color-mix(in srgb, var(--bw-accent, #000) 70%, transparent); }
+
+.bw2-note { text-align: center; font-size: 13px; font-weight: 600; color: #111; }
+.bw2-hint { font-size: 12px; font-weight: 600; color: var(--bw-accent, #111); }
+.bw2-error { text-align: center; font-size: 13px; font-weight: 700; color: #b91c1c; }
+
+.bw2-spinner {
+  display: inline-block; width: 1em; height: 1em; border-radius: 9999px; vertical-align: -0.15em;
+  border: 2px solid rgba(255,255,255,0.45); border-top-color: #fff; animation: bw2-spin 0.7s linear infinite;
+}
+
+/* Outcome badge */
+.bw2-badge { width: 60px; height: 60px; border-radius: 9999px; display: flex; align-items: center; justify-content: center; animation: bw2-pop 0.5s cubic-bezier(0.16, 1, 0.3, 1) both; }
+.bw2-badge-icon { width: 30px; height: 30px; }
+.bw2-badge-ok { color: var(--bw-accent, #111); background: color-mix(in srgb, var(--bw-accent, #000) 14%, #fff); }
+.bw2-badge-wait { color: #92600a; background: #fdf1dc; }
+
+/* ——— Floating launcher + panel ——— */
+@keyframes fbw-panel-in { from { opacity: 0; transform: translateY(24px) scale(0.96); } to { opacity: 1; transform: translateY(0) scale(1); } }
+@keyframes fbw-panel-out { from { opacity: 1; transform: translateY(0) scale(1); } to { opacity: 0; transform: translateY(24px) scale(0.96); } }
+@keyframes fbw-fade-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes fbw-fade-out { from { opacity: 1; } to { opacity: 0; } }
+
+/* Transparent click-catcher: no dim, no blur (both slowed the open animation
+   and added nothing). It still exists only so a tap/click outside the panel
+   closes it; it never paints. */
+.fbw-backdrop { position: fixed; inset: 0; z-index: 2147483000; background: transparent; border: 0; }
+.fbw-backdrop-in, .fbw-backdrop-out { animation: none; }
+
+.fbw-panel {
+  position: fixed; z-index: 2147483001; bottom: 20px; right: 20px;
+  width: min(380px, calc(100vw - 32px)); max-height: min(86vh, 720px);
+  display: flex; flex-direction: column; overflow: hidden;
+  background: #fff; border-radius: 20px;
+  box-shadow: 0 30px 70px -20px rgba(0,0,0,0.5), 0 0 0 1px rgba(0,0,0,0.05);
+  transform-origin: bottom right;
+}
+.fbw-panel-in { animation: fbw-panel-in 0.34s cubic-bezier(0.16, 1, 0.3, 1) both; }
+.fbw-panel-out { animation: fbw-panel-out 0.3s cubic-bezier(0.4, 0, 1, 1) both; }
+
+.fbw-head { display: flex; align-items: center; justify-content: space-between; padding: 16px 18px; background: var(--bw-accent, #111); color: #fff; }
+.fbw-head-dot { width: 8px; height: 8px; border-radius: 9999px; background: #fff; box-shadow: 0 0 0 4px rgba(255,255,255,0.25); }
+.fbw-head-title { font-size: 15px; font-weight: 700; letter-spacing: 0.01em; }
+.fbw-close { width: 30px; height: 30px; display: flex; align-items: center; justify-content: center; border-radius: 9px; color: #fff; background: rgba(255,255,255,0.16); transition: background-color 0.18s ease, transform 0.14s ease; }
+.fbw-close:hover { background: rgba(255,255,255,0.28); }
+.fbw-close:active { transform: scale(0.9); }
+.fbw-close svg { width: 16px; height: 16px; }
+.fbw-body { padding: 18px; overflow-y: auto; overscroll-behavior: contain; }
+
+.fbw-pill {
+  position: fixed; z-index: 2147483001; bottom: 20px; right: 20px;
+  display: inline-flex; align-items: center; gap: 9px;
+  padding: 14px 20px; border-radius: 9999px;
+  color: #fff; background: var(--bw-accent, #111); font-size: 15px; font-weight: 700;
+  box-shadow: 0 12px 28px -8px color-mix(in srgb, var(--bw-accent, #000) 70%, transparent), 0 0 0 1px rgba(255,255,255,0.08) inset;
+  transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.2s ease, opacity 0.22s ease, filter 0.2s ease;
+}
+.fbw-pill:hover { transform: translateY(-2px); filter: brightness(1.05); box-shadow: 0 18px 36px -8px color-mix(in srgb, var(--bw-accent, #000) 80%, transparent); }
+.fbw-pill:active { transform: translateY(0) scale(0.97); }
+.fbw-pill-hidden { opacity: 0; transform: translateY(10px) scale(0.9); pointer-events: none; }
+.fbw-pill-icon { width: 19px; height: 19px; }
+
+@media (max-width: 480px) {
+  .fbw-panel { bottom: 0; right: 0; left: 0; width: 100vw; max-height: 90vh; border-radius: 20px 20px 0 0; transform-origin: bottom center; }
+  .fbw-pill { bottom: 16px; right: 16px; }
+}
+
+/* ——— In-site menu overlay (dish detail + full menu) ——— */
+@keyframes smo-fade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes smo-rise { from { opacity: 0; transform: translateY(26px) scale(0.98); } to { opacity: 1; transform: translateY(0) scale(1); } }
+
+.smo-scrim {
+  position: fixed; inset: 0; z-index: 2147483200;
+  display: flex; align-items: center; justify-content: center; padding: 20px;
+  background: rgba(12,10,9,0.55); backdrop-filter: blur(3px);
+  animation: smo-fade 0.2s ease both;
+}
+.smo-scrim-hit { position: absolute; inset: 0; border: 0; background: transparent; cursor: pointer; }
+
+.smo-sheet {
+  position: relative; z-index: 1; width: 100%;
+  display: flex; flex-direction: column; overflow: hidden;
+  background: #fff; color: #1a1512; border-radius: 20px;
+  box-shadow: 0 40px 90px -24px rgba(0,0,0,0.6);
+  animation: smo-rise 0.32s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+.smo-sheet-lg { max-width: 620px; max-height: min(88vh, 820px); }
+.smo-sheet-sm { max-width: 440px; max-height: min(88vh, 760px); }
+
+.smo-sheet-head {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 16px 20px; background: var(--smo-accent, #111); color: #fff;
+  position: sticky; top: 0;
+}
+.smo-sheet-title { font-size: 17px; font-weight: 800; letter-spacing: 0.01em; }
+.smo-sheet-body { padding: 8px 20px 22px; overflow-y: auto; overscroll-behavior: contain; }
+
+.smo-x {
+  width: 32px; height: 32px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center; border-radius: 10px;
+  color: #fff; background: rgba(255,255,255,0.18); transition: background-color 0.16s ease, transform 0.14s ease;
+}
+.smo-x:hover { background: rgba(255,255,255,0.3); }
+.smo-x:active { transform: scale(0.9); }
+.smo-x svg { width: 17px; height: 17px; }
+.smo-x-float {
+  position: absolute; top: 12px; right: 12px; z-index: 2;
+  color: #fff; background: rgba(0,0,0,0.45); backdrop-filter: blur(4px);
+}
+.smo-x-float:hover { background: rgba(0,0,0,0.62); }
+
+.smo-cat { padding-top: 16px; }
+.smo-cat-title {
+  font-size: 12px; font-weight: 800; letter-spacing: 0.14em; text-transform: uppercase;
+  color: var(--smo-accent, #111); padding-bottom: 6px; border-bottom: 2px solid color-mix(in srgb, var(--smo-accent, #111) 24%, transparent);
+}
+.smo-list { list-style: none; margin: 0; padding: 0; }
+.smo-list > li + li { border-top: 1px solid rgba(0,0,0,0.07); }
+
+.smo-row {
+  display: flex; align-items: flex-start; gap: 14px; width: 100%; text-align: left;
+  padding: 14px 4px; cursor: pointer; transition: background-color 0.14s ease;
+}
+.smo-row:hover { background: color-mix(in srgb, var(--smo-accent, #111) 6%, transparent); }
+.smo-row-img { width: 60px; height: 60px; flex-shrink: 0; object-fit: cover; border-radius: 12px; }
+.smo-row-img-empty { background: color-mix(in srgb, var(--smo-accent, #111) 10%, #ece7df); }
+.smo-row-main { min-width: 0; flex: 1; }
+.smo-row-name { display: block; font-weight: 700; font-size: 15px; color: #1a1512; }
+.smo-row-desc { display: block; margin-top: 2px; font-size: 13px; line-height: 1.4; color: #6a615a; }
+.smo-row-price {
+  flex-shrink: 0; font-weight: 800; font-size: 14px; white-space: nowrap;
+  color: #fff; background: var(--smo-accent, #111); padding: 4px 10px; border-radius: 9999px;
+}
+
+.smo-dish-img { width: 100%; aspect-ratio: 4 / 3; object-fit: cover; }
+.smo-dish-body { padding: 20px 22px 24px; overflow-y: auto; }
+.smo-dish-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; }
+.smo-dish-name { font-size: 24px; font-weight: 800; line-height: 1.1; color: #1a1512; }
+.smo-dish-price {
+  flex-shrink: 0; font-weight: 800; font-size: 15px; white-space: nowrap;
+  color: #fff; background: var(--smo-accent, #111); padding: 5px 12px; border-radius: 9999px;
+}
+.smo-dish-desc { margin-top: 12px; font-size: 15px; line-height: 1.6; color: #4a413a; }
+
+.smo-chips { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; margin-top: 10px; }
+.smo-chip { font-size: 11px; font-weight: 700; padding: 3px 9px; border-radius: 9999px; }
+.smo-chip-tag { color: var(--smo-accent, #111); background: color-mix(in srgb, var(--smo-accent, #111) 12%, #fff); }
+.smo-allergens { font-size: 12px; color: #6a615a; }
+.smo-allergens-cap { font-weight: 700; color: #4a413a; }
+
+@media (max-width: 480px) {
+  .smo-scrim { padding: 0; align-items: flex-end; }
+  .smo-sheet { max-height: 92vh; border-radius: 20px 20px 0 0; }
+  .smo-sheet-lg, .smo-sheet-sm { max-width: 100%; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .smo-scrim, .smo-sheet { animation-duration: 0.01ms; }
+  .smo-x, .smo-row { transition: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bw2-fade-in, .bw2-slide-in, .bw2-chip, .bw2-badge { animation: none; }
+  .fbw-panel-in, .fbw-panel-out, .fbw-backdrop-in, .fbw-backdrop-out { animation-duration: 0.01ms; }
+  .bw2-btn, .bw2-chip, .bw2-input, .fbw-pill, .fbw-close, .bw2-step-btn { transition: none; }
+  .bw2-btn-primary:not(:disabled):hover, .bw2-chip:not(.bw2-chip-on):hover, .fbw-pill:hover { transform: none; }
+  .bw2-spinner { animation-duration: 1.4s; }
+}

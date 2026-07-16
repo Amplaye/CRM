@@ -1,0 +1,1296 @@
+{
+  "greeting": {
+    "name": "Saludo (no arranca flujo)",
+    "rounds": [
+      {
+        "ok": true,
+        "checks": [
+          {
+            "label": "replies something",
+            "ok": true,
+            "detail": "¡Hola! ¿En qué puedo ayudarle?"
+          },
+          {
+            "label": "greets",
+            "ok": true,
+            "detail": "¡Hola! ¿En qué puedo ayudarle?"
+          },
+          {
+            "label": "offers help / asks intent",
+            "ok": true,
+            "detail": "¡Hola! ¿En qué puedo ayudarle?"
+          },
+          {
+            "label": "does NOT ask party-size yet (no booking flow on bare hello)",
+            "ok": true,
+            "detail": "¡Hola! ¿En qué puedo ayudarle?"
+          }
+        ],
+        "phone": "3469993412"
+      },
+      {
+        "ok": true,
+        "checks": [
+          {
+            "label": "replies something",
+            "ok": true,
+            "detail": "¡Hola! ¿En qué puedo ayudarle?"
+          },
+          {
+            "label": "greets",
+            "ok": true,
+            "detail": "¡Hola! ¿En qué puedo ayudarle?"
+          },
+          {
+            "label": "offers help / asks intent",
+            "ok": true,
+            "detail": "¡Hola! ¿En qué puedo ayudarle?"
+          },
+          {
+            "label": "does NOT ask party-size yet (no booking flow on bare hello)",
+            "ok": true,
+            "detail": "¡Hola! ¿En qué puedo ayudarle?"
+          }
+        ],
+        "phone": "3469905207"
+      },
+      {
+        "ok": true,
+        "checks": [
+          {
+            "label": "replies something",
+            "ok": true,
+            "detail": "¡Hola! ¿En qué puedo ayudarle?"
+          },
+          {
+            "label": "greets",
+            "ok": true,
+            "detail": "¡Hola! ¿En qué puedo ayudarle?"
+          },
+          {
+            "label": "offers help / asks intent",
+            "ok": true,
+            "detail": "¡Hola! ¿En qué puedo ayudarle?"
+          },
+          {
+            "label": "does NOT ask party-size yet (no booking flow on bare hello)",
+            "ok": true,
+            "detail": "¡Hola! ¿En qué puedo ayudarle?"
+          }
+        ],
+        "phone": "3469916949"
+      },
+      {
+        "ok": true,
+        "checks": [
+          {
+            "label": "replies something",
+            "ok": true,
+            "detail": "¡Hola! ¿En qué puedo ayudarle?"
+          },
+          {
+            "label": "greets",
+            "ok": true,
+            "detail": "¡Hola! ¿En qué puedo ayudarle?"
+          },
+          {
+            "label": "offers help / asks intent",
+            "ok": true,
+            "detail": "¡Hola! ¿En qué puedo ayudarle?"
+          },
+          {
+            "label": "does NOT ask party-size yet (no booking flow on bare hello)",
+            "ok": true,
+            "detail": "¡Hola! ¿En qué puedo ayudarle?"
+          }
+        ],
+        "phone": "3469928772"
+      },
+      {
+        "ok": true,
+        "checks": [
+          {
+            "label": "replies something",
+            "ok": true,
+            "detail": "¡Hola! ¿En qué puedo ayudarle?"
+          },
+          {
+            "label": "greets",
+            "ok": true,
+            "detail": "¡Hola! ¿En qué puedo ayudarle?"
+          },
+          {
+            "label": "offers help / asks intent",
+            "ok": true,
+            "detail": "¡Hola! ¿En qué puedo ayudarle?"
+          },
+          {
+            "label": "does NOT ask party-size yet (no booking flow on bare hello)",
+            "ok": true,
+            "detail": "¡Hola! ¿En qué puedo ayudarle?"
+          }
+        ],
+        "phone": "3469940310"
+      }
+    ],
+    "pass": 5,
+    "rate": 100
+  },
+  "booking": {
+    "name": "Reserva completa (happy path)",
+    "rounds": [
+      {
+        "ok": false,
+        "checks": [
+          {
+            "label": "asks party size first",
+            "ok": true,
+            "detail": "¡Hola! Claro que sí, hacemos la reserva 😊 ¿Para cuántas personas?"
+          },
+          {
+            "label": "asks day after party",
+            "ok": true,
+            "detail": "¿Qué día la quieren?"
+          },
+          {
+            "label": "asks time after day",
+            "ok": true,
+            "detail": "¿A qué hora la quieren?"
+          },
+          {
+            "label": "does NOT ask interior/exterior (single zone)",
+            "ok": false,
+            "detail": "¿Prefieren interior o exterior?"
+          },
+          {
+            "label": "asks name (availability ok)",
+            "ok": false,
+            "detail": "¿Prefieren interior o exterior?"
+          },
+          {
+            "label": "book_reservation fired (confirmation card)",
+            "ok": false,
+            "detail": "\"¿La quieren en interior o en exterior?\""
+          }
+        ],
+        "phone": "3469951882"
+      },
+      {
+        "ok": false,
+        "checks": [
+          {
+            "label": "asks party size first",
+            "ok": true,
+            "detail": "¡Hola! Qué bien. ¿Para cuántas personas es la reserva?"
+          },
+          {
+            "label": "asks day after party",
+            "ok": true,
+            "detail": "Perfecto. ¿Para qué día la quieren?"
+          },
+          {
+            "label": "asks time after day",
+            "ok": true,
+            "detail": "¿A qué hora la quieren mañana?"
+          },
+          {
+            "label": "does NOT ask interior/exterior (single zone)",
+            "ok": false,
+            "detail": "¿Prefieren interior o exterior?"
+          },
+          {
+            "label": "asks name (availability ok)",
+            "ok": false,
+            "detail": "¿Prefieren interior o exterior?"
+          },
+          {
+            "label": "book_reservation fired (confirmation card)",
+            "ok": false,
+            "detail": "\"¿Quieren la mesa en interior o en exterior?\""
+          }
+        ],
+        "phone": "3469998603"
+      },
+      {
+        "ok": false,
+        "checks": [
+          {
+            "label": "asks party size first",
+            "ok": true,
+            "detail": "¡Hola! 😊  \nPerfecto, hacemos la reserva.  \n\n¿Para cuántas personas sería?"
+          },
+          {
+            "label": "asks day after party",
+            "ok": true,
+            "detail": "¿Para qué día la quiere?"
+          },
+          {
+            "label": "asks time after day",
+            "ok": true,
+            "detail": "¿A qué hora?"
+          },
+          {
+            "label": "does NOT ask interior/exterior (single zone)",
+            "ok": false,
+            "detail": "¿Prefiere interior o exterior?"
+          },
+          {
+            "label": "asks name (availability ok)",
+            "ok": false,
+            "detail": "¿Prefiere interior o exterior?"
+          },
+          {
+            "label": "book_reservation fired (confirmation card)",
+            "ok": false,
+            "detail": "\"Lo tengo. ¿A nombre de Carlos la ponemos en interior o en exterior?\""
+          }
+        ],
+        "phone": "3469948740"
+      },
+      {
+        "ok": false,
+        "checks": [
+          {
+            "label": "asks party size first",
+            "ok": true,
+            "detail": "¡Hola! ¿Para cuántas personas sería la reserva?"
+          },
+          {
+            "label": "asks day after party",
+            "ok": true,
+            "detail": "¿Para qué día la quieren?"
+          },
+          {
+            "label": "asks time after day",
+            "ok": true,
+            "detail": "¿A qué hora la quieren mañana?"
+          },
+          {
+            "label": "does NOT ask interior/exterior (single zone)",
+            "ok": false,
+            "detail": "¿Prefieren zona interior o exterior?"
+          },
+          {
+            "label": "asks name (availability ok)",
+            "ok": false,
+            "detail": "¿Prefieren zona interior o exterior?"
+          },
+          {
+            "label": "book_reservation fired (confirmation card)",
+            "ok": false,
+            "detail": "\"¿La quieren en interior o en terraza exterior?\""
+          }
+        ],
+        "phone": "3469996019"
+      },
+      {
+        "ok": false,
+        "checks": [
+          {
+            "label": "asks party size first",
+            "ok": true,
+            "detail": "¡Hola! ¿Para cuántas personas sería la reserva?"
+          },
+          {
+            "label": "asks day after party",
+            "ok": true,
+            "detail": "¿Para qué día la quieren?"
+          },
+          {
+            "label": "asks time after day",
+            "ok": true,
+            "detail": "¿A qué hora la quieren mañana?"
+          },
+          {
+            "label": "does NOT ask interior/exterior (single zone)",
+            "ok": false,
+            "detail": "¿Prefieren interior o exterior?"
+          },
+          {
+            "label": "asks name (availability ok)",
+            "ok": false,
+            "detail": "¿Prefieren interior o exterior?"
+          },
+          {
+            "label": "book_reservation fired (confirmation card)",
+            "ok": false,
+            "detail": "\"Ahora solo me falta una cosa: ¿quieren la mesa en interior o en exterior?\""
+          }
+        ],
+        "phone": "3469951514"
+      }
+    ],
+    "pass": 0,
+    "rate": 0
+  },
+  "menu": {
+    "name": "Carta / platos (get_menu real)",
+    "rounds": [
+      {
+        "ok": false,
+        "checks": [
+          {
+            "label": "replies",
+            "ok": true,
+            "detail": "Tenemos una carta italiana, sobre todo de pizzas napolitanas, pasta y algunos entrantes y postres, pero no trabajamos sushi.\n\nPara que lo vean con calma, aquí tienen la carta completa con todas las secciones y precios:\nhttps://crm.baliflowagency.com/m/picnic\n\nSi me cuenta qué les apetece (pasta, pizza, algo ligero, vegetariano, sin lactosa…), le recomiendo platos concretos."
+          },
+          {
+            "label": "mentions a real menu dish or price",
+            "ok": false,
+            "detail": "Tenemos una carta italiana, sobre todo de pizzas napolitanas, pasta y algunos entrantes y postres, pero no trabajamos sushi.\n\nPara que lo vean con calma, aquí tienen la carta completa con todas las secciones y precios:\nhttps://crm.baliflowagency.com/m/picnic\n\nSi me cuenta qué les apetece (pasta, pizza, algo ligero, vegetariano, sin lactosa…), le recomiendo platos concretos."
+          },
+          {
+            "label": "does not refuse to talk about menu",
+            "ok": true,
+            "detail": "Tenemos una carta italiana, sobre todo de pizzas napolitanas, pasta y algunos entrantes y postres, pero no trabajamos sushi.\n\nPara que lo vean con calma, aquí tienen la carta completa con todas las secciones y precios:\nhttps://crm.baliflowagency.com/m/picnic\n\nSi me cuenta qué les apetece (pasta, pizza, algo ligero, vegetariano, sin lactosa…), le recomiendo platos concretos."
+          }
+        ],
+        "phone": "3469901077"
+      },
+      {
+        "ok": false,
+        "checks": [
+          {
+            "label": "replies",
+            "ok": true,
+            "detail": "¡Hola! En la carta tenemos sobre todo cocina italiana: pizzas napolitanas, gnocchi y otros platos de pasta, además de antipasti, fritos, postres y bebidas.\n\nSushi no tenemos; lo siento.\n\nSi quiere ver la carta completa con todos los platos y precios, puede abrir este enlace:\nhttps://crm.baliflowagency.com/m/picnic\n\n¿Le apetece más que le recomiende algo según lo que le gusta (por ejemplo vegetariano, picante, muy cremoso…)?"
+          },
+          {
+            "label": "mentions a real menu dish or price",
+            "ok": false,
+            "detail": "¡Hola! En la carta tenemos sobre todo cocina italiana: pizzas napolitanas, gnocchi y otros platos de pasta, además de antipasti, fritos, postres y bebidas.\n\nSushi no tenemos; lo siento.\n\nSi quiere ver la carta completa con todos los platos y precios, puede abrir este enlace:\nhttps://crm.baliflowagency.com/m/picnic\n\n¿Le apetece más que le recomiende algo según lo que le gusta (por ejemplo vegetariano, picante, muy cremoso…)?"
+          },
+          {
+            "label": "does not refuse to talk about menu",
+            "ok": true,
+            "detail": "¡Hola! En la carta tenemos sobre todo cocina italiana: pizzas napolitanas, gnocchi y otros platos de pasta, además de antipasti, fritos, postres y bebidas.\n\nSushi no tenemos; lo siento.\n\nSi quiere ver la carta completa con todos los platos y precios, puede abrir este enlace:\nhttps://crm.baliflowagency.com/m/picnic\n\n¿Le apetece más que le recomiende algo según lo que le gusta (por ejemplo vegetariano, picante, muy cremoso…)?"
+          }
+        ],
+        "phone": "3469915559"
+      },
+      {
+        "ok": false,
+        "checks": [
+          {
+            "label": "replies",
+            "ok": true,
+            "detail": "¡Hola!  \nAhora mismo trabajamos sobre todo con cocina italiana: pizzas napolitanas y algunos platos de pasta, más antipasti, fritos y postres. No tenemos sushi en la carta.\n\nPara que se haga una idea rápida, algunas opciones que hay:\n\n- Pizzas napolitanas (por ejemplo Margherita, Capricciosa, Diavola, Mortazza, Marinara vegana…)\n- Gnocchi (por ejemplo 4 quesos, sorrentina, etc.)\n- Postres caseros (como tarta de pistacho, cheesecake…)\n\nSi quiere ver la carta completa con todos los platos y precios, pueden abrir este enlace:  \nhttps://crm.baliflowagency.com/m/picnic\n\n¿Buscan algo en concreto (carne, pescado, vegetariano, vegano, pasta…)?"
+          },
+          {
+            "label": "mentions a real menu dish or price",
+            "ok": false,
+            "detail": "¡Hola!  \nAhora mismo trabajamos sobre todo con cocina italiana: pizzas napolitanas y algunos platos de pasta, más antipasti, fritos y postres. No tenemos sushi en la carta.\n\nPara que se haga una idea rápida, algunas opciones que hay:\n\n- Pizzas napolitanas (por ejemplo Margherita, Capricciosa, Diavola, Mortazza, Marinara vegana…)\n- Gnocchi (por ejemplo 4 quesos, sorrentina, etc.)\n- Postres caseros (como tarta de pistacho, cheesecake…)\n\nSi quiere ver la carta completa con todos los platos y precios, pueden abrir este enlace:  \nhttps://crm.baliflowagency.com/m/picnic\n\n¿Buscan algo en concreto (carne, pescado, vegetariano, vegano, pasta…)?"
+          },
+          {
+            "label": "does not refuse to talk about menu",
+            "ok": true,
+            "detail": "¡Hola!  \nAhora mismo trabajamos sobre todo con cocina italiana: pizzas napolitanas y algunos platos de pasta, más antipasti, fritos y postres. No tenemos sushi en la carta.\n\nPara que se haga una idea rápida, algunas opciones que hay:\n\n- Pizzas napolitanas (por ejemplo Margherita, Capricciosa, Diavola, Mortazza, Marinara vegana…)\n- Gnocchi (por ejemplo 4 quesos, sorrentina, etc.)\n- Postres caseros (como tarta de pistacho, cheesecake…)\n\nSi quiere ver la carta completa con todos los platos y precios, pueden abrir este enlace:  \nhttps://crm.baliflowagency.com/m/picnic\n\n¿Buscan algo en concreto (carne, pescado, vegetariano, vegano, pasta…)?"
+          }
+        ],
+        "phone": "3469929948"
+      },
+      {
+        "ok": false,
+        "checks": [
+          {
+            "label": "replies",
+            "ok": true,
+            "detail": "¡Hola!  \nTenemos sobre todo cocina italiana: pizzas napolitanas, gnocchi y más platos de pasta, además de postres y bebidas.\n\nNo tenemos sushi en la carta, pero si quiere algo ligero o de pescado puedo sugerirle opciones italianas.\n\nPara ver la carta completa con todos los platos, precios y fotos, puede entrar aquí:  \nhttps://crm.baliflowagency.com/m/picnic\n\n¿Le apetece que le recomiende algo según lo que le gusta (por ejemplo, algo vegetariano, picante o muy cremoso)?"
+          },
+          {
+            "label": "mentions a real menu dish or price",
+            "ok": false,
+            "detail": "¡Hola!  \nTenemos sobre todo cocina italiana: pizzas napolitanas, gnocchi y más platos de pasta, además de postres y bebidas.\n\nNo tenemos sushi en la carta, pero si quiere algo ligero o de pescado puedo sugerirle opciones italianas.\n\nPara ver la carta completa con todos los platos, precios y fotos, puede entrar aquí:  \nhttps://crm.baliflowagency.com/m/picnic\n\n¿Le apetece que le recomiende algo según lo que le gusta (por ejemplo, algo vegetariano, picante o muy cremoso)?"
+          },
+          {
+            "label": "does not refuse to talk about menu",
+            "ok": true,
+            "detail": "¡Hola!  \nTenemos sobre todo cocina italiana: pizzas napolitanas, gnocchi y más platos de pasta, además de postres y bebidas.\n\nNo tenemos sushi en la carta, pero si quiere algo ligero o de pescado puedo sugerirle opciones italianas.\n\nPara ver la carta completa con todos los platos, precios y fotos, puede entrar aquí:  \nhttps://crm.baliflowagency.com/m/picnic\n\n¿Le apetece que le recomiende algo según lo que le gusta (por ejemplo, algo vegetariano, picante o muy cremoso)?"
+          }
+        ],
+        "phone": "3469944396"
+      },
+      {
+        "ok": false,
+        "checks": [
+          {
+            "label": "replies",
+            "ok": true,
+            "detail": "Tenemos sobre todo cocina italiana: pizzas napolitanas, pasta (como gnocchi), algunos entrantes, postres caseros y bebidas.  \nSushi no tenemos en la carta.\n\nSi quiere, le paso el enlace con la carta completa para que la vea al detalle con precios y alérgenos. ¿Le viene bien?"
+          },
+          {
+            "label": "mentions a real menu dish or price",
+            "ok": false,
+            "detail": "Tenemos sobre todo cocina italiana: pizzas napolitanas, pasta (como gnocchi), algunos entrantes, postres caseros y bebidas.  \nSushi no tenemos en la carta.\n\nSi quiere, le paso el enlace con la carta completa para que la vea al detalle con precios y alérgenos. ¿Le viene bien?"
+          },
+          {
+            "label": "does not refuse to talk about menu",
+            "ok": true,
+            "detail": "Tenemos sobre todo cocina italiana: pizzas napolitanas, pasta (como gnocchi), algunos entrantes, postres caseros y bebidas.  \nSushi no tenemos en la carta.\n\nSi quiere, le paso el enlace con la carta completa para que la vea al detalle con precios y alérgenos. ¿Le viene bien?"
+          }
+        ],
+        "phone": "3469958871"
+      }
+    ],
+    "pass": 0,
+    "rate": 0
+  },
+  "policy": {
+    "name": "Políticas y alergias (KB / get_menu)",
+    "rounds": [
+      {
+        "ok": true,
+        "checks": [
+          {
+            "label": "answers the cake policy (yes/no/condition)",
+            "ok": true,
+            "detail": "¡Hola!  \nPara la tarta de cumpleaños no está permitido traer comida del exterior, incluida la tarta.  \n\nSi quieren celebrar un cumple, sí podemos ayudarles con postres de la casa (por ejemplo, torta de pistacho o cheesecake) y poner una notita en la reserva para que lo tengamos en cuenta. ¿Les gustaría que miremos una reserva para el cumpleaños?"
+          },
+          {
+            "label": "stays on-topic (no booking funnel hijack)",
+            "ok": true,
+            "detail": "¡Hola!  \nPara la tarta de cumpleaños no está permitido traer comida del exterior, incluida la tarta.  \n\nSi quieren celebrar un cumple, sí podemos ayudarles con postres de la casa (por ejemplo, torta de pistacho o cheesecake) y poner una notita en la reserva para que lo tengamos en cuenta. ¿Les gustaría que miremos una reserva para el cumpleaños?"
+          }
+        ],
+        "phone": "3469970509"
+      },
+      {
+        "ok": true,
+        "checks": [
+          {
+            "label": "answers the cake policy (yes/no/condition)",
+            "ok": true,
+            "detail": "¡Hola! Sí, pueden traer su propia tarta de cumpleaños sin problema 😊  \n\nSolo dos cositas importantes:  \n- La guardamos y la sacamos al momento del postre.  \n- Coméntenlo al hacer la reserva para tenerlo anotado en la mesa.  \n\n¿Quiere que le ayude a hacer una reserva para el cumpleaños?"
+          },
+          {
+            "label": "stays on-topic (no booking funnel hijack)",
+            "ok": true,
+            "detail": "¡Hola! Sí, pueden traer su propia tarta de cumpleaños sin problema 😊  \n\nSolo dos cositas importantes:  \n- La guardamos y la sacamos al momento del postre.  \n- Coméntenlo al hacer la reserva para tenerlo anotado en la mesa.  \n\n¿Quiere que le ayude a hacer una reserva para el cumpleaños?"
+          }
+        ],
+        "phone": "3469982113"
+      },
+      {
+        "ok": true,
+        "checks": [
+          {
+            "label": "answers the cake policy (yes/no/condition)",
+            "ok": true,
+            "detail": "¡Hola!  \n\nPueden traer su propia tarta de cumpleaños sin problema, solo unas cositas a tener en cuenta:  \n- La guardamos y se la sacamos en el momento del postre.  \n- No podemos responsabilizarnos de alérgenos o trazas de esa tarta.  \n- Si necesitan platos o cubiertos extra, se los ponemos.  \n\n¿Para qué día están pensando venir a celebrar?"
+          },
+          {
+            "label": "stays on-topic (no booking funnel hijack)",
+            "ok": true,
+            "detail": "¡Hola!  \n\nPueden traer su propia tarta de cumpleaños sin problema, solo unas cositas a tener en cuenta:  \n- La guardamos y se la sacamos en el momento del postre.  \n- No podemos responsabilizarnos de alérgenos o trazas de esa tarta.  \n- Si necesitan platos o cubiertos extra, se los ponemos.  \n\n¿Para qué día están pensando venir a celebrar?"
+          }
+        ],
+        "phone": "3469993906"
+      },
+      {
+        "ok": true,
+        "checks": [
+          {
+            "label": "answers the cake policy (yes/no/condition)",
+            "ok": true,
+            "detail": "¡Hola!  \nSí, pueden llevar su propia tarta de cumpleaños sin problema 😉\n\nSolo dos cositas importantes:\n- La tarta debe venir ya preparada (nosotros no la manipulamos en cocina).\n- Si hay alguna alergia fuerte entre los invitados, avísenme para comentarlo con sala/cocina y que todo el mundo esté tranquilo.\n\n¿Quieren que mire una reserva para celebrar el cumple aquí?"
+          },
+          {
+            "label": "stays on-topic (no booking funnel hijack)",
+            "ok": true,
+            "detail": "¡Hola!  \nSí, pueden llevar su propia tarta de cumpleaños sin problema 😉\n\nSolo dos cositas importantes:\n- La tarta debe venir ya preparada (nosotros no la manipulamos en cocina).\n- Si hay alguna alergia fuerte entre los invitados, avísenme para comentarlo con sala/cocina y que todo el mundo esté tranquilo.\n\n¿Quieren que mire una reserva para celebrar el cumple aquí?"
+          }
+        ],
+        "phone": "3469905508"
+      },
+      {
+        "ok": true,
+        "checks": [
+          {
+            "label": "answers the cake policy (yes/no/condition)",
+            "ok": true,
+            "detail": "¡Hola!  \n\nPara la tarta, en BALI REST no está permitido traer comida del exterior, incluida la tarta de cumpleaños.  \n\nSi quieren celebrar algo, ¿les comento los postres que tenemos y alguna recomendación especial para cumpleaños?"
+          },
+          {
+            "label": "stays on-topic (no booking funnel hijack)",
+            "ok": true,
+            "detail": "¡Hola!  \n\nPara la tarta, en BALI REST no está permitido traer comida del exterior, incluida la tarta de cumpleaños.  \n\nSi quieren celebrar algo, ¿les comento los postres que tenemos y alguna recomendación especial para cumpleaños?"
+          }
+        ],
+        "phone": "3469917360"
+      }
+    ],
+    "pass": 5,
+    "rate": 100
+  },
+  "modify": {
+    "name": "Modificar reserva (modify_reservation)",
+    "rounds": [
+      {
+        "ok": true,
+        "checks": [
+          {
+            "label": "responds (not silent)",
+            "ok": true,
+            "detail": "Tiene una reserva activa para mañana a las 20:00 para 2 personas. ¿Quiere pasarla a las 21:30 o a otro día/hora distinta?"
+          },
+          {
+            "label": "reservation time changed to 21:30 (modify processed)",
+            "ok": true,
+            "detail": "{\"modifyData\":{\"hora\":\"21:30\",\"telefono\":\"+3469928851\",\"fecha_actual\":\"2026-06-03\",\"hora_actual\":\"20:00\",\"personas_actual\":2},\"reply\":\"\"}"
+          },
+          {
+            "label": "did NOT create a brand-new booking card",
+            "ok": true,
+            "detail": "\"\""
+          }
+        ],
+        "phone": "3469928851"
+      },
+      {
+        "ok": true,
+        "checks": [
+          {
+            "label": "responds (not silent)",
+            "ok": true,
+            "detail": "Perfecto, lo cambiamos 😊  \n¿Quiere mantener el mismo día y personas de su reserva actual y solo pasarla a las 21:30?"
+          },
+          {
+            "label": "reservation time changed to 21:30 (modify processed)",
+            "ok": true,
+            "detail": "{\"modifyData\":{\"hora\":\"21:30\",\"telefono\":\"+3469955753\",\"fecha_actual\":\"2026-06-03\",\"hora_actual\":\"20:00\",\"personas_actual\":2},\"reply\":\"\"}"
+          },
+          {
+            "label": "did NOT create a brand-new booking card",
+            "ok": true,
+            "detail": "\"\""
+          }
+        ],
+        "phone": "3469955753"
+      },
+      {
+        "ok": true,
+        "checks": [
+          {
+            "label": "responds (not silent)",
+            "ok": true,
+            "detail": "Tiene ahora mismo una reserva activa para 2 personas mañana a las 20:00.  \n¿Quiere mantener el mismo día y personas y solo moverla a las 21:30, o también cambia algo más (día o número de personas)?"
+          },
+          {
+            "label": "reservation time changed to 21:30 (modify processed)",
+            "ok": true,
+            "detail": "{\"modifyData\":{\"hora\":\"21:30\",\"telefono\":\"+3469979409\",\"fecha_actual\":\"2026-06-03\",\"hora_actual\":\"20:00\",\"personas_actual\":2},\"reply\":\"\"}"
+          },
+          {
+            "label": "did NOT create a brand-new booking card",
+            "ok": true,
+            "detail": "\"\""
+          }
+        ],
+        "phone": "3469979409"
+      },
+      {
+        "ok": true,
+        "checks": [
+          {
+            "label": "responds (not silent)",
+            "ok": true,
+            "detail": "Tiene ya una reserva activa mañana a las 20:00 para 2 personas. ¿Quiere cambiarla a las 21:30 manteniendo todo lo demás igual?"
+          },
+          {
+            "label": "reservation time changed to 21:30 (modify processed)",
+            "ok": true,
+            "detail": "{\"modifyData\":{\"hora\":\"21:30\",\"telefono\":\"+3469912457\",\"fecha_actual\":\"2026-06-03\",\"hora_actual\":\"20:00\",\"personas_actual\":2},\"reply\":\"\"}"
+          },
+          {
+            "label": "did NOT create a brand-new booking card",
+            "ok": true,
+            "detail": "\"\""
+          }
+        ],
+        "phone": "3469912457"
+      },
+      {
+        "ok": true,
+        "checks": [
+          {
+            "label": "responds (not silent)",
+            "ok": true,
+            "detail": "Tiene ahora mismo una reserva activa para 2 personas mañana a las 20:00. ¿Quiere mantener el mismo día y personas y solo pasarla a las 21:30?"
+          },
+          {
+            "label": "reservation time changed to 21:30 (modify processed)",
+            "ok": true,
+            "detail": "{\"modifyData\":{\"hora\":\"21:30\",\"telefono\":\"+3469945425\",\"fecha_actual\":\"2026-06-03\",\"hora_actual\":\"20:00\",\"personas_actual\":2},\"reply\":\"\"}"
+          },
+          {
+            "label": "did NOT create a brand-new booking card",
+            "ok": true,
+            "detail": "\"\""
+          }
+        ],
+        "phone": "3469945425"
+      }
+    ],
+    "pass": 5,
+    "rate": 100
+  },
+  "cancel": {
+    "name": "Cancelar reserva",
+    "rounds": [
+      {
+        "ok": true,
+        "checks": [
+          {
+            "label": "reservation became cancelled in DB",
+            "ok": true,
+            "detail": "status still not cancelled for cfd5450e-868e-40e1-9e98-12a0072aa779"
+          }
+        ],
+        "phone": "3469971953"
+      },
+      {
+        "ok": true,
+        "checks": [
+          {
+            "label": "reservation became cancelled in DB",
+            "ok": true,
+            "detail": "status still not cancelled for 40b87135-bc16-4cd7-b937-18579fd384aa"
+          }
+        ],
+        "phone": "3469975413"
+      },
+      {
+        "ok": true,
+        "checks": [
+          {
+            "label": "reservation became cancelled in DB",
+            "ok": true,
+            "detail": "status still not cancelled for 208cb639-c80d-42f8-9fbb-6b8a07883785"
+          }
+        ],
+        "phone": "3469978801"
+      },
+      {
+        "ok": true,
+        "checks": [
+          {
+            "label": "reservation became cancelled in DB",
+            "ok": true,
+            "detail": "status still not cancelled for bfb90ca6-4e7f-4781-8eba-c18bfe6a966b"
+          }
+        ],
+        "phone": "3469982234"
+      },
+      {
+        "ok": true,
+        "checks": [
+          {
+            "label": "reservation became cancelled in DB",
+            "ok": true,
+            "detail": "status still not cancelled for cb09cbda-5c4e-458a-9362-d8fa3c1cb3a2"
+          }
+        ],
+        "phone": "3469985650"
+      }
+    ],
+    "pass": 5,
+    "rate": 100
+  },
+  "hours": {
+    "name": "Horario de apertura",
+    "rounds": [
+      {
+        "ok": true,
+        "checks": [
+          {
+            "label": "replies",
+            "ok": true,
+            "detail": "¡Hola!  \nHoy martes abrimos:\n\n- Mediodía: de **12:30 a 15:00**  \n- Noche: de **19:30 a 22:30**\n\n¿Quiere que le busque mesa para alguna hora en concreto?"
+          },
+          {
+            "label": "states the time in digits",
+            "ok": true,
+            "detail": "¡Hola!  \nHoy martes abrimos:\n\n- Mediodía: de **12:30 a 15:00**  \n- Noche: de **19:30 a 22:30**\n\n¿Quiere que le busque mesa para alguna hora en concreto?"
+          },
+          {
+            "label": "does NOT spell the time in words",
+            "ok": true,
+            "detail": "¡Hola!  \nHoy martes abrimos:\n\n- Mediodía: de **12:30 a 15:00**  \n- Noche: de **19:30 a 22:30**\n\n¿Quiere que le busque mesa para alguna hora en concreto?"
+          },
+          {
+            "label": "does not claim ignorance of hours",
+            "ok": true,
+            "detail": "¡Hola!  \nHoy martes abrimos:\n\n- Mediodía: de **12:30 a 15:00**  \n- Noche: de **19:30 a 22:30**\n\n¿Quiere que le busque mesa para alguna hora en concreto?"
+          }
+        ],
+        "phone": "3469988938"
+      },
+      {
+        "ok": true,
+        "checks": [
+          {
+            "label": "replies",
+            "ok": true,
+            "detail": "¡Hola! Hoy martes abrimos:\n\n- Mediodía: de 12:30 a 15:00  \n- Noche: de 19:30 a 22:30  \n\n¿Quiere que le mire una mesa para hoy?"
+          },
+          {
+            "label": "states the time in digits",
+            "ok": true,
+            "detail": "¡Hola! Hoy martes abrimos:\n\n- Mediodía: de 12:30 a 15:00  \n- Noche: de 19:30 a 22:30  \n\n¿Quiere que le mire una mesa para hoy?"
+          },
+          {
+            "label": "does NOT spell the time in words",
+            "ok": true,
+            "detail": "¡Hola! Hoy martes abrimos:\n\n- Mediodía: de 12:30 a 15:00  \n- Noche: de 19:30 a 22:30  \n\n¿Quiere que le mire una mesa para hoy?"
+          },
+          {
+            "label": "does not claim ignorance of hours",
+            "ok": true,
+            "detail": "¡Hola! Hoy martes abrimos:\n\n- Mediodía: de 12:30 a 15:00  \n- Noche: de 19:30 a 22:30  \n\n¿Quiere que le mire una mesa para hoy?"
+          }
+        ],
+        "phone": "3469900359"
+      },
+      {
+        "ok": true,
+        "checks": [
+          {
+            "label": "replies",
+            "ok": true,
+            "detail": "¡Hola!  \nHoy martes abrimos:\n\n- Mediodía: de **12:30 a 15:00**  \n- Noche: de **19:30 a 22:30**\n\n¿Quiere que le mire mesa para hoy?"
+          },
+          {
+            "label": "states the time in digits",
+            "ok": true,
+            "detail": "¡Hola!  \nHoy martes abrimos:\n\n- Mediodía: de **12:30 a 15:00**  \n- Noche: de **19:30 a 22:30**\n\n¿Quiere que le mire mesa para hoy?"
+          },
+          {
+            "label": "does NOT spell the time in words",
+            "ok": true,
+            "detail": "¡Hola!  \nHoy martes abrimos:\n\n- Mediodía: de **12:30 a 15:00**  \n- Noche: de **19:30 a 22:30**\n\n¿Quiere que le mire mesa para hoy?"
+          },
+          {
+            "label": "does not claim ignorance of hours",
+            "ok": true,
+            "detail": "¡Hola!  \nHoy martes abrimos:\n\n- Mediodía: de **12:30 a 15:00**  \n- Noche: de **19:30 a 22:30**\n\n¿Quiere que le mire mesa para hoy?"
+          }
+        ],
+        "phone": "3469911838"
+      },
+      {
+        "ok": true,
+        "checks": [
+          {
+            "label": "replies",
+            "ok": true,
+            "detail": "¡Hola! Hoy martes abrimos:\n\n- Mediodía: de **12:30 a 15:00**  \n- Noche: de **19:30 a 22:30**\n\n¿Quiere que le ayude a reservar mesa en alguno de esos turnos?"
+          },
+          {
+            "label": "states the time in digits",
+            "ok": true,
+            "detail": "¡Hola! Hoy martes abrimos:\n\n- Mediodía: de **12:30 a 15:00**  \n- Noche: de **19:30 a 22:30**\n\n¿Quiere que le ayude a reservar mesa en alguno de esos turnos?"
+          },
+          {
+            "label": "does NOT spell the time in words",
+            "ok": true,
+            "detail": "¡Hola! Hoy martes abrimos:\n\n- Mediodía: de **12:30 a 15:00**  \n- Noche: de **19:30 a 22:30**\n\n¿Quiere que le ayude a reservar mesa en alguno de esos turnos?"
+          },
+          {
+            "label": "does not claim ignorance of hours",
+            "ok": true,
+            "detail": "¡Hola! Hoy martes abrimos:\n\n- Mediodía: de **12:30 a 15:00**  \n- Noche: de **19:30 a 22:30**\n\n¿Quiere que le ayude a reservar mesa en alguno de esos turnos?"
+          }
+        ],
+        "phone": "3469923314"
+      },
+      {
+        "ok": true,
+        "checks": [
+          {
+            "label": "replies",
+            "ok": true,
+            "detail": "¡Hola!  \nHoy martes abrimos:\n\n- Mediodía: de **12:30 a 15:00**  \n- Noche: de **19:30 a 22:30**\n\n¿Quiere que le ayude con una reserva?"
+          },
+          {
+            "label": "states the time in digits",
+            "ok": true,
+            "detail": "¡Hola!  \nHoy martes abrimos:\n\n- Mediodía: de **12:30 a 15:00**  \n- Noche: de **19:30 a 22:30**\n\n¿Quiere que le ayude con una reserva?"
+          },
+          {
+            "label": "does NOT spell the time in words",
+            "ok": true,
+            "detail": "¡Hola!  \nHoy martes abrimos:\n\n- Mediodía: de **12:30 a 15:00**  \n- Noche: de **19:30 a 22:30**\n\n¿Quiere que le ayude con una reserva?"
+          },
+          {
+            "label": "does not claim ignorance of hours",
+            "ok": true,
+            "detail": "¡Hola!  \nHoy martes abrimos:\n\n- Mediodía: de **12:30 a 15:00**  \n- Noche: de **19:30 a 22:30**\n\n¿Quiere que le ayude con una reserva?"
+          }
+        ],
+        "phone": "3469937733"
+      }
+    ],
+    "pass": 5,
+    "rate": 100
+  },
+  "closed_day": {
+    "name": "Día cerrado (propone otro día)",
+    "rounds": [
+      {
+        "ok": true,
+        "checks": [
+          {
+            "label": "says lunes is closed",
+            "ok": true,
+            "detail": "El lunes estamos cerrados. ¿Le viene bien otro día cercano, por ejemplo el martes?"
+          },
+          {
+            "label": "proposes another day (generic or named)",
+            "ok": true,
+            "detail": "El lunes estamos cerrados. ¿Le viene bien otro día cercano, por ejemplo el martes?"
+          },
+          {
+            "label": "does NOT ask time for the closed day",
+            "ok": true,
+            "detail": "El lunes estamos cerrados. ¿Le viene bien otro día cercano, por ejemplo el martes?"
+          }
+        ],
+        "phone": "3469949188"
+      },
+      {
+        "ok": true,
+        "checks": [
+          {
+            "label": "says lunes is closed",
+            "ok": true,
+            "detail": "El lunes estamos cerrados. ¿Le viene bien otro día cercano, por ejemplo el martes?"
+          },
+          {
+            "label": "proposes another day (generic or named)",
+            "ok": true,
+            "detail": "El lunes estamos cerrados. ¿Le viene bien otro día cercano, por ejemplo el martes?"
+          },
+          {
+            "label": "does NOT ask time for the closed day",
+            "ok": true,
+            "detail": "El lunes estamos cerrados. ¿Le viene bien otro día cercano, por ejemplo el martes?"
+          }
+        ],
+        "phone": "3469981251"
+      },
+      {
+        "ok": true,
+        "checks": [
+          {
+            "label": "says lunes is closed",
+            "ok": true,
+            "detail": "El lunes estamos cerrados. ¿Les viene bien otro día cercano, por ejemplo el martes?"
+          },
+          {
+            "label": "proposes another day (generic or named)",
+            "ok": true,
+            "detail": "El lunes estamos cerrados. ¿Les viene bien otro día cercano, por ejemplo el martes?"
+          },
+          {
+            "label": "does NOT ask time for the closed day",
+            "ok": true,
+            "detail": "El lunes estamos cerrados. ¿Les viene bien otro día cercano, por ejemplo el martes?"
+          }
+        ],
+        "phone": "3469916224"
+      },
+      {
+        "ok": true,
+        "checks": [
+          {
+            "label": "says lunes is closed",
+            "ok": true,
+            "detail": "El lunes estamos cerrados, ¿les viene bien mejor el martes?"
+          },
+          {
+            "label": "proposes another day (generic or named)",
+            "ok": true,
+            "detail": "El lunes estamos cerrados, ¿les viene bien mejor el martes?"
+          },
+          {
+            "label": "does NOT ask time for the closed day",
+            "ok": true,
+            "detail": "El lunes estamos cerrados, ¿les viene bien mejor el martes?"
+          }
+        ],
+        "phone": "3469948028"
+      },
+      {
+        "ok": true,
+        "checks": [
+          {
+            "label": "says lunes is closed",
+            "ok": true,
+            "detail": "El lunes estamos cerrados. ¿Les viene bien otro día cercano, por ejemplo mañana miércoles o el martes siguiente?"
+          },
+          {
+            "label": "proposes another day (generic or named)",
+            "ok": true,
+            "detail": "El lunes estamos cerrados. ¿Les viene bien otro día cercano, por ejemplo mañana miércoles o el martes siguiente?"
+          },
+          {
+            "label": "does NOT ask time for the closed day",
+            "ok": true,
+            "detail": "El lunes estamos cerrados. ¿Les viene bien otro día cercano, por ejemplo mañana miércoles o el martes siguiente?"
+          }
+        ],
+        "phone": "3469979957"
+      }
+    ],
+    "pass": 5,
+    "rate": 100
+  },
+  "out_of_hours": {
+    "name": "Hora fuera de horario (propone válida)",
+    "rounds": [
+      {
+        "ok": true,
+        "checks": [
+          {
+            "label": "does not confirm a 5am booking",
+            "ok": true,
+            "detail": "Esa hora está fuera de nuestro horario. Para mañana tenemos horario de almuerzo de 12:30 a 15:30 y de cena de 19:30 a 22:30.  \n¿A qué hora dentro de ese horario les viene bien?"
+          },
+          {
+            "label": "proposes a valid time (digits) or names a shift",
+            "ok": true,
+            "detail": "Esa hora está fuera de nuestro horario. Para mañana tenemos horario de almuerzo de 12:30 a 15:30 y de cena de 19:30 a 22:30.  \n¿A qué hora dentro de ese horario les viene bien?"
+          }
+        ],
+        "phone": "3469906130"
+      },
+      {
+        "ok": true,
+        "checks": [
+          {
+            "label": "does not confirm a 5am booking",
+            "ok": true,
+            "detail": "A esa hora estamos cerrados. ¿Prefieren venir a mediodía o por la noche, y a qué hora exacta?"
+          },
+          {
+            "label": "proposes a valid time (digits) or names a shift",
+            "ok": true,
+            "detail": "A esa hora estamos cerrados. ¿Prefieren venir a mediodía o por la noche, y a qué hora exacta?"
+          }
+        ],
+        "phone": "3469940874"
+      },
+      {
+        "ok": true,
+        "checks": [
+          {
+            "label": "does not confirm a 5am booking",
+            "ok": true,
+            "detail": "A esa hora estamos cerrados. ¿Le viene bien para mañana a las 12:30 o prefiere por la noche, a partir de las 19:30?"
+          },
+          {
+            "label": "proposes a valid time (digits) or names a shift",
+            "ok": true,
+            "detail": "A esa hora estamos cerrados. ¿Le viene bien para mañana a las 12:30 o prefiere por la noche, a partir de las 19:30?"
+          }
+        ],
+        "phone": "3469970103"
+      },
+      {
+        "ok": true,
+        "checks": [
+          {
+            "label": "does not confirm a 5am booking",
+            "ok": true,
+            "detail": "Esa hora está fuera del horario del restaurante. ¿Les viene bien mañana al mediodía o por la noche, y a qué hora exacta?"
+          },
+          {
+            "label": "proposes a valid time (digits) or names a shift",
+            "ok": true,
+            "detail": "Esa hora está fuera del horario del restaurante. ¿Les viene bien mañana al mediodía o por la noche, y a qué hora exacta?"
+          }
+        ],
+        "phone": "3469902479"
+      },
+      {
+        "ok": true,
+        "checks": [
+          {
+            "label": "does not confirm a 5am booking",
+            "ok": true,
+            "detail": "Esa hora está fuera de nuestro horario. Mañana abrimos de 12:30 a 15:30 al mediodía y de 19:30 a 22:30 por la noche. ¿Qué hora le viene mejor dentro de ese horario?"
+          },
+          {
+            "label": "proposes a valid time (digits) or names a shift",
+            "ok": true,
+            "detail": "Esa hora está fuera de nuestro horario. Mañana abrimos de 12:30 a 15:30 al mediodía y de 19:30 a 22:30 por la noche. ¿Qué hora le viene mejor dentro de ese horario?"
+          }
+        ],
+        "phone": "3469931647"
+      }
+    ],
+    "pass": 5,
+    "rate": 100
+  },
+  "waitlist": {
+    "name": "Lista de espera (solo si lleno + aviso)",
+    "rounds": [
+      {
+        "ok": false,
+        "checks": [
+          {
+            "label": "handled large party gracefully (alt / no-space / contact)",
+            "ok": false,
+            "detail": "Perfecto, gracias.  \n\n¿Prefieren la zona interior o exterior?"
+          }
+        ],
+        "phone": "3469963816"
+      },
+      {
+        "ok": false,
+        "checks": [
+          {
+            "label": "handled large party gracefully (alt / no-space / contact)",
+            "ok": false,
+            "detail": "¿Prefieren en interior o en la terraza exterior?"
+          }
+        ],
+        "phone": "3469989924"
+      },
+      {
+        "ok": false,
+        "checks": [
+          {
+            "label": "handled large party gracefully (alt / no-space / contact)",
+            "ok": false,
+            "detail": "¿Prefieren zona interior o exterior?"
+          }
+        ],
+        "phone": "3469913218"
+      },
+      {
+        "ok": false,
+        "checks": [
+          {
+            "label": "handled large party gracefully (alt / no-space / contact)",
+            "ok": false,
+            "detail": "¿Prefieren en interior o en la terraza?"
+          }
+        ],
+        "phone": "3469933647"
+      },
+      {
+        "ok": false,
+        "checks": [
+          {
+            "label": "handled large party gracefully (alt / no-space / contact)",
+            "ok": false,
+            "detail": "¿Prefieren en interior o en la terraza (exterior)?"
+          }
+        ],
+        "phone": "3469954131"
+      }
+    ],
+    "pass": 0,
+    "rate": 0
+  },
+  "language": {
+    "name": "Cambio de idioma (es/it/en)",
+    "rounds": [
+      {
+        "ok": true,
+        "checks": [
+          {
+            "label": "replies in Italian",
+            "ok": true,
+            "detail": "Ciao! 😊 Quante persone siete?"
+          },
+          {
+            "label": "not Spanish for an Italian msg",
+            "ok": true,
+            "detail": "Ciao! 😊 Quante persone siete?"
+          },
+          {
+            "label": "switches to English",
+            "ok": true,
+            "detail": "We open on these days and times:\n\n- Tuesday: 12:30–15:00 and 19:30–22:30  \n- Wednesday: 12:30–15:30 and 19:30–22:30  \n- Thursday: 12:30–15:30 and 20:00–22:30  \n- Friday: 12:30–15:30 and 19:30–22:30  \n- Saturday: 12:30–15:30 and 19:30–22:30  \n- Sunday: 12:30–15:30 and 19:30–22:30  \n- Monday: closed  \n\nWould you like to book a table?"
+          }
+        ],
+        "phone": "3469977375"
+      },
+      {
+        "ok": true,
+        "checks": [
+          {
+            "label": "replies in Italian",
+            "ok": true,
+            "detail": "Ciao! 😊 Quante persone siete?"
+          },
+          {
+            "label": "not Spanish for an Italian msg",
+            "ok": true,
+            "detail": "Ciao! 😊 Quante persone siete?"
+          },
+          {
+            "label": "switches to English",
+            "ok": true,
+            "detail": "We open at these times:\n\n- Tuesday: 12:30–15:00 and 19:30–22:30  \n- Wednesday: 12:30–15:30 and 19:30–22:30  \n- Thursday: 12:30–15:30 and 20:00–22:30  \n- Friday: 12:30–15:30 and 19:30–22:30  \n- Saturday: 12:30–15:30 and 19:30–22:30  \n- Sunday: 12:30–15:30 and 19:30–22:30  \n- Monday: closed\n\nWould you like to book a table?"
+          }
+        ],
+        "phone": "3469998278"
+      },
+      {
+        "ok": true,
+        "checks": [
+          {
+            "label": "replies in Italian",
+            "ok": true,
+            "detail": "Ciao! 😊 Quante persone siete?"
+          },
+          {
+            "label": "not Spanish for an Italian msg",
+            "ok": true,
+            "detail": "Ciao! 😊 Quante persone siete?"
+          },
+          {
+            "label": "switches to English",
+            "ok": true,
+            "detail": "We open at these times:\n\n- Tuesday: 12:30–15:00 and 19:30–22:30  \n- Wednesday–Sunday: 12:30–15:30 and 19:30–22:30  \n- Monday: closed\n\nWould you like to book a table?"
+          }
+        ],
+        "phone": "3469921645"
+      },
+      {
+        "ok": true,
+        "checks": [
+          {
+            "label": "replies in Italian",
+            "ok": true,
+            "detail": "Ciao! 😊 Quante persone siete?"
+          },
+          {
+            "label": "not Spanish for an Italian msg",
+            "ok": true,
+            "detail": "Ciao! 😊 Quante persone siete?"
+          },
+          {
+            "label": "switches to English",
+            "ok": true,
+            "detail": "We open at these times:\n\n- Tuesday: 12:30–15:00 and 19:30–22:30  \n- Wednesday–Sunday: 12:30–15:30 and 19:30–22:30  \n- Monday: closed\n\nWould you like to book a table?"
+          }
+        ],
+        "phone": "3469942117"
+      },
+      {
+        "ok": true,
+        "checks": [
+          {
+            "label": "replies in Italian",
+            "ok": true,
+            "detail": "Ciao! 😊  \nQuante persone siete?"
+          },
+          {
+            "label": "not Spanish for an Italian msg",
+            "ok": true,
+            "detail": "Ciao! 😊  \nQuante persone siete?"
+          },
+          {
+            "label": "switches to English",
+            "ok": true,
+            "detail": "We open:\n\n- Tuesday: 12:30–15:00 and 19:30–22:30  \n- Wednesday–Sunday: 12:30–15:30 and 19:30–22:30  \n- Monday: closed\n\nWould you like to book a table?"
+          }
+        ],
+        "phone": "3469959766"
+      }
+    ],
+    "pass": 5,
+    "rate": 100
+  },
+  "offtopic": {
+    "name": "Off-topic (redirige, no flujo)",
+    "rounds": [
+      {
+        "ok": true,
+        "checks": [
+          {
+            "label": "does not start booking funnel",
+            "ok": true,
+            "detail": "¡Hola! De eso no tengo datos actualizados, solo puedo ayudar con reservas e información del restaurante (carta, horarios, dirección, alergias, etc.).  \n\nSi quiere, puedo decirle nuestros horarios de mañana o ayudarle a reservar mesa. ¿Qué le vendría mejor?"
+          },
+          {
+            "label": "redirects to restaurant help or declines gracefully",
+            "ok": true,
+            "detail": "¡Hola! De eso no tengo datos actualizados, solo puedo ayudar con reservas e información del restaurante (carta, horarios, dirección, alergias, etc.).  \n\nSi quiere, puedo decirle nuestros horarios de mañana o ayudarle a reservar mesa. ¿Qué le vendría mejor?"
+          }
+        ],
+        "phone": "3469977508"
+      },
+      {
+        "ok": true,
+        "checks": [
+          {
+            "label": "does not start booking funnel",
+            "ok": true,
+            "detail": "¡Hola!  \n\nNo tengo acceso actualizado a la predicción meteorológica. Para ver el tiempo de mañana en Las Palmas, lo mejor es que miren una app tipo AEMET, Weather.com o similar poniendo su zona exacta (Triana, Mesa y López, etc.).  \n\nSi quieren, les ayudo con una reserva o con info del restaurante. ¿Qué necesitan?"
+          },
+          {
+            "label": "redirects to restaurant help or declines gracefully",
+            "ok": true,
+            "detail": "¡Hola!  \n\nNo tengo acceso actualizado a la predicción meteorológica. Para ver el tiempo de mañana en Las Palmas, lo mejor es que miren una app tipo AEMET, Weather.com o similar poniendo su zona exacta (Triana, Mesa y López, etc.).  \n\nSi quieren, les ayudo con una reserva o con info del restaurante. ¿Qué necesitan?"
+          }
+        ],
+        "phone": "3469989331"
+      },
+      {
+        "ok": true,
+        "checks": [
+          {
+            "label": "does not start booking funnel",
+            "ok": true,
+            "detail": "Hola 🙋‍♀️ Soy la asistente del restaurante BALI REST y solo puedo ayudarle con reservas, cambios, cancelaciones y dudas del local (carta, horarios, ubicación, alergias, etc.), no tengo acceso a la previsión del tiempo.\n\nSi quiere, sí le puedo indicar cómo llegar al restaurante o nuestro horario. ¿En qué le ayudo?"
+          },
+          {
+            "label": "redirects to restaurant help or declines gracefully",
+            "ok": true,
+            "detail": "Hola 🙋‍♀️ Soy la asistente del restaurante BALI REST y solo puedo ayudarle con reservas, cambios, cancelaciones y dudas del local (carta, horarios, ubicación, alergias, etc.), no tengo acceso a la previsión del tiempo.\n\nSi quiere, sí le puedo indicar cómo llegar al restaurante o nuestro horario. ¿En qué le ayudo?"
+          }
+        ],
+        "phone": "3469900925"
+      },
+      {
+        "ok": true,
+        "checks": [
+          {
+            "label": "does not start booking funnel",
+            "ok": true,
+            "detail": "¡Hola! Soy la asistente de reservas de BALI REST, no tengo acceso a información en tiempo real como la previsión meteorológica.\n\nPara saber el tiempo en Las Palmas mañana, lo mejor es que miren una app o web de tiempo (AEMET, Weather.com, Google Weather, etc.).  \n\n¿Les ayudo con alguna reserva o duda del restaurante?"
+          },
+          {
+            "label": "redirects to restaurant help or declines gracefully",
+            "ok": true,
+            "detail": "¡Hola! Soy la asistente de reservas de BALI REST, no tengo acceso a información en tiempo real como la previsión meteorológica.\n\nPara saber el tiempo en Las Palmas mañana, lo mejor es que miren una app o web de tiempo (AEMET, Weather.com, Google Weather, etc.).  \n\n¿Les ayudo con alguna reserva o duda del restaurante?"
+          }
+        ],
+        "phone": "3469912698"
+      },
+      {
+        "ok": true,
+        "checks": [
+          {
+            "label": "does not start booking funnel",
+            "ok": true,
+            "detail": "¡Hola! Soy la asistente del restaurante BALI REST, solo puedo ayudarle con reservas, cambios, cancelaciones y dudas sobre el local (carta, alérgenos, horarios, dirección…).\n\nSobre el tiempo en Las Palmas mañana no tengo acceso a esa información.  \n¿Quiere que le ayude con una reserva o con algo del restaurante?"
+          },
+          {
+            "label": "redirects to restaurant help or declines gracefully",
+            "ok": true,
+            "detail": "¡Hola! Soy la asistente del restaurante BALI REST, solo puedo ayudarle con reservas, cambios, cancelaciones y dudas sobre el local (carta, alérgenos, horarios, dirección…).\n\nSobre el tiempo en Las Palmas mañana no tengo acceso a esa información.  \n¿Quiere que le ayude con una reserva o con algo del restaurante?"
+          }
+        ],
+        "phone": "3469924558"
+      }
+    ],
+    "pass": 5,
+    "rate": 100
+  }
+}

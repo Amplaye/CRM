@@ -1,0 +1,288 @@
+"use client";
+
+import { useState, useEffect } from "react";
+import { createClient } from "@/lib/supabase/client";
+import { useRouter } from "next/navigation";
+import { Loader2, Lock, Mail, Eye, EyeOff, ChevronDown } from "lucide-react";
+import Link from "next/link";
+import { useLanguage } from "@/lib/contexts/LanguageContext";
+import { safeLocal } from "@/lib/safe-storage";
+
+export default function LoginPage() {
+  // Initial state must match between server render and first client render —
+  // reading localStorage in a lazy initializer causes React error #418
+  // (hydration mismatch) because the server has no localStorage. Hydrate the
+  // saved values in an effect instead.
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [rememberMe, setRememberMe] = useState(false);
+
+  useEffect(() => {
+    const savedEmail = safeLocal.get("login_email");
+    const savedPassword = safeLocal.get("login_password");
+    const savedRemember = safeLocal.get("login_remember") === "true";
+    if (savedEmail) setEmail(savedEmail);
+    if (savedPassword) setPassword(savedPassword);
+    setRememberMe(savedRemember);
+  }, []);
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  // Set when a user lands here after their confirmation token was already
+  // consumed (typically a mobile mail-app prefetch). Their account is in fact
+  // confirmed — we just tell them to sign in instead of leaving a bare form
+  // that looks like the email button failed. Read from the URL in an effect to
+  // avoid a hydration mismatch (the server has no window).
+  const [confirmedNotice, setConfirmedNotice] = useState(false);
+  const router = useRouter();
+  const supabase = createClient();
+  const { language, setLanguage, t } = useLanguage();
+  const [langOpen, setLangOpen] = useState(false);
+
+  const LANGS: { code: "es" | "it" | "en" | "de"; flag: string; label: string }[] = [
+    { code: "es", flag: "🇪🇸", label: "ES" },
+    { code: "it", flag: "🇮🇹", label: "IT" },
+    { code: "en", flag: "🇬🇧", label: "EN" },
+    { code: "de", flag: "🇩🇪", label: "DE" },
+  ];
+  const current = LANGS.find((l) => l.code === language) ?? LANGS[2];
+
+  // Close the language dropdown when clicking anywhere outside it.
+  useEffect(() => {
+    if (!langOpen) return;
+    const close = () => setLangOpen(false);
+    document.addEventListener("click", close);
+    return () => document.removeEventListener("click", close);
+  }, [langOpen]);
+
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get("confirmed") === "1") {
+      setConfirmedNotice(true);
+    }
+  }, []);
+
+  // The login page is shown before any tenant is known, so there's no
+  // crm_locale to honour yet. Auto-detect the browser language for a first-time
+  // visitor; a returning user's last-used language (already in localStorage and
+  // seeded by LanguageProvider) takes precedence, so we only set when none was
+  // saved. After login, CrmLanguageBridge fixes the language to the tenant's.
+  useEffect(() => {
+    if (safeLocal.get("app_lang_v2")) return; // returning user → keep their language
+    const code = (navigator.language || "").slice(0, 2).toLowerCase();
+    if (code === "es" || code === "it" || code === "de" || code === "en") setLanguage(code);
+  }, [setLanguage]);
+
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError("");
+    setLoading(true);
+
+    // Save or clear remembered credentials
+    if (rememberMe) {
+      safeLocal.set("login_email", email);
+      safeLocal.set("login_password", password);
+      safeLocal.set("login_remember", "true");
+    } else {
+      safeLocal.remove("login_email");
+      safeLocal.remove("login_password");
+      safeLocal.remove("login_remember");
+    }
+
+    try {
+      const { error } = await supabase.auth.signInWithPassword({ email, password });
+      if (error) throw error;
+      // Fire-and-forget audit log; never block login on failure.
+      fetch("/api/auth/log-login", { method: "POST" }).catch(() => {});
+      router.push("/");
+      router.refresh();
+    } catch (err: any) {
+      // Fire-and-forget failure log (feeds the brute-force tripwire server-side).
+      fetch("/api/auth/log-login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ failed: true, email }),
+      }).catch(() => {});
+      setError(err.message || "Failed to sign in. Please verify your credentials.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="min-h-[100dvh] flex flex-col justify-center px-4 sm:px-6 lg:px-8 py-4 sm:py-6 relative overflow-hidden">
+      <div className="mx-auto w-full max-w-md relative z-10">
+        <div className="flex justify-center">
+           <img src="/logo-horizontal.png" alt="BaliFlow" className="w-full h-auto max-w-full" style={{
+             mask: 'radial-gradient(67% 90%, black 50%, transparent 75%)',
+             WebkitMask: 'radial-gradient(67% 90%, black 50%, transparent 75%)',
+           }} />
+        </div>
+      </div>
+
+      <div className="absolute top-4 right-4 z-20">
+        <div className="relative">
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              setLangOpen((o) => !o);
+            }}
+            aria-haspopup="listbox"
+            aria-expanded={langOpen}
+            className="flex items-center gap-1.5 pl-3 pr-2 py-1.5 rounded-full text-sm font-semibold text-black transition-all cursor-pointer"
+            style={{ background: "rgba(252,246,237,0.85)", border: "2px solid #c4956a" }}
+          >
+            <span className="text-base leading-none">{current.flag}</span>
+            <span>{current.label}</span>
+            <ChevronDown className={`h-4 w-4 transition-transform ${langOpen ? "rotate-180" : ""}`} />
+          </button>
+
+          {langOpen && (
+            <ul
+              role="listbox"
+              className="absolute right-0 mt-2 w-32 rounded-xl overflow-hidden shadow-lg"
+              style={{ background: "rgba(252,246,237,0.98)", border: "2px solid #c4956a" }}
+            >
+              {LANGS.map(({ code, flag, label }) => {
+                const active = language === code;
+                return (
+                  <li key={code} role="option" aria-selected={active}>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setLanguage(code);
+                        setLangOpen(false);
+                      }}
+                      className="w-full flex items-center gap-2 px-3 py-2 text-sm font-medium text-black transition-colors hover:bg-[#c4956a]/15 cursor-pointer"
+                      style={active ? { background: "rgba(196,149,106,0.2)" } : undefined}
+                    >
+                      <span className="text-base leading-none">{flag}</span>
+                      <span>{label}</span>
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </div>
+      </div>
+
+      <div className="mt-[20px] mx-auto w-full max-w-md relative z-10">
+        <div className="py-5 sm:py-6 px-5 sm:px-10 rounded-2xl" style={{
+          background: 'rgba(252,246,237,0.85)',
+          border: '2px solid #c4956a',
+          boxShadow: '0 20px 60px rgba(196,149,106,0.25), 0 8px 24px rgba(196,149,106,0.15)',
+        }}>
+          <form className="space-y-4 sm:space-y-5" onSubmit={handleLogin}>
+            {confirmedNotice && !error && (
+              <div className="bg-emerald-50/80 text-emerald-800 p-3 rounded-md text-sm border border-emerald-200/60">
+                {t("auth_confirmed_signin")}
+              </div>
+            )}
+            {error && (
+              <div className="bg-red-50/80 text-red-700 p-3 rounded-md text-sm border border-red-200/50">
+                {error}
+              </div>
+            )}
+
+            <div>
+              <label className="block text-sm font-medium text-black">{t("auth_email")}</label>
+              <div className="mt-1 relative rounded-lg">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                  <Mail className="h-4 w-4 text-black" />
+                </div>
+                <input
+                  type="email"
+                  id="email"
+                  name="email"
+                  autoComplete="email"
+                  required
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  className="block w-full pl-10 text-sm border-2 p-2.5 rounded-lg focus:ring-2 focus:ring-[#c4956a] focus:border-[#c4956a] outline-none transition-all text-black placeholder:text-black"
+                  style={{
+                    background: 'rgba(252,246,237,0.6)',
+                    borderColor: '#c4956a',
+                  }}
+                  placeholder={t("auth_email_placeholder")}
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-black">{t("auth_password")}</label>
+              <div className="mt-1 relative rounded-lg">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                  <Lock className="h-4 w-4 text-black" />
+                </div>
+                <input
+                  type={showPassword ? "text" : "password"}
+                  id="password"
+                  name="password"
+                  autoComplete="current-password"
+                  required
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="block w-full pl-10 pr-10 text-sm border-2 p-2.5 rounded-lg focus:ring-2 focus:ring-[#c4956a] focus:border-[#c4956a] outline-none transition-all text-black placeholder:text-black"
+                  style={{
+                    background: 'rgba(252,246,237,0.6)',
+                    borderColor: '#c4956a',
+                  }}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute inset-y-0 right-0 pr-3 flex items-center"
+                >
+                  {showPassword ? <EyeOff className="h-4 w-4 text-black hover:text-black transition-colors" /> : <Eye className="h-4 w-4 text-black hover:text-black transition-colors" />}
+                </button>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between">
+              <label className="flex items-center gap-2 cursor-pointer select-none">
+                <div
+                  onClick={() => setRememberMe(!rememberMe)}
+                  className="w-5 h-5 rounded border-2 flex items-center justify-center transition-colors"
+                  style={{
+                    borderColor: "#c4956a",
+                    background: rememberMe ? "#c4956a" : "rgba(252,246,237,0.6)",
+                  }}
+                >
+                  {rememberMe && (
+                    <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                    </svg>
+                  )}
+                </div>
+                <span className="text-sm text-black">{t("auth_remember_me")}</span>
+              </label>
+              <Link href="/forgot-password" className="text-sm font-medium text-[#c4956a] hover:text-[#b8845c]">
+                {t("auth_forgot_password")}
+              </Link>
+            </div>
+
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full flex justify-center py-2.5 px-4 rounded-lg shadow-sm text-sm font-semibold text-white disabled:opacity-50 transition-all hover:shadow-md"
+              style={{
+                background: 'linear-gradient(135deg, #c4956a 0%, #b8845c 100%)',
+              }}
+            >
+              {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : t("auth_sign_in")}
+            </button>
+          </form>
+
+
+          <p className="mt-4 sm:mt-5 text-center text-sm text-black">
+            {t("auth_no_account")}{" "}
+            <Link href="/register" className="font-medium text-[#c4956a] hover:text-[#b8845c]">
+              {t("auth_create_one")}
+            </Link>
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}

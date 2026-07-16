@@ -1,0 +1,202 @@
+import { NextRequest, NextResponse } from "next/server";
+import { createServiceRoleClient, createServerSupabaseClient } from "@/lib/supabase/server";
+import { assertAiSecret } from "@/lib/ai-auth";
+import { verifyTenantMembership } from "@/lib/tenant-membership";
+import { ENGINE_VAPI_ASSISTANT_ID } from "@/lib/voice/engine";
+import {
+  type VoicemailConfig,
+  resolveMode,
+  isInsideSchedule,
+  buildVoicemailBlock,
+  injectBlock,
+  transferCallTool,
+} from "@/lib/voice/voicemail";
+import { apiError } from "@/lib/api-error";
+
+const VAPI_BASE = "https://api.vapi.ai";
+
+function pickFirstMessage(active: boolean, forward: boolean, restaurantName: string): string {
+  // The system-prompt block drives behavior; the firstMessage just needs to match.
+  //  - VOICEMAIL active → short opener, then the script is read.
+  //  - FORWARD          → neutral filler while the transfer happens.
+  //  - NORMAL           → the real reservation greeting (this is what the website
+  //                       "Llamar ahora" button opens with).
+  if (active) return `Hola, ${restaurantName}.`;
+  if (forward) return "Un momento, por favor.";
+  return `¡Hola, ${restaurantName} Trattoria, bienvenido! ¿En qué te puedo ayudar?`;
+}
+
+// Returns a tools array that always contains a transferCall pointing to `phone`.
+// If a transferCall already exists, replace its destination so the prompt and the tool stay in sync.
+function withTransferCall(existing: any[] | undefined, phone: string): any[] {
+  const tools: any[] = Array.isArray(existing) ? [...existing] : [];
+  const tool = transferCallTool(phone);
+  const idx = tools.findIndex((t) => t?.type === "transferCall" || t?.function?.name === "transferCall");
+  if (idx >= 0) tools[idx] = tool;
+  else tools.push(tool);
+  return tools;
+}
+
+export async function POST(req: NextRequest) {
+  // Accept either: (a) valid x-ai-secret (cron/n8n) or (b) a signed-in dashboard session.
+  const unauth = assertAiSecret(req);
+  const viaSecret = !unauth;
+  if (!viaSecret) {
+    try {
+      const supabase = await createServerSupabaseClient();
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return unauth;
+    } catch {
+      return unauth;
+    }
+  }
+
+  try {
+    const { tenant_id } = await req.json();
+    if (!tenant_id) return NextResponse.json({ error: "Missing tenant_id" }, { status: 400 });
+
+    // Session callers may only modify a tenant's voicemail config if they are
+    // an owner/manager (this rewrites the live Vapi assistant prompt).
+    if (!viaSecret) {
+      const member = await verifyTenantMembership(tenant_id, ["owner", "manager"]);
+      if (!member) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+
+    const VAPI_KEY = process.env.VAPI_PRIVATE_KEY;
+    if (!VAPI_KEY) {
+      return NextResponse.json({ error: "VAPI_PRIVATE_KEY not configured" }, { status: 500 });
+    }
+
+    const supabase = createServiceRoleClient();
+    const { data: tenant, error: tErr } = await supabase
+      .from("tenants")
+      .select("id, name, settings")
+      .eq("id", tenant_id)
+      .single();
+    if (tErr || !tenant) return NextResponse.json({ error: "Tenant not found" }, { status: 404 });
+
+    const settings = (tenant.settings as any) || {};
+    const vm: VoicemailConfig | undefined = settings.vapi_voicemail;
+    if (!vm) {
+      return NextResponse.json({ error: "vapi_voicemail not configured for this tenant" }, { status: 400 });
+    }
+
+    // Voicemail injection here PATCHes a tenant's OWN Vapi assistant. "Motore
+    // unico" tenants don't have one (the shared engine serves everyone and must
+    // never be hand-patched), so this route is a graceful no-op for them — but
+    // voicemail STILL works for them: the engine composes this same block into
+    // the per-call prompt at call time (see lib/voice/engine.ts +
+    // lib/voice/voicemail.ts). This route stays live only for legacy per-tenant
+    // / Retell-clone assistants.
+    const vapiCfg = settings.vapi;
+    if (!vapiCfg?.assistantId || vapiCfg.assistantId === ENGINE_VAPI_ASSISTANT_ID) {
+      return NextResponse.json({
+        ok: true,
+        skipped: "motore-unico",
+        message: "Tenant servito dal motore unico — la segreteria è applicata per-chiamata dall'engine, non qui.",
+      });
+    }
+    const tz = vapiCfg.timezone || settings.timezone || "Atlantic/Canary";
+
+    // Effective state depends on the mode:
+    //  - always:    on permanently
+    //  - scheduled: on only while inside one of the configured time slots
+    //  - off:       always off (schedule data is kept but ignored)
+    const mode = resolveMode(vm);
+    const insideSchedule = isInsideSchedule(vm.schedule || {}, tz);
+    const active =
+      mode === "always" ? true :
+      mode === "scheduled" ? insideSchedule :
+      false;
+
+    // Skip Vapi PATCH if nothing material changed since last sync (cron calls this
+    // every 5 min — without this guard each tick would write to Vapi unnecessarily).
+    // We compare a fingerprint of {state, message, forward_phone}.
+    const fingerprint = JSON.stringify({
+      state: active ? "active" : "inactive",
+      message: vm.message,
+      forward_phone: vm.forward_phone,
+    });
+    const force = req.headers.get("x-force-sync") === "1";
+    if (!force && (vm as any).last_synced_fingerprint === fingerprint) {
+      return NextResponse.json({
+        ok: true,
+        skipped: true,
+        reason: "fingerprint-unchanged",
+        active,
+        mode,
+        insideSchedule,
+        manualEnabled: !!vm.enabled,
+      });
+    }
+
+    // Fetch current assistant so we can preserve everything we don't touch.
+    const getRes = await fetch(`${VAPI_BASE}/assistant/${vapiCfg.assistantId}`, {
+      headers: { Authorization: `Bearer ${VAPI_KEY}` },
+    });
+    if (!getRes.ok) {
+      const body = await getRes.text();
+      return NextResponse.json({ error: `Vapi GET failed ${getRes.status}: ${body}` }, { status: 502 });
+    }
+    const assistant = await getRes.json();
+
+    const messages = assistant?.model?.messages || [];
+    const sysIdx = messages.findIndex((m: any) => m?.role === "system");
+    const currentPrompt: string = sysIdx >= 0 ? (messages[sysIdx].content || "") : "";
+    const newPrompt = injectBlock(currentPrompt, buildVoicemailBlock(active, vm));
+
+    const newMessages = [...messages];
+    if (sysIdx >= 0) {
+      newMessages[sysIdx] = { ...newMessages[sysIdx], content: newPrompt };
+    } else {
+      newMessages.unshift({ role: "system", content: newPrompt });
+    }
+
+    const patchBody: any = {
+      model: {
+        ...assistant.model,
+        messages: newMessages,
+        tools: withTransferCall(assistant?.model?.tools, vm.forward_phone),
+      },
+      firstMessage: pickFirstMessage(active, mode === "scheduled" && !active, tenant.name),
+    };
+
+    const patchRes = await fetch(`${VAPI_BASE}/assistant/${vapiCfg.assistantId}`, {
+      method: "PATCH",
+      headers: {
+        Authorization: `Bearer ${VAPI_KEY}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(patchBody),
+    });
+    if (!patchRes.ok) {
+      const body = await patchRes.text();
+      return NextResponse.json({ error: `Vapi PATCH failed ${patchRes.status}: ${body}` }, { status: 502 });
+    }
+
+    // Persist last-sync metadata so we can debug on the CRM side.
+    const newSettings = {
+      ...settings,
+      vapi_voicemail: {
+        ...vm,
+        mode,
+        enabled: mode === "always",
+        last_synced_at: new Date().toISOString(),
+        last_synced_state: active ? "active" : "inactive",
+        last_synced_fingerprint: fingerprint,
+      },
+    };
+    await supabase.from("tenants").update({ settings: newSettings }).eq("id", tenant_id);
+
+    return NextResponse.json({
+      ok: true,
+      active,
+      mode,
+      insideSchedule,
+      manualEnabled: !!vm.enabled,
+      assistantId: vapiCfg.assistantId,
+    });
+  } catch (e: any) {
+    return apiError(e, { route: "sync-vapi-voicemail", publicMessage: "operation_failed", status: 500 });
+  }
+}

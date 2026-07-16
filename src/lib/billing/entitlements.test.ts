@@ -1,0 +1,269 @@
+import { describe, it, expect } from "vitest";
+import { entitlementFor, hasAddon, hasManagement, hasActivePlan, GRACE_DAYS } from "./entitlements";
+import { getFeatures, getRawFeatures } from "@/lib/types/tenant-settings";
+import type { TenantSettings } from "@/lib/types/tenant-settings";
+
+// The entitlement helper is the single gate for paid add-ons: get the grace /
+// manual-override rules wrong here and a customer either keeps a feature they
+// stopped paying for, or loses one they're still paying for. These cover every
+// branch with an injected clock so the grace-window math is deterministic.
+
+const DAY = 24 * 60 * 60 * 1000;
+// A fixed "now" so tests never depend on the wall clock.
+const NOW = Date.parse("2026-06-09T12:00:00.000Z");
+const at = (ms: number) => () => ms;
+
+/** Build a settings object with a billing block for smart_inventory. */
+function billing(over: Partial<NonNullable<TenantSettings["billing"]>> = {}): TenantSettings {
+  return { billing: { addons: ["smart_inventory"], status: "active", ...over } };
+}
+
+describe("entitlementFor — manual override (feature flag) wins", () => {
+  it("management_enabled:true unlocks even with NO subscription", () => {
+    const s: TenantSettings = { features: { management_enabled: true } };
+    const e = entitlementFor(s, "smart_inventory", at(NOW));
+    expect(e.active).toBe(true);
+    expect(e.reason).toBe("manual");
+  });
+
+  it("management_enabled:true unlocks even when the subscription is canceled", () => {
+    const s: TenantSettings = {
+      features: { management_enabled: true },
+      billing: { addons: ["smart_inventory"], status: "canceled" },
+    };
+    expect(hasManagement(s, at(NOW))).toBe(true);
+  });
+});
+
+describe("entitlementFor — paid & active", () => {
+  it("active subscription with the add-on → unlocked", () => {
+    const e = entitlementFor(billing({ status: "active" }), "smart_inventory", at(NOW));
+    expect(e.active).toBe(true);
+    expect(e.reason).toBe("active");
+  });
+
+  it("trialing counts as active", () => {
+    expect(hasAddon(billing({ status: "trialing" }), "smart_inventory", at(NOW))).toBe(true);
+  });
+
+  it("active plan but add-on NOT purchased → locked", () => {
+    const s = billing({ addons: [], status: "active" });
+    const e = entitlementFor(s, "smart_inventory", at(NOW));
+    expect(e.active).toBe(false);
+    expect(e.reason).toBe("none");
+  });
+});
+
+describe("entitlementFor — past_due grace window", () => {
+  const periodEnd = new Date(NOW).toISOString(); // period ended exactly now
+
+  it("inside the 7-day grace → still unlocked, reason grace", () => {
+    const s = billing({ status: "past_due", current_period_end: periodEnd });
+    // 3 days after period end — within grace.
+    const e = entitlementFor(s, "smart_inventory", at(NOW + 3 * DAY));
+    expect(e.active).toBe(true);
+    expect(e.reason).toBe("grace");
+    expect(e.graceEndsAt).toBe(new Date(NOW + GRACE_DAYS * DAY).toISOString());
+  });
+
+  it("exactly at the grace boundary → still unlocked", () => {
+    const s = billing({ status: "past_due", current_period_end: periodEnd });
+    const e = entitlementFor(s, "smart_inventory", at(NOW + GRACE_DAYS * DAY));
+    expect(e.active).toBe(true);
+    expect(e.reason).toBe("grace");
+  });
+
+  it("one day past the grace window → locked, reason expired", () => {
+    const s = billing({ status: "past_due", current_period_end: periodEnd });
+    const e = entitlementFor(s, "smart_inventory", at(NOW + (GRACE_DAYS + 1) * DAY));
+    expect(e.active).toBe(false);
+    expect(e.reason).toBe("expired");
+  });
+
+  it("past_due with no period_end recorded → lenient (still unlocked)", () => {
+    const s = billing({ status: "past_due", current_period_end: undefined });
+    const e = entitlementFor(s, "smart_inventory", at(NOW + 999 * DAY));
+    expect(e.active).toBe(true);
+    expect(e.reason).toBe("grace");
+    expect(e.graceEndsAt).toBeUndefined();
+  });
+});
+
+describe("entitlementFor — locked states", () => {
+  it("canceled → locked, reason canceled", () => {
+    const e = entitlementFor(billing({ status: "canceled" }), "smart_inventory", at(NOW));
+    expect(e.active).toBe(false);
+    expect(e.reason).toBe("canceled");
+  });
+
+  it("no billing at all → locked, reason none", () => {
+    const e = entitlementFor({}, "smart_inventory", at(NOW));
+    expect(e.active).toBe(false);
+    expect(e.reason).toBe("none");
+  });
+
+  it("null settings → locked, never throws", () => {
+    expect(hasAddon(null, "smart_inventory", at(NOW))).toBe(false);
+    expect(hasManagement(undefined, at(NOW))).toBe(false);
+  });
+});
+
+// The raw-vs-derived split is what stops a paying tenant's access from leaking
+// into the manual-override flag (and a client from self-enabling for free). These
+// pin that invariant: getFeatures DERIVES management_enabled from billing;
+// getRawFeatures reflects ONLY the stored flag.
+describe("getFeatures vs getRawFeatures — management_enabled derivation", () => {
+  it("paid+active add-on → getFeatures derives management_enabled true, raw stays false", () => {
+    const s: TenantSettings = { billing: { addons: ["smart_inventory"], status: "active" }, features: {} };
+    expect(getFeatures(s).management_enabled).toBe(true);
+    expect(getRawFeatures(s).management_enabled).toBe(false);
+  });
+
+  it("manual override (raw flag) → both true", () => {
+    const s: TenantSettings = { features: { management_enabled: true } };
+    expect(getFeatures(s).management_enabled).toBe(true);
+    expect(getRawFeatures(s).management_enabled).toBe(true);
+  });
+
+  it("no add-on, no flag → both false", () => {
+    const s: TenantSettings = { features: {} };
+    expect(getFeatures(s).management_enabled).toBe(false);
+    expect(getRawFeatures(s).management_enabled).toBe(false);
+  });
+
+  it("other flags are identical between the two (only management differs)", () => {
+    const s: TenantSettings = { features: { waitlist_enabled: false, terrace: true } };
+    const d = getFeatures(s);
+    const r = getRawFeatures(s);
+    expect(d.waitlist_enabled).toBe(r.waitlist_enabled);
+    expect(d.terrace).toBe(r.terrace);
+    expect(d.reminders_enabled).toBe(r.reminders_enabled);
+  });
+});
+
+// hasActivePlan is the PLAN-level gate that opens the core CRM for paying tenants.
+// Same grace math as the add-on gate, but keyed on billing.plan (the subscription
+// itself). Get it wrong and either an entry-package tenant sees paid sections for
+// free, or a paying customer gets locked out of their own CRM. Cover every branch
+// with an injected clock so the grace window is deterministic.
+describe("hasActivePlan — plan-level gate", () => {
+  const periodEnd = new Date(NOW).toISOString();
+  /** Build settings with a plan subscription (premium by default). */
+  const plan = (over: Partial<NonNullable<TenantSettings["billing"]>> = {}): TenantSettings => ({
+    billing: { plan: "premium", status: "active", ...over },
+  });
+
+  it("no billing at all → false (entry-package tenant)", () => {
+    expect(hasActivePlan({}, at(NOW))).toBe(false);
+    expect(hasActivePlan(null, at(NOW))).toBe(false);
+    expect(hasActivePlan(undefined, at(NOW))).toBe(false);
+  });
+
+  it("billing present but NO plan → false", () => {
+    // e.g. a tenant who bought only an add-on but never a base plan.
+    const s: TenantSettings = { billing: { addons: ["smart_inventory"], status: "active" } };
+    expect(hasActivePlan(s, at(NOW))).toBe(false);
+  });
+
+  it("active plan → true", () => {
+    expect(hasActivePlan(plan({ status: "active" }), at(NOW))).toBe(true);
+  });
+
+  it("trialing plan → true", () => {
+    expect(hasActivePlan(plan({ status: "trialing" }), at(NOW))).toBe(true);
+  });
+
+  it("business plan, active → true", () => {
+    expect(hasActivePlan(plan({ plan: "business", status: "active" }), at(NOW))).toBe(true);
+  });
+
+  it("past_due inside the 7-day grace → true", () => {
+    const s = plan({ status: "past_due", current_period_end: periodEnd });
+    expect(hasActivePlan(s, at(NOW + 3 * DAY))).toBe(true);
+    expect(hasActivePlan(s, at(NOW + GRACE_DAYS * DAY))).toBe(true); // boundary
+  });
+
+  it("past_due past the grace window → false", () => {
+    const s = plan({ status: "past_due", current_period_end: periodEnd });
+    expect(hasActivePlan(s, at(NOW + (GRACE_DAYS + 1) * DAY))).toBe(false);
+  });
+
+  it("past_due with no period_end → lenient (true)", () => {
+    const s = plan({ status: "past_due", current_period_end: undefined });
+    expect(hasActivePlan(s, at(NOW + 999 * DAY))).toBe(true);
+  });
+
+  it("canceled → false", () => {
+    expect(hasActivePlan(plan({ status: "canceled" }), at(NOW))).toBe(false);
+  });
+
+  it("incomplete → false", () => {
+    expect(hasActivePlan(plan({ status: "incomplete" }), at(NOW))).toBe(false);
+  });
+
+  it("plan set but status missing → false (no active subscription yet)", () => {
+    expect(hasActivePlan({ billing: { plan: "premium" } }, at(NOW))).toBe(false);
+  });
+});
+
+// Admin manual entitlement override (manual_entitlements) — the strongest signal,
+// wins over both billing and the legacy feature-flag override. Used to hand-grant
+// or hand-revoke a paid service during a payment dispute.
+describe("manual_entitlements — admin override wins over billing", () => {
+  it("addons override true → add-on unlocked even with no subscription", () => {
+    const s: TenantSettings = { manual_entitlements: { addons: { smart_inventory: true } } };
+    const e = entitlementFor(s, "smart_inventory", at(NOW));
+    expect(e.active).toBe(true);
+    expect(e.reason).toBe("manual");
+    expect(hasManagement(s, at(NOW))).toBe(true);
+  });
+
+  it("addons override false → add-on LOCKED even when paid & active", () => {
+    const s: TenantSettings = {
+      billing: { addons: ["smart_inventory"], status: "active" },
+      manual_entitlements: { addons: { smart_inventory: false } },
+    };
+    const e = entitlementFor(s, "smart_inventory", at(NOW));
+    expect(e.active).toBe(false);
+    expect(hasAddon(s, "smart_inventory", at(NOW))).toBe(false);
+  });
+
+  it("override beats the legacy feature-flag override too", () => {
+    const s: TenantSettings = {
+      features: { management_enabled: true } as any,
+      manual_entitlements: { addons: { smart_inventory: false } },
+    };
+    expect(entitlementFor(s, "smart_inventory", at(NOW)).active).toBe(false);
+  });
+
+  it("getFeatures reflects the override for management_enabled", () => {
+    const on: TenantSettings = { manual_entitlements: { addons: { smart_inventory: true } } };
+    const off: TenantSettings = {
+      billing: { addons: ["smart_inventory"], status: "active" },
+      manual_entitlements: { addons: { smart_inventory: false } },
+    };
+    expect(getFeatures(on).management_enabled).toBe(true);
+    expect(getFeatures(off).management_enabled).toBe(false);
+  });
+
+  it("plan override true → core CRM unlocked with no billing", () => {
+    expect(hasActivePlan({ manual_entitlements: { plan: true } }, at(NOW))).toBe(true);
+  });
+
+  it("plan override false → core CRM LOCKED even with an active plan", () => {
+    const s: TenantSettings = {
+      billing: { plan: "business", status: "active" },
+      manual_entitlements: { plan: false },
+    };
+    expect(hasActivePlan(s, at(NOW))).toBe(false);
+  });
+
+  it("override absent → falls through to billing (no effect)", () => {
+    const s: TenantSettings = {
+      billing: { plan: "premium", status: "active" },
+      manual_entitlements: { addons: {} },
+    };
+    expect(hasActivePlan(s, at(NOW))).toBe(true);
+    expect(entitlementFor(billing({ status: "active" }), "smart_inventory", at(NOW)).active).toBe(true);
+  });
+});

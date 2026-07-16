@@ -1,0 +1,113 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://lineadigitale.it/schemas/booking_intent.schema.json",
+  "title": "BookingIntent",
+  "description": "End-of-conversation extracted intent payload. The 11-field core matches the 10-stage target architecture (Stage 5); the Picnic-specific extensions live in `x_picnic` so the core remains portable across tenants. Designed to be used as the structured-output schema for /api/ai/extract-booking-intent (not yet implemented — see REFACTOR_DIAGNOSIS.md §4.2).",
+  "type": "object",
+  "required": [
+    "conversation_id",
+    "channel",
+    "intention",
+    "customer_phone",
+    "language"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "conversation_id": {
+      "type": "string",
+      "format": "uuid",
+      "description": "FK to public.conversations.id. Required so the extraction can be audited and re-run."
+    },
+    "channel": {
+      "type": "string",
+      "enum": ["whatsapp", "voice"],
+      "description": "Origin channel. Echoed verbatim from conversations.channel."
+    },
+    "intention": {
+      "type": "string",
+      "enum": ["BOOKING", "CANCEL", "CHANGE"],
+      "description": "Top-level intent. The chatbot parser today emits a richer set (book|modify|cancel|waitlist|info|offtopic|confirm_yes|confirm_no|null); the extractor normalizes to these three terminal intents and emits null when the conversation ended without a fulfillable booking action."
+    },
+    "booking_datetime": {
+      "type": ["string", "null"],
+      "format": "date-time",
+      "description": "ISO-8601 timestamp WITH timezone. Today reservations.date (text YYYY-MM-DD) and reservations.time (text HH:MM) are stored separately; the extractor must combine them and apply the tenant timezone (settings.timezone, e.g. Atlantic/Canary for Picnic)."
+    },
+    "num_guests": {
+      "type": ["integer", "null"],
+      "minimum": 1,
+      "maximum": 200,
+      "description": "Total party size requested. For CHANGE intents see x_picnic.delta_personas if the change is relative."
+    },
+    "allergies": {
+      "type": "array",
+      "items": { "type": "string" },
+      "default": [],
+      "description": "Structured allergens. The chatbot today merges allergies into `notas` (free text); the extractor must split them out into discrete tags so they can land in reservations.allergies (text[])."
+    },
+    "customer_name": {
+      "type": ["string", "null"],
+      "minLength": 1,
+      "description": "Customer name. Guard against hallucinated placeholders (e.g. 'Amigo', 'Cliente', 'Friend', 'Caller') — emit null instead."
+    },
+    "customer_phone": {
+      "type": "string",
+      "pattern": "^\\+[1-9][0-9]{6,14}$",
+      "description": "E.164. Voice channels must validate against the Retell {{from_number}} placeholder hole (+34600000000) and prefer the value captured at conversation start."
+    },
+    "service_type": {
+      "type": ["string", "null"],
+      "description": "Free-form service taxonomy. Picnic does not use this — leave null. See x_picnic.shift for the lunch/dinner indicator."
+    },
+    "special_requests": {
+      "type": ["string", "null"],
+      "description": "Free-text bundle of non-allergy notes (booster seat, birthday cake, view, etc.). The current parser writes everything into `notas` plus side-detected items into `shadowNotes`; merge both here."
+    },
+    "language": {
+      "type": "string",
+      "enum": ["es", "en", "it", "de"],
+      "description": "ISO-639-1 of the conversation language. Mirrors conversations.language and the parser's _sess.lang. Picnic supports the four listed locales."
+    },
+    "x_picnic": {
+      "type": "object",
+      "description": "Picnic-specific extensions. Kept in a namespaced sub-object so the core 11 fields stay portable.",
+      "additionalProperties": false,
+      "properties": {
+        "zona": {
+          "type": ["string", "null"],
+          "enum": ["interior", "exterior", null],
+          "description": "Seating zone preference. Maps to reservations.zona / reservation_tables.zone (interior=inside, exterior=outside)."
+        },
+        "delta_personas": {
+          "type": ["integer", "null"],
+          "description": "Relative party-size change for CHANGE intents (e.g. '+2' for 'somos dos más'). When set, num_guests should reflect the resulting absolute total."
+        },
+        "shift": {
+          "type": ["string", "null"],
+          "enum": ["lunch", "dinner", null],
+          "description": "Computed from booking_datetime against tenants.settings.opening_hours. Mirrors reservations.shift."
+        },
+        "force_new": {
+          "type": "boolean",
+          "default": false,
+          "description": "True when the customer explicitly opted to re-book after the bot flagged a duplicate within ±3 days."
+        },
+        "edge_hour": {
+          "type": "boolean",
+          "default": false,
+          "description": "True when the requested time is within 45 minutes of the closing time for that shift — flagged for manual review."
+        },
+        "proposed_alternatives": {
+          "type": "object",
+          "description": "Counter-offer history echoed from the parser when the original request was unavailable.",
+          "additionalProperties": false,
+          "properties": {
+            "zone": { "type": ["string", "null"], "enum": ["interior", "exterior", null] },
+            "date": { "type": ["string", "null"], "format": "date" },
+            "time": { "type": ["string", "null"], "pattern": "^[0-2][0-9]:[0-5][0-9]$" }
+          }
+        }
+      }
+    }
+  }
+}

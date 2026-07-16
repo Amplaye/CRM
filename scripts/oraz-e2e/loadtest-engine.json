@@ -1,0 +1,224 @@
+{
+  "when": "2026-06-02T21:27:54.186Z",
+  "levels": [
+    {
+      "level": 8,
+      "accepted": 8,
+      "replied": 8,
+      "errors": 0,
+      "acceptAvg": 817,
+      "acceptP90": 933,
+      "e2eAvg": 20533,
+      "e2eP90": 30074,
+      "e2eMax": 30074,
+      "detail": [
+        {
+          "st": 200,
+          "ex": "success",
+          "e2e": 17200
+        },
+        {
+          "st": 200,
+          "ex": "success",
+          "e2e": 20469
+        },
+        {
+          "st": 200,
+          "ex": "success",
+          "e2e": 20726
+        },
+        {
+          "st": 200,
+          "ex": "success",
+          "e2e": 16245
+        },
+        {
+          "st": 200,
+          "ex": "success",
+          "e2e": 18407
+        },
+        {
+          "st": 200,
+          "ex": "success",
+          "e2e": 20091
+        },
+        {
+          "st": 200,
+          "ex": "success",
+          "e2e": 21055
+        },
+        {
+          "st": 200,
+          "ex": "success",
+          "e2e": 30074
+        }
+      ]
+    },
+    {
+      "level": 12,
+      "accepted": 12,
+      "replied": 10,
+      "errors": 2,
+      "acceptAvg": 727,
+      "acceptP90": 891,
+      "e2eAvg": 97485,
+      "e2eP90": 100548,
+      "e2eMax": 100548,
+      "detail": [
+        {
+          "st": 200,
+          "ex": "success",
+          "e2e": 96333
+        },
+        {
+          "st": 200,
+          "ex": "success",
+          "e2e": 95792
+        },
+        {
+          "st": 200,
+          "ex": "success",
+          "e2e": 97391
+        },
+        {
+          "st": 200,
+          "ex": "success",
+          "e2e": 96497
+        },
+        {
+          "st": 200,
+          "ex": "success",
+          "e2e": 98073
+        },
+        {
+          "st": 200,
+          "ex": "success",
+          "e2e": 98170
+        },
+        {
+          "st": 200,
+          "ex": "error",
+          "e2e": 63795
+        },
+        {
+          "st": 200,
+          "ex": "success",
+          "e2e": 97339
+        },
+        {
+          "st": 200,
+          "ex": "error",
+          "e2e": 62881
+        },
+        {
+          "st": 200,
+          "ex": "success",
+          "e2e": 98137
+        },
+        {
+          "st": 200,
+          "ex": "success",
+          "e2e": 96571
+        },
+        {
+          "st": 200,
+          "ex": "success",
+          "e2e": 100548
+        }
+      ]
+    },
+    {
+      "level": 16,
+      "accepted": 16,
+      "replied": 7,
+      "errors": 9,
+      "acceptAvg": 1062,
+      "acceptP90": 1172,
+      "e2eAvg": 89483,
+      "e2eP90": 92449,
+      "e2eMax": 92449,
+      "detail": [
+        {
+          "st": 200,
+          "ex": "success",
+          "e2e": 87976
+        },
+        {
+          "st": 200,
+          "ex": "timeout",
+          "e2e": 118647
+        },
+        {
+          "st": 200,
+          "ex": "error",
+          "e2e": 67247
+        },
+        {
+          "st": 200,
+          "ex": "timeout",
+          "e2e": 119640
+        },
+        {
+          "st": 200,
+          "ex": "timeout",
+          "e2e": 120160
+        },
+        {
+          "st": 200,
+          "ex": "success",
+          "e2e": 92449
+        },
+        {
+          "st": 200,
+          "ex": "success",
+          "e2e": 91706
+        },
+        {
+          "st": 200,
+          "ex": "error",
+          "e2e": 65558
+        },
+        {
+          "st": 200,
+          "ex": "success",
+          "e2e": 88851
+        },
+        {
+          "st": 200,
+          "ex": "success",
+          "e2e": 89444
+        },
+        {
+          "st": 200,
+          "ex": "success",
+          "e2e": 87513
+        },
+        {
+          "st": 200,
+          "ex": "error",
+          "e2e": 64563
+        },
+        {
+          "st": 200,
+          "ex": "error",
+          "e2e": 64543
+        },
+        {
+          "st": 200,
+          "ex": "success",
+          "e2e": 88445
+        },
+        {
+          "st": 200,
+          "ex": "error",
+          "e2e": 66291
+        },
+        {
+          "st": 200,
+          "ex": "error",
+          "e2e": 65377
+        }
+      ]
+    }
+  ]
+}

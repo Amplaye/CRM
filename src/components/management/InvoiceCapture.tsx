@@ -1,0 +1,406 @@
+"use client";
+
+import { useMemo, useRef, useState } from "react";
+import { Camera, Check, Loader2, PackagePlus, Sparkles, X } from "lucide-react";
+import { useLanguage } from "@/lib/contexts/LanguageContext";
+import { Dictionary } from "@/lib/i18n/dictionaries/en";
+
+// "Registra consegna": photograph a supplier invoice / delivery note → the OCR
+// route parses it, every line arrives pre-matched to a warehouse ingredient (or
+// with a ready "create new" proposal), the owner glances, fixes what's off and
+// hits confirm ONCE. That single tap updates ingredient prices AND loads the
+// goods into stock — the daily stock-in becomes photo → confirm.
+
+interface IngredientOpt {
+  id: string;
+  name: string;
+  unit: string;
+}
+
+interface UploadedLine {
+  id: string;
+  description: string | null;
+  quantity: number | null;
+  unit: string | null;
+  unit_price: number | null;
+  line_total: number | null;
+  suggestion: {
+    ingredientId: string | null;
+    confidence: "high" | "medium" | "none";
+    score: number;
+    proposal: { name: string; unit: string };
+  } | null;
+}
+
+interface UploadResult {
+  invoice_id: string;
+  supplier_name: string | null;
+  extracted: { invoiceDate?: string | null; grossTotal?: number | null };
+  lines: UploadedLine[];
+}
+
+// Per-line decision in the review step.
+type Mapping =
+  | { kind: "ingredient"; ingredientId: string }
+  | { kind: "create"; name: string; unit: string }
+  | { kind: "skip" };
+
+type Phase =
+  | { s: "idle" }
+  | { s: "uploading" }
+  | { s: "review"; data: UploadResult }
+  | { s: "confirming"; data: UploadResult }
+  | { s: "done"; summary: { costs: number; stock: number; created: number } }
+  | { s: "error"; msg: string };
+
+export function InvoiceCapture({
+  tenantId,
+  ingredients,
+  onDone,
+}: {
+  tenantId: string;
+  ingredients: IngredientOpt[];
+  onDone: () => void;
+}) {
+  const { t } = useLanguage();
+  const fileRef = useRef<HTMLInputElement>(null);
+  const [phase, setPhase] = useState<Phase>({ s: "idle" });
+  const [mappings, setMappings] = useState<Record<string, Mapping>>({});
+  const [qtyDrafts, setQtyDrafts] = useState<Record<string, string>>({});
+  const [priceDrafts, setPriceDrafts] = useState<Record<string, string>>({});
+
+  const ingById = useMemo(() => new Map(ingredients.map((i) => [i.id, i])), [ingredients]);
+
+  const reset = () => {
+    setPhase({ s: "idle" });
+    setMappings({});
+    setQtyDrafts({});
+    setPriceDrafts({});
+    if (fileRef.current) fileRef.current.value = "";
+  };
+
+  async function upload(file: File) {
+    setPhase({ s: "uploading" });
+    try {
+      const form = new FormData();
+      form.set("tenant_id", tenantId);
+      form.set("file", file);
+      const res = await fetch("/api/invoices/upload", { method: "POST", body: form });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error || "upload failed");
+      const result = data as UploadResult;
+      // Seed the review: matched lines point at their ingredient, the rest
+      // default to "create new" — so an empty warehouse fills itself.
+      const seed: Record<string, Mapping> = {};
+      for (const l of result.lines) {
+        if (l.suggestion?.ingredientId) {
+          seed[l.id] = { kind: "ingredient", ingredientId: l.suggestion.ingredientId };
+        } else {
+          const p = l.suggestion?.proposal;
+          seed[l.id] = { kind: "create", name: p?.name || (l.description || "").slice(0, 80), unit: p?.unit || "pz" };
+        }
+      }
+      setMappings(seed);
+      setPhase({ s: "review", data: result });
+    } catch (e: any) {
+      setPhase({ s: "error", msg: e?.message || "Errore" });
+    }
+  }
+
+  async function confirm(data: UploadResult) {
+    setPhase({ s: "confirming", data });
+    try {
+      const lines = data.lines.map((l) => {
+        const m = mappings[l.id] || { kind: "skip" as const };
+        const base: Record<string, unknown> = { id: l.id };
+        const qty = qtyDrafts[l.id];
+        const price = priceDrafts[l.id];
+        if (qty != null && qty.trim() !== "") base.quantity = Number(qty.replace(",", "."));
+        if (price != null && price.trim() !== "") base.unit_price = Number(price.replace(",", "."));
+        if (m.kind === "ingredient") base.ingredient_id = m.ingredientId;
+        else if (m.kind === "create") base.create_ingredient = { name: m.name, unit: m.unit };
+        else base.ingredient_id = null;
+        return base;
+      });
+      const res = await fetch("/api/invoices/confirm", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tenant_id: tenantId, invoice_id: data.invoice_id, lines, receive_stock: true }),
+      });
+      const out = await res.json();
+      if (!res.ok) throw new Error(out?.error || "confirm failed");
+      setPhase({
+        s: "done",
+        summary: { costs: out.costs_applied || 0, stock: out.stock_received || 0, created: out.ingredients_created || 0 },
+      });
+      onDone();
+    } catch (e: any) {
+      setPhase({ s: "error", msg: e?.message || "Errore" });
+    }
+  }
+
+  const inputCls = "px-2 py-1 text-sm border-2 rounded text-black";
+  const inputStyle = { borderColor: "#c4956a", background: "rgba(252,246,237,0.6)" };
+
+  return (
+    <>
+      <input
+        ref={fileRef}
+        type="file"
+        accept="image/*,application/pdf"
+        className="hidden"
+        onChange={(e) => {
+          const f = e.target.files?.[0];
+          if (f) void upload(f);
+        }}
+      />
+      <button
+        onClick={() => fileRef.current?.click()}
+        className="shrink-0 inline-flex items-center gap-1.5 px-4 py-2 text-white text-sm font-bold rounded-lg cursor-pointer"
+        style={{ background: "linear-gradient(135deg, #059669, #047857)" }}
+      >
+        <Camera className="w-4 h-4" /> {t("inv_capture_btn" as keyof Dictionary) || "Registra consegna"}
+      </button>
+
+      {phase.s !== "idle" && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(0,0,0,0.45)" }}>
+          <div className="w-full max-w-3xl max-h-[90vh] overflow-y-auto rounded-2xl bg-white shadow-2xl border-2" style={{ borderColor: "#c4956a" }}>
+            {/* Header */}
+            <div className="sticky top-0 bg-white flex items-center justify-between gap-3 px-5 py-4 border-b" style={{ borderColor: "#eaddcb" }}>
+              <h2 className="text-lg font-bold text-black flex items-center gap-2">
+                <PackagePlus className="w-5 h-5" />
+                {t("inv_capture_title" as keyof Dictionary) || "Carico da fattura / bolla"}
+              </h2>
+              <button onClick={reset} className="p-1.5 text-black cursor-pointer" aria-label="close">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-5">
+              {phase.s === "uploading" && (
+                <div className="py-12 flex flex-col items-center gap-3 text-black">
+                  <Loader2 className="w-8 h-8 animate-spin" style={{ color: "#c4956a" }} />
+                  <p className="text-sm font-medium">{t("inv_capture_reading" as keyof Dictionary) || "Sto leggendo il documento… (10-20 secondi)"}</p>
+                </div>
+              )}
+
+              {phase.s === "error" && (
+                <div className="py-8 text-center space-y-4">
+                  <p className="text-sm text-red-600 font-medium">{phase.msg}</p>
+                  <button onClick={reset} className="px-4 py-2 text-sm rounded-lg border-2 cursor-pointer text-black" style={{ borderColor: "#c4956a" }}>
+                    {t("close" as keyof Dictionary) || "Chiudi"}
+                  </button>
+                </div>
+              )}
+
+              {phase.s === "done" && (
+                <div className="py-10 flex flex-col items-center gap-3">
+                  <div className="w-12 h-12 rounded-full flex items-center justify-center" style={{ background: "rgba(16,185,129,0.12)" }}>
+                    <Check className="w-7 h-7 text-emerald-600" />
+                  </div>
+                  <p className="text-base font-bold text-black">{t("inv_capture_done_title" as keyof Dictionary) || "Consegna registrata"}</p>
+                  <p className="text-sm text-black text-center">
+                    {(t("inv_capture_done_body" as keyof Dictionary) ||
+                      "{stock} righe caricate a magazzino · {costs} prezzi aggiornati · {created} nuovi ingredienti creati")
+                      .replace("{stock}", String(phase.summary.stock))
+                      .replace("{costs}", String(phase.summary.costs))
+                      .replace("{created}", String(phase.summary.created))}
+                  </p>
+                  <button onClick={reset} className="mt-2 px-5 py-2 text-white text-sm font-bold rounded-lg cursor-pointer" style={{ background: "linear-gradient(135deg, #d4a574, #c4956a)" }}>
+                    {t("close" as keyof Dictionary) || "Chiudi"}
+                  </button>
+                </div>
+              )}
+
+              {(phase.s === "review" || phase.s === "confirming") && (
+                <ReviewTable
+                  data={phase.data}
+                  ingredients={ingredients}
+                  ingById={ingById}
+                  mappings={mappings}
+                  setMappings={setMappings}
+                  qtyDrafts={qtyDrafts}
+                  setQtyDrafts={setQtyDrafts}
+                  priceDrafts={priceDrafts}
+                  setPriceDrafts={setPriceDrafts}
+                  busy={phase.s === "confirming"}
+                  onConfirm={() => confirm(phase.data)}
+                  onCancel={reset}
+                  t={t}
+                  inputCls={inputCls}
+                  inputStyle={inputStyle}
+                />
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
+
+function ReviewTable({
+  data, ingredients, ingById, mappings, setMappings, qtyDrafts, setQtyDrafts,
+  priceDrafts, setPriceDrafts, busy, onConfirm, onCancel, t, inputCls, inputStyle,
+}: {
+  data: UploadResult;
+  ingredients: IngredientOpt[];
+  ingById: Map<string, IngredientOpt>;
+  mappings: Record<string, Mapping>;
+  setMappings: React.Dispatch<React.SetStateAction<Record<string, Mapping>>>;
+  qtyDrafts: Record<string, string>;
+  setQtyDrafts: React.Dispatch<React.SetStateAction<Record<string, string>>>;
+  priceDrafts: Record<string, string>;
+  setPriceDrafts: React.Dispatch<React.SetStateAction<Record<string, string>>>;
+  busy: boolean;
+  onConfirm: () => void;
+  onCancel: () => void;
+  t: (k: keyof Dictionary) => string;
+  inputCls: string;
+  inputStyle: React.CSSProperties;
+}) {
+  const CREATE = "__create__";
+  const SKIP = "__skip__";
+  const autoCount = data.lines.filter((l) => l.suggestion?.confidence === "high").length;
+
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-center justify-between gap-2 text-sm text-black">
+        <div>
+          <span className="font-bold">{data.supplier_name || t("inv_capture_unknown_supplier" as keyof Dictionary) || "Fornitore sconosciuto"}</span>
+          {data.extracted?.invoiceDate ? <span> · {data.extracted.invoiceDate}</span> : null}
+          {data.extracted?.grossTotal != null ? <span> · € {Number(data.extracted.grossTotal).toFixed(2)}</span> : null}
+        </div>
+        {autoCount > 0 && (
+          <span className="inline-flex items-center gap-1 text-xs font-bold px-2 py-1 rounded-full" style={{ background: "rgba(16,185,129,0.12)", color: "#047857" }}>
+            <Sparkles className="w-3.5 h-3.5" />
+            {(t("inv_capture_automatched" as keyof Dictionary) || "{n} righe abbinate da sole").replace("{n}", String(autoCount))}
+          </span>
+        )}
+      </div>
+
+      <p className="text-xs text-black">
+        {t("inv_capture_help" as keyof Dictionary) ||
+          "Controlla le righe: quantità e prezzo vengono dal documento. Le righe senza abbinamento creano un nuovo ingrediente in magazzino. Confermando, giacenze e prezzi si aggiornano da soli."}
+      </p>
+
+      <div className="space-y-2">
+        {data.lines.map((l) => {
+          const m = mappings[l.id] || { kind: "skip" as const };
+          const selectValue = m.kind === "ingredient" ? m.ingredientId : m.kind === "create" ? CREATE : SKIP;
+          const selectedIng = m.kind === "ingredient" ? ingById.get(m.ingredientId) : null;
+          const targetUnit = m.kind === "create" ? m.unit : selectedIng?.unit || "";
+          const skipped = m.kind === "skip";
+          return (
+            <div key={l.id} className={`rounded-lg border-2 p-3 ${skipped ? "opacity-50" : ""}`} style={{ borderColor: "#eaddcb", background: "rgba(252,246,237,0.5)" }}>
+              <div className="text-sm font-medium text-black mb-2">
+                {l.description || "—"}
+                {l.suggestion?.confidence === "medium" && !skipped && m.kind === "ingredient" && (
+                  <span className="ml-2 text-xs px-1.5 py-0.5 rounded bg-amber-100 text-amber-700">
+                    {t("inv_capture_check" as keyof Dictionary) || "da controllare"}
+                  </span>
+                )}
+              </div>
+              <div className="flex flex-wrap items-end gap-2">
+                <label className="flex flex-col gap-1 grow min-w-[220px]">
+                  <span className="text-xs font-bold text-black">{t("inv_capture_map_to" as keyof Dictionary) || "Ingrediente magazzino"}</span>
+                  <select
+                    value={selectValue}
+                    onChange={(e) => {
+                      const v = e.target.value;
+                      setMappings((prev) => ({
+                        ...prev,
+                        [l.id]:
+                          v === SKIP
+                            ? { kind: "skip" }
+                            : v === CREATE
+                              ? { kind: "create", name: l.suggestion?.proposal.name || (l.description || "").slice(0, 80), unit: l.suggestion?.proposal.unit || "pz" }
+                              : { kind: "ingredient", ingredientId: v },
+                      }));
+                    }}
+                    className={inputCls + " cursor-pointer w-full"}
+                    style={inputStyle}
+                  >
+                    <option value={CREATE}>
+                      {(t("inv_capture_create_new" as keyof Dictionary) || "➕ Crea nuovo: {name}").replace("{name}", l.suggestion?.proposal.name || (l.description || "").slice(0, 40))}
+                    </option>
+                    <option value={SKIP}>{t("inv_capture_skip" as keyof Dictionary) || "— Ignora questa riga —"}</option>
+                    {ingredients.map((i) => (
+                      <option key={i.id} value={i.id}>
+                        {i.name} ({i.unit})
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                {m.kind === "create" && (
+                  <label className="flex flex-col gap-1 w-24">
+                    <span className="text-xs font-bold text-black">{t("inventory_unit" as keyof Dictionary) || "Unità"}</span>
+                    <select
+                      value={m.unit}
+                      onChange={(e) => setMappings((prev) => ({ ...prev, [l.id]: { ...m, unit: e.target.value } }))}
+                      className={inputCls + " cursor-pointer"}
+                      style={inputStyle}
+                    >
+                      {["kg", "g", "l", "ml", "pz"].map((u) => (
+                        <option key={u} value={u}>{u}</option>
+                      ))}
+                    </select>
+                  </label>
+                )}
+                <label className="flex flex-col gap-1 w-28">
+                  <span className="text-xs font-bold text-black">
+                    {(t("inv_mv_qty" as keyof Dictionary) || "Quantità") + (targetUnit ? ` (${targetUnit})` : "")}
+                  </span>
+                  <input
+                    type="number"
+                    step="0.001"
+                    value={qtyDrafts[l.id] ?? (l.quantity != null ? String(l.quantity) : "")}
+                    onChange={(e) => setQtyDrafts((prev) => ({ ...prev, [l.id]: e.target.value }))}
+                    className={inputCls + " w-full"}
+                    style={inputStyle}
+                    disabled={skipped}
+                  />
+                </label>
+                <label className="flex flex-col gap-1 w-28">
+                  <span className="text-xs font-bold text-black">{t("inv_mv_unit_cost" as keyof Dictionary) || "Prezzo unit. €"}</span>
+                  <input
+                    type="number"
+                    step="0.0001"
+                    value={priceDrafts[l.id] ?? (l.unit_price != null ? String(l.unit_price) : "")}
+                    onChange={(e) => setPriceDrafts((prev) => ({ ...prev, [l.id]: e.target.value }))}
+                    className={inputCls + " w-full"}
+                    style={inputStyle}
+                    disabled={skipped}
+                  />
+                </label>
+              </div>
+              {l.unit && targetUnit && l.unit.toLowerCase() !== targetUnit && !skipped && (
+                <p className="mt-1.5 text-xs text-amber-700">
+                  {(t("inv_capture_unit_hint" as keyof Dictionary) ||
+                    "Sul documento l'unità è «{docUnit}»: controlla che la quantità sia espressa in {unit}.")
+                    .replace("{docUnit}", l.unit)
+                    .replace("{unit}", targetUnit)}
+                </p>
+              )}
+            </div>
+          );
+        })}
+      </div>
+
+      <div className="flex items-center justify-end gap-2 pt-2">
+        <button onClick={onCancel} disabled={busy} className="px-4 py-2 text-sm rounded-lg border-2 cursor-pointer text-black disabled:opacity-40" style={{ borderColor: "#c4956a" }}>
+          {t("cancel" as keyof Dictionary) || "Annulla"}
+        </button>
+        <button
+          onClick={onConfirm}
+          disabled={busy}
+          className="inline-flex items-center gap-2 px-5 py-2 text-white text-sm font-bold rounded-lg cursor-pointer disabled:opacity-60"
+          style={{ background: "linear-gradient(135deg, #059669, #047857)" }}
+        >
+          {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
+          {t("inv_capture_confirm" as keyof Dictionary) || "Conferma e carica a magazzino"}
+        </button>
+      </div>
+    </div>
+  );
+}

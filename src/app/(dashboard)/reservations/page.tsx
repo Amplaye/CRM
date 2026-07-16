@@ -1,0 +1,1070 @@
+"use client";
+
+import { LockedPreview } from "@/components/billing/LockedPreview";
+import { hasActivePlan } from "@/lib/billing/entitlements";
+
+import { ReservationList } from "@/components/reservations/ReservationList";
+import { ReservationTimeline } from "@/components/reservations/ReservationTimeline";
+import { Plus, Download, Upload, X, Save, Clock, Menu, Phone, ChevronLeft, ChevronRight, AlertOctagon, Accessibility, Users as UsersIcon, CreditCard } from "lucide-react";
+import { useState, useEffect, useRef } from "react";
+import { Reservation, ReservationStatus } from "@/lib/types";
+import { getFeatures, type TenantSettings } from "@/lib/types/tenant-settings";
+import { TranslateNoteButton } from "@/components/ui/TranslateNoteButton";
+
+interface ReservationWithGuest extends Reservation {
+  guest_name?: string;
+  guest_phone?: string;
+  guest_dietary_notes?: string;
+  guest_accessibility_notes?: string;
+  guest_family_notes?: string;
+  table_names?: string[];
+}
+import { useLanguage } from "@/lib/contexts/LanguageContext";
+import { useTenant } from "@/lib/contexts/TenantContext";
+import { createReservationAction, updateReservationDetailsAction } from "@/app/actions/reservations";
+import { buildBookingConfirmationMessage, buildOwnerNewBookingMessage } from "@/lib/booking-confirmation-message";
+import { createClient } from "@/lib/supabase/client";
+import { useSearchParams } from "next/navigation";
+
+const downloadCSV = (data: string[][], filename: string) => {
+  const csv = data.map(row => row.map(cell => `"${(cell || '').replace(/"/g, '""')}"`).join(',')).join('\n');
+  const blob = new Blob([csv], { type: 'text/csv' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+};
+
+const parseCSV = (text: string): string[][] => {
+  const lines = text.split('\n').filter(l => l.trim());
+  return lines.map(line => {
+    const result: string[] = [];
+    let current = '';
+    let inQuotes = false;
+    for (const char of line) {
+      if (char === '"') { inQuotes = !inQuotes; }
+      else if (char === ',' && !inQuotes) { result.push(current.trim()); current = ''; }
+      else { current += char; }
+    }
+    result.push(current.trim());
+    return result;
+  });
+};
+
+interface RestaurantTable {
+  id: string;
+  name: string;
+  seats: number;
+  status: "active" | "inactive";
+}
+
+export default function ReservationsPage() {
+  const [selectedRes, setSelectedRes] = useState<ReservationWithGuest | null>(null);
+  const [isCreating, setIsCreating] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  const searchParams = useSearchParams();
+  const today = new Date().toISOString().split('T')[0];
+  const [date, setDate] = useState(searchParams.get('date') || today);
+
+  // React to URL date changes (e.g. from notifications)
+  useEffect(() => {
+    const urlDate = searchParams.get('date');
+    if (urlDate && urlDate !== date) setDate(urlDate);
+  }, [searchParams]);
+
+  // Hosts (camerieri) are locked to today — they only need to mark arrivals
+  // and no-shows on the current shift, never navigate to other days.
+
+  const shiftDate = (days: number) => {
+    const d = new Date(date + 'T12:00:00');
+    d.setDate(d.getDate() + days);
+    setDate(d.toISOString().split('T')[0]);
+  };
+  const [viewMode, setViewMode] = useState<"list" | "timeline">("list");
+  const [shiftFilter, setShiftFilter] = useState<"all" | "lunch" | "dinner">("all");
+
+  const { t, language } = useLanguage();
+  const { activeTenant, activeRole } = useTenant();
+  const isHost = activeRole === "host";
+
+  const [availableTables, setAvailableTables] = useState<RestaurantTable[]>([]);
+  const [selectedTableIds, setSelectedTableIds] = useState<string[]>([]);
+  const [occupiedTableIds, setOccupiedTableIds] = useState<Set<string>>(new Set());
+  // Change-table (in-place reassignment for the open reservation — keeps the row, so analytics stay intact)
+  const [changingTable, setChangingTable] = useState(false);
+  const [editTables, setEditTables] = useState<RestaurantTable[]>([]);
+  const [editOccupied, setEditOccupied] = useState<Set<string>>(new Set());
+  const [editCurrentTableIds, setEditCurrentTableIds] = useState<string[]>([]);
+  const [savingTable, setSavingTable] = useState(false);
+  const [createShift, setCreateShift] = useState<"lunch" | "dinner">("dinner");
+  const [createDate, setCreateDate] = useState(date);
+  const supabase = createClient();
+
+  const shiftTimes = {
+    lunch: ["12:30", "12:45", "13:00", "13:15", "13:30", "13:45", "14:00", "14:15", "14:30", "14:45", "15:00", "15:15", "15:30"],
+    dinner: ["19:30", "19:45", "20:00", "20:15", "20:30", "20:45", "21:00", "21:15", "21:30", "21:45", "22:00", "22:15", "22:30"],
+  };
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleExport = async () => {
+    if (!activeTenant) return;
+    const { data: reservations } = await supabase
+      .from('reservations')
+      .select('*, guests(name, phone)')
+      .eq('tenant_id', activeTenant.id)
+      .eq('date', date);
+
+    if (!reservations || reservations.length === 0) {
+      alert(t('res_no_export'));
+      return;
+    }
+
+    // Fetch table assignments for these reservations
+    const resIds = reservations.map((r: any) => r.id);
+    const { data: tableLinks } = await supabase
+      .from('reservation_tables')
+      .select('reservation_id, restaurant_tables(name)')
+      .in('reservation_id', resIds);
+
+    const tableMap: Record<string, string[]> = {};
+    if (tableLinks) {
+      for (const link of tableLinks as any[]) {
+        const rid = link.reservation_id;
+        const tname = link.restaurant_tables?.name || '';
+        if (!tableMap[rid]) tableMap[rid] = [];
+        if (tname) tableMap[rid].push(tname);
+      }
+    }
+
+    const headers = ['Date', 'Time', 'Guest Name', 'Phone', 'Party Size', 'Status', 'Source', 'Tables', 'Notes'];
+    const rows = reservations.map((r: any) => [
+      r.date,
+      r.time,
+      r.guests?.name || '',
+      r.guests?.phone || '',
+      String(r.party_size),
+      r.status,
+      r.source || '',
+      (tableMap[r.id] || []).join('; '),
+      r.notes || ''
+    ]);
+    downloadCSV([headers, ...rows], `reservations_export_${date}.csv`);
+  };
+
+  const handleImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !activeTenant) return;
+    const text = await file.text();
+    const rows = parseCSV(text);
+    if (rows.length < 2) return;
+
+    const headers = rows[0].map(h => h.toLowerCase().replace(/\s+/g, '_'));
+    const dateIdx = headers.indexOf('date');
+    const timeIdx = headers.indexOf('time');
+    const nameIdx = headers.indexOf('guest_name');
+    const phoneIdx = headers.indexOf('phone');
+    const partyIdx = headers.indexOf('party_size');
+    const notesIdx = headers.indexOf('notes');
+
+    if (dateIdx === -1 || timeIdx === -1 || nameIdx === -1 || phoneIdx === -1) {
+      alert(t('res_csv_error'));
+      return;
+    }
+
+    let imported = 0;
+    for (let i = 1; i < rows.length; i++) {
+      const row = rows[i];
+      const rDate = row[dateIdx]?.trim();
+      const rTime = row[timeIdx]?.trim();
+      const gName = row[nameIdx]?.trim();
+      const gPhone = row[phoneIdx]?.trim();
+      const partySize = partyIdx !== -1 ? parseInt(row[partyIdx]?.trim()) || 2 : 2;
+      const notes = notesIdx !== -1 ? row[notesIdx]?.trim() || '' : '';
+
+      if (!rDate || !rTime || !gName || !gPhone) continue;
+
+      try {
+        const res = await createReservationAction({
+          tenantId: activeTenant.id,
+          guestName: gName,
+          guestPhone: gPhone,
+          date: rDate,
+          time: rTime,
+          partySize: partySize,
+          source: 'staff',
+          notes
+        });
+        if (res.success) imported++;
+      } catch (err) {
+        console.error('Import row error:', err);
+      }
+    }
+
+    alert(t('res_imported').replace('{count}', String(imported)));
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
+  // Fetch tables + occupied tables ONLY when the new-reservation drawer is open
+  useEffect(() => {
+    if (!activeTenant || !isCreating) return;
+    const fetchTables = async () => {
+      const [tablesRes, resRes] = await Promise.all([
+        supabase
+          .from("restaurant_tables")
+          .select("id, name, seats, status")
+          .eq("tenant_id", activeTenant.id)
+          .eq("status", "active")
+          .order("name"),
+        supabase
+          .from("reservations")
+          .select("id, reservation_tables(table_id)")
+          .eq("tenant_id", activeTenant.id)
+          .eq("date", createDate)
+          .in("status", ["confirmed", "seated", "pending_confirmation"]),
+      ]);
+
+      const sorted = ((tablesRes.data || []) as RestaurantTable[]).sort((a, b) => {
+        const numA = parseInt(a.name.replace(/\D/g, '')) || 0;
+        const numB = parseInt(b.name.replace(/\D/g, '')) || 0;
+        return numA - numB;
+      });
+      setAvailableTables(sorted);
+
+      const occupied = new Set<string>();
+      for (const r of (resRes.data || []) as any[]) {
+        for (const rt of (r.reservation_tables || [])) {
+          if (rt.table_id) occupied.add(rt.table_id);
+        }
+      }
+      setOccupiedTableIds(occupied);
+    };
+    fetchTables();
+  }, [activeTenant, createDate, isCreating]);
+
+  // Load tables for the OPEN reservation so the owner can move it to another
+  // table without cancel+recreate (which would lose the row and its analytics).
+  useEffect(() => {
+    if (!activeTenant || !selectedRes || isHost) { setChangingTable(false); return; }
+    setChangingTable(false);
+    const resId = selectedRes.id;
+    const fetchForEdit = async () => {
+      const [tablesRes, occRes, mineRes] = await Promise.all([
+        supabase
+          .from("restaurant_tables")
+          .select("id, name, seats, status")
+          .eq("tenant_id", activeTenant.id)
+          .eq("status", "active")
+          .order("name"),
+        supabase
+          .from("reservations")
+          .select("id, reservation_tables(table_id)")
+          .eq("tenant_id", activeTenant.id)
+          .eq("date", selectedRes.date)
+          .in("status", ["confirmed", "seated", "pending_confirmation"]),
+        supabase
+          .from("reservation_tables")
+          .select("table_id")
+          .eq("reservation_id", resId),
+      ]);
+
+      const sorted = ((tablesRes.data || []) as RestaurantTable[]).sort((a, b) => {
+        const numA = parseInt(a.name.replace(/\D/g, '')) || 0;
+        const numB = parseInt(b.name.replace(/\D/g, '')) || 0;
+        return numA - numB;
+      });
+      setEditTables(sorted);
+
+      const mine = ((mineRes.data || []) as any[]).map(r => r.table_id).filter(Boolean);
+      setEditCurrentTableIds(mine);
+      setSelectedTableIds(mine);
+
+      // Occupied by OTHER reservations on the same day (exclude this reservation's own tables)
+      const occupied = new Set<string>();
+      for (const r of (occRes.data || []) as any[]) {
+        if (r.id === resId) continue;
+        for (const rt of (r.reservation_tables || [])) {
+          if (rt.table_id) occupied.add(rt.table_id);
+        }
+      }
+      setEditOccupied(occupied);
+    };
+    fetchForEdit();
+  }, [activeTenant, selectedRes, isHost]);
+
+  const handleChangeTable = async () => {
+    if (!activeTenant || !selectedRes) return;
+    setSavingTable(true);
+    try {
+      const resId = selectedRes.id;
+      // In-place reassignment: only the junction rows change. The reservation
+      // row (source, timestamps, party_size, status) is untouched, so booking
+      // analytics and history are preserved.
+      await supabase.from("reservation_tables").delete().eq("reservation_id", resId);
+      if (selectedTableIds.length > 0) {
+        const inserts = selectedTableIds.map(tableId => ({ reservation_id: resId, table_id: tableId }));
+        await supabase.from("reservation_tables").insert(inserts);
+      }
+      const newNames = selectedTableIds
+        .map(tid => editTables.find(x => x.id === tid)?.name)
+        .filter(Boolean) as string[];
+      setEditCurrentTableIds(selectedTableIds);
+      setSelectedRes(prev => prev ? { ...prev, table_names: newNames } as ReservationWithGuest : prev);
+      setChangingTable(false);
+    } finally {
+      setSavingTable(false);
+    }
+  };
+
+  const toggleTable = (tableId: string) => {
+    setSelectedTableIds(prev =>
+      prev.includes(tableId) ? prev.filter(id => id !== tableId) : [...prev, tableId]
+    );
+  };
+
+  const handleUpdate = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    if (!activeTenant || !selectedRes) return;
+
+    setSaving(true);
+    const formData = new FormData(e.currentTarget);
+    try {
+      const res = await updateReservationDetailsAction({
+        tenantId: activeTenant.id,
+        reservationId: selectedRes.id,
+        data: {
+          status: formData.get("status") as ReservationStatus,
+          date: formData.get("date") as string,
+          time: formData.get("time") as string,
+          party_size: Number(formData.get("party_size")),
+          notes: formData.get("notes") as string
+        }
+      });
+
+      if (!res.success) throw new Error(res.error);
+      setSelectedRes(null);
+    } catch (err: any) {
+      alert(t("res_failed_update") + err.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // Host-only quick action: mark a reservation as arrived (seated) or no-show
+  // without opening the full edit form.
+  const markStatus = async (status: ReservationStatus) => {
+    if (!activeTenant || !selectedRes) return;
+    setSaving(true);
+    try {
+      const res = await updateReservationDetailsAction({
+        tenantId: activeTenant.id,
+        reservationId: selectedRes.id,
+        data: {
+          status,
+          date: selectedRes.date,
+          time: selectedRes.time,
+          party_size: selectedRes.party_size,
+          notes: selectedRes.notes || "",
+        },
+      });
+      if (!res.success) throw new Error(res.error);
+      setSelectedRes(null);
+    } catch (err: any) {
+      alert(t("res_failed_update") + err.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleCreate = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    if (!activeTenant) return;
+
+    setSaving(true);
+    const formData = new FormData(e.currentTarget);
+
+    // Capacity check: warn if selected tables have fewer seats than party size
+    const partySize = Number(formData.get("partySize"));
+    if (selectedTableIds.length > 0) {
+      const totalSeats = selectedTableIds.reduce((sum, tableId) => {
+        const table = availableTables.find(t => t.id === tableId);
+        return sum + (table?.seats || 0);
+      }, 0);
+      if (totalSeats < partySize) {
+        const confirmed = window.confirm(
+          t('res_table_confirm').replace('{seats}', String(totalSeats)).replace('{size}', String(partySize))
+        );
+        if (!confirmed) { setSaving(false); return; }
+      }
+    }
+
+    try {
+      const shift = formData.get("shift") as string || "dinner";
+      const res = await createReservationAction({
+        tenantId: activeTenant.id,
+        guestName: formData.get("guestName") as string,
+        guestPhone: formData.get("guestPhone") as string,
+        date: formData.get("date") as string,
+        time: formData.get("time") as string,
+        partySize: Number(formData.get("partySize")),
+        source: "staff",
+        notes: (formData.get("notes") as string) || "",
+        shift
+      });
+
+      if (!res.success) throw new Error(res.error);
+
+      // Assign selected tables to the new reservation
+      let pickedTableObjs: typeof availableTables = [];
+      if (selectedTableIds.length > 0 && res.reservationId) {
+        const tableInserts = selectedTableIds.map(tableId => ({
+          reservation_id: res.reservationId,
+          table_id: tableId,
+        }));
+        const { error: tableErr } = await supabase
+          .from("reservation_tables")
+          .insert(tableInserts);
+        if (tableErr) console.error("Failed to assign tables:", tableErr);
+        pickedTableObjs = selectedTableIds
+          .map(tid => availableTables.find(x => x.id === tid))
+          .filter(Boolean) as typeof availableTables;
+      }
+
+      // Best-effort: send the same WhatsApp confirmation the AI agent would
+      // send, plus an owner notification — so manual bookings get the same
+      // reminder/follow-up flow downstream and the guest has a confirm card
+      // they can reply MODIFY/CANCEL to.
+      const guestName = formData.get("guestName") as string;
+      const guestPhone = formData.get("guestPhone") as string;
+      const dateValue = formData.get("date") as string;
+      const timeValue = formData.get("time") as string;
+      const notesValue = (formData.get("notes") as string) || "";
+      const tableNames = pickedTableObjs.map(x => x.name).join(', ');
+      const zoneFromTables = (pickedTableObjs[0] as any)?.zone as 'inside' | 'outside' | undefined;
+      if (guestPhone) {
+        const confirmMsg = buildBookingConfirmationMessage({
+          date: dateValue,
+          time: timeValue,
+          partySize,
+          guestName,
+          zone: zoneFromTables ?? null,
+          tableNames,
+          notes: notesValue,
+          language,
+        });
+        fetch("/api/send-whatsapp", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ to: guestPhone, message: confirmMsg, tenant_id: activeTenant.id }),
+        }).catch((e) => console.error("WhatsApp confirm error:", e));
+      }
+      // Notify the owner only on THIS tenant's configured number. No Picnic
+      // fallback: if it's not set yet, we simply skip the owner notification.
+      const ownerPhone = (activeTenant as any)?.settings?.owner_phone as string | undefined;
+      if (ownerPhone) {
+        const ownerMsg = buildOwnerNewBookingMessage({
+          date: dateValue,
+          time: timeValue,
+          partySize,
+          guestName,
+          guestPhone,
+          zone: zoneFromTables ?? null,
+          tableNames,
+          notes: notesValue,
+        });
+        fetch("/api/send-whatsapp", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ to: ownerPhone, message: ownerMsg, tenant_id: activeTenant.id }),
+        }).catch(() => {});
+      }
+
+      setSelectedTableIds([]);
+      setIsCreating(false);
+    } catch (err: any) {
+      alert(t("res_failed_create") + err.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // Plan gate: entry-package tenants (no active plan) see a locked preview.
+  if (!hasActivePlan(activeTenant?.settings)) return <LockedPreview section="reservations" />;
+
+  return (
+    <div className="p-4 sm:p-6 lg:p-8 w-full space-y-4 sm:space-y-6 lg:space-y-8">
+      <div className={`flex-1 transition-all duration-300 ${(selectedRes || isCreating) ? 'md:pr-[400px]' : ''}`}>
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-4 sm:mb-6 lg:mb-8">
+          <div>
+            <h1 className="text-xl sm:text-2xl font-bold text-black tracking-tight">{t("res_title")}</h1>
+            <p className="mt-0.5 sm:mt-1 text-xs sm:text-sm text-black">{t("res_subtitle")}</p>
+          </div>
+          {!isHost && (
+          <div className="mt-3 sm:mt-0 flex flex-wrap gap-2 sm:space-x-3">
+             <button onClick={handleExport} className="hidden sm:inline-flex items-center px-4 py-2 border-2 text-sm font-medium rounded-lg shadow-sm text-black transition-colors cursor-pointer" style={{ borderColor: '#c4956a', background: 'rgba(252,246,237,0.6)' }}>
+                <Download className="-ml-1 mr-2 h-4 w-4" /> {t("res_export")}
+             </button>
+             <button onClick={() => fileInputRef.current?.click()} className="hidden sm:inline-flex items-center px-4 py-2 border-2 text-sm font-medium rounded-lg shadow-sm text-black transition-colors cursor-pointer" style={{ borderColor: '#c4956a', background: 'rgba(252,246,237,0.6)' }}>
+                <Upload className="-ml-1 mr-2 h-4 w-4" /> {t("res_import")}
+             </button>
+             <input ref={fileInputRef} type="file" accept=".csv" className="hidden" onChange={handleImport} />
+             <button
+               onClick={() => { setSelectedRes(null); setIsCreating(true); setCreateDate(date); setSelectedTableIds([]); }}
+               className="inline-flex items-center px-3 sm:px-4 py-2 border border-transparent text-sm font-medium rounded-lg shadow-sm text-white hover:brightness-105 transition-all cursor-pointer"
+               style={{ background: 'linear-gradient(135deg, #d4a574, #c4956a)' }}
+             >
+                <Plus className="-ml-1 mr-1.5 sm:mr-2 h-4 w-4 sm:h-5 sm:w-5" aria-hidden="true" />
+                {t("res_new")}
+             </button>
+          </div>
+          )}
+        </div>
+
+        {/* Mobile controls — hidden for host (cameriere) */}
+        {!isHost && (
+        <div className="md:hidden flex items-center gap-2 mb-3">
+          <button onClick={() => shiftDate(-1)} className="p-2 rounded-lg border-2 hover:bg-[#c4956a]/10" style={{ borderColor: '#c4956a' }}>
+            <ChevronLeft className="w-4 h-4 text-black" />
+          </button>
+          <input
+            type="date"
+            value={date}
+            onChange={(e) => setDate(e.target.value)}
+            className="flex-1 border-2 rounded-lg px-3 py-2 text-sm font-medium text-black focus:ring-1 focus:ring-[#c4956a] focus:outline-none"
+            style={{ borderColor: '#c4956a', background: 'rgba(252,246,237,0.6)' }}
+          />
+          <button onClick={() => shiftDate(1)} className="p-2 rounded-lg border-2 hover:bg-[#c4956a]/10" style={{ borderColor: '#c4956a' }}>
+            <ChevronRight className="w-4 h-4 text-black" />
+          </button>
+          <div className="flex p-0.5 rounded-lg border-2" style={{ borderColor: '#c4956a', background: 'rgba(252,246,237,0.6)' }}>
+            <button
+              onClick={() => setViewMode("list")}
+              className={`p-2 rounded-md transition-colors ${viewMode === 'list' ? 'text-white' : 'text-black'}`}
+              style={{ background: viewMode === 'list' ? '#c4956a' : 'transparent' }}
+            >
+              <Menu className="w-4 h-4" />
+            </button>
+            <button
+              onClick={() => setViewMode("timeline")}
+              className={`p-2 rounded-md transition-colors ${viewMode === 'timeline' ? 'text-white' : 'text-black'}`}
+              style={{ background: viewMode === 'timeline' ? '#c4956a' : 'transparent' }}
+            >
+              <Clock className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+        )}
+
+        {/* Shift filter — mobile (full width row below). Visible for all roles. */}
+        <div className="md:hidden flex p-0.5 rounded-lg border-2 mb-3" style={{ borderColor: '#c4956a', background: 'rgba(252,246,237,0.6)' }}>
+          {(["all", "lunch", "dinner"] as const).map((s) => (
+            <button
+              key={s}
+              onClick={() => setShiftFilter(s)}
+              className={`flex-1 px-3 py-1.5 text-xs font-semibold rounded-md transition-colors ${shiftFilter === s ? 'text-white' : 'text-black'}`}
+              style={{ background: shiftFilter === s ? '#c4956a' : 'transparent' }}
+            >
+              {s === 'all' ? t('res_all_shifts') : s === 'lunch' ? t('floor_lunch') : t('floor_dinner')}
+            </button>
+          ))}
+        </div>
+
+        {/* Desktop controls — hidden for host */}
+        {!isHost && (
+        <div className="p-4 flex flex-col sm:flex-row items-center justify-between border-b rounded-t-xl hidden md:flex border-x border-t border-2" style={{ background: 'rgba(252,246,237,0.85)', borderColor: '#c4956a' }}>
+           <div className="flex flex-wrap gap-y-2 items-center min-w-0">
+              <button onClick={() => shiftDate(-1)} className="cursor-pointer p-1.5 rounded-lg hover:bg-[#c4956a]/10 transition-colors mr-1">
+                <ChevronLeft className="w-5 h-5 text-black" />
+              </button>
+              <input
+                type="date"
+                value={date}
+                onChange={(e) => setDate(e.target.value)}
+                className="border-2 rounded-md px-3 py-1.5 text-sm font-medium text-black focus:ring-1 focus:ring-[#c4956a] focus:outline-none shadow-sm"
+                style={{ borderColor: '#c4956a', background: 'rgba(252,246,237,0.6)' }}
+              />
+              <button onClick={() => shiftDate(1)} className="cursor-pointer p-1.5 rounded-lg hover:bg-[#c4956a]/10 transition-colors ml-1">
+                <ChevronRight className="w-5 h-5 text-black" />
+              </button>
+              <div className="flex p-1 rounded-lg border-2 ml-3" style={{ borderColor: '#c4956a', background: 'rgba(252,246,237,0.6)' }}>
+                <button
+                  onClick={() => setViewMode("list")}
+                  className={`cursor-pointer px-3 py-1 text-sm font-semibold rounded-md flex items-center transition-colors ${viewMode === 'list' ? 'text-white' : 'text-black'}`}
+                  style={{ background: viewMode === 'list' ? '#c4956a' : 'transparent' }}
+                >
+                  <Menu className="w-4 h-4 mr-1.5" /> {t("res_list")}
+                </button>
+                <button
+                  onClick={() => setViewMode("timeline")}
+                  className={`cursor-pointer px-3 py-1 text-sm font-semibold rounded-md flex items-center transition-colors ${viewMode === 'timeline' ? 'text-white' : 'text-black'}`}
+                  style={{ background: viewMode === 'timeline' ? '#c4956a' : 'transparent' }}
+                >
+                  <Clock className="w-4 h-4 mr-1.5" /> {t("res_timeline")}
+                </button>
+              </div>
+              {/* Shift filter — desktop */}
+              <div className="flex p-1 rounded-lg border-2 ml-2 min-w-0" style={{ borderColor: '#c4956a', background: 'rgba(252,246,237,0.6)' }}>
+                {(["all", "lunch", "dinner"] as const).map((s) => (
+                  <button
+                    key={s}
+                    onClick={() => setShiftFilter(s)}
+                    className={`cursor-pointer px-2 py-1 text-sm font-semibold rounded-md transition-colors whitespace-nowrap ${shiftFilter === s ? 'text-white' : 'text-black'}`}
+                    style={{ background: shiftFilter === s ? '#c4956a' : 'transparent' }}
+                  >
+                    {s === 'all' ? t('res_all_shifts') : s === 'lunch' ? t('floor_lunch') : t('floor_dinner')}
+                  </button>
+                ))}
+              </div>
+           </div>
+        </div>
+        )}
+
+        {viewMode === "list" ? (
+          <ReservationList
+            date={date}
+            shiftFilter={shiftFilter}
+            onRowClick={(res) => { setIsCreating(false); setSelectedRes(res as ReservationWithGuest); }}
+            onCreate={() => { if (isHost) return; setSelectedRes(null); setIsCreating(true); setCreateDate(date); setSelectedTableIds([]); }}
+          />
+        ) : (
+          <ReservationTimeline
+            date={date}
+            shiftFilter={shiftFilter}
+            onRowClick={(res) => { setIsCreating(false); setSelectedRes(res as ReservationWithGuest); }}
+          />
+        )}
+      </div>
+
+      {/* QUICK STATUS EDIT DRAWER */}
+      {selectedRes && (() => {
+        const inputCls = "block w-full border-2 rounded-lg px-3 py-2.5 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-[#c4956a]";
+        const inputStyle: React.CSSProperties = { borderColor: '#c4956a', background: 'rgba(252,246,237,0.6)', maxWidth: '100%', boxSizing: 'border-box', WebkitAppearance: 'none' as const, MozAppearance: 'none' as const };
+        return (
+        <>
+        <div className="fixed inset-0 bg-black/40 z-30 sm:hidden" onClick={() => { setSelectedRes(null); setChangingTable(false); setSelectedTableIds([]); }} />
+        <div className="fixed top-14 left-0 right-0 bottom-0 sm:top-0 sm:left-auto sm:right-0 sm:w-[400px] border-l shadow-2xl z-40 flex flex-col overflow-hidden" style={{ background: 'rgb(252,246,237)', borderColor: '#c4956a' }}>
+          <div className="mx-5 sm:mx-6 pt-2 pb-2 sm:py-4 flex items-center justify-between border-b" style={{ borderColor: '#c4956a' }}>
+             <div className="min-w-0 flex-1 mr-3">
+               <h2 className="text-base sm:text-lg font-bold text-black tracking-tight">{t("res_quick_edit")}</h2>
+               {(selectedRes.guest_name || selectedRes.guest_phone) && (
+                 <div className="mt-0.5">
+                   {selectedRes.guest_name && <p className="text-sm font-medium text-black">{selectedRes.guest_name}</p>}
+                   {selectedRes.guest_phone && (
+                     <p className="flex items-center gap-1 text-sm text-black mt-0.5">
+                       <Phone className="w-3.5 h-3.5 flex-shrink-0" />{selectedRes.guest_phone}
+                     </p>
+                   )}
+                 </div>
+               )}
+             </div>
+             <button onClick={() => { setSelectedRes(null); setChangingTable(false); setSelectedTableIds([]); }} className="p-1.5 border-2 border-red-400 text-red-500 hover:bg-red-50 rounded-lg transition-colors cursor-pointer flex-shrink-0">
+                <X className="h-4 w-4" />
+             </button>
+          </div>
+          {isHost ? (
+            <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
+              <div className="flex-1 overflow-y-auto px-5 sm:px-6 py-3 sm:py-5 space-y-3 sm:space-y-4">
+                {(selectedRes.guest_dietary_notes || selectedRes.guest_accessibility_notes || selectedRes.guest_family_notes) && (
+                  <div className="rounded-lg border-2 border-red-300 bg-red-50 p-3 space-y-1.5">
+                    <div className="flex items-center gap-1.5 text-sm font-bold text-red-800">
+                      <AlertOctagon className="w-4 h-4 flex-shrink-0" />
+                      <span>{t("res_guest_alerts") || "Avvisi cliente"}</span>
+                    </div>
+                    {selectedRes.guest_dietary_notes && (
+                      <p className="text-sm text-red-900">🍽️ {selectedRes.guest_dietary_notes}</p>
+                    )}
+                    {selectedRes.guest_accessibility_notes && (
+                      <p className="text-sm text-red-900">{selectedRes.guest_accessibility_notes}</p>
+                    )}
+                    {selectedRes.guest_family_notes && (
+                      <p className="text-sm text-red-900">{selectedRes.guest_family_notes}</p>
+                    )}
+                  </div>
+                )}
+                <div className="text-sm text-black">
+                  <div><strong>{t("res_edit_time") || "Ora"}:</strong> {selectedRes.time}</div>
+                  <div><strong>{t("res_edit_party") || "Persone"}:</strong> {selectedRes.party_size}</div>
+                  {selectedRes.notes && <div className="mt-1"><strong>{t("res_edit_notes") || "Note"}:</strong> {selectedRes.notes}</div>}
+                </div>
+              </div>
+              <div className="mx-5 sm:mx-6 py-2 sm:py-4 pb-4 sm:pb-4 border-t flex flex-col gap-2" style={{ borderColor: '#c4956a' }}>
+                <button
+                  type="button"
+                  disabled={saving}
+                  onClick={() => markStatus("seated" as ReservationStatus)}
+                  className="w-full flex items-center justify-center bg-emerald-600 hover:bg-emerald-700 text-white font-medium py-3 px-4 rounded-lg transition-colors shadow-sm disabled:opacity-50"
+                >
+                  {t("res_mark_arrived") || "Segnalo arrivato"}
+                </button>
+                <button
+                  type="button"
+                  disabled={saving}
+                  onClick={() => markStatus("no_show" as ReservationStatus)}
+                  className="w-full flex items-center justify-center bg-red-600 hover:bg-red-700 text-white font-medium py-3 px-4 rounded-lg transition-colors shadow-sm disabled:opacity-50"
+                >
+                  {t("res_mark_noshow") || "Non si è presentato"}
+                </button>
+              </div>
+            </div>
+          ) : (
+          <form onSubmit={handleUpdate} className="flex-1 flex flex-col min-h-0 overflow-hidden">
+             <div className="flex-1 overflow-y-auto px-5 sm:px-6 py-3 sm:py-5 space-y-3 sm:space-y-4">
+                {(selectedRes.guest_dietary_notes || selectedRes.guest_accessibility_notes || selectedRes.guest_family_notes) && (
+                  <div className="rounded-lg border-2 border-red-300 bg-red-50 p-3 space-y-1.5">
+                    <div className="flex items-center gap-1.5 text-sm font-bold text-red-800">
+                      <AlertOctagon className="w-4 h-4 flex-shrink-0" />
+                      <span>{t("res_guest_alerts") || "Avvisi cliente"}</span>
+                    </div>
+                    {selectedRes.guest_dietary_notes && (
+                      <p className="flex items-start gap-1.5 text-sm text-red-900">
+                        <span className="font-semibold flex-shrink-0">🍽️ {t("res_guest_dietary") || "Dieta/Allergie"}:</span>
+                        <span className="break-words">{selectedRes.guest_dietary_notes}</span>
+                      </p>
+                    )}
+                    {selectedRes.guest_accessibility_notes && (
+                      <p className="flex items-start gap-1.5 text-sm text-red-900">
+                        <Accessibility className="w-4 h-4 flex-shrink-0 mt-0.5" />
+                        <span className="break-words">{selectedRes.guest_accessibility_notes}</span>
+                      </p>
+                    )}
+                    {selectedRes.guest_family_notes && (
+                      <p className="flex items-start gap-1.5 text-sm text-red-900">
+                        <UsersIcon className="w-4 h-4 flex-shrink-0 mt-0.5" />
+                        <span className="break-words">{selectedRes.guest_family_notes}</span>
+                      </p>
+                    )}
+                  </div>
+                )}
+                <div>
+                   <label className="block text-sm font-medium text-black mb-1">{t("res_edit_status")}</label>
+                   <select name="status" defaultValue={selectedRes.status} className={inputCls} style={inputStyle}>
+                      <option value="pending_confirmation">{t("res_pending_confirmation")}</option>
+                      <option value="confirmed">{t("status_confirmed")}</option>
+                      <option value="seated">{t("status_seated")}</option>
+                      <option value="completed">{t("status_completed")}</option>
+                      <option value="cancelled">{t("status_cancelled")}</option>
+                      <option value="no_show">{t("status_no_show")}</option>
+                   </select>
+                </div>
+
+                <div>
+                   <label className="block text-sm font-medium text-black mb-1">{t("res_edit_date")}</label>
+                   <input name="date" type="date" defaultValue={selectedRes.date} className={inputCls} style={inputStyle} />
+                </div>
+
+                <div>
+                   <label className="block text-sm font-medium text-black mb-1">{t("res_edit_time")}</label>
+                   <input name="time" type="time" defaultValue={selectedRes.time} className={inputCls} style={inputStyle} />
+                </div>
+
+                <div>
+                   <label className="block text-sm font-medium text-black mb-1">{t("res_edit_party")}</label>
+                   <input name="party_size" type="number" defaultValue={selectedRes.party_size} className={inputCls} style={inputStyle} />
+                </div>
+
+                <div>
+                   <label className="block text-sm font-medium text-black mb-1">{t("res_edit_notes")}</label>
+                   <textarea name="notes" defaultValue={selectedRes.notes} rows={2}
+                     className={`${inputCls} sm:rows-4`} style={inputStyle}
+                     placeholder={t("res_edit_placeholder")}
+                   />
+                   <style>{`@media (min-width: 640px) { textarea[name="notes"] { min-height: 120px; } }`}</style>
+                   <div className="mt-2">
+                     <TranslateNoteButton text={selectedRes.notes || ""} />
+                   </div>
+                </div>
+
+                {/* Deposit (caparra) — request link / settle the Stripe hold */}
+                <DepositPanel
+                  key={`dep-${selectedRes.id}-${selectedRes.deposit_status || "none"}`}
+                  reservation={selectedRes}
+                  tenantId={activeTenant?.id || ""}
+                  onChanged={(status) => setSelectedRes(prev => prev ? { ...prev, deposit_status: status } as ReservationWithGuest : prev)}
+                />
+
+                {/* Change table — in-place reassignment; keeps the reservation row + analytics */}
+                <div className="rounded-lg border-2 p-3" style={{ borderColor: '#c4956a', background: 'rgba(252,246,237,0.6)' }}>
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold text-black">{t("res_change_table_title")}</p>
+                      <p className="text-xs text-black mt-0.5">
+                        {editCurrentTableIds.length > 0
+                          ? (editCurrentTableIds
+                              .map(tid => editTables.find(x => x.id === tid)?.name)
+                              .filter(Boolean).join(", ") || (selectedRes.table_names || []).join(", "))
+                          : t("res_change_table_none")}
+                      </p>
+                    </div>
+                    {!changingTable && (
+                      <button type="button" onClick={() => { setSelectedTableIds(editCurrentTableIds); setChangingTable(true); }}
+                        className="flex-shrink-0 px-3 py-1.5 text-xs font-semibold rounded-lg border-2 border-[#c4956a] text-black hover:bg-[#c4956a]/10 transition-colors cursor-pointer">
+                        {t("res_change_table")}
+                      </button>
+                    )}
+                  </div>
+                  {changingTable && (
+                    <div className="mt-3">
+                      <p className="text-xs text-black mb-2">{t("res_change_table_subtitle")}</p>
+                      {editTables.length === 0 ? (
+                        <p className="text-xs text-black">{t("res_change_table_empty")}</p>
+                      ) : (
+                        <div className="grid grid-cols-4 gap-2">
+                          {editTables.map(table => {
+                            const isMine = editCurrentTableIds.includes(table.id);
+                            const isOccupied = editOccupied.has(table.id) && !isMine;
+                            const isSelected = selectedTableIds.includes(table.id);
+                            return (
+                              <button key={table.id} type="button" disabled={isOccupied}
+                                onClick={() => !isOccupied && toggleTable(table.id)}
+                                title={`${table.name} · ${table.seats}p`}
+                                className={`py-2 px-1 text-xs font-semibold rounded-lg border-2 transition-colors ${
+                                  isOccupied ? "border-red-400 text-red-400 opacity-50 cursor-not-allowed"
+                                    : isSelected ? "border-green-500 bg-green-500 text-white cursor-pointer"
+                                      : "border-[#c4956a] text-black cursor-pointer"
+                                }`}
+                                style={!isOccupied && !isSelected ? { background: 'rgba(252,246,237,0.6)' } : undefined}>
+                                {table.name}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      )}
+                      <div className="flex gap-2 mt-3">
+                        <button type="button" onClick={() => { setChangingTable(false); setSelectedTableIds(editCurrentTableIds); }}
+                          className="flex-1 px-3 py-2 text-xs font-semibold rounded-lg border-2 border-zinc-300 text-black hover:bg-zinc-100 transition-colors cursor-pointer">
+                          {t("res_edit_cancel") || "Annulla"}
+                        </button>
+                        <button type="button" onClick={handleChangeTable} disabled={savingTable}
+                          style={{ background: 'linear-gradient(135deg, #d4a574, #c4956a)' }}
+                          className="flex-1 px-3 py-2 text-xs font-bold rounded-lg text-white hover:brightness-105 transition-all cursor-pointer disabled:opacity-50">
+                          {savingTable ? "…" : t("res_change_table_save")}
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+             </div>
+             <div className="mx-5 sm:mx-6 py-2 sm:py-4 pb-4 sm:pb-4 border-t" style={{ borderColor: '#c4956a' }}>
+                <button type="submit" disabled={saving}
+                   style={{ background: 'linear-gradient(135deg, #d4a574, #c4956a)' }}
+                   className="cursor-pointer w-full flex items-center justify-center text-white font-medium py-2.5 px-4 rounded-lg hover:brightness-105 transition-all shadow-sm disabled:opacity-50">
+                   <Save className="h-4 w-4 mr-2" /> {saving ? "Saving..." : t("res_edit_save")}
+                </button>
+             </div>
+          </form>
+          )}
+        </div>
+        </>
+        );
+      })()}
+
+      {/* NEW RESERVATION DRAWER */}
+      {isCreating && (
+        <>
+        <div className="fixed inset-0 bg-black/40 z-30 sm:hidden" onClick={() => setIsCreating(false)} />
+        <div className="fixed top-14 left-0 right-0 bottom-0 sm:top-0 sm:left-auto sm:right-0 sm:w-[400px] border-l shadow-2xl z-40 flex flex-col overflow-hidden" style={{ background: 'rgb(252,246,237)', borderColor: '#c4956a' }}>
+          <div className="mx-5 sm:mx-6 pt-2 pb-2 sm:py-4 flex items-center justify-between border-b" style={{ borderColor: '#c4956a' }}>
+             <h2 className="text-base sm:text-lg font-bold text-black tracking-tight">{t("res_new")}</h2>
+             <button onClick={() => setIsCreating(false)} className="p-1.5 border-2 border-red-400 text-red-500 hover:bg-red-50 rounded-lg transition-colors cursor-pointer">
+                <X className="h-4 w-4" />
+             </button>
+          </div>
+          {(() => {
+            const iCls = "w-full border-2 rounded-lg px-3 py-2.5 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-[#c4956a] box-border";
+            const iSty = { borderColor: '#c4956a', background: 'rgba(252,246,237,0.6)' };
+            return (
+          <form onSubmit={handleCreate} className="flex-1 flex flex-col min-h-0">
+             <div className="flex-1 overflow-y-auto px-4 sm:px-6 py-4 sm:py-5 space-y-4 sm:space-y-5">
+                <div>
+                   <label className="block text-sm font-medium text-black mb-1">{t("res_col_guest")}</label>
+                   <input required name="guestName" type="text" placeholder={t("auth_name_placeholder")} className={iCls} style={iSty} />
+                </div>
+                <div>
+                   <label className="block text-sm font-medium text-black mb-1">{t("res_phone")}</label>
+                   <input required name="guestPhone" type="tel" placeholder="+34 600 000 000" className={iCls} style={iSty} />
+                </div>
+                <div>
+                   <label className="block text-sm font-medium text-black mb-1">{t("res_edit_date")}</label>
+                   <input required name="date" type="date" value={createDate} onChange={(e) => { setCreateDate(e.target.value); setSelectedTableIds([]); }} className={iCls} style={iSty} />
+                </div>
+                <div>
+                   <label className="block text-sm font-medium text-black mb-1">{t("floor_lunch")} / {t("floor_dinner")}</label>
+                   <input type="hidden" name="shift" value={createShift} />
+                   <div className="flex border-2 rounded-lg overflow-hidden" style={{ borderColor: '#c4956a' }}>
+                     <button type="button" onClick={() => setCreateShift("lunch")}
+                       className={`flex-1 py-2.5 text-sm font-semibold transition-colors ${createShift === "lunch" ? "bg-[#c4956a] text-white" : "text-black"}`}
+                       style={createShift !== "lunch" ? { background: 'rgba(252,246,237,0.6)' } : undefined}>
+                       {t("floor_lunch")}
+                     </button>
+                     <button type="button" onClick={() => setCreateShift("dinner")}
+                       className={`flex-1 py-2.5 text-sm font-semibold transition-colors ${createShift === "dinner" ? "bg-[#c4956a] text-white" : "text-black"}`}
+                       style={createShift !== "dinner" ? { background: 'rgba(252,246,237,0.6)' } : undefined}>
+                       {t("floor_dinner")}
+                     </button>
+                   </div>
+                </div>
+                <div>
+                   <label className="block text-sm font-medium text-black mb-1">{t("res_edit_time")}</label>
+                   <select required name="time" defaultValue={createShift === "lunch" ? "13:00" : "20:00"} className={iCls} style={iSty}>
+                     {shiftTimes[createShift].map(time => (
+                       <option key={time} value={time}>{time}</option>
+                     ))}
+                   </select>
+                </div>
+                <div>
+                   <label className="block text-sm font-medium text-black mb-1">{t("res_edit_party")}</label>
+                   <input required name="partySize" type="number" min="1" max="20" defaultValue="2" className={iCls} style={iSty} />
+                </div>
+                {availableTables.length > 0 && (
+                  <div>
+                    <label className="block text-sm font-medium text-black mb-2">{t("floor_tables")} <span className="text-xs font-normal text-black">(Opcional)</span></label>
+                    <div className="grid grid-cols-4 gap-2">
+                      {availableTables.map(table => {
+                        const isOccupied = occupiedTableIds.has(table.id);
+                        const isSelected = selectedTableIds.includes(table.id);
+                        return (
+                          <button key={table.id} type="button" disabled={isOccupied}
+                            onClick={() => !isOccupied && toggleTable(table.id)}
+                            className={`py-2 px-1 text-xs font-semibold rounded-lg border-2 transition-colors ${
+                              isOccupied ? "border-red-400 text-red-400 opacity-50 cursor-not-allowed"
+                                : isSelected ? "border-green-500 bg-green-500 text-white"
+                                  : "border-[#c4956a] text-black"
+                            }`}
+                            style={!isOccupied && !isSelected ? { background: 'rgba(252,246,237,0.6)' } : undefined}>
+                            {table.name}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+                <div>
+                   <label className="block text-sm font-medium text-black mb-1">{t("res_edit_notes")}</label>
+                   <textarea name="notes" rows={3} className={iCls} style={iSty} placeholder={t("res_edit_placeholder")} />
+                </div>
+             </div>
+             <div className="px-4 sm:px-6 py-3 sm:py-4 pb-6 sm:pb-4 border-t" style={{ borderColor: '#c4956a' }}>
+                <button type="submit" disabled={saving}
+                   className="w-full flex items-center justify-center text-white font-medium py-2.5 px-4 rounded-lg transition-colors shadow-sm disabled:opacity-50"
+                   style={{ background: 'linear-gradient(135deg, #c4956a, #a0764e)' }}>
+                   <Save className="h-4 w-4 mr-2" /> {saving ? "..." : t("res_new")}
+                </button>
+             </div>
+          </form>
+            );
+          })()}
+        </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+// Deposit (caparra) panel inside the quick-edit drawer. Renders only when the
+// feature is on or the booking already has deposit state. Staff can generate
+// the Stripe link (copied for sending), then settle the hold: forfeit on
+// no-show (captures the money) or release on show-up (card never charged).
+function DepositPanel({ reservation, tenantId, onChanged }: {
+  reservation: ReservationWithGuest;
+  tenantId: string;
+  onChanged: (status: NonNullable<Reservation["deposit_status"]>) => void;
+}) {
+  const { t } = useLanguage();
+  const { activeTenant } = useTenant();
+  const [busy, setBusy] = useState(false);
+  const [link, setLink] = useState<string | null>(null);
+  const [msg, setMsg] = useState<string | null>(null);
+
+  const status = reservation.deposit_status || "none";
+  const enabled = getFeatures(activeTenant?.settings as TenantSettings | undefined).deposits_enabled;
+  if (!enabled && status === "none") return null;
+
+  const amount = reservation.deposit_amount_cents
+    ? `${(reservation.deposit_amount_cents / 100).toFixed(2).replace(".", ",")} €`
+    : "";
+
+  const STATUS_STYLE: Record<string, string> = {
+    pending: "bg-amber-100 text-amber-800",
+    required: "bg-amber-100 text-amber-800",
+    authorized: "bg-emerald-100 text-emerald-800",
+    paid: "bg-emerald-100 text-emerald-800",
+    forfeited: "bg-red-100 text-red-800",
+    released: "bg-zinc-100 text-black",
+    refunded: "bg-zinc-100 text-black",
+    none: "bg-zinc-100 text-black",
+  };
+
+  const post = async (path: string, body: Record<string, unknown>) => {
+    setBusy(true);
+    setMsg(null);
+    try {
+      const res = await fetch(path, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tenant_id: tenantId, reservation_id: reservation.id, ...body }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json?.hint || json?.detail || json?.error || `HTTP ${res.status}`);
+      return json;
+    } catch (e) {
+      setMsg(e instanceof Error ? e.message : "Error");
+      return null;
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const requestLink = async () => {
+    const json = await post("/api/deposits/request", {});
+    if (json?.url) {
+      setLink(json.url);
+      onChanged("pending");
+      try { await navigator.clipboard.writeText(json.url); setMsg(t("res_deposit_link_copied")); } catch { /* clipboard optional */ }
+    }
+  };
+
+  const resolve = async (action: "forfeit" | "release" | "refund") => {
+    const json = await post("/api/deposits/resolve", { action });
+    if (json?.deposit_status) { onChanged(json.deposit_status); setLink(null); }
+  };
+
+  const btn = "flex-1 text-sm font-medium py-2 px-3 rounded-lg transition-colors shadow-sm disabled:opacity-50 text-white";
+
+  return (
+    <div className="rounded-lg border-2 p-3 space-y-2" style={{ borderColor: "#c4956a", background: "rgba(252,246,237,0.6)" }}>
+      <div className="flex items-center justify-between">
+        <span className="flex items-center gap-1.5 text-sm font-bold text-black">
+          <CreditCard className="w-4 h-4" /> {t("res_deposit_title")}{amount ? ` · ${amount}` : ""}
+        </span>
+        <span className={`text-[10px] font-bold uppercase px-2 py-1 rounded ${STATUS_STYLE[status]}`}>
+          {t(`res_deposit_status_${status}` as Parameters<typeof t>[0]) || status}
+        </span>
+      </div>
+      {["none", "required", "pending"].includes(status) && (
+        <button type="button" disabled={busy} onClick={requestLink}
+          className={`${btn} w-full`} style={{ background: "linear-gradient(135deg, #c4956a, #a0764e)" }}>
+          {busy ? "..." : status === "pending" ? t("res_deposit_regen_link") : t("res_deposit_gen_link")}
+        </button>
+      )}
+      {status === "authorized" && (
+        <div className="flex gap-2">
+          <button type="button" disabled={busy} onClick={() => resolve("release")} className={`${btn} bg-emerald-600 hover:bg-emerald-700`}>
+            {t("res_deposit_release")}
+          </button>
+          <button type="button" disabled={busy} onClick={() => resolve("forfeit")} className={`${btn} bg-red-600 hover:bg-red-700`}>
+            {t("res_deposit_forfeit")}
+          </button>
+        </div>
+      )}
+      {status === "forfeited" && (
+        <button type="button" disabled={busy} onClick={() => resolve("refund")} className={`${btn} w-full bg-zinc-700 hover:bg-zinc-800`}>
+          {t("res_deposit_refund")}
+        </button>
+      )}
+      {link && <p className="text-xs text-black break-all"><strong>{t("res_deposit_link")}:</strong> {link}</p>}
+      {msg && <p className="text-xs font-medium text-black">{msg}</p>}
+    </div>
+  );
+}

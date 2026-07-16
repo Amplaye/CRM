@@ -1,0 +1,224 @@
+{
+  "when": "2026-06-02T23:26:11.009Z",
+  "levels": [
+    {
+      "level": 8,
+      "accepted": 8,
+      "replied": 0,
+      "errors": 8,
+      "acceptAvg": 907,
+      "acceptP90": 958,
+      "e2eAvg": null,
+      "e2eP90": null,
+      "e2eMax": null,
+      "detail": [
+        {
+          "st": 200,
+          "ex": "timeout",
+          "e2e": 107480
+        },
+        {
+          "st": 200,
+          "ex": "timeout",
+          "e2e": 109155
+        },
+        {
+          "st": 200,
+          "ex": "timeout",
+          "e2e": 111700
+        },
+        {
+          "st": 200,
+          "ex": "timeout",
+          "e2e": 108767
+        },
+        {
+          "st": 200,
+          "ex": "timeout",
+          "e2e": 109330
+        },
+        {
+          "st": 200,
+          "ex": "timeout",
+          "e2e": 109785
+        },
+        {
+          "st": 200,
+          "ex": "timeout",
+          "e2e": 109201
+        },
+        {
+          "st": 200,
+          "ex": "timeout",
+          "e2e": 108859
+        }
+      ]
+    },
+    {
+      "level": 12,
+      "accepted": 0,
+      "replied": 0,
+      "errors": 12,
+      "acceptAvg": 60246,
+      "acceptP90": 60279,
+      "e2eAvg": null,
+      "e2eP90": null,
+      "e2eMax": null,
+      "detail": [
+        {
+          "st": null,
+          "err": "fetch failed",
+          "e2e": null
+        },
+        {
+          "st": null,
+          "err": "fetch failed",
+          "e2e": null
+        },
+        {
+          "st": null,
+          "err": "fetch failed",
+          "e2e": null
+        },
+        {
+          "st": null,
+          "err": "fetch failed",
+          "e2e": null
+        },
+        {
+          "st": null,
+          "err": "fetch failed",
+          "e2e": null
+        },
+        {
+          "st": null,
+          "err": "fetch failed",
+          "e2e": null
+        },
+        {
+          "st": null,
+          "err": "fetch failed",
+          "e2e": null
+        },
+        {
+          "st": null,
+          "err": "fetch failed",
+          "e2e": null
+        },
+        {
+          "st": null,
+          "err": "fetch failed",
+          "e2e": null
+        },
+        {
+          "st": null,
+          "err": "fetch failed",
+          "e2e": null
+        },
+        {
+          "st": null,
+          "err": "fetch failed",
+          "e2e": null
+        },
+        {
+          "st": null,
+          "err": "fetch failed",
+          "e2e": null
+        }
+      ]
+    },
+    {
+      "level": 16,
+      "accepted": 0,
+      "replied": 0,
+      "errors": 16,
+      "acceptAvg": 60292,
+      "acceptP90": 60306,
+      "e2eAvg": null,
+      "e2eP90": null,
+      "e2eMax": null,
+      "detail": [
+        {
+          "st": null,
+          "err": "fetch failed",
+          "e2e": null
+        },
+        {
+          "st": null,
+          "err": "fetch failed",
+          "e2e": null
+        },
+        {
+          "st": null,
+          "err": "fetch failed",
+          "e2e": null
+        },
+        {
+          "st": null,
+          "err": "fetch failed",
+          "e2e": null
+        },
+        {
+          "st": null,
+          "err": "fetch failed",
+          "e2e": null
+        },
+        {
+          "st": null,
+          "err": "fetch failed",
+          "e2e": null
+        },
+        {
+          "st": null,
+          "err": "fetch failed",
+          "e2e": null
+        },
+        {
+          "st": null,
+          "err": "fetch failed",
+          "e2e": null
+        },
+        {
+          "st": null,
+          "err": "fetch failed",
+          "e2e": null
+        },
+        {
+          "st": null,
+          "err": "fetch failed",
+          "e2e": null
+        },
+        {
+          "st": null,
+          "err": "fetch failed",
+          "e2e": null
+        },
+        {
+          "st": null,
+          "err": "fetch failed",
+          "e2e": null
+        },
+        {
+          "st": null,
+          "err": "fetch failed",
+          "e2e": null
+        },
+        {
+          "st": null,
+          "err": "fetch failed",
+          "e2e": null
+        },
+        {
+          "st": null,
+          "err": "fetch failed",
+          "e2e": null
+        },
+        {
+          "st": null,
+          "err": "fetch failed",
+          "e2e": null
+        }
+      ]
+    }
+  ]
+}

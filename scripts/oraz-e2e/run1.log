@@ -1,0 +1,40 @@
+[1m
+🤖 Oraz bot E2E — 12 functions × 5 rounds (live n8n, gpt-5.1)
+[0m
+[1mSaludo (no arranca flujo)             [0m [32m●[0m[32m●[0m[32m●[0m[32m●[0m[32m●[0m[32m 5/5 100%[0m
+[1mReserva completa (happy path)         [0m [32m●[0m[32m●[0m[32m●[0m[32m●[0m[32m●[0m[32m 5/5 100%[0m
+[1mCarta / platos (get_menu real)        [0m [31m●[0m[31m●[0m[32m●[0m[31m●[0m[31m●[0m[31m 1/5 20%[0m
+[31m    ✗ mentions a real menu dish or price[0m[2m — ¡Hola! En BALI REST no tenemos sushi, somos un restaurante de cocina (no japonesa). Pueden ver la carta completa aquí: https://crm.baliflowa[0m
+[31m    ✗ does not refuse to talk about menu[0m[2m — ¡Hola! Tenemos cocina indonesia/asiática, pero ahora mismo no tengo aquí el detalle de cada plato. Pueden ver la carta completa y actualizad[0m
+[1mPolíticas y alergias (KB / get_menu)  [0m [32m●[0m[32m●[0m[32m●[0m[32m●[0m[32m●[0m[32m 5/5 100%[0m
+[1mModificar reserva (modify_reservation)[0m [32m●[0m[31m●[0m[32m●[0m[32m●[0m[31m●[0m[31m 3/5 60%[0m
+[31m    ✗ modify_reservation fired (not a new booking)[0m[2m — "Perfecto, la pasamos a las diez de la noche. ¿Mañana sigue bien o quieren otro día?"[0m
+[1mCancelar reserva (palabra CANCELAR)   [0m [31m●[0m[31m●[0m[31m●[0m[31m●[0m[31m●[0m[31m 0/5 0%[0m
+[31m    ✗ mentions cancellation[0m[2m — [0m
+[31m    ✗ asks to reply CANCELAR to confirm[0m[2m — [0m
+[1mHorario de apertura                   [0m [32m●[0m[32m●[0m[31m●[0m[32m●[0m[32m●[0m[31m 4/5 80%[0m
+[31m    ✗ states a time or shift[0m[2m — ¡Hola! Hoy martes abrimos a las siete y media de la tarde y estamos hasta las diez y media. ¿Les ayudo con una reserva?[0m
+[1mDía cerrado (propone otro día)        [0m [31m●[0m[31m●[0m[31m●[0m[31m●[0m[31m●[0m[31m 0/5 0%[0m
+[31m    ✗ proposes another day / asks to choose another[0m[2m — El lunes estamos cerrados. ¿Les viene bien el domingo para almorzar o el martes para la noche?[0m
+[1mHora fuera de horario (propone válida)[0m [32m●[0m[32m●[0m[31m●[0m[31m●[0m[32m●[0m[31m 3/5 60%[0m
+[31m    ✗ does not silently accept 5am[0m[2m — A las 5 de la mañana estamos cerrados. ¿Qué hora les viene bien al mediodía o por la noche?[0m
+[1mLista de espera (solo si lleno + aviso)[0m [32m●[0m[32m●[0m[32m●[0m[32m●[0m[32m●[0m[32m 5/5 100%[0m
+[1mCambio de idioma (es/it/en)           [0m [32m●[0m[32m●[0m[32m●[0m[32m●[0m[32m●[0m[32m 5/5 100%[0m
+[1mOff-topic (redirige, no flujo)        [0m [32m●[0m[32m●[0m[32m●[0m[32m●[0m[32m●[0m[32m 5/5 100%[0m
+
+[1m═══ SUMMARY ═══[0m
+[32mSaludo (no arranca flujo)              ✓✓✓✓✓  100%[0m
+[32mReserva completa (happy path)          ✓✓✓✓✓  100%[0m
+[31mCarta / platos (get_menu real)         ✗✗✓✗✗   20%[0m
+[32mPolíticas y alergias (KB / get_menu)   ✓✓✓✓✓  100%[0m
+[31mModificar reserva (modify_reservation) ✓✗✓✓✗   60%[0m
+[31mCancelar reserva (palabra CANCELAR)    ✗✗✗✗✗    0%[0m
+[31mHorario de apertura                    ✓✓✗✓✓   80%[0m
+[31mDía cerrado (propone otro día)         ✗✗✗✗✗    0%[0m
+[31mHora fuera de horario (propone válida) ✓✓✗✗✓   60%[0m
+[32mLista de espera (solo si lleno + aviso) ✓✓✓✓✓  100%[0m
+[32mCambio de idioma (es/it/en)            ✓✓✓✓✓  100%[0m
+[32mOff-topic (redirige, no flujo)         ✓✓✓✓✓  100%[0m
+
+[33m⚠️  NOT ALL 100% — see ✗ above[0m  [2m(11.3 min)[0m
+[2mwrote scripts/oraz-e2e/results.json[0m

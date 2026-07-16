@@ -1,0 +1,24 @@
+import { NextResponse } from "next/server";
+import { createServiceRoleClient } from "@/lib/supabase/server";
+import { assertPlatformAdmin } from "@/lib/admin-auth";
+import { apiError } from "@/lib/api-error";
+
+export async function GET() {
+  const auth = await assertPlatformAdmin();
+  if (!auth.ok) return auth.res;
+  try {
+    const supabase = createServiceRoleClient();
+    const { data, error } = await supabase
+      .from("bali_conversations")
+      .select("*")
+      .order("last_message_at", { ascending: false })
+      .limit(200);
+
+    if (error) {
+      return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+    return NextResponse.json({ conversations: data || [] });
+  } catch (err: any) {
+    return apiError(err, { route: "admin/bali/conversations", publicMessage: "operation_failed", status: 500 });
+  }
+}
