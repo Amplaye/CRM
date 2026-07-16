@@ -5,6 +5,7 @@ import { getFiscalContext, assertFiscal } from "@/lib/fiscal/server";
 import { loadOrder, recomputeOrder, getCassaSettings } from "@/lib/cassa/server";
 import { assertRateLimit } from "@/lib/rate-limit";
 import type { MenuItemVariant } from "@/lib/types";
+import { apiError } from "@/lib/api-error";
 
 // PUBLIC self-order intake — the QR at the table points at /m/<slug>?table=<id>
 // and that page POSTs here. The caller is an anonymous guest, so this endpoint
@@ -196,7 +197,7 @@ export async function POST(req: NextRequest) {
   const { error: insertErr } = await svc
     .from("cassa_order_items")
     .insert(rows.map((r) => ({ ...r, order_id: orderId })));
-  if (insertErr) return NextResponse.json({ error: insertErr.message }, { status: 500 });
+  if (insertErr) return apiError(insertErr, { route: "public/order", publicMessage: "order_failed" });
 
   const loaded = await loadOrder(svc, orderId);
   if (loaded) await recomputeOrder(svc, loaded.order, loaded.items);

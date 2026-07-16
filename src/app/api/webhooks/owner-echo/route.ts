@@ -3,6 +3,7 @@ import { createServiceRoleClient } from '@/lib/supabase/server';
 import { assertAiSecret } from '@/lib/ai-auth';
 import { tenantReceivesTraffic, type TenantStatus } from '@/lib/tenants/status';
 import { normalizePhone } from '@/lib/booking-validation';
+import { apiError } from "@/lib/api-error";
 
 // Owner echo intake — the Coexistence "human takeover" trigger.
 //
@@ -139,6 +140,6 @@ export async function POST(request: Request) {
     return NextResponse.json({ success: true, guest_id: guestId, hold: true });
   } catch (e: any) {
     console.error('owner-echo error:', e);
-    return NextResponse.json({ error: 'Internal Server Error', details: e.message }, { status: 500 });
+    return apiError(e, { route: 'webhooks/owner-echo', publicMessage: 'Internal Server Error' });
   }
 }

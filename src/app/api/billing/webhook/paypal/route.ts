@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createServiceRoleClient } from "@/lib/supabase/server";
 import { verifyWebhook } from "@/lib/billing/paypal";
 import { upsertSubscription } from "@/lib/billing/state";
+import { apiError } from "@/lib/api-error";
 
 // PayPal webhook — trusted writer of PayPal-side subscription state. PayPal has no
 // local HMAC; verification is a server call (verify-webhook-signature) needing
@@ -29,7 +30,7 @@ export async function POST(req: Request) {
     ok = await verifyWebhook(headers, raw);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
   } catch (e: any) {
-    return NextResponse.json({ error: "verify_failed", detail: e?.message }, { status: 400 });
+    return apiError(e, { route: "billing/webhook/paypal", publicMessage: "verify_failed", status: 400 });
   }
   if (!ok) return NextResponse.json({ error: "invalid_signature" }, { status: 400 });
 
@@ -82,7 +83,7 @@ export async function POST(req: Request) {
     }
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
   } catch (e: any) {
-    return NextResponse.json({ error: "handler_error", detail: e?.message }, { status: 500 });
+    return apiError(e, { route: "billing/webhook/paypal", publicMessage: "handler_error" });
   }
 
   return NextResponse.json({ received: true });

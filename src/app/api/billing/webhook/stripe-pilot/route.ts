@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createServiceRoleClient } from "@/lib/supabase/server";
 import { verifyWebhook } from "@/lib/billing/stripe";
 import { activatePilotFromSession, patchPilotByStripe, mapStripeSubStatus } from "@/lib/billing/pilot";
+import { apiError } from "@/lib/api-error";
 
 // Dedicated Stripe webhook for the paid-pilot → subscription flow. Kept SEPARATE
 // from /api/billing/webhook/stripe so the pilot can't disturb the existing
@@ -29,7 +30,7 @@ export async function POST(req: Request) {
     event = verifyWebhook(raw, sig, secret);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
   } catch (e: any) {
-    return NextResponse.json({ error: "invalid_signature", detail: e?.message }, { status: 400 });
+    return apiError(e, { route: "billing/webhook/stripe-pilot", publicMessage: "invalid_signature", status: 400 });
   }
 
   const svc = createServiceRoleClient();
@@ -99,7 +100,7 @@ export async function POST(req: Request) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
   } catch (e: any) {
     // 500 → Stripe retries with backoff; handlers are idempotent.
-    return NextResponse.json({ error: "handler_error", detail: e?.message }, { status: 500 });
+    return apiError(e, { route: "billing/webhook/stripe-pilot", publicMessage: "handler_error" });
   }
 
   return NextResponse.json({ received: true });

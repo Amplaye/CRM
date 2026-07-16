@@ -6,6 +6,7 @@ import { assertAiSecret } from '@/lib/ai-auth';
 import { tenantReceivesTraffic, type TenantStatus } from '@/lib/tenants/status';
 import { normalizePhone } from '@/lib/booking-validation';
 import { sendPushToTenant } from '@/lib/push/send';
+import { apiError } from "@/lib/api-error";
 
 // Meta webhook verification handshake. When this route is registered as a Meta
 // WhatsApp webhook (directly, without n8n in front), Meta calls GET once with
@@ -265,6 +266,6 @@ export async function POST(request: Request) {
 
   } catch (error: any) {
     console.error("Webhook processing error:", error);
-    return NextResponse.json({ error: "Internal Server Error", details: error.message }, { status: 500 });
+    return apiError(error, { route: "webhooks/incoming-message", publicMessage: "Internal Server Error" });
   }
 }

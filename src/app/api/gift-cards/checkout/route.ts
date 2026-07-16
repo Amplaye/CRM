@@ -6,6 +6,7 @@ import { hasActivePlan } from "@/lib/billing/entitlements";
 import { isValidGiftAmount, formatGiftCents } from "@/lib/gift-cards/gift-cards";
 import { findGiftDesign, publishedGiftDesigns } from "@/lib/gift-cards/designs";
 import { assertRateLimit } from "@/lib/rate-limit";
+import { apiError } from "@/lib/api-error";
 
 // PUBLIC endpoint behind the /g/<slug> purchase form — no auth (the buyer is
 // a guest), so: rate-limited by IP, tenant resolved by slug and double-gated
@@ -115,6 +116,6 @@ export async function POST(req: Request) {
     return NextResponse.json({ url: session.url });
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
   } catch (e: any) {
-    return NextResponse.json({ error: "stripe_error", detail: e?.message }, { status: 502 });
+    return apiError(e, { route: "gift-cards/checkout", publicMessage: "stripe_error", status: 502 });
   }
 }

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServiceRoleClient, createServerSupabaseClient } from "@/lib/supabase/server";
 import { createTenant } from "@/lib/tenants/create-tenant";
+import { apiError } from "@/lib/api-error";
 
 export async function POST(req: NextRequest) {
   try {
@@ -58,6 +59,6 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ status: "ok", tenantId: tenant.id });
   } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    return apiError(err, { route: "register-tenant", publicMessage: "registration_failed" });
   }
 }

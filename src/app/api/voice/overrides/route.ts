@@ -63,7 +63,11 @@ async function handle(req: NextRequest, tenantId: string | null) {
   } catch (err: any) {
     const msg = err?.message || "Unknown error";
     const status = /not found/i.test(msg) ? 404 : 500;
-    return NextResponse.json({ error: msg }, { status, headers: cors });
+    console.error("[voice/overrides]", msg);
+    return NextResponse.json(
+      { error: status === 404 ? "not_found" : "overrides_failed" },
+      { status, headers: cors }
+    );
   }
 }
 

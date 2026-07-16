@@ -5,6 +5,7 @@ import { createReservationAction, updateReservationDetailsAction } from "@/app/a
 import { resolveTenantFromApiKey } from "@/lib/tenant-auth";
 import { assertRateLimit } from "@/lib/rate-limit";
 import { tenantReceivesTraffic, type TenantStatus } from "@/lib/tenants/status";
+import { apiError } from "@/lib/api-error";
 
 /**
  * Main ingestion gateway for AI Agents (Bland AI, WhatsApp NLP, etc).
@@ -182,6 +183,6 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ success: true, event_id: webhookEventId }, { status: 200 });
   } catch (globalError: any) {
-    return NextResponse.json({ error: "Internal webhook handler crash", details: globalError.message }, { status: 500 });
+    return apiError(globalError, { route: "webhooks", publicMessage: "Internal webhook handler crash" });
   }
 }

@@ -8,6 +8,7 @@ import { getCreditPack } from "@/lib/billing/credits-catalog";
 import { grantPurchasedCredits, resetIncludedCredits } from "@/lib/billing/credits";
 import { fulfillGiftCardSession } from "@/lib/gift-cards/fulfill";
 import { logSystemEvent } from "@/lib/system-log";
+import { apiError } from "@/lib/api-error";
 
 // Stripe webhook — the ONLY trusted writer of subscription state. The browser
 // never tells us "I paid"; Stripe does, signed. We verify the signature against
@@ -45,7 +46,7 @@ export async function POST(req: Request) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
   } catch (e: any) {
     // 400 → Stripe retries; a misconfigured secret shows up loudly here.
-    return NextResponse.json({ error: "invalid_signature", detail: e?.message }, { status: 400 });
+    return apiError(e, { route: "billing/webhook/stripe", publicMessage: "invalid_signature", status: 400 });
   }
 
   const svc = createServiceRoleClient();
@@ -280,7 +281,7 @@ export async function POST(req: Request) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
   } catch (e: any) {
     // 500 → Stripe retries with backoff; safe because upserts are idempotent.
-    return NextResponse.json({ error: "handler_error", detail: e?.message }, { status: 500 });
+    return apiError(e, { route: "billing/webhook/stripe", publicMessage: "handler_error" });
   }
 
   return NextResponse.json({ received: true });

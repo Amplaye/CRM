@@ -5,6 +5,7 @@ import { resolveOwnerProvisionTenant } from "@/lib/onboarding/owner-tenant";
 import { generateKbArticlesMulti, venueFromQuestionnaire, botConfigFromQuestionnaire, mapsLink, shortenMapsLink, KbQuestionnaire, Lang } from "@/lib/onboarding/kb-generator";
 import { featuresFromQuestionnaire } from "@/lib/types/tenant-settings";
 import { chatCompletion } from "@/lib/openai-base-url";
+import { apiError } from "@/lib/api-error";
 
 // Owner self-serve provisioning. Same engine as the admin wizard
 // (/api/admin/onboard → runOnboard), but driven by the restaurant owner for
@@ -116,7 +117,7 @@ export async function POST(req: Request) {
     .from("tenant_members")
     .select("tenant_id, role")
     .eq("user_id", user.id);
-  if (memErr) return NextResponse.json({ error: memErr.message }, { status: 500 });
+  if (memErr) return apiError(memErr, { route: "onboard", publicMessage: "membership_lookup_failed" });
 
   const resolved = resolveOwnerProvisionTenant(memberships || [], body.tenant_id);
   if (!resolved.ok) {
@@ -231,7 +232,8 @@ export async function POST(req: Request) {
         const result = await runOnboard(input, emit);
         emit({ step: "result", message: "final", ok: result.ok, data: result } as OnboardProgress);
       } catch (e: any) {
-        emit({ step: "error", message: e?.message || String(e), ok: false });
+        console.error("[onboard] stream error:", e?.message || String(e));
+        emit({ step: "error", message: "onboard_failed", ok: false });
         emit({ step: "result", message: "final", ok: false } as OnboardProgress);
       } finally {
         try { controller.close(); } catch { /* already closed */ }
