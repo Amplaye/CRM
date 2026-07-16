@@ -1,21 +1,19 @@
 "use client";
 
-import { useState, useRef, useLayoutEffect } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ClosePublicMenuButton } from "./ClosePublicMenuButton";
 
-// Public hosted menu, shared via a QR sticker — designed as a premium
-// fine-dining card, not a list. The server (page.tsx) does all data work and
-// hands us flat, localized sections; we own the presentation.
+// Public hosted menu — Template 4 "CLASSICO".
 //
-// Direction: "Maître" — a thick cream menu card resting on dark walnut. A
-// high-contrast Fraunces serif carries the wordmark, course numbers and dish
-// names; Manrope handles body. The CRM's bronze becomes brushed brass. Real
-// depth: vignette, paper grain, gold hairline rules, an orchestrated load and
-// a tactile tab switch.
+// Direction: a real printed fine-dining carte. A thick cream paper card rests
+// on dark walnut; brass hairlines, small-caps course titles with Roman-ish
+// numerals, dotted leaders from dish to price, italic descriptions. The WHOLE
+// menu flows on one card — like paper — with a slim sticky course index that
+// anchor-scrolls and highlights the course being read. Photos stay discreet:
+// a small round porthole beside the entry, only when present.
 //
-// Tabs FILTER (they do not anchor-scroll): tapping a course swaps the visible
-// section in place with a crossfade + staggered dish reveal. One section is
-// mounted at a time.
+// Server (page.tsx) hands us flat localized sections; we own presentation.
+// Branding hooks: --accent, --font-display, --font-body.
 
 export type MenuViewItem = {
   id: string;
@@ -25,16 +23,15 @@ export type MenuViewItem = {
   currency: string;
   tags: string[];
   allergens: string[];
-  image_url: string | null;
   tagLabels: string[];
   allergenLabels: string[];
+  image_url: string | null;
 };
 
 export type MenuViewSection = {
   key: string;
   prefix: string;
   title: string;
-  /** True for collection sections (Consigliati, Specialità…) so we can badge them. */
   featured: boolean;
   items: MenuViewItem[];
 };
@@ -54,11 +51,6 @@ function priceText(it: MenuViewItem): string | null {
   return `${it.price.toFixed(2)} ${cur}`;
 }
 
-function romanish(n: number): string {
-  // Course index as a two-digit ordinal — quietly premium ("01", "02"…).
-  return String(n + 1).padStart(2, "0");
-}
-
 export default function MenuClassic({
   restaurantName,
   menuLabel,
@@ -67,199 +59,179 @@ export default function MenuClassic({
   sections,
   logoUrl,
 }: Props) {
-  const [activeKey, setActiveKey] = useState<string>(sections[0]?.key ?? "");
-  const tabBarRef = useRef<HTMLDivElement | null>(null);
-  const tabRefs = useRef<Map<string, HTMLButtonElement>>(new Map());
-  const [swapKey, setSwapKey] = useState(0);
+  const valid = sections.filter((s) => s.items.length > 0);
+  const empty = valid.length === 0;
 
-  const activeIdx = Math.max(0, sections.findIndex((s) => s.key === activeKey));
-  const active = sections[activeIdx] ?? sections[0];
+  const [activeKey, setActiveKey] = useState<string>(valid[0]?.key ?? "");
+  const barRef = useRef<HTMLDivElement | null>(null);
+  const chipRefs = useRef<Map<string, HTMLElement>>(new Map());
+  const secRefs = useRef<Map<string, HTMLElement>>(new Map());
+  // Suppress the scrollspy while a tapped anchor is still smooth-scrolling.
+  const clickLock = useRef<{ key: string; until: number } | null>(null);
 
-  // Center the selected tab by moving the bar's own scrollLeft (never the
-  // document), so selecting a tab can't jolt the page.
-  useLayoutEffect(() => {
-    const bar = tabBarRef.current;
-    const tab = tabRefs.current.get(activeKey);
-    if (!bar || !tab) return;
+  // Scrollspy: highlight the course crossing the upper third of the viewport.
+  useEffect(() => {
+    const els = Array.from(secRefs.current.entries());
+    if (els.length === 0) return;
+    const io = new IntersectionObserver(
+      (entries) => {
+        for (const e of entries) {
+          if (!e.isIntersecting) continue;
+          const key = (e.target as HTMLElement).dataset.seckey;
+          if (!key) continue;
+          const lock = clickLock.current;
+          if (lock && Date.now() < lock.until && key !== lock.key) continue;
+          setActiveKey(key);
+        }
+      },
+      { rootMargin: "-18% 0px -72% 0px" },
+    );
+    els.forEach(([, el]) => io.observe(el));
+    return () => io.disconnect();
+  }, [valid.length]);
+
+  // Keep the active chip centered in its own scroller (never the page).
+  useEffect(() => {
+    const bar = barRef.current;
+    const chip = chipRefs.current.get(activeKey);
+    if (!bar || !chip) return;
     bar.scrollTo({
-      left: tab.offsetLeft - bar.clientWidth / 2 + tab.clientWidth / 2,
+      left: chip.offsetLeft - bar.clientWidth / 2 + chip.clientWidth / 2,
       behavior: "smooth",
     });
   }, [activeKey]);
 
-  const select = (key: string) => {
-    if (key === activeKey) return;
+  const goTo = (key: string) => {
+    const el = secRefs.current.get(key);
+    if (!el) return;
+    clickLock.current = { key, until: Date.now() + 900 };
     setActiveKey(key);
-    setSwapKey((n) => n + 1);
-    window.scrollTo({ top: 0, behavior: "auto" });
+    el.scrollIntoView({ behavior: "smooth", block: "start" });
   };
-
-  const onTabKeyDown = (e: React.KeyboardEvent, idx: number) => {
-    let next = -1;
-    if (e.key === "ArrowRight") next = (idx + 1) % sections.length;
-    else if (e.key === "ArrowLeft") next = (idx - 1 + sections.length) % sections.length;
-    else if (e.key === "Home") next = 0;
-    else if (e.key === "End") next = sections.length - 1;
-    if (next === -1) return;
-    e.preventDefault();
-    const key = sections[next].key;
-    select(key);
-    tabRefs.current.get(key)?.focus();
-  };
-
-  const empty = sections.length === 0;
 
   return (
-    <div className="menu-root min-h-[100dvh]">
+    <div className="cla-root">
       <ClosePublicMenuButton />
-      {/* Atmosphere: warm vignette + fine paper grain over the sand canvas. */}
-      <div className="menu-grain" aria-hidden />
+      <div className="cla-grain" aria-hidden />
 
-      {/* ── Hero ───────────────────────────────────────────────────────── */}
-      <header className="menu-hero">
-        <div className="menu-hero-inner">
-          {logoUrl && (
-            <img className="menu-logo menu-reveal" src={logoUrl} alt="" style={{ animationDelay: "40ms" }} />
-          )}
-          <p className="menu-eyebrow menu-reveal" style={{ animationDelay: "80ms" }}>
-            <span className="menu-eyebrow-line" aria-hidden />
-            {menuLabel}
-            <span className="menu-eyebrow-line" aria-hidden />
-          </p>
-          <h1 className="menu-wordmark menu-reveal" style={{ animationDelay: "160ms" }}>
-            {restaurantName}
-          </h1>
-          <div
-            className="menu-crest menu-reveal"
-            style={{ animationDelay: "300ms" }}
-            aria-hidden
-          >
-            <span className="menu-crest-line" />
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
-              <path
-                d="M12 2l2.2 6.8H21l-5.5 4 2.1 6.8L12 15.6 6.4 19.6l2.1-6.8L3 8.8h6.8L12 2z"
-                fill="currentColor"
-                opacity="0.9"
-              />
-            </svg>
-            <span className="menu-crest-line" />
-          </div>
-        </div>
-      </header>
+      <div className="cla-stage">
+        <div className="cla-paper">
+          {/* ── Card head ─────────────────────────────────────────────────── */}
+          <header className="cla-head">
+            {logoUrl && (
+              <img className="cla-logo cla-in" src={logoUrl} alt="" style={{ animationDelay: "40ms" }} />
+            )}
+            <p className="cla-eyebrow cla-in" style={{ animationDelay: "100ms" }}>
+              <span className="cla-eyebrow-line" aria-hidden />
+              {menuLabel}
+              <span className="cla-eyebrow-line" aria-hidden />
+            </p>
+            <h1 className="cla-title cla-in" style={{ animationDelay: "180ms" }}>
+              {restaurantName}
+            </h1>
+            <div className="cla-crest cla-in" style={{ animationDelay: "300ms" }} aria-hidden>
+              <span className="cla-crest-line" />
+              <span className="cla-crest-star" />
+              <span className="cla-crest-line" />
+            </div>
+          </header>
 
-      {empty ? (
-        <div className="menu-empty">{emptyLabel}</div>
-      ) : (
-        <>
-          {/* ── Sticky course tabs ───────────────────────────────────────── */}
-          <nav className="menu-nav" aria-label={menuLabel}>
-            <div className="menu-nav-inner">
-              <div ref={tabBarRef} role="tablist" className="menu-tabs">
-                {sections.map((s, idx) => {
-                  const on = s.key === active.key;
-                  return (
+          {empty ? (
+            <div className="cla-empty">{emptyLabel}</div>
+          ) : (
+            <>
+              {/* ── Sticky course index ─────────────────────────────────────── */}
+              <nav className="cla-nav" aria-label={menuLabel}>
+                <div ref={barRef} className="cla-chips">
+                  {valid.map((s) => (
                     <button
                       key={s.key}
                       ref={(el) => {
-                        if (el) tabRefs.current.set(s.key, el);
-                        else tabRefs.current.delete(s.key);
+                        if (el) chipRefs.current.set(s.key, el);
+                        else chipRefs.current.delete(s.key);
                       }}
-                      id={`tab-${s.key}`}
-                      role="tab"
-                      aria-selected={on}
-                      aria-controls="menu-panel"
-                      tabIndex={on ? 0 : -1}
-                      onClick={() => select(s.key)}
-                      onKeyDown={(e) => onTabKeyDown(e, idx)}
-                      className={`menu-tab${on ? " is-on" : ""}`}
+                      onClick={() => goTo(s.key)}
+                      className={`cla-chip${s.key === activeKey ? " is-on" : ""}`}
                     >
-                      {s.featured && <span className="menu-tab-star" aria-hidden>✦</span>}
+                      {s.featured && <span className="cla-star" aria-hidden>✦ </span>}
                       {s.title}
                     </button>
-                  );
-                })}
-              </div>
-            </div>
-          </nav>
+                  ))}
+                </div>
+              </nav>
 
-          {/* ── Active course ────────────────────────────────────────────── */}
-          <main className="menu-main">
-            <section
-              key={swapKey}
-              id="menu-panel"
-              role="tabpanel"
-              aria-labelledby={`tab-${active.key}`}
-              className="menu-panel"
-            >
-              <div className="menu-course-head">
-                <span className="menu-course-no" aria-hidden>
-                  {romanish(activeIdx)}
-                </span>
-                {active.featured && (
-                  <span className="menu-badge">
-                    <span aria-hidden>✦</span> {featuredLabel}
-                  </span>
-                )}
-                <h2 className="menu-course-title">{active.title}</h2>
-                <span className="menu-course-rule" aria-hidden />
-              </div>
+              {/* ── Courses — the whole carte flows like paper ──────────────── */}
+              <main className="cla-main">
+                {valid.map((s, si) => (
+                  <section
+                    key={s.key}
+                    data-seckey={s.key}
+                    ref={(el) => {
+                      if (el) secRefs.current.set(s.key, el);
+                      else secRefs.current.delete(s.key);
+                    }}
+                    className="cla-course"
+                  >
+                    <div className="cla-course-head">
+                      <span className="cla-course-no" aria-hidden>
+                        {String(si + 1).padStart(2, "0")}
+                      </span>
+                      <h2 className="cla-course-title">{s.title}</h2>
+                      {s.featured && (
+                        <span className="cla-badge"><span aria-hidden>✦</span> {featuredLabel}</span>
+                      )}
+                      <span className="cla-course-rule" aria-hidden />
+                    </div>
 
-              <ul className="menu-dishes">
-                {active.items.map((it, i) => {
-                  const price = priceText(it);
-                  return (
-                    <li
-                      key={`${active.prefix}:${it.id}`}
-                      className="menu-dish"
-                      style={{ ["--i" as string]: i }}
-                    >
-                      <div className="menu-dish-row">
-                        <h3 className="menu-dish-name">{it.name}</h3>
-                        {price && <span className="menu-price">{price}</span>}
+                    <ul className="cla-dishes">
+                      {s.items.map((it) => {
+                        const price = priceText(it);
+                        return (
+                          <li key={`${s.prefix}:${it.id}`} className="cla-dish">
+                            {it.image_url && (
+                              // eslint-disable-next-line @next/next/no-img-element
+                              <img className="cla-thumb" src={it.image_url} alt={it.name} loading="lazy" />
+                            )}
+                            <div className="cla-dish-body">
+                              <div className="cla-dish-row">
+                                <h3 className="cla-dish-name">{it.name}</h3>
+                                <span className="cla-leader" aria-hidden />
+                                {price && <span className="cla-price">{price}</span>}
+                              </div>
+                              {it.description && <p className="cla-desc">{it.description}</p>}
+                              {(it.tagLabels.length > 0 || it.allergenLabels.length > 0) && (
+                                <div className="cla-pills">
+                                  {it.tagLabels.map((label, k) => (
+                                    <span key={`${s.prefix}:${it.id}:tag:${k}`} className="cla-pill cla-pill-tag">{label}</span>
+                                  ))}
+                                  {it.allergenLabels.map((label, k) => (
+                                    <span key={`${s.prefix}:${it.id}:al:${k}`} className="cla-pill cla-pill-al">{label}</span>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          </li>
+                        );
+                      })}
+                    </ul>
+
+                    {si < valid.length - 1 && (
+                      <div className="cla-divider" aria-hidden>
+                        <span className="cla-divider-line" />
+                        <span className="cla-divider-star" />
+                        <span className="cla-divider-line" />
                       </div>
+                    )}
+                  </section>
+                ))}
+              </main>
+            </>
+          )}
 
-                      {it.description && (
-                        <p className="menu-dish-desc">{it.description}</p>
-                      )}
-
-                      {(it.tagLabels.length > 0 || it.allergenLabels.length > 0) && (
-                        <div className="menu-chips">
-                          {it.tagLabels.map((label, idx2) => (
-                            <span
-                              key={`${active.prefix}:${it.id}:tag:${idx2}`}
-                              className="menu-chip menu-chip-tag"
-                            >
-                              {label}
-                            </span>
-                          ))}
-                          {it.allergenLabels.map((label, idx2) => (
-                            <span
-                              key={`${active.prefix}:${it.id}:al:${idx2}`}
-                              className="menu-chip menu-chip-al"
-                            >
-                              {label}
-                            </span>
-                          ))}
-                        </div>
-                      )}
-                    </li>
-                  );
-                })}
-              </ul>
-            </section>
-          </main>
-        </>
-      )}
-
-      <footer className="menu-footer">
-        <span className="menu-foot-by">Powered by</span>{" "}
-        <span className="menu-foot-brand">BaliFlow</span>
-      </footer>
-
-      <div className="menu-foot-orn" aria-hidden>
-        <span className="menu-foot-orn-line" />
-        <span className="menu-foot-orn-star" />
-        <span className="menu-foot-orn-line" />
+          <footer className="cla-footer">
+            Powered by <strong>BaliFlow</strong>
+          </footer>
+        </div>
       </div>
 
       <style>{styles}</style>
@@ -268,216 +240,236 @@ export default function MenuClassic({
 }
 
 // ── Styles ──────────────────────────────────────────────────────────────────
-// Kept inline so the public route ships its own self-contained look without
-// touching the CRM's global stylesheet. Palette is the CRM's bronze/sand,
-// pushed to a premium "brushed brass on cream paper" register.
 const styles = `
-.menu-root {
-  --paper: #f7efe2;
-  --paper-deep: #efe3cf;
-  --ink: #1c150d;
-  --ink-soft: #4a3f30;
-  --brass: var(--accent, #b07a32);
-  --brass-deep: #7e5226;
-  --brass-soft: #d8b483;
-  --walnut: #2a1d11;
+/* The app's global html,body overflow-x:hidden turns <body> into a scroll
+   container, which silently kills every position:sticky on this page. Scoped
+   override via :has(): clip still blocks sideways scroll but does NOT create
+   a scroll container, so the sticky bars/rail work again. */
+html:has(.cla-root), html:has(.cla-root) body {
+  overflow-x: clip;
+  overflow-y: visible;
+}
+.cla-root {
+  --walnut: #221710;
+  --walnut-deep: #170f0a;
+  --paper: #f8f1e3;
+  --paper-edge: #eadfc8;
+  --ink: #241b10;
+  --ink-soft: #5a4c39;
+  --brass: var(--accent, #a4762f);
+  --brass-deep: #7c5622;
   --olive: #5c6c4b;
   position: relative;
+  min-height: 100dvh;
+  background:
+    radial-gradient(90% 60% at 50% 0%, rgba(164,118,47,0.15), transparent 60%),
+    linear-gradient(180deg, var(--walnut) 0%, var(--walnut-deep) 100%);
   color: var(--ink);
   font-family: var(--font-body), ui-sans-serif, system-ui, sans-serif;
-  background:
-    radial-gradient(120% 60% at 50% -10%, rgba(176,122,50,0.10), transparent 60%),
-    linear-gradient(180deg, #fbf4e8 0%, #f4e8d4 46%, #ecdcc4 100%);
-  overflow-x: hidden;
+  overflow-x: clip;
 }
-.menu-grain {
-  position: fixed; inset: 0; pointer-events: none; z-index: 0; opacity: 0.5;
+.cla-grain {
+  position: fixed; inset: 0; pointer-events: none; z-index: 0; opacity: 0.4;
   background-image:
-    radial-gradient(rgba(124,82,38,0.045) 1px, transparent 1.4px),
-    radial-gradient(rgba(124,82,38,0.03) 1px, transparent 1.4px);
+    radial-gradient(rgba(255,255,255,0.02) 1px, transparent 1.4px),
+    radial-gradient(rgba(255,255,255,0.014) 1px, transparent 1.4px);
   background-size: 3px 3px, 7px 7px;
   background-position: 0 0, 2px 3px;
-  mix-blend-mode: multiply;
-  mask-image: radial-gradient(140% 100% at 50% 0%, #000 55%, transparent 100%);
 }
-.menu-root > *:not(.menu-grain) { position: relative; z-index: 1; }
+.cla-root > *:not(.cla-grain) { position: relative; z-index: 1; }
 
-/* Hero — walnut band with a brass underglow, cream wordmark. */
-.menu-hero {
+/* The paper card resting on walnut. Full-bleed on phones, floating on md+. */
+.cla-stage { padding: 0; }
+@media (min-width: 700px) {
+  .cla-stage { padding: clamp(1.6rem, 4vw, 3.4rem) clamp(1.25rem, 4vw, 3rem) calc(clamp(1.6rem, 4vw, 3.4rem) + env(safe-area-inset-bottom)); }
+}
+.cla-paper {
+  position: relative;
+  max-width: 50rem; margin: 0 auto;
+  min-height: 100dvh;
   background:
-    radial-gradient(80% 120% at 50% 120%, rgba(176,122,50,0.38), transparent 62%),
-    linear-gradient(170deg, #34251600 0%, transparent 100%),
-    linear-gradient(180deg, #2a1d11 0%, #20160c 100%);
-  color: var(--paper);
-  padding: clamp(2.6rem, 9vw, 4.6rem) 1.25rem clamp(2.2rem, 7vw, 3.4rem);
-  text-align: center;
-  border-bottom: 1px solid rgba(216,180,131,0.28);
-  box-shadow: inset 0 -1px 0 rgba(216,180,131,0.18), 0 18px 40px -28px rgba(42,29,17,0.9);
+    radial-gradient(120% 50% at 50% -6%, rgba(164,118,47,0.09), transparent 60%),
+    linear-gradient(180deg, #fbf5e9 0%, var(--paper) 40%, var(--paper-edge) 100%);
+  box-shadow: 0 40px 90px -40px rgba(0,0,0,0.9), 0 0 0 1px rgba(164,118,47,0.25);
+  padding-bottom: calc(1rem + env(safe-area-inset-bottom));
 }
-.menu-hero-inner { max-width: 40rem; margin: 0 auto; }
-.menu-logo {
-  display: block; height: clamp(2.6rem, 10vw, 4rem); width: auto; max-width: 70%;
-  object-fit: contain; margin: 0 auto clamp(1rem, 4vw, 1.6rem);
+@media (min-width: 700px) {
+  .cla-paper { min-height: 0; border-radius: 8px; }
 }
-.menu-eyebrow {
-  display: flex; align-items: center; justify-content: center; gap: 0.85rem;
-  font-size: 0.62rem; letter-spacing: 0.42em; text-transform: uppercase;
-  font-weight: 600; color: var(--brass-soft); margin: 0 0 0.95rem;
-  padding-left: 0.42em; /* optical balance for the tracking */
+/* Paper grain */
+.cla-paper::before {
+  content: ""; position: absolute; inset: 0; pointer-events: none;
+  border-radius: inherit; opacity: 0.5; mix-blend-mode: multiply;
+  background-image:
+    radial-gradient(rgba(124,86,34,0.05) 1px, transparent 1.4px),
+    radial-gradient(rgba(124,86,34,0.035) 1px, transparent 1.4px);
+  background-size: 3px 3px, 7px 7px;
+  background-position: 0 0, 2px 3px;
 }
-.menu-eyebrow-line { width: clamp(1.4rem, 8vw, 2.6rem); height: 1px; background: linear-gradient(90deg, transparent, var(--brass-soft)); }
-.menu-eyebrow-line:last-child { background: linear-gradient(90deg, var(--brass-soft), transparent); }
-.menu-wordmark {
+/* Inner brass frame */
+.cla-paper::after {
+  content: ""; position: absolute; inset: clamp(0.55rem, 2vw, 0.9rem); pointer-events: none;
+  border: 1px solid rgba(164,118,47,0.35); border-radius: 4px;
+}
+
+/* Card head */
+.cla-head { text-align: center; padding: clamp(2.8rem, 9vw, 4.4rem) clamp(1.5rem, 6vw, 3.5rem) clamp(1.4rem, 4vw, 2.2rem); }
+.cla-logo {
+  display: block; height: clamp(2.6rem, 9vw, 3.8rem); width: auto; max-width: 66%;
+  object-fit: contain; margin: 0 auto clamp(1rem, 3.5vw, 1.5rem);
+}
+.cla-eyebrow {
+  display: inline-flex; align-items: center; gap: 0.85rem;
+  font-size: 0.62rem; letter-spacing: 0.46em; text-transform: uppercase;
+  font-weight: 700; color: var(--brass-deep); margin: 0 0 1rem;
+  padding-left: 0.46em;
+}
+.cla-eyebrow-line { width: clamp(1.4rem, 8vw, 2.6rem); height: 1px; background: linear-gradient(90deg, transparent, var(--brass)); }
+.cla-eyebrow-line:last-child { background: linear-gradient(90deg, var(--brass), transparent); }
+.cla-title {
   font-family: var(--font-display), Georgia, serif;
-  font-optical-sizing: auto;
-  font-weight: 600;
-  font-size: clamp(2.5rem, 13vw, 4.6rem);
-  line-height: 0.98;
-  letter-spacing: -0.02em;
-  margin: 0;
-  text-wrap: balance;
-  background: linear-gradient(180deg, #fbf1df 0%, #e9cd9f 100%);
-  -webkit-background-clip: text; background-clip: text;
-  -webkit-text-fill-color: transparent;
-  padding-bottom: 0.14em; /* pad so descenders (g,y,p) aren't clipped by text-clip */
-  text-shadow: 0 1px 0 rgba(0,0,0,0.04);
+  font-optical-sizing: auto; font-weight: 600;
+  font-size: clamp(2.4rem, 10.5vw, 4.4rem);
+  line-height: 1; letter-spacing: -0.02em; margin: 0;
+  text-wrap: balance; padding-bottom: 0.12em;
+  color: var(--ink);
 }
-.menu-crest { display: flex; align-items: center; justify-content: center; gap: 0.7rem; margin-top: 1.15rem; color: var(--brass-soft); }
-.menu-crest-line { width: clamp(2rem, 16vw, 4rem); height: 1px; background: linear-gradient(90deg, transparent, rgba(216,180,131,0.7)); }
-.menu-crest-line:last-child { background: linear-gradient(90deg, rgba(216,180,131,0.7), transparent); }
+.cla-crest { display: flex; align-items: center; justify-content: center; gap: 0.75rem; margin-top: 1rem; }
+.cla-crest-line { width: clamp(2rem, 14vw, 3.8rem); height: 1px; background: linear-gradient(90deg, transparent, rgba(164,118,47,0.7)); }
+.cla-crest-line:last-child { background: linear-gradient(270deg, transparent, rgba(164,118,47,0.7)); }
+.cla-crest-star {
+  width: 0.95rem; height: 0.95rem; flex: none; background: var(--brass);
+  clip-path: polygon(50% 0%, 61% 35%, 98% 35%, 68% 57%, 79% 91%, 50% 70%, 21% 91%, 32% 57%, 2% 35%, 39% 35%);
+}
 
-/* Sticky course tabs */
-.menu-nav {
+/* Sticky course index — cream glass, brass active state */
+.cla-nav {
   position: sticky; top: 0; z-index: 20;
-  background: rgba(247,239,226,0.86);
-  backdrop-filter: saturate(1.5) blur(14px);
-  -webkit-backdrop-filter: saturate(1.5) blur(14px);
-  border-bottom: 1px solid rgba(176,122,50,0.22);
+  background: rgba(248,241,227,0.92);
+  backdrop-filter: blur(12px) saturate(1.3);
+  -webkit-backdrop-filter: blur(12px) saturate(1.3);
+  border-block: 1px solid rgba(164,118,47,0.28);
 }
-.menu-nav-inner { max-width: 42rem; margin: 0 auto; }
-.menu-tabs {
-  display: flex; gap: 0.5rem; overflow-x: auto;
-  padding: 0.6rem 1rem; scroll-padding-inline: 1rem;
-  scrollbar-width: none; -ms-overflow-style: none;
+.cla-chips {
+  display: flex; gap: 0.45rem; overflow-x: auto;
+  padding: 0.55rem clamp(1rem, 4vw, 2rem);
+  scroll-padding-inline: 1rem; scrollbar-width: none; -ms-overflow-style: none;
 }
-.menu-tabs::-webkit-scrollbar { display: none; }
-.menu-tab {
+.cla-chips::-webkit-scrollbar { display: none; }
+.cla-chip {
   flex: 0 0 auto; cursor: pointer; white-space: nowrap;
-  font-family: var(--font-body), sans-serif;
-  font-size: 0.78rem; font-weight: 700; letter-spacing: 0.04em;
-  padding: 0.5rem 0.95rem; border-radius: 999px;
-  color: var(--ink-soft);
-  background: rgba(176,122,50,0.08);
-  border: 1px solid rgba(28,21,13,0.12);
-  transition: color .22s ease, background-color .22s ease, border-color .22s ease, box-shadow .22s ease, transform .12s ease;
+  font-family: inherit;
+  font-size: 0.76rem; font-weight: 700; letter-spacing: 0.05em;
+  padding: 0.46rem 0.95rem; border-radius: 999px;
+  color: var(--ink-soft); background: rgba(164,118,47,0.07);
+  border: 1px solid rgba(36,27,16,0.14);
+  transition: color .2s ease, background-color .2s ease, border-color .2s ease, box-shadow .2s ease, transform .12s ease;
 }
-.menu-tab:hover { background: rgba(176,122,50,0.16); color: var(--ink); }
-.menu-tab:active { transform: scale(0.95); }
-.menu-tab.is-on {
+.cla-chip:hover { color: var(--ink); background: rgba(164,118,47,0.15); }
+.cla-chip:active { transform: scale(0.95); }
+.cla-chip.is-on {
   color: #fdf6ea;
-  background: linear-gradient(135deg, #936125, #76491c);
-  border-color: #6a431a;
-  box-shadow: 0 6px 18px -6px rgba(126,82,38,0.7), inset 0 1px 0 rgba(255,255,255,0.18);
+  background: linear-gradient(135deg, #96662a, #74501e);
+  border-color: #6a481b;
+  box-shadow: 0 6px 18px -6px rgba(124,86,34,0.7);
 }
-.menu-tab-star { margin-right: 0.3em; font-size: 0.82em; vertical-align: middle; color: var(--brass-soft); }
-.menu-tab.is-on .menu-tab-star { color: #fdf0d6; }
-.menu-tab:focus-visible { outline: 2px solid var(--brass-deep); outline-offset: 2px; }
+.cla-chip:focus-visible { outline: 2px solid var(--brass-deep); outline-offset: 2px; }
+.cla-star { color: var(--brass-deep); }
+.cla-chip.is-on .cla-star { color: #f3ddb2; }
 
-/* Active course */
-.menu-main { max-width: 42rem; margin: 0 auto; padding: clamp(2rem, 7vw, 3rem) clamp(1.25rem, 5vw, 2.5rem) 5rem; }
-.menu-course-head { position: relative; text-align: center; margin-bottom: clamp(1.6rem, 5vw, 2.4rem); }
-.menu-course-no {
-  display: block; font-family: var(--font-display), serif; font-style: italic;
-  font-weight: 600; font-size: 1rem; letter-spacing: 0.1em;
-  color: var(--brass-deep); margin-bottom: 0.3rem;
+/* Courses */
+.cla-main { padding: clamp(1.8rem, 6vw, 3rem) clamp(1.5rem, 6vw, 3.5rem) clamp(2rem, 6vw, 3rem); }
+.cla-course { scroll-margin-top: 4rem; }
+.cla-course-head { text-align: center; margin-bottom: clamp(1.4rem, 4.5vw, 2.2rem); }
+.cla-course-no {
+  display: block; font-family: var(--font-display), serif; font-style: italic; font-weight: 600;
+  font-size: 1rem; letter-spacing: 0.1em; color: var(--brass-deep); margin-bottom: 0.3rem;
 }
-.menu-badge {
-  display: inline-flex; align-items: center; gap: 0.4rem;
-  font-size: 0.6rem; font-weight: 800; letter-spacing: 0.18em; text-transform: uppercase;
+.cla-course-title {
+  font-family: var(--font-display), Georgia, serif; font-weight: 600;
+  font-size: clamp(1.65rem, 6.5vw, 2.4rem); line-height: 1.05; letter-spacing: -0.015em;
+  margin: 0; text-wrap: balance; padding-bottom: 0.12em;
+}
+.cla-badge {
+  display: inline-flex; align-items: center; gap: 0.4rem; margin-top: 0.6rem;
+  font-size: 0.58rem; font-weight: 800; letter-spacing: 0.18em; text-transform: uppercase;
   color: #fdf6ea; background: var(--olive); padding: 0.3rem 0.7rem; border-radius: 999px;
-  margin-bottom: 0.7rem;
 }
-.menu-course-title {
-  font-family: var(--font-display), Georgia, serif; font-optical-sizing: auto;
-  font-weight: 600; font-size: clamp(1.7rem, 7vw, 2.5rem); line-height: 1.05;
-  letter-spacing: -0.015em; margin: 0; text-wrap: balance;
-  padding-bottom: 0.14em; /* pad so descenders (g,y,p) aren't clipped by tight line-height */
-}
-.menu-course-rule {
+.cla-course-rule {
   display: block; width: 3.4rem; height: 2px; margin: 0.9rem auto 0;
   background: linear-gradient(90deg, transparent, var(--brass) 35%, var(--brass) 65%, transparent);
 }
 
-/* Dishes */
-.menu-dishes { list-style: none; margin: 0; padding: 0; }
-.menu-dish { padding: clamp(1rem, 3.5vw, 1.35rem) 0; }
-.menu-dish:first-child { padding-top: 0; }
-.menu-dish-row { display: flex; align-items: baseline; justify-content: space-between; gap: 0.9rem; }
-.menu-dish-name {
+/* Dishes — single elegant column; roomy 2-col only on wide desktop */
+.cla-dishes {
+  list-style: none; margin: 0 auto; padding: 0; max-width: 40rem;
+  display: grid; grid-template-columns: 1fr; gap: clamp(1.15rem, 4vw, 1.6rem);
+}
+.cla-dish { display: flex; gap: 0.95rem; align-items: flex-start; min-width: 0; }
+.cla-thumb {
+  flex: 0 0 auto; width: clamp(3.4rem, 9vw, 4.2rem); height: clamp(3.4rem, 9vw, 4.2rem);
+  border-radius: 50%; object-fit: cover;
+  border: 2px solid rgba(164,118,47,0.4);
+  box-shadow: 0 8px 18px -10px rgba(36,27,16,0.6);
+}
+.cla-dish-body { flex: 1; min-width: 0; }
+.cla-dish-row { display: flex; align-items: baseline; gap: 0.55rem; }
+.cla-dish-name {
   font-family: var(--font-display), Georgia, serif; font-weight: 600;
-  font-size: clamp(1.08rem, 4.6vw, 1.3rem); line-height: 1.2; letter-spacing: -0.01em; margin: 0;
+  font-size: clamp(1.08rem, 4.4vw, 1.28rem); line-height: 1.2; letter-spacing: -0.01em;
+  margin: 0; min-width: 0;
 }
-.menu-price {
+.cla-leader {
+  flex: 1 1 0.75rem; min-width: 0.75rem; height: 1px; align-self: center; margin-top: 0.4em;
+  background-image: radial-gradient(circle, rgba(124,86,34,0.55) 1px, transparent 1.2px);
+  background-size: 7px 1px; background-repeat: repeat-x; background-position: bottom;
+}
+.cla-price {
   flex: 0 0 auto; font-family: var(--font-display), serif;
-  font-weight: 600; font-size: clamp(1rem, 4vw, 1.18rem); font-variant-numeric: tabular-nums;
-  color: var(--brass-deep);
+  font-weight: 600; font-size: clamp(1rem, 4vw, 1.16rem);
+  font-variant-numeric: tabular-nums; color: var(--brass-deep);
 }
-.menu-dish-desc {
-  margin: 0.45rem 0 0; max-width: 56ch;
-  font-size: 0.92rem; line-height: 1.6; color: var(--ink-soft);
-  font-style: italic;
+.cla-desc {
+  margin: 0.4rem 0 0; max-width: 54ch;
+  font-family: var(--font-display), serif; font-style: italic;
+  font-size: 0.96rem; line-height: 1.55; color: var(--ink-soft);
 }
-.menu-chips { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-top: 0.7rem; }
-.menu-chip {
-  font-size: 0.6rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase;
-  padding: 0.22rem 0.6rem; border-radius: 999px;
+.cla-pills { display: flex; flex-wrap: wrap; gap: 0.35rem; margin-top: 0.6rem; }
+.cla-pill {
+  font-size: 0.57rem; font-weight: 700; letter-spacing: 0.09em; text-transform: uppercase;
+  padding: 0.22rem 0.58rem; border-radius: 999px;
 }
-.menu-chip-tag { background: rgba(92,108,75,0.14); color: var(--olive); }
-.menu-chip-al { background: rgba(176,122,50,0.14); color: var(--brass-deep); font-weight: 600; }
+.cla-pill-tag { background: rgba(92,108,75,0.15); color: var(--olive); }
+.cla-pill-al  { background: rgba(164,118,47,0.15); color: var(--brass-deep); }
 
-.menu-empty { text-align: center; padding: 6rem 1.5rem; color: var(--brass-deep);
-  font-family: var(--font-display), serif; font-style: italic; font-size: 1.1rem; }
-
-.menu-footer {
-  display: flex; align-items: center; justify-content: center; gap: 0.6rem;
-  padding: 10px; font-size: 0.86rem;
-}
-.menu-foot-rule { width: 2rem; height: 1px; background: rgba(124,82,38,0.45); }
-.menu-foot-by { color: #000; font-weight: 500; }
-.menu-foot-brand { font-weight: 700; color: var(--brass-deep); }
-
-/* Decorative star divider beneath "Powered by". Two fading rules with a solid
-   brass five-point star centred between them. */
-.menu-foot-orn {
+/* Star divider between courses */
+.cla-divider {
   display: flex; align-items: center; justify-content: center; gap: 1rem;
-  width: min(360px, 78%); margin: 0 auto; padding-bottom: 3rem;
+  width: min(320px, 72%); margin: clamp(1.8rem, 6vw, 2.8rem) auto;
 }
-.menu-foot-orn-line {
-  flex: 1; height: 1px;
-  background: linear-gradient(90deg, transparent, rgba(124,82,38,0.55) 70%, rgba(124,82,38,0.7));
-}
-.menu-foot-orn-line:last-child {
-  background: linear-gradient(270deg, transparent, rgba(124,82,38,0.55) 70%, rgba(124,82,38,0.7));
-}
-.menu-foot-orn-star {
-  width: 1.05rem; height: 1.05rem; flex: none; background: var(--brass-deep);
+.cla-divider-line { flex: 1; height: 1px; background: linear-gradient(90deg, transparent, rgba(124,86,34,0.55)); }
+.cla-divider-line:last-child { background: linear-gradient(270deg, transparent, rgba(124,86,34,0.55)); }
+.cla-divider-star {
+  width: 0.8rem; height: 0.8rem; flex: none; background: rgba(124,86,34,0.75);
   clip-path: polygon(50% 0%, 61% 35%, 98% 35%, 68% 57%, 79% 91%, 50% 70%, 21% 91%, 32% 57%, 2% 35%, 39% 35%);
 }
 
-/* ── Motion ─────────────────────────────────────────────────────────────── */
-@keyframes menuReveal { from { opacity: 0; transform: translateY(14px); filter: blur(4px); } to { opacity: 1; transform: none; filter: none; } }
-.menu-reveal { animation: menuReveal 760ms cubic-bezier(0.16,1,0.3,1) both; }
+.cla-empty {
+  text-align: center; padding: 4rem 1.5rem 6rem; color: var(--brass-deep);
+  font-family: var(--font-display), serif; font-style: italic; font-size: 1.1rem;
+}
 
-@keyframes menuPanelIn { from { opacity: 0; } to { opacity: 1; } }
-@keyframes menuDishIn { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
-@keyframes menuHeadIn { from { opacity: 0; transform: translateY(8px) scale(0.99); } to { opacity: 1; transform: none; } }
-.menu-panel { animation: menuPanelIn 240ms ease both; }
-.menu-panel .menu-course-head { animation: menuHeadIn 480ms cubic-bezier(0.16,1,0.3,1) both; }
-.menu-dish { animation: menuDishIn 520ms cubic-bezier(0.16,1,0.3,1) both; animation-delay: calc(var(--i) * 55ms + 80ms); }
+.cla-footer {
+  text-align: center; padding: 0.8rem 1.5rem 2.2rem;
+  font-size: 0.82rem; color: var(--ink-soft);
+}
+.cla-footer strong { color: var(--brass-deep); font-weight: 800; }
 
+/* Motion */
+@keyframes claIn { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
+.cla-in { animation: claIn 700ms cubic-bezier(0.16,1,0.3,1) both; }
 @media (prefers-reduced-motion: reduce) {
-  .menu-reveal, .menu-panel, .menu-dish, .menu-course-head { animation: none !important; }
-  .menu-wordmark { filter: none; }
-  .menu-tab { transition: none !important; }
+  .cla-in { animation: none !important; }
+  .cla-chip { transition: none !important; }
 }
 `;
