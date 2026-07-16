@@ -3737,60 +3737,52 @@ function QrMenuModal({
   };
 
   const handlePrint = () => {
-    const win = window.open("", "_blank", "width=800,height=900");
-    if (!win) return;
+    // Print via a hidden same-document iframe, NOT window.open: Brave and Safari's
+    // popup blocker silently kill window.open("", "_blank"), leaving "Print" dead.
+    // An iframe isn't a popup, so it always works. (Same fix as the Floor QR sheet.)
     const svgEl = document.getElementById("qr-print-svg");
     if (!svgEl) return;
     const svgHtml = new XMLSerializer().serializeToString(svgEl);
-    const doc = win.document;
-    doc.title = `QR Menu — ${tenant.name}`;
+    const escHtml = (s: string) =>
+      s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+    const sub = t("menu_qr_print_subtitle") || "Inquadra il codice per vedere il menu";
+    const footer = t("menu_qr_print_footer") || "Powered by BaliFlow";
 
-    const style = doc.createElement("style");
-    style.textContent = `
-      @page { size: A4; margin: 24mm; }
-      body { font-family: system-ui, -apple-system, sans-serif; color: #1c1917; text-align: center; margin: 0; padding: 0; }
-      .wrap { padding: 40px 20px; }
-      h1 { font-size: 28pt; margin: 0 0 12pt 0; font-weight: 900; letter-spacing: -0.5pt; }
-      p.sub { font-size: 12pt; margin: 0 0 36pt 0; color: #57534e; }
-      .qr { display: inline-block; padding: 16pt; background: white; border-radius: 12pt; }
-      .qr svg { width: 360pt; height: 360pt; display: block; }
-      .footer { margin-top: 32pt; font-size: 10pt; color: #57534e; }
-      .url { margin-top: 10pt; font-family: ui-monospace, monospace; font-size: 9pt; color: #1c1917; word-break: break-all; }
-    `;
-    doc.head.appendChild(style);
+    const html = `<!doctype html><html><head><meta charset="utf-8">
+      <title>QR Menu — ${escHtml(tenant.name)}</title>
+      <style>
+        @page { size: A4; margin: 24mm; }
+        body { font-family: system-ui, -apple-system, sans-serif; color: #1c1917; text-align: center; margin: 0; padding: 0; }
+        .wrap { padding: 40px 20px; }
+        h1 { font-size: 28pt; margin: 0 0 12pt 0; font-weight: 900; letter-spacing: -0.5pt; }
+        p.sub { font-size: 12pt; margin: 0 0 36pt 0; color: #57534e; }
+        .qr { display: inline-block; padding: 16pt; background: white; border-radius: 12pt; }
+        .qr svg { width: 360pt; height: 360pt; display: block; }
+        .footer { margin-top: 32pt; font-size: 10pt; color: #57534e; }
+        .url { margin-top: 10pt; font-family: ui-monospace, monospace; font-size: 9pt; color: #1c1917; word-break: break-all; }
+      </style></head>
+      <body><div class="wrap">
+        <h1>${escHtml(tenant.name)}</h1>
+        <p class="sub">${escHtml(sub)}</p>
+        <div class="qr">${svgHtml}</div>
+        <div class="footer">${escHtml(footer)}</div>
+        <div class="url">${escHtml(publicUrl)}</div>
+      </div></body></html>`;
 
-    const wrap = doc.createElement("div");
-    wrap.className = "wrap";
-
-    const h1 = doc.createElement("h1");
-    h1.textContent = tenant.name;
-    wrap.appendChild(h1);
-
-    const sub = doc.createElement("p");
-    sub.className = "sub";
-    sub.textContent = t("menu_qr_print_subtitle") || "Inquadra il codice per vedere il menu";
-    wrap.appendChild(sub);
-
-    const qr = doc.createElement("div");
-    qr.className = "qr";
-    const parser = new DOMParser();
-    const svgDoc = parser.parseFromString(svgHtml, "image/svg+xml");
-    const svgNode = doc.importNode(svgDoc.documentElement, true);
-    qr.appendChild(svgNode);
-    wrap.appendChild(qr);
-
-    const footer = doc.createElement("div");
-    footer.className = "footer";
-    footer.textContent = t("menu_qr_print_footer") || "Powered by BaliFlow";
-    wrap.appendChild(footer);
-
-    const urlDiv = doc.createElement("div");
-    urlDiv.className = "url";
-    urlDiv.textContent = publicUrl;
-    wrap.appendChild(urlDiv);
-
-    doc.body.appendChild(wrap);
-    win.setTimeout(() => win.print(), 200);
+    const iframe = document.createElement("iframe");
+    iframe.setAttribute("aria-hidden", "true");
+    iframe.style.cssText = "position:fixed;right:0;bottom:0;width:0;height:0;border:0;";
+    iframe.srcdoc = html;
+    iframe.onload = () => {
+      const win = iframe.contentWindow;
+      if (!win) { iframe.remove(); return; }
+      win.setTimeout(() => {
+        win.focus();
+        win.print();
+        setTimeout(() => iframe.remove(), 1000);
+      }, 200);
+    };
+    document.body.appendChild(iframe);
   };
 
   const handleDownloadPng = () => {

@@ -10,6 +10,11 @@ import { Printer, X } from "lucide-react";
 
 type QrTable = { id: string; name: string };
 
+// Escape user-controlled text (restaurant + table names) before it goes into the
+// print-sheet HTML string, so a stray < or & can't break the markup.
+const esc = (s: string) =>
+  s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+
 export function TableQrModal({
   restaurantName,
   slug,
@@ -31,58 +36,55 @@ export function TableQrModal({
   const urlFor = (t: QrTable) => `${origin || ""}/m/${slug}?table=${t.id}`;
 
   const handlePrint = () => {
-    const win = window.open("", "_blank", "width=840,height=1000");
-    if (!win) return;
-    const doc = win.document;
-    doc.title = `QR — ${restaurantName}`;
+    // Print via a hidden same-document iframe, NOT window.open: Brave (and Safari's
+    // popup blocker) silently kill a programmatic window.open("", "_blank"), which
+    // left the "Print" button doing nothing. An iframe isn't a popup, so it always
+    // works. We build the sheet as a full HTML document and print its contentWindow.
+    const cards = tables
+      .map((t) => {
+        const svgEl = document.getElementById(`qr-table-${t.id}`);
+        if (!svgEl) return "";
+        const svg = new XMLSerializer().serializeToString(svgEl);
+        return `<div class="card">
+          <p class="name">${esc(restaurantName)}</p>
+          <p class="table">${esc(labels.table)} ${esc(t.name)}</p>
+          <div class="qr">${svg}</div>
+          <p class="hint">${esc(labels.scanHint)}</p>
+        </div>`;
+      })
+      .join("");
 
-    const style = doc.createElement("style");
-    style.textContent = `
-      @page { size: A4; margin: 10mm; }
-      body { font-family: system-ui, -apple-system, sans-serif; color: #1c1917; margin: 0; }
-      .grid { display: grid; grid-template-columns: 1fr 1fr; }
-      .card { border: 1px dashed #d6d3d1; text-align: center; padding: 10mm 6mm; page-break-inside: avoid; }
-      .name { font-size: 12pt; font-weight: 800; margin: 0; }
-      .table { font-size: 16pt; font-weight: 900; margin: 2mm 0 4mm; }
-      .qr svg { width: 42mm; height: 42mm; }
-      .hint { font-size: 8.5pt; color: #57534e; margin-top: 3mm; }
-    `;
-    doc.head.appendChild(style);
+    const html = `<!doctype html><html><head><meta charset="utf-8">
+      <title>QR — ${esc(restaurantName)}</title>
+      <style>
+        @page { size: A4; margin: 10mm; }
+        body { font-family: system-ui, -apple-system, sans-serif; color: #1c1917; margin: 0; }
+        .grid { display: grid; grid-template-columns: 1fr 1fr; }
+        .card { border: 1px dashed #d6d3d1; text-align: center; padding: 10mm 6mm; page-break-inside: avoid; }
+        .name { font-size: 12pt; font-weight: 800; margin: 0; }
+        .table { font-size: 16pt; font-weight: 900; margin: 2mm 0 4mm; }
+        .qr svg { width: 42mm; height: 42mm; }
+        .hint { font-size: 8.5pt; color: #57534e; margin-top: 3mm; }
+      </style></head>
+      <body><div class="grid">${cards}</div></body></html>`;
 
-    const grid = doc.createElement("div");
-    grid.className = "grid";
-    for (const t of tables) {
-      const svgEl = document.getElementById(`qr-table-${t.id}`);
-      if (!svgEl) continue;
-      const card = doc.createElement("div");
-      card.className = "card";
-
-      const name = doc.createElement("p");
-      name.className = "name";
-      name.textContent = restaurantName;
-      card.appendChild(name);
-
-      const tbl = doc.createElement("p");
-      tbl.className = "table";
-      tbl.textContent = `${labels.table} ${t.name}`;
-      card.appendChild(tbl);
-
-      const qr = doc.createElement("div");
-      qr.className = "qr";
-      const parser = new DOMParser();
-      const svgDoc = parser.parseFromString(new XMLSerializer().serializeToString(svgEl), "image/svg+xml");
-      qr.appendChild(doc.importNode(svgDoc.documentElement, true));
-      card.appendChild(qr);
-
-      const hint = doc.createElement("p");
-      hint.className = "hint";
-      hint.textContent = labels.scanHint;
-      card.appendChild(hint);
-
-      grid.appendChild(card);
-    }
-    doc.body.appendChild(grid);
-    win.setTimeout(() => win.print(), 250);
+    const iframe = document.createElement("iframe");
+    iframe.setAttribute("aria-hidden", "true");
+    iframe.style.cssText = "position:fixed;right:0;bottom:0;width:0;height:0;border:0;";
+    iframe.srcdoc = html;
+    iframe.onload = () => {
+      const win = iframe.contentWindow;
+      if (!win) { iframe.remove(); return; }
+      // Give the browser a tick to lay out the SVGs before invoking print.
+      win.setTimeout(() => {
+        win.focus();
+        win.print();
+        // Remove after the print dialog settles (it blocks synchronously in most
+        // browsers; the timeout covers the async ones).
+        setTimeout(() => iframe.remove(), 1000);
+      }, 250);
+    };
+    document.body.appendChild(iframe);
   };
 
   return (
