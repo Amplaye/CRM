@@ -105,7 +105,7 @@ export async function POST(req: NextRequest) {
           const r = await sendWhatsAppTemplate(recipient, "missed_call_notice", cfg.lang, [cfg.restaurantName]);
           if (!r.ok) {
             // Template may still be in Meta review, or the number is unreachable.
-            console.error(`[voicemail] call_followup WhatsApp to ${recipient} failed: ${r.errorMessage}`);
+            console.error(`[voicemail] call_followup WhatsApp to ***${recipient.slice(-4)} failed: ${r.errorMessage}`);
           }
         });
       }
@@ -116,7 +116,8 @@ export async function POST(req: NextRequest) {
       { status: 200 },
     );
   } catch (err: any) {
-    return NextResponse.json({ error: err?.message || "Unknown error" }, { status: 200 });
+    console.error("[assistant-request] error:", err?.message);
+    return NextResponse.json({ error: "assistant_request_failed" }, { status: 200 });
   }
 }
 

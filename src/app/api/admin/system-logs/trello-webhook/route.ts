@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import crypto from "crypto";
 import { resolveSystemLogByTrelloCard, TRELLO_DONE_LIST_ID } from "@/lib/trello-sync";
+import { logSystemEvent } from "@/lib/system-log";
 
 // Inbound Trello webhook — the REVERSE of trello-sync's outbound mirror.
 //
@@ -14,9 +15,9 @@ import { resolveSystemLogByTrelloCard, TRELLO_DONE_LIST_ID } from "@/lib/trello-
 // 200 before it will create the webhook (see scripts/register-trello-webhook).
 //
 // Auth: Trello signs every callback with HMAC-SHA1 over (body + callbackURL)
-// using the API SECRET as the key. We verify it when TRELLO_API_SECRET and
-// TRELLO_WEBHOOK_CALLBACK_URL are set; if not, we fall back to accepting (the
-// action only ever *resolves* an existing log — it cannot create or escalate).
+// using the API SECRET as the key. FAIL-CLOSED: if TRELLO_API_SECRET or
+// TRELLO_WEBHOOK_CALLBACK_URL is missing we reject with 401 (and raise a
+// high-severity system log) instead of accepting unsigned callbacks.
 
 export const runtime = "nodejs";
 
@@ -33,11 +34,8 @@ export async function GET() {
 function verifyTrelloSignature(rawBody: string, header: string | null): boolean {
   const secret = process.env.TRELLO_API_SECRET;
   const callbackUrl = process.env.TRELLO_WEBHOOK_CALLBACK_URL;
-  // Not configured → can't verify; accept (resolve-only endpoint, low blast radius).
-  if (!secret || !callbackUrl) {
-    console.warn("[trello-webhook] TRELLO_API_SECRET/CALLBACK_URL not set — skipping signature check");
-    return true;
-  }
+  // Not configured → can't verify → reject (fail-closed).
+  if (!secret || !callbackUrl) return false;
   if (!header) return false;
   const expected = crypto
     .createHmac("sha1", secret)
@@ -53,6 +51,17 @@ export async function POST(req: NextRequest) {
   const raw = await req.text();
 
   if (!verifyTrelloSignature(raw, req.headers.get("x-trello-webhook"))) {
+    const misconfigured =
+      !process.env.TRELLO_API_SECRET || !process.env.TRELLO_WEBHOOK_CALLBACK_URL;
+    await logSystemEvent({
+      category: "webhook_failure",
+      severity: "high",
+      title: "Trello webhook rejected",
+      description: misconfigured
+        ? "TRELLO_API_SECRET/TRELLO_WEBHOOK_CALLBACK_URL not configured — rejecting all callbacks (fail-closed)."
+        : "Invalid or missing x-trello-webhook signature.",
+      error_key: misconfigured ? "trello-webhook-misconfigured" : "trello-webhook-bad-signature",
+    });
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 

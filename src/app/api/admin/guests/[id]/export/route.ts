@@ -24,10 +24,12 @@ export async function GET(
   if (gErr) return NextResponse.json({ error: gErr.message }, { status: 500 });
   if (!guest) return NextResponse.json({ error: 'guest not found' }, { status: 404 });
 
+  // Scope child rows to the guest's own tenant (service-role bypasses RLS,
+  // so the tenant filter must be explicit — same pattern as lib/compliance/dsar.ts).
   const [reservations, conversations, waitlist] = await Promise.all([
-    supabase.from('reservations').select('*').eq('guest_id', guestId),
-    supabase.from('conversations').select('*').eq('guest_id', guestId),
-    supabase.from('waitlist_entries').select('*').eq('guest_id', guestId),
+    supabase.from('reservations').select('*').eq('guest_id', guestId).eq('tenant_id', guest.tenant_id),
+    supabase.from('conversations').select('*').eq('guest_id', guestId).eq('tenant_id', guest.tenant_id),
+    supabase.from('waitlist_entries').select('*').eq('guest_id', guestId).eq('tenant_id', guest.tenant_id),
   ]);
 
   const payload = {

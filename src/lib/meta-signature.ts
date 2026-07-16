@@ -8,13 +8,16 @@ import crypto from 'node:crypto';
 // messages into our pipeline). This replaces the Twilio SHA-1 scheme
 // (src/lib/twilio-signature.ts) for the Meta WhatsApp Cloud API migration.
 //
-// Off by default — set FACEBOOK_VERIFY_SIGNATURE=1 and META_APP_SECRET to
-// enable. When disabled, verifyMetaSignature always returns true so existing
-// flows keep working. IMPORTANT: only flip FACEBOOK_VERIFY_SIGNATURE on once
-// META_APP_SECRET is set, or every webhook 403s.
+// FAIL-CLOSED: verification is active whenever META_APP_SECRET is configured.
+// The only way to skip it is the explicit emergency opt-out
+// FACEBOOK_VERIFY_SIGNATURE=0 (rollback lever: set it + redeploy, no revert).
+// With no app secret configured at all there is nothing to verify against, so
+// requests pass — set META_APP_SECRET in every environment that receives real
+// Meta traffic.
 
 export function isMetaVerificationEnabled(): boolean {
-  return process.env.FACEBOOK_VERIFY_SIGNATURE === '1';
+  if (process.env.FACEBOOK_VERIFY_SIGNATURE === '0') return false;
+  return Boolean(process.env.META_APP_SECRET);
 }
 
 /**

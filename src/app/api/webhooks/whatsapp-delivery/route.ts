@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { logAuditEvent } from '@/lib/audit';
 import { handleMetaWebhookVerification, verifyMetaSignature } from '@/lib/meta-signature';
+import { logSystemEvent } from '@/lib/system-log';
 
 // Meta WhatsApp Cloud API delivery status webhook (sent → delivered → read, or
 // failed). Replaces the Twilio status callback (src/app/api/twilio/
@@ -32,10 +33,17 @@ export async function POST(request: Request) {
 
   // M1: this route writes audit_events for an arbitrary tenant_id, so an
   // unauthenticated caller could forge delivery history. Verify the Meta
-  // HMAC over the raw body (fail-closed when FACEBOOK_VERIFY_SIGNATURE=1).
+  // HMAC over the raw body (fail-closed whenever META_APP_SECRET is set).
   // Read the body once as text and reuse it for both verification and parsing.
   const rawBody = await request.text();
   if (!verifyMetaSignature(rawBody, request.headers.get('x-hub-signature-256'))) {
+    await logSystemEvent({
+      category: 'webhook_failure',
+      severity: 'high',
+      title: 'Meta delivery webhook rejected',
+      description: 'Invalid or missing X-Hub-Signature-256 on /api/webhooks/whatsapp-delivery.',
+      error_key: 'whatsapp-delivery-bad-signature',
+    });
     return NextResponse.json({ error: 'Invalid signature' }, { status: 403 });
   }
 

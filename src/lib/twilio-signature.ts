@@ -6,12 +6,16 @@ import crypto from 'node:crypto';
 // Verification protects us from spoofed webhooks (anyone who knows the path could
 // otherwise POST fake messages into our pipeline).
 //
-// Off by default — set TWILIO_VERIFY_SIGNATURE=1 and TWILIO_AUTH_TOKEN to enable.
-// When disabled, `verifyTwilioSignature` always returns true so existing flows
-// keep working.
+// FAIL-CLOSED: verification is active whenever TWILIO_AUTH_TOKEN is configured.
+// The only way to skip it is the explicit emergency opt-out
+// TWILIO_VERIFY_SIGNATURE=0 (rollback lever: set it + redeploy, no revert).
+// With no auth token configured there is nothing to verify against, so
+// requests pass — set TWILIO_AUTH_TOKEN in every environment that receives
+// real Twilio traffic.
 
 export function isTwilioVerificationEnabled(): boolean {
-  return process.env.TWILIO_VERIFY_SIGNATURE === '1';
+  if (process.env.TWILIO_VERIFY_SIGNATURE === '0') return false;
+  return Boolean(process.env.TWILIO_AUTH_TOKEN);
 }
 
 /**

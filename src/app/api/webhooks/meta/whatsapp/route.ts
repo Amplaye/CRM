@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createServiceRoleClient } from "@/lib/supabase/server";
 import { handleMetaWebhookVerification, verifyMetaSignature } from "@/lib/meta-signature";
+import { logSystemEvent } from "@/lib/system-log";
 
 // Meta-NATIVE WhatsApp webhook receiver — the single app-level URL you register in
 // the Meta App dashboard (and the one /api/whatsapp/embedded-signup subscribes each
@@ -34,6 +35,13 @@ export async function POST(request: Request) {
   const raw = await request.text();
   const signature = request.headers.get("x-hub-signature-256");
   if (!verifyMetaSignature(raw, signature)) {
+    await logSystemEvent({
+      category: "webhook_failure",
+      severity: "high",
+      title: "Meta WhatsApp webhook rejected",
+      description: "Invalid or missing X-Hub-Signature-256 on /api/webhooks/meta/whatsapp.",
+      error_key: "meta-whatsapp-bad-signature",
+    });
     return new Response("forbidden", { status: 403 });
   }
 

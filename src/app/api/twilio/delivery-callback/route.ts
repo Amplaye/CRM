@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { logAuditEvent } from '@/lib/audit';
 import { verifyTwilioSignature, isTwilioVerificationEnabled } from '@/lib/twilio-signature';
+import { logSystemEvent } from '@/lib/system-log';
 
 // ⚠️ DEPRECATED (2026-05-29 Meta migration): WhatsApp delivery status now comes
 // from Meta at /api/webhooks/whatsapp-delivery. This Twilio callback is kept
@@ -14,8 +15,8 @@ import { verifyTwilioSignature, isTwilioVerificationEnabled } from '@/lib/twilio
 // without polling Twilio's API.
 //
 // Signature verification follows the same on/off switch as the inbound
-// webhook helper: only enforced when TWILIO_VERIFY_SIGNATURE=1 and
-// TWILIO_AUTH_TOKEN is set. Each event is recorded as one row in
+// webhook helper: enforced whenever TWILIO_AUTH_TOKEN is set (opt-out only
+// with TWILIO_VERIFY_SIGNATURE=0). Each event is recorded as one row in
 // audit_events for the matching tenant.
 //
 // Route: POST /api/twilio/delivery-callback?tenant_id=<uuid>
@@ -50,7 +51,16 @@ export async function POST(request: Request) {
     const host = request.headers.get('x-forwarded-host') || request.headers.get('host') || '';
     const fullUrl = `${proto}://${host}${url.pathname}${url.search}`;
     const ok = verifyTwilioSignature(fullUrl, params, signature);
-    if (!ok) return NextResponse.json({ error: 'Bad Twilio signature' }, { status: 403 });
+    if (!ok) {
+      await logSystemEvent({
+        category: 'webhook_failure',
+        severity: 'high',
+        title: 'Twilio delivery callback rejected',
+        description: 'Invalid or missing X-Twilio-Signature on /api/twilio/delivery-callback.',
+        error_key: 'twilio-delivery-bad-signature',
+      });
+      return NextResponse.json({ error: 'Bad Twilio signature' }, { status: 403 });
+    }
   }
 
   const messageSid = params.MessageSid || params.SmsSid || '';
