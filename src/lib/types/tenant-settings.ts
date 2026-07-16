@@ -284,6 +284,18 @@ export interface TenantSettings {
     reward_points?: number;
     reward_label?: string;
   };
+  /** QR table self-ordering config (gated by features.self_order_enabled). The
+   * flow lets guests send DRINKS instantly on scan but keeps FOOD locked for the
+   * first few minutes of the table's visit, so a wave of tables doesn't flood the
+   * kitchen at once. Read via getSelfOrderConfig(). The cooldown duration is a
+   * fixed constant (owner's choice — no manual timer); only which menu categories
+   * are "drinks" is configurable here, because item `station` is unset on these
+   * venues so the system can't otherwise tell a mojito from a burger. */
+  self_order?: {
+    /** menu_categories.id values the owner flagged as drinks (phase-1, always
+     * orderable). Everything not in a flagged category is food. */
+    drink_category_ids?: string[];
+  };
   /** Offboarding bookkeeping, written by the archive flow (src/lib/tenants/delete-tenant.ts). */
   archive?: { prev_status: TenantStatus; export_path?: string };
   /** Which voice platform serves this tenant's calls. Vapi is the BASE tier

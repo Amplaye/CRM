@@ -9,6 +9,7 @@ import { createClient } from "@/lib/supabase/client";
 import { Dictionary } from "@/lib/i18n/dictionaries/en";
 import { TenantFeatures, FEATURE_FLAGS, getRawFeatures } from "@/lib/types/tenant-settings";
 import { getLoyaltyConfig } from "@/lib/loyalty/loyalty";
+import { getSelfOrderConfig, FOOD_COOLDOWN_MIN } from "@/lib/self-order/config";
 
 // Settings → Features. Each restaurant capability is a single on/off toggle that
 // flips a flag in tenants.settings.features. Flipping a switch SAVES INSTANTLY —
@@ -151,6 +152,11 @@ export function FeaturesTab() {
           instant-save spirit: each field persists on blur. */}
       {features.loyalty_enabled && <LoyaltyConfigCard />}
 
+      {/* Self-order: mark which menu categories are drinks. Shown only while the
+          module is ON. There is NO cooldown-minutes field on purpose — the food
+          delay is automatic; the owner only tells us what a "drink" is. */}
+      {features.self_order_enabled && <SelfOrderConfigCard />}
+
       {/* Guided follow-up: the moment the owner turns the commercial module ON, point
           them to where they actually add their price lists (no KB jargon, no guesswork). */}
       {features.commercial_info_enabled && (
@@ -232,6 +238,136 @@ function LoyaltyConfigCard() {
         </div>
       </div>
       <p className="text-xs text-black">{t("loyalty_config_hint")}</p>
+    </div>
+  );
+}
+
+// Self-order drinks picker. The QR flow lets guests order DRINKS the instant they
+// scan but keeps FOOD locked for the first few minutes (per table), so a rush of
+// arrivals doesn't hit the kitchen all at once. The delay is automatic; the only
+// thing the owner sets is WHICH menu categories are drinks — the system can't
+// guess (menu items carry no station on these venues). Toggling a category saves
+// instantly (optimistic, rolls back on error), same spirit as the toggles above.
+function SelfOrderConfigCard() {
+  const { t } = useLanguage();
+  const { activeTenant: tenant, refreshActiveTenant } = useTenant();
+  const supabase = createClient();
+
+  const [categories, setCategories] = useState<{ id: string; name: string }[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [selected, setSelected] = useState<string[]>(getSelfOrderConfig(tenant?.settings).drink_category_ids);
+  const [status, setStatus] = useState<"saving" | "saved" | "error" | null>(null);
+  const selectedRef = useRef(selected);
+  const savedTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Load the tenant's categories once (RLS scopes this to the active tenant).
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      if (!tenant) return;
+      const { data } = await supabase
+        .from("menu_categories")
+        .select("id, name")
+        .eq("tenant_id", tenant.id)
+        .order("sort_order", { ascending: true })
+        .order("created_at", { ascending: true });
+      if (!alive) return;
+      setCategories((data as { id: string; name: string }[]) || []);
+      setLoading(false);
+    })();
+    return () => {
+      alive = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tenant?.id]);
+
+  useEffect(() => () => {
+    if (savedTimer.current) clearTimeout(savedTimer.current);
+  }, []);
+
+  const persist = async (nextIds: string[], prevIds: string[]) => {
+    if (!tenant) return;
+    setStatus("saving");
+    // Spread the whole settings object — multi-tenant invariant: never drop other keys.
+    const nextSettings = {
+      ...(tenant.settings || {}),
+      self_order: { ...(tenant.settings?.self_order || {}), drink_category_ids: nextIds },
+    };
+    const { error } = await supabase.from("tenants").update({ settings: nextSettings }).eq("id", tenant.id);
+    if (error) {
+      selectedRef.current = prevIds;
+      setSelected(prevIds);
+      setStatus("error");
+      return;
+    }
+    setStatus("saved");
+    if (savedTimer.current) clearTimeout(savedTimer.current);
+    savedTimer.current = setTimeout(() => setStatus(null), 2000);
+    await refreshActiveTenant();
+  };
+
+  const toggle = (id: string) => {
+    const prev = selectedRef.current;
+    const next = prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id];
+    selectedRef.current = next;
+    setSelected(next);
+    void persist(next, prev);
+  };
+
+  return (
+    <div className="p-3 rounded-lg border-2 space-y-3" style={{ borderColor: "#c4956a", background: "rgba(252,246,237,0.6)" }}>
+      <div className="flex items-center justify-between gap-2">
+        <p className="text-sm font-bold text-black">{t("self_order_config_title")}</p>
+        <span className="text-xs" aria-live="polite">
+          {status === "saving" && <span className="text-black">…</span>}
+          {status === "saved" && <span className="font-semibold text-green-600">{t("settings_saved")}</span>}
+          {status === "error" && <span className="font-semibold text-red-600">{t("settings_save_error")}</span>}
+        </span>
+      </div>
+      <p className="text-xs text-black">
+        {t("self_order_config_desc").replace("{min}", String(FOOD_COOLDOWN_MIN))}
+      </p>
+
+      {loading ? (
+        <p className="text-xs text-black">…</p>
+      ) : categories.length === 0 ? (
+        // No categories yet → nothing to mark. Point them to the menu editor.
+        <div className="flex items-center justify-between gap-3 p-2.5 rounded-lg bg-white/70 border" style={{ borderColor: "#e7d3ba" }}>
+          <span className="text-xs text-black">{t("self_order_config_no_categories")}</span>
+          <Link href="/menu" className="inline-flex items-center gap-1 text-xs font-bold whitespace-nowrap" style={{ color: "#c4956a" }}>
+            {t("self_order_config_open_menu")}
+            <ArrowRight className="w-3.5 h-3.5" />
+          </Link>
+        </div>
+      ) : (
+        <>
+          <p className="text-xs font-bold text-black">{t("self_order_config_pick")}</p>
+          <div className="flex flex-wrap gap-2">
+            {categories.map((c) => {
+              const on = selected.includes(c.id);
+              return (
+                <button
+                  key={c.id}
+                  type="button"
+                  onClick={() => toggle(c.id)}
+                  role="switch"
+                  aria-checked={on}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-semibold border-2 cursor-pointer transition-colors"
+                  style={on ? { background: "#c4956a", borderColor: "#c4956a", color: "#fff" } : { background: "#fff", borderColor: "#c4956a", color: "#000" }}
+                >
+                  <span aria-hidden>{on ? "✓" : "+"}</span>
+                  {c.name}
+                </button>
+              );
+            })}
+          </div>
+          {selected.length === 0 && (
+            // With nothing flagged the cooldown has no "drinks" to let through, so
+            // it would lock the WHOLE menu on arrival — almost never what they want.
+            <p className="text-xs font-medium" style={{ color: "#b45309" }}>{t("self_order_config_warn_empty")}</p>
+          )}
+        </>
+      )}
     </div>
   );
 }
