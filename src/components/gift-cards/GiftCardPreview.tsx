@@ -5,7 +5,7 @@
 // what makes "what I design" and "what they buy" impossible to drift apart.
 
 import { giftDesignBackground, DEFAULT_GIFT_TEXT_COLOR, type GiftDesign } from "@/lib/gift-cards/designs";
-import { formatGiftCents } from "@/lib/gift-cards/gift-cards";
+import { formatGiftCents } from "@/lib/gift-cards/format";
 
 export function GiftCardPreview({
   design,

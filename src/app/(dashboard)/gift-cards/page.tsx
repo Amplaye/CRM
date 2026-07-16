@@ -10,7 +10,7 @@ import { getFeatures } from "@/lib/types/tenant-settings";
 import { useLanguage } from "@/lib/contexts/LanguageContext";
 import { useTenant } from "@/lib/contexts/TenantContext";
 import { createClient } from "@/lib/supabase/client";
-import { formatGiftCents } from "@/lib/gift-cards/gift-cards";
+import { formatGiftCents } from "@/lib/gift-cards/format";
 import { GiftDesignEditor } from "@/components/gift-cards/GiftDesignEditor";
 import { useEffect, useMemo, useState } from "react";
 import { ExternalLink, Gift } from "lucide-react";

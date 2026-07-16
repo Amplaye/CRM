@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { GIFT_MAX_CENTS, GIFT_MIN_CENTS, GIFT_PRESETS_CENTS } from "@/lib/gift-cards/gift-cards";
+import { GIFT_MAX_CENTS, GIFT_MIN_CENTS, GIFT_PRESETS_CENTS } from "@/lib/gift-cards/format";
 import type { GiftDesign } from "@/lib/gift-cards/designs";
 import { GiftCardPreview } from "@/components/gift-cards/GiftCardPreview";
 

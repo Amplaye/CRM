@@ -13,7 +13,7 @@
 //   • sandbox and production are DIFFERENT HOSTS — printing a production QR while
 //     filing to preproducción gives a receipt whose QR resolves to "not found".
 
-import { fiscalDate, fiscalAmount, normalizeNif } from "./huella";
+import { fiscalDate, fiscalAmount, normalizeNif } from "./format";
 
 /** AEAT's cotejo endpoints. `prewww2` is preproducción — the one to print while
  * testing against the sandbox. */

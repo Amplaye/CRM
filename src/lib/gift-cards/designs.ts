@@ -12,7 +12,7 @@
 // falls back to the historical preset amounts, so a tenant that never opens the
 // editor keeps today's page byte-for-byte.
 
-import { GIFT_MAX_CENTS, GIFT_MIN_CENTS } from "./gift-cards";
+import { GIFT_MAX_CENTS, GIFT_MIN_CENTS } from "./format";
 
 /** Background treatments a card can use. `solid` and `gradient` need no upload,
  * which keeps a brand-new tenant one click from a card that looks intentional. */

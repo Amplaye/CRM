@@ -21,7 +21,7 @@ import {
   type GiftDesign,
   type GiftDesignStyle,
 } from "@/lib/gift-cards/designs";
-import { GIFT_MAX_CENTS, GIFT_MIN_CENTS } from "@/lib/gift-cards/gift-cards";
+import { GIFT_MAX_CENTS, GIFT_MIN_CENTS } from "@/lib/gift-cards/format";
 import { GiftCardPreview } from "./GiftCardPreview";
 
 const CARD = { borderColor: "#c4956a", background: "rgba(252,246,237,0.85)" } as const;
