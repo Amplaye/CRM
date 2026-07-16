@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { CreditCard, Check, Loader2, CheckCircle2, XCircle, Sparkles, Building2, Layers, MessageCircle, Gift, Lock } from "lucide-react";
 import { useLanguage } from "@/lib/contexts/LanguageContext";
 import { useTenant } from "@/lib/contexts/TenantContext";
+import { TablePayCard } from "@/components/settings/TablePayCard";
 import { hasActivePlan } from "@/lib/billing/entitlements";
 import { Dictionary } from "@/lib/i18n/dictionaries/en";
 import {
@@ -569,6 +570,10 @@ export function PaymentsTab() {
           <span>{error}</span>
         </div>
       )}
+
+      {/* The venue's OWN Stripe key for pay-at-table (QR) — money-in for the
+          restaurant, unrelated to the subscription plans above. */}
+      <TablePayCard />
 
       <p className="text-xs text-black">
         {t(tk("settings_payments_secure_note")) || "Pagamenti gestiti in modo sicuro da Stripe e PayPal. BALI Flow non conserva i dati della tua carta."}

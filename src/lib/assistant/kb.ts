@@ -373,7 +373,30 @@ export const KB: KbTopic[] = [
       de: "Auf der Rechnung „Kassieren“ drücken: Methode wählen (bar, Karte, Gutscheine…), den Betrag bei Bedarf auf mehrere Methoden aufteilen, bei bar wird das Rückgeld automatisch berechnet. Rabatt (% oder €) gilt auf die Gesamtsumme; die Vorab-Rechnung druckst du für den Tisch vor der Zahlung.",
     },
     links: [{ href: "/cassa", label: { it: "Apri la Cassa", en: "Open the Till", es: "Abrir la Caja", de: "Kasse öffnen" } }],
-    related: ["cassa-receipts", "cassa-open-close"],
+    related: ["cassa-receipts", "cassa-open-close", "qr-pay"],
+  },
+  {
+    id: "qr-pay",
+    title: {
+      it: "Pagamento dal tavolo (QR)",
+      en: "Pay at the table (QR)",
+      es: "Pago desde la mesa (QR)",
+      de: "Am Tisch bezahlen (QR)",
+    },
+    keywords: [
+      "pagamento qr", "pagare dal tavolo", "qr tavolo", "conto dal telefono", "pagamento al tavolo", "stripe ristorante", "chiave stripe", "pay at table", "qr payment", "table payment", "pay by phone", "stripe key", "pago qr", "pagar desde la mesa", "pago en mesa", "clave stripe", "qr zahlung", "am tisch zahlen", "tisch qr bezahlen", "stripe schlüssel", "incasso online", "pagamento online tavolo",
+    ],
+    answer: {
+      it: "Con «Pagamento dal tavolo (QR)» il cliente inquadra lo stesso QR del tavolo, tocca «Conto», vede il conto aggiornato e lo paga con carta dal telefono. L'incasso arriva direttamente sul TUO conto Stripe (non sulla piattaforma): collega la chiave segreta Stripe in Impostazioni → Pagamenti, poi attiva la funzione in Impostazioni → Funzionalità. A pagamento riuscito il conto si chiude da solo in cassa con scontrino e metodo «online»; serve una cassa aperta. Se il conto cambia mentre il cliente paga, ricevi un avviso e sistemi la differenza in cassa.",
+      en: "With “Pay at the table (QR)” guests scan the same table QR, tap “Bill”, see the live bill and pay it by card from their phone. The money lands directly in YOUR Stripe account (not the platform's): connect your Stripe secret key in Settings → Payments, then switch the feature on in Settings → Features. On success the bill closes itself at the till with a receipt and method “online”; an open till session is required. If the bill changes while the guest pays, you get an alert and settle the difference at the till.",
+      es: "Con «Pago desde la mesa (QR)» el cliente escanea el mismo QR de la mesa, toca «Cuenta», ve la cuenta actualizada y la paga con tarjeta desde el móvil. El cobro llega directamente a TU cuenta de Stripe (no a la plataforma): conecta la clave secreta de Stripe en Ajustes → Pagos y activa la función en Ajustes → Funciones. Al completarse, la cuenta se cierra sola en caja con su ticket y método «online»; hace falta caja abierta. Si la cuenta cambia mientras el cliente paga, recibes un aviso y ajustas la diferencia en caja.",
+      de: "Mit „Am Tisch bezahlen (QR)“ scannen Gäste denselben Tisch-QR, tippen auf „Rechnung“, sehen die aktuelle Rechnung und zahlen sie per Karte vom Handy. Das Geld geht direkt auf DEIN Stripe-Konto (nicht auf die Plattform): verbinde deinen geheimen Stripe-Schlüssel unter Einstellungen → Zahlungen und aktiviere die Funktion unter Einstellungen → Funktionen. Bei Erfolg schließt sich die Rechnung an der Kasse von selbst, mit Bon und Methode „online“; eine offene Kassensitzung ist nötig. Ändert sich die Rechnung während der Zahlung, bekommst du eine Meldung und klärst die Differenz an der Kasse.",
+    },
+    links: [
+      { href: "/settings", label: { it: "Apri Impostazioni", en: "Open Settings", es: "Abrir Ajustes", de: "Einstellungen öffnen" } },
+      { href: "/floor", label: { it: "Stampa i QR dei tavoli", en: "Print the table QRs", es: "Imprimir los QR de mesa", de: "Tisch-QRs drucken" } },
+    ],
+    related: ["cassa-pay", "cassa-receipts", "settings"],
   },
   {
     id: "cassa-receipts",
