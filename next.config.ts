@@ -4,11 +4,14 @@ import type { NextConfig } from "next";
 // styles are restricted to self/inline (Next injects inline hydration scripts
 // and Tailwind injects inline styles), connect is limited to self + Supabase +
 // the AI/Vapi backends we actually call, framing is denied, and form/base/
-// object are locked down. Tightening script-src to a nonce would require
-// wiring a per-request nonce through middleware — deferred.
+// object are locked down. No 'unsafe-eval': src/ contains no dynamic code
+// evaluation and Next 16 production bundles don't need it. Tightening
+// script-src to a nonce would force dynamic rendering on the static public
+// pages (/s, /b, /g) — deliberately NOT done; 'unsafe-inline' stays for
+// Next's hydration scripts.
 const csp = [
   "default-src 'self'",
-  "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
+  "script-src 'self' 'unsafe-inline'",
   "style-src 'self' 'unsafe-inline'",
   "img-src 'self' data: blob: https:",
   "font-src 'self' data:",
