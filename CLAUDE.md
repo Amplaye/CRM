@@ -34,6 +34,7 @@ Repo: `github.com/Amplaye/CRM`. Deploy: auto GitHub→Vercel.
 - **Secret POS**: `POS_CRED_ENC_KEY` deve stare su Vercel o `pos-sync` fallisce (serve redeploy dopo averla messa).
 - **Upload > 4.5MB**: niente body diretto (limite Vercel) → signed URL su Storage (bucket `menu-imports`).
 - **Token Stripe/PayPal/Meta**: solo env Vercel, MAI in git.
+- **Assistente in-app** (`src/lib/assistant/kb.ts`): ogni nuova sezione/feature user-facing va INSEGNATA all'assistente — aggiungi/aggiorna il suo `KbTopic` (4 lingue it/en/es/de, keywords multilingua, link alla pagina) e, se è un'azione operativa, `actions.ts`. Il test `kb-coverage.test.ts` fallisce se una sezione della dashboard non è coperta: non silenziarlo con l'allowlist, scrivi il topic.
 
 ## Stile di lavoro (vedi memoria globale per il resto)
 - **Agisci, non chiedere** conferma per fix ovvi; riassumi alla fine. Semplicità prima di tutto.

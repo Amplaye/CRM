@@ -40,6 +40,18 @@ export function normalize(s: string): string {
 
 const STEM_MIN = 4;
 
+/** Question/filler words that carry no topic signal. Without this, "come" (it)
+ * or "como" (es) stem-matches keywords like "comensales" and every how-to
+ * question drifts toward the same topic. Applied to BOTH query tokens and
+ * keyword words in the scattered-phrase check, so phrases containing these
+ * words still match through their meaningful words. */
+const STOPWORDS = new Set([
+  "come", "cosa", "dove", "quando", "posso", "puoi", "faccio", "fare", "voglio", "vorrei", "devo",
+  "como", "donde", "cuando", "puedo", "quiero", "hacer", "debo",
+  "what", "where", "when", "want", "need", "does",
+  "kann", "machen", "mochte", "wann",
+]);
+
 /** Token match with a light stem: "prenotazioni" hits keyword "prenotazione". */
 function tokenMatches(token: string, keyword: string): boolean {
   if (token === keyword) return true;
@@ -51,7 +63,7 @@ function tokenMatches(token: string, keyword: string): boolean {
 
 export function scoreTopic(topic: KbTopic, query: string): number {
   const q = ` ${query} `;
-  const tokens = query.split(" ").filter(Boolean);
+  const tokens = query.split(" ").filter((t) => t && !STOPWORDS.has(t));
   let score = 0;
   for (const raw of topic.keywords) {
     const kw = normalize(raw);
@@ -63,7 +75,7 @@ export function scoreTopic(topic: KbTopic, query: string): number {
       } else {
         // All meaningful words present but scattered ("chiusura DI cassa",
         // "close THE till"): still a strong signal.
-        const words = kw.split(" ").filter((w) => w.length >= 3);
+        const words = kw.split(" ").filter((w) => w.length >= 3 && !STOPWORDS.has(w));
         if (words.length > 0 && words.every((w) => tokens.some((t) => tokenMatches(t, w)))) {
           score += 4;
         }
