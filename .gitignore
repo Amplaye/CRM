@@ -32,6 +32,7 @@ yarn-error.log*
 
 # env files (can opt-in for committing if needed)
 .env*
+!.env.local.example
 
 # firebase logs
 firebase-debug.log*
@@ -59,3 +60,12 @@ _creds_tmp.md
 N8N/
 supabase/.temp/
 stripe.env
+
+# AI session artifacts — local working notes, never versioned
+.claude/handoffs/
+HANDOFF_*.md
+PROSSIMA-SESSIONE.md
+PROMPT_PROSSIMA_SESSIONE*
+REFACTOR_DIAGNOSIS.md
+backups/*.bak
+*.tmp.mjs
