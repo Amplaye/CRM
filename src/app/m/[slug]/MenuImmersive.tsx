@@ -1,22 +1,21 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 import { ClosePublicMenuButton } from "./ClosePublicMenuButton";
 
-// Public hosted menu (Design 1 — "IMMERSIVE / Luxury Stories").
+// Public hosted menu — Template 1 "IMMERSIVO".
 //
-// Direction: a full-screen, one-dish-per-viewport experience with vertical
-// scroll-snap, like a luxury Instagram story or an Apple product page. Each
-// dish is a cover photo with a slow ken-burns drift; a bottom-up ink gradient
-// floats the serif dish name, price, short description and minimal chips. A
-// horizontal "chapter" bar at the top filters by category; a vertical dot rail
-// tracks progress within the active category. A typographic hero opens the
-// reel; dishes without a photo render as a materic gradient slide — beautiful,
-// never a broken box. All motion respects prefers-reduced-motion.
+// Direction: a dark, photo-first gallery. The dish photography IS the menu:
+// a cinematic full-bleed hero opens the page, then the active category renders
+// as a fluid card gallery — one column on phones, a rhythmic 6-col bento on
+// tablet/desktop where every 5th card goes wide. Dishes without a photo wear a
+// deterministic materic gradient with a giant serif initial, so a half-
+// photographed menu still looks intentional.
 //
-// Server (page.tsx) does all data work and hands us flat, localized sections.
-// We own presentation only. CSS is inlined so the public route ships a
-// self-contained look without touching the CRM's global stylesheet.
+// The server (page.tsx) does all data work and hands us flat, localized
+// sections; we own presentation only. CSS is inlined so the public route ships
+// a self-contained look. Branding hooks: --accent (owner colour),
+// --font-display / --font-body (owner font choice).
 
 export type MenuViewItem = {
   id: string;
@@ -54,14 +53,14 @@ function priceText(it: MenuViewItem): string | null {
   return `${it.price.toFixed(2)} ${cur}`;
 }
 
-// Deterministic gradient pick for photoless slides — index-driven, never
-// random, so the same dish always wears the same colorway across renders.
+// Deterministic gradient for photoless cards — index-driven, never random, so
+// the same dish always wears the same colorway across renders.
 const FALLBACK_GRADIENTS = [
-  "linear-gradient(155deg, #241a10 0%, #3a2715 48%, #1a120a 100%)",
-  "linear-gradient(160deg, #1c1c20 0%, #2c2620 46%, #14120f 100%)",
-  "linear-gradient(150deg, #2a1f13 0%, #4a3318 52%, #1d150c 100%)",
-  "linear-gradient(165deg, #19211c 0%, #2c352a 50%, #121712 100%)",
-  "linear-gradient(150deg, #281611 0%, #43231a 50%, #190d09 100%)",
+  "linear-gradient(150deg, #2b1d10 0%, #4a3015 55%, #1c130a 100%)",
+  "linear-gradient(160deg, #20201f 0%, #35291c 50%, #151310 100%)",
+  "linear-gradient(145deg, #1d2420 0%, #2e3a2c 52%, #131813 100%)",
+  "linear-gradient(155deg, #2a1512 0%, #45241b 50%, #180d0a 100%)",
+  "linear-gradient(150deg, #241a20 0%, #3a2a33 52%, #161014 100%)",
 ];
 
 export default function MenuImmersive({
@@ -75,58 +74,39 @@ export default function MenuImmersive({
   const valid = sections.filter((s) => s.items.length > 0);
   const empty = valid.length === 0;
 
-  const [activeSection, setActiveSection] = useState(0);
-  const [activeSlide, setActiveSlide] = useState(0); // 0 = hero, 1..n = dishes
-  const reelRef = useRef<HTMLDivElement | null>(null);
-  const chapterRefs = useRef<Map<number, HTMLButtonElement>>(new Map());
+  const [activeKey, setActiveKey] = useState<string>(valid[0]?.key ?? "");
+  const [swapKey, setSwapKey] = useState(0);
+  const barRef = useRef<HTMLDivElement | null>(null);
+  const chipRefs = useRef<Map<string, HTMLButtonElement>>(new Map());
+  const galleryRef = useRef<HTMLElement | null>(null);
 
-  const section = valid[activeSection] ?? valid[0];
-  const items = section?.items ?? [];
+  const activeIdx = Math.max(0, valid.findIndex((s) => s.key === activeKey));
+  const active = valid[activeIdx] ?? valid[0];
 
-  // Slides: a hero card followed by every dish in the active section.
-  const slideCount = items.length + 1;
-
-  // Track which slide is centered, via IntersectionObserver on the snap reel.
-  useEffect(() => {
-    const reel = reelRef.current;
-    if (!reel) return;
-    const slides = Array.from(
-      reel.querySelectorAll<HTMLElement>("[data-slide]"),
-    );
-    const io = new IntersectionObserver(
-      (entries) => {
-        for (const e of entries) {
-          if (e.isIntersecting && e.intersectionRatio > 0.55) {
-            const idx = Number((e.target as HTMLElement).dataset.slide);
-            if (!Number.isNaN(idx)) setActiveSlide(idx);
-          }
-        }
-      },
-      { root: reel, threshold: [0.55, 0.9] },
-    );
-    slides.forEach((s) => io.observe(s));
-    return () => io.disconnect();
-  }, [activeSection]);
-
-  // Center the active chapter chip within its own scroller (never the page).
-  useEffect(() => {
-    const chip = chapterRefs.current.get(activeSection);
-    const bar = chip?.parentElement;
-    if (!chip || !bar) return;
+  // Center the selected chip by scrolling the BAR only (never the page).
+  useLayoutEffect(() => {
+    const bar = barRef.current;
+    const chip = chipRefs.current.get(activeKey);
+    if (!bar || !chip) return;
     bar.scrollTo({
       left: chip.offsetLeft - bar.clientWidth / 2 + chip.clientWidth / 2,
       behavior: "smooth",
     });
-  }, [activeSection]);
+  }, [activeKey]);
 
-  const selectSection = useCallback((idx: number) => {
-    setActiveSection(idx);
-    setActiveSlide(0);
-    // Jump the reel back to the hero of the new chapter.
-    reelRef.current?.scrollTo({ top: 0, behavior: "auto" });
-  }, []);
+  const select = (key: string) => {
+    if (key === activeKey) return;
+    setActiveKey(key);
+    setSwapKey((n) => n + 1);
+    // Land at the top of the gallery, keeping the sticky bar in view.
+    const gal = galleryRef.current;
+    if (gal) {
+      const y = gal.getBoundingClientRect().top + window.scrollY - 76;
+      window.scrollTo({ top: Math.max(0, y), behavior: "auto" });
+    }
+  };
 
-  const onChapterKey = (e: React.KeyboardEvent, idx: number) => {
+  const onChipKeyDown = (e: React.KeyboardEvent, idx: number) => {
     let next = -1;
     if (e.key === "ArrowRight") next = (idx + 1) % valid.length;
     else if (e.key === "ArrowLeft") next = (idx - 1 + valid.length) % valid.length;
@@ -134,549 +114,382 @@ export default function MenuImmersive({
     else if (e.key === "End") next = valid.length - 1;
     if (next === -1) return;
     e.preventDefault();
-    selectSection(next);
-    chapterRefs.current.get(next)?.focus();
+    const key = valid[next].key;
+    select(key);
+    chipRefs.current.get(key)?.focus();
   };
-
-  // Scroll the reel to a given slide when a dot is tapped.
-  const goToSlide = (idx: number) => {
-    const reel = reelRef.current;
-    if (!reel) return;
-    const target = reel.querySelector<HTMLElement>(`[data-slide="${idx}"]`);
-    target?.scrollIntoView({ behavior: "smooth", block: "start" });
-  };
-
-  const dots = useMemo(
-    () => Array.from({ length: slideCount }, (_, i) => i),
-    [slideCount],
-  );
-
-  if (empty) {
-    return (
-      <div className="im-root im-empty-root">
-        <ClosePublicMenuButton />
-        <div className="im-atmos" aria-hidden />
-        <div className="im-empty">
-          <p className="im-empty-eyebrow">{menuLabel}</p>
-          <h1 className="im-empty-name">{restaurantName}</h1>
-          <p className="im-empty-msg">{emptyLabel}</p>
-        </div>
-        <ImFooter />
-        <style>{styles}</style>
-      </div>
-    );
-  }
 
   return (
-    <div className="im-root">
+    <div className="imm-root">
       <ClosePublicMenuButton />
-      <div className="im-atmos" aria-hidden />
+      <div className="imm-glow" aria-hidden />
+      <div className="imm-grain" aria-hidden />
 
-      {/* ── Top chrome: current category + chapter filter bar ──────────── */}
-      <header className="im-top">
-        <div className="im-top-meta">
-          {logoUrl && <img className="im-logo" src={logoUrl} alt="" />}
-          <span className="im-wordmark">{restaurantName}</span>
-          <span className="im-dot-sep" aria-hidden>·</span>
-          <span className="im-now">
-            {section.featured && <span className="im-now-star" aria-hidden>✦</span>}
-            {section.title}
-          </span>
+      {/* ── Hero ─────────────────────────────────────────────────────────── */}
+      <header className="imm-hero">
+        <div className="imm-hero-inner">
+          {logoUrl && (
+            <img className="imm-logo imm-up" src={logoUrl} alt="" style={{ animationDelay: "60ms" }} />
+          )}
+          <p className="imm-eyebrow imm-up" style={{ animationDelay: "140ms" }}>
+            <span className="imm-eyebrow-dot" aria-hidden />
+            {menuLabel}
+            <span className="imm-eyebrow-dot" aria-hidden />
+          </p>
+          <h1 className="imm-title imm-up" style={{ animationDelay: "220ms" }}>
+            {restaurantName}
+          </h1>
+          {!empty && (
+            <div className="imm-hero-hint imm-up" style={{ animationDelay: "420ms" }} aria-hidden>
+              <span className="imm-hint-line" />
+            </div>
+          )}
         </div>
-        <nav className="im-chapters" aria-label={menuLabel}>
-          <div role="tablist" className="im-chapter-bar">
-            {valid.map((s, idx) => {
-              const on = idx === activeSection;
-              return (
-                <button
-                  key={s.key}
-                  ref={(el) => {
-                    if (el) chapterRefs.current.set(idx, el);
-                    else chapterRefs.current.delete(idx);
-                  }}
-                  role="tab"
-                  aria-selected={on}
-                  tabIndex={on ? 0 : -1}
-                  onClick={() => selectSection(idx)}
-                  onKeyDown={(e) => onChapterKey(e, idx)}
-                  className={`im-chapter${on ? " is-on" : ""}`}
-                >
-                  {s.featured && <span className="im-chapter-star" aria-hidden>✦</span>}
-                  {s.title}
-                </button>
-              );
-            })}
-          </div>
-        </nav>
       </header>
 
-      {/* ── Vertical progress rail ─────────────────────────────────────── */}
-      <div className="im-rail" aria-hidden>
-        {dots.map((i) => (
-          <button
-            key={i}
-            tabIndex={-1}
-            aria-hidden
-            className={`im-rail-dot${i === activeSlide ? " is-on" : ""}`}
-            onClick={() => goToSlide(i)}
-          />
-        ))}
-      </div>
+      {empty ? (
+        <div className="imm-empty">{emptyLabel}</div>
+      ) : (
+        <>
+          {/* ── Sticky chapter bar ─────────────────────────────────────────── */}
+          <nav className="imm-nav" aria-label={menuLabel}>
+            <div ref={barRef} role="tablist" className="imm-chips">
+              {valid.map((s, idx) => {
+                const on = s.key === active.key;
+                return (
+                  <button
+                    key={s.key}
+                    ref={(el) => {
+                      if (el) chipRefs.current.set(s.key, el);
+                      else chipRefs.current.delete(s.key);
+                    }}
+                    id={`imm-tab-${s.key}`}
+                    role="tab"
+                    aria-selected={on}
+                    aria-controls="imm-panel"
+                    tabIndex={on ? 0 : -1}
+                    onClick={() => select(s.key)}
+                    onKeyDown={(e) => onChipKeyDown(e, idx)}
+                    className={`imm-chip${on ? " is-on" : ""}`}
+                  >
+                    {s.featured && <span className="imm-chip-star" aria-hidden>✦</span>}
+                    {s.title}
+                  </button>
+                );
+              })}
+            </div>
+          </nav>
 
-      {/* ── The reel — one full-screen slide per snap point ────────────── */}
-      <div
-        key={section.key}
-        ref={reelRef}
-        className="im-reel"
-        role="tabpanel"
-        aria-label={section.title}
-      >
-        {/* Slide 0 — chapter hero */}
-        <section className="im-slide im-hero" data-slide={0}>
-          <div className="im-hero-bg" aria-hidden />
-          <div className="im-hero-inner">
-            <p className="im-hero-eyebrow">
-              <span className="im-eb-line" aria-hidden />
-              {section.featured ? featuredLabel : menuLabel}
-              <span className="im-eb-line" aria-hidden />
-            </p>
-            <h1 className="im-hero-name">{section.title}</h1>
-            <p className="im-hero-restaurant">{restaurantName}</p>
-            <span className="im-scroll-cue" aria-hidden>
-              <span className="im-scroll-word">scroll</span>
-              <span className="im-scroll-arrow" />
-            </span>
-          </div>
-        </section>
-
-        {/* Dish slides */}
-        {items.map((it, i) => {
-          const price = priceText(it);
-          const hasImg = !!it.image_url;
-          const grad =
-            FALLBACK_GRADIENTS[i % FALLBACK_GRADIENTS.length];
-          const allChips = [
-            ...it.tagLabels.map((label) => ({ label, kind: "tag" as const })),
-            ...it.allergenLabels.map((label) => ({ label, kind: "al" as const })),
-          ];
-          return (
-            <section
-              key={`${section.prefix}:${it.id}`}
-              className={`im-slide im-dish${hasImg ? "" : " is-noimg"}`}
-              data-slide={i + 1}
-            >
-              {hasImg ? (
-                <div
-                  className="im-photo"
-                  style={{ backgroundImage: `url("${it.image_url}")` }}
-                  role="img"
-                  aria-label={it.name}
-                />
-              ) : (
-                <div className="im-fallback" style={{ background: grad }} aria-hidden>
-                  <span className="im-fallback-mark">{it.name.charAt(0)}</span>
-                </div>
+          {/* ── Active section gallery ─────────────────────────────────────── */}
+          <main
+            key={swapKey}
+            ref={galleryRef}
+            id="imm-panel"
+            role="tabpanel"
+            aria-labelledby={`imm-tab-${active.key}`}
+            className="imm-main"
+          >
+            <div className="imm-sec-head">
+              <span className="imm-sec-no" aria-hidden>{String(activeIdx + 1).padStart(2, "0")}</span>
+              <h2 className="imm-sec-title">{active.title}</h2>
+              {active.featured && (
+                <span className="imm-badge"><span aria-hidden>✦</span> {featuredLabel}</span>
               )}
+            </div>
 
-              <div className="im-scrim" aria-hidden />
-
-              <div className="im-caption">
-                <div className="im-caption-inner">
-                  {section.featured && (
-                    <span className="im-badge">
-                      <span aria-hidden>✦</span> {featuredLabel}
-                    </span>
-                  )}
-                  <span className="im-index" aria-hidden>
-                    {String(i + 1).padStart(2, "0")} / {String(items.length).padStart(2, "0")}
-                  </span>
-                  <h2 className="im-name">{it.name}</h2>
-                  {price && <p className="im-price">{price}</p>}
-                  {it.description && (
-                    <p className="im-desc">{it.description}</p>
-                  )}
-                  {allChips.length > 0 && (
-                    <div className="im-chips">
-                      {allChips.map((c, idx2) => (
-                        <span
-                          key={`${it.id}:${c.kind}:${idx2}`}
-                          className={`im-chip im-chip-${c.kind}`}
+            <ul className="imm-grid">
+              {active.items.map((it, i) => {
+                const price = priceText(it);
+                const hasPhoto = !!it.image_url;
+                return (
+                  <li
+                    key={`${active.prefix}:${it.id}`}
+                    className={`imm-card${hasPhoto ? "" : " no-photo"}`}
+                    style={{ ["--i" as string]: i }}
+                  >
+                    <figure className="imm-media">
+                      {hasPhoto ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={it.image_url!} alt={it.name} loading={i < 2 ? "eager" : "lazy"} />
+                      ) : (
+                        <div
+                          className="imm-media-fallback"
+                          style={{ background: FALLBACK_GRADIENTS[i % FALLBACK_GRADIENTS.length] }}
+                          aria-hidden
                         >
-                          {c.label}
-                        </span>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </div>
+                          <span>{it.name.trim().charAt(0).toUpperCase()}</span>
+                        </div>
+                      )}
+                      <div className="imm-scrim" aria-hidden />
+                      <figcaption className="imm-overlay">
+                        <h3 className="imm-dish-name">{it.name}</h3>
+                        {price && <span className="imm-price">{price}</span>}
+                      </figcaption>
+                    </figure>
 
-              {/* Footer lives at the end of the LAST dish slide, so "Powered by
-                  BaliFlow" only shows once the menu is scrolled to its end —
-                  never as a fixed overlay on top of the dishes. */}
-              {i === items.length - 1 && <ImFooter />}
-            </section>
-          );
-        })}
-      </div>
+                    {(it.description || it.tagLabels.length > 0 || it.allergenLabels.length > 0) && (
+                      <div className="imm-body">
+                        {it.description && <p className="imm-desc">{it.description}</p>}
+                        {(it.tagLabels.length > 0 || it.allergenLabels.length > 0) && (
+                          <div className="imm-chips-row">
+                            {it.tagLabels.map((label, k) => (
+                              <span key={`${active.prefix}:${it.id}:tag:${k}`} className="imm-pill imm-pill-tag">{label}</span>
+                            ))}
+                            {it.allergenLabels.map((label, k) => (
+                              <span key={`${active.prefix}:${it.id}:al:${k}`} className="imm-pill imm-pill-al">{label}</span>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </li>
+                );
+              })}
+            </ul>
+          </main>
+        </>
+      )}
+
+      <footer className="imm-footer">
+        <span className="imm-foot-line" aria-hidden />
+        <span>
+          Powered by <strong>BaliFlow</strong>
+        </span>
+        <span className="imm-foot-line" aria-hidden />
+      </footer>
 
       <style>{styles}</style>
     </div>
   );
 }
 
-function ImFooter() {
-  return (
-    <div className="im-footwrap">
-      <footer className="im-footer">
-        <span className="im-foot-by">Powered by</span>{" "}
-        <span className="im-foot-brand">BaliFlow</span>
-      </footer>
-      <div className="im-foot-orn" aria-hidden>
-        <span className="im-foot-orn-line" />
-        <span className="im-foot-orn-star" />
-        <span className="im-foot-orn-line" />
-      </div>
-    </div>
-  );
-}
-
 // ── Styles ──────────────────────────────────────────────────────────────────
 const styles = `
-.im-root {
-  --ink: #0c0a07;
-  --ink-2: #14110b;
-  --cream: #f7efe2;
-  --brass: var(--accent, #b07a32);
-  --brass-soft: #d8b483;
-  --brass-glow: #e7c794;
-  position: fixed; inset: 0;
-  color: var(--cream);
-  font-family: var(--font-body), ui-sans-serif, system-ui, sans-serif;
-  background: #0c0a07;
-  overflow: hidden;
-  -webkit-font-smoothing: antialiased;
-}
-.im-atmos {
-  position: absolute; inset: 0; pointer-events: none; z-index: 0;
-  background:
-    radial-gradient(120% 80% at 50% -10%, rgba(176,122,50,0.16), transparent 60%),
-    radial-gradient(100% 60% at 50% 120%, rgba(176,122,50,0.10), transparent 70%);
-}
-
-/* ── Top chrome ─────────────────────────────────────────────────────────── */
-.im-top {
-  position: absolute; top: 0; left: 0; right: 0; z-index: 30;
-  padding: max(env(safe-area-inset-top), 0.9rem) 0 0.55rem;
-  background: linear-gradient(180deg, rgba(8,6,4,0.78) 0%, rgba(8,6,4,0.42) 62%, transparent 100%);
-}
-.im-top-meta {
-  display: flex; align-items: center; justify-content: center; gap: 0.5rem;
-  padding: 0 1rem 0.55rem;
-  font-size: 0.66rem; letter-spacing: 0.06em;
-}
-.im-logo {
-  height: 1.5rem; width: auto; max-width: 6rem; object-fit: contain;
-  border-radius: 4px; flex: none;
-}
-.im-wordmark {
-  font-family: var(--font-display), Georgia, serif;
-  font-weight: 600; letter-spacing: 0.14em; text-transform: uppercase;
-  color: var(--brass-soft); font-size: 0.7rem;
-}
-.im-dot-sep { color: rgba(216,180,131,0.5); }
-.im-now {
-  display: inline-flex; align-items: center; gap: 0.32em;
-  color: rgba(247,239,226,0.78); font-weight: 600; letter-spacing: 0.04em;
-}
-.im-now-star { color: var(--brass-glow); font-size: 0.78em; }
-
-.im-chapters { width: 100%; }
-.im-chapter-bar {
-  display: flex; gap: 0.42rem; overflow-x: auto;
-  padding: 0.1rem 1rem 0.2rem;
-  scrollbar-width: none; -ms-overflow-style: none;
-  -webkit-overflow-scrolling: touch;
-  justify-content: flex-start;
-}
-.im-chapter-bar::-webkit-scrollbar { display: none; }
-@media (min-width: 560px) { .im-chapter-bar { justify-content: center; } }
-.im-chapter {
-  flex: 0 0 auto; cursor: pointer; white-space: nowrap;
-  font-family: var(--font-body), sans-serif;
-  font-size: 0.72rem; font-weight: 600; letter-spacing: 0.05em;
-  padding: 0.34rem 0.78rem; border-radius: 999px;
-  color: rgba(247,239,226,0.62);
-  background: rgba(247,239,226,0.06);
-  border: 1px solid rgba(216,180,131,0.16);
-  backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
-  transition: color .28s ease, background-color .28s ease, border-color .28s ease, transform .12s ease;
-}
-.im-chapter:hover { color: var(--cream); background: rgba(247,239,226,0.12); }
-.im-chapter:active { transform: scale(0.94); }
-.im-chapter.is-on {
-  color: #1a120a;
-  background: linear-gradient(135deg, var(--brass-glow), var(--brass));
-  border-color: var(--brass-glow);
-  box-shadow: 0 6px 18px -8px rgba(176,122,50,0.8);
-}
-.im-chapter-star { margin-right: 0.28em; font-size: 0.86em; }
-.im-chapter:focus-visible { outline: 2px solid var(--brass-glow); outline-offset: 2px; }
-
-/* ── Vertical progress rail ─────────────────────────────────────────────── */
-.im-rail {
-  position: absolute; z-index: 30;
-  right: max(env(safe-area-inset-right), 0.55rem);
-  top: 50%; transform: translateY(-50%);
-  display: flex; flex-direction: column; align-items: center; gap: 0.5rem;
-}
-.im-rail-dot {
-  width: 6px; height: 6px; padding: 0; border: 0; cursor: pointer;
-  border-radius: 999px; background: rgba(247,239,226,0.28);
-  transition: background-color .3s ease, height .3s cubic-bezier(0.16,1,0.3,1);
-}
-.im-rail-dot.is-on { background: var(--brass-glow); height: 20px; }
-
-/* ── Reel & slides ──────────────────────────────────────────────────────── */
-.im-reel {
-  position: absolute; inset: 0; z-index: 10;
-  overflow-y: auto; overflow-x: hidden;
-  scroll-snap-type: y mandatory;
-  -webkit-overflow-scrolling: touch;
-  scrollbar-width: none; -ms-overflow-style: none;
-}
-.im-reel::-webkit-scrollbar { display: none; }
-.im-slide {
+.imm-root {
+  --bg: #0e0b08;
+  --bg2: #171208;
+  --ink: #f4ecdd;
+  --ink-dim: #b3a68e;
+  --gold: var(--accent, #c89b5e);
+  --card: #191410;
+  --line: rgba(200,155,94,0.22);
   position: relative;
-  height: 100dvh; min-height: 100dvh; width: 100%;
-  scroll-snap-align: start; scroll-snap-stop: always;
-  overflow: hidden;
-  display: flex; flex-direction: column; justify-content: flex-end;
+  min-height: 100dvh;
+  background: linear-gradient(180deg, var(--bg) 0%, var(--bg2) 100%);
+  color: var(--ink);
+  font-family: var(--font-body), ui-sans-serif, system-ui, sans-serif;
+  overflow-x: hidden;
+  padding-bottom: env(safe-area-inset-bottom);
 }
-/* Desktop: keep the phone-story aspect, centered like a real device. */
-@media (min-width: 760px) {
-  .im-slide { max-width: 540px; margin: 0 auto; }
-}
-
-/* Hero slide */
-.im-hero { justify-content: center; align-items: center; text-align: center; }
-.im-hero-bg {
-  position: absolute; inset: 0;
+.imm-glow {
+  position: fixed; inset: 0; pointer-events: none; z-index: 0;
   background:
-    radial-gradient(90% 70% at 50% 30%, rgba(176,122,50,0.22), transparent 65%),
-    linear-gradient(180deg, #16100a 0%, #0c0a07 70%);
+    radial-gradient(90% 55% at 50% -8%, rgba(200,155,94,0.16), transparent 62%),
+    radial-gradient(60% 40% at 90% 100%, rgba(200,155,94,0.05), transparent 70%);
 }
-.im-hero-inner { position: relative; z-index: 2; padding: 0 1.6rem; max-width: 30rem; }
-.im-hero-eyebrow {
-  display: flex; align-items: center; justify-content: center; gap: 0.75rem;
-  font-size: 0.6rem; letter-spacing: 0.4em; text-transform: uppercase;
-  font-weight: 600; color: var(--brass-soft); margin: 0 0 1.1rem;
-  padding-left: 0.4em;
+.imm-grain {
+  position: fixed; inset: 0; pointer-events: none; z-index: 0; opacity: 0.4;
+  background-image:
+    radial-gradient(rgba(255,255,255,0.028) 1px, transparent 1.4px),
+    radial-gradient(rgba(255,255,255,0.02) 1px, transparent 1.4px);
+  background-size: 3px 3px, 7px 7px;
+  background-position: 0 0, 2px 3px;
 }
-.im-eb-line { width: 1.8rem; height: 1px; background: linear-gradient(90deg, transparent, var(--brass-soft)); }
-.im-eb-line:last-child { background: linear-gradient(90deg, var(--brass-soft), transparent); }
-.im-hero-name {
+.imm-root > *:not(.imm-glow):not(.imm-grain) { position: relative; z-index: 1; }
+
+/* Hero */
+.imm-hero {
+  min-height: min(78dvh, 46rem);
+  display: grid; place-items: center; text-align: center;
+  padding: clamp(4rem, 12vh, 7rem) 1.25rem clamp(2.5rem, 8vh, 5rem);
+}
+.imm-hero-inner { max-width: 60rem; }
+.imm-logo {
+  display: block; height: clamp(3rem, 11vw, 4.6rem); width: auto; max-width: 72vw;
+  object-fit: contain; margin: 0 auto clamp(1.2rem, 4vh, 2rem);
+  filter: drop-shadow(0 8px 24px rgba(0,0,0,0.5));
+}
+.imm-eyebrow {
+  display: inline-flex; align-items: center; gap: 0.9rem;
+  font-size: clamp(0.62rem, 1.6vw, 0.72rem); letter-spacing: 0.5em; text-transform: uppercase;
+  font-weight: 600; color: var(--gold); margin: 0 0 clamp(0.9rem, 3vh, 1.4rem);
+  padding-left: 0.5em;
+}
+.imm-eyebrow-dot { width: 4px; height: 4px; border-radius: 50%; background: var(--gold); opacity: 0.85; }
+.imm-title {
   font-family: var(--font-display), Georgia, serif;
-  font-optical-sizing: auto; font-weight: 600;
-  font-size: clamp(2.8rem, 16vw, 4.6rem); line-height: 0.96;
-  letter-spacing: -0.02em; margin: 0; text-wrap: balance;
-  background: linear-gradient(180deg, #fbf1df 0%, #e7c794 100%);
+  font-optical-sizing: auto; font-weight: 500;
+  font-size: clamp(2.8rem, 11vw, 6.4rem);
+  line-height: 1.02; letter-spacing: -0.02em; margin: 0;
+  text-wrap: balance; padding-bottom: 0.12em;
+  background: linear-gradient(180deg, #fdf6e7 10%, #d9bd90 95%);
   -webkit-background-clip: text; background-clip: text;
   -webkit-text-fill-color: transparent;
-  padding-bottom: 0.14em; /* pad so descenders (g,y,p) aren't clipped by text-clip */
 }
-.im-hero-restaurant {
-  margin: 1.1rem 0 0; font-size: 0.7rem; letter-spacing: 0.34em;
-  text-transform: uppercase; font-weight: 600; color: rgba(247,239,226,0.6);
+.imm-hero-hint { margin-top: clamp(1.6rem, 5vh, 2.8rem); display: flex; justify-content: center; }
+.imm-hint-line {
+  width: 1px; height: clamp(2.4rem, 7vh, 4rem);
+  background: linear-gradient(180deg, var(--gold), transparent);
+  animation: immHint 2.2s ease-in-out infinite;
 }
-.im-scroll-cue {
-  display: inline-flex; flex-direction: column; align-items: center; gap: 0.5rem;
-  margin-top: clamp(2rem, 9vh, 3.4rem);
-}
-.im-scroll-word {
-  font-size: 0.56rem; letter-spacing: 0.42em; text-transform: uppercase;
-  color: rgba(216,180,131,0.7); padding-left: 0.42em;
-}
-.im-scroll-arrow {
-  width: 1px; height: 2.1rem;
-  background: linear-gradient(180deg, var(--brass-soft), transparent);
-  position: relative; animation: imCue 2.2s ease-in-out infinite;
-}
-.im-scroll-arrow::after {
-  content: ""; position: absolute; bottom: 0; left: 50%;
-  width: 7px; height: 7px; transform: translate(-50%, 2px) rotate(45deg);
-  border-right: 1px solid var(--brass-soft); border-bottom: 1px solid var(--brass-soft);
-}
+@keyframes immHint { 0%,100% { transform: scaleY(0.55); opacity: 0.45; } 50% { transform: scaleY(1); opacity: 1; } }
 
-/* Dish slide — photo */
-.im-photo {
-  position: absolute; inset: 0;
-  background-size: cover; background-position: center;
-  transform: scale(1.08);
-  animation: imKen 5s ease-out infinite alternate;
+/* Sticky chapter bar */
+.imm-nav {
+  position: sticky; top: 0; z-index: 20;
+  background: rgba(14,11,8,0.78);
+  backdrop-filter: blur(16px) saturate(1.4);
+  -webkit-backdrop-filter: blur(16px) saturate(1.4);
+  border-block: 1px solid var(--line);
 }
-.im-fallback {
-  position: absolute; inset: 0;
-  display: flex; align-items: center; justify-content: center;
+.imm-chips {
+  display: flex; gap: 0.5rem; overflow-x: auto;
+  max-width: 78rem; margin: 0 auto;
+  padding: 0.65rem clamp(1rem, 4vw, 2rem);
+  scroll-padding-inline: 1rem;
+  scrollbar-width: none; -ms-overflow-style: none;
 }
-.im-fallback::before {
-  content: ""; position: absolute; inset: 0;
-  background-image:
-    radial-gradient(rgba(216,180,131,0.05) 1px, transparent 1.5px),
-    radial-gradient(rgba(216,180,131,0.035) 1px, transparent 1.5px);
-  background-size: 4px 4px, 9px 9px; background-position: 0 0, 3px 4px;
-  mask-image: radial-gradient(120% 100% at 50% 35%, #000 30%, transparent 95%);
+.imm-chips::-webkit-scrollbar { display: none; }
+.imm-chip {
+  flex: 0 0 auto; cursor: pointer; white-space: nowrap;
+  font-family: var(--font-body), sans-serif;
+  font-size: 0.8rem; font-weight: 600; letter-spacing: 0.05em;
+  padding: 0.5rem 1.05rem; border-radius: 999px;
+  color: var(--ink-dim); background: rgba(255,255,255,0.045);
+  border: 1px solid rgba(255,255,255,0.09);
+  transition: color .2s ease, background-color .2s ease, border-color .2s ease, transform .12s ease;
 }
-.im-fallback-mark {
-  font-family: var(--font-display), Georgia, serif; font-weight: 600;
-  font-size: 44vw; line-height: 1; color: rgba(216,180,131,0.07);
-  transform: translateY(-6%);
-  user-select: none;
+.imm-chip:hover { color: var(--ink); background: rgba(255,255,255,0.09); }
+.imm-chip:active { transform: scale(0.95); }
+.imm-chip.is-on {
+  color: #17110a; background: linear-gradient(135deg, #e6c893, var(--gold));
+  border-color: transparent; font-weight: 700;
+  box-shadow: 0 6px 20px -8px rgba(200,155,94,0.75);
 }
-@media (min-width: 760px) { .im-fallback-mark { font-size: 17rem; } }
+.imm-chip-star { margin-right: 0.35em; font-size: 0.85em; }
+.imm-chip:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
 
-/* Scrim so the caption always reads */
-.im-scrim {
-  position: absolute; inset: 0; z-index: 1;
-  background:
-    linear-gradient(180deg, rgba(8,6,4,0.34) 0%, transparent 26%, transparent 44%, rgba(8,6,4,0.62) 78%, rgba(8,6,4,0.92) 100%);
+/* Section head */
+.imm-main {
+  max-width: 78rem; margin: 0 auto;
+  padding: clamp(2rem, 5vw, 3.5rem) clamp(1rem, 4vw, 2rem) clamp(3rem, 7vw, 5rem);
+  animation: immPanel 260ms ease both;
 }
-.im-dish.is-noimg .im-scrim {
-  background: linear-gradient(180deg, transparent 40%, rgba(8,6,4,0.55) 80%, rgba(8,6,4,0.88) 100%);
+.imm-sec-head {
+  display: flex; align-items: baseline; gap: 0.9rem; flex-wrap: wrap;
+  margin-bottom: clamp(1.4rem, 4vw, 2.2rem);
 }
-
-/* Caption */
-.im-caption {
-  position: relative; z-index: 2;
-  padding: 0 1.5rem max(env(safe-area-inset-bottom), 2.4rem);
+.imm-sec-no {
+  font-family: var(--font-display), serif; font-style: italic; font-weight: 500;
+  font-size: clamp(1rem, 3vw, 1.3rem); color: var(--gold);
 }
-.im-caption-inner { max-width: 34rem; }
-.im-badge {
+.imm-sec-title {
+  font-family: var(--font-display), Georgia, serif; font-weight: 500;
+  font-size: clamp(1.9rem, 6.5vw, 3.2rem); line-height: 1.04; letter-spacing: -0.015em;
+  margin: 0; text-wrap: balance; padding-bottom: 0.1em;
+}
+.imm-badge {
   display: inline-flex; align-items: center; gap: 0.4rem;
-  font-size: 0.56rem; font-weight: 800; letter-spacing: 0.2em; text-transform: uppercase;
-  color: #1a120a; background: linear-gradient(135deg, var(--brass-glow), var(--brass));
-  padding: 0.28rem 0.66rem; border-radius: 999px; margin-bottom: 0.85rem;
+  font-size: 0.6rem; font-weight: 800; letter-spacing: 0.2em; text-transform: uppercase;
+  color: #17110a; background: linear-gradient(135deg, #e6c893, var(--gold));
+  padding: 0.32rem 0.75rem; border-radius: 999px; transform: translateY(-0.35em);
 }
-.im-index {
-  display: block; font-family: var(--font-display), serif; font-style: italic;
-  font-size: 0.78rem; letter-spacing: 0.1em; color: var(--brass-soft);
-  margin-bottom: 0.5rem; font-variant-numeric: tabular-nums;
+
+/* Gallery — 1 col on phones, bento on md+ (every 5th card goes wide). */
+.imm-grid {
+  list-style: none; margin: 0; padding: 0;
+  display: grid; gap: clamp(1rem, 3vw, 1.5rem);
+  grid-template-columns: 1fr;
 }
-.im-name {
-  font-family: var(--font-display), Georgia, serif; font-optical-sizing: auto;
-  font-weight: 600; font-size: clamp(2.1rem, 10vw, 3.1rem); line-height: 1.02;
-  letter-spacing: -0.018em; margin: 0; text-wrap: balance;
-  padding-bottom: 0.14em; /* pad so descenders (g,y,p) aren't clipped by tight line-height */
-  text-shadow: 0 2px 24px rgba(0,0,0,0.45);
+@media (min-width: 640px)  { .imm-grid { grid-template-columns: repeat(2, 1fr); } }
+@media (min-width: 1024px) {
+  .imm-grid { grid-template-columns: repeat(6, 1fr); }
+  .imm-card { grid-column: span 2; }
+  .imm-card:nth-child(5n + 1) { grid-column: span 4; }
+  .imm-card:nth-child(5n + 1) .imm-media { aspect-ratio: 16 / 8.5; }
 }
-.im-price {
-  margin: 0.7rem 0 0; font-family: var(--font-display), serif;
-  font-weight: 600; font-size: clamp(1.15rem, 5vw, 1.45rem);
-  font-variant-numeric: tabular-nums; color: var(--brass-glow);
-  text-shadow: 0 1px 14px rgba(0,0,0,0.5);
+.imm-card {
+  border-radius: 20px; overflow: hidden;
+  background: var(--card);
+  border: 1px solid rgba(255,255,255,0.06);
+  box-shadow: 0 24px 48px -32px rgba(0,0,0,0.85);
+  animation: immCard 560ms cubic-bezier(0.16,1,0.3,1) both;
+  animation-delay: calc(var(--i) * 60ms);
+  transition: transform .28s cubic-bezier(0.16,1,0.3,1), border-color .28s ease;
 }
-.im-desc {
-  margin: 0.7rem 0 0; max-width: 40ch;
-  font-size: 0.95rem; line-height: 1.55; font-style: italic;
-  color: rgba(247,239,226,0.86);
-  text-shadow: 0 1px 18px rgba(0,0,0,0.6);
+@media (hover: hover) {
+  .imm-card:hover { transform: translateY(-4px); border-color: rgba(200,155,94,0.4); }
+  .imm-card:hover .imm-media img { transform: scale(1.045); }
 }
-.im-chips { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-top: 1rem; }
-.im-chip {
+.imm-media { position: relative; aspect-ratio: 4 / 3; overflow: hidden; margin: 0; }
+.imm-media img {
+  position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover;
+  transition: transform .8s cubic-bezier(0.16,1,0.3,1);
+}
+.imm-media-fallback {
+  position: absolute; inset: 0; display: grid; place-items: center;
+}
+.imm-media-fallback span {
+  font-family: var(--font-display), serif; font-style: italic; font-weight: 500;
+  font-size: clamp(4rem, 14vw, 6.5rem); line-height: 1;
+  color: rgba(244,236,221,0.14); user-select: none;
+}
+.imm-scrim {
+  position: absolute; inset: 0;
+  background: linear-gradient(180deg, transparent 40%, rgba(8,6,4,0.28) 66%, rgba(8,6,4,0.86) 100%);
+}
+.imm-overlay {
+  position: absolute; inset-inline: 0; bottom: 0;
+  display: flex; align-items: flex-end; justify-content: space-between; gap: 0.8rem;
+  padding: clamp(0.9rem, 3vw, 1.3rem);
+}
+.imm-dish-name {
+  font-family: var(--font-display), Georgia, serif; font-weight: 500;
+  font-size: clamp(1.25rem, 4.6vw, 1.6rem); line-height: 1.12; letter-spacing: -0.01em;
+  margin: 0; text-shadow: 0 2px 14px rgba(0,0,0,0.6);
+}
+.imm-price {
+  flex: 0 0 auto;
+  font-family: var(--font-body), sans-serif; font-weight: 700;
+  font-variant-numeric: tabular-nums; font-size: clamp(0.85rem, 3vw, 0.95rem);
+  color: #17110a; background: linear-gradient(135deg, #eed4a4, var(--gold));
+  padding: 0.34rem 0.75rem; border-radius: 999px;
+  box-shadow: 0 4px 14px -4px rgba(0,0,0,0.5);
+}
+.imm-body { padding: clamp(0.85rem, 3vw, 1.15rem) clamp(0.9rem, 3vw, 1.3rem) clamp(1rem, 3vw, 1.3rem); }
+.imm-desc {
+  margin: 0; font-size: 0.9rem; line-height: 1.6; color: var(--ink-dim); max-width: 60ch;
+}
+.imm-chips-row { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-top: 0.7rem; }
+.imm-pill {
   font-size: 0.58rem; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase;
-  padding: 0.26rem 0.62rem; border-radius: 999px;
-  border: 1px solid rgba(247,239,226,0.16);
-  backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+  padding: 0.24rem 0.6rem; border-radius: 999px; border: 1px solid transparent;
 }
-.im-chip-tag { background: rgba(216,180,131,0.14); color: var(--brass-glow); }
-.im-chip-al { background: rgba(8,6,4,0.4); color: rgba(247,239,226,0.78); }
+.imm-pill-tag { color: #b9cf9f; background: rgba(150,180,110,0.12); border-color: rgba(150,180,110,0.25); }
+.imm-pill-al  { color: #e0b988; background: rgba(200,155,94,0.12); border-color: rgba(200,155,94,0.3); }
 
-/* ── Empty state ────────────────────────────────────────────────────────── */
-.im-empty-root { display: flex; align-items: center; justify-content: center; }
-.im-empty { position: relative; z-index: 2; text-align: center; padding: 0 1.6rem; }
-.im-empty-eyebrow {
-  font-size: 0.62rem; letter-spacing: 0.4em; text-transform: uppercase;
-  font-weight: 600; color: var(--brass-soft); margin: 0 0 1rem; padding-left: 0.4em;
+.imm-empty {
+  text-align: center; padding: 5rem 1.5rem 8rem; color: var(--ink-dim);
+  font-family: var(--font-display), serif; font-style: italic; font-size: 1.15rem;
 }
-.im-empty-name {
-  font-family: var(--font-display), Georgia, serif; font-weight: 600;
-  font-size: clamp(2.6rem, 15vw, 4.4rem); line-height: 0.98; margin: 0;
-  letter-spacing: -0.02em;
-  background: linear-gradient(180deg, #fbf1df 0%, #e7c794 100%);
-  -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
-  padding-bottom: 0.14em; /* pad so descenders (g,y,p) aren't clipped by text-clip */
-}
-.im-empty-msg { margin: 1.2rem 0 0; font-style: italic; color: rgba(247,239,226,0.7); font-size: 1rem; }
 
-/* ── Footer ─────────────────────────────────────────────────────────────── */
-/* Sits in-flow at the bottom of the last dish slide (not a fixed overlay), so
-   it never covers the dishes and only appears once the menu is scrolled to its
-   end. z-index keeps it above the photo scrim. */
-.im-footwrap {
-  position: relative; z-index: 12;
-  width: 100%;
-  display: flex; flex-direction: column; align-items: center; gap: 0.5rem;
-  padding: 0.5rem 1rem max(env(safe-area-inset-bottom), 0.9rem);
-}
-/* Empty state has no scrolling reel, so pin the footer to the bottom there
-   instead of letting it sit centred next to the empty message. */
-.im-empty-root .im-footwrap {
-  position: absolute; bottom: max(env(safe-area-inset-bottom), 0.55rem);
-  left: 50%; transform: translateX(-50%); width: auto; padding: 0;
-}
-.im-footer {
-  display: flex; align-items: center; justify-content: center; gap: 0.6rem;
-  padding: 10px; font-size: 0.82rem; letter-spacing: 0.04em; white-space: nowrap;
-}
-.im-foot-rule { width: 1.6rem; height: 1px; background: rgba(216,180,131,0.5); }
-.im-foot-by { color: #fff; font-weight: 500; }
-.im-foot-brand { font-weight: 700; color: var(--brass-soft); }
-
-/* Decorative star divider beneath "Powered by". */
-.im-foot-orn {
+.imm-footer {
   display: flex; align-items: center; justify-content: center; gap: 1rem;
-  width: min(300px, 70vw);
+  padding: 0 1.5rem calc(2.4rem + env(safe-area-inset-bottom));
+  font-size: 0.82rem; color: var(--ink-dim);
 }
-.im-foot-orn-line {
-  flex: 1; height: 1px;
-  background: linear-gradient(90deg, transparent, rgba(216,180,131,0.5) 70%, rgba(216,180,131,0.66));
-}
-.im-foot-orn-line:last-child {
-  background: linear-gradient(270deg, transparent, rgba(216,180,131,0.5) 70%, rgba(216,180,131,0.66));
-}
-.im-foot-orn-star {
-  width: 0.95rem; height: 0.95rem; flex: none; background: var(--brass-soft);
-  clip-path: polygon(50% 0%, 61% 35%, 98% 35%, 68% 57%, 79% 91%, 50% 70%, 21% 91%, 32% 57%, 2% 35%, 39% 35%);
-}
+.imm-footer strong { color: var(--gold); font-weight: 700; }
+.imm-foot-line { width: clamp(2rem, 8vw, 4rem); height: 1px; background: linear-gradient(90deg, transparent, var(--line)); }
+.imm-foot-line:last-child { background: linear-gradient(270deg, transparent, var(--line)); }
 
-/* ── Motion ─────────────────────────────────────────────────────────────── */
-@keyframes imKen {
-  from { transform: scale(1.16) translate(-1.5%, -2.5%); }
-  to   { transform: scale(1.06) translate(0, 0); }
-}
-@keyframes imCue {
-  0%, 100% { opacity: 0.4; transform: translateY(0); }
-  50%      { opacity: 1; transform: translateY(4px); }
-}
-/* Reveal of caption content as a slide enters the snap point. */
-@keyframes imRise { from { opacity: 0; transform: translateY(18px); } to { opacity: 1; transform: none; } }
-@keyframes imHeroRise { from { opacity: 0; transform: translateY(22px); filter: blur(6px); } to { opacity: 1; transform: none; filter: none; } }
-.im-caption-inner > * { animation: imRise 700ms cubic-bezier(0.16,1,0.3,1) both; }
-.im-caption-inner > *:nth-child(1) { animation-delay: 60ms; }
-.im-caption-inner > *:nth-child(2) { animation-delay: 120ms; }
-.im-caption-inner > *:nth-child(3) { animation-delay: 190ms; }
-.im-caption-inner > *:nth-child(4) { animation-delay: 260ms; }
-.im-caption-inner > *:nth-child(5) { animation-delay: 330ms; }
-.im-caption-inner > *:nth-child(6) { animation-delay: 400ms; }
-.im-hero-inner > * { animation: imHeroRise 900ms cubic-bezier(0.16,1,0.3,1) both; }
-.im-hero-inner > *:nth-child(2) { animation-delay: 120ms; }
-.im-hero-inner > *:nth-child(3) { animation-delay: 240ms; }
-.im-hero-inner > *:nth-child(4) { animation-delay: 420ms; }
+/* Motion */
+@keyframes immUp { from { opacity: 0; transform: translateY(18px); filter: blur(5px); } to { opacity: 1; transform: none; filter: none; } }
+.imm-up { animation: immUp 820ms cubic-bezier(0.16,1,0.3,1) both; }
+@keyframes immPanel { from { opacity: 0; } to { opacity: 1; } }
+@keyframes immCard { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: none; } }
 
 @media (prefers-reduced-motion: reduce) {
-  .im-photo { animation: none !important; transform: scale(1.02); }
-  .im-scroll-arrow { animation: none !important; }
-  .im-caption-inner > *, .im-hero-inner > * { animation: none !important; }
-  .im-reel { scroll-behavior: auto; }
-  .im-chapter, .im-rail-dot { transition: none !important; }
+  .imm-up, .imm-main, .imm-card, .imm-hint-line { animation: none !important; }
+  .imm-card, .imm-media img, .imm-chip { transition: none !important; }
 }
 `;

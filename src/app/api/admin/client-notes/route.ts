@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServiceRoleClient } from "@/lib/supabase/server";
 import { assertPlatformAdmin } from "@/lib/admin-auth";
+import { apiError } from "@/lib/api-error";
 
 export async function GET(req: NextRequest) {
   const auth = await assertPlatformAdmin();
@@ -21,7 +22,7 @@ export async function GET(req: NextRequest) {
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
     return NextResponse.json({ notes: data || [] });
   } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    return apiError(err, { route: "admin/client-notes", publicMessage: "operation_failed", status: 500 });
   }
 }
 
@@ -43,7 +44,7 @@ export async function POST(req: NextRequest) {
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
     return NextResponse.json({ note: data });
   } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    return apiError(err, { route: "admin/client-notes", publicMessage: "operation_failed", status: 500 });
   }
 }
 
@@ -57,6 +58,6 @@ export async function DELETE(req: NextRequest) {
     await supabase.from("client_notes").delete().eq("id", id);
     return NextResponse.json({ success: true });
   } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    return apiError(err, { route: "admin/client-notes", publicMessage: "operation_failed", status: 500 });
   }
 }

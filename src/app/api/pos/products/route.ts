@@ -28,6 +28,7 @@ export async function GET(req: Request) {
     const products = await till.adapter.fetchProducts(till.ctx);
     return NextResponse.json({ provider: till.provider, products });
   } catch (e: any) {
-    return NextResponse.json({ provider: till.provider, products: [], error: e?.message || String(e) });
+    console.error("[pos/products]", e?.message || String(e));
+    return NextResponse.json({ provider: till.provider, products: [], error: "pos_fetch_failed" });
   }
 }

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { resolveTenantFromApiKey } from "@/lib/tenant-auth";
 import { classifyText } from "@/lib/compliance/classifier";
+import { apiError } from "@/lib/api-error";
 
 // Bot-facing (n8n / Retell): classify an inbound guest message as Tier 0 (ordinary)
 // or Tier 1 (sensitive) so the agent knows whether to fold in the just-in-time
@@ -21,6 +22,6 @@ export async function POST(req: NextRequest) {
     const result = classifyText(text);
     return NextResponse.json({ ...result, needsConsent: result.tier === 1 });
   } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    return apiError(err, { route: "compliance/classify", publicMessage: "operation_failed", status: 500 });
   }
 }

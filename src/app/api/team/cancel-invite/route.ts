@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabaseClient, createServiceRoleClient } from "@/lib/supabase/server";
+import { apiError } from "@/lib/api-error";
 
 // Cancels an outstanding (unscanned) staff invite — deletes the pending
 // qr_login_tokens row before it's consumed. Owner / platform-admin only, same
@@ -40,6 +41,6 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ ok: true });
   } catch (err: any) {
-    return NextResponse.json({ error: err?.message || "Unexpected error" }, { status: 500 });
+    return apiError(err, { route: "team/cancel-invite", publicMessage: "operation_failed", status: 500 });
   }
 }

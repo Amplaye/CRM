@@ -7,6 +7,7 @@ import { logAuditEvent } from "@/lib/audit";
 import { resolveNamedDate, revenueForWindow } from "@/lib/management/compare";
 import { dishCostTable } from "@/lib/management/food-cost";
 import type { Dish, RecipeLine, SaleRow } from "@/lib/management/types";
+import { apiError } from "@/lib/api-error";
 
 // Financial assistant for the WhatsApp bot + voice. Same contract as
 // /api/ai/menu: returns JSON-shaped DATA; the bot phrases it in the customer's
@@ -200,7 +201,7 @@ export async function POST(request: Request) {
         return NextResponse.json({ success: false, error: `Unknown intent: ${intent}` }, { status: 400 });
     }
   } catch (e: any) {
-    return NextResponse.json({ success: false, error: e?.message || "internal_error" }, { status: 500 });
+    return apiError(e, { route: "ai/finance", publicMessage: "internal_error", extra: { success: false } });
   }
 }
 

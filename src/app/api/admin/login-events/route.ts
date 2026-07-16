@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabaseClient, createServiceRoleClient } from "@/lib/supabase/server";
+import { apiError } from "@/lib/api-error";
 
 type RawEvent = {
   id: string;
@@ -235,6 +236,6 @@ export async function GET(req: NextRequest) {
       window_days: days,
     });
   } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    return apiError(err, { route: "admin/login-events", publicMessage: "operation_failed", status: 500 });
   }
 }

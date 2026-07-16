@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createServiceRoleClient, createServerSupabaseClient } from "@/lib/supabase/server";
 import { createTenant } from "@/lib/tenants/create-tenant";
+import { apiError } from "@/lib/api-error";
 
 export async function POST() {
   try {
@@ -43,6 +44,6 @@ export async function POST() {
 
     return NextResponse.json({ status: "ok", tenantId: tenant.id });
   } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    return apiError(err, { route: "guest-setup", publicMessage: "operation_failed", status: 500 });
   }
 }

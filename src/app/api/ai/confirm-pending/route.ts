@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { createServiceRoleClient } from '@/lib/supabase/server';
 import { assertAiSecret } from '@/lib/ai-auth';
 import { assertActivePlan } from '@/lib/billing/guard';
+import { apiError } from "@/lib/api-error";
 
 export async function POST(request: Request) {
   const unauth = assertAiSecret(request);
@@ -81,6 +82,6 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ confirmed: false, message: "No pending reservation found" });
   } catch (error: any) {
-    return NextResponse.json({ confirmed: false, error: error.message }, { status: 500 });
+    return apiError(error, { route: "ai/confirm-pending", publicMessage: "operation_failed", extra: { confirmed: false } });
   }
 }

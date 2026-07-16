@@ -3,6 +3,7 @@ import { createServiceRoleClient } from '@/lib/supabase/server';
 import { logAuditEvent } from '@/lib/audit';
 import { assertAiSecret } from '@/lib/ai-auth';
 import { assertActivePlan } from '@/lib/billing/guard';
+import { apiError } from "@/lib/api-error";
 
 /**
  * Cancel a reservation by guest phone number.
@@ -130,6 +131,6 @@ export async function POST(request: Request) {
     return NextResponse.json({ cancelled: false, message: "No upcoming reservation found for this guest" });
   } catch (error: any) {
     console.error("Cancel by phone error:", error);
-    return NextResponse.json({ cancelled: false, error: error.message }, { status: 500 });
+    return apiError(error, { route: "ai/cancel-by-phone", publicMessage: "operation_failed", extra: { cancelled: false } });
   }
 }

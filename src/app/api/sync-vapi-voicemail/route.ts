@@ -11,6 +11,7 @@ import {
   injectBlock,
   transferCallTool,
 } from "@/lib/voice/voicemail";
+import { apiError } from "@/lib/api-error";
 
 const VAPI_BASE = "https://api.vapi.ai";
 
@@ -196,6 +197,6 @@ export async function POST(req: NextRequest) {
       assistantId: vapiCfg.assistantId,
     });
   } catch (e: any) {
-    return NextResponse.json({ error: e?.message || "Unknown error" }, { status: 500 });
+    return apiError(e, { route: "sync-vapi-voicemail", publicMessage: "operation_failed", status: 500 });
   }
 }

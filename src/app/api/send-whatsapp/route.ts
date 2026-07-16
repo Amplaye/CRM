@@ -6,6 +6,7 @@ import { tenantWhatsAppFrom } from "@/lib/whatsapp/from";
 import { sendWhatsAppMeta } from "@/lib/whatsapp/meta";
 import { verifyTenantMembership } from "@/lib/tenant-membership";
 import { isImpersonatingTenant } from "@/lib/impersonation";
+import { apiError } from "@/lib/api-error";
 
 export async function POST(req: NextRequest) {
   // Accept either: (a) valid x-ai-secret (n8n/Vapi) or (b) a signed-in dashboard session.
@@ -115,6 +116,6 @@ export async function POST(req: NextRequest) {
       description: err.message,
       error_key: "meta:service",
     });
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    return apiError(err, { route: "send-whatsapp", publicMessage: "operation_failed", status: 500 });
   }
 }

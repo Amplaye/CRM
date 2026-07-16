@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import crypto from "crypto";
 import { syncSystemLogToTrello } from "@/lib/trello-sync";
+import { apiError } from "@/lib/api-error";
 
 // Picnic tenant — Trello board "Picnic" only mirrors Picnic errors for now.
 const PICNIC_TENANT_ID = "626547ff-bc44-4f35-8f42-0e97f1dcf0d5";
@@ -41,6 +42,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ success: true, ...result });
   } catch (err: any) {
     console.error("trello-sync error:", err?.message);
-    return NextResponse.json({ error: err?.message || "error" }, { status: 500 });
+    return apiError(err, { route: "admin/system-logs/trello-sync", publicMessage: "operation_failed", status: 500 });
   }
 }

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { randomBytes } from "crypto";
 import { createServerSupabaseClient, createServiceRoleClient } from "@/lib/supabase/server";
+import { apiError } from "@/lib/api-error";
 
 // Generates a QR-login token that represents a *pending* staff invite. The
 // Supabase user and tenant_members row are created lazily on first scan (see
@@ -60,6 +61,6 @@ export async function POST(req: NextRequest) {
     const origin = req.nextUrl.origin;
     return NextResponse.json({ url: `${origin}/qr-login?t=${token}`, expiresAt });
   } catch (err: any) {
-    return NextResponse.json({ error: err?.message || "Unexpected error" }, { status: 500 });
+    return apiError(err, { route: "team/add-staff", publicMessage: "operation_failed", status: 500 });
   }
 }

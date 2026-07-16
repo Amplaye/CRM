@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createServiceRoleClient } from "@/lib/supabase/server";
 import { assertPlatformAdmin } from "@/lib/admin-auth";
+import { apiError } from "@/lib/api-error";
 
 export async function GET() {
   const auth = await assertPlatformAdmin();
@@ -18,6 +19,6 @@ export async function GET() {
     }
     return NextResponse.json({ conversations: data || [] });
   } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    return apiError(err, { route: "admin/bali/conversations", publicMessage: "operation_failed", status: 500 });
   }
 }

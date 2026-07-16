@@ -4,6 +4,7 @@ import { assertAiSecret } from "@/lib/ai-auth";
 import { isPromptArticle, syncAssistantPrompt, VapiKbArticle } from "@/lib/onboarding/vapi";
 import { verifyTenantMembership } from "@/lib/tenant-membership";
 import { ENGINE_VAPI_ASSISTANT_ID } from "@/lib/voice/engine";
+import { apiError } from "@/lib/api-error";
 
 // Sync a tenant's published KB into its Vapi assistant. On Vapi there is no
 // separate knowledge base: the published articles are concatenated into the
@@ -102,6 +103,6 @@ export async function POST(req: NextRequest) {
     });
   } catch (err: any) {
     console.error("[sync-kb-vapi] error:", err);
-    return NextResponse.json({ error: err?.message || "Unknown error" }, { status: 500 });
+    return apiError(err, { route: "sync-kb-vapi", publicMessage: "operation_failed", status: 500 });
   }
 }

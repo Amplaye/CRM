@@ -4,6 +4,7 @@ import { extractInvoice } from "@/lib/invoices/extract";
 import { assertManagement } from "@/lib/billing/guard";
 import { assertCredits, consumeCredits } from "@/lib/billing/credits";
 import { suggestLineMatches } from "@/lib/management/ingredient-match";
+import { apiError } from "@/lib/api-error";
 
 // Upload a supplier-invoice photo/PDF → OCR it synchronously (an invoice is a
 // single page, so unlike the menu importer we don't need the async job) → store
@@ -63,7 +64,7 @@ export async function POST(req: NextRequest) {
     extracted = await extractInvoice(base64, mediaType);
   } catch (e: any) {
     // Not charged: the extraction never produced anything.
-    return NextResponse.json({ error: "Extraction failed", details: e?.message }, { status: 502 });
+    return apiError(e, { route: "invoices/upload", publicMessage: "Extraction failed", status: 502 });
   }
 
   // Charged only now that the OCR actually returned.

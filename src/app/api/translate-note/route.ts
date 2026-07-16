@@ -3,6 +3,7 @@ import { createServerSupabaseClient, createServiceRoleClient } from "@/lib/supab
 import { chatCompletion } from "@/lib/openai-base-url";
 import { verifyTenantMembership } from "@/lib/tenant-membership";
 import { assertCredits, consumeCredits } from "@/lib/billing/credits";
+import { apiError } from "@/lib/api-error";
 
 const LANG_NAMES: Record<string, string> = {
   es: "Spanish (es-ES)",
@@ -100,6 +101,6 @@ export async function POST(request: Request) {
     return NextResponse.json({ translated });
   } catch (e: any) {
     console.error("[translate-note] exception", e);
-    return NextResponse.json({ error: e?.message || "Unknown error" }, { status: 500 });
+    return apiError(e, { route: "translate-note", publicMessage: "operation_failed", status: 500 });
   }
 }

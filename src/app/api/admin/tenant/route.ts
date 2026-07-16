@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createServiceRoleClient } from "@/lib/supabase/server";
 import { assertPlatformAdmin } from "@/lib/admin-auth";
 import { isAdminSettableStatus } from "@/lib/tenants/status";
+import { apiError } from "@/lib/api-error";
 
 export async function GET(req: NextRequest) {
   const auth = await assertPlatformAdmin();
@@ -89,7 +90,7 @@ export async function GET(req: NextRequest) {
       recentLogs: logs,
     });
   } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    return apiError(err, { route: "admin/tenant", publicMessage: "operation_failed", status: 500 });
   }
 }
 
@@ -133,6 +134,6 @@ export async function PATCH(req: NextRequest) {
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
     return NextResponse.json({ success: true, settings: merged, status });
   } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    return apiError(err, { route: "admin/tenant", publicMessage: "operation_failed", status: 500 });
   }
 }

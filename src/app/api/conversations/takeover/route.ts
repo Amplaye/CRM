@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { apiError } from "@/lib/api-error";
 
 // Mark a guest as "human takeover": the WhatsApp bot will skip processing
 // inbound messages from this phone until /resume-bot is called.
@@ -17,6 +18,6 @@ export async function POST(request: Request) {
     if (error) throw error;
     return NextResponse.json({ success: true });
   } catch (e: any) {
-    return NextResponse.json({ error: e.message }, { status: 500 });
+    return apiError(e, { route: "conversations/takeover", publicMessage: "operation_failed", status: 500 });
   }
 }

@@ -4,6 +4,7 @@ import { assertPlatformAdmin } from "@/lib/admin-auth";
 import { archiveTenant } from "@/lib/tenants/delete-tenant";
 import { buildTenantExport, uploadTenantExport } from "@/lib/tenants/export-tenant";
 import { logAuditEvent } from "@/lib/audit";
+import { apiError } from "@/lib/api-error";
 
 export async function POST(req: NextRequest) {
   const auth = await assertPlatformAdmin();
@@ -45,6 +46,6 @@ export async function POST(req: NextRequest) {
     });
     return NextResponse.json({ ok: true, purge_after, download_url: signedUrl, export_error: exportError ?? null });
   } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    return apiError(err, { route: "admin/tenant/archive", publicMessage: "operation_failed", status: 500 });
   }
 }

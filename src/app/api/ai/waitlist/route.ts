@@ -5,6 +5,7 @@ import { assertAiSecret } from '@/lib/ai-auth';
 import { assertActivePlan } from '@/lib/billing/guard';
 import { getTenantFeatures } from '@/lib/tenants/features';
 import { sendPushToTenant } from '@/lib/push/send';
+import { apiError } from "@/lib/api-error";
 
 export async function POST(request: Request) {
   const unauth = assertAiSecret(request);
@@ -128,6 +129,6 @@ export async function POST(request: Request) {
 
   } catch (error: any) {
     console.error("Waitlist Error:", error);
-    return NextResponse.json({ success: false, error: "Internal Server Error", details: error.message }, { status: 500 });
+    return apiError(error, { route: "ai/waitlist", publicMessage: "Internal Server Error", extra: { success: false } });
   }
 }

@@ -5,6 +5,7 @@ import { assertAiSecret } from '@/lib/ai-auth';
 import { assertActivePlan } from '@/lib/billing/guard';
 import { isE164, normalizePhone, phoneTail } from '@/lib/booking-validation';
 import { sendPushToTenant } from '@/lib/push/send';
+import { apiError } from "@/lib/api-error";
 
 /**
  * AI event-request intake.
@@ -160,9 +161,6 @@ export async function POST(request: Request) {
     });
   } catch (err) {
     console.error('event-request error:', err);
-    return NextResponse.json(
-      { success: false, error: err instanceof Error ? err.message : 'Unknown error' },
-      { status: 500 }
-    );
+    return apiError(err, { route: "ai/event-request", publicMessage: "operation_failed", extra: { success: false } });
   }
 }

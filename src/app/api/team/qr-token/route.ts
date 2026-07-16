@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { randomBytes } from "crypto";
 import { createServerSupabaseClient, createServiceRoleClient } from "@/lib/supabase/server";
+import { apiError } from "@/lib/api-error";
 
 // Generates a single-use, short-lived token that the owner/manager renders as
 // a QR code. The staff member scans it on their phone, hits /qr-login?t=...
@@ -64,6 +65,6 @@ export async function POST(req: NextRequest) {
     const url = `${origin}/qr-login?t=${token}`;
     return NextResponse.json({ url, expiresAt });
   } catch (err: any) {
-    return NextResponse.json({ error: err?.message || "Unexpected error" }, { status: 500 });
+    return apiError(err, { route: "team/qr-token", publicMessage: "operation_failed", status: 500 });
   }
 }

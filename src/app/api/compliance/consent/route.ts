@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createServiceRoleClient } from "@/lib/supabase/server";
 import { resolveTenantFromApiKey } from "@/lib/tenant-auth";
 import { recordConsent, hasValidConsent } from "@/lib/compliance/consent";
+import { apiError } from "@/lib/api-error";
 
 // Bot-facing (n8n / Retell): the invisible half of the just-in-time micro-consent.
 // When the guest gives the one-tap "sì, salva" affirmative for a Tier 1 field, the
@@ -32,7 +33,7 @@ export async function POST(req: NextRequest) {
     if (!result.ok) return NextResponse.json({ error: result.error }, { status: 400 });
     return NextResponse.json({ ok: true, record: result.record });
   } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    return apiError(err, { route: "compliance/consent", publicMessage: "operation_failed", status: 500 });
   }
 }
 
@@ -50,7 +51,7 @@ export async function GET(req: NextRequest) {
     const ok = await hasValidConsent(supabase, { tenant_id: tenantId, subject_ref, purpose });
     return NextResponse.json({ hasConsent: ok });
   } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    return apiError(err, { route: "compliance/consent", publicMessage: "operation_failed", status: 500 });
   }
 }
 

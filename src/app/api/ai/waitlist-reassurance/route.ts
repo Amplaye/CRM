@@ -4,6 +4,7 @@ import { assertAiSecret } from '@/lib/ai-auth';
 import { logSystemEvent, resolveSystemEvents } from '@/lib/system-log';
 import { tenantWhatsAppFrom } from '@/lib/whatsapp/from';
 import { sendWhatsAppMeta } from '@/lib/whatsapp/meta';
+import { apiError } from "@/lib/api-error";
 
 // Called by the single shared `[ALL] Waitlist Reassurance — Multi-Tenant` n8n
 // cron every 10 min (the per-tenant clones were retired 2026-06-16 — this
@@ -171,6 +172,6 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: true, sent, considered, failures: failures.length, capped });
   } catch (e: any) {
     console.error('waitlist-reassurance error:', e);
-    return NextResponse.json({ ok: false, error: e.message }, { status: 500 });
+    return apiError(e, { route: "ai/waitlist-reassurance", publicMessage: "operation_failed", extra: { ok: false } });
   }
 }

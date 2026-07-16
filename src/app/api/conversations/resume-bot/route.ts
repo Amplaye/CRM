@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { apiError } from "@/lib/api-error";
 
 // Shared n8n instance host. The per-tenant WhatsApp webhook lives at
 // `${N8N_WEBHOOK_BASE}/${slug}-whatsapp` — same naming convention the onboarding
@@ -92,6 +93,6 @@ export async function POST(request: Request) {
     });
     return NextResponse.json({ success: true, retriggered: res.ok });
   } catch (e: any) {
-    return NextResponse.json({ error: e.message }, { status: 500 });
+    return apiError(e, { route: "conversations/resume-bot", publicMessage: "operation_failed", status: 500 });
   }
 }

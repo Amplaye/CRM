@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createServiceRoleClient } from "@/lib/supabase/server";
 import { assertAiSecret } from "@/lib/ai-auth";
 import { ownerLangFromSettings, type OwnerLang } from "@/lib/owner-locale";
+import { apiError } from "@/lib/api-error";
 
 interface TimeSlot { open: string; close: string }
 type OpeningHours = Record<string, TimeSlot[]>;
@@ -291,6 +292,6 @@ export async function POST(req: NextRequest) {
       restaurant: tenant.name,
     });
   } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    return apiError(err, { route: "weekly-report", publicMessage: "operation_failed", status: 500 });
   }
 }

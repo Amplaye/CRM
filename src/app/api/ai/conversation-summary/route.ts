@@ -5,6 +5,7 @@ import { assertAiSecret } from '@/lib/ai-auth';
 import { logSystemEvent, resolveSystemEvents } from '@/lib/system-log';
 import { chatCompletion, chatCompletionsConfig } from '@/lib/openai-base-url';
 import { assertCredits, consumeCredits } from '@/lib/billing/credits';
+import { apiError } from "@/lib/api-error";
 
 // Body:
 //   { conversation_id: string, language?: 'es'|'it'|'en', force?: boolean }
@@ -112,7 +113,7 @@ export async function POST(request: Request) {
     );
   } catch (e: any) {
     console.error('conversation-summary error:', e?.message);
-    return NextResponse.json({ ok: false, error: e?.message || 'unknown' }, { status: 500 });
+    return apiError(e, { route: "ai/conversation-summary", publicMessage: "operation_failed", extra: { ok: false } });
   }
 }
 

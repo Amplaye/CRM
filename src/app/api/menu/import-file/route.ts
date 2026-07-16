@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { extractMenuFromFile } from '@/lib/menu/extract';
+import { apiError } from "@/lib/api-error";
 
 // Accept a PDF or image upload and return a parsed menu preview. The actual
 // save-to-database step is a separate POST /api/menu/import-confirm so the
@@ -72,9 +73,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: true, extracted });
   } catch (e: any) {
     console.error('[menu import-file]', e);
-    return NextResponse.json(
-      { error: e?.message || 'Extraction failed', stage: 'llm' },
-      { status: 502 }
-    );
+    return apiError(e, { route: 'menu/import-file', publicMessage: 'Extraction failed', status: 502, extra: { stage: 'llm' } });
   }
 }

@@ -6,6 +6,7 @@ import { sendCampaign, resolveRecipients, MAX_RECIPIENTS, type CampaignRow } fro
 import { estimateWhatsAppCost, estimateEmailCost } from "@/lib/marketing/pricing";
 import { logAuditEvent } from "@/lib/audit";
 import type { SegmentDef } from "@/lib/guests/segmentation";
+import { apiError } from "@/lib/api-error";
 
 // Create-and-send a campaign (Fase 3). One request: validates, persists the
 // campaign row (audit trail even on failure), then delivers inline — capped at
@@ -109,7 +110,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ success: true, campaign_id: campaign.id, ...counters });
   } catch (e) {
     console.error("[marketing/send]", e);
-    return NextResponse.json({ error: "internal", detail: e instanceof Error ? e.message : undefined }, { status: 500 });
+    return apiError(e, { route: "marketing/send", publicMessage: "internal" });
   }
 }
 

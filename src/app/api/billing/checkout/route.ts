@@ -12,6 +12,7 @@ import {
 import { getCreditPack, resolveCreditPackPriceId, type CreditPackId } from "@/lib/billing/credits-catalog";
 import { stripeConfigured, createCheckoutSession } from "@/lib/billing/stripe";
 import { paypalConfigured, createSubscription } from "@/lib/billing/paypal";
+import { apiError } from "@/lib/api-error";
 
 // Settings → Payments → "Pay with Stripe / PayPal". Builds a hosted checkout for
 // either a main plan (premium/business, monthly/yearly) or an add-on, on the
@@ -190,7 +191,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: true, url: session.url });
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } catch (e: any) {
-      return NextResponse.json({ error: "stripe_error", detail: e?.message }, { status: 502 });
+      return apiError(e, { route: "billing/checkout", publicMessage: "stripe_error", status: 502 });
     }
   }
 
@@ -218,6 +219,6 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: true, url: sub.approveUrl, subscription_id: sub.id });
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
   } catch (e: any) {
-    return NextResponse.json({ error: "paypal_error", detail: e?.message }, { status: 502 });
+    return apiError(e, { route: "billing/checkout", publicMessage: "paypal_error", status: 502 });
   }
 }

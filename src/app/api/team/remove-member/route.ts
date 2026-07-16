@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabaseClient, createServiceRoleClient } from "@/lib/supabase/server";
+import { apiError } from "@/lib/api-error";
 
 // Remove a tenant member AND nuke their Supabase sessions so QR-logged staff
 // phones get kicked out immediately — the realtime DELETE guard in the
@@ -64,6 +65,6 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ ok: true });
   } catch (err: any) {
-    return NextResponse.json({ error: err?.message || "Unexpected error" }, { status: 500 });
+    return apiError(err, { route: "team/remove-member", publicMessage: "operation_failed", status: 500 });
   }
 }

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { assertPlatformAdmin } from "@/lib/admin-auth";
 import { getBillingRows, summarize } from "@/lib/billing/admin-overview";
+import { apiError } from "@/lib/api-error";
 
 /** Top-of-page billing totals (MRR/ARR, trials ending, past_due, churn) for the
  * Fleet strip and the Billing console. Same row set as the subscriptions route. */
@@ -11,6 +12,6 @@ export async function GET() {
     const rows = await getBillingRows();
     return NextResponse.json(summarize(rows));
   } catch (err: any) {
-    return NextResponse.json({ error: err?.message || "failed" }, { status: 500 });
+    return apiError(err, { route: "admin/billing/summary", publicMessage: "operation_failed", status: 500 });
   }
 }

@@ -3,6 +3,7 @@ import { createServiceRoleClient } from "@/lib/supabase/server";
 import { verifyTenantMembership } from "@/lib/tenant-membership";
 import { assertActivePlan } from "@/lib/billing/guard";
 import { ownerLangFromSettings, type OwnerLang } from "@/lib/owner-locale";
+import { apiError } from "@/lib/api-error";
 
 interface Insight {
   type: "revenue_opportunity" | "performance_drop" | "ai_optimization" | "loss_prevention" | "hidden_value";
@@ -264,6 +265,6 @@ export async function GET(req: NextRequest) {
       },
     });
   } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    return apiError(err, { route: "insights", publicMessage: "operation_failed", status: 500 });
   }
 }

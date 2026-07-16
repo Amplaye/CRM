@@ -3,6 +3,7 @@ import { createServiceRoleClient } from "@/lib/supabase/server";
 import { assertPlatformAdmin } from "@/lib/admin-auth";
 import { logAuditEvent } from "@/lib/audit";
 import { gatherSubject, eraseSubject, type EraseMode } from "@/lib/compliance/dsar";
+import { apiError } from "@/lib/api-error";
 
 // Platform-admin DSAR handling for a single data subject (a guest) within a tenant.
 //
@@ -25,7 +26,7 @@ export async function GET(req: NextRequest) {
     if (!data.guest) return NextResponse.json({ error: "Subject not found" }, { status: 404 });
     return NextResponse.json(data);
   } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    return apiError(err, { route: "admin/compliance/dsar", publicMessage: "operation_failed", status: 500 });
   }
 }
 
@@ -53,6 +54,6 @@ export async function POST(req: NextRequest) {
     });
     return NextResponse.json(result);
   } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    return apiError(err, { route: "admin/compliance/dsar", publicMessage: "operation_failed", status: 500 });
   }
 }

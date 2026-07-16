@@ -97,6 +97,6 @@ export async function POST(req: NextRequest) {
     console.error("[trello-webhook] error:", err?.message);
     // Return 200 so Trello doesn't disable the webhook after repeated 500s;
     // the failure is logged for us to inspect.
-    return NextResponse.json({ ok: false, error: err?.message || "error" });
+    return NextResponse.json({ ok: false, error: "error" });
   }
 }

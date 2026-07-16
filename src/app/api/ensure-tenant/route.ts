@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createServerSupabaseClient, createServiceRoleClient } from "@/lib/supabase/server";
 import { createTenant } from "@/lib/tenants/create-tenant";
+import { apiError } from "@/lib/api-error";
 
 // Self-healing tenant creation for the onboarding wizard.
 //
@@ -83,6 +84,6 @@ export async function POST(req: Request) {
 
     return NextResponse.json({ status: "created", tenantId: tenant.id, role: "owner" });
   } catch (err: any) {
-    return NextResponse.json({ error: err?.message || "ensure-tenant failed" }, { status: 500 });
+    return apiError(err, { route: "ensure-tenant", publicMessage: "operation_failed", status: 500 });
   }
 }

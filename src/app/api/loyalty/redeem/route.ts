@@ -4,6 +4,7 @@ import { verifyTenantMembership } from "@/lib/tenant-membership";
 import { getFeatures } from "@/lib/types/tenant-settings";
 import { getLoyaltyConfig } from "@/lib/loyalty/loyalty";
 import { logAuditEvent } from "@/lib/audit";
+import { apiError } from "@/lib/api-error";
 
 // Staff-triggered reward redemption from the guest panel: burns reward_points
 // from the guest's balance and writes the negative ledger event. The actual
@@ -77,6 +78,6 @@ export async function POST(req: Request) {
     return NextResponse.json({ success: true, points: updated.points });
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
   } catch (e: any) {
-    return NextResponse.json({ error: "server_error", detail: e?.message }, { status: 500 });
+    return apiError(e, { route: "loyalty/redeem", publicMessage: "server_error" });
   }
 }

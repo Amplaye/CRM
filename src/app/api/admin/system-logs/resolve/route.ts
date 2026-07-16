@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { resolveSystemEvents, type SystemLogCategory } from "@/lib/system-log";
 import { resolveTenantFromApiKey } from "@/lib/tenant-auth";
+import { apiError } from "@/lib/api-error";
 
 export async function POST(req: NextRequest) {
   try {
@@ -34,6 +35,6 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ success: true, ...result });
   } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    return apiError(err, { route: "admin/system-logs/resolve", publicMessage: "operation_failed", status: 500 });
   }
 }

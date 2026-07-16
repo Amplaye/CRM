@@ -3,6 +3,7 @@ import { createServiceRoleClient } from "@/lib/supabase/server";
 import { assertPlatformAdmin } from "@/lib/admin-auth";
 import { restoreTenant } from "@/lib/tenants/delete-tenant";
 import { logAuditEvent } from "@/lib/audit";
+import { apiError } from "@/lib/api-error";
 
 export async function POST(req: NextRequest) {
   const auth = await assertPlatformAdmin();
@@ -22,6 +23,6 @@ export async function POST(req: NextRequest) {
     });
     return NextResponse.json({ ok: true, status });
   } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    return apiError(err, { route: "admin/tenant/restore", publicMessage: "operation_failed", status: 500 });
   }
 }

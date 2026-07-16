@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabaseClient, createServiceRoleClient } from "@/lib/supabase/server";
+import { apiError } from "@/lib/api-error";
 
 // Register / remove this browser's Web-Push subscription for the signed-in
 // user. Rows are tenant-scoped so server events fan out per tenant
@@ -55,7 +56,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ success: true });
   } catch (err: any) {
-    return NextResponse.json({ error: err?.message || "Unexpected error" }, { status: 500 });
+    return apiError(err, { route: "push/subscribe", publicMessage: "operation_failed", status: 500 });
   }
 }
 
@@ -77,6 +78,6 @@ export async function DELETE(req: NextRequest) {
 
     return NextResponse.json({ success: true });
   } catch (err: any) {
-    return NextResponse.json({ error: err?.message || "Unexpected error" }, { status: 500 });
+    return apiError(err, { route: "push/subscribe", publicMessage: "operation_failed", status: 500 });
   }
 }

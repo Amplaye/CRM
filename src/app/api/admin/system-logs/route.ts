@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServiceRoleClient } from "@/lib/supabase/server";
 import { assertPlatformAdmin } from "@/lib/admin-auth";
+import { apiError } from "@/lib/api-error";
 
 export async function GET(req: NextRequest) {
   const auth = await assertPlatformAdmin();
@@ -31,7 +32,7 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json({ logs: data || [] });
   } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    return apiError(err, { route: "admin/system-logs", publicMessage: "operation_failed", status: 500 });
   }
 }
 
@@ -55,6 +56,6 @@ export async function PATCH(req: NextRequest) {
 
     return NextResponse.json({ success: true });
   } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    return apiError(err, { route: "admin/system-logs", publicMessage: "operation_failed", status: 500 });
   }
 }
