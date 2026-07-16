@@ -18,8 +18,11 @@ const csp = [
   "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://api.vapi.ai https://graph.facebook.com https://api.resend.com",
   // The public micro-site (/s) embeds a Google Maps iframe. Without an explicit
   // frame-src it falls back to default-src 'self' and the map is blocked by our
-  // own CSP (renders as a broken frame). Allow only Google's map hosts.
-  "frame-src https://www.google.com https://maps.google.com",
+  // own CSP (renders as a broken frame). Allow only Google's map hosts — plus
+  // 'self', which also covers the srcdoc iframe the Floor QR sheet uses to print
+  // (a srcdoc frame is matched against frame-src as the parent origin; without
+  // 'self' Brave/strict browsers block it and the Print button does nothing).
+  "frame-src 'self' https://www.google.com https://maps.google.com",
   "frame-ancestors 'none'",
   "base-uri 'self'",
   "form-action 'self'",
