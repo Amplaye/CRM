@@ -1,12 +1,11 @@
-// Public hosted menu, shared via a QR sticker. This file is now a thin ROUTER:
-// the server (page.tsx) passes a `style` ("1" | "2" | "3", from ?style=) and we
-// mount one of three candidate designs so the owner can compare them live before
-// one becomes the default:
+// Public hosted menu, shared via a QR sticker. This file is a thin ROUTER:
+// the server (page.tsx) passes a `style` ("1"…"4", saved choice or ?style=
+// preview) and we mount one of the four designs:
 //
-//   "1" → MenuImmersive — full-screen luxury "stories", giant dish photos
-//   "2" → MenuEditorial — gourmet-magazine bento spread, oversized type
-//   "3" → MenuCinematic — dark, materic, glassmorphism with gold rim-light
-//   "4" → MenuClassic   — the original cream-paper "Maître" fine-dining card
+//   "1" → MenuImmersive — dark photo-first gallery, bento grid on desktop
+//   "2" → MenuEditorial — light gourmet-magazine issue, TOC rail + scrollspy
+//   "3" → MenuCinematic — near-black glass panels, gold leaders, tab filter
+//   "4" → MenuClassic   — cream-paper printed carte on walnut, star dividers
 //
 // All four consume the exact same flat, server-localized sections (including the
 // new optional per-dish `image_url`). The shared shape lives here and is the

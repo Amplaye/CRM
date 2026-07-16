@@ -257,12 +257,13 @@ export const KB: KbTopic[] = [
     },
     keywords: [
       "menu", "piatto", "piatti", "aggiungere piatto", "rimuovere piatto", "categoria", "categorie", "dish", "dishes", "add dish", "remove dish", "plato", "platos", "anadir plato", "gericht", "gerichte", "speisekarte", "prezzo piatto", "price", "foto piatto", "allergeni", "allergens", "disponibile", "esaurito",
+      "eliminare piatti", "eliminazione di massa", "elimina tutti", "seleziona piatti", "bulk delete", "delete many", "select dishes", "eliminar varios", "borrar platos", "mehrere loeschen", "auswahl loeschen",
     ],
     answer: {
-      it: "Nella pagina Menu gestisci categorie e piatti: nome, prezzo, descrizione, foto, allergeni e disponibilità. Un piatto segnato non disponibile sparisce dal menu digitale e dalla cassa. Puoi anche importare un menu esistente da file o foto.",
-      en: "On the Menu page you manage categories and dishes: name, price, description, photo, allergens and availability. A dish marked unavailable disappears from the digital menu and the till. You can also import an existing menu from a file or photo.",
-      es: "En la página Menú gestionas categorías y platos: nombre, precio, descripción, foto, alérgenos y disponibilidad. Un plato marcado como no disponible desaparece del menú digital y de la caja. También puedes importar un menú existente desde archivo o foto.",
-      de: "Auf der Seite Speisekarte verwaltest du Kategorien und Gerichte: Name, Preis, Beschreibung, Foto, Allergene und Verfügbarkeit. Ein als nicht verfügbar markiertes Gericht verschwindet aus digitaler Karte und Kasse. Du kannst auch eine bestehende Karte aus Datei oder Foto importieren.",
+      it: "Nella pagina Menu gestisci categorie e piatti: nome, prezzo, descrizione, foto, allergeni e disponibilitÃ . Un piatto segnato non disponibile sparisce dal menu digitale e dalla cassa. Puoi anche importare un menu esistente da file o foto. Col pulsante Â«SelezionaÂ» spunti piÃ¹ piatti e li elimini tutti insieme.",
+      en: "On the Menu page you manage categories and dishes: name, price, description, photo, allergens and availability. A dish marked unavailable disappears from the digital menu and the till. You can also import an existing menu from a file or photo. With the “Select” button you can tick several dishes and delete them all at once.",
+      es: "En la pÃ¡gina MenÃº gestionas categorÃ­as y platos: nombre, precio, descripciÃ³n, foto, alÃ©rgenos y disponibilidad. Un plato marcado como no disponible desaparece del menÃº digital y de la caja. TambiÃ©n puedes importar un menÃº existente desde archivo o foto. Con el botÃ³n Â«SeleccionarÂ» marcas varios platos y los eliminas todos a la vez.",
+      de: "Auf der Seite Speisekarte verwaltest du Kategorien und Gerichte: Name, Preis, Beschreibung, Foto, Allergene und VerfÃ¼gbarkeit. Ein als nicht verfÃ¼gbar markiertes Gericht verschwindet aus digitaler Karte und Kasse. Du kannst auch eine bestehende Karte aus Datei oder Foto importieren. Mit „AuswÃ¤hlen“ markierst du mehrere Gerichte und lÃ¶schst sie auf einmal.",
     },
     steps: {
       it: ["Apri Menu dal menu laterale", "Crea prima la categoria (es. Antipasti), poi «Aggiungi piatto»", "Compila nome e prezzo (foto e allergeni sono facoltativi)", "Per toglierlo: aprilo e usa elimina, oppure spegni «disponibile» per nasconderlo temporaneamente"],

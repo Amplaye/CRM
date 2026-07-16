@@ -265,6 +265,14 @@ export default function MenuImmersive({
 
 // ── Styles ──────────────────────────────────────────────────────────────────
 const styles = `
+/* The app's global html,body overflow-x:hidden turns <body> into a scroll
+   container, which silently kills every position:sticky on this page. Scoped
+   override via :has(): clip still blocks sideways scroll but does NOT create
+   a scroll container, so the sticky bars/rail work again. */
+html:has(.imm-root), html:has(.imm-root) body {
+  overflow-x: clip;
+  overflow-y: visible;
+}
 .imm-root {
   --bg: #0e0b08;
   --bg2: #171208;
@@ -278,7 +286,7 @@ const styles = `
   background: linear-gradient(180deg, var(--bg) 0%, var(--bg2) 100%);
   color: var(--ink);
   font-family: var(--font-body), ui-sans-serif, system-ui, sans-serif;
-  overflow-x: hidden;
+  overflow-x: clip;
   padding-bottom: env(safe-area-inset-bottom);
 }
 .imm-glow {
@@ -295,7 +303,7 @@ const styles = `
   background-size: 3px 3px, 7px 7px;
   background-position: 0 0, 2px 3px;
 }
-.imm-root > *:not(.imm-glow):not(.imm-grain) { position: relative; z-index: 1; }
+.imm-root > *:not(.imm-glow):not(.imm-grain):not(.imm-nav) { position: relative; z-index: 1; }
 
 /* Hero */
 .imm-hero {

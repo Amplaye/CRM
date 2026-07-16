@@ -234,6 +234,28 @@ export default function MenuPage() {
   const [importOpen, setImportOpen] = useState(false);
   const [qrOpen, setQrOpen] = useState(false);
 
+  // Bulk-select mode ("Seleziona"): checkboxes on every row so the owner can
+  // delete many dishes at once. Lives per-view: changing category/collection or
+  // typing a search resets it so a stale hidden selection can never be deleted.
+  const [selectMode, setSelectMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const exitSelectMode = () => {
+    setSelectMode(false);
+    setSelectedIds(new Set());
+  };
+  useEffect(() => {
+    exitSelectMode();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedCategoryId, selectedCollectionId, search]);
+  const toggleSelected = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
   // Fetch + realtime
   useEffect(() => {
     if (!tenant) return;
@@ -423,6 +445,25 @@ export default function MenuPage() {
     const { error } = await supabase.from("menu_items").delete().eq("id", id);
     if (error) {
       console.error("[menu] delete item failed", error);
+      alert(`Errore eliminazione: ${error.message}`);
+    }
+  };
+
+  // Bulk delete of the checked dishes (select mode). Optimistic with rollback:
+  // one .in() delete, tenant isolation guaranteed by RLS like the single delete.
+  const handleBulkDelete = async () => {
+    if (!canEdit || selectedIds.size === 0) return;
+    const n = selectedIds.size;
+    const msg = `${t("menu_confirm_bulk_delete") || "Eliminare i piatti selezionati?"} (${n})`;
+    if (!confirm(msg)) return;
+    const ids = Array.from(selectedIds);
+    const prevItems = items;
+    setItems((prev) => prev.filter((it) => !selectedIds.has(it.id)));
+    exitSelectMode();
+    const { error } = await supabase.from("menu_items").delete().in("id", ids);
+    if (error) {
+      console.error("[menu] bulk delete failed", error);
+      setItems(prevItems);
       alert(`Errore eliminazione: ${error.message}`);
     }
   };
@@ -991,24 +1032,79 @@ export default function MenuPage() {
                   </span>
                 </button>
               ) : (
-                <button
-                  onClick={() =>
-                    setItemModal({
-                      mode: "new",
-                      categoryId: isUncatView ? null : activeCategory?.id || null,
-                    })
-                  }
-                  className="cursor-pointer shrink-0 px-3 md:px-4 py-2 text-white text-sm font-bold rounded-lg shadow-sm flex items-center"
-                  style={{ background: "linear-gradient(135deg, #d4a574, #c4956a)" }}
-                  title={t("menu_new_item") || "Nuovo piatto"}
-                >
-                  <Plus className="w-5 h-5 md:w-4 md:h-4 md:mr-2" />
-                  <span className="hidden md:inline">
-                    {t("menu_new_item") || "Nuovo piatto"}
-                  </span>
-                </button>
+                <div className="flex items-center gap-2 shrink-0">
+                  {visibleItems.length > 0 && !selectMode && (
+                    <button
+                      onClick={() => setSelectMode(true)}
+                      className="cursor-pointer px-3 md:px-4 py-2 text-sm font-bold rounded-lg border-2 bg-white text-black hover:bg-[#c4956a]/10 flex items-center"
+                      style={{ borderColor: "#c4956a" }}
+                      title={t("menu_select") || "Seleziona"}
+                    >
+                      <CheckCircle2 className="w-5 h-5 md:w-4 md:h-4 md:mr-2" />
+                      <span className="hidden md:inline">{t("menu_select") || "Seleziona"}</span>
+                    </button>
+                  )}
+                  <button
+                    onClick={() =>
+                      setItemModal({
+                        mode: "new",
+                        categoryId: isUncatView ? null : activeCategory?.id || null,
+                      })
+                    }
+                    className="cursor-pointer px-3 md:px-4 py-2 text-white text-sm font-bold rounded-lg shadow-sm flex items-center"
+                    style={{ background: "linear-gradient(135deg, #d4a574, #c4956a)" }}
+                    title={t("menu_new_item") || "Nuovo piatto"}
+                  >
+                    <Plus className="w-5 h-5 md:w-4 md:h-4 md:mr-2" />
+                    <span className="hidden md:inline">
+                      {t("menu_new_item") || "Nuovo piatto"}
+                    </span>
+                  </button>
+                </div>
               )}
             </div>
+
+            {/* Bulk-select action bar — appears in select mode, above the list. */}
+            {selectMode && canEdit && !isCollectionView && (
+              <div
+                className="px-4 md:px-6 py-2.5 border-b flex items-center gap-2 md:gap-3 shrink-0 flex-wrap"
+                style={{ borderColor: "#c4956a", background: "rgba(196,149,106,0.12)" }}
+              >
+                <span className="text-sm font-black text-black">
+                  {selectedIds.size} {t("menu_selected") || "selezionati"}
+                </span>
+                <button
+                  onClick={() => {
+                    const all = visibleItems.map((it) => it.id);
+                    const everySelected = all.every((id) => selectedIds.has(id));
+                    setSelectedIds(everySelected ? new Set() : new Set(all));
+                  }}
+                  className="cursor-pointer px-3 py-1.5 text-xs font-bold rounded-lg border-2 bg-white text-black hover:bg-[#c4956a]/10"
+                  style={{ borderColor: "#c4956a" }}
+                >
+                  {visibleItems.every((it) => selectedIds.has(it.id))
+                    ? t("menu_select_none") || "Deseleziona tutto"
+                    : t("menu_select_all") || "Seleziona tutto"}
+                </button>
+                <div className="flex-1" />
+                <button
+                  onClick={handleBulkDelete}
+                  disabled={selectedIds.size === 0}
+                  className="cursor-pointer px-3 md:px-4 py-1.5 text-xs md:text-sm font-bold rounded-lg text-white bg-red-600 hover:bg-red-700 disabled:opacity-40 disabled:cursor-not-allowed flex items-center"
+                >
+                  <Trash2 className="w-4 h-4 md:mr-1.5" />
+                  <span className="hidden md:inline">{t("delete") || "Elimina"}</span>
+                  {selectedIds.size > 0 && <span className="ml-1">({selectedIds.size})</span>}
+                </button>
+                <button
+                  onClick={exitSelectMode}
+                  className="cursor-pointer p-1.5 text-black hover:bg-white rounded-lg"
+                  title={t("cancel") || "Annulla"}
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            )}
 
             {/* Table */}
             <div className="flex-1 overflow-auto">
@@ -1060,10 +1156,30 @@ export default function MenuPage() {
                   {visibleItems.map((it) => (
                     <li key={it.id}>
                       <div
-                        onClick={() => setItemModal({ mode: "edit", item: it })}
+                        onClick={() =>
+                          selectMode
+                            ? toggleSelected(it.id)
+                            : setItemModal({ mode: "edit", item: it })
+                        }
                         className="cursor-pointer flex items-center gap-3 px-4 py-3 border-b active:bg-white/80 transition-colors"
-                        style={{ borderColor: "rgba(196,149,106,0.2)" }}
+                        style={{
+                          borderColor: "rgba(196,149,106,0.2)",
+                          ...(selectMode && selectedIds.has(it.id)
+                            ? { background: "rgba(196,149,106,0.16)" }
+                            : {}),
+                        }}
                       >
+                        {/* Select-mode checkbox */}
+                        {selectMode && (
+                          <input
+                            type="checkbox"
+                            checked={selectedIds.has(it.id)}
+                            onChange={() => toggleSelected(it.id)}
+                            onClick={(e) => e.stopPropagation()}
+                            className="w-5 h-5 shrink-0 accent-[#c4956a] cursor-pointer"
+                            aria-label={it.name}
+                          />
+                        )}
                         {/* Thumbnail */}
                         {it.image_url ? (
                           // eslint-disable-next-line @next/next/no-img-element
@@ -1171,6 +1287,21 @@ export default function MenuPage() {
                     style={{ background: "rgba(252,246,237,0.98)" }}
                   >
                     <tr className="border-b" style={{ borderColor: "#c4956a" }}>
+                      {selectMode && (
+                        <th className="pl-5 pr-1 py-3 w-[36px]">
+                          <input
+                            type="checkbox"
+                            checked={visibleItems.length > 0 && visibleItems.every((it) => selectedIds.has(it.id))}
+                            onChange={() => {
+                              const all = visibleItems.map((it) => it.id);
+                              const everySelected = all.every((id) => selectedIds.has(id));
+                              setSelectedIds(everySelected ? new Set() : new Set(all));
+                            }}
+                            className="w-4 h-4 accent-[#c4956a] cursor-pointer align-middle"
+                            aria-label={t("menu_select_all") || "Seleziona tutto"}
+                          />
+                        </th>
+                      )}
                       <th className="px-5 py-3 text-[10px] uppercase font-black tracking-widest text-black w-[30%]">
                         {t("menu_item_name") || "Nome"}
                       </th>
@@ -1188,11 +1319,31 @@ export default function MenuPage() {
                       <tr
                         key={it.id}
                         className="border-b hover:bg-white/70 transition-colors"
-                        style={{ borderColor: "rgba(196,149,106,0.25)" }}
+                        style={{
+                          borderColor: "rgba(196,149,106,0.25)",
+                          ...(selectMode && selectedIds.has(it.id)
+                            ? { background: "rgba(196,149,106,0.16)" }
+                            : {}),
+                        }}
                       >
+                        {selectMode && (
+                          <td className="pl-5 pr-1 py-3 align-top">
+                            <input
+                              type="checkbox"
+                              checked={selectedIds.has(it.id)}
+                              onChange={() => toggleSelected(it.id)}
+                              className="w-4 h-4 accent-[#c4956a] cursor-pointer"
+                              aria-label={it.name}
+                            />
+                          </td>
+                        )}
                         <td
                           className="px-5 py-3 align-top cursor-pointer"
-                          onClick={() => setItemModal({ mode: "edit", item: it })}
+                          onClick={() =>
+                            selectMode
+                              ? toggleSelected(it.id)
+                              : setItemModal({ mode: "edit", item: it })
+                          }
                         >
                           <div className="flex items-center gap-2">
                             {it.image_url ? (
@@ -1235,7 +1386,11 @@ export default function MenuPage() {
                         </td>
                         <td
                           className="px-5 py-3 align-top text-black cursor-pointer"
-                          onClick={() => setItemModal({ mode: "edit", item: it })}
+                          onClick={() =>
+                            selectMode
+                              ? toggleSelected(it.id)
+                              : setItemModal({ mode: "edit", item: it })
+                          }
                         >
                           <p className="line-clamp-2 leading-snug">
                             {it.description || (
@@ -1265,7 +1420,11 @@ export default function MenuPage() {
                         </td>
                         <td
                           className="px-5 py-3 align-top text-right font-bold text-black whitespace-nowrap cursor-pointer"
-                          onClick={() => setItemModal({ mode: "edit", item: it })}
+                          onClick={() =>
+                            selectMode
+                              ? toggleSelected(it.id)
+                              : setItemModal({ mode: "edit", item: it })
+                          }
                         >
                           {it.price != null ? (
                             <>
