@@ -6,7 +6,7 @@
 // sheet, and a docked cart that POSTs to /api/public/order. The server
 // re-derives every price — the cart total here is display-only.
 
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { MenuItemVariant } from "@/lib/types";
 
 export type SelfOrderItem = {
@@ -17,6 +17,10 @@ export type SelfOrderItem = {
   image_url: string | null;
   allergenLabels: string[];
   variants: MenuItemVariant[];
+  /** True for dishes in a category the owner flagged as "drinks". Drinks stay
+   * orderable from the moment the guest scans; everything else (food) is locked
+   * for the first few minutes so the kitchen isn't flooded on arrival. */
+  isDrink: boolean;
 };
 
 export type SelfOrderSection = {
@@ -44,6 +48,13 @@ export type SelfOrderStrings = {
   closedTitle: string;
   closedBody: string;
   genericError: string;
+  /** Drinks-first cooldown copy. */
+  drinksFirstTitle: string;   // banner heading while food is locked
+  drinksFirstBody: string;    // explains: order drinks now, food unlocks in {time}
+  foodLockedBadge: string;    // small chip on a locked food dish ("Tra {time}")
+  foodUnlockedToast: string;  // shown once when food unlocks ("Puoi ordinare i piatti!")
+  foodLockedError: string;    // if a food order is refused server-side
+  minutesShort: string;       // "min"
 };
 
 type CartLine = {
@@ -54,6 +65,7 @@ type CartLine = {
   qty: number;
   variantNames: string[];
   notes: string;
+  isFood: boolean; // a non-drink line — gated by the cooldown
 };
 
 const ACCENT = "var(--accent, #b45309)";
@@ -68,6 +80,9 @@ export default function SelfOrderMenu({
   sections,
   strings: s,
   emptyLabel,
+  cooldownActive,
+  cooldownMin,
+  initialFoodUnlockAt,
 }: {
   slug: string;
   tableId: string;
@@ -77,6 +92,14 @@ export default function SelfOrderMenu({
   sections: SelfOrderSection[];
   strings: SelfOrderStrings;
   emptyLabel: string;
+  /** When true, food dishes are locked for the first `cooldownMin` minutes of the
+   * table's visit (drinks stay orderable). Off → the whole menu is orderable at
+   * once (the owner flagged no drink category). */
+  cooldownActive: boolean;
+  cooldownMin: number;
+  /** ISO time the food unlocks if the table ALREADY has an open bill (a returning
+   * guest mid-cooldown). Null → no bill yet; the clock starts on scan (mount). */
+  initialFoodUnlockAt: string | null;
 }) {
   const [cart, setCart] = useState<CartLine[]>([]);
   const [cartOpen, setCartOpen] = useState(false);
@@ -88,6 +111,48 @@ export default function SelfOrderMenu({
   const [error, setError] = useState<string | null>(null);
   const [activeSection, setActiveSection] = useState(sections[0]?.key ?? "");
   const sectionRefs = useRef<Record<string, HTMLDivElement | null>>({});
+
+  // ── Drinks-first cooldown ──
+  // foodUnlockAt is the ms timestamp food becomes orderable. Seeded from an
+  // existing bill; otherwise the clock starts on SCAN (mount) — the guest asked
+  // for the cooldown to begin the instant the table's QR is opened, not only once
+  // they send something. `now` ticks each second so the countdown re-renders and
+  // the lock lifts on its own. When the cooldown isn't active this all stays inert.
+  const [foodUnlockAt, setFoodUnlockAt] = useState<number | null>(() => {
+    if (!cooldownActive) return null;
+    if (initialFoodUnlockAt) return new Date(initialFoodUnlockAt).getTime();
+    return Date.now() + cooldownMin * 60_000;
+  });
+  const [now, setNow] = useState(() => Date.now());
+  const foodLocked = cooldownActive && foodUnlockAt != null && now < foodUnlockAt;
+  const secsLeft = foodUnlockAt != null ? Math.max(0, Math.ceil((foodUnlockAt - now) / 1000)) : 0;
+  const wasLocked = useRef(foodLocked);
+  const [justUnlocked, setJustUnlocked] = useState(false);
+
+  // Tick only while something is counting down — no idle timer once food is open.
+  useEffect(() => {
+    if (!foodLocked) return;
+    const id = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, [foodLocked]);
+
+  // The moment the lock lifts, celebrate it briefly so the guest knows the food
+  // is now orderable without having to re-read the menu.
+  useEffect(() => {
+    if (wasLocked.current && !foodLocked) {
+      setJustUnlocked(true);
+      const id = setTimeout(() => setJustUnlocked(false), 6000);
+      return () => clearTimeout(id);
+    }
+    wasLocked.current = foodLocked;
+  }, [foodLocked]);
+
+  // "m:ss" while ≥1min, else "0:ss" — compact enough for the dish chip.
+  const fmtLeft = (secs: number) => {
+    const m = Math.floor(secs / 60);
+    const ss = String(secs % 60).padStart(2, "0");
+    return `${m}:${ss}`;
+  };
 
   const cartCount = cart.reduce((n, l) => n + l.qty, 0);
   const cartTotal = cart.reduce((n, l) => n + l.unitPrice * l.qty, 0);
@@ -105,12 +170,15 @@ export default function SelfOrderMenu({
       if (existing) {
         return prev.map((l) => (l.key === lineKey ? { ...l, qty: Math.min(20, l.qty + 1) } : l));
       }
-      return [...prev, { key: lineKey, itemId: item.id, name: item.name, unitPrice, qty: 1, variantNames, notes }];
+      return [...prev, { key: lineKey, itemId: item.id, name: item.name, unitPrice, qty: 1, variantNames, notes, isFood: !item.isDrink }];
     });
   };
 
   const handleAdd = (item: SelfOrderItem) => {
     setError(null);
+    // Food can't be added while the table's cooldown is still running — its "+"
+    // is already disabled in the list, but guard here too (and for the picker).
+    if (foodLocked && !item.isDrink) return;
     if (item.variants.length > 0) {
       setPicker(item);
       setPickerVariants([]);
@@ -153,7 +221,17 @@ export default function SelfOrderMenu({
         setSent(true);
       } else {
         const body = await res.json().catch(() => ({}));
-        setError(body?.error === "cassa_closed" ? s.closedBody : s.genericError);
+        if (body?.error === "food_locked") {
+          // The server anchors the lock to the bill's real open time, which can be
+          // a hair later than our on-scan estimate. Re-sync to its authoritative
+          // unlock_at so our countdown matches, and tell the guest to send the
+          // food again once it lifts. Their drinks in the cart are untouched.
+          if (body?.unlock_at) setFoodUnlockAt(new Date(body.unlock_at).getTime());
+          setNow(Date.now());
+          setError(s.foodLockedError);
+        } else {
+          setError(body?.error === "cassa_closed" ? s.closedBody : s.genericError);
+        }
       }
     } catch {
       setError(s.genericError);
@@ -236,6 +314,29 @@ export default function SelfOrderMenu({
         </nav>
       )}
 
+      {/* Drinks-first cooldown banner: only while food is still locked. Explains
+          WHY the food dishes are greyed and shows the live countdown, so the guest
+          isn't confused — they order drinks now, food opens shortly. */}
+      {foodLocked && (
+        <div className="mx-4 mt-3 rounded-2xl border p-3.5 flex items-start gap-3" style={{ borderColor: "rgba(180,83,9,0.25)", background: "rgba(180,83,9,0.07)" }}>
+          <span className="text-xl leading-none mt-0.5" aria-hidden>🍹</span>
+          <div className="min-w-0 flex-1">
+            <p className="text-[14px] font-bold text-stone-900">{s.drinksFirstTitle}</p>
+            <p className="text-[12.5px] text-stone-600 leading-snug mt-0.5">{s.drinksFirstBody}</p>
+          </div>
+          <span className="shrink-0 tabular-nums text-[15px] font-extrabold px-2.5 py-1 rounded-lg text-white self-center" style={{ background: ACCENT }}>
+            {fmtLeft(secsLeft)}
+          </span>
+        </div>
+      )}
+
+      {/* Fired once the food unlocks — a small, self-dismissing confirmation. */}
+      {justUnlocked && (
+        <div className="mx-4 mt-3 rounded-2xl p-3 text-center text-white text-[14px] font-bold" style={{ background: "#15803d" }}>
+          ✓ {s.foodUnlockedToast}
+        </div>
+      )}
+
       {/* Sections */}
       <div className="px-4 pb-40 pt-2">
         {sections.length === 0 && (
@@ -253,11 +354,19 @@ export default function SelfOrderMenu({
               {sec.title}
             </h2>
             <div className="space-y-2.5">
-              {sec.items.map((item) => (
-                <div key={`${sec.key}-${item.id}`} className="flex gap-3 items-start rounded-2xl bg-white p-3 shadow-sm border border-stone-100">
+              {sec.items.map((item) => {
+                // Food dishes are dimmed and un-addable while the cooldown runs;
+                // drinks are always live.
+                const locked = foodLocked && !item.isDrink;
+                return (
+                <div
+                  key={`${sec.key}-${item.id}`}
+                  className="flex gap-3 items-start rounded-2xl bg-white p-3 shadow-sm border border-stone-100 transition-opacity"
+                  style={locked ? { opacity: 0.55 } : undefined}
+                >
                   {item.image_url ? (
                     // eslint-disable-next-line @next/next/no-img-element
-                    <img src={item.image_url} alt={item.name} className="h-16 w-16 rounded-xl object-cover shrink-0" />
+                    <img src={item.image_url} alt={item.name} className="h-16 w-16 rounded-xl object-cover shrink-0" style={locked ? { filter: "grayscale(0.6)" } : undefined} />
                   ) : null}
                   <div className="min-w-0 flex-1">
                     <p className="font-semibold text-stone-900 text-[15px] leading-snug">{item.name}</p>
@@ -269,16 +378,29 @@ export default function SelfOrderMenu({
                     )}
                     <p className="text-sm font-bold mt-1" style={{ color: ACCENT }}>{euro(item.price)}</p>
                   </div>
-                  <button
-                    onClick={() => handleAdd(item)}
-                    aria-label={`${s.add} ${item.name}`}
-                    className="shrink-0 h-9 w-9 rounded-full text-white text-xl leading-none font-bold cursor-pointer self-center"
-                    style={{ background: ACCENT }}
-                  >
-                    +
-                  </button>
+                  {locked ? (
+                    // Countdown chip in place of the add button — same footprint,
+                    // clearly not tappable, tells the guest exactly how long is left.
+                    <span
+                      className="shrink-0 inline-flex items-center gap-1 h-9 px-2.5 rounded-full bg-stone-100 text-stone-500 text-[12px] font-bold tabular-nums self-center"
+                      aria-label={s.foodLockedBadge}
+                      title={s.foodLockedBadge}
+                    >
+                      <span aria-hidden>🔒</span>{fmtLeft(secsLeft)}
+                    </span>
+                  ) : (
+                    <button
+                      onClick={() => handleAdd(item)}
+                      aria-label={`${s.add} ${item.name}`}
+                      className="shrink-0 h-9 w-9 rounded-full text-white text-xl leading-none font-bold cursor-pointer self-center"
+                      style={{ background: ACCENT }}
+                    >
+                      +
+                    </button>
+                  )}
                 </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         ))}

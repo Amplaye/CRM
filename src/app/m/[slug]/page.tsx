@@ -13,6 +13,7 @@ import MenuView, { type MenuViewSection } from "./MenuView";
 import SelfOrderMenu, { type SelfOrderSection, type SelfOrderStrings } from "./SelfOrderMenu";
 import TableBill, { type TableBillStrings } from "./TableBill";
 import { getFeatures } from "@/lib/types/tenant-settings";
+import { getSelfOrderConfig, foodUnlockAtMs } from "@/lib/self-order/config";
 import type { MenuItemVariant } from "@/lib/types";
 
 // The public menu has its own premium typographic voice, loaded only on this
@@ -121,6 +122,11 @@ const SELF_ORDER_STRINGS: Record<MenuLocale, SelfOrderStrings> = {
     orderMore: "Ordina ancora", closedTitle: "Cassa chiusa",
     closedBody: "In questo momento non è possibile ordinare dal tavolo: chiama il personale.",
     genericError: "Invio non riuscito. Riprova o chiama il personale.",
+    drinksFirstTitle: "Prima da bere 🍹",
+    drinksFirstBody: "Ordina subito le bevande. I piatti si sbloccano tra poco, così la cucina li prepara al meglio.",
+    foodLockedBadge: "Presto disponibile", foodUnlockedToast: "Ora puoi ordinare i piatti!",
+    foodLockedError: "I piatti non sono ancora disponibili: ordina le bevande e riprova tra poco.",
+    minutesShort: "min",
   },
   es: {
     table: "Mesa", add: "Añadir", yourOrder: "Tu pedido", empty: "El carrito está vacío",
@@ -130,6 +136,11 @@ const SELF_ORDER_STRINGS: Record<MenuLocale, SelfOrderStrings> = {
     orderMore: "Pedir más", closedTitle: "Caja cerrada",
     closedBody: "Ahora mismo no se puede pedir desde la mesa: llama al personal.",
     genericError: "No se pudo enviar. Inténtalo de nuevo o llama al personal.",
+    drinksFirstTitle: "Primero las bebidas 🍹",
+    drinksFirstBody: "Pide ya las bebidas. Los platos se desbloquean en unos minutos, así la cocina los prepara mejor.",
+    foodLockedBadge: "Disponible pronto", foodUnlockedToast: "¡Ya puedes pedir los platos!",
+    foodLockedError: "Los platos aún no están disponibles: pide las bebidas y vuelve a intentarlo en unos minutos.",
+    minutesShort: "min",
   },
   en: {
     table: "Table", add: "Add", yourOrder: "Your order", empty: "Your cart is empty",
@@ -139,6 +150,11 @@ const SELF_ORDER_STRINGS: Record<MenuLocale, SelfOrderStrings> = {
     orderMore: "Order more", closedTitle: "Till closed",
     closedBody: "Table ordering is not available right now: please call the staff.",
     genericError: "Could not send the order. Try again or call the staff.",
+    drinksFirstTitle: "Drinks first 🍹",
+    drinksFirstBody: "Order your drinks now. The dishes unlock in a few minutes so the kitchen can prepare them at their best.",
+    foodLockedBadge: "Available soon", foodUnlockedToast: "You can order dishes now!",
+    foodLockedError: "The dishes aren't available yet: order your drinks and try again in a few minutes.",
+    minutesShort: "min",
   },
   de: {
     table: "Tisch", add: "Hinzufügen", yourOrder: "Deine Bestellung", empty: "Der Warenkorb ist leer",
@@ -148,6 +164,11 @@ const SELF_ORDER_STRINGS: Record<MenuLocale, SelfOrderStrings> = {
     orderMore: "Mehr bestellen", closedTitle: "Kasse geschlossen",
     closedBody: "Bestellen am Tisch ist gerade nicht möglich: bitte das Personal rufen.",
     genericError: "Senden fehlgeschlagen. Erneut versuchen oder das Personal rufen.",
+    drinksFirstTitle: "Erst die Getränke 🍹",
+    drinksFirstBody: "Bestellt jetzt eure Getränke. Die Gerichte werden in wenigen Minuten freigeschaltet, damit die Küche sie optimal zubereitet.",
+    foodLockedBadge: "Bald verfügbar", foodUnlockedToast: "Ihr könnt jetzt Gerichte bestellen!",
+    foodLockedError: "Die Gerichte sind noch nicht verfügbar: bestellt Getränke und versucht es in wenigen Minuten erneut.",
+    minutesShort: "Min.",
   },
 };
 
@@ -305,6 +326,27 @@ export default async function PublicMenuPage({
     }
   }
 
+  // Drinks-first cooldown seed: if this table already has an OPEN bill, its food
+  // lock is already counting from that bill's opened_at — so a guest who scans
+  // again mid-cooldown sees the SAME countdown, not a fresh one. No open bill yet
+  // → null, and the client starts the clock when the guest sends their first
+  // (drinks) order. The set of drink item ids lets the client lock food dishes.
+  const selfOrderCfg = getSelfOrderConfig(tenant.settings as any);
+  let initialFoodUnlockAt: string | null = null;
+  if (orderTable) {
+    const { data: openBill } = await sb
+      .from("cassa_orders")
+      .select("opened_at")
+      .eq("tenant_id", tenant.id)
+      .eq("table_id", orderTable.id)
+      .eq("status", "open")
+      .limit(1)
+      .maybeSingle();
+    if (openBill?.opened_at) {
+      initialFoodUnlockAt = new Date(foodUnlockAtMs(new Date(openBill.opened_at).getTime())).toISOString();
+    }
+  }
+
   // Return leg from Stripe Checkout (?pay=success&cs=<session>|?pay=cancel).
   const payRaw = Array.isArray(sp.pay) ? sp.pay[0] : sp.pay;
   const csRaw = Array.isArray(sp.cs) ? sp.cs[0] : sp.cs;
@@ -447,6 +489,12 @@ export default async function PublicMenuPage({
     const variantsById = new Map(
       items.map((it) => [it.id, Array.isArray(it.variants) ? it.variants : []])
     );
+    // A dish is a "drink" when its HOME category is one the owner flagged. Keyed
+    // by item id (not section) so a drink featured in a "Consigliati" collection
+    // is still treated as a drink there — the client uses this to keep drinks
+    // orderable while food dishes stay locked during the cooldown.
+    const drinkCats = new Set(selfOrderCfg.drink_category_ids);
+    const drinkById = new Map(items.map((it) => [it.id, it.category_id != null && drinkCats.has(it.category_id)]));
     const orderSections: SelfOrderSection[] = sections
       .map((s) => ({
         key: s.key,
@@ -462,9 +510,14 @@ export default async function PublicMenuPage({
             image_url: it.image_url,
             allergenLabels: it.allergenLabels,
             variants: variantsById.get(it.id) || [],
+            isDrink: drinkById.get(it.id) ?? false,
           })),
       }))
       .filter((s) => s.items.length > 0);
+    // Only bother the client with the cooldown when the owner actually flagged
+    // drinks — with no drink category the whole menu is food and locking it on
+    // arrival would just block everyone, so we leave ordering unrestricted.
+    const cooldownActive = drinkCats.size > 0;
 
     return (
       <div className={`${displayFont.variable} ${manrope.variable}`} style={wrapStyle}>
@@ -477,6 +530,9 @@ export default async function PublicMenuPage({
           sections={orderSections}
           strings={SELF_ORDER_STRINGS[locale]}
           emptyLabel={ui.updating}
+          cooldownActive={cooldownActive}
+          cooldownMin={selfOrderCfg.cooldown_min}
+          initialFoodUnlockAt={initialFoodUnlockAt}
         />
         {payTable && (
           <TableBill
