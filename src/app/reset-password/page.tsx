@@ -25,7 +25,7 @@ export default function ResetPasswordPage() {
       return;
     }
 
-    if (password.length < 6) {
+    if (password.length < 10) {
       setError(t("pwd_too_short"));
       return;
     }
@@ -85,7 +85,7 @@ export default function ResetPasswordPage() {
                     name="new-password"
                     autoComplete="new-password"
                     required
-                    minLength={6}
+                    minLength={10}
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     className="block w-full pl-10 sm:text-sm border-2 p-2.5 rounded-md focus:ring-[#c4956a] focus:border-[#c4956a]"
@@ -107,7 +107,7 @@ export default function ResetPasswordPage() {
                     name="confirm-password"
                     autoComplete="new-password"
                     required
-                    minLength={6}
+                    minLength={10}
                     value={confirmPassword}
                     onChange={(e) => setConfirmPassword(e.target.value)}
                     className="block w-full pl-10 sm:text-sm border-2 p-2.5 rounded-md focus:ring-[#c4956a] focus:border-[#c4956a]"

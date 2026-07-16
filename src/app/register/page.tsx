@@ -200,7 +200,7 @@ export default function RegisterPage() {
                     name="password"
                     autoComplete="new-password"
                     required
-                    minLength={6}
+                    minLength={10}
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     className="block w-full pl-10 pr-10 sm:text-sm border-2 p-2.5 rounded-md focus:ring-[#c4956a] focus:border-[#c4956a]"

@@ -96,6 +96,12 @@ export default function LoginPage() {
       router.push("/");
       router.refresh();
     } catch (err: any) {
+      // Fire-and-forget failure log (feeds the brute-force tripwire server-side).
+      fetch("/api/auth/log-login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ failed: true, email }),
+      }).catch(() => {});
       setError(err.message || "Failed to sign in. Please verify your credentials.");
     } finally {
       setLoading(false);

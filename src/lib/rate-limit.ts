@@ -1,9 +1,12 @@
 import { NextResponse } from 'next/server';
 import { createServiceRoleClient } from '@/lib/supabase/server';
+import { logSystemEvent } from '@/lib/system-log';
 
 // Sliding-window rate limit backed by public.rate_limit_buckets +
-// consume_rate_limit RPC. Opt-in via RATE_LIMIT_ENABLED=1 — when off the
-// helper is a no-op so we never add a DB round-trip on the hot path.
+// consume_rate_limit RPC. ON by default — opt-out only with
+// RATE_LIMIT_ENABLED=0 (emergency lever if the RPC misbehaves).
+// On DB errors the limiter fails OPEN (bot availability beats strictness)
+// but raises a high-severity system log so the failure is visible.
 //
 // Usage:
 //   const rl = await assertRateLimit(request, 'ai:availability', { max: 60, windowSecs: 60 });
@@ -22,7 +25,7 @@ function getClientIp(request: Request): string {
 }
 
 export function rateLimitEnabled(): boolean {
-  return process.env.RATE_LIMIT_ENABLED === '1';
+  return process.env.RATE_LIMIT_ENABLED !== '0';
 }
 
 export async function assertRateLimit(
@@ -45,6 +48,13 @@ export async function assertRateLimit(
     if (error) {
       // Fail-open: a transient DB error must not block the bot. Log and pass.
       console.error('[rate-limit] RPC error, failing open:', error.message);
+      await logSystemEvent({
+        category: 'system',
+        severity: 'high',
+        title: 'Rate limit RPC error (failing open)',
+        description: error.message,
+        error_key: 'rate-limit-rpc-error',
+      });
       return null;
     }
     const row = Array.isArray(data) ? data[0] : data;
@@ -65,6 +75,13 @@ export async function assertRateLimit(
     }
   } catch (e: any) {
     console.error('[rate-limit] exception, failing open:', e?.message);
+    await logSystemEvent({
+      category: 'system',
+      severity: 'high',
+      title: 'Rate limit exception (failing open)',
+      description: e?.message,
+      error_key: 'rate-limit-rpc-error',
+    });
   }
   return null;
 }
