@@ -12,8 +12,17 @@ import type { NextConfig } from "next";
 const csp = [
   "default-src 'self'",
   "script-src 'self' 'unsafe-inline'",
+  // Remotion's in-browser renderer (Social section) spins up a background
+  // keepalive Web Worker from a blob: URL. Without worker-src it falls back to
+  // script-src, which lacks blob:, so the worker is blocked and the render can
+  // stall when the tab is backgrounded. Allow only self + blob: (no remote worker).
+  "worker-src 'self' blob:",
   "style-src 'self' 'unsafe-inline'",
   "img-src 'self' data: blob: https:",
+  // Reel (.mp4) previews are served from our Supabase Storage bucket; blob: covers
+  // the local preview of a freshly rendered clip before it's uploaded. Without an
+  // explicit media-src, <video> falls back to default-src 'self' and is blocked.
+  "media-src 'self' data: blob: https://*.supabase.co",
   "font-src 'self' data:",
   "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://api.vapi.ai https://graph.facebook.com https://api.resend.com",
   // The public micro-site (/s) embeds a Google Maps iframe. Without an explicit
