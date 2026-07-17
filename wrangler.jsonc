@@ -39,8 +39,7 @@
   // during staging, then crm.baliflowagency.com at cutover. Secrets (CRON_SECRET,
   // Stripe/PayPal, ENC keys, etc.) go via `wrangler secret put`, never here.
   "vars": {
-    // STAGING: the dispatcher calls its own /api/cron/* on the workers.dev URL.
-    // Flip to https://crm.baliflowagency.com at the DNS cutover (Task 5).
-    "CRON_BASE_URL": "https://crm.sofia-f88.workers.dev"
+    // CUTOVER (2026-07-17): dispatcher calls its own /api/cron/* on the prod domain.
+    "CRON_BASE_URL": "https://crm.baliflowagency.com"
   }
 }
