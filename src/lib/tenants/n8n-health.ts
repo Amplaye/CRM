@@ -24,6 +24,46 @@
 // the `[Prefix]`), which is what couples `[Oraz] Reminders` to
 // `[ALL] Reminders — Multi-Tenant`.
 
+// ─── Engine flag (migrazione n8n → Cloudflare Worker) ────────────────────────
+//
+// The chatbot engine is being moved off n8n onto a Cloudflare Worker, one tenant
+// at a time. Which motor serves a tenant is DATA, not code:
+// `tenants.settings.provisioning.engine` = "n8n" | "cloudflare" (JSONB, no
+// migration needed). Absent / "n8n" / anything unknown → today's behaviour,
+// untouched; only the explicit "cloudflare" opt-in re-points the health probe
+// (and the admin badge) to the Worker. The flag is written by hand at cutover.
+
+export type BotEngine = "n8n" | "cloudflare";
+
+/** Base URL of the deployed bot-engine Worker (Task 1.7 — motore Cloudflare). */
+export const CLOUDFLARE_ENGINE_BASE_URL = "https://bot-engine.sofia-f88.workers.dev";
+
+/** The Worker's health endpoint — same contract as the n8n probe: reachable and
+ * healthy means `{"ok":true}`. */
+export function cloudflareEngineHealthUrl(): string {
+  return `${CLOUDFLARE_ENGINE_BASE_URL}/health`;
+}
+
+/**
+ * Which chatbot engine serves this tenant, read from settings.provisioning.engine.
+ * Fail-safe: only the explicit "cloudflare" value moves a tenant; absent,
+ * "n8n" or garbage all resolve to "n8n" so no existing tenant changes behaviour.
+ */
+export function getBotEngine(
+  settings: { provisioning?: { engine?: unknown; [k: string]: unknown } } | null | undefined
+): BotEngine {
+  return settings?.provisioning?.engine === "cloudflare" ? "cloudflare" : "n8n";
+}
+
+/** Strict `{ok:true}` check on the Worker /health response body. */
+export function isCloudflareEngineHealthy(body: unknown): boolean {
+  return (
+    typeof body === "object" &&
+    body !== null &&
+    (body as Record<string, unknown>).ok === true
+  );
+}
+
 export interface RawWorkflow {
   name?: string;
   active?: boolean;

@@ -1,5 +1,13 @@
 import { describe, it, expect } from "vitest";
-import { resolveN8nTenantHealth, normFunc, type RawWorkflow } from "./n8n-health";
+import {
+  resolveN8nTenantHealth,
+  normFunc,
+  getBotEngine,
+  isCloudflareEngineHealthy,
+  cloudflareEngineHealthUrl,
+  CLOUDFLARE_ENGINE_BASE_URL,
+  type RawWorkflow,
+} from "./n8n-health";
 
 // Shared engines live for every scenario unless a test overrides them.
 const SHARED: RawWorkflow[] = [
@@ -113,5 +121,45 @@ describe("resolveN8nTenantHealth", () => {
     // Only BALI's own workflow, not BALI Rest's, counts.
     expect(bali.workflows).toHaveLength(1);
     expect(bali.workflows[0].state).toBe("active");
+  });
+});
+
+// Engine flag — cutover n8n → Cloudflare Worker, one tenant at a time.
+// settings.provisioning.engine decides which motor serves the tenant; anything
+// that isn't the explicit "cloudflare" opt-in MUST behave exactly like today
+// (n8n), so un-flagged tenants are untouched by the migration.
+describe("getBotEngine", () => {
+  it("defaults to n8n when settings are absent", () => {
+    expect(getBotEngine(null)).toBe("n8n");
+    expect(getBotEngine(undefined)).toBe("n8n");
+  });
+  it("defaults to n8n when provisioning or the flag is missing", () => {
+    expect(getBotEngine({})).toBe("n8n");
+    expect(getBotEngine({ provisioning: {} })).toBe("n8n");
+    expect(getBotEngine({ provisioning: { whatsapp_attached: true } })).toBe("n8n");
+  });
+  it("reads the explicit flag", () => {
+    expect(getBotEngine({ provisioning: { engine: "n8n" } })).toBe("n8n");
+    expect(getBotEngine({ provisioning: { engine: "cloudflare" } })).toBe("cloudflare");
+  });
+  it("treats an unknown value as n8n (never break an existing tenant)", () => {
+    expect(getBotEngine({ provisioning: { engine: "banana" } })).toBe("n8n");
+    expect(getBotEngine({ provisioning: { engine: 42 } })).toBe("n8n");
+  });
+});
+
+describe("cloudflare engine health probe", () => {
+  it("probes the Worker /health endpoint", () => {
+    expect(cloudflareEngineHealthUrl()).toBe(`${CLOUDFLARE_ENGINE_BASE_URL}/health`);
+    expect(cloudflareEngineHealthUrl()).toBe("https://bot-engine.sofia-f88.workers.dev/health");
+  });
+  it("accepts only the {ok:true} contract", () => {
+    expect(isCloudflareEngineHealthy({ ok: true })).toBe(true);
+    expect(isCloudflareEngineHealthy({ ok: false })).toBe(false);
+    expect(isCloudflareEngineHealthy({ ok: "true" })).toBe(false);
+    expect(isCloudflareEngineHealthy({})).toBe(false);
+    expect(isCloudflareEngineHealthy(null)).toBe(false);
+    expect(isCloudflareEngineHealthy(undefined)).toBe(false);
+    expect(isCloudflareEngineHealthy("ok")).toBe(false);
   });
 });

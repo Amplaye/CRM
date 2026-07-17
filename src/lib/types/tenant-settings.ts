@@ -329,6 +329,19 @@ export interface TenantSettings {
   floor_zones?: { name: string; walls?: { x1: number; y1: number; x2: number; y2: number }[]; floor?: string }[];
   /** Cloned n8n workflow ids (present for tenants provisioned via the orchestrator). */
   n8n?: { workflow_ids?: string[] };
+  /** Provisioning markers (see src/lib/tenants/provisioning-markers.ts for the
+   * WhatsApp routability pair, written by the onboarding orchestrator and the
+   * reconcile job). `engine` is the chatbot-motor flag for the n8n → Cloudflare
+   * Worker migration: absent/"n8n" → the tenant runs on n8n (today's default);
+   * "cloudflare" → served by the bot-engine Worker. Read via getBotEngine()
+   * (src/lib/tenants/n8n-health.ts); written BY HAND at cutover, per tenant. */
+  provisioning?: {
+    whatsapp_attached?: boolean;
+    sandbox_routable?: boolean;
+    slug?: string;
+    engine?: import("@/lib/tenants/n8n-health").BotEngine;
+    [key: string]: unknown;
+  };
   /** Booking-policy thresholds the n8n bot (and /api/ai/book) read to decide
    * auto-confirm vs manual review vs refuse. Written at onboarding from the wizard
    * and editable in Settings → Features. `party_size_threshold_large` is the first

@@ -5,6 +5,9 @@ import { ENGINE_VAPI_ASSISTANT_ID } from "@/lib/voice/engine";
 import { getVoiceProvider } from "@/lib/types/tenant-settings";
 import {
   resolveN8nTenantHealth,
+  getBotEngine,
+  cloudflareEngineHealthUrl,
+  isCloudflareEngineHealthy,
   type N8nTenantHealth,
   type RawWorkflow,
   type TenantWorkflow,
@@ -146,34 +149,60 @@ export async function GET(req: NextRequest) {
   }
   checks.push({ key: "vapi", label: vapiLabel, state: vapiState, detail: vapiDetail });
 
-  // 4. n8n workflows — "verità viva": classify the tenant's own workflows against
-  // the shared engines that are live on n8n RIGHT NOW. No threshold, no template
-  // count. Red only if a CORE function (the ones that make the bot answer) is off
-  // and uncovered; accessory workflows off-by-design (reports, audits) don't fail
-  // the tenant. The per-workflow breakdown is returned so the card can list each.
-  const probe = await n8nProbe(tenant.name);
+  // 4. Chatbot engine — which motor serves this tenant is per-tenant DATA
+  // (settings.provisioning.engine, written at cutover). Two branches:
+  //   - "n8n" (default, flag absent → today's behaviour unchanged): "verità
+  //     viva" — classify the tenant's own workflows against the shared engines
+  //     live on n8n RIGHT NOW. No threshold, no template count. Red only if a
+  //     CORE function is off and uncovered; accessory workflows off-by-design
+  //     don't fail the tenant. Per-workflow breakdown returned for the card.
+  //   - "cloudflare": the tenant runs on the bot-engine Worker — probe ITS
+  //     /health (same contract: {"ok":true}) instead of n8n workflows.
+  const engine = getBotEngine(s);
   let n8nState: CheckState;
   let n8nDetail: string;
   let n8nWorkflows: TenantWorkflow[] | undefined;
-  if (probe === null) {
-    n8nState = "warn";
-    n8nDetail = "stato n8n non verificabile ora";
+  let engineLabel = "Automazioni (n8n)";
+  if (engine === "cloudflare") {
+    engineLabel = "Motore (Cloudflare Worker)";
+    try {
+      const res = await fetch(cloudflareEngineHealthUrl(), { cache: "no-store" });
+      const body = await res.json().catch(() => null);
+      if (res.ok && isCloudflareEngineHealthy(body)) {
+        n8nState = "ok";
+        n8nDetail = "servito dal Worker bot-engine (health ok)";
+      } else {
+        n8nState = "fail";
+        n8nDetail = `Worker bot-engine risponde ma non è healthy (HTTP ${res.status})`;
+      }
+    } catch {
+      n8nState = "warn";
+      n8nDetail = "stato del Worker bot-engine non verificabile ora";
+    }
   } else {
-    n8nWorkflows = probe.workflows;
-    const parts = [`${probe.active} attivi`];
-    if (probe.covered) parts.push(`${probe.covered} dal motore unico`);
-    if (probe.optional) parts.push(`${probe.optional} opzionali spenti`);
-    if (probe.ok) {
-      n8nState = "ok";
-      n8nDetail = parts.join(", ");
+    const probe = await n8nProbe(tenant.name);
+    if (probe === null) {
+      n8nState = "warn";
+      n8nDetail = "stato n8n non verificabile ora";
     } else {
-      // A core function is down. Name them so the admin sees exactly what's broken.
-      const broken = probe.workflows.filter((w) => w.state === "down").map((w) => w.func);
-      n8nState = "fail";
-      n8nDetail = `funzioni core spente: ${broken.join(", ")}`;
+      n8nWorkflows = probe.workflows;
+      const parts = [`${probe.active} attivi`];
+      if (probe.covered) parts.push(`${probe.covered} dal motore unico`);
+      if (probe.optional) parts.push(`${probe.optional} opzionali spenti`);
+      if (probe.ok) {
+        n8nState = "ok";
+        n8nDetail = parts.join(", ");
+      } else {
+        // A core function is down. Name them so the admin sees exactly what's broken.
+        const broken = probe.workflows.filter((w) => w.state === "down").map((w) => w.func);
+        n8nState = "fail";
+        n8nDetail = `funzioni core spente: ${broken.join(", ")}`;
+      }
     }
   }
-  checks.push({ key: "n8n", label: "Automazioni (n8n)", state: n8nState, detail: n8nDetail, workflows: n8nWorkflows });
+  // Key stays "n8n" so the admin card (which looks it up by key) keeps working
+  // on both engines; the label tells the admin which motor the tenant is on.
+  checks.push({ key: "n8n", label: engineLabel, state: n8nState, detail: n8nDetail, workflows: n8nWorkflows });
 
   // 2 (filled last). Onboarding marker — what the dashboard guard reads to stop
   // redirecting the OWNER into the wizard. It says nothing about whether the bot
