@@ -6,17 +6,13 @@ import { logSystemEvent } from "@/lib/system-log";
 // Drain the VeriFactu send queue. Same auth as every other cron here:
 // `Authorization: Bearer ${CRON_SECRET}`.
 //
-// Called from TWO places, on purpose:
+// Driven HOURLY by the bot-engine Worker's scheduled dispatch (cron `0 * * * *`,
+// see src/lib/cron/dispatch.ts). Art. 17 Orden HAC/1177/2024 requires pending
+// records to be retried at least once an hour, which the Worker's hourly trigger
+// meets. (Historically this was an n8n-hourly + Vercel-daily pair; both are gone.)
 //
-//   • n8n, HOURLY. Art. 17 Orden HAC/1177/2024 requires pending records to be
-//     retried at least once an hour — and Vercel Hobby refuses to deploy a
-//     sub-daily cron at all. n8n already runs, already holds CRON_SECRET, and has
-//     no such restriction, so it is the layer that actually meets the duty.
-//
-//   • Vercel, DAILY (vercel.json). The safety net for the day n8n itself is down.
-//
-// The claim inside flushPending is `for update skip locked`, so both callers can
-// fire at the same second without a record ever going out twice.
+// The claim inside flushPending is `for update skip locked`, so overlapping calls
+// can fire at the same second without a record ever going out twice.
 
 export async function GET(req: NextRequest) {
   const secret = process.env.CRON_SECRET;

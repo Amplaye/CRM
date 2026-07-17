@@ -2,17 +2,12 @@ import { describe, it, expect } from "vitest";
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { getFeatures } from "./types/tenant-settings";
-import {
-  N8N_TEMPLATE_COUNT,
-  N8N_MOTORE_UNICO_MIN_COUNT,
-  MOTORE_UNICO_SHARED_WORKFLOWS,
-} from "./tenants/activation";
 
 /**
  * SAAS PROOF SUITE — the investor pillars, locked by the build.
  *
  * docs/PIANO_SAAS.md ships a manual "VERIFICA GLOBALE" checklist. The pillars
- * that can be proven in-process (no external Vapi/n8n/Twilio call) are asserted
+ * that can be proven in-process (no external Vapi/Twilio call) are asserted
  * here, so a future edit cannot silently undo them. Companion: docs/PROVA_SAAS.md.
  */
 
@@ -160,43 +155,20 @@ describe("SaaS pillar — POS credentials are never readable by the browser [ges
   });
 });
 
-describe("SaaS pillar — every new tenant clones PICNIC's full workflow set [gold standard]", () => {
-  // PICNIC is the maintenance-free legacy tenant. The onboarding template must
-  // clone exactly its per-tenant workflows so a new client is born complete.
-  // Two numbers express the same count and must never drift: the clone list in
-  // the orchestrator, and the health card's "fully provisioned" threshold. We
-  // read the orchestrator's SOURCE (not its module — that pulls server-only
-  // supabase deps) and count the id literals in the exported array.
+describe("SaaS pillar — the chatbot engine is the Cloudflare Worker, provisioned with no n8n clone", () => {
+  // n8n is shut down: onboarding no longer clones any workflow. Lock that in so a
+  // future edit can't reintroduce a live n8n call in the provisioning path. We
+  // read the orchestrator SOURCE (not its module — that pulls server-only supabase
+  // deps) and assert it has no n8n client usage and sets the cloudflare engine.
   const src = readFileSync(join(process.cwd(), "src", "lib", "onboarding", "orchestrator.ts"), "utf8");
-  const block = src.match(/TEMPLATE_RESTAURANT_WORKFLOW_IDS\s*=\s*\[([\s\S]*?)\]/);
 
-  it("finds the workflow-id array in the orchestrator", () => {
-    expect(block).not.toBeNull();
+  it("no longer references the n8n clone list or client", () => {
+    expect(src).not.toContain("TEMPLATE_RESTAURANT_WORKFLOW_IDS");
+    expect(src).not.toContain("n8n-client");
+    expect(src).not.toMatch(/\bn8n\(/); // the n8n() REST call
   });
 
-  it("the clone count equals N8N_TEMPLATE_COUNT (no drift between template and health check)", () => {
-    const ids = (block![1].match(/"[A-Za-z0-9]+"/g) || []).map((s) => s.replace(/"/g, ""));
-    expect(ids.length).toBe(N8N_TEMPLATE_COUNT);
-    // no accidental duplicate ids (would clone the same workflow twice)
-    expect(new Set(ids).size).toBe(ids.length);
-  });
-
-  it("does NOT clone the shared [ALL] No-Show workflow per tenant", () => {
-    // WRdkF33U17VQZZ8J was repurposed into the single `[ALL] No-Show — Multi-
-    // Tenant` cron on 2026-06-08. Cloning it per onboard spawned a DUPLICATE
-    // `[ALL]` cron each time (4 were firing by 2026-06-09) and the clone never
-    // matched the tenant's `[Name]` prefix, so the health card under-counted it.
-    // It must stay out of the clone list — no-show is a shared concern now.
-    const ids = (block![1].match(/"[A-Za-z0-9]+"/g) || []).map((s) => s.replace(/"/g, ""));
-    expect(ids).not.toContain("WRdkF33U17VQZZ8J");
-  });
-
-  it("the motore-unico floor is the full count minus the shared-engine workflows", () => {
-    // A migrated tenant runs WhatsApp/Reminders/Web-Call-Token via shared
-    // engines, not its own clones, so its expected own-workflow floor is lower.
-    expect(N8N_MOTORE_UNICO_MIN_COUNT).toBe(
-      N8N_TEMPLATE_COUNT - MOTORE_UNICO_SHARED_WORKFLOWS.length,
-    );
-    expect(N8N_MOTORE_UNICO_MIN_COUNT).toBeGreaterThan(0);
+  it("marks new tenants engine:\"cloudflare\"", () => {
+    expect(src).toContain('engine: "cloudflare"');
   });
 });

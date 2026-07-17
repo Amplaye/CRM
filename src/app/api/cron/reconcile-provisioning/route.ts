@@ -2,12 +2,12 @@ import { NextRequest, NextResponse } from "next/server";
 import { reconcileProvisioning } from "@/lib/tenants/reconcile-provisioning";
 import { logSystemEvent } from "@/lib/system-log";
 
-// Daily cron (vercel.json). Self-heals any tenant left "active but unroutable"
-// by a partial onboarding run — backfills settings.provisioning.sandbox_routable
-// when the bot's n8n workflows are demonstrably live. Idempotent: on a healthy
-// fleet it repairs nothing. See src/lib/tenants/reconcile-provisioning.ts.
+// Daily cron. Keeps the Worker's KV `sandbox:tenants` routing list in sync with
+// the DB: re-registers every active + sandbox_routable tenant (idempotent upsert),
+// so a tenant can't silently drop out of the shared "which restaurant?" menu if
+// its onboarding-time registration ever failed. See reconcile-provisioning.ts.
 //
-// Vercel sends `Authorization: Bearer ${CRON_SECRET}`.
+// Sends `Authorization: Bearer ${CRON_SECRET}`.
 export const maxDuration = 120;
 
 export async function GET(req: NextRequest) {
@@ -18,15 +18,15 @@ export async function GET(req: NextRequest) {
 
   const result = await reconcileProvisioning(false);
 
-  // Only log when something was actually repaired — keep the audit trail signal,
-  // not a daily "0 repaired" line.
-  if (result.repaired > 0) {
+  // Log only if the registry was unreachable for some tenant (a real problem);
+  // a clean re-sync is routine and shouldn't spam the audit trail daily.
+  if (result.skipped.some((s) => s.why.includes("unreachable"))) {
     await logSystemEvent({
       tenant_id: null,
       category: "system",
-      severity: "medium", // a tenant was silently broken until now — worth noticing
-      title: `Provisioning auto-repair: ${result.repaired} tenant(s) made routable`,
-      metadata: { repairs: result.repairs },
+      severity: "medium",
+      title: `Sandbox reconcile: registry unreachable for ${result.skipped.length} tenant(s)`,
+      metadata: { skipped: result.skipped },
     });
   }
 

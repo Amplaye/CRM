@@ -15,9 +15,9 @@ export interface ProvisioningMarkers {
   whatsapp_attached: boolean;
   sandbox_routable: boolean;
   slug: string;
-  /** Chatbot motor for the n8n → Cloudflare migration ("n8n" | "cloudflare").
-   * Written BY HAND at cutover, read via getBotEngine() (n8n-health.ts). Not
-   * resolved here — the `...p` spread below carries it through untouched, so a
+  /** Chatbot motor ("n8n" | "cloudflare"). Every new tenant is born "cloudflare"
+   * (set by the onboarding orchestrator); read via getBotEngine() (engine-health.ts).
+   * Not resolved here — the `...p` spread below carries it through untouched, so a
    * reconcile re-run can never flip a tenant back onto the wrong engine. */
   engine?: "n8n" | "cloudflare";
   [k: string]: unknown;

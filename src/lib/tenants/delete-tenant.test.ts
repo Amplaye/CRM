@@ -47,11 +47,7 @@ function stubDeps(over: Partial<PurgeDeps> = {}): PurgeDeps {
   return {
     buildExport: vi.fn(async () => ({ exported_at: "x", tenant: {} as any, reservations: [], guests: [], conversations: [], knowledge_articles: [] })),
     uploadExport: vi.fn(async () => ({ path: "t1/x.json", signedUrl: null })),
-    listWorkflows: vi.fn(async () => [
-      { id: "a", name: "[Fuoricittà] Reminders", active: true },
-      { id: "b", name: "[Fuoricittà] Chatbot WhatsApp", active: true },
-    ]),
-    deleteWorkflow: vi.fn(async () => {}),
+    removeSandbox: vi.fn(async () => true),
     deleteVapi: vi.fn(async () => {}),
     deleteRetell: vi.fn(async () => {}),
     ...over,
@@ -66,9 +62,9 @@ describe("purgeTenant", () => {
 
     expect(deps.deleteRetell).toHaveBeenCalledWith({ provider: "retell", retellAgentId: "ag", retellLlmId: "ll", retellKbId: "kb" });
     expect(deps.deleteVapi).not.toHaveBeenCalled();
-    expect((deps.deleteWorkflow as any).mock.calls.map((c: any[]) => c[0]).sort()).toEqual(["a", "b"]);
+    expect(deps.removeSandbox).toHaveBeenCalledWith("t1");
     expect(res.voiceProvider).toBe("retell");
-    expect(res.workflowsDeleted).toBe(2);
+    expect(res.sandboxRemoved).toBe(true);
 
     // orphan tables cleaned, and the tenant delete is the LAST delete recorded
     expect(supabase.calls).toEqual(

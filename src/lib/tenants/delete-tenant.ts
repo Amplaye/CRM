@@ -2,18 +2,14 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { TenantStatus } from "./status";
 import { buildTenantExport, uploadTenantExport } from "./export-tenant";
 import {
-  n8nWorkflowIdsToRemove,
   voiceTeardownPlan,
   classifyStaffForTeardown,
   botSessionPhonesToClean,
-  listN8nWorkflows,
-  activateN8nWorkflow,
-  deactivateN8nWorkflow,
-  deleteN8nWorkflow,
   deleteVapiAssistant,
   deleteRetellVoice,
   type StaffMember,
 } from "./teardown";
+import { addSandboxTenant, removeSandboxTenant } from "./sandbox-registry";
 
 /** Recoverable window before automatic permanent deletion. */
 export const GRACE_PERIOD_DAYS = 90;
@@ -27,8 +23,10 @@ export function computePurgeAfter(from: Date = new Date()): Date {
 /**
  * Archive a tenant: hide it + stop its traffic, reversibly, for the grace
  * period. Flips status→archived, records archived_at/purge_after + prev_status,
- * and DEACTIVATES (not deletes) its n8n workflows. n8n being unreachable does
- * not block the DB archive.
+ * and REMOVES it from the KV sandbox routing list (so it drops out of the shared
+ * "which restaurant?" menu). The bot-engine also stops serving it once status
+ * leaves trial|active, so this is belt-and-suspenders. The registry being
+ * unreachable does not block the DB archive.
  */
 export async function archiveTenant(
   supabase: SupabaseClient,
@@ -49,13 +47,7 @@ export async function archiveTenant(
     ...(opts.exportPath ? { export_path: opts.exportPath } : {}),
   };
 
-  const stored = (settings.n8n?.workflow_ids as string[]) || [];
-  try {
-    const all = await listN8nWorkflows();
-    for (const id of n8nWorkflowIdsToRemove(all, tenant.name, stored)) {
-      await deactivateN8nWorkflow(id).catch(() => {});
-    }
-  } catch { /* n8n unreachable: archive in DB anyway */ }
+  await removeSandboxTenant(tenantId); // fail-soft: archive in DB anyway
 
   const { error: upErr } = await supabase.from("tenants").update({
     status: "archived",
@@ -67,8 +59,9 @@ export async function archiveTenant(
   return { purge_after: purgeAfter.toISOString() };
 }
 
-/** Restore an archived tenant to its previous status and reactivate its n8n
- * workflows. */
+/** Restore an archived tenant to its previous status and re-register it in the
+ * KV sandbox routing list (only if it was a sandbox-routable test tenant — a real
+ * customer on its own number isn't in the shared menu). */
 export async function restoreTenant(
   supabase: SupabaseClient,
   tenantId: string
@@ -82,13 +75,9 @@ export async function restoreTenant(
   const prev = (settings.archive?.prev_status as TenantStatus) || "active";
   delete settings.archive;
 
-  const stored = (settings.n8n?.workflow_ids as string[]) || [];
-  try {
-    const all = await listN8nWorkflows();
-    for (const id of n8nWorkflowIdsToRemove(all, tenant.name, stored)) {
-      await activateN8nWorkflow(id).catch(() => {});
-    }
-  } catch { /* n8n unreachable */ }
+  if (settings.provisioning?.sandbox_routable === true) {
+    await addSandboxTenant(tenantId, tenant.name); // fail-soft: restore in DB anyway
+  }
 
   const { error: upErr } = await supabase.from("tenants").update({
     status: prev, archived_at: null, purge_after: null, settings,
@@ -101,16 +90,15 @@ export async function restoreTenant(
 export interface PurgeDeps {
   buildExport: typeof buildTenantExport;
   uploadExport: typeof uploadTenantExport;
-  listWorkflows: typeof listN8nWorkflows;
-  deleteWorkflow: typeof deleteN8nWorkflow;
+  /** Remove the tenant from the KV sandbox routing list (ex n8n workflow delete). */
+  removeSandbox: (tenantId: string) => Promise<boolean>;
   deleteVapi: (assistantId: string) => Promise<void>;
   deleteRetell: typeof deleteRetellVoice;
 }
 const realDeps: PurgeDeps = {
   buildExport: buildTenantExport,
   uploadExport: uploadTenantExport,
-  listWorkflows: listN8nWorkflows,
-  deleteWorkflow: deleteN8nWorkflow,
+  removeSandbox: removeSandboxTenant,
   deleteVapi: deleteVapiAssistant,
   deleteRetell: deleteRetellVoice,
 };
@@ -118,7 +106,8 @@ const realDeps: PurgeDeps = {
 export interface PurgeResult {
   tenantName: string;
   exportPath: string | null;
-  workflowsDeleted: number;
+  /** true if the tenant was removed from the KV sandbox routing list. */
+  sandboxRemoved: boolean;
   voiceProvider: string;
   staffDeleted: number;
   staffBanned: number;
@@ -145,7 +134,7 @@ async function resolveStaffPlan(supabase: SupabaseClient, tenantId: string, user
 
 /**
  * Permanently purge a tenant. Order matters: back up → collect guest phones →
- * external teardown (n8n, voice) → staff login teardown (captured before the
+ * external teardown (sandbox registry, voice) → staff login teardown (captured before the
  * cascade) → manual orphan cleanup → DELETE the tenant row (cascades 15 tables).
  * The durable "purged" audit record is the CALLER's job (system_logs, tenant_id
  * null) because any audit_events row for this tenant cascades away with it.
@@ -172,15 +161,10 @@ export async function purgeTenant(
   const { data: myGuests } = await supabase.from("guests").select("phone").eq("tenant_id", tenantId);
   const myPhones = ((myGuests as any[]) || []).map((g) => g.phone).filter(Boolean);
 
-  // 3) n8n teardown.
-  const stored = (settings.n8n?.workflow_ids as string[]) || [];
-  let workflowsDeleted = 0;
-  try {
-    const all = await deps.listWorkflows();
-    for (const id of n8nWorkflowIdsToRemove(all, name, stored)) {
-      try { await deps.deleteWorkflow(id); workflowsDeleted++; } catch { /* tolerate */ }
-    }
-  } catch { /* n8n unreachable: surfaced via workflowsDeleted=0 */ }
+  // 3) Engine teardown — remove from the KV sandbox routing list (the Worker is
+  //    dynamic: no per-tenant workflows to delete). Fail-soft; the row DELETE
+  //    below is what actually stops all traffic.
+  const sandboxRemoved = await deps.removeSandbox(tenantId);
 
   // 4) Voice teardown (vapi xor retell).
   const vp = voiceTeardownPlan(settings);
@@ -222,7 +206,7 @@ export async function purgeTenant(
   return {
     tenantName: name,
     exportPath,
-    workflowsDeleted,
+    sandboxRemoved,
     voiceProvider: vp.provider,
     staffDeleted,
     staffBanned,

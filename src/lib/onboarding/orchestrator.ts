@@ -1,15 +1,19 @@
 // Onboarding orchestrator: turn a wizard form payload into a fully
-// provisioned tenant (DB rows + Vapi assistant + cloned n8n workflows).
+// provisioned tenant (DB rows + Supabase data + Cloudflare bot-engine wiring).
 // All steps are idempotent-friendly: on failure we report which step
-// failed so the caller can retry without leaving partial state behind
-// in critical resources (the cloned n8n workflows are deactivated by
-// default until the wizard reports success).
+// failed so the caller can retry without leaving partial state behind.
+//
+// The chatbot engine is the Cloudflare Worker (bot-engine), which is fully
+// DYNAMIC: it resolves a tenant at runtime from Supabase (own number →
+// meta_whatsapp_connections) or from the KV `sandbox:tenants` list (shared
+// sandbox number). So a new tenant needs NO cloned workflows — it just needs its
+// Supabase rows + the engine flag + (for the sandbox demo phase) a line in the
+// KV list. This replaces the old step that cloned 14 n8n workflows per tenant.
 
 import { createServiceRoleClient } from "@/lib/supabase/server";
-import { substituteTenantTokens, toCreatePayload } from "./substitute";
-import { n8n, fetchWithTimeout } from "./n8n-client";
 import { createTenant } from "@/lib/tenants/create-tenant";
 import { resolveProvisioningMarkers } from "@/lib/tenants/provisioning-markers";
+import { addSandboxTenant } from "@/lib/tenants/sandbox-registry";
 
 export type OpeningHoursSlot = { open: string; close: string };
 export type OpeningHours = Record<string, OpeningHoursSlot[]>; // keys 0..6 (Sunday=0)
@@ -89,68 +93,9 @@ export interface OnboardProgress {
   data?: any;
 }
 
-// The n8n workflows that make up the OFFICIAL RESTAURANT TEMPLATE
-// ("template ristorante v1"). These live workflows are the golden source:
-// onboarding clones them and rewrites the tenant-specific tokens (see
-// substitute.ts). Patch bot behavior HERE, never on a single client.
-//
-// This list is kept ALIGNED WITH PICNIC, the gold-standard legacy tenant that
-// runs maintenance-free. Every per-tenant workflow PICNIC has must be here so a
-// new client is born complete (same engine, only the KB differs). The four
-// added 2026-05-24 closed the gap that left new tenants (e.g. Chef Oraz) with
-// 13 while PICNIC had 17 working — each was verified per-tenant (references the
-// tenant's own id / Vapi assistant / a "picnic-*" webhook path that
-// substitute.ts rewrites to the new slug). Excluded from PICNIC's live set: a
-// disabled duplicate "Deflector Post-Call" (junk, not the active one).
-export const TEMPLATE_RESTAURANT_WORKFLOW_IDS = [
-  "166QnQsGHqXDpBxa", // Chatbot WhatsApp
-  "2PhhKlZHe0kg23qT", // Web Call Token
-  "2t5TL552kz3HL0By", // Daily Summary 10AM
-  "31yGmF9OJ9EFFHO7", // Voice Agent Webhooks
-  "5xfCf9n0vQcS9MQl", // Auto-Complete Stale Seated
-  "CFMJqjOcSr6mEqVq", // Voice Tool — Restaurant Info
-  "Hm1IhFQTaqnlJMQR", // Reminders
-  "dZeAkXEpRjOjn8n6", // Follow-up Post-Cena
-  "nZdFqTRUrBlPOb3z", // Menu del Dia - 30min antes
-  "z1Akph5impMRh28Y", // Pre-Turno Summary
-  "IDx1EqaQTUq6YHEu", // Weekly AI Report
-  // Added 2026-05-24 to match PICNIC (were missing from new tenants):
-  "ZiEQ8iUpt8LnAYp5", // Vapi Voicemail Scheduler — per-tenant (tenant_id)
-  "w2J411dX5JcOZZsJ", // Nightly Conversation Audit — per-tenant (tenant_id + picnic-audit-run webhook)
-  "fenoM2b2Q9MMa0Kd", // Deflector Post-Call — per-tenant (picnic-deflector-postcall webhook)
-  // NOTE: the Warmup (keep infra warm) template, formerly id y0HusBGSBVW7u9rm,
-  // was REMOVED 2026-05-29 — the source workflow no longer exists on n8n (404),
-  // so every self-serve onboard aborted at step 6 on its GET. PICNIC (the gold
-  // standard) has no Warmup workflow either; the only live one is the oraz
-  // clone, an orphan. It is a 4-min cron ping, non-essential; dropped rather
-  // than rebuilt. The loop below also tolerates 404s defensively so a single
-  // stale template id can never again break the whole provisioning.
-  //
-  // NOTE: "No-Show Auto-Cancel" (formerly id WRdkF33U17VQZZ8J) was REMOVED
-  // 2026-06-09. On 2026-06-08 that very workflow was repurposed into the single
-  // shared `[ALL] No-Show Auto-Cancel — Multi-Tenant` cron, which already loops
-  // EVERY tenant. Cloning it per-tenant did two bad things: (1) the clone kept
-  // the `[ALL]` name (the rename only swaps a leading `[Picnic]`), so it spun up
-  // a DUPLICATE `[ALL]` cron on every onboard — by 2026-06-09 there were four,
-  // all firing every 5 min, quadrupling no-show processing; (2) it never showed
-  // up under the tenant's own `[Name]` prefix, so the health card counted it as
-  // missing ("15/16 incompleto"). No-show is now a shared concern: no per-tenant
-  // clone, served by the single `[ALL]` workflow. PER_TENANT count drops 16→15.
-  //
-  // NOTE: "Waitlist Reassurance" (formerly id hcVLsbtGUWtPS2G1) was REMOVED
-  // 2026-06-16 for the SAME reason. The /api/ai/waitlist-reassurance endpoint
-  // already sweeps EVERY tenant in one call (no tenant_id filter), so each
-  // per-tenant clone was re-doing the whole-fleet sweep every 10 min — N×
-  // redundant work, a double-send race window, and N× the Trello noise when a
-  // transient n8n→Vercel blip hit (one blip = 6 bug cards on 2026-06-14).
-  // Consolidated into the single shared `[ALL] Waitlist Reassurance — Multi-
-  // Tenant` cron (id 9mPFJfnkUe0bRtv5). The 6 per-tenant clones were
-  // deactivated, not deleted. PER_TENANT count drops 15→14.
-];
-
-// The n8n REST client (n8n) and the generic timeout-wrapped fetch
-// (fetchWithTimeout) used throughout provisioning now live in ./n8n-client so
-// the post-onboarding contact re-sync route can reuse the exact same transport.
+// (Historical note: onboarding used to clone 14 n8n workflows per tenant from a
+// golden template. n8n is shut down; the bot-engine Worker resolves each tenant
+// dynamically, so there is nothing to clone. See the module header + step 6.)
 
 // Build a realistic table layout whose seat total equals the capacity the owner
 // declared in the questionnaire. We no longer ask for a small/medium/large
@@ -221,14 +166,6 @@ export async function runOnboard(
   };
 
   let tenantId = "";
-  // Voice "motore unico": there is ONE shared engine assistant for every tenant
-  // (see lib/voice/engine.ts). We no longer clone a per-tenant Vapi assistant at
-  // onboarding — the engine composes each tenant's prompt fresh from the code
-  // template + the tenant's DB KB/hours on every call. So vapiAssistantId stays
-  // empty: the cloned auxiliary n8n workflows keep referencing the template id
-  // (which IS the engine), and substitute.ts leaves it untouched.
-  const vapiAssistantId = "";
-  const createdWorkflowIds: string[] = [];
 
   try {
     const supabase = createServiceRoleClient();
@@ -249,9 +186,9 @@ export async function runOnboard(
         owner_phone: input.owner_phone.startsWith("+") ? input.owner_phone : `+${input.owner_phone}`,
         // restaurant_phone + review_url live at the TOP LEVEL of settings: this is
         // the source of truth the Settings → Bookings tab edits AND the value the
-        // auxiliary n8n workflows now read LIVE at runtime (no longer baked into
-        // the clone). Persisting them here is what makes a freshly-onboarded
-        // tenant's reminders/follow-up/etc. use ITS OWN phone + review link.
+        // bot-engine Worker reads LIVE at runtime for reminders/follow-up/etc.
+        // Persisting them here is what makes a freshly-onboarded tenant use ITS OWN
+        // phone + review link.
         restaurant_phone: input.restaurant_phone,
         review_url: input.review_url,
         last_reservation_offset: input.last_reservation_offset || { lunch: 45, dinner: 60 },
@@ -261,10 +198,9 @@ export async function runOnboard(
         no_show_baseline_pct: 15,
         ai_enabled_channels: ["whatsapp", "voice"],
         currency: "EUR",
-        // Voice tier: every new tenant is born on the BASE provider (Vapi). The
-        // orchestrator already clones a Vapi assistant below, so this flag and the
-        // provisioned infra agree. A premium upgrade (Retell) flips voice.provider
-        // later via the admin switch — see src/lib/tenants/voice-provider.ts.
+        // Voice tier: every new tenant is born on the BASE provider (Vapi), served
+        // by the shared engine assistant. A premium upgrade (Retell) flips
+        // voice.provider later via the admin switch — see voice-provider.ts.
         voice: { provider: "vapi" as const },
         // Feature flags from the wizard answers (terrace/pets/events/languages/
         // double-shift). Read by Settings → Features and the bot's info source.
@@ -272,34 +208,30 @@ export async function runOnboard(
         // Booking-confirmation venue subset, read by /api/ai/book to repeat the
         // address (+ maps link), parking, deposit and cancellation in the recap.
         ...(input.venue ? { venue: input.venue } : {}),
-        // Provisioning markers written EARLY — at row creation, BEFORE the slow
-        // n8n clone (16 workflows ≈ 48 sequential HTTP calls). sandbox_routable is
-        // what the [Meta Router] n8n workflow reads to list a tenant in the "which
-        // restaurant?" test menu (see docs/SANDBOX_ROUTER.md). Writing it here,
-        // not in the final commit, means a freshly-created tenant is routable the
-        // instant its row exists — so even if the function is killed mid-clone
-        // (Vercel 120s wall vs. a slow n8n), the tenant is never invisible. The
-        // final commit only ADDS n8n.workflow_ids; it no longer GATES routability.
-        // (This is the chef-oraz / Lugares-Mágicos failure mode: secrets + flag
-        // used to land together at the very end, so a timeout there left the
-        // tenant active-but-unroutable.)
-        provisioning: resolveProvisioningMarkers(undefined, input.slug),
+        // Provisioning markers written at row creation. sandbox_routable is what
+        // makes a tenant appear in the shared "which restaurant?" test menu — but
+        // on the Cloudflare engine that menu is driven by the KV `sandbox:tenants`
+        // list (populated in step 6 below), NOT by this flag; the flag stays as the
+        // DB record of "this tenant is a sandbox test tenant". engine:"cloudflare"
+        // is set explicitly: every NEW tenant is born on the Worker (the n8n branch
+        // is legacy-only). See docs/SANDBOX_ROUTER.md + getBotEngine().
+        provisioning: { ...resolveProvisioningMarkers(undefined, input.slug), engine: "cloudflare" as const },
       };
-      // Booking-policy thresholds + primary language the cloned n8n bot reads from
+      // Booking-policy thresholds + primary language the bot reads from
       // settings.bot_config. Merged (not replaced) onto whatever bot_config the tenant
       // already had, so a new tenant enforces ITS OWN thresholds/default-language
       // instead of the bot's hardcoded Picnic defaults — without clobbering any other
       // bot_config a prior step wrote.
       //
-      // primary_language is the wizard's "star" (languages[0]). The n8n bot reads
-      // settings.bot_config.primary_language for PRIMARY_LANG_CFG (the default/fallback
-      // reply language). Without this it fell back to 'es' for every tenant regardless
-      // of the star — e.g. an owner picking Italian still got a Spanish-defaulting bot.
+      // primary_language is the wizard's "star" (languages[0]). The bot reads
+      // settings.bot_config.primary_language for the default/fallback reply language.
+      // Without this it fell back to 'es' for every tenant regardless of the star —
+      // e.g. an owner picking Italian still got a Spanish-defaulting bot.
       const mergeBotConfig = (existing: Record<string, any> | undefined) => {
         const merged = {
           ...(existing || {}),
           primary_language: input.language,
-          // The n8n bot reads bot_config.responsible_phone to decide WHO gets the
+          // The bot reads bot_config.responsible_phone to decide WHO gets the
           // "NUEVA RESERVA"/"GRUPO GRANDE" owner alerts. Without it the bot fell
           // back to a hardcoded Picnic number, so every tenant's owner alerts went
           // to Picnic's owner. Persist the wizard number so each tenant alerts ITS owner.
@@ -402,72 +334,35 @@ export async function runOnboard(
     //    to the booking widget (one line, like the chat router).
     push({ step: "vapi", message: "Voice served by shared engine (no per-tenant clone)", ok: true });
 
-    // 6. Clone n8n workflows — idempotent. A truncated run can leave the 13
-    //    workflows created but never recorded on the tenant; cloning again would
-    //    orphan a second set of 13. So: if this tenant's workflows already exist
-    //    (matched by the "[<restaurant_name>]" name prefix), reuse them.
+    // 6. Chatbot engine (Cloudflare Worker) — nothing to clone. The bot-engine
+    //    Worker resolves this tenant dynamically at runtime: on its OWN number via
+    //    Supabase (meta_whatsapp_connections), or on the shared SANDBOX number via
+    //    the KV `sandbox:tenants` list. All the Worker needs is the Supabase rows
+    //    written above (+ engine:"cloudflare" from step 1). For the demo phase,
+    //    register the tenant in the sandbox routing list so it appears in the
+    //    "which restaurant?" menu on the shared number — the one thing the old n8n
+    //    [Meta Router] clone did that has no DB equivalent.
+    //
+    //    Non-fatal: a sandbox-registry failure (Worker unreachable, no CRON_SECRET)
+    //    must NOT fail onboarding — the tenant is fully provisioned in the DB and
+    //    reachable on its own number regardless; only the shared test menu waits.
+    //    A real customer on their own number isn't sandbox_routable, so we skip it.
     {
-      const namePrefix = `[${input.restaurant_name}]`;
-      const existing = await n8n("GET", `/workflows?limit=250`);
-      const already: string[] = (existing?.data || [])
-        .filter((w: any) => typeof w?.name === "string" && w.name.startsWith(namePrefix))
-        .map((w: any) => w.id);
-
-      if (already.length >= TEMPLATE_RESTAURANT_WORKFLOW_IDS.length) {
-        createdWorkflowIds.push(...already);
-        // Make sure they're active (a prior run may have died before activating).
-        for (const id of already) {
-          try { await n8n("POST", `/workflows/${id}/activate`); } catch { /* tolerate */ }
-        }
-        push({ step: "n8n", message: `${already.length} workflows already present — reused`, ok: true, data: { workflow_ids: already } });
+      // Read back the authoritative routability marker (step 1 already wrote it,
+      // honouring any prior number-attach in self-serve) rather than recomputing.
+      const { data: engRow } = await supabase.from("tenants").select("settings").eq("id", tenantId).single();
+      const routable = ((engRow?.settings as any)?.provisioning?.sandbox_routable) === true;
+      if (routable) {
+        const added = await addSandboxTenant(tenantId, input.restaurant_name);
+        push({
+          step: "engine",
+          message: added
+            ? "Tenant registered in the Cloudflare sandbox routing list"
+            : "Sandbox registration deferred (Worker unreachable / no CRON_SECRET) — retry via reconcile; tenant still reachable on its own number",
+          ok: added,
+        });
       } else {
-        // Only STABLE tokens are baked into the clone now. The three mutable
-        // contacts (owner_phone, restaurant_phone, review_url) are read LIVE from
-        // the DB by every auxiliary workflow — see substitute.ts. They were
-        // persisted to the tenant's settings in step 1 (provisioningSettings +
-        // bot_config.responsible_phone), so the live read resolves them.
-        const sub = {
-          newTenantId: tenantId,
-          newSlug: input.slug,
-          newRestaurantName: input.restaurant_name,
-          newVapiAssistantId: vapiAssistantId,
-        };
-
-        const skipped: string[] = [];
-        for (const wid of TEMPLATE_RESTAURANT_WORKFLOW_IDS) {
-          let original: any;
-          try {
-            original = await n8n("GET", `/workflows/${wid}`);
-          } catch (e: any) {
-            // A template id that no longer exists on n8n (404) must NOT abort the
-            // whole onboarding — that's the bug that broke every self-serve run.
-            // Skip the stale template, record it, and keep provisioning the rest.
-            if (/→ 404:/.test(e?.message || "")) { skipped.push(wid); continue; }
-            throw e;
-          }
-          const originalText = JSON.stringify(original);
-          const rewritten = JSON.parse(substituteTenantTokens(originalText, sub));
-          // Template workflow names are prefixed "[Picnic]" → swap for the tenant.
-          const newName = (original.name || "Workflow").replace(/^\[Picnic\]/, namePrefix);
-          const payload = toCreatePayload(rewritten, newName);
-          const created = await n8n("POST", "/workflows", payload);
-          createdWorkflowIds.push(created.id);
-          // Activate immediately so cron triggers + webhooks fire without manual action.
-          try { await n8n("POST", `/workflows/${created.id}/activate`); } catch { /* tolerate */ }
-        }
-        const skipNote = skipped.length ? ` (${skipped.length} stale template${skipped.length > 1 ? "s" : ""} skipped)` : "";
-        push({ step: "n8n", message: `${createdWorkflowIds.length} workflows cloned & activated${skipNote}`, ok: true, data: { workflow_ids: createdWorkflowIds, skipped } });
-      }
-
-      // Persist the workflow ids NOW, right after creation — not only in the
-      // final settings merge. This is exactly what the chef-oraz incident lost:
-      // n8n succeeded but the process ended before the trailing update ran,
-      // orphaning 13 workflows. Writing here means even a later truncation
-      // leaves a tenant that a retry can fully recover.
-      {
-        const { data: cur } = await supabase.from("tenants").select("settings").eq("id", tenantId).single();
-        const merged = { ...((cur?.settings as any) || {}), n8n: { workflow_ids: createdWorkflowIds } };
-        await supabase.from("tenants").update({ settings: merged }).eq("id", tenantId);
+        push({ step: "engine", message: "Own number — no sandbox registration needed", ok: true });
       }
     }
 
@@ -509,34 +404,27 @@ export async function runOnboard(
       }
     }
 
-    // 8. Final commit: workflow ids + (self-serve) the provisioning markers, and
-    //    re-assert status:active. This is the step the chef-oraz incident lost,
-    //    so it must be the LAST thing and must actually land: we read back the
-    //    row and retry once if the markers aren't there. Marking
-    //    onboarding.completed also stops the dashboard guard from bouncing the
-    //    owner back into the wizard.
+    // 8. Final commit: (self-serve) the provisioning markers + re-assert
+    //    status:active. This is the step the chef-oraz incident lost, so it must be
+    //    the LAST thing and must actually land: we read back the row and retry once
+    //    if the markers aren't there. Marking onboarding.completed also stops the
+    //    dashboard guard from bouncing the owner back into the wizard.
     {
       const writeFinal = async () => {
         const { data: cur } = await supabase.from("tenants").select("settings").eq("id", tenantId).single();
         const prev = (cur?.settings as any) || {};
-        const merged: Record<string, any> = {
-          ...prev,
-          n8n: { workflow_ids: createdWorkflowIds },
-        };
+        const merged: Record<string, any> = { ...prev };
         // sandbox_routable:true → while no real WA number is attached, this tenant
-        // shares the single Meta sandbox number with the other test tenants. The
-        // [Meta Router] WhatsApp n8n workflow lists every active tenant carrying
-        // this flag in its "which restaurant?" menu and forwards to the chatbot at
-        // "<slug>-whatsapp", so a freshly-provisioned CRM is reachable for testing
-        // with ZERO manual steps. Written for BOTH paths (admin wizard + self-serve)
-        // because during the demo phase every tenant we create must show up in the
-        // shared menu. A real customer (own number) gets sandbox_routable cleared at
-        // number-attach time and so drops out of the shared test menu. See
-        // docs/SANDBOX_ROUTER.md.
-        // The routability markers are written EARLY now (step 1), so here we only
-        // ensure they exist without CLOBBERING a later number-attach. Shared rule
-        // in resolveProvisioningMarkers: own number wins, else routable-in-sandbox.
-        merged.provisioning = resolveProvisioningMarkers(prev.provisioning, input.slug);
+        // shares the single Meta sandbox number with the other test tenants. On the
+        // Cloudflare engine, the shared "which restaurant?" menu is driven by the KV
+        // `sandbox:tenants` list (written in step 6), not by this flag; the flag is
+        // the DB record of "sandbox test tenant". Written for BOTH paths (admin +
+        // self-serve). A real customer (own number) gets sandbox_routable cleared at
+        // number-attach time. See docs/SANDBOX_ROUTER.md.
+        // The routability markers are written EARLY (step 1), so here we only ensure
+        // they exist without CLOBBERING a later number-attach (own number wins), and
+        // re-assert engine:"cloudflare" so a re-run never leaves the flag off.
+        merged.provisioning = { ...resolveProvisioningMarkers(prev.provisioning, input.slug), engine: "cloudflare" as const };
         if (input.self_serve) {
           merged.onboarding = { ...(prev.onboarding || {}), completed: true, completed_at: new Date().toISOString() };
           merged.provisioning.self_serve = true;
@@ -545,9 +433,9 @@ export async function runOnboard(
 
         // Meta WhatsApp creds → tenants.secrets (NOT settings.bot_config, which is
         // member-readable; matches how Picnic stores them after the L5 security
-        // hardening). The cloned chatbot reads the token from {bot_config ∪ secrets}
+        // hardening). The bot-engine reads the token from {bot_config ∪ secrets}
         // and sends via Meta when meta_phone_number_id + meta_access_token are both
-        // present (META_ON). Without this, a freshly-cloned bot has no Meta creds and
+        // present (META_ON). Without this, a new tenant has no Meta creds and
         // silently falls back to the Twilio sandbox — we want every new tenant to be
         // born on Meta. During the demo phase all tenants share the one sandbox number
         // (META_WHATSAPP_PHONE_NUMBER_ID); a real customer gets their own number later.
@@ -557,7 +445,7 @@ export async function runOnboard(
         // ENGINE creds → tenants.secrets. The unified chatbot engine reads
         // {bot_config ∪ secrets} at runtime and calls OpenAI with `openai_key`
         // and gates the CRM /api/ai/* routes with `ai_secret`. Without these a
-        // freshly-cloned tenant calls OpenAI with an empty Bearer token → 401 →
+        // fresh tenant calls OpenAI with an empty Bearer token → 401 →
         // the engine's catch fires the "no consigo procesar tu mensaje" fallback.
         // This was the ryan-onir / Lugares-Mágicos failure mode: born with only
         // the Meta creds. Sourced from env (single source of truth — rotate the
@@ -603,9 +491,9 @@ export async function runOnboard(
             // Engine creds are the hard requirement — without openai_key the bot
             // can't answer at all (the "no consigo procesar" fallback).
             if (metaSecrets.engineCreds) {
-              push({ step: "engine", message: `Engine creds written (openai_key + ai_secret)`, ok: true });
+              push({ step: "engine-creds", message: `Engine creds written (openai_key + ai_secret)`, ok: true });
             } else {
-              push({ step: "engine", message: `Engine creds NOT set (env OPENAI_API_KEY / AI_WEBHOOK_SECRET missing) — chatbot will reply with the error fallback`, ok: false });
+              push({ step: "engine-creds", message: `Engine creds NOT set (env OPENAI_API_KEY / AI_WEBHOOK_SECRET missing) — chatbot will reply with the error fallback`, ok: false });
             }
             if (metaSecrets.metaCreds) {
               push({ step: "meta", message: `Meta WhatsApp creds written (shared sandbox number ${metaPhoneId})`, ok: true });
@@ -633,11 +521,12 @@ export async function runOnboard(
       const cs = (check?.settings || {}) as Record<string, any>;
       const prov = cs.provisioning || {};
       const routableOrAttached = prov.sandbox_routable === true || prov.whatsapp_attached === true;
+      const onCloudflare = prov.engine === "cloudflare";
       const ok = check?.status === "active" &&
         routableOrAttached &&
-        Array.isArray(cs?.n8n?.workflow_ids) &&
+        onCloudflare &&
         (!input.self_serve || cs?.onboarding?.completed === true);
-      if (!ok) throw new Error("final commit did not persist (status/routability/workflow markers missing)");
+      if (!ok) throw new Error("final commit did not persist (status/routability/engine markers missing)");
     }
 
     push({ step: "done", message: "Onboarding complete", ok: true });

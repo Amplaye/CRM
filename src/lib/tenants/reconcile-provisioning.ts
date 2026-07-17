@@ -1,23 +1,22 @@
-// Self-healing reconciliation for half-provisioned tenants.
+// Self-healing reconciliation for the Cloudflare sandbox routing list.
 //
-// The failure mode (chef-oraz, then Lugares Mágicos): the onboarding function is
-// killed mid-clone, AFTER the n8n workflows are created and activated but BEFORE
-// the final settings commit writes the provisioning markers. The tenant is left
-// `active` with a working bot but with NO settings.provisioning.sandbox_routable
-// — so the [Meta Router] n8n workflow never lists it in the test menu and the
-// CRM health card flags it red.
+// History: this job used to backfill settings.provisioning.sandbox_routable for
+// tenants left "active but unmarked" by a partial onboarding run that cloned the
+// n8n workflows but died before the final settings commit. That failure mode is
+// GONE: n8n is shut down (nothing to clone), and the orchestrator writes the
+// routability markers EARLY (at row creation), so a truncated run can't strand a
+// tenant without them.
 //
-// The orchestrator now writes those markers EARLY (at row creation), so NEW
-// tenants can't reach this state. This is the safety net for any tenant that
-// slipped through before the fix, or any future partial run: it detects "active
-// + live n8n workflows but missing routability marker" and backfills it.
-// Read-modify-write, idempotent, never destructive.
+// The residual gap on Cloudflare is different: a tenant can be active +
+// sandbox_routable in the DB yet MISSING from the Worker's KV `sandbox:tenants`
+// list — e.g. onboarding ran while the Worker was briefly unreachable, so
+// addSandboxTenant() failed non-fatally, or a historical row predates the KV. Such
+// a tenant is invisible in the shared "which restaurant?" menu. This job re-adds
+// every active + sandbox_routable tenant to the KV list (idempotent upsert), so
+// the menu can't silently drift out of sync with the DB.
 
 import { createServiceRoleClient } from "@/lib/supabase/server";
-import { N8N_MOTORE_UNICO_MIN_COUNT } from "@/lib/tenants/activation";
-import { resolveProvisioningMarkers, slugify } from "@/lib/tenants/provisioning-markers";
-
-const N8N_BASE = process.env.N8N_BASE_URL || "https://n8n.srv1468837.hstgr.cloud";
+import { addSandboxTenant } from "@/lib/tenants/sandbox-registry";
 
 export interface Repair {
   tenant_id: string;
@@ -32,26 +31,6 @@ export interface ReconcileResult {
   repaired: number;
   repairs: Repair[];
   skipped: { name: string; why: string }[];
-}
-
-// How many active [Name]* workflows exist on n8n right now. null = unreachable.
-async function n8nActiveCount(restaurantName: string): Promise<number | null> {
-  const apiKey = process.env.N8N_API_KEY;
-  if (!apiKey) return null;
-  try {
-    const res = await fetch(`${N8N_BASE}/api/v1/workflows?limit=250`, {
-      headers: { "X-N8N-API-KEY": apiKey },
-    });
-    if (!res.ok) return null;
-    const data = await res.json();
-    const prefix = `[${restaurantName}]`.toLowerCase();
-    const workflows = (data?.data || []) as Array<{ name?: string; active?: boolean }>;
-    return workflows.filter(
-      (w) => typeof w?.name === "string" && w.name.toLowerCase().startsWith(prefix) && w.active
-    ).length;
-  } catch {
-    return null;
-  }
 }
 
 export async function reconcileProvisioning(dryRun: boolean): Promise<ReconcileResult> {
@@ -69,50 +48,33 @@ export async function reconcileProvisioning(dryRun: boolean): Promise<ReconcileR
     const s = (t.settings || {}) as Record<string, unknown>;
     const prov = (s.provisioning || {}) as Record<string, unknown>;
 
-    // Already routable, or a real customer on their own number → nothing to do.
-    if (prov.sandbox_routable === true || prov.whatsapp_attached === true) {
-      skipped.push({ name: t.name, why: "already routable / own number" });
+    // A real customer on their own number isn't in the shared sandbox menu.
+    if (prov.whatsapp_attached === true) {
+      skipped.push({ name: t.name, why: "own number — not in shared sandbox menu" });
+      continue;
+    }
+    // Only sandbox test tenants belong in the KV routing list.
+    if (prov.sandbox_routable !== true) {
+      skipped.push({ name: t.name, why: "not sandbox_routable — nothing to register" });
       continue;
     }
 
-    // Only heal a tenant whose bot is demonstrably LIVE on n8n. A tenant with no
-    // workflows is genuinely unprovisioned — flagging it routable would put a
-    // dead restaurant in the test menu. Heal only the "infra exists, marker
-    // missing" gap.
-    const activeCount = await n8nActiveCount(t.name);
-    if (activeCount === null) {
-      skipped.push({ name: t.name, why: "n8n unreachable — cannot verify, left untouched" });
-      continue;
-    }
-    // This gate exists only to avoid marking a DEAD tenant routable. A tenant
-    // with at least the motore-unico floor of live own workflows clearly has a
-    // working bot (the rest — WhatsApp/Reminders — are served by shared
-    // engines), so use that floor, not the full self-hosted count.
-    if (activeCount < N8N_MOTORE_UNICO_MIN_COUNT) {
-      skipped.push({ name: t.name, why: `${activeCount} workflows (<${N8N_MOTORE_UNICO_MIN_COUNT}) — genuinely incomplete, not a lost marker` });
-      continue;
-    }
-
-    const newProv = resolveProvisioningMarkers(prov, slugify(t.name));
     const repair: Repair = {
       tenant_id: t.id,
       name: t.name,
-      reason: `active + ${activeCount} live workflows but no routability marker`,
-      added: newProv,
+      reason: "active + sandbox_routable — ensured present in KV sandbox routing list",
+      added: { sandbox_tenant: { tenant_id: t.id, name: t.name } },
     };
-    repairs.push(repair);
 
     if (!dryRun) {
-      const merged = { ...s, provisioning: newProv };
-      const { error: upErr } = await supabase
-        .from("tenants")
-        .update({ settings: merged })
-        .eq("id", t.id);
-      if (upErr) {
+      const ok = await addSandboxTenant(t.id, t.name);
+      if (!ok) {
         // Surface the failure rather than silently swallowing it.
-        repair.reason += ` — WRITE FAILED: ${upErr.message}`;
+        skipped.push({ name: t.name, why: "sandbox registry unreachable (Worker down / no CRON_SECRET)" });
+        continue;
       }
     }
+    repairs.push(repair);
   }
 
   return { dryRun, scanned: (tenants || []).length, repaired: repairs.length, repairs, skipped };

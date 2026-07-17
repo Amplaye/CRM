@@ -4,14 +4,9 @@ import { assertPlatformAdmin } from "@/lib/admin-auth";
 import { ENGINE_VAPI_ASSISTANT_ID } from "@/lib/voice/engine";
 import { getVoiceProvider } from "@/lib/types/tenant-settings";
 import {
-  resolveN8nTenantHealth,
-  getBotEngine,
   cloudflareEngineHealthUrl,
   isCloudflareEngineHealthy,
-  type N8nTenantHealth,
-  type RawWorkflow,
-  type TenantWorkflow,
-} from "@/lib/tenants/n8n-health";
+} from "@/lib/tenants/engine-health";
 
 // Activation health-check for a single tenant.
 //
@@ -24,40 +19,12 @@ import {
 // and returns a per-check verdict so the admin UI can show a green/yellow/red
 // light. It's read-only — it diagnoses, it doesn't repair.
 
-// N8N_TEMPLATE_COUNT now lives in src/lib/tenants/activation.ts so the list and
-// this card share one definition of "fully provisioned".
-
 type CheckState = "ok" | "warn" | "fail";
 interface Check {
   key: string;
   label: string;
   state: CheckState;
   detail: string;
-  /** Only on the n8n check: the per-workflow live breakdown for the UI list. */
-  workflows?: TenantWorkflow[];
-}
-
-// Live-truth n8n probe: fetch every workflow once, then let resolveN8nTenantHealth
-// classify this tenant's own workflows against the shared engines that are
-// actually live right now. No threshold, no hardcoded template count — the admin
-// mirrors n8n instead of re-deriving it, so a consolidation/rename on n8n can't
-// drift the card out of sync (the "10/14 incompleto" phantom). Returns null only
-// when n8n is unreachable.
-async function n8nProbe(restaurantName: string): Promise<N8nTenantHealth | null> {
-  const apiKey = process.env.N8N_API_KEY;
-  const baseUrl = process.env.N8N_BASE_URL || "https://n8n.srv1468837.hstgr.cloud";
-  if (!apiKey) return null;
-  try {
-    const res = await fetch(`${baseUrl}/api/v1/workflows?limit=250`, {
-      headers: { "X-N8N-API-KEY": apiKey },
-    });
-    if (!res.ok) return null;
-    const data = await res.json();
-    const all = (data?.data || []) as RawWorkflow[];
-    return resolveN8nTenantHealth(restaurantName, all);
-  } catch {
-    return null;
-  }
 }
 
 async function vapiAssistantExists(assistantId: string): Promise<boolean | null> {
@@ -149,60 +116,29 @@ export async function GET(req: NextRequest) {
   }
   checks.push({ key: "vapi", label: vapiLabel, state: vapiState, detail: vapiDetail });
 
-  // 4. Chatbot engine — which motor serves this tenant is per-tenant DATA
-  // (settings.provisioning.engine, written at cutover). Two branches:
-  //   - "n8n" (default, flag absent → today's behaviour unchanged): "verità
-  //     viva" — classify the tenant's own workflows against the shared engines
-  //     live on n8n RIGHT NOW. No threshold, no template count. Red only if a
-  //     CORE function is off and uncovered; accessory workflows off-by-design
-  //     don't fail the tenant. Per-workflow breakdown returned for the card.
-  //   - "cloudflare": the tenant runs on the bot-engine Worker — probe ITS
-  //     /health (same contract: {"ok":true}) instead of n8n workflows.
-  const engine = getBotEngine(s);
-  let n8nState: CheckState;
-  let n8nDetail: string;
-  let n8nWorkflows: TenantWorkflow[] | undefined;
-  let engineLabel = "Automazioni (n8n)";
-  if (engine === "cloudflare") {
-    engineLabel = "Motore (Cloudflare Worker)";
-    try {
-      const res = await fetch(cloudflareEngineHealthUrl(), { cache: "no-store" });
-      const body = await res.json().catch(() => null);
-      if (res.ok && isCloudflareEngineHealthy(body)) {
-        n8nState = "ok";
-        n8nDetail = "servito dal Worker bot-engine (health ok)";
-      } else {
-        n8nState = "fail";
-        n8nDetail = `Worker bot-engine risponde ma non è healthy (HTTP ${res.status})`;
-      }
-    } catch {
-      n8nState = "warn";
-      n8nDetail = "stato del Worker bot-engine non verificabile ora";
-    }
-  } else {
-    const probe = await n8nProbe(tenant.name);
-    if (probe === null) {
-      n8nState = "warn";
-      n8nDetail = "stato n8n non verificabile ora";
+  // 4. Chatbot engine — every tenant now runs on the bot-engine Worker (n8n is
+  //    shut down). Probe the Worker's /health (contract: {"ok":true}). The engine
+  //    is multi-tenant dynamic, so there's no per-tenant workflow list to show —
+  //    the card just reports the Worker reachable/healthy.
+  let engineState: CheckState;
+  let engineDetail: string;
+  try {
+    const res = await fetch(cloudflareEngineHealthUrl(), { cache: "no-store" });
+    const body = await res.json().catch(() => null);
+    if (res.ok && isCloudflareEngineHealthy(body)) {
+      engineState = "ok";
+      engineDetail = "servito dal Worker bot-engine (health ok)";
     } else {
-      n8nWorkflows = probe.workflows;
-      const parts = [`${probe.active} attivi`];
-      if (probe.covered) parts.push(`${probe.covered} dal motore unico`);
-      if (probe.optional) parts.push(`${probe.optional} opzionali spenti`);
-      if (probe.ok) {
-        n8nState = "ok";
-        n8nDetail = parts.join(", ");
-      } else {
-        // A core function is down. Name them so the admin sees exactly what's broken.
-        const broken = probe.workflows.filter((w) => w.state === "down").map((w) => w.func);
-        n8nState = "fail";
-        n8nDetail = `funzioni core spente: ${broken.join(", ")}`;
-      }
+      engineState = "fail";
+      engineDetail = `Worker bot-engine risponde ma non è healthy (HTTP ${res.status})`;
     }
+  } catch {
+    engineState = "warn";
+    engineDetail = "stato del Worker bot-engine non verificabile ora";
   }
-  // Key stays "n8n" so the admin card (which looks it up by key) keeps working
-  // on both engines; the label tells the admin which motor the tenant is on.
-  checks.push({ key: "n8n", label: engineLabel, state: n8nState, detail: n8nDetail, workflows: n8nWorkflows });
+  // Key stays "n8n" so the existing admin card (which looks it up by key) keeps
+  // working without a coordinated rename; the label reflects the real engine.
+  checks.push({ key: "n8n", label: "Motore (Cloudflare Worker)", state: engineState, detail: engineDetail });
 
   // 2 (filled last). Onboarding marker — what the dashboard guard reads to stop
   // redirecting the OWNER into the wizard. It says nothing about whether the bot
@@ -219,7 +155,7 @@ export async function GET(req: NextRequest) {
   //   marker absent + bot NOT live → warn (looks like a genuinely stalled wizard)
   //   marker === false          → warn (register-tenant wrote it; never provisioned)
   const onboardingMarker = s?.onboarding?.completed;
-  const botIsLive = vapiState === "ok" && n8nState === "ok";
+  const botIsLive = vapiState === "ok" && engineState === "ok";
   let onboardingState: CheckState;
   let onboardingDetail: string;
   if (onboardingMarker === true) {

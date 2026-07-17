@@ -1,31 +1,10 @@
 import { describe, it, expect } from "vitest";
 import {
-  n8nWorkflowIdsToRemove,
   voiceTeardownPlan,
   classifyStaffForTeardown,
   botSessionPhonesToClean,
 } from "./teardown";
 import { TEMPLATE_VAPI_ASSISTANT_ID } from "@/lib/onboarding/vapi";
-
-describe("n8nWorkflowIdsToRemove", () => {
-  const all = [
-    { id: "a", name: "[Fuoricittà] Reminders" },
-    { id: "b", name: "[Fuoricittà] Chatbot WhatsApp" },
-    { id: "c", name: "[Picnic] Reminders" },
-    { id: "d", name: "Some other flow" },
-  ];
-  it("matches by name prefix", () => {
-    expect(n8nWorkflowIdsToRemove(all, "Fuoricittà").sort()).toEqual(["a", "b"]);
-  });
-  it("never matches another tenant or unrelated flows", () => {
-    const got = n8nWorkflowIdsToRemove(all, "Fuoricittà");
-    expect(got).not.toContain("c");
-    expect(got).not.toContain("d");
-  });
-  it("unions stored ids with name matches, de-duped", () => {
-    expect(n8nWorkflowIdsToRemove(all, "Fuoricittà", ["a", "z"]).sort()).toEqual(["a", "b", "z"]);
-  });
-});
 
 describe("voiceTeardownPlan", () => {
   it("prefers vapi when assistantId present", () => {

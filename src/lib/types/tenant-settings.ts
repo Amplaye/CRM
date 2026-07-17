@@ -327,19 +327,19 @@ export interface TenantSettings {
    * resolved client-side to a CSS background). Legacy tenants have this unset →
    * the UI falls back to table-derived zones, so nothing breaks. */
   floor_zones?: { name: string; walls?: { x1: number; y1: number; x2: number; y2: number }[]; floor?: string }[];
-  /** Cloned n8n workflow ids (present for tenants provisioned via the orchestrator). */
+  /** Legacy: cloned n8n workflow ids, present on tenants provisioned before the
+   * Cloudflare migration. No longer written (n8n is shut down); kept for reads. */
   n8n?: { workflow_ids?: string[] };
   /** Provisioning markers (see src/lib/tenants/provisioning-markers.ts for the
    * WhatsApp routability pair, written by the onboarding orchestrator and the
-   * reconcile job). `engine` is the chatbot-motor flag for the n8n → Cloudflare
-   * Worker migration: absent/"n8n" → the tenant runs on n8n (today's default);
-   * "cloudflare" → served by the bot-engine Worker. Read via getBotEngine()
-   * (src/lib/tenants/n8n-health.ts); written BY HAND at cutover, per tenant. */
+   * reconcile job). `engine` is the chatbot-motor flag: "cloudflare" → served by
+   * the bot-engine Worker (every new tenant); absent/"n8n" → legacy historical
+   * rows only. Read via getBotEngine() (src/lib/tenants/engine-health.ts). */
   provisioning?: {
     whatsapp_attached?: boolean;
     sandbox_routable?: boolean;
     slug?: string;
-    engine?: import("@/lib/tenants/n8n-health").BotEngine;
+    engine?: import("@/lib/tenants/engine-health").BotEngine;
     [key: string]: unknown;
   };
   /** Booking-policy thresholds the n8n bot (and /api/ai/book) read to decide

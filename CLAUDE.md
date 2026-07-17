@@ -2,14 +2,13 @@
 
 # TableFlow / BaliFlow CRM
 
-CRM SaaS multi-tenant per ristoranti (e cliniche). Next.js 16 + Supabase + Vercel.
-Repo: `github.com/Amplaye/CRM`. Deploy: auto GitHub→Vercel.
+CRM SaaS multi-tenant per ristoranti (e cliniche). Next.js 16 + Supabase + **Cloudflare Workers** (OpenNext). Repo: `github.com/Amplaye/CRM`. `crm.baliflowagency.com` è servito da Cloudflare (worker `crm`); Vercel resta solo come rollback finché non dismesso.
 
 ## Stack
 - **Next.js 16** (App Router) + React 19 + TypeScript. ⚠️ È una versione con breaking changes — consulta `node_modules/next/dist/docs/` prima di scrivere codice Next, non fidarti della memoria.
 - **Supabase** (Postgres + Auth + Storage + Realtime), multi-tenant con RLS.
 - **Tailwind v4** + lucide-react + recharts.
-- Deploy **Vercel** (piano Hobby → cron solo giornalieri, vedi sotto).
+- Deploy **Cloudflare Workers** via OpenNext (`npm run deploy` / worker `crm`). ⚠️ n8n è SPENTO: il motore bot è il Worker `bot-engine.sofia-f88.workers.dev` (multi-tenant dinamico). I cron NON sono più su Vercel — girano nel Worker `bot-engine` (scheduled dispatch, `src/lib/cron/dispatch.ts`).
 
 ## Comandi
 - `npm run build` — build di produzione (usalo per verificare i tipi/compilazione).
@@ -29,11 +28,12 @@ Repo: `github.com/Amplaye/CRM`. Deploy: auto GitHub→Vercel.
 - **WhatsApp = Meta Cloud API**, NON Twilio (Twilio resta solo per voce/SMS legacy dove indicato).
 - **Add-on gating**: gestionale/POS sono add-on → gate in `src/lib/billing/entitlements.ts`. Flag: `management_enabled`, `commercial_info_enabled`.
 - **system_logs**: usa colonne `title` + `description`, MAI `message`. Wrappa il logging in try/catch.
-- **Cron Vercel Hobby**: solo schedule con minuto+ora fissi (no `*/N`, no sub-daily) o il deploy fallisce. Cron attivi: purge-tenants, pos-sync, reconcile-provisioning.
+- **Cron**: le route `/api/cron/*` sono chiamate dal Worker `bot-engine` (scheduled dispatch, `src/lib/cron/dispatch.ts`), auth `Authorization: Bearer ${CRON_SECRET}`. `vercel.json` è stato rimosso.
+- **Motore bot / sandbox**: nuovo tenant → nasce `provisioning.engine="cloudflare"`, NESSUN workflow da clonare (Worker dinamico). Per il numero sandbox condiviso, l'onboarding lo aggiunge alla KV `sandbox:tenants` del Worker via `POST /internal/sandbox-tenants` (auth `x-internal-secret: CRON_SECRET`); teardown lo rimuove. Re-trigger bot dopo takeover: `POST /internal/retrigger` (vedi `sandbox-registry.ts`, `engine-health.ts`).
 - **Auth latency**: nei presence-check usa `getSession()`, non `getUser()`.
-- **Secret POS**: `POS_CRED_ENC_KEY` deve stare su Vercel o `pos-sync` fallisce (serve redeploy dopo averla messa).
-- **Upload > 4.5MB**: niente body diretto (limite Vercel) → signed URL su Storage (bucket `menu-imports`).
-- **Token Stripe/PayPal/Meta**: solo env Vercel, MAI in git.
+- **Secret POS**: `POS_CRED_ENC_KEY` deve stare nell'env del worker `crm` (`wrangler secret put`) o `pos-sync` fallisce (serve redeploy).
+- **Upload > 4.5MB**: usa signed URL su Storage (bucket `menu-imports`), non body diretto.
+- **Token Stripe/PayPal/Meta**: solo secret del worker (`wrangler secret put`), MAI in git.
 - **Assistente in-app** (`src/lib/assistant/kb.ts`): ogni nuova sezione/feature user-facing va INSEGNATA all'assistente — aggiungi/aggiorna il suo `KbTopic` (4 lingue it/en/es/de, keywords multilingua, link alla pagina) e, se è un'azione operativa, `actions.ts`. Il test `kb-coverage.test.ts` fallisce se una sezione della dashboard non è coperta: non silenziarlo con l'allowlist, scrivi il topic.
 
 ## Stile di lavoro (vedi memoria globale per il resto)

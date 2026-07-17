@@ -1,23 +1,15 @@
 import { NextResponse } from "next/server";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { apiError } from "@/lib/api-error";
+import { CLOUDFLARE_ENGINE_BASE_URL } from "@/lib/tenants/engine-health";
 
-// Shared n8n instance host. The per-tenant WhatsApp webhook lives at
-// `${N8N_WEBHOOK_BASE}/${slug}-whatsapp` — same naming convention the onboarding
-// orchestrator uses when it clones the workflows (picnic-* → {slug}-*).
-const N8N_WEBHOOK_BASE = "https://n8n.srv1468837.hstgr.cloud/webhook";
-
-// Tenants have no stored `slug` column; the webhook slug is derived from the
-// restaurant name the same way onboarding does (lowercase ASCII, hyphenated).
-// e.g. "PICNIC" → "picnic", "Trattoria Rossa" → "trattoria-rossa".
-function slugifyName(name: string): string {
-  return name
-    .normalize("NFKD")
-    .replace(/[̀-ͯ]/g, "")
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "");
-}
+// The bot now lives in the Cloudflare Worker (bot-engine), not n8n. Re-triggering
+// the WhatsApp flow after a manual owner takeover is done via the Worker's
+// internal endpoint (auth: CRON_SECRET, shared CRM↔Worker), which re-enqueues the
+// last user message on the tenant's ConversationAgent — same effect the old
+// `${slug}-whatsapp` n8n webhook had, minus the slug guesswork (the endpoint takes
+// the tenant_id directly).
+const RETRIGGER_URL = `${CLOUDFLARE_ENGINE_BASE_URL}/internal/retrigger`;
 
 // Clears the bot_paused_at flag for a guest, then optionally re-triggers the
 // WhatsApp bot with the latest user message so it can pick up the booking
@@ -66,30 +58,26 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: true, retriggered: false, reason: "no last user message" });
     }
 
-    // Resolve the guest's own restaurant to build its WhatsApp webhook URL.
-    // No Picnic fallback: if the tenant is missing we skip the re-trigger
-    // (the unpause above already happened) instead of poking another tenant's bot.
-    const { data: tenant } = await supabase
-      .from("tenants")
-      .select("name")
-      .eq("id", guest.tenant_id)
-      .maybeSingle();
-    const slug = tenant?.name ? slugifyName(tenant.name) : "";
-    if (!slug) {
-      return NextResponse.json({ success: true, retriggered: false, reason: "tenant slug unavailable" });
+    // Re-trigger via the bot-engine Worker: it re-enqueues the last user message
+    // on this tenant's ConversationAgent (tenant_id passed directly — no slug to
+    // derive, no other tenant's bot to poke by mistake). Requires CRON_SECRET,
+    // shared CRM↔Worker; without it we skip the re-trigger (the unpause already
+    // happened) rather than call the endpoint unauthenticated.
+    const cronSecret = process.env.CRON_SECRET;
+    if (!cronSecret) {
+      return NextResponse.json({ success: true, retriggered: false, reason: "CRON_SECRET not configured" });
     }
-    const webhookUrl = `${N8N_WEBHOOK_BASE}/${slug}-whatsapp`;
-
     const phoneE164 = guest.phone.startsWith("+") ? guest.phone : "+" + guest.phone.replace(/\D/g, "");
-    const form = new URLSearchParams();
-    form.set("From", "whatsapp:" + phoneE164);
-    form.set("Body", lastUserMessage);
-    form.set("ProfileName", guest.name || "");
 
-    const res = await fetch(webhookUrl, {
+    const res = await fetch(RETRIGGER_URL, {
       method: "POST",
-      headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      body: form.toString(),
+      headers: { "Content-Type": "application/json", "x-internal-secret": cronSecret },
+      body: JSON.stringify({
+        tenant_id: guest.tenant_id,
+        phone: phoneE164,
+        text: lastUserMessage,
+        profile_name: guest.name || "",
+      }),
     });
     return NextResponse.json({ success: true, retriggered: res.ok });
   } catch (e: any) {
