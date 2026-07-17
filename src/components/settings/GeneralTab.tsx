@@ -1,11 +1,10 @@
 "use client";
 
-import { Save, Plus, Trash2, Clock, Power, PowerOff, Upload, Image as ImageIcon, Store, Phone, BarChart3, Check, Bell } from "lucide-react";
+import { Save, Plus, Trash2, Clock, Power, PowerOff, Store, Phone, BarChart3, Check, Bell } from "lucide-react";
 import { useLanguage } from "@/lib/contexts/LanguageContext";
 import { useTenant } from "@/lib/contexts/TenantContext";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
-import { uploadBrandingLogo, removeBrandingLogo } from "@/lib/branding/upload-logo";
 import { usePushSubscription } from "@/lib/hooks/usePushSubscription";
 
 interface TimeSlot { open: string; close: string }
@@ -91,9 +90,6 @@ export function GeneralTab() {
   const supabase = createClient();
 
   const [name, setName] = useState("");
-  const [logoUrl, setLogoUrl] = useState<string>("");
-  const [logoUploading, setLogoUploading] = useState(false);
-  const logoInputRef = useRef<HTMLInputElement>(null);
   const [timezone, setTimezone] = useState("Atlantic/Canary");
   const [avgSpend, setAvgSpend] = useState(50);
   const [avgCost, setAvgCost] = useState(25);
@@ -137,7 +133,6 @@ export function GeneralTab() {
     setName(tenant.name);
     const s = tenant.settings as any;
     if (s) {
-      setLogoUrl(s.branding?.logo_url || "");
       setTimezone(s.timezone || "Atlantic/Canary");
       setAvgSpend(s.avg_spend || 50);
       setAvgCost(s.avg_cost || 25);
@@ -167,51 +162,6 @@ export function GeneralTab() {
       }
     }
   }, [tenant]);
-
-  // Logo upload/compress lives in the shared @/lib/branding/upload-logo helper
-  // (reused by the menu-branding panel). Here we still persist
-  // settings.branding.logo_url right away so the sidebar updates without waiting
-  // for the Save button.
-  const persistLogo = async (nextUrl: string) => {
-    if (!tenant) return;
-    const merged = {
-      ...((tenant.settings as any) || {}),
-      branding: { ...((tenant.settings as any)?.branding || {}), logo_url: nextUrl || undefined },
-    };
-    const { error } = await supabase.from("tenants").update({ settings: merged }).eq("id", tenant.id);
-    if (error) throw error;
-    await refreshActiveTenant();
-  };
-
-  const handleLogoPick = async (file: File | null) => {
-    if (!tenant || !file || !file.type.startsWith("image/")) return;
-    setLogoUploading(true);
-    try {
-      const nextUrl = await uploadBrandingLogo(supabase, tenant.id, file, "logo.webp");
-      setLogoUrl(nextUrl);
-      await persistLogo(nextUrl);
-    } catch (e) {
-      console.error("[settings] logo upload failed", e);
-      alert(`Errore caricamento logo: ${e instanceof Error ? e.message : String(e)}`);
-    } finally {
-      setLogoUploading(false);
-      if (logoInputRef.current) logoInputRef.current.value = "";
-    }
-  };
-
-  const handleLogoRemove = async () => {
-    if (!tenant) return;
-    setLogoUploading(true);
-    try {
-      await removeBrandingLogo(supabase, tenant.id, "logo.webp");
-      setLogoUrl("");
-      await persistLogo("");
-    } catch (e) {
-      console.error("[settings] logo remove failed", e);
-    } finally {
-      setLogoUploading(false);
-    }
-  };
 
   // Persist a voicemail-secretary mode change on its own, the instant the user
   // toggles it — no dependency on the "Salva" button. We write ONLY the
@@ -265,7 +215,9 @@ export function GeneralTab() {
       // n8n, bot_config) — they'd be wiped otherwise since we overwrite the
       // whole settings JSONB below.
       ...((tenant.settings as any) || {}),
-      branding: { ...((tenant.settings as any)?.branding || {}), logo_url: logoUrl || undefined },
+      // Logo upload UI was removed; keep whatever logo_url is already stored so
+      // the sidebar/menu/public sites still render it (managed elsewhere now).
+      branding: { ...((tenant.settings as any)?.branding || {}) },
       timezone,
       currency: "EUR",
       ai_enabled_channels: channels,
@@ -444,53 +396,6 @@ export function GeneralTab() {
               className={`mt-1 ${inputStyle}`} style={inputBorder} />
           </div>
 
-          <div className="mt-6">
-            <label className="block text-sm font-medium text-black">{t("settings_logo")}</label>
-            <p className="mt-0.5 text-xs text-black">{t("settings_logo_desc")}</p>
-            <div className="mt-3 flex items-center gap-4">
-              <div
-                className="h-16 w-16 rounded-xl border-2 flex items-center justify-center overflow-hidden shrink-0"
-                style={{ borderColor: "#c4956a", background: "white" }}
-              >
-                {logoUrl ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={logoUrl} alt={name || "logo"} className="h-full w-full object-cover" />
-                ) : (
-                  <ImageIcon className="h-7 w-7 text-[#c4956a]" />
-                )}
-              </div>
-              <div className="flex flex-wrap items-center gap-2">
-                <input
-                  ref={logoInputRef}
-                  type="file"
-                  accept="image/png,image/jpeg,image/webp"
-                  className="hidden"
-                  onChange={(e) => handleLogoPick(e.target.files?.[0] ?? null)}
-                />
-                <button
-                  type="button"
-                  onClick={() => logoInputRef.current?.click()}
-                  disabled={logoUploading}
-                  className="cursor-pointer inline-flex items-center gap-2 px-3 py-2 rounded-lg border-2 text-sm font-semibold text-black hover:bg-[#c4956a]/10 transition-colors disabled:opacity-50"
-                  style={{ borderColor: "#c4956a" }}
-                >
-                  <Upload className="h-4 w-4 text-[#c4956a]" />
-                  {logoUploading ? t("settings_logo_uploading") : logoUrl ? t("settings_logo_change") : t("settings_logo_upload")}
-                </button>
-                {logoUrl && !logoUploading && (
-                  <button
-                    type="button"
-                    onClick={handleLogoRemove}
-                    className="cursor-pointer inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-red-600 text-red-600 text-sm font-medium hover:bg-red-600 hover:text-white transition-colors"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                    {t("settings_logo_remove")}
-                  </button>
-                )}
-              </div>
-            </div>
-            <p className="mt-2 text-xs text-black">{t("settings_logo_hint")}</p>
-          </div>
         </section>
 
         <section className="p-6 rounded-xl border-2" style={{ background: "rgba(252,246,237,0.85)", borderColor: "#c4956a" }}>
