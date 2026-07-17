@@ -860,6 +860,8 @@ export const es: Dictionary = {
   social_connect_desc: "Necesitas una Página de Facebook y un perfil de Instagram Business o Creator vinculado a ella.",
   social_connect_cta: "Conectar cuenta",
   social_connect_guide: "Cómo conectar (guía paso a paso)",
+  social_connect_not_configured: "Conexión aún no activa",
+  social_connect_not_configured_hint: "La app de Meta de la plataforma no está configurada (falta el App ID). Cuando la agencia la configure, el botón para conectar Instagram y Facebook aparecerá aquí.",
   social_connected: "Conectado",
   social_disconnect: "Desconectar",
   social_account_status_connected: "Cuenta conectada",

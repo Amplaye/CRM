@@ -17,7 +17,7 @@ export function CarouselSlide({ restaurantName, brandColor, logoUrl, slides, ind
   const accent = brandColor || "#c4956a";
   const total = slides.length || 1;
   return (
-    <AbsoluteFill style={{ backgroundColor: "#0f0f0f", fontFamily: "Georgia, serif" }}>
+    <AbsoluteFill style={{ backgroundColor: "#0f0f0f", fontFamily: "Georgia, serif", fontStretch: "normal" }}>
       {dish.photoUrl ? (
         <Img
           src={dish.photoUrl}

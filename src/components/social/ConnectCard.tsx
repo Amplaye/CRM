@@ -18,6 +18,12 @@ const FB_APP_ID = process.env.NEXT_PUBLIC_META_APP_ID;
 const GRAPH_VERSION = process.env.NEXT_PUBLIC_META_GRAPH_VERSION || "v21.0";
 const SCOPE = "instagram_basic,instagram_content_publish,pages_show_list,pages_read_engagement,business_management";
 
+// CRM design tokens — warm cream card, bronze accent (matches marketing/website).
+const ACCENT = "#c4956a";
+const CARD = { borderColor: ACCENT, background: "rgba(252,246,237,0.85)" } as const;
+const INNER = { borderColor: "rgba(196,149,106,0.5)", background: "rgba(252,246,237,0.5)" } as const;
+const PRIMARY = { background: "linear-gradient(135deg, #c4956a, #a0764e)" } as const;
+
 type FbLoginResponse = { authResponse?: { code?: string } | null; status?: string };
 interface FbSdk {
   init(opts: { appId: string; cookie?: boolean; xfbml?: boolean; version: string }): void;
@@ -142,9 +148,9 @@ export function ConnectCard({ tenantId, connectedAccountName, status, onConnecte
   }
 
   return (
-    <section className="rounded-2xl border border-stone-200 bg-white p-5">
+    <section className="rounded-xl border-2 p-5" style={CARD}>
       <header className="flex items-start gap-3">
-        <div className="flex gap-1.5 rounded-xl bg-stone-900 p-2.5 text-white">
+        <div className="flex gap-1.5 rounded-xl p-2.5 text-white" style={PRIMARY}>
           <Camera className="h-5 w-5" />
           <ThumbsUp className="h-5 w-5" />
         </div>
@@ -153,14 +159,14 @@ export function ConnectCard({ tenantId, connectedAccountName, status, onConnecte
           <p className="mt-0.5 text-sm text-black">{tt("social_connect_desc")}</p>
         </div>
         {hasAccount && !isExpired ? (
-          <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-3 py-1 text-sm font-medium text-emerald-700">
+          <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-3 py-1 text-sm font-medium text-emerald-800">
             <Check className="h-4 w-4" /> {tt("social_connected")}
           </span>
         ) : null}
       </header>
 
       {hasAccount ? (
-        <div className="mt-4 flex items-center justify-between rounded-xl border border-stone-200 bg-stone-50 px-4 py-3">
+        <div className="mt-4 flex items-center justify-between rounded-xl border-2 px-4 py-3" style={INNER}>
           <div>
             <p className="text-sm font-semibold text-black">{connectedAccountName}</p>
             <p className="text-xs text-black">
@@ -171,7 +177,8 @@ export function ConnectCard({ tenantId, connectedAccountName, status, onConnecte
             type="button"
             onClick={disconnect}
             disabled={busy}
-            className="cursor-pointer rounded-lg border border-stone-300 px-3 py-1.5 text-sm font-medium text-black hover:bg-white focus:outline-none focus:ring-2 focus:ring-stone-400 disabled:opacity-50"
+            className="cursor-pointer rounded-lg border-2 px-3 py-1.5 text-sm font-medium text-black hover:bg-[#c4956a]/10 focus:outline-none focus:ring-2 focus:ring-[#c4956a] disabled:opacity-50"
+            style={{ borderColor: ACCENT }}
           >
             {tt("social_disconnect")}
           </button>
@@ -179,7 +186,7 @@ export function ConnectCard({ tenantId, connectedAccountName, status, onConnecte
       ) : (
         <div className="mt-4 space-y-3">
           {choices ? (
-            <div className="rounded-xl border border-stone-200 p-3">
+            <div className="rounded-xl border-2 p-3" style={INNER}>
               <p className="mb-2 text-sm font-medium text-black">
                 {tt("social_connect_title")}
               </p>
@@ -190,7 +197,8 @@ export function ConnectCard({ tenantId, connectedAccountName, status, onConnecte
                       type="button"
                       disabled={busy}
                       onClick={() => postConnect(lastCode.current, p.pageId)}
-                      className="flex w-full cursor-pointer items-center justify-between rounded-lg border border-stone-200 px-3 py-2 text-left text-sm text-black hover:bg-stone-50 focus:outline-none focus:ring-2 focus:ring-[#c4956a] disabled:opacity-50"
+                      className="flex w-full cursor-pointer items-center justify-between rounded-lg border-2 bg-white/60 px-3 py-2 text-left text-sm text-black hover:bg-[#c4956a]/10 focus:outline-none focus:ring-2 focus:ring-[#c4956a] disabled:opacity-50"
+                      style={{ borderColor: ACCENT }}
                     >
                       <span className="font-medium">{p.pageName || p.pageId}</span>
                       {p.hasInstagram ? <Camera className="h-4 w-4" /> : null}
@@ -199,23 +207,29 @@ export function ConnectCard({ tenantId, connectedAccountName, status, onConnecte
                 ))}
               </ul>
             </div>
+          ) : !configured ? (
+            // Meta App not wired yet (NEXT_PUBLIC_META_APP_ID missing) → the FB SDK
+            // can't load, so instead of a dead faded button we say what's needed.
+            <div className="rounded-xl border-2 px-4 py-3" style={INNER}>
+              <p className="text-sm font-semibold text-black">{tt("social_connect_not_configured")}</p>
+              <p className="mt-1 text-xs text-black">{tt("social_connect_not_configured_hint")}</p>
+            </div>
           ) : (
             <button
               type="button"
               onClick={launch}
-              disabled={!sdkReady || busy || !configured}
-              className="inline-flex cursor-pointer items-center gap-2 rounded-xl bg-[#c4956a] px-4 py-2.5 text-sm font-semibold text-white hover:bg-[#b3835a] focus:outline-none focus:ring-2 focus:ring-[#c4956a] focus:ring-offset-2 disabled:opacity-50"
+              disabled={busy}
+              className="inline-flex cursor-pointer items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold text-white focus:outline-none focus:ring-2 focus:ring-[#c4956a] focus:ring-offset-2 disabled:opacity-60"
+              style={PRIMARY}
+              title={!sdkReady ? "Facebook SDK…" : undefined}
             >
-              {busy ? "…" : tt("social_connect_cta")}
+              {busy ? "…" : !sdkReady ? "Facebook…" : tt("social_connect_cta")}
             </button>
           )}
-          {!configured ? (
-            <p className="text-xs text-black">NEXT_PUBLIC_META_APP_ID</p>
-          ) : null}
           {error ? <p className="text-sm font-medium text-red-600">{error}</p> : null}
 
           {/* Step-by-step guide */}
-          <div className="rounded-xl border border-stone-200">
+          <div className="rounded-xl border-2" style={{ borderColor: "rgba(196,149,106,0.5)" }}>
             <button
               type="button"
               onClick={() => setGuideOpen((v) => !v)}

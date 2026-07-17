@@ -32,7 +32,7 @@ function Slide({
   const rise = spring({ frame, fps, config: { damping: 200 }, durationInFrames: Math.round(fps * 0.6) });
   const y = interpolate(rise, [0, 1], [40, 0]);
   return (
-    <AbsoluteFill style={{ backgroundColor: "#0f0f0f", fontFamily: "Georgia, serif" }}>
+    <AbsoluteFill style={{ backgroundColor: "#0f0f0f", fontFamily: "Georgia, serif", fontStretch: "normal" }}>
       {photoUrl ? (
         <Img
           src={photoUrl}

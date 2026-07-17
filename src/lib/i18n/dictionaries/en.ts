@@ -857,6 +857,8 @@ export const en = {
   social_connect_desc: "You need a Facebook Page and an Instagram Business or Creator profile linked to it.",
   social_connect_cta: "Connect account",
   social_connect_guide: "How to connect (step-by-step guide)",
+  social_connect_not_configured: "Connection not active yet",
+  social_connect_not_configured_hint: "The platform's Meta app isn't configured (App ID missing). Once the agency sets it up, the button to connect Instagram and Facebook will appear here.",
   social_connected: "Connected",
   social_disconnect: "Disconnect",
   social_account_status_connected: "Account connected",

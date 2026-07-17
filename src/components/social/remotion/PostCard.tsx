@@ -11,7 +11,7 @@ export function PostCard({ restaurantName, brandColor, logoUrl, slides }: Social
   const dish = slides[0] || { name: "" };
   const accent = brandColor || "#c4956a";
   return (
-    <AbsoluteFill style={{ backgroundColor: "#0f0f0f", fontFamily: "Georgia, serif" }}>
+    <AbsoluteFill style={{ backgroundColor: "#0f0f0f", fontFamily: "Georgia, serif", fontStretch: "normal" }}>
       {dish.photoUrl ? (
         <Img
           src={dish.photoUrl}

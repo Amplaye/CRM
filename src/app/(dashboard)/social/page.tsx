@@ -51,6 +51,14 @@ interface SocialPostRow {
 const fmtPrice = (n: number | null, currency: string) =>
   n == null ? "" : new Intl.NumberFormat(undefined, { style: "currency", currency: currency || "EUR" }).format(n);
 
+// CRM design tokens — warm cream card on a bronze border, bronze accents. Matches
+// marketing/website so the Social section reads as one system, not a white patch.
+const ACCENT = "#c4956a";
+const CARD = { borderColor: ACCENT, background: "rgba(252,246,237,0.85)" } as const;
+const INPUT_STYLE = { borderColor: ACCENT, background: "rgba(252,246,237,0.6)" } as const;
+const PRIMARY = { background: "linear-gradient(135deg, #c4956a, #a0764e)" } as const;
+const INNER = { borderColor: "rgba(196,149,106,0.5)", background: "rgba(252,246,237,0.5)" } as const;
+
 export default function SocialPage() {
   const { t } = useLanguage();
   const tt = (k: string) => t(k as keyof Dictionary);
@@ -224,12 +232,21 @@ export default function SocialPage() {
 
   if (!enabled || !planActive) {
     return (
-      <div className="mx-auto max-w-2xl p-6">
-        <h1 className="text-xl font-semibold text-black">{tt("social_title")}</h1>
-        <p className="mt-2 text-sm text-black">{tt("settings_feature_social_hint")}</p>
-        <Link href="/settings" className="mt-4 inline-block text-sm font-medium text-[#c4956a] underline">
-          {tt("nav_settings")}
-        </Link>
+      <div className="p-4 sm:p-8">
+        <h1 className="flex items-center gap-2 text-2xl font-bold text-black">
+          <Share2 className="h-6 w-6" />
+          {tt("social_title")}
+        </h1>
+        <div className="mt-4 max-w-xl rounded-xl border-2 p-6" style={CARD}>
+          <p className="text-sm text-black">{tt("settings_feature_social_hint")}</p>
+          <Link
+            href="/settings?tab=features"
+            className="mt-3 inline-block rounded-lg px-4 py-2 text-sm font-semibold text-white"
+            style={PRIMARY}
+          >
+            {tt("nav_settings")}
+          </Link>
+        </div>
       </div>
     );
   }
@@ -237,16 +254,14 @@ export default function SocialPage() {
   const previewTarget = targets[0] || "instagram";
 
   return (
-    <div className="mx-auto max-w-5xl space-y-6 p-4 sm:p-6">
-      <header className="flex items-start gap-3">
-        <div className="rounded-xl bg-[#c4956a]/15 p-2.5 text-[#c4956a]">
-          <Share2 className="h-5 w-5" />
-        </div>
-        <div>
-          <h1 className="text-xl font-semibold text-black">{tt("social_title")}</h1>
-          <p className="mt-0.5 text-sm text-black">{tt("social_subtitle")}</p>
-        </div>
-      </header>
+    <div className="space-y-6 p-4 sm:p-8">
+      <div>
+        <h1 className="flex items-center gap-2 text-2xl font-bold text-black">
+          <Share2 className="h-6 w-6" />
+          {tt("social_title")}
+        </h1>
+        <p className="mt-1 text-sm text-black">{tt("social_subtitle")}</p>
+      </div>
 
       <ConnectCard
         tenantId={activeTenant!.id}
@@ -257,7 +272,7 @@ export default function SocialPage() {
       />
 
       {/* Composer */}
-      <section className="grid gap-6 rounded-2xl border border-stone-200 bg-white p-5 lg:grid-cols-2">
+      <section className="grid gap-6 rounded-xl border-2 p-5 lg:grid-cols-2" style={CARD}>
         <div className="space-y-4">
           <h2 className="text-lg font-semibold text-black">{tt("social_composer_title")}</h2>
 
@@ -273,9 +288,8 @@ export default function SocialPage() {
                 type="button"
                 onClick={() => setPostType(k)}
                 disabled={k === "reels" && !reelSupported}
-                className={`flex flex-1 cursor-pointer flex-col items-center gap-1 rounded-xl border px-3 py-2.5 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-[#c4956a] disabled:opacity-40 ${
-                  postType === k ? "border-[#c4956a] bg-[#c4956a]/10 text-black" : "border-stone-200 text-black hover:bg-stone-50"
-                }`}
+                className="flex flex-1 cursor-pointer flex-col items-center gap-1 rounded-xl border-2 px-3 py-2.5 text-sm font-medium text-black focus:outline-none focus:ring-2 focus:ring-[#c4956a] disabled:opacity-40"
+                style={postType === k ? { borderColor: ACCENT, background: "rgba(196,149,106,0.18)" } : INPUT_STYLE}
               >
                 <Icon className="h-5 w-5" />
                 {label}
@@ -287,7 +301,7 @@ export default function SocialPage() {
           {/* Dish picker */}
           <div>
             <p className="mb-1.5 text-sm font-medium text-black">{tt("social_pick_dishes")}</p>
-            <div className="max-h-44 overflow-y-auto rounded-xl border border-stone-200 p-1">
+            <div className="max-h-44 overflow-y-auto rounded-xl border-2 p-1" style={{ borderColor: "rgba(196,149,106,0.5)" }}>
               {menu.length === 0 ? (
                 <p className="p-3 text-sm text-black">—</p>
               ) : (
@@ -300,8 +314,8 @@ export default function SocialPage() {
                       onClick={() =>
                         setSelectedIds((s) => (on ? s.filter((x) => x !== m.id) : postType === "image" ? [m.id] : [...s, m.id]))
                       }
-                      className={`flex w-full cursor-pointer items-center justify-between rounded-lg px-3 py-2 text-left text-sm focus:outline-none focus:ring-2 focus:ring-[#c4956a] ${
-                        on ? "bg-[#c4956a]/10 text-black" : "text-black hover:bg-stone-50"
+                      className={`flex w-full cursor-pointer items-center justify-between rounded-lg px-3 py-2 text-left text-sm text-black focus:outline-none focus:ring-2 focus:ring-[#c4956a] ${
+                        on ? "bg-[#c4956a]/15" : "hover:bg-[#c4956a]/10"
                       }`}
                     >
                       <span className="font-medium">{m.name}</span>
@@ -321,7 +335,8 @@ export default function SocialPage() {
             type="button"
             onClick={generateCaption}
             disabled={genBusy || !selectedSlides.length}
-            className="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-[#c4956a] px-4 py-2 text-sm font-semibold text-[#c4956a] hover:bg-[#c4956a]/10 focus:outline-none focus:ring-2 focus:ring-[#c4956a] disabled:opacity-50"
+            className="inline-flex cursor-pointer items-center gap-2 rounded-xl border-2 px-4 py-2 text-sm font-semibold text-black hover:bg-[#c4956a]/10 focus:outline-none focus:ring-2 focus:ring-[#c4956a] disabled:opacity-50"
+            style={{ borderColor: ACCENT }}
           >
             <Sparkles className="h-4 w-4" /> {genBusy ? "…" : tt("social_generate_caption")}
           </button>
@@ -336,7 +351,8 @@ export default function SocialPage() {
                 setHashtags([]);
               }}
               rows={5}
-              className="w-full rounded-xl border border-stone-300 px-3 py-2 text-sm text-black focus:outline-none focus:ring-2 focus:ring-[#c4956a]"
+              className="w-full rounded-xl border-2 px-3 py-2 text-sm text-black focus:outline-none focus:ring-2 focus:ring-[#c4956a]"
+              style={INPUT_STYLE}
             />
           </div>
 
@@ -345,7 +361,8 @@ export default function SocialPage() {
             type="button"
             onClick={createMedia}
             disabled={!!renderBusy || !selectedSlides.length}
-            className="inline-flex cursor-pointer items-center gap-2 rounded-xl bg-stone-900 px-4 py-2 text-sm font-semibold text-white hover:bg-stone-800 focus:outline-none focus:ring-2 focus:ring-stone-500 disabled:opacity-50"
+            className="inline-flex cursor-pointer items-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold text-white focus:outline-none focus:ring-2 focus:ring-[#c4956a] focus:ring-offset-2 disabled:opacity-50"
+            style={PRIMARY}
           >
             {renderBusy ? tt("social_rendering") : tt("social_create_media")}
           </button>
@@ -358,7 +375,8 @@ export default function SocialPage() {
                 type="datetime-local"
                 value={scheduledAt}
                 onChange={(e) => setScheduledAt(e.target.value)}
-                className="w-full rounded-xl border border-stone-300 px-3 py-2 text-sm text-black focus:outline-none focus:ring-2 focus:ring-[#c4956a]"
+                className="w-full rounded-xl border-2 px-3 py-2 text-sm text-black focus:outline-none focus:ring-2 focus:ring-[#c4956a]"
+              style={INPUT_STYLE}
               />
             </div>
             <div>
@@ -371,9 +389,8 @@ export default function SocialPage() {
                       key={tg}
                       type="button"
                       onClick={() => setTargets((s) => (on ? s.filter((x) => x !== tg) : [...s, tg]))}
-                      className={`cursor-pointer rounded-lg border px-3 py-1.5 text-sm font-medium capitalize focus:outline-none focus:ring-2 focus:ring-[#c4956a] ${
-                        on ? "border-[#c4956a] bg-[#c4956a]/10 text-black" : "border-stone-200 text-black"
-                      }`}
+                      className="cursor-pointer rounded-lg border-2 px-3 py-1.5 text-sm font-medium capitalize text-black focus:outline-none focus:ring-2 focus:ring-[#c4956a]"
+                      style={on ? { borderColor: ACCENT, background: "rgba(196,149,106,0.18)" } : INPUT_STYLE}
                     >
                       {tg}
                     </button>
@@ -391,7 +408,8 @@ export default function SocialPage() {
               type="button"
               onClick={() => savePost(false)}
               disabled={saveBusy || !fullCaption.trim()}
-              className="cursor-pointer rounded-xl border border-stone-300 px-4 py-2 text-sm font-semibold text-black hover:bg-stone-50 focus:outline-none focus:ring-2 focus:ring-stone-400 disabled:opacity-50"
+              className="cursor-pointer rounded-xl border-2 px-4 py-2 text-sm font-semibold text-black hover:bg-[#c4956a]/10 focus:outline-none focus:ring-2 focus:ring-[#c4956a] disabled:opacity-50"
+              style={{ borderColor: ACCENT }}
             >
               {tt("social_save_draft")}
             </button>
@@ -399,7 +417,8 @@ export default function SocialPage() {
               type="button"
               onClick={() => savePost(true)}
               disabled={saveBusy || !fullCaption.trim() || !mediaUrls.length || !connected}
-              className="cursor-pointer rounded-xl bg-[#c4956a] px-4 py-2 text-sm font-semibold text-white hover:bg-[#b3835a] focus:outline-none focus:ring-2 focus:ring-[#c4956a] focus:ring-offset-2 disabled:opacity-50"
+              className="cursor-pointer rounded-xl px-4 py-2 text-sm font-semibold text-white focus:outline-none focus:ring-2 focus:ring-[#c4956a] focus:ring-offset-2 disabled:opacity-50"
+              style={PRIMARY}
             >
               {tt("social_approve_schedule")}
             </button>
@@ -422,15 +441,15 @@ export default function SocialPage() {
       </section>
 
       {/* Approval queue */}
-      <section className="rounded-2xl border border-stone-200 bg-white p-5">
+      <section className="rounded-xl border-2 p-5" style={CARD}>
         <h2 className="mb-3 text-lg font-semibold text-black">{tt("social_queue_title")}</h2>
         {posts.length === 0 ? (
           <p className="text-sm text-black">{tt("social_queue_empty")}</p>
         ) : (
           <ul className="space-y-3">
             {posts.map((p) => (
-              <li key={p.id} className="flex items-center gap-4 rounded-xl border border-stone-200 p-3">
-                <div className="h-16 w-16 flex-shrink-0 overflow-hidden rounded-lg bg-stone-100">
+              <li key={p.id} className="flex items-center gap-4 rounded-xl border-2 p-3" style={INNER}>
+                <div className="h-16 w-16 flex-shrink-0 overflow-hidden rounded-lg" style={{ background: "rgba(196,149,106,0.12)" }}>
                   {p.media_urls[0] ? (
                     p.media_type === "reels" ? (
                       // eslint-disable-next-line jsx-a11y/media-has-caption
@@ -454,7 +473,8 @@ export default function SocialPage() {
                     <button
                       type="button"
                       onClick={() => approveExisting(p.id)}
-                      className="cursor-pointer rounded-lg border border-[#c4956a] px-3 py-1.5 text-sm font-medium text-[#c4956a] hover:bg-[#c4956a]/10 focus:outline-none focus:ring-2 focus:ring-[#c4956a]"
+                      className="cursor-pointer rounded-lg border-2 px-3 py-1.5 text-sm font-medium text-black hover:bg-[#c4956a]/10 focus:outline-none focus:ring-2 focus:ring-[#c4956a]"
+                      style={{ borderColor: ACCENT }}
                     >
                       {tt("social_action_approve")}
                     </button>
@@ -464,7 +484,8 @@ export default function SocialPage() {
                       type="button"
                       onClick={() => deletePost(p.id)}
                       aria-label={tt("social_action_delete")}
-                      className="cursor-pointer rounded-lg border border-stone-300 p-1.5 text-black hover:bg-stone-50 focus:outline-none focus:ring-2 focus:ring-stone-400"
+                      className="cursor-pointer rounded-lg border-2 p-1.5 text-black hover:bg-[#c4956a]/10 focus:outline-none focus:ring-2 focus:ring-[#c4956a]"
+                      style={{ borderColor: ACCENT }}
                     >
                       <Trash2 className="h-4 w-4" />
                     </button>
