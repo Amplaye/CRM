@@ -99,6 +99,11 @@ export function AssistantWidget() {
   const supabase = useMemo(() => createClient(), []);
 
   const [open, setOpen] = useState(false);
+  // Panel enter/exit animation: `panelRender` keeps the panel mounted through the
+  // closing transition; `panelIn` toggles the CSS end-state (open = grown/visible,
+  // closed = shrunk/faded toward the launcher corner).
+  const [panelRender, setPanelRender] = useState(false);
+  const [panelIn, setPanelIn] = useState(false);
   const [input, setInput] = useState("");
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   // Replies are delivered after a short "typing…" pause to feel like a chat
@@ -128,6 +133,21 @@ export function AssistantWidget() {
       listRef.current.scrollTop = listRef.current.scrollHeight;
     }
   }, [open, messages, pending]);
+
+  // Drive the panel enter/exit animation off `open`.
+  useEffect(() => {
+    if (open) {
+      // Mount, then flip to the "in" state on the next frame so the browser
+      // animates from the closed state instead of snapping straight to open.
+      setPanelRender(true);
+      const raf = requestAnimationFrame(() => setPanelIn(true));
+      return () => cancelAnimationFrame(raf);
+    }
+    // Closing: play the exit transition, then unmount when it finishes.
+    setPanelIn(false);
+    const t = setTimeout(() => setPanelRender(false), 220);
+    return () => clearTimeout(t);
+  }, [open]);
 
   const suggestions = useMemo(
     () => SUGGESTED_TOPIC_IDS.map(topicById).filter(Boolean) as KbTopic[],
@@ -822,23 +842,27 @@ export function AssistantWidget() {
 
   return (
     <>
-      {/* launcher */}
-      {!open && (
+      {/* launcher — hidden while the panel is on screen, fades/scales in & out */}
+      {!panelRender && (
         <button
           onClick={() => setOpen(true)}
           aria-label={ui.openLabel}
           title={ui.title}
-          className="assistant-fab fixed bottom-5 right-5 z-40 w-14 h-14 rounded-full flex items-center justify-center text-white cursor-pointer shadow-lg transition-transform hover:scale-105"
+          className="assistant-fab fixed bottom-5 right-5 z-40 w-14 h-14 rounded-full flex items-center justify-center text-white cursor-pointer shadow-lg transition-transform duration-200 ease-out hover:scale-105 motion-safe:animate-[assistant-fab-pop_0.2s_ease-out]"
           style={{ background: "linear-gradient(135deg, #d4a574, #c4956a)" }}
         >
           <Sparkles className="w-6 h-6" />
         </button>
       )}
 
-      {/* panel */}
-      {open && (
+      {/* panel — grows out of / shrinks back into the launcher corner */}
+      {panelRender && (
         <div
-          className="fixed z-40 inset-0 sm:inset-auto sm:bottom-4 sm:right-4 sm:w-[400px] sm:max-h-[80dvh] flex flex-col rounded-none sm:rounded-2xl border-0 sm:border-2 shadow-2xl overflow-hidden"
+          role="dialog"
+          aria-modal="true"
+          className={`fixed z-40 inset-0 sm:inset-auto sm:bottom-4 sm:right-4 sm:w-[400px] sm:max-h-[80dvh] flex flex-col rounded-none sm:rounded-2xl border-0 sm:border-2 shadow-2xl overflow-hidden origin-bottom-right will-change-transform transition-all duration-200 ease-out motion-reduce:transition-none ${
+            panelIn ? "opacity-100 scale-100 translate-y-0" : "opacity-0 scale-90 translate-y-2"
+          }`}
           style={{ borderColor: "#c4956a", background: "#FCF6ED" }}
         >
           <div className="flex items-center gap-2.5 px-4 py-3 text-white" style={{ background: "linear-gradient(135deg, #d4a574, #c4956a)" }}>
