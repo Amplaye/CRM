@@ -39,6 +39,7 @@ describe("ACTION_MC — integers only", () => {
     expect(ACTION_MC.menu_import).toBe(400); // 0,4 cr per chunk
     expect(ACTION_MC.transcription).toBe(20); // 0,02 cr
     expect(ACTION_MC.ai_text).toBe(50); // 0,05 cr
+    expect(ACTION_MC.social_caption).toBe(50); // 0,05 cr — one caption generation
   });
 
   // Markup sanity: a credit sells for €0.20 and the priciest single action
@@ -165,7 +166,7 @@ describe("resolveCreditPackPriceId", () => {
 describe("action list is closed", () => {
   // Guards against an action being metered at a call site but never priced —
   // mcFor would return NaN and the RPC would raise. Keep this list in sync.
-  it("has exactly the eight metered actions", () => {
+  it("has exactly the nine metered actions", () => {
     const expected: CreditAction[] = [
       "bot_message",
       "marketing_whatsapp",
@@ -175,6 +176,7 @@ describe("action list is closed", () => {
       "menu_import",
       "transcription",
       "ai_text",
+      "social_caption",
     ];
     expect(Object.keys(ACTION_MC).sort()).toEqual([...expected].sort());
   });

@@ -35,6 +35,7 @@ export const CRON_JOBS: CronJob[] = [
   { path: "fiscal-flush", hour: 5 }, // was 50 5 * * *
   { path: "booking-reminders", hour: "hourly" }, // n8n-driven before; now hourly
   { path: "post-visit-followup", hour: "hourly" }, // n8n-driven before; now hourly
+  { path: "social-publish", hour: "hourly" }, // publish approved+scheduled social posts
 ];
 
 /** The cron paths that must run at the given UTC hour. */

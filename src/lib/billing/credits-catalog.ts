@@ -20,7 +20,8 @@ export type CreditAction =
   | "invoice_ocr"
   | "menu_import"
   | "transcription"
-  | "ai_text";
+  | "ai_text"
+  | "social_caption";
 
 /** Millicredits per credit. */
 export const MC_PER_CREDIT = 1000;
@@ -40,6 +41,7 @@ export const EUR_PER_CREDIT = 0.2;
  *   menu_import         ~€0.05   (gpt-4o vision, per 4-page chunk)
  *   transcription       ~€0.003  (Whisper, one voice note)
  *   ai_text             ~€0.01   (one generation: campaign copy, review reply, summary)
+ *   social_caption      ~€0.01   (one generation: Instagram/Facebook caption + hashtags)
  */
 export const ACTION_MC: Record<CreditAction, number> = {
   bot_message: 40, // 0.04 cr → ~25 messages per credit
@@ -50,6 +52,7 @@ export const ACTION_MC: Record<CreditAction, number> = {
   menu_import: 400, // 0.4 cr per chunk
   transcription: 20, // 0.02 cr
   ai_text: 50, // 0.05 cr
+  social_caption: 50, // 0.05 cr → one gpt-4o caption+hashtag generation (mirrors ai_text)
 };
 
 /**

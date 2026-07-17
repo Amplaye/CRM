@@ -12,6 +12,11 @@ describe('getFeatures', () => {
     expect(getFeatures({}).waitlist_enabled).toBe(true);
   });
 
+  it('social is opt-in — OFF by default, ON only when the owner enables it', () => {
+    expect(getFeatures(null).social_enabled).toBe(false);
+    expect(getFeatures({ features: { social_enabled: true } }).social_enabled).toBe(true);
+  });
+
   it('overrides only the flags present, keeping defaults for the rest', () => {
     const f = getFeatures({ features: { waitlist_enabled: false } });
     expect(f.waitlist_enabled).toBe(false); // tenant turned it off

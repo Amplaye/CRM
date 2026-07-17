@@ -58,6 +58,7 @@ export interface TenantFeatures {
   website_enabled: boolean;    // public template micro-site at /s/<slug>
   gift_cards_enabled: boolean; // sell + redeem gift vouchers (public /g/<slug> + cassa redemption)
   loyalty_enabled: boolean;    // points/rewards per visit or spend
+  social_enabled: boolean;     // Instagram/Facebook: AI-drafted posts (image/carousel/reel via Remotion), human-approved, cron-published via Meta Graph
   fiscal_enabled: boolean;     // Spain/VeriFactu: the cassa is a SIF — it chains and files every ticket with AEAT
 }
 
@@ -103,6 +104,10 @@ export const DEFAULT_FEATURES: TenantFeatures = {
   website_enabled: false,
   gift_cards_enabled: false,
   loyalty_enabled: false,
+  // OFF by default: needs a Meta connection (Instagram Business + Facebook Page)
+  // before it can do anything. An owner opts in, then connects the account in the
+  // Social section; until the token exists, the composer works but publishing can't.
+  social_enabled: false,
   // OFF by default, and NOT in FEATURE_FLAGS below — a client must never be able to
   // switch this on themselves. Flipping it turns their till into a SIF: every ticket
   // gets chained and filed with the Agencia Tributaria under their NIF, and the till
@@ -140,6 +145,7 @@ export const FEATURE_FLAGS: ReadonlyArray<{ key: keyof TenantFeatures; labelKey:
   { key: "website_enabled", labelKey: "settings_feature_website", hintKey: "settings_feature_website_hint" },
   { key: "gift_cards_enabled", labelKey: "settings_feature_gift_cards", hintKey: "settings_feature_gift_cards_hint" },
   { key: "loyalty_enabled", labelKey: "settings_feature_loyalty", hintKey: "settings_feature_loyalty_hint" },
+  { key: "social_enabled", labelKey: "settings_feature_social", hintKey: "settings_feature_social_hint" },
 ];
 
 /**

@@ -13,6 +13,9 @@
     "deploy": "opennextjs-cloudflare build && opennextjs-cloudflare deploy"
   },
   "dependencies": {
+    "@remotion/media": "^4.0.490",
+    "@remotion/player": "^4.0.490",
+    "@remotion/web-renderer": "^4.0.490",
     "@supabase/ssr": "^0.9.0",
     "@supabase/supabase-js": "^2.100.1",
     "@zxing/browser": "^0.2.1",
@@ -28,6 +31,7 @@
     "react": "19.2.4",
     "react-dom": "19.2.4",
     "recharts": "^3.8.1",
+    "remotion": "^4.0.490",
     "tailwind-merge": "^3.5.0",
     "unpdf": "^1.6.2",
     "web-push": "^3.6.7"

@@ -681,6 +681,24 @@ export const KB: KbTopic[] = [
     related: ["email-settings", "guests", "loyalty", "credits"],
   },
   {
+    id: "social",
+    title: {
+      it: "Social: post su Instagram e Facebook",
+      en: "Social: Instagram and Facebook posts",
+      es: "Redes sociales: publicaciones en Instagram y Facebook",
+      de: "Social Media: Instagram- und Facebook-Beiträge",
+    },
+    keywords: ["social", "instagram", "facebook", "post", "posts", "reel", "reels", "carosello", "carousel", "carrusel", "karussell", "pubblicare", "publicar", "veröffentlichen", "publish", "storia", "story", "contenuto", "content", "contenido", "inhalt", "hashtag", "programmare post", "schedule post"],
+    answer: {
+      it: "Nella sezione Social colleghi Instagram e Facebook con un click e crei post — immagini, caroselli e reel — direttamente dai piatti del tuo menù. L'AI scrive testo e hashtag, tu vedi l'anteprima sul telefono, poi programmi l'orario. Niente viene pubblicato senza la tua approvazione: ogni post finisce in una coda dove approvi, modifichi o elimini. I reel si creano solo su browser Chromium (Chrome, Edge, Brave); immagini e caroselli ovunque.",
+      en: "In the Social section you connect Instagram and Facebook in one click and create posts — images, carousels and reels — straight from your menu dishes. The AI writes the caption and hashtags, you preview it on a phone, then schedule the time. Nothing publishes without your approval: every post lands in a queue where you approve, edit or delete it. Reels can only be created on Chromium browsers (Chrome, Edge, Brave); images and carousels work everywhere.",
+      es: "En la sección Redes sociales conectas Instagram y Facebook con un clic y creas publicaciones — imágenes, carruseles y reels — directamente desde los platos de tu carta. La IA escribe el texto y los hashtags, ves la vista previa en un teléfono y luego programas la hora. Nada se publica sin tu aprobación: cada publicación entra en una cola donde apruebas, editas o eliminas. Los reels solo se crean en navegadores Chromium (Chrome, Edge, Brave); imágenes y carruseles en cualquiera.",
+      de: "Im Bereich Social Media verbindest du Instagram und Facebook mit einem Klick und erstellst Beiträge — Bilder, Karussells und Reels — direkt aus den Gerichten deiner Karte. Die KI schreibt Text und Hashtags, du siehst die Vorschau auf einem Telefon und planst dann die Zeit. Nichts wird ohne deine Freigabe veröffentlicht: jeder Beitrag landet in einer Warteschlange, in der du freigibst, bearbeitest oder löschst. Reels lassen sich nur in Chromium-Browsern (Chrome, Edge, Brave) erstellen; Bilder und Karussells überall.",
+    },
+    links: [{ href: "/social", label: { it: "Apri Social", en: "Open Social", es: "Abrir Redes", de: "Social öffnen" } }],
+    related: ["marketing", "menu-manage", "credits"],
+  },
+  {
     id: "reviews",
     title: {
       it: "Recensioni dei clienti",

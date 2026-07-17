@@ -28,6 +28,7 @@ import {
   Megaphone,
   Globe,
   Gift,
+  Share2,
 } from "lucide-react";
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
@@ -61,6 +62,8 @@ const navItems: Array<{ name: string; href: string; icon: any; badgeKey?: keyof 
   { name: "Reviews", href: "/reviews", icon: Star },
   // Campaign suite — hidden until the owner flips marketing_enabled.
   { name: "Marketing", href: "/marketing", icon: Megaphone },
+  // Instagram/Facebook publishing — hidden until the owner flips social_enabled.
+  { name: "Social", href: "/social", icon: Share2 },
   // Micro-site editor — hidden until the owner flips website_enabled.
   { name: "Website", href: "/website", icon: Globe },
   // Voucher sales — hidden until the owner flips gift_cards_enabled.
@@ -190,6 +193,8 @@ export function Sidebar({ mobileOpen = false, onClose }: SidebarProps) {
   .filter(i => i.href !== "/reviews" || features.reviews_enabled)
   // Feature flag: Marketing appears only when the owner enabled the module.
   .filter(i => i.href !== "/marketing" || features.marketing_enabled)
+  // Feature flag: Social appears only when the owner enabled the module.
+  .filter(i => i.href !== "/social" || features.social_enabled)
   // Feature flag: Website appears only when the owner enabled the module.
   .filter(i => i.href !== "/website" || features.website_enabled)
   // Feature flag: Gift Cards appears only when the owner enabled the module.
