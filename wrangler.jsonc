@@ -1,0 +1,44 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  // Custom entrypoint: re-exports OpenNext's generated worker and adds the
+  // scheduled() cron dispatcher (the generated .open-next/worker.js has no
+  // scheduled handler). See worker/index.mjs.
+  "main": "worker/index.mjs",
+  "name": "crm",
+  "compatibility_date": "2025-03-25",
+  // nodejs_compat: the app uses node:crypto (AES cipher + timingSafeEqual),
+  // node:dns (public/book email-domain check) and node:fs/path (og image).
+  // global_fetch_strictly_public: OpenNext best-practice; also avoids the
+  // bound-fetch "Illegal invocation" class of bug seen in bot-engine.
+  "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
+  "assets": {
+    "directory": ".open-next/assets",
+    "binding": "ASSETS"
+  },
+  "services": [
+    {
+      // Self-reference service binding — name MUST match "name" above.
+      // Required by OpenNext even without incremental cache.
+      "binding": "WORKER_SELF_REFERENCE",
+      "service": "crm"
+    }
+  ],
+  "images": {
+    // Next/Image optimization on Workers.
+    "binding": "IMAGES"
+  },
+  // Single hourly Cron Trigger — the scheduled() handler dispatches to the
+  // 8 /api/cron/* endpoints by hour (Free plan caps at 5 triggers; the CRM's
+  // crons are all daily/hourly so one hourly tick + an in-worker dispatcher
+  // covers them). See the dispatcher in the OpenNext scheduled entrypoint.
+  "triggers": {
+    "crons": ["0 * * * *"]
+  },
+  // Non-secret build/runtime vars. CRON_BASE_URL is the origin the scheduled()
+  // dispatcher calls its own /api/cron/* routes on — set to the preview host
+  // during staging, then crm.baliflowagency.com at cutover. Secrets (CRON_SECRET,
+  // Stripe/PayPal, ENC keys, etc.) go via `wrangler secret put`, never here.
+  "vars": {
+    "CRON_BASE_URL": "https://crm.baliflowagency.com"
+  }
+}

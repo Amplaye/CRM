@@ -69,3 +69,8 @@ PROMPT_PROSSIMA_SESSIONE*
 REFACTOR_DIAGNOSIS.md
 backups/*.bak
 *.tmp.mjs
+
+# OpenNext / Cloudflare build output
+.open-next/
+.wrangler/
+.dev.vars
