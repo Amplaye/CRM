@@ -408,22 +408,17 @@ function ReviewTable({
                   />
                 </label>
               </div>
-              {/* Show the conversion we applied, so the owner can audit it at a
-                  glance instead of being told to go check the document. */}
-              {l.suggestion?.derived?.explanation && !skipped ? (
+              {/* State what we did, never ask the owner to go and check. A unit
+                  that differs from the document is the CONVERSION WORKING — the
+                  supplier bills in "CF"/"Ltr" and the warehouse holds kg/l — so
+                  a warning there was crying wolf on every single line. The note
+                  below is shown only when the numbers actually changed, and only
+                  while the mapping still targets the unit we converted into. */}
+              {!skipped && l.suggestion?.derived?.explanation && targetUnit === l.suggestion.derived.unit && (
                 <p className="mt-1.5 text-xs" style={{ color: "#7a5c3e" }}>
                   {(t("inv_capture_pack_hint" as keyof Dictionary) || "Formato letto dal documento: {expl}")
                     .replace("{expl}", l.suggestion.derived.explanation)}
                 </p>
-              ) : (
-                l.unit && targetUnit && l.unit.toLowerCase() !== targetUnit && !skipped && (
-                  <p className="mt-1.5 text-xs text-amber-700">
-                    {(t("inv_capture_unit_hint" as keyof Dictionary) ||
-                      "Sul documento l'unità è «{docUnit}»: controlla che la quantità sia espressa in {unit}.")
-                      .replace("{docUnit}", l.unit)
-                      .replace("{unit}", targetUnit)}
-                  </p>
-                )
               )}
             </div>
           );

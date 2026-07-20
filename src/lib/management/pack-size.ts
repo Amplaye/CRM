@@ -232,12 +232,16 @@ export function deriveLine(input: {
     if (measure) {
       const h = humanize(qty * measure.toBase, measure.unit);
       const factor = h.size > 0 ? qty / h.size : 1;
+      const um = (input.unit || "").trim();
       return {
         unit: h.unit,
         quantity: h.size,
         unitCost: price != null ? round4(price * factor) : null,
         pack: null,
-        explanation: null,
+        // Even a pass-through gets an explanation: the owner sees "Ltr" on the
+        // document and "l" in the field, and silence there reads as an error.
+        explanation:
+          um.toLowerCase() === h.unit ? null : `${qty} ${um || h.unit} = ${h.size} ${h.unit}`,
       };
     }
     return {

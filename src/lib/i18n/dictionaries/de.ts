@@ -2045,7 +2045,6 @@ export const de: Dictionary = {
   inv_capture_skip: "— Zeile überspringen —",
   inv_capture_confirm: "Bestätigen und einbuchen",
   inv_capture_help: "Prüfe die Zeilen: Menge und Preis stammen aus dem Dokument. Zeilen ohne Zuordnung legen eine neue Lagerzutat an. Nach Bestätigung aktualisieren sich Bestände und Preise von selbst.",
-  inv_capture_unit_hint: "Im Dokument ist die Einheit «{docUnit}»: prüfe, ob die Menge in {unit} angegeben ist.",
   inv_capture_pack_hint: "Gebindeformat aus dem Beleg: {expl}",
   inv_capture_kind_service: "Dienstleistung — kein Lagerbestand",
   inv_capture_kind_charge: "Nebenkosten — kein Lagerbestand",

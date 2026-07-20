@@ -2045,7 +2045,6 @@ export const es: Dictionary = {
   inv_capture_skip: "— Omitir esta línea —",
   inv_capture_confirm: "Confirmar y cargar al almacén",
   inv_capture_help: "Revisa las líneas: cantidad y precio vienen del documento. Las líneas sin emparejar crean un ingrediente nuevo en el almacén. Al confirmar, existencias y precios se actualizan solos.",
-  inv_capture_unit_hint: "En el documento la unidad es «{docUnit}»: comprueba que la cantidad esté expresada en {unit}.",
   inv_capture_pack_hint: "Formato leído del documento: {expl}",
   inv_capture_kind_service: "servicio — no va al almacén",
   inv_capture_kind_charge: "gasto — no va al almacén",

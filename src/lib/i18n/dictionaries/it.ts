@@ -2045,7 +2045,6 @@ export const it: Dictionary = {
   inv_capture_skip: "— Ignora questa riga —",
   inv_capture_confirm: "Conferma e carica a magazzino",
   inv_capture_help: "Controlla le righe: quantità e prezzo vengono dal documento. Le righe senza abbinamento creano un nuovo ingrediente in magazzino. Confermando, giacenze e prezzi si aggiornano da soli.",
-  inv_capture_unit_hint: "Sul documento l'unità è «{docUnit}»: controlla che la quantità sia espressa in {unit}.",
   inv_capture_pack_hint: "Formato letto dal documento: {expl}",
   inv_capture_kind_service: "servizio — non va a magazzino",
   inv_capture_kind_charge: "spesa — non va a magazzino",

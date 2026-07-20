@@ -176,3 +176,41 @@ describe("supplier unit vocabulary", () => {
     expect(p).toMatchObject({ size: 0.75, unit: "l" });
   });
 });
+
+// The four rows the owner photographed from the Superfresco invoice, where the
+// review still showed the supplier's raw figures. These assert what the field
+// must contain once the conversion runs.
+describe("Superfresco review rows", () => {
+  it('"netto2.5kg" billed by the piece becomes real kilos', () => {
+    const d = deriveLine({
+      description: "Polpa pomodoro Pa'pizza netto2.5kg", unit: "n", quantity: 3.7, unitPrice: 18,
+    });
+    expect(d.unit).toBe("kg");
+    expect(d.quantity).toBe(9.25);       // 3,7 latte × 2,5 kg
+    expect(d.unitCost).toBe(7.2);        // 18,00 ÷ 2,5
+    expect(d.explanation).toBeTruthy();
+  });
+
+  it("a 100 gr piece price becomes a per-kilo price", () => {
+    const d = deriveLine({
+      description: "Robiola vaccina 100gr PF", unit: "Pz", quantity: 3, unitPrice: 0.33,
+    });
+    expect(d.unit).toBe("kg");
+    expect(d.quantity).toBeCloseTo(0.3, 6);
+    expect(d.unitCost).toBeCloseTo(3.3, 4);
+  });
+
+  it('explains "Ltr" → "l" even though nothing was multiplied', () => {
+    // Silence here read as a mistake; the note says the units are equivalent.
+    const d = deriveLine({ description: "Panna fresca gr. 35% 1 LT", unit: "Ltr", quantity: 2, unitPrice: 6.8 });
+    expect(d.unit).toBe("l");
+    expect(d.quantity).toBe(2);
+    expect(d.explanation).toBe("2 Ltr = 2 l");
+  });
+
+  it("stays quiet when the document already agrees with the warehouse", () => {
+    const d = deriveLine({ description: "Feta Cubetti 1kg", unit: "kg", quantity: 2, unitPrice: 13.9 });
+    expect(d.unit).toBe("kg");
+    expect(d.explanation).toBeNull();
+  });
+});
