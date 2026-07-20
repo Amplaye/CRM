@@ -6,6 +6,7 @@ import { encryptCredentials } from "@/lib/pos/credentials";
 import { applyPosProvider } from "@/lib/pos/pos-provider";
 import { syncConnection, type PosConnectionRow } from "@/lib/pos/sync";
 import { logSystemEvent } from "@/lib/system-log";
+import { getFiscalContext, planFiscalSwitch } from "@/lib/fiscal/server";
 import type { PosProvider } from "@/lib/pos/types";
 
 // Self-service POS connection — the piece that lets a NON-technical owner connect
@@ -73,6 +74,33 @@ export async function POST(req: Request) {
   if (action === "switch") {
     const now = new Date().toISOString();
 
+    // FISCAL GATE, and the reason this action is not just two UPDATEs.
+    //
+    // Who issues the invoices is a SEPARATE axis from which till we sync. For a
+    // Spanish (VeriFactu) tenant on an external POS, fiscal_obligados.sif_mode is
+    // 'external': the outside till is the compliant SIF and our cassa is FORBIDDEN
+    // to emit (assertFiscal → 403 fiscal_external_pos). Deactivating the
+    // connection without moving that flag would hand the owner a till that
+    // refuses every payment — the switch would "succeed" and the cassa would be
+    // dead on arrival.
+    //
+    // So for a VeriFactu tenant the switch means: we become the SIF. That is only
+    // legal once a NIF (obligado) exists — without one, nobody is compliant and
+    // the honest answer is to refuse the switch rather than move them to a till
+    // that cannot take money.
+    const fiscal = await getFiscalContext(svc, tenantId);
+    const { becomesIssuer, blocked } = planFiscalSwitch(fiscal);
+    if (blocked) {
+      return NextResponse.json(
+        {
+          error: "fiscal_not_configured",
+          detail:
+            "Per incassare in Spagna la cassa deve emettere a nome di un NIF. Configura l'identità fiscale prima di passare alla cassa BALI Flow.",
+        },
+        { status: 409 },
+      );
+    }
+
     const { data: deactivated, error: deactErr } = await svc
       .from("pos_connections")
       .update({ active: false, updated_at: now })
@@ -81,6 +109,25 @@ export async function POST(req: Request) {
       .select("id, provider");
     if (deactErr) {
       return NextResponse.json({ error: deactErr.message }, { status: 500 });
+    }
+
+    // Hand issuance to our cassa. Only for tenants actually under the VeriFactu
+    // duty: an Italian tenant has no obligado and mode 'off', and must stay that
+    // way — writing 'native' there would claim a compliance we do not implement.
+    if (becomesIssuer && fiscal.obligadoId) {
+      const { error: sifErr } = await svc
+        .from("fiscal_obligados")
+        .update({ sif_mode: "native", updated_at: now })
+        .eq("id", fiscal.obligadoId);
+      if (sifErr) {
+        // Roll the connection back on: better to leave the old till running than
+        // to strand the tenant between two systems, neither able to issue.
+        await svc
+          .from("pos_connections")
+          .update({ active: true, updated_at: now })
+          .in("id", (deactivated || []).map((c: { id: string }) => c.id));
+        return NextResponse.json({ error: sifErr.message }, { status: 500 });
+      }
     }
 
     const { data: tenantRow } = await svc.from("tenants").select("settings").eq("id", tenantId).maybeSingle();
@@ -99,8 +146,16 @@ export async function POST(req: Request) {
         category: "system",
         severity: "low",
         title: "Switched to the built-in till",
-        description: `Deactivated external POS (${from}) and moved this tenant to the built-in cassa. Historical sales from the old till are retained.`,
-        metadata: { switched_from: from, deactivated: (deactivated || []).length },
+        description:
+          `Deactivated external POS (${from}) and moved this tenant to the built-in cassa. ` +
+          `Historical sales from the old till are retained.` +
+          (becomesIssuer ? " Invoice issuance moved to our cassa (sif_mode: external → native)." : ""),
+        metadata: {
+          switched_from: from,
+          deactivated: (deactivated || []).length,
+          became_issuer: becomesIssuer,
+          obligado_id: fiscal.obligadoId,
+        },
       });
     } catch {
       /* non-fatal */

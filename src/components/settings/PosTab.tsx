@@ -99,7 +99,9 @@ export function PosTab() {
           msg: data?.ok
             ? t("settings_pos_switch_ok" as keyof Dictionary) ||
               "Fatto: ora incassi con la cassa BALI Flow. Lo storico della cassa precedente resta nei report."
-            : data?.error || (t("settings_pos_switch_err" as keyof Dictionary) || "Passaggio non riuscito"),
+            : // The fiscal refusal carries a `detail` written for the owner
+              // ("configure your NIF first"); the bare error code would not help.
+              data?.detail || data?.error || (t("settings_pos_switch_err" as keyof Dictionary) || "Passaggio non riuscito"),
         });
         if (data?.ok) {
           setConfirmSwitch(false);

@@ -112,6 +112,26 @@ export async function getFiscalContext(
  * without this a guest's phone could open a bill on a till that is not allowed to
  * emit one.
  */
+/**
+ * What switching a tenant to the built-in till means fiscally.
+ *
+ * Pure, so the rule is testable without a database — and the rule matters:
+ * `sif_mode` (who issues the invoices) is a different axis from which till we
+ * sync, and moving one without the other strands the tenant. Under VeriFactu,
+ * taking over the till means taking over issuance, which is only lawful once a
+ * NIF exists. Outside VeriFactu (Italy today) issuance is not ours to claim and
+ * must stay untouched.
+ */
+export function planFiscalSwitch(ctx: FiscalContext): {
+  /** Our cassa becomes the issuing SIF → sif_mode must move to 'native'. */
+  becomesIssuer: boolean;
+  /** Under the duty but no NIF: refuse rather than deliver a till that can't emit. */
+  blocked: boolean;
+} {
+  const becomesIssuer = ctx.regime.verifactu && ctx.mode !== "off";
+  return { becomesIssuer, blocked: becomesIssuer && !ctx.obligadoId };
+}
+
 export function assertFiscal(ctx: FiscalContext): NextResponse | null {
   if (ctx.mode === "off" || ctx.mode === "native") return null;
 
