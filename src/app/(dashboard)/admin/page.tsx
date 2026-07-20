@@ -240,19 +240,78 @@ export default function AdminPage() {
         {loading ? (
           <div className="p-12 text-center text-black animate-pulse">Loading...</div>
         ) : (
-          <div className="overflow-x-auto">
+          <>
+          {/* Mobile: one card per tenant. The 10-column table is unusable on a
+              phone (it degrades to a wide sideways scroll with "Details" far
+              off-screen), so below sm we render the same data stacked. */}
+          <ul className="sm:hidden divide-y" style={{ borderColor: "rgba(196,149,106,0.2)" }}>
+            {tenants.map(t => {
+              const badge = healthBadge(t.health);
+              return (
+                <li key={t.id}>
+                  <Link href={`/admin/tenant/${t.id}`} className="block px-4 py-3 active:bg-[#c4956a]/10 transition-colors">
+                    <div className="flex items-start justify-between gap-2">
+                      <span className="font-medium text-black">{t.name}</span>
+                      <span className={`inline-flex items-center gap-1.5 text-[10px] font-bold px-2 py-0.5 rounded-full border shrink-0 ${badge.bg}`}>
+                        <span className={`w-1.5 h-1.5 rounded-full ${badge.dot}`} />
+                        {badge.label}
+                      </span>
+                    </div>
+                    <div className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 text-xs text-black">
+                      <div>
+                        <span className="text-black/60">AI Rev (7d) </span>
+                        <span className="font-medium text-[#22c55e]">€{t.aiRevenue7.toLocaleString()}</span>
+                      </div>
+                      <div>
+                        <span className="text-black/60">AI % </span>
+                        <span className="font-medium">{t.aiPct}%</span>
+                      </div>
+                      <div>
+                        <span className="text-black/60">Bookings (7d) </span>
+                        <span className="font-medium">{t.totalBookings7}</span>
+                        {t.bookingChange !== 0 && (
+                          <span className={`ml-1 font-bold ${t.bookingChange > 0 ? "text-green-600" : "text-red-500"}`}>
+                            {t.bookingChange > 0 ? "+" : ""}{t.bookingChange}%
+                          </span>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <span className="text-black/60">No-Shows </span>
+                        <span className="font-medium">{t.noShows7}</span>
+                        {t.noShowTrend === "up" && <TrendingUp className="w-3 h-3 text-red-500" />}
+                        {t.noShowTrend === "down" && <TrendingDown className="w-3 h-3 text-green-500" />}
+                      </div>
+                    </div>
+                    <div className="mt-2 flex items-center justify-between gap-2 text-[11px]">
+                      {t.activeIssues > 0 ? (
+                        <span className={`inline-flex items-center gap-1 font-bold px-2 py-0.5 rounded-full ${t.criticalIssues > 0 ? "bg-red-50 text-red-700 border border-red-200" : "bg-yellow-50 text-yellow-700 border border-yellow-200"}`}>
+                          {t.criticalIssues > 0 && <AlertTriangle className="w-3 h-3" />}
+                          {t.activeIssues} {t.activeIssues === 1 ? "issue" : "issues"}
+                        </span>
+                      ) : (
+                        <span className="text-black/60">No issues</span>
+                      )}
+                      <span className="text-black/60">{new Date(t.lastActivity).toLocaleDateString()}</span>
+                    </div>
+                  </Link>
+                </li>
+              );
+            })}
+          </ul>
+
+          <div className="hidden sm:block overflow-x-auto">
             <table className="min-w-full text-sm">
               <thead>
                 <tr className="text-xs text-black uppercase tracking-wider">
                   <th className="px-4 py-3 text-left font-medium">Status</th>
                   <th className="px-4 py-3 text-left font-medium">Restaurant</th>
                   <th className="px-4 py-3 text-right font-medium">AI Rev (7d)</th>
-                  <th className="px-4 py-3 text-right font-medium">AI Rev (30d)</th>
+                  <th className="px-4 py-3 text-right font-medium hidden lg:table-cell">AI Rev (30d)</th>
                   <th className="px-4 py-3 text-right font-medium">AI %</th>
                   <th className="px-4 py-3 text-right font-medium">Bookings (7d)</th>
                   <th className="px-4 py-3 text-center font-medium">No-Shows</th>
                   <th className="px-4 py-3 text-center font-medium">Issues</th>
-                  <th className="px-4 py-3 text-right font-medium">Last Activity</th>
+                  <th className="px-4 py-3 text-right font-medium hidden lg:table-cell">Last Activity</th>
                   <th className="px-4 py-3 text-right font-medium"></th>
                 </tr>
               </thead>
@@ -269,7 +328,7 @@ export default function AdminPage() {
                       </td>
                       <td className="px-4 py-3 font-medium text-black">{t.name}</td>
                       <td className="px-4 py-3 text-right font-medium text-[#22c55e]">€{t.aiRevenue7.toLocaleString()}</td>
-                      <td className="px-4 py-3 text-right text-black">€{t.aiRevenue30.toLocaleString()}</td>
+                      <td className="px-4 py-3 text-right text-black hidden lg:table-cell">€{t.aiRevenue30.toLocaleString()}</td>
                       <td className="px-4 py-3 text-right text-black">{t.aiPct}%</td>
                       <td className="px-4 py-3 text-right">
                         <span className="text-black">{t.totalBookings7}</span>
@@ -297,7 +356,7 @@ export default function AdminPage() {
                           <span className="text-black">0</span>
                         )}
                       </td>
-                      <td className="px-4 py-3 text-right text-xs text-black">
+                      <td className="px-4 py-3 text-right text-xs text-black hidden lg:table-cell">
                         {new Date(t.lastActivity).toLocaleDateString()}
                       </td>
                       <td className="px-4 py-3 text-right">
@@ -312,6 +371,7 @@ export default function AdminPage() {
               </tbody>
             </table>
           </div>
+          </>
         )}
       </div>
     </div>

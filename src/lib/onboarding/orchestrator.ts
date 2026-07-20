@@ -14,6 +14,7 @@ import { createServiceRoleClient } from "@/lib/supabase/server";
 import { createTenant } from "@/lib/tenants/create-tenant";
 import { resolveProvisioningMarkers } from "@/lib/tenants/provisioning-markers";
 import { addSandboxTenant } from "@/lib/tenants/sandbox-registry";
+import { complianceSettingsForPhone } from "@/lib/compliance/detect-country";
 
 export type OpeningHoursSlot = { open: string; close: string };
 export type OpeningHours = Record<string, OpeningHoursSlot[]>; // keys 0..6 (Sunday=0)
@@ -227,6 +228,19 @@ export async function runOnboard(
       // settings.bot_config.primary_language for the default/fallback reply language.
       // Without this it fell back to 'es' for every tenant regardless of the star —
       // e.g. an owner picking Italian still got a Spanish-defaulting bot.
+      // Data-protection policy, derived from the venue's dialling prefix. Self-signup
+      // has no phone yet, so this wizard is the first point where the market is
+      // actually known — without it the tenant keeps `compliance` unset and the
+      // retention cron skips it forever. Never overwrites a policy already set (an
+      // admin may have configured it by hand), and stays absent for markets outside
+      // ES/IT/DE/CH rather than inventing a legal regime. See lib/compliance/detect-country.
+      const mergeCompliance = (existing: Record<string, any> | undefined) => {
+        if (existing?.country) return existing;
+        const derived = complianceSettingsForPhone(input.restaurant_phone || input.owner_phone);
+        if (!derived) return existing;
+        return { ...(existing || {}), ...derived };
+      };
+
       const mergeBotConfig = (existing: Record<string, any> | undefined) => {
         const merged = {
           ...(existing || {}),
@@ -256,6 +270,8 @@ export async function runOnboard(
         mergedSettings.provisioning = resolveProvisioningMarkers(prevSettings.provisioning, input.slug);
         const mergedBotCfg = mergeBotConfig(prevSettings.bot_config);
         if (mergedBotCfg) mergedSettings.bot_config = mergedBotCfg;
+        const mergedCompliance = mergeCompliance(prevSettings.compliance);
+        if (mergedCompliance) mergedSettings.compliance = mergedCompliance;
         const { error: updErr } = await supabase
           .from("tenants")
           .update({ name: input.restaurant_name, status: "active", settings: mergedSettings })
@@ -269,6 +285,8 @@ export async function runOnboard(
         const created = await createTenant(supabase, {
           name: input.restaurant_name,
           status: "active",
+          // createTenant derives settings.compliance.country from this.
+          phone: input.restaurant_phone || input.owner_phone,
           settings: createBotCfg
             ? { ...provisioningSettings, bot_config: createBotCfg }
             : provisioningSettings,

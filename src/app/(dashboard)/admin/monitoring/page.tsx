@@ -223,7 +223,7 @@ export default function AdminMonitoringPage() {
                       <th className="px-4 py-3 text-left font-medium">Salute</th>
                       <th className="px-4 py-3 text-left font-medium">Ristorante</th>
                       <th className="px-4 py-3 text-center font-medium">Problemi</th>
-                      <th className="px-4 py-3 text-right font-medium">Ultima attività</th>
+                      <th className="px-4 py-3 text-right font-medium hidden sm:table-cell">Ultima attività</th>
                       <th className="px-4 py-3 text-right font-medium"></th>
                     </tr>
                   </thead>
@@ -247,7 +247,7 @@ export default function AdminMonitoringPage() {
                               </span>
                             ) : <span className="text-black">0</span>}
                           </td>
-                          <td className="px-4 py-3 text-right text-xs text-black">
+                          <td className="px-4 py-3 text-right text-xs text-black hidden sm:table-cell">
                             {t.lastActivity ? new Date(t.lastActivity).toLocaleDateString() : "—"}
                           </td>
                           <td className="px-4 py-3 text-right">

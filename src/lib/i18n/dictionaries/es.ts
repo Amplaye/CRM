@@ -1708,6 +1708,7 @@ export const es: Dictionary = {
   settings_payments_recommended: "Recomendado",
   settings_payments_current: "Plan activo: {p}",
   settings_payments_status: "Estado",
+  settings_payments_started: "Activo desde el {d}",
   settings_payments_renews: "se renueva el {d}",
   settings_payments_active_plan: "Plan actual",
   settings_payments_pay_stripe: "Pagar con tarjeta (Stripe)",
@@ -1800,7 +1801,7 @@ export const es: Dictionary = {
   settings_wa_error_generic: "Algo salió mal. Inténtalo de nuevo o contacta con BALI Flow.",
 
   // Caja nativa (TPV integrado)
-  nav_cassa: "Caja",
+  nav_cassa: "BALI Flow",
   cassa_error: "Error de caja",
   cassa_tab_sala: "Sala",
   cassa_tab_receipts: "Tickets",

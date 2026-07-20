@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { TenantStatus } from "./status";
+import { complianceSettingsForPhone } from "@/lib/compliance/detect-country";
 
 /**
  * Single way to create a tenant row.
@@ -25,6 +26,15 @@ export interface CreateTenantInput {
    * the insert failed and the owner ended up with no tenant).
    */
   slug?: string;
+  /**
+   * Venue phone in international form. Used ONLY to derive the data-protection
+   * country (`settings.compliance.country`) at birth, so the retention policy is
+   * configured automatically instead of depending on an admin filling the form
+   * later — which never happened, leaving every tenant's retention job inert.
+   * When it yields no supported market the tenant stays unset (safe default).
+   * An explicit `settings.compliance` always wins over this inference.
+   */
+  phone?: string | null;
 }
 
 // Build a URL-safe slug from a free-text name. Falls back to "resto" when the
@@ -51,6 +61,16 @@ export async function createTenant(
   const suffix = Math.random().toString(36).slice(2, 8);
   const slug = `${input.slug?.trim() || slugify(input.name)}-${suffix}`;
 
+  // Seed the data-protection policy from the venue's dialling prefix. Never
+  // overrides a compliance block the caller passed explicitly, and stays absent
+  // when the prefix isn't one of our markets (see ./detect-country for why we
+  // don't fall back to timezone or geo-IP).
+  const settings = { ...input.settings };
+  if (!settings.compliance) {
+    const compliance = complianceSettingsForPhone(input.phone);
+    if (compliance) settings.compliance = compliance;
+  }
+
   const { data, error } = await supabase
     .from("tenants")
     .insert({
@@ -58,7 +78,7 @@ export async function createTenant(
       slug,
       business_type: "restaurant",
       status: input.status,
-      settings: input.settings,
+      settings,
     })
     .select("id")
     .single();

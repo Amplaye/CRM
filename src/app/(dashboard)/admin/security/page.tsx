@@ -255,10 +255,10 @@ export default function SecurityPage() {
                       <tr className="text-xs text-black uppercase tracking-wider">
                         <th className="px-4 py-2 text-left font-medium">Time</th>
                         <th className="px-4 py-2 text-left font-medium">Account</th>
-                        <th className="px-4 py-2 text-left font-medium">Client</th>
-                        <th className="px-4 py-2 text-left font-medium">IP</th>
-                        <th className="px-4 py-2 text-left font-medium">Location</th>
-                        <th className="px-4 py-2 text-left font-medium">Device</th>
+                        <th className="px-4 py-2 text-left font-medium hidden sm:table-cell">Client</th>
+                        <th className="px-4 py-2 text-left font-medium hidden lg:table-cell">IP</th>
+                        <th className="px-4 py-2 text-left font-medium hidden md:table-cell">Location</th>
+                        <th className="px-4 py-2 text-left font-medium hidden lg:table-cell">Device</th>
                         <th className="px-4 py-2 text-left font-medium">Flags</th>
                       </tr>
                     </thead>
@@ -280,15 +280,15 @@ export default function SecurityPage() {
                                 <div className="text-[10px] text-black">{ev.action}</div>
                               )}
                             </td>
-                            <td className="px-4 py-2 text-black">
+                            <td className="px-4 py-2 text-black hidden sm:table-cell">
                               {ev.tenant_name ? (
                                 <span className="text-[10px] font-bold text-[#c4956a] bg-[#c4956a]/10 px-2 py-0.5 rounded">
                                   {ev.tenant_name}
                                 </span>
                               ) : <span className="text-black">—</span>}
                             </td>
-                            <td className="px-4 py-2 text-black font-mono text-xs">{ev.ip_address || "—"}</td>
-                            <td className="px-4 py-2 text-black text-xs">
+                            <td className="px-4 py-2 text-black font-mono text-xs hidden lg:table-cell">{ev.ip_address || "—"}</td>
+                            <td className="px-4 py-2 text-black text-xs hidden md:table-cell">
                               {ev.geo.country ? (
                                 <span className="inline-flex items-center gap-1">
                                   <Globe className="w-3 h-3 text-black" />
@@ -296,7 +296,7 @@ export default function SecurityPage() {
                                 </span>
                               ) : <span className="text-black">—</span>}
                             </td>
-                            <td className="px-4 py-2 text-black text-xs">
+                            <td className="px-4 py-2 text-black text-xs hidden lg:table-cell">
                               <span className="inline-flex items-center gap-1">
                                 <Monitor className="w-3 h-3 text-black" />
                                 {ev.browser} · {ev.os}

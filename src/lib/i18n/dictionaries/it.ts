@@ -1708,6 +1708,7 @@ export const it: Dictionary = {
   settings_payments_recommended: "Consigliato",
   settings_payments_current: "Piano attivo: {p}",
   settings_payments_status: "Stato",
+  settings_payments_started: "Attivo dal {d}",
   settings_payments_renews: "rinnova il {d}",
   settings_payments_active_plan: "Piano attivo",
   settings_payments_pay_stripe: "Paga con carta (Stripe)",
@@ -1800,7 +1801,7 @@ export const it: Dictionary = {
   settings_wa_error_generic: "Qualcosa è andato storto. Riprova o contatta BALI Flow.",
 
   // Cassa nativa (POS interno)
-  nav_cassa: "Cassa",
+  nav_cassa: "BALI Flow",
   cassa_error: "Errore cassa",
   cassa_tab_sala: "Sala",
   cassa_tab_receipts: "Scontrini",

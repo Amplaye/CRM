@@ -395,7 +395,7 @@ export function Sidebar({ mobileOpen = false, onClose }: SidebarProps) {
                 : { background: "linear-gradient(135deg, #d4a574, #c4956a)", boxShadow: "0 4px 14px rgba(196,149,106,0.5)" }}
             >
               {cassaLocked ? <Lock className="w-4.5 h-4.5" /> : <Banknote className="w-5.5 h-5.5" />}
-              {(t("nav_cassa" as keyof Dictionary) || "Cassa").toUpperCase()}
+              {t("nav_cassa" as keyof Dictionary) || "BALI Flow"}
             </Link>
           </div>
         );

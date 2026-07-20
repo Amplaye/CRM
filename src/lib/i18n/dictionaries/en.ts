@@ -1705,6 +1705,7 @@ export const en = {
   settings_payments_recommended: "Recommended",
   settings_payments_current: "Active plan: {p}",
   settings_payments_status: "Status",
+  settings_payments_started: "Active since {d}",
   settings_payments_renews: "renews on {d}",
   settings_payments_active_plan: "Current plan",
   settings_payments_pay_stripe: "Pay by card (Stripe)",
@@ -1797,7 +1798,7 @@ export const en = {
   settings_wa_error_generic: "Something went wrong. Please try again or contact BALI Flow.",
 
   // Native cassa (built-in POS)
-  nav_cassa: "Till",
+  nav_cassa: "BALI Flow",
   cassa_error: "Till error",
   cassa_tab_sala: "Room",
   cassa_tab_receipts: "Receipts",

@@ -15,6 +15,7 @@ interface BillingRow {
   cycle: string | null;
   provider: string | null;
   mrr: number;
+  started: string | null;
   renewal: string | null;
   cancelAtPeriodEnd: boolean;
   addons: string[];
@@ -156,7 +157,65 @@ export default function AdminBillingPage() {
         ) : visible.length === 0 ? (
           <div className="p-12 text-center text-black">Nessun abbonamento.</div>
         ) : (
-          <div className="overflow-x-auto">
+          <>
+          {/* Mobile: card per subscription — the 8-column table would otherwise
+              scroll sideways with the Stripe link off-screen. */}
+          <ul className="sm:hidden divide-y" style={{ borderColor: "rgba(196,149,106,0.2)" }}>
+            {visible.map((r, i) => (
+              <li key={`m-${r.source}-${r.stripeSubscriptionId || r.tenantId || i}`} className="px-4 py-3">
+                <div className="flex items-start justify-between gap-2">
+                  <span className="font-medium text-black">
+                    {r.tenantName || (
+                      <span className="text-black/70">
+                        {r.businessName || r.customerEmail || "lead non collegato"}
+                        <span className="ml-1 text-[10px] uppercase font-bold text-amber-700">lead</span>
+                      </span>
+                    )}
+                  </span>
+                  <span className={`inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full border shrink-0 ${statusBadge(r.status)}`}>
+                    {r.status === "past_due" && <AlertTriangle className="w-3 h-3" />}
+                    {r.status}
+                  </span>
+                </div>
+                <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-black">
+                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${r.source === "pilot" ? "bg-purple-50 text-purple-700 border-purple-200" : "bg-[#c4956a]/10 text-black border-[#c4956a]/30"}`}>
+                    {r.source === "pilot" ? "Pilot" : "Sub"}
+                  </span>
+                  <span className="capitalize">{r.plan || "—"}</span>
+                  {r.cycle && <span className="text-black/60">{r.cycle === "yearly" || r.cycle === "annual" ? "/anno" : "/mese"}</span>}
+                  <span className="font-medium">{r.mrr > 0 ? eur(r.mrr) : "—"}</span>
+                </div>
+                {r.cancelAtPeriodEnd && (
+                  <div className="mt-1 text-[10px] text-amber-700 font-bold">disdetta a fine periodo</div>
+                )}
+                <div className="mt-1 grid grid-cols-2 gap-x-3 text-[11px] text-black">
+                  <div>
+                    <span className="text-black/60">Inizio </span>
+                    {r.started ? new Date(r.started).toLocaleDateString() : "—"}
+                  </div>
+                  <div>
+                    <span className="text-black/60">Rinnovo </span>
+                    {r.renewal ? new Date(r.renewal).toLocaleDateString() : "—"}
+                  </div>
+                </div>
+                <div className="mt-2 flex items-center gap-3">
+                  {r.tenantId && (
+                    <Link href={`/admin/tenant/${r.tenantId}`} className="text-xs font-medium text-[#c4956a] hover:text-[#8b6540] transition-colors">
+                      Dettagli
+                    </Link>
+                  )}
+                  {r.stripeCustomerId && (
+                    <a href={stripeCustomerUrl(r.stripeCustomerId)} target="_blank" rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1 text-xs font-medium text-black/70 hover:text-black transition-colors">
+                      Stripe <ExternalLink className="w-3 h-3" />
+                    </a>
+                  )}
+                </div>
+              </li>
+            ))}
+          </ul>
+
+          <div className="hidden sm:block overflow-x-auto">
             <table className="min-w-full text-sm">
               <thead>
                 <tr className="text-xs text-black uppercase tracking-wider">
@@ -165,6 +224,7 @@ export default function AdminBillingPage() {
                   <th className="px-4 py-3 text-left font-medium">Piano</th>
                   <th className="px-4 py-3 text-left font-medium">Stato</th>
                   <th className="px-4 py-3 text-right font-medium">MRR</th>
+                  <th className="px-4 py-3 text-right font-medium hidden lg:table-cell">Inizio</th>
                   <th className="px-4 py-3 text-right font-medium">Rinnovo / Fine trial</th>
                   <th className="px-4 py-3 text-right font-medium"></th>
                 </tr>
@@ -199,6 +259,9 @@ export default function AdminBillingPage() {
                       {r.cancelAtPeriodEnd && <span className="ml-1 text-[10px] text-amber-700 font-bold">disdetta a fine periodo</span>}
                     </td>
                     <td className="px-4 py-3 text-right text-black">{r.mrr > 0 ? eur(r.mrr) : "—"}</td>
+                    <td className="px-4 py-3 text-right text-xs text-black hidden lg:table-cell">
+                      {r.started ? new Date(r.started).toLocaleDateString() : "—"}
+                    </td>
                     <td className="px-4 py-3 text-right text-xs text-black">
                       {r.renewal ? new Date(r.renewal).toLocaleDateString() : "—"}
                     </td>
@@ -220,6 +283,7 @@ export default function AdminBillingPage() {
               </tbody>
             </table>
           </div>
+          </>
         )}
       </div>
     </div>

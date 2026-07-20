@@ -19,6 +19,8 @@ export interface SubscriptionRow {
   addons: string[];
   current_period_end: string | null;
   cancel_at_period_end: boolean;
+  /** Row birth = when the subscription started. Shown as "attivo dal". */
+  created_at?: string | null;
 }
 
 /** Load the subscription row for a tenant (service-role). Returns null when the
@@ -28,7 +30,7 @@ export async function getSubscription(tenantId: string): Promise<SubscriptionRow
   const { data } = await svc
     .from("subscriptions")
     .select(
-      "tenant_id, plan, cycle, status, provider, stripe_customer_id, stripe_subscription_id, paypal_subscription_id, addons, current_period_end, cancel_at_period_end",
+      "tenant_id, plan, cycle, status, provider, stripe_customer_id, stripe_subscription_id, paypal_subscription_id, addons, current_period_end, cancel_at_period_end, created_at",
     )
     .eq("tenant_id", tenantId)
     .maybeSingle();

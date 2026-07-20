@@ -35,6 +35,7 @@ interface SubState {
   status: string;
   provider: string | null;
   current_period_end: string | null;
+  created_at: string | null;
   addons: string[];
 }
 
@@ -225,9 +226,26 @@ export function PaymentsTab() {
               </div>
               <div className="text-xs text-black">
                 {t(tk("settings_payments_status")) || "Stato"}: {sub.status}
-                {sub.current_period_end
-                  ? ` · ${(t(tk("settings_payments_renews")) || "rinnova il {d}").replace("{d}", new Date(sub.current_period_end).toLocaleDateString())}`
-                  : ""}
+              </div>
+              {/* Start + renewal, so the owner can see the whole billing period
+                  at a glance and not just the next charge. */}
+              <div className="mt-1 flex flex-wrap gap-x-4 gap-y-0.5 text-xs text-black">
+                {sub.created_at && (
+                  <span>
+                    {(t(tk("settings_payments_started")) || "Attivo dal {d}").replace(
+                      "{d}",
+                      new Date(sub.created_at).toLocaleDateString(),
+                    )}
+                  </span>
+                )}
+                {sub.current_period_end && (
+                  <span>
+                    {(t(tk("settings_payments_renews")) || "rinnova il {d}").replace(
+                      "{d}",
+                      new Date(sub.current_period_end).toLocaleDateString(),
+                    )}
+                  </span>
+                )}
               </div>
             </div>
           </div>

@@ -126,13 +126,13 @@ export function detectAction(raw: string, now: Date): ActionIntent | null {
   const mentionsReservation = /\b(prenotazion\w*|reservation\w*|booking\w*|reserv\w*|reservierung\w*)\b/.test(q);
 
   // ---- register open/close (imperative only — "come apro la cassa" stays a KB question)
-  if (!isQuestion && /\b(apri|apriamo|open|abre|abrir|offne|öffne)\b/.test(q) && /\b(cassa|till|caja|kasse|giornata|register)\b/.test(q)) {
+  if (!isQuestion && /\b(apri|apriamo|open|abre|abrir|offne|öffne)\b/.test(q) && /\b(cassa|till|caja|kasse|giornata|register|bali ?flow)\b/.test(q)) {
     return {
       kind: "open_register",
-      float: parseMoneyWord(raw.replace(/\b(cassa|till|caja|kasse|giornata|register)\b/gi, "")) ?? undefined,
+      float: parseMoneyWord(raw.replace(/\b(cassa|till|caja|kasse|giornata|register|bali ?flow)\b/gi, "")) ?? undefined,
     };
   }
-  if (!isQuestion && /\b(chiudi|chiudiamo|close|cierra|cerrar|schliesse|schliess)\b/.test(q) && /\b(cassa|till|caja|kasse|giornata|register)\b/.test(q)) {
+  if (!isQuestion && /\b(chiudi|chiudiamo|close|cierra|cerrar|schliesse|schliess)\b/.test(q) && /\b(cassa|till|caja|kasse|giornata|register|bali ?flow)\b/.test(q)) {
     return { kind: "close_register" };
   }
 

@@ -24,6 +24,8 @@ export interface BillingRow {
   /** Monthly-equivalent recurring revenue in whole EUR (0 unless active/trialing). */
   mrr: number;
   /** Renewal or trial-end instant (ISO). */
+  /** When the subscription began (subscriptions.created_at / pilot_start). */
+  started: string | null;
   renewal: string | null;
   cancelAtPeriodEnd: boolean;
   addons: string[];
@@ -76,12 +78,12 @@ export async function getBillingRows(): Promise<BillingRow[]> {
     svc
       .from("subscriptions")
       .select(
-        "tenant_id, plan, cycle, status, provider, addons, current_period_end, cancel_at_period_end, stripe_customer_id, stripe_subscription_id, updated_at",
+        "tenant_id, plan, cycle, status, provider, addons, current_period_end, cancel_at_period_end, stripe_customer_id, stripe_subscription_id, created_at, updated_at",
       ),
     svc
       .from("pilot_subscriptions")
       .select(
-        "tenant_id, plan, subscription_status, current_period_end, pilot_end, cancel_at_period_end, stripe_customer_id, stripe_subscription_id, customer_email, business_name, metadata, updated_at",
+        "tenant_id, plan, subscription_status, current_period_end, pilot_start, pilot_end, created_at, cancel_at_period_end, stripe_customer_id, stripe_subscription_id, customer_email, business_name, metadata, updated_at",
       ),
     svc.from("tenants").select("id, name"),
   ]);
@@ -105,6 +107,7 @@ export async function getBillingRows(): Promise<BillingRow[]> {
       cycle: s.cycle ?? null,
       provider: s.provider ?? null,
       mrr: EARNING(status) ? subMrr(s.plan ?? null, s.cycle ?? null, addons) : 0,
+      started: s.created_at ?? null,
       renewal: s.current_period_end ?? null,
       cancelAtPeriodEnd: !!s.cancel_at_period_end,
       addons,
@@ -129,6 +132,7 @@ export async function getBillingRows(): Promise<BillingRow[]> {
       cycle,
       provider: "stripe",
       mrr: EARNING(status) ? pilotMrr(plan, cycle) : 0,
+      started: p.pilot_start ?? p.created_at ?? null,
       renewal: p.current_period_end ?? p.pilot_end ?? null,
       cancelAtPeriodEnd: !!p.cancel_at_period_end,
       addons: [],

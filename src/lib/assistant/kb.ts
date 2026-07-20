@@ -131,10 +131,10 @@ export const KB: KbTopic[] = [
       "panoramica", "overview", "cosa fa", "come funziona il crm", "iniziare", "getting started", "empezar", "einstieg", "guida", "guide", "tutorial", "aiuto generale", "sezioni",
     ],
     answer: {
-      it: "Il CRM riunisce tutto il ristorante: Prenotazioni (con conferme automatiche via WhatsApp), Clienti (con punti fedeltà), Menu digitale, Sala e tavoli, Cassa (POS), Gestionale (Inventario, Food Cost, Conto Economico), Statistiche, Chat coi clienti, Sito web pubblico con prenotazione online, Marketing (campagne), Buoni regalo, Recensioni, Staff (turni) e Impostazioni. Ogni sezione è nel menu laterale a sinistra.",
-      en: "The CRM brings the whole restaurant together: Reservations (with automatic WhatsApp confirmations), Guests (with loyalty points), digital Menu, Floor & tables, Till (POS), Management (Inventory, Food Cost, P&L), Analytics, customer Chat, a public Website with online booking, Marketing (campaigns), Gift cards, Reviews, Staff (rota) and Settings. Each section lives in the left sidebar.",
-      es: "El CRM reúne todo el restaurante: Reservas (con confirmaciones automáticas por WhatsApp), Clientes (con puntos de fidelidad), Menú digital, Sala y mesas, Caja (POS), Gestión (Inventario, Food Cost, Cuenta de resultados), Estadísticas, Chat con clientes, Sitio web público con reserva online, Marketing (campañas), Tarjetas regalo, Reseñas, Equipo (turnos) y Ajustes. Cada sección está en el menú lateral izquierdo.",
-      de: "Das CRM vereint das ganze Restaurant: Reservierungen (mit automatischen WhatsApp-Bestätigungen), Gäste (mit Treuepunkten), digitale Speisekarte, Saal & Tische, Kasse (POS), Verwaltung (Inventar, Food Cost, GuV), Statistiken, Gäste-Chat, eine öffentliche Webseite mit Online-Reservierung, Marketing (Kampagnen), Gutscheine, Bewertungen, Staff (Dienstplan) und Einstellungen. Jeder Bereich ist in der linken Seitenleiste.",
+      it: "Il CRM riunisce tutto il ristorante: Prenotazioni (con conferme automatiche via WhatsApp), Clienti (con punti fedeltà), Menu digitale, Sala e tavoli, BALI Flow (cassa), Gestionale (Inventario, Food Cost, Conto Economico), Statistiche, Chat coi clienti, Sito web pubblico con prenotazione online, Marketing (campagne), Buoni regalo, Recensioni, Staff (turni) e Impostazioni. Ogni sezione è nel menu laterale a sinistra.",
+      en: "The CRM brings the whole restaurant together: Reservations (with automatic WhatsApp confirmations), Guests (with loyalty points), digital Menu, Floor & tables, BALI Flow (till), Management (Inventory, Food Cost, P&L), Analytics, customer Chat, a public Website with online booking, Marketing (campaigns), Gift cards, Reviews, Staff (rota) and Settings. Each section lives in the left sidebar.",
+      es: "El CRM reúne todo el restaurante: Reservas (con confirmaciones automáticas por WhatsApp), Clientes (con puntos de fidelidad), Menú digital, Sala y mesas, BALI Flow (caja), Gestión (Inventario, Food Cost, Cuenta de resultados), Estadísticas, Chat con clientes, Sitio web público con reserva online, Marketing (campañas), Tarjetas regalo, Reseñas, Equipo (turnos) y Ajustes. Cada sección está en el menú lateral izquierdo.",
+      de: "Das CRM vereint das ganze Restaurant: Reservierungen (mit automatischen WhatsApp-Bestätigungen), Gäste (mit Treuepunkten), digitale Speisekarte, Saal & Tische, BALI Flow (Kasse), Verwaltung (Inventar, Food Cost, GuV), Statistiken, Gäste-Chat, eine öffentliche Webseite mit Online-Reservierung, Marketing (Kampagnen), Gutscheine, Bewertungen, Staff (Dienstplan) und Einstellungen. Jeder Bereich ist in der linken Seitenleiste.",
     },
     links: [
       { href: "/", label: { it: "Vai alla dashboard", en: "Go to the dashboard", es: "Ir al panel", de: "Zum Dashboard" } },
@@ -313,12 +313,13 @@ export const KB: KbTopic[] = [
   {
     id: "cassa-open-close",
     title: {
-      it: "Cassa: aprire e chiudere la giornata",
-      en: "Till: open and close the day",
-      es: "Caja: abrir y cerrar la jornada",
-      de: "Kasse: Tag öffnen und schließen",
+      it: "BALI Flow: aprire e chiudere la giornata",
+      en: "BALI Flow: open and close the day",
+      es: "BALI Flow: abrir y cerrar la jornada",
+      de: "BALI Flow: Tag öffnen und schließen",
     },
     keywords: [
+      "bali flow", "baliflow", 
       "aprire cassa", "apro la cassa", "chiudere cassa", "chiusura cassa", "fondo cassa", "giornata di cassa", "open till", "close till", "cash day", "float", "abrir caja", "cerrar caja", "abro la caja", "cierro la caja", "fondo de caja", "kasse offnen", "kasse schliessen", "wechselgeld", "quadratura", "contanti attesi", "cassa aperta", "cassa chiusa",
     ],
     answer: {
@@ -328,23 +329,24 @@ export const KB: KbTopic[] = [
       de: "Den Kassentag öffnest du mit dem Wechselgeld (Bargeld in der Schublade) und schließt ihn nach dem Service durch Zählen der Schublade: das CRM vergleicht erwartetes und gezähltes Bargeld und zeigt sofort, ob die Kasse stimmt. Das Badge oben (grün = offen, rot = geschlossen) führt zum Tab Kassentag; versuchst du bei geschlossener Kasse zu bonieren oder zu kassieren, wirst du zum Öffnen aufgefordert.",
     },
     steps: {
-      it: ["Apri Cassa → scheda «Giornata»", "Inserisci il fondo cassa e premi «Apri cassa»", "A fine servizio conta i contanti nel cassetto e scrivili in «Contanti contati»", "Controlla il badge (verde = quadrata) e premi «Chiudi cassa»"],
-      en: ["Open Till → “Day” tab", "Enter the float and press “Open till”", "After service, count the drawer and type it into “Counted cash”", "Check the badge (green = balanced) and press “Close till”"],
-      es: ["Abre Caja → pestaña «Jornada»", "Introduce el fondo y pulsa «Abrir caja»", "Al final del servicio cuenta el cajón y escríbelo en «Efectivo contado»", "Revisa la insignia (verde = cuadrada) y pulsa «Cerrar caja»"],
-      de: ["Öffne Kasse → Tab „Kassentag“", "Wechselgeld eingeben und „Kasse öffnen“ drücken", "Nach dem Service die Schublade zählen und bei „Gezähltes Bargeld“ eintragen", "Badge prüfen (grün = stimmt) und „Kasse schließen“ drücken"],
+      it: ["Apri BALI Flow → scheda «Giornata»", "Inserisci il fondo cassa e premi «Apri cassa»", "A fine servizio conta i contanti nel cassetto e scrivili in «Contanti contati»", "Controlla il badge (verde = quadrata) e premi «Chiudi cassa»"],
+      en: ["Open BALI Flow → “Day” tab", "Enter the float and press “Open till”", "After service, count the drawer and type it into “Counted cash”", "Check the badge (green = balanced) and press “Close till”"],
+      es: ["Abre BALI Flow → pestaña «Jornada»", "Introduce el fondo y pulsa «Abrir caja»", "Al final del servicio cuenta el cajón y escríbelo en «Efectivo contado»", "Revisa la insignia (verde = cuadrada) y pulsa «Cerrar caja»"],
+      de: ["Öffne BALI Flow → Tab „Kassentag“", "Wechselgeld eingeben und „Kasse öffnen“ drücken", "Nach dem Service die Schublade zählen und bei „Gezähltes Bargeld“ eintragen", "Badge prüfen (grün = stimmt) und „Kasse schließen“ drücken"],
     },
-    links: [{ href: "/cassa", label: { it: "Apri la Cassa", en: "Open the Till", es: "Abrir la Caja", de: "Kasse öffnen" } }],
+    links: [{ href: "/cassa", label: { it: "Apri BALI Flow", en: "Open BALI Flow", es: "Abrir BALI Flow", de: "BALI Flow öffnen" } }],
     related: ["cassa-orders", "cassa-pay", "cassa-receipts"],
   },
   {
     id: "cassa-orders",
     title: {
-      it: "Cassa: comande, portate e coperti",
-      en: "Till: orders, courses and covers",
-      es: "Caja: comandas, pases y comensales",
-      de: "Kasse: Bons, Gänge und Gedecke",
+      it: "BALI Flow: comande, portate e coperti",
+      en: "BALI Flow: orders, courses and covers",
+      es: "BALI Flow: comandas, pases y comensales",
+      de: "BALI Flow: Bons, Gänge und Gedecke",
     },
     keywords: [
+      "bali flow", "baliflow", 
       "comanda", "comande", "portata", "portate", "coperti", "inviare comanda", "ordine tavolo", "course", "courses", "covers", "fire order", "kitchen order", "pase", "comensales", "gang", "gange", "bonieren", "storno", "nota piatto", "senza cipolla", "spostare tavolo", "voce libera",
     ],
     answer: {
@@ -353,18 +355,19 @@ export const KB: KbTopic[] = [
       es: "Desde la Sala tocas una mesa y compones la comanda: eliges el pase (1º, 2º, 3º — cada uno con su color) y tocas los platos; los comensales se ajustan con el botón de personas arriba. «Comanda» la envía (imprimiendo por estación), las notas de línea sirven para “sin cebolla”, y el storno anula una línea ya enviada.",
       de: "Im Saal tippst du auf einen Tisch und stellst den Bon zusammen: Gang wählen (1., 2., 3. — jeder mit eigener Farbe) und Gerichte antippen; Gedecke stellst du über den Personen-Button oben ein. „Bonieren“ schickt den Bon (Druck pro Station), Zeilennotizen für „ohne Zwiebel“, Storno storniert eine bereits bonierte Zeile.",
     },
-    links: [{ href: "/cassa", label: { it: "Apri la Cassa", en: "Open the Till", es: "Abrir la Caja", de: "Kasse öffnen" } }],
+    links: [{ href: "/cassa", label: { it: "Apri BALI Flow", en: "Open BALI Flow", es: "Abrir BALI Flow", de: "BALI Flow öffnen" } }],
     related: ["cassa-open-close", "cassa-pay", "menu-variants", "floor"],
   },
   {
     id: "cassa-pay",
     title: {
-      it: "Cassa: incasso, sconti, preconto e resto",
-      en: "Till: charging, discounts, pre-bill and change",
-      es: "Caja: cobro, descuentos, precuenta y cambio",
-      de: "Kasse: Kassieren, Rabatte, Vorab-Rechnung und Rückgeld",
+      it: "BALI Flow: incasso, sconti, preconto e resto",
+      en: "BALI Flow: charging, discounts, pre-bill and change",
+      es: "BALI Flow: cobro, descuentos, precuenta y cambio",
+      de: "BALI Flow: Kassieren, Rabatte, Vorab-Rechnung und Rückgeld",
     },
     keywords: [
+      "bali flow", "baliflow", 
       "incassare", "incasso", "pagare", "pagamento", "sconto", "preconto", "resto", "conto", "charge", "payment", "discount", "pre-bill", "change", "split", "dividere conto", "pagamento misto", "cobrar", "descuento", "precuenta", "cambio", "kassieren", "rabatt", "rechnung", "trinkgeld", "contanti", "carta", "coperto prezzo",
     ],
     answer: {
@@ -373,7 +376,7 @@ export const KB: KbTopic[] = [
       es: "Desde la cuenta pulsa «Cobrar»: eliges el método (efectivo, tarjeta, vales…), puedes dividir el importe entre varios métodos y, con efectivo, el cambio se calcula solo. El descuento (% o €) se aplica desde el total; la «Precuenta» imprime la cuenta para llevar a la mesa antes de cobrar.",
       de: "Auf der Rechnung „Kassieren“ drücken: Methode wählen (bar, Karte, Gutscheine…), den Betrag bei Bedarf auf mehrere Methoden aufteilen, bei bar wird das Rückgeld automatisch berechnet. Rabatt (% oder €) gilt auf die Gesamtsumme; die Vorab-Rechnung druckst du für den Tisch vor der Zahlung.",
     },
-    links: [{ href: "/cassa", label: { it: "Apri la Cassa", en: "Open the Till", es: "Abrir la Caja", de: "Kasse öffnen" } }],
+    links: [{ href: "/cassa", label: { it: "Apri BALI Flow", en: "Open BALI Flow", es: "Abrir BALI Flow", de: "BALI Flow öffnen" } }],
     related: ["cassa-receipts", "cassa-open-close", "qr-pay"],
   },
   {
@@ -407,14 +410,15 @@ export const KB: KbTopic[] = [
       es: "Tickets: reimprimir y anular",
       de: "Bons: Nachdruck und Storno",
     },
-    keywords: ["scontrino", "scontrini", "ristampa", "annullare scontrino", "annullo", "receipt", "receipts", "reprint", "void receipt", "ticket", "tickets", "anular ticket", "bon", "bons", "storno bon", "giornale", "journal"],
+    keywords: [
+      "bali flow", "baliflow", "scontrino", "scontrini", "ristampa", "annullare scontrino", "annullo", "receipt", "receipts", "reprint", "void receipt", "ticket", "tickets", "anular ticket", "bon", "bons", "storno bon", "giornale", "journal"],
     answer: {
       it: "Nella scheda Scontrini vedi il giornale del giorno (e dei giorni passati con le frecce). Puoi ristampare qualsiasi scontrino; titolare e manager possono annullarne uno del giorno corrente indicando il motivo — l'annullo resta tracciato nel riepilogo.",
       en: "The Receipts tab shows the day's journal (and past days via the arrows). You can reprint any receipt; owner and managers can void one from the current day by giving a reason — the void stays tracked in the summary.",
       es: "La pestaña Tickets muestra el diario del día (y de días pasados con las flechas). Puedes reimprimir cualquier ticket; propietario y managers pueden anular uno del día actual indicando el motivo — la anulación queda registrada en el resumen.",
       de: "Der Tab Bons zeigt das Tagesjournal (und vergangene Tage über die Pfeile). Jeder Bon lässt sich nachdrucken; Inhaber und Manager können einen Bon des aktuellen Tags mit Begründung stornieren — der Storno bleibt in der Übersicht nachvollziehbar.",
     },
-    links: [{ href: "/cassa", label: { it: "Apri la Cassa", en: "Open the Till", es: "Abrir la Caja", de: "Kasse öffnen" } }],
+    links: [{ href: "/cassa", label: { it: "Apri BALI Flow", en: "Open BALI Flow", es: "Abrir BALI Flow", de: "BALI Flow öffnen" } }],
     related: ["cassa-pay", "cassa-open-close"],
   },
   {
@@ -808,7 +812,7 @@ export const KB: KbTopic[] = [
     },
     links: [
       { href: "/settings", label: { it: "Apri Impostazioni", en: "Open Settings", es: "Abrir Ajustes", de: "Einstellungen öffnen" } },
-      { href: "/cassa", label: { it: "Apri la Cassa", en: "Open the Till", es: "Abrir la Caja", de: "Kasse öffnen" } },
+      { href: "/cassa", label: { it: "Apri BALI Flow", en: "Open BALI Flow", es: "Abrir BALI Flow", de: "BALI Flow öffnen" } },
     ],
     related: ["cassa-receipts", "cassa-pay", "settings"],
   },

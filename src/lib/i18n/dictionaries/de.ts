@@ -1708,6 +1708,7 @@ export const de: Dictionary = {
   settings_payments_recommended: "Empfohlen",
   settings_payments_current: "Aktiver Tarif: {p}",
   settings_payments_status: "Status",
+  settings_payments_started: "Aktiv seit {d}",
   settings_payments_renews: "verlängert sich am {d}",
   settings_payments_active_plan: "Aktueller Tarif",
   settings_payments_pay_stripe: "Mit Karte zahlen (Stripe)",
@@ -1800,7 +1801,7 @@ export const de: Dictionary = {
   settings_wa_error_generic: "Etwas ist schiefgelaufen. Bitte erneut versuchen oder BALI Flow kontaktieren.",
 
   // Native Kasse (integriertes POS)
-  nav_cassa: "Kasse",
+  nav_cassa: "BALI Flow",
   cassa_error: "Kassenfehler",
   cassa_tab_sala: "Saal",
   cassa_tab_receipts: "Bons",
