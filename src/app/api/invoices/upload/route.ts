@@ -131,7 +131,16 @@ export async function POST(req: NextRequest) {
     .eq("tenant_id", tenantId)
     .eq("archived", false);
   const matches = suggestLineMatches(
-    stored.map((l) => ({ id: l.id, description: l.description || "", unit: l.unit })),
+    stored.map((l) => ({
+      id: l.id,
+      description: l.description || "",
+      unit: l.unit,
+      // The pack format ("CF.1 KG", "6X500 ML") only converts into real units
+      // with the numbers alongside it, so the matcher needs them too.
+      quantity: l.quantity,
+      unitPrice: l.unit_price,
+      lineTotal: l.line_total,
+    })),
     (ingredients || []) as Array<{ id: string; name: string; unit: string }>,
   );
   const byLine = new Map(matches.map((m) => [m.lineId, m]));

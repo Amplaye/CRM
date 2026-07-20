@@ -2043,6 +2043,9 @@ export const en = {
   inv_capture_confirm: "Confirm and load into stock",
   inv_capture_help: "Check the lines: quantity and price come from the document. Unmatched lines create a new stock ingredient. On confirm, stock and prices update by themselves.",
   inv_capture_unit_hint: "The document unit is “{docUnit}”: make sure the quantity is expressed in {unit}.",
+  inv_capture_pack_hint: "Pack format read from the document: {expl}",
+  inv_capture_kind_service: "service — not stock",
+  inv_capture_kind_charge: "charge — not stock",
 
   // Food cost (restyle)
   food_cost_subtitle_v2: "Cost and margin of every dish, computed from recipes and purchase prices. Tap a price to change it on the till too.",

@@ -103,3 +103,54 @@ describe("proposeName", () => {
     expect(proposeName("25KG")).toBe("25KG");
   });
 });
+
+// Names proposed from real supplier lines. Before the trade vocabulary landed
+// these came out as "Vongole C Cappuccine 0 60 80 1 X10" — unusable on a stock
+// count, and different enough per delivery that the same clam never matched.
+describe("proposeName on real supplier lines", () => {
+  it("strips brand, calibro, glazing and pack size", () => {
+    expect(proposeName('VONGOLE C/G "CAPPUCCINE" 0% 60/80 CF.1 KG (X10)')).toBe("Vongole");
+    expect(proposeName('OLIVE NERE D/N V/V "QUALITALY" 1,7 KG (X6)')).toBe("Olive Nere");
+    expect(proposeName('MOSCARDINI 40/60 IQF 1P "QUALITALY" CF.800 GR (X10)')).toBe("Moscardini");
+    // "CREMA QUALITALY" is one quoted brand string, so it goes whole. The owner
+    // can still rename on the spot — a short right name beats a long wrong one.
+    expect(proposeName('ACETO BALSAMICO "CREMA QUALITALY" 6X500 ML')).toBe("Aceto Balsamico");
+  });
+
+  it("keeps the qualifiers that make two goods different", () => {
+    // Dropping these would merge distinct products into one warehouse row.
+    expect(proposeName("PROSCIUTTO COTTO ALTA QUALITA 1 KG")).toContain("Cotto");
+    expect(proposeName("PROSCIUTTO CRUDO 24 MESI")).toContain("Crudo");
+    expect(proposeName("Panna fresca gr. 35% 1 LT")).toContain("Fresca");
+    expect(proposeName("PASTA FRESCA ALL'UOVO")).toContain("Fresca");
+  });
+
+  it("never proposes an empty name", () => {
+    expect(proposeName("CF. 1 KG (X10)").length).toBeGreaterThan(0);
+    expect(proposeName("").length).toBe(0);
+  });
+});
+
+describe("suggestLineMatches classifies before it matches", () => {
+  const warehouse = [{ id: "i1", name: "Assistenza", unit: "pz" }];
+
+  it("refuses to map a service onto an ingredient", () => {
+    const [m] = suggestLineMatches(
+      [{ id: "l1", description: "RINNOVO CONTRATTO ASSISTENZA TECNICO ANNUALE", unit: "pz", quantity: 1, unitPrice: 400 }],
+      warehouse,
+    );
+    expect(m.kind).toBe("service");
+    expect(m.ingredientId).toBeNull();
+  });
+
+  it("hands goods back already converted into real units", () => {
+    const [m] = suggestLineMatches(
+      [{ id: "l1", description: 'ACETO BALSAMICO "CREMA" 6X500 ML', unit: "CAR", quantity: 1, unitPrice: 29.99 }],
+      [],
+    );
+    expect(m.kind).toBe("goods");
+    expect(m.derived.unit).toBe("l");
+    expect(m.derived.quantity).toBe(3);
+    expect(m.proposal.unit).toBe("l");
+  });
+});

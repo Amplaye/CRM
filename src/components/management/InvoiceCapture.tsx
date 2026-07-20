@@ -29,6 +29,16 @@ interface UploadedLine {
     confidence: "high" | "medium" | "none";
     score: number;
     proposal: { name: string; unit: string };
+    /** goods → warehouse; service/charge → skipped by default. */
+    kind: "goods" | "service" | "charge";
+    /** The line already converted into real units by the pack-format reader. */
+    derived: {
+      unit: string;
+      quantity: number;
+      unitCost: number | null;
+      pack: { size: number; unit: string; source: string } | null;
+      explanation: string | null;
+    };
   } | null;
 }
 
@@ -89,18 +99,33 @@ export function InvoiceCapture({
       const data = await res.json();
       if (!res.ok) throw new Error(data?.error || "upload failed");
       const result = data as UploadResult;
-      // Seed the review: matched lines point at their ingredient, the rest
-      // default to "create new" — so an empty warehouse fills itself.
+      // Seed the review so the owner confirms rather than types. Matched lines
+      // point at their ingredient, unmatched goods default to "create new", and
+      // services/charges (a cash-register rental, a transport fee) default to
+      // skip — those are real costs but they are not stock.
       const seed: Record<string, Mapping> = {};
+      const qty: Record<string, string> = {};
+      const price: Record<string, string> = {};
       for (const l of result.lines) {
-        if (l.suggestion?.ingredientId) {
-          seed[l.id] = { kind: "ingredient", ingredientId: l.suggestion.ingredientId };
+        const s = l.suggestion;
+        if (s && s.kind !== "goods") {
+          seed[l.id] = { kind: "skip" };
+        } else if (s?.ingredientId) {
+          seed[l.id] = { kind: "ingredient", ingredientId: s.ingredientId };
         } else {
-          const p = l.suggestion?.proposal;
+          const p = s?.proposal;
           seed[l.id] = { kind: "create", name: p?.name || (l.description || "").slice(0, 80), unit: p?.unit || "pz" };
+        }
+        // Pre-fill with the CONVERTED figures: 1 CAR of «6X500 ML» becomes 3 l
+        // at 10,00 €/l, which is what stock and food cost need.
+        if (s?.derived) {
+          qty[l.id] = String(s.derived.quantity);
+          if (s.derived.unitCost != null) price[l.id] = String(s.derived.unitCost);
         }
       }
       setMappings(seed);
+      setQtyDrafts(qty);
+      setPriceDrafts(price);
       setPhase({ s: "review", data: result });
     } catch (e: any) {
       setPhase({ s: "error", msg: e?.message || "Errore" });
@@ -300,6 +325,15 @@ function ReviewTable({
                     {t("inv_capture_check" as keyof Dictionary) || "da controllare"}
                   </span>
                 )}
+                {/* A rental or a transport fee is a real cost but not stock —
+                    say why it was left out rather than silently skipping it. */}
+                {l.suggestion && l.suggestion.kind !== "goods" && (
+                  <span className="ml-2 text-xs px-1.5 py-0.5 rounded" style={{ background: "#ece3d6", color: "#7a5c3e" }}>
+                    {l.suggestion.kind === "service"
+                      ? t("inv_capture_kind_service" as keyof Dictionary) || "servizio — non va a magazzino"
+                      : t("inv_capture_kind_charge" as keyof Dictionary) || "spesa — non va a magazzino"}
+                  </span>
+                )}
               </div>
               <div className="flex flex-wrap items-end gap-2">
                 <label className="flex flex-col gap-1 grow min-w-[220px]">
@@ -374,13 +408,22 @@ function ReviewTable({
                   />
                 </label>
               </div>
-              {l.unit && targetUnit && l.unit.toLowerCase() !== targetUnit && !skipped && (
-                <p className="mt-1.5 text-xs text-amber-700">
-                  {(t("inv_capture_unit_hint" as keyof Dictionary) ||
-                    "Sul documento l'unità è «{docUnit}»: controlla che la quantità sia espressa in {unit}.")
-                    .replace("{docUnit}", l.unit)
-                    .replace("{unit}", targetUnit)}
+              {/* Show the conversion we applied, so the owner can audit it at a
+                  glance instead of being told to go check the document. */}
+              {l.suggestion?.derived?.explanation && !skipped ? (
+                <p className="mt-1.5 text-xs" style={{ color: "#7a5c3e" }}>
+                  {(t("inv_capture_pack_hint" as keyof Dictionary) || "Formato letto dal documento: {expl}")
+                    .replace("{expl}", l.suggestion.derived.explanation)}
                 </p>
+              ) : (
+                l.unit && targetUnit && l.unit.toLowerCase() !== targetUnit && !skipped && (
+                  <p className="mt-1.5 text-xs text-amber-700">
+                    {(t("inv_capture_unit_hint" as keyof Dictionary) ||
+                      "Sul documento l'unità è «{docUnit}»: controlla che la quantità sia espressa in {unit}.")
+                      .replace("{docUnit}", l.unit)
+                      .replace("{unit}", targetUnit)}
+                  </p>
+                )
               )}
             </div>
           );
