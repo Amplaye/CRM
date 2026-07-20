@@ -1583,6 +1583,7 @@ export const es: Dictionary = {
   inventory_confirm_delete: "¿Eliminar este ingrediente?",
   inventory_pos_link: "Producto del TPV vinculado (para sincronizar stock)",
   inventory_pos_none: "Ningún TPV conectado (ve a Ajustes → TPV).",
+  inventory_pos_native_auto: "El stock se descuenta automáticamente de las recetas en cada venta del TPV. Nada que vincular.",
   inventory_pos_unlinked: "— Sin vincular —",
   inventory_pos_link_help: "Vincula este artículo de almacén con el mismo producto en la caja, para que la existencia quede sincronizada: cuando se vende en caja baja sola, y si la corriges aquí también se actualiza en la caja. Ideal para productos que se venden tal cual (una botella, una lata, un producto envasado).",
   inventory_pos_link_example: "Ej: «Vino tinto (botella)» vinculado al producto de caja «Vino tinto». Vendes 2 en caja → la existencia pasa de 10 a 8 sola, sin escribir nada.",

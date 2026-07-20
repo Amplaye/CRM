@@ -1583,6 +1583,7 @@ export const de: Dictionary = {
   inventory_confirm_delete: "Diese Zutat löschen?",
   inventory_pos_link: "Verknüpftes Kassenprodukt (zur Bestandssynchronisierung)",
   inventory_pos_none: "Keine Kasse verbunden (geh zu Einstellungen → Kasse).",
+  inventory_pos_native_auto: "Der Bestand wird bei jedem Kassenverkauf automatisch aus den Rezepten abgebucht. Nichts zu verknüpfen.",
   inventory_pos_unlinked: "— Nicht verknüpft —",
   inventory_pos_link_help: "Verknüpft diesen Lagerartikel mit demselben Produkt an der Kasse, damit der Bestand synchron bleibt: Beim Verkauf an der Kasse sinkt er von selbst, und korrigierst du ihn hier, wird die Kasse ebenfalls aktualisiert. Ideal für Artikel, die unverändert verkauft werden (eine Flasche, eine Dose, ein verpacktes Produkt).",
   inventory_pos_link_example: "Z. B. «Rotwein (Flasche)» verknüpft mit dem Kassenprodukt «Rotwein». Verkaufst du 2 an der Kasse → der Bestand geht von 10 auf 8 von selbst, ohne Eingabe.",

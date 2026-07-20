@@ -112,6 +112,10 @@ export default function InventoryPage() {
   const [expanded, setExpanded] = useState<string | null>(null);
   const [saveStates, setSaveStates] = useState<Record<string, SaveState>>({});
   const [posProducts, setPosProducts] = useState<PosProduct[] | null>(null);
+  // Which till feeds this tenant — decides whether the "link to a till product"
+  // control is even relevant. The built-in till ("cassa") depletes stock from
+  // recipes automatically, so it needs no manual link (see the card below).
+  const [posProvider, setPosProvider] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const [filter, setFilter] = useState<Filter>("all");
   const [query, setQuery] = useState("");
@@ -208,6 +212,7 @@ export default function InventoryPage() {
       const res = await fetch(`/api/pos/products?tenant_id=${activeTenant.id}`);
       const data = await res.json();
       setPosProducts(Array.isArray(data?.products) ? data.products : []);
+      if (typeof data?.provider === "string") setPosProvider(data.provider);
     } catch {
       setPosProducts([]);
     }
@@ -756,6 +761,7 @@ export default function InventoryPage() {
               draft={editingStock === r.id ? draftStock : ""}
               saveState={saveStates[r.id]}
               posProducts={posProducts}
+              posProvider={posProvider}
               parSuggestion={parSuggestions.get(r.id)}
               lots={lotsByIng[r.id]}
               onToggle={toggleRow}
@@ -842,7 +848,7 @@ function StockBar({ stock, par }: { stock: number; par: number }) {
 // Memoized — all handlers are id-based and referentially stable, so expanding or
 // typing in one card never re-renders the rest of the list.
 const IngredientCard = memo(function IngredientCard({
-  r, isOpen, editing, draft, saveState, posProducts, parSuggestion, lots,
+  r, isOpen, editing, draft, saveState, posProducts, posProvider, parSuggestion, lots,
   onToggle, onStartEdit, onDraftChange, onCommit, onCancel, onPatch, onCloseLot, onArchive, onScanFor, t,
 }: {
   r: IngredientRow;
@@ -851,6 +857,7 @@ const IngredientCard = memo(function IngredientCard({
   draft: string;
   saveState?: SaveState;
   posProducts: PosProduct[] | null;
+  posProvider: string | null;
   parSuggestion?: number;
   lots?: Lot[];
   onToggle: (id: string) => void;
@@ -1095,38 +1102,47 @@ const IngredientCard = memo(function IngredientCard({
             </div>
           )}
 
-          {/* POS product link — connect this ingredient to a sellable till product so stock syncs. */}
+          {/* POS product link — connect this ingredient to a sellable till product so stock syncs.
+              The built-in till ("cassa") depletes stock from recipes automatically, so there is
+              nothing to link: we show a reassuring note instead of the (always-empty) picker. */}
           <div className="flex flex-wrap items-end gap-3 pt-2 border-t" style={{ borderColor: "#e0d0b8" }}>
-            <label className="flex flex-col gap-1 min-w-[260px]">
-              <span className="text-xs font-bold text-black flex items-center gap-1">
-                <Link2 className="w-3.5 h-3.5" /> {t("inventory_pos_link")}
-                <InfoHotspot
-                  side="top"
-                  title={t("inventory_pos_link")}
-                  body={t("inventory_pos_link_help")}
-                  example={t("inventory_pos_link_example")}
-                />
-              </span>
-              {posProducts === null ? (
-                <span className="text-xs text-black">…</span>
-              ) : posProducts.length === 0 ? (
-                <span className="text-xs text-black">{t("inventory_pos_none")}</span>
-              ) : (
-                <select
-                  value={r.pos_external_product_id || ""}
-                  onChange={(e) => onPatch(r.id, { pos_external_product_id: e.target.value || null })}
-                  className={inputCls + " cursor-pointer"}
-                  style={inputStyle}
-                >
-                  <option value="">{t("inventory_pos_unlinked")}</option>
-                  {posProducts.map((p) => (
-                    <option key={p.externalProductId} value={p.externalProductId}>
-                      {p.name}{p.price != null ? ` (€${p.price})` : ""}
-                    </option>
-                  ))}
-                </select>
-              )}
-            </label>
+            {posProvider === "cassa" ? (
+              <div className="flex items-start gap-2 min-w-[260px] flex-1 rounded-lg px-3 py-2" style={{ background: "rgba(16,185,129,0.08)" }}>
+                <Check className="w-4 h-4 mt-0.5 shrink-0 text-emerald-600" />
+                <span className="text-xs text-black">{t("inventory_pos_native_auto")}</span>
+              </div>
+            ) : (
+              <label className="flex flex-col gap-1 min-w-[260px]">
+                <span className="text-xs font-bold text-black flex items-center gap-1">
+                  <Link2 className="w-3.5 h-3.5" /> {t("inventory_pos_link")}
+                  <InfoHotspot
+                    side="top"
+                    title={t("inventory_pos_link")}
+                    body={t("inventory_pos_link_help")}
+                    example={t("inventory_pos_link_example")}
+                  />
+                </span>
+                {posProducts === null ? (
+                  <span className="text-xs text-black">…</span>
+                ) : posProducts.length === 0 ? (
+                  <span className="text-xs text-black">{t("inventory_pos_none")}</span>
+                ) : (
+                  <select
+                    value={r.pos_external_product_id || ""}
+                    onChange={(e) => onPatch(r.id, { pos_external_product_id: e.target.value || null })}
+                    className={inputCls + " cursor-pointer"}
+                    style={inputStyle}
+                  >
+                    <option value="">{t("inventory_pos_unlinked")}</option>
+                    {posProducts.map((p) => (
+                      <option key={p.externalProductId} value={p.externalProductId}>
+                        {p.name}{p.price != null ? ` (€${p.price})` : ""}
+                      </option>
+                    ))}
+                  </select>
+                )}
+              </label>
+            )}
             <button
               onClick={() => onArchive(r.id)}
               className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-bold rounded-lg border cursor-pointer text-red-600 bg-white"

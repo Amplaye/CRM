@@ -1583,6 +1583,7 @@ export const it: Dictionary = {
   inventory_confirm_delete: "Eliminare questo ingrediente?",
   inventory_pos_link: "Prodotto cassa collegato (per sincronizzare la giacenza)",
   inventory_pos_none: "Nessuna cassa collegata (vai in Impostazioni → Cassa).",
+  inventory_pos_native_auto: "La giacenza si scarica in automatico dalle ricette a ogni vendita della cassa. Nessun collegamento da fare.",
   inventory_pos_unlinked: "— Non collegato —",
   inventory_pos_link_help: "Collega questo articolo di magazzino allo stesso prodotto sulla cassa, così la giacenza resta sincronizzata: quando viene venduto alla cassa scala da sola, e se la correggi qui si aggiorna anche sulla cassa. Utile per i prodotti venduti così come sono (una bottiglia, una lattina, un prodotto confezionato).",
   inventory_pos_link_example: "Es: «Vino rosso (bottiglia)» collegato al prodotto cassa «Vino rosso». Vendi 2 bottiglie alla cassa → la giacenza passa da 10 a 8 da sola, senza scriverlo a mano.",

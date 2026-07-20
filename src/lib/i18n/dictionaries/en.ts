@@ -1580,6 +1580,7 @@ export const en = {
   inventory_confirm_delete: "Delete this ingredient?",
   inventory_pos_link: "Linked till product (to sync stock)",
   inventory_pos_none: "No till connected (go to Settings → Till).",
+  inventory_pos_native_auto: "Stock is depleted automatically from recipes on every till sale. Nothing to link.",
   inventory_pos_unlinked: "— Not linked —",
   inventory_pos_link_help: "Links this stock item to the same product on the till, so the count stays in sync: when it sells at the till the stock drops on its own, and if you correct it here the till updates too. Best for items sold as-is (a bottle, a can, a packaged product).",
   inventory_pos_link_example: "E.g. «Red wine (bottle)» linked to the till product «Red wine». Sell 2 at the till → stock goes from 10 to 8 by itself, with nothing to type in.",
