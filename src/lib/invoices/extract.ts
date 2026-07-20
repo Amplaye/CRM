@@ -1,4 +1,7 @@
-// Supplier-invoice extraction from a photo or PDF, mirroring src/lib/menu/extract.ts:
+// Supplier-document extraction from a photo or PDF, mirroring src/lib/menu/extract.ts.
+// "Invoice" here means any document that brings goods in: a fattura, but just as often
+// a DDT / bolla di accompagnamento, which carries no VAT summary and sometimes no
+// prices — the prompt must accept those or a delivery note silently yields zero lines.
 // OpenAI gpt-4o via the Responses API, which accepts PDFs and images natively as
 // input_file / input_image blocks (no server-side rasterization, no pdfjs). One
 // pass is enough — an invoice is a single page of structured data, unlike a menu
@@ -31,17 +34,26 @@ export type ExtractedInvoice = {
 const MODEL = "gpt-4o";
 const MAX_OUTPUT_TOKENS = 8000;
 
-const SYSTEM_PROMPT = `You are an invoice-extraction assistant for an Italian restaurant CRM.
+export const SYSTEM_PROMPT = `You are a supplier-document extraction assistant for an Italian restaurant CRM.
 
-You read a SUPPLIER INVOICE (fattura fornitore — image or PDF) and output a STRICT JSON
-object. Rules, no exception:
+You read a SUPPLIER DOCUMENT and output a STRICT JSON object. Accept ANY of these — they
+all carry goods the restaurant received and must be extracted the same way:
+  - fattura / fattura fornitore (invoice)
+  - documento di trasporto / DDT / bolla / bolla di accompagnamento (delivery note)
+  - ricevuta or scontrino from a supplier
+A DDT usually has no VAT summary and sometimes no prices at all — extract it anyway,
+leaving unavailable fields null. A missing total is NEVER a reason to return no lines.
+
+Rules, no exception:
 
 1. Output VALID JSON only. No prose, no markdown fences, no comments.
 2. Schema (TypeScript):
    {
-     "supplierName": string | null,   // ragione sociale del fornitore
-     "supplierVat": string | null,    // Partita IVA (digits only, no "IT" prefix), null if absent
-     "invoiceNumber": string | null,  // numero fattura
+     "supplierName": string | null,   // see rule 8 — chi EMETTE il documento
+     "supplierVat": string | null,    // Partita IVA del FORNITORE (digits only, no "IT"
+                                      // prefix). If the only P.IVA printed belongs to the
+                                      // recipient, return null — never borrow theirs.
+     "invoiceNumber": string | null,  // numero fattura, o numero DDT/bolla
      "invoiceDate": string | null,    // ISO "yyyy-mm-dd"; convert from dd/mm/yyyy
      "currency": string,              // "EUR" by default
      "netTotal": number | null,       // imponibile (totale netto, IVA esclusa)
@@ -61,11 +73,23 @@ object. Rules, no exception:
    }
 3. NEVER invent values that are not visibly stated. Use null for anything unreadable.
 4. Decimal separator in the JSON is always "." (12.50, never "12,50").
-5. If the document is NOT a supplier invoice, return
-   {"supplierName":null,"supplierVat":null,"invoiceNumber":null,"invoiceDate":null,"currency":"EUR","netTotal":null,"taxTotal":null,"grossTotal":null,"lines":[],"rawNotes":"not an invoice"}.`;
+5. Extract EVERY goods line in the table, even when a line has no price.
+6. Ignore boilerplate that is not merchandise: legal notes (e.g. "Assolve gli obblighi
+   di cui all'art. 62…"), carrier/transport rows, signature boxes, CONAI notes.
+8. SUPPLIER vs RECIPIENT — get this right, they are easy to swap:
+   - The SUPPLIER issues the document. Its name is the letterhead/logo, normally top-left,
+     next to the printer's address and "Iscr. Reg. Imp. / Cod. Fisc. e Part. IVA".
+   - The RECIPIENT is the restaurant being delivered to, printed in a boxed field labelled
+     "Intestatario", "Destinatario", "Spett.le", "Cliente" or "Cod. cliente" — very often
+     in the top-RIGHT box, and often the only one showing a P.IVA.
+   Put the LETTERHEAD company in supplierName. NEVER put the Intestatario/Destinatario
+   there, however prominently it is printed.
+9. Only if the document carries no goods at all (it is not a supplier document — e.g. a
+   contract, a menu, an ID) return
+   {"supplierName":null,"supplierVat":null,"invoiceNumber":null,"invoiceDate":null,"currency":"EUR","netTotal":null,"taxTotal":null,"grossTotal":null,"lines":[],"rawNotes":"not a supplier document"}.`;
 
-const USER_PROMPT = `Extract this supplier invoice as STRICT JSON following the schema in the system prompt.
-Return ONLY the JSON object — no prose, no markdown.`;
+const USER_PROMPT = `Extract this supplier document (invoice, DDT or bolla) as STRICT JSON
+following the schema in the system prompt. Return ONLY the JSON object — no prose, no markdown.`;
 
 type ResponseContentBlock =
   | { type: "input_text"; text: string }

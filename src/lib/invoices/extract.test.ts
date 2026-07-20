@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { parseInvoice, normalizeInvoice } from "@/lib/invoices/extract";
+import { parseInvoice, normalizeInvoice, SYSTEM_PROMPT } from "@/lib/invoices/extract";
 
 describe("parseInvoice", () => {
   it("strips markdown fences and leading prose", () => {
@@ -42,5 +42,44 @@ describe("normalizeInvoice", () => {
 
   it("rejects an invalid date (keeps null, never a bad value)", () => {
     expect(normalizeInvoice({ invoiceDate: "garbage" }).invoiceDate).toBeNull();
+  });
+});
+
+// The prompt is the whole product here: a real Ristogamma DDT (delivery note,
+// no VAT summary) came back as {"lines":[],"rawNotes":"not an invoice"} because
+// the prompt only ever said "fattura" and told the model to bail on anything
+// else. The owner saw "0 things added to inventory". These pin the contract
+// that made that document extract — verified against the real PDF.
+describe("SYSTEM_PROMPT contract", () => {
+  it("accepts delivery notes, not just invoices", () => {
+    for (const kind of ["documento di trasporto", "DDT", "bolla"]) {
+      expect(SYSTEM_PROMPT.toLowerCase()).toContain(kind.toLowerCase());
+    }
+  });
+
+  it("never lets a missing price or total suppress the lines", () => {
+    expect(SYSTEM_PROMPT).toMatch(/no VAT summary and sometimes no prices/i);
+    expect(SYSTEM_PROMPT).toMatch(/NEVER a reason to return no lines/i);
+    expect(SYSTEM_PROMPT).toMatch(/EVERY goods line[\s\S]*no price/i);
+  });
+
+  it("only bails out when the document carries no goods at all", () => {
+    // The old rule keyed on "is it an invoice?"; the new one keys on "are there goods?".
+    expect(SYSTEM_PROMPT).not.toContain('"not an invoice"');
+    expect(SYSTEM_PROMPT).toContain('"not a supplier document"');
+  });
+
+  it("tells supplier from recipient so goods aren't filed under the restaurant", () => {
+    // The Ristogamma DDT prints the recipient's P.IVA in the top-right box and
+    // the supplier's only in the letterhead — gpt-4o picked the recipient until
+    // the prompt named these labels explicitly.
+    for (const label of ["Intestatario", "Destinatario", "letterhead"]) {
+      expect(SYSTEM_PROMPT).toContain(label);
+    }
+    expect(SYSTEM_PROMPT).toMatch(/NEVER put the Intestatario\/Destinatario/i);
+  });
+
+  it("skips the legal boilerplate printed under the goods table", () => {
+    expect(SYSTEM_PROMPT).toMatch(/art\. 62/);
   });
 });
