@@ -9,7 +9,11 @@ import { createClient } from "@/lib/supabase/client";
 import { Dictionary } from "@/lib/i18n/dictionaries/en";
 import { TenantFeatures, FEATURE_FLAGS, getRawFeatures } from "@/lib/types/tenant-settings";
 import { getLoyaltyConfig } from "@/lib/loyalty/loyalty";
-import { getSelfOrderConfig, FOOD_COOLDOWN_MIN } from "@/lib/self-order/config";
+import {
+  getSelfOrderConfig,
+  normalizeCooldownMin,
+  MAX_COOLDOWN_MIN,
+} from "@/lib/self-order/config";
 
 // Settings → Features. Each restaurant capability is a single on/off toggle that
 // flips a flag in tenants.settings.features. Flipping a switch SAVES INSTANTLY —
@@ -152,10 +156,15 @@ export function FeaturesTab() {
           instant-save spirit: each field persists on blur. */}
       {features.loyalty_enabled && <LoyaltyConfigCard />}
 
-      {/* Self-order: mark which menu categories are drinks. Shown only while the
-          module is ON. There is NO cooldown-minutes field on purpose — the food
-          delay is automatic; the owner only tells us what a "drink" is. */}
+      {/* Self-order: how long the food stays locked, and which categories count
+          as drinks (always orderable). Shown only while the module is ON. */}
       {features.self_order_enabled && <SelfOrderConfigCard />}
+
+      {/* QR pay needs the venue's OWN Stripe key — guests are charged on the
+          restaurant's account, never the platform's. Without it the pay button
+          can't work, and the owner would only find out from a guest, so we say
+          so here the moment they flip the toggle. */}
+      {features.qr_pay_enabled && <QrPayStatusCard />}
 
       {/* Guided follow-up: the moment the owner turns the commercial module ON, point
           them to where they actually add their price lists (no KB jargon, no guesswork). */}
@@ -242,20 +251,87 @@ function LoyaltyConfigCard() {
   );
 }
 
-// Self-order drinks picker. The QR flow lets guests order DRINKS the instant they
-// scan but keeps FOOD locked for the first few minutes (per table), so a rush of
-// arrivals doesn't hit the kitchen all at once. The delay is automatic; the only
-// thing the owner sets is WHICH menu categories are drinks — the system can't
-// guess (menu items carry no station on these venues). Toggling a category saves
-// instantly (optimistic, rolls back on error), same spirit as the toggles above.
+// QR-pay readiness. Turning the toggle ON is only half the setup: the charge
+// runs on the VENUE'S own Stripe account, so without their key the guest's pay
+// button stays inert. Rather than let them discover that from a customer, we
+// state it here and link straight to where the key goes.
+//
+// Note a test key (sk_test_) is a perfectly valid setup — the whole flow works
+// end to end with it — so we flag livemode as information, not as an error.
+function QrPayStatusCard() {
+  const { t } = useLanguage();
+  const { activeTenant: tenant } = useTenant();
+  const [state, setState] = useState<{ connected: boolean; livemode: boolean | null } | null>(null);
+
+  useEffect(() => {
+    if (!tenant?.id) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(`/api/billing/table-pay?tenant_id=${tenant.id}`);
+        const data = await res.json();
+        if (!cancelled) setState({ connected: !!data?.connected, livemode: data?.livemode ?? null });
+      } catch {
+        // A failed probe is not proof of a missing key — stay quiet rather than
+        // accusing a correctly-configured venue of being unconfigured.
+        if (!cancelled) setState(null);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [tenant?.id]);
+
+  if (!state) return null;
+
+  // Connected and live — nothing to nag about.
+  if (state.connected && state.livemode) return null;
+
+  const testMode = state.connected && state.livemode === false;
+  return (
+    <div
+      className="p-3 rounded-lg border-2 space-y-2"
+      style={
+        testMode
+          ? { borderColor: "#c4956a", background: "rgba(252,246,237,0.6)" }
+          : { borderColor: "#b45309", background: "rgba(180,83,9,0.07)" }
+      }
+    >
+      <p className="text-sm font-bold text-black">
+        {testMode ? t("qr_pay_status_test_title") : t("qr_pay_status_missing_title")}
+      </p>
+      <p className="text-xs text-black">
+        {testMode ? t("qr_pay_status_test_body") : t("qr_pay_status_missing_body")}
+      </p>
+      <Link
+        href="/settings?tab=payments"
+        className="inline-flex items-center gap-1 text-xs font-bold"
+        style={{ color: "#c4956a" }}
+      >
+        {t("qr_pay_status_cta")}
+        <ArrowRight className="w-3.5 h-3.5" />
+      </Link>
+    </div>
+  );
+}
+
+// Self-order config. The QR flow lets guests order DRINKS the instant they scan
+// but keeps FOOD locked for the first few minutes (per table), so a rush of
+// arrivals doesn't hit the kitchen all at once. The owner sets two things: HOW
+// LONG that lock lasts (0 = no lock), and WHICH menu categories are drinks — the
+// system can't guess the latter (menu items carry no station on these venues).
+// Both save instantly (optimistic, rolls back on error), same spirit as the
+// toggles above.
 function SelfOrderConfigCard() {
   const { t } = useLanguage();
   const { activeTenant: tenant, refreshActiveTenant } = useTenant();
   const supabase = createClient();
 
+  const cfg = getSelfOrderConfig(tenant?.settings);
   const [categories, setCategories] = useState<{ id: string; name: string }[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selected, setSelected] = useState<string[]>(getSelfOrderConfig(tenant?.settings).drink_category_ids);
+  const [selected, setSelected] = useState<string[]>(cfg.drink_category_ids);
+  const [cooldown, setCooldown] = useState(String(cfg.cooldown_min));
   const [status, setStatus] = useState<"saving" | "saved" | "error" | null>(null);
   const selectedRef = useRef(selected);
   const savedTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -285,18 +361,19 @@ function SelfOrderConfigCard() {
     if (savedTimer.current) clearTimeout(savedTimer.current);
   }, []);
 
-  const persist = async (nextIds: string[], prevIds: string[]) => {
+  // One write path for both fields. `rollback` restores local state if the write
+  // fails, so an optimistic UI never drifts from what's actually stored.
+  const persist = async (patch: Record<string, unknown>, rollback: () => void) => {
     if (!tenant) return;
     setStatus("saving");
     // Spread the whole settings object — multi-tenant invariant: never drop other keys.
     const nextSettings = {
       ...(tenant.settings || {}),
-      self_order: { ...(tenant.settings?.self_order || {}), drink_category_ids: nextIds },
+      self_order: { ...(tenant.settings?.self_order || {}), ...patch },
     };
     const { error } = await supabase.from("tenants").update({ settings: nextSettings }).eq("id", tenant.id);
     if (error) {
-      selectedRef.current = prevIds;
-      setSelected(prevIds);
+      rollback();
       setStatus("error");
       return;
     }
@@ -311,7 +388,20 @@ function SelfOrderConfigCard() {
     const next = prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id];
     selectedRef.current = next;
     setSelected(next);
-    void persist(next, prev);
+    void persist({ drink_category_ids: next }, () => {
+      selectedRef.current = prev;
+      setSelected(prev);
+    });
+  };
+
+  // Saves on blur, like the loyalty fields. Clamping happens here too, so the
+  // box always shows exactly what was stored (typing "999" settles to the max).
+  const saveCooldown = () => {
+    const prevValue = cfg.cooldown_min;
+    const next = normalizeCooldownMin(cooldown);
+    setCooldown(String(next));
+    if (next === prevValue) return; // nothing changed — don't churn the DB
+    void persist({ cooldown_min: next }, () => setCooldown(String(prevValue)));
   };
 
   return (
@@ -324,9 +414,36 @@ function SelfOrderConfigCard() {
           {status === "error" && <span className="font-semibold text-red-600">{t("settings_save_error")}</span>}
         </span>
       </div>
-      <p className="text-xs text-black">
-        {t("self_order_config_desc").replace("{min}", String(FOOD_COOLDOWN_MIN))}
-      </p>
+      <p className="text-xs text-black">{t("self_order_config_desc")}</p>
+
+      {/* Cooldown minutes. 0 is a legitimate choice (no lock at all), so the
+          hint below flips to say so rather than leaving the owner guessing. */}
+      <div className="flex items-end gap-3 flex-wrap">
+        <div>
+          <label htmlFor="self-order-cooldown" className="block text-xs font-bold text-black mb-1">
+            {t("self_order_config_cooldown")}
+          </label>
+          <div className="flex items-center gap-2">
+            <input
+              id="self-order-cooldown"
+              inputMode="numeric"
+              value={cooldown}
+              onChange={(e) => setCooldown(e.target.value)}
+              onBlur={saveCooldown}
+              min={0}
+              max={MAX_COOLDOWN_MIN}
+              className="w-20 rounded-lg border-2 bg-white px-3 py-2 text-sm text-black focus:outline-none"
+              style={{ borderColor: "#c4956a" }}
+            />
+            <span className="text-sm font-semibold text-black">{t("self_order_config_cooldown_unit")}</span>
+          </div>
+        </div>
+        <p className="text-xs text-black flex-1 min-w-[12rem] pb-2">
+          {normalizeCooldownMin(cooldown) === 0
+            ? t("self_order_config_cooldown_off")
+            : t("self_order_config_cooldown_hint").replace("{max}", String(MAX_COOLDOWN_MIN))}
+        </p>
+      </div>
 
       {loading ? (
         <p className="text-xs text-black">…</p>

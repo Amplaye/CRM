@@ -44,7 +44,12 @@ const check = (name: string, ok: boolean, extra = "") => {
 const { data: tenant } = await svc.from("tenants").select("settings").eq("id", TENANT_ID).maybeSingle();
 const cfg = getSelfOrderConfig(tenant?.settings as any);
 check("Oraz has drink categories configured", cfg.drink_category_ids.length === 3, `${cfg.drink_category_ids.length} cats`);
-check("cooldown is the fixed constant", cfg.cooldown_min === FOOD_COOLDOWN_MIN, `${cfg.cooldown_min}min`);
+// The cooldown is now per-tenant (default FOOD_COOLDOWN_MIN when never set).
+check(
+  "cooldown is a sane, in-range value",
+  Number.isInteger(cfg.cooldown_min) && cfg.cooldown_min >= 0 && cfg.cooldown_min <= 60,
+  `${cfg.cooldown_min}min${cfg.cooldown_min === FOOD_COOLDOWN_MIN ? " (default)" : " (owner-set)"}`,
+);
 
 // --- phase 2: session pre-state (would the endpoint auto-open?) -------------
 const { data: openSession } = await svc
@@ -87,13 +92,19 @@ check("a Burger/Papa classifies as FOOD", burgerIsFood, burger ? `${burger.name}
 // A table with no open bill opens it NOW, so openedAtMs = now.
 const now = Date.now();
 const openedAtMs = now; // fresh table
-check("fresh table: food is LOCKED (mixed order → 409 food_locked)", !foodUnlocked(openedAtMs, now));
+const cd = cfg.cooldown_min; // this tenant's configured lock
+if (cd === 0) {
+  // A tenant who set 0 has deliberately disabled the lock — assert that, not a lock.
+  check("cooldown disabled (0): food is OPEN immediately", foodUnlocked(openedAtMs, now, cd));
+} else {
+  check("fresh table: food is LOCKED (mixed order → 409 food_locked)", !foodUnlocked(openedAtMs, now, cd));
+  const unlock = foodUnlockAtMs(openedAtMs, cd);
+  check("food unlocks exactly cooldown minutes later", unlock === now + cd * 60_000, `${cd}min`);
+  check("still locked one second before unlock", !foodUnlocked(openedAtMs, unlock - 1000, cd));
+  check("unlocked at the unlock instant", foodUnlocked(openedAtMs, unlock, cd));
+  check("a table opened >cooldown ago: food is OPEN", foodUnlocked(now - (cd + 1) * 60_000, now, cd));
+}
 check("fresh table: drinks-only order is ALLOWED", true); // hasFood=false path skips the gate entirely
-const unlock = foodUnlockAtMs(openedAtMs);
-check("food unlocks exactly cooldown minutes later", unlock === now + FOOD_COOLDOWN_MIN * 60_000);
-check("still locked one second before unlock", !foodUnlocked(openedAtMs, unlock - 1000));
-check("unlocked at the unlock instant", foodUnlocked(openedAtMs, unlock));
-check("a table opened >cooldown ago: food is OPEN", foodUnlocked(now - (FOOD_COOLDOWN_MIN + 1) * 60_000, now));
 
 console.log(failures === 0 ? "\nALL GREEN" : `\n${failures} FAILURE(S)`);
 process.exit(failures === 0 ? 0 : 1);

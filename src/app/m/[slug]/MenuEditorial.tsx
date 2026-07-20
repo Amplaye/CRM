@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { ClosePublicMenuButton } from "./ClosePublicMenuButton";
+import { DishAddButton } from "./OrderLayer";
 
 // Public hosted menu — Template 2 "EDITORIALE".
 //
@@ -231,6 +232,8 @@ export default function MenuEditorial({
                             </div>
                           )}
                         </div>
+                        {/* Renders only in self-order mode (see OrderLayer). */}
+                        <DishAddButton itemId={it.id} className="edi-add" lockedClassName="edi-add is-locked" />
                       </li>
                     );
                   })}
@@ -449,6 +452,25 @@ html:has(.edi-root), html:has(.edi-root) body {
   font-weight: 800; font-size: clamp(0.95rem, 3.4vw, 1.05rem);
   font-variant-numeric: tabular-nums; color: var(--sienna);
 }
+/* Self-order add control — sienna outline disc as a third column of the dish
+   row, aligned to the dish name rather than the baseline price. */
+.edi-add {
+  flex: 0 0 auto; align-self: flex-start; margin-top: 0.1rem;
+  display: inline-grid; place-items: center; cursor: pointer;
+  height: 2rem; min-width: 2rem; padding: 0 0.5rem; border-radius: 999px;
+  border: 1.5px solid var(--sienna); background: transparent; color: var(--sienna);
+  font-family: var(--font-body), sans-serif; font-size: 1.1rem; font-weight: 700; line-height: 1;
+  transition: background-color .18s ease, color .18s ease, transform .12s ease;
+}
+@media (hover: hover) { .edi-add:hover { background: var(--sienna); color: #fff; } }
+.edi-add:active { transform: scale(0.92); }
+.edi-add:focus-visible { outline: 2px solid var(--sienna); outline-offset: 2px; }
+.edi-add.is-locked {
+  cursor: default; border-color: rgba(27,22,17,0.16); color: var(--ink-soft);
+  display: inline-flex; align-items: center; gap: 0.22rem;
+  font-size: 0.68rem; font-weight: 700; font-variant-numeric: tabular-nums;
+}
+
 .edi-desc {
   margin: 0.4rem 0 0; max-width: 52ch;
   font-family: var(--font-display), serif; font-style: italic;

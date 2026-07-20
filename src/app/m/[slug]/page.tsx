@@ -10,7 +10,7 @@ import {
   type CollectionKind,
 } from "@/lib/menu/labels";
 import MenuView, { type MenuViewSection } from "./MenuView";
-import SelfOrderMenu, { type SelfOrderSection, type SelfOrderStrings } from "./SelfOrderMenu";
+import OrderLayer, { type OrderDish, type OrderStrings } from "./OrderLayer";
 import TableBill, { type TableBillStrings } from "./TableBill";
 import { getFeatures } from "@/lib/types/tenant-settings";
 import { getSelfOrderConfig, foodUnlockAtMs } from "@/lib/self-order/config";
@@ -113,7 +113,7 @@ const PUBLIC_STRINGS: Record<
 
 // Strings for the table self-order mode (?table=<id>), same server-localized
 // pattern as PUBLIC_STRINGS — the whole flow speaks the tenant's language.
-const SELF_ORDER_STRINGS: Record<MenuLocale, SelfOrderStrings> = {
+const SELF_ORDER_STRINGS: Record<MenuLocale, OrderStrings> = {
   it: {
     table: "Tavolo", add: "Aggiungi", yourOrder: "Il tuo ordine", empty: "Il carrello è vuoto",
     sendOrder: "Invia ordine", sending: "Invio…", viewOrder: "Vedi ordine", items: "articoli",
@@ -180,7 +180,7 @@ const TABLE_PAY_STRINGS: Record<MenuLocale, TableBillStrings> = {
     noBill: "Non c'è ancora un conto aperto per questo tavolo.",
     covers: "Coperto", discount: "Sconto", total: "Totale", pay: "Paga con carta",
     redirecting: "Apro il pagamento…",
-    notPayableStripe: "Il pagamento online non è disponibile: paga in cassa o chiama il personale.",
+    notPayableStripe: "Per questo tavolo il pagamento con carta dal telefono non è attivo: puoi pagare in cassa o chiamare il personale.",
     notPayableClosed: "La cassa è chiusa in questo momento: chiama il personale.",
     confirming: "Confermiamo il pagamento…",
     paidTitle: "Pagato, grazie!", paidBody: "Il conto è stato saldato e chiuso in cassa. Buona giornata!",
@@ -197,7 +197,7 @@ const TABLE_PAY_STRINGS: Record<MenuLocale, TableBillStrings> = {
     noBill: "Todavía no hay una cuenta abierta para esta mesa.",
     covers: "Cubierto", discount: "Descuento", total: "Total", pay: "Pagar con tarjeta",
     redirecting: "Abriendo el pago…",
-    notPayableStripe: "El pago online no está disponible: paga en caja o llama al personal.",
+    notPayableStripe: "En esta mesa el pago con tarjeta desde el móvil no está activo: puedes pagar en caja o llamar al personal.",
     notPayableClosed: "La caja está cerrada ahora mismo: llama al personal.",
     confirming: "Confirmando el pago…",
     paidTitle: "¡Pagado, gracias!", paidBody: "La cuenta se ha saldado y cerrado en caja. ¡Buen día!",
@@ -214,7 +214,7 @@ const TABLE_PAY_STRINGS: Record<MenuLocale, TableBillStrings> = {
     noBill: "There's no open bill for this table yet.",
     covers: "Cover charge", discount: "Discount", total: "Total", pay: "Pay by card",
     redirecting: "Opening payment…",
-    notPayableStripe: "Online payment isn't available: pay at the till or call the staff.",
+    notPayableStripe: "Card payment from your phone isn't set up for this table: you can pay at the till or call the staff.",
     notPayableClosed: "The till is closed right now: please call the staff.",
     confirming: "Confirming your payment…",
     paidTitle: "Paid, thank you!", paidBody: "Your bill has been settled and closed at the till. Have a great day!",
@@ -231,7 +231,7 @@ const TABLE_PAY_STRINGS: Record<MenuLocale, TableBillStrings> = {
     noBill: "Für diesen Tisch gibt es noch keine offene Rechnung.",
     covers: "Gedeck", discount: "Rabatt", total: "Gesamt", pay: "Mit Karte zahlen",
     redirecting: "Zahlung wird geöffnet…",
-    notPayableStripe: "Online-Zahlung ist nicht verfügbar: an der Kasse zahlen oder das Personal rufen.",
+    notPayableStripe: "Kartenzahlung per Handy ist für diesen Tisch nicht eingerichtet: bitte an der Kasse zahlen oder das Personal rufen.",
     notPayableClosed: "Die Kasse ist gerade geschlossen: bitte das Personal rufen.",
     confirming: "Zahlung wird bestätigt…",
     paidTitle: "Bezahlt, danke!", paidBody: "Die Rechnung wurde beglichen und an der Kasse geschlossen. Schönen Tag!",
@@ -343,7 +343,9 @@ export default async function PublicMenuPage({
       .limit(1)
       .maybeSingle();
     if (openBill?.opened_at) {
-      initialFoodUnlockAt = new Date(foodUnlockAtMs(new Date(openBill.opened_at).getTime())).toISOString();
+      initialFoodUnlockAt = new Date(
+        foodUnlockAtMs(new Date(openBill.opened_at).getTime(), selfOrderCfg.cooldown_min),
+      ).toISOString();
     }
   }
 
@@ -483,81 +485,71 @@ export default async function PublicMenuPage({
     ? ({ ["--accent" as string]: mb.brand_color } as CSSProperties)
     : undefined;
 
-  // Self-order mode renders its own functional UI (cart, variants, submit) —
-  // the four showcase templates stay untouched.
-  if (orderTable) {
-    const variantsById = new Map(
-      items.map((it) => [it.id, Array.isArray(it.variants) ? it.variants : []])
-    );
-    // A dish is a "drink" when its HOME category is one the owner flagged. Keyed
-    // by item id (not section) so a drink featured in a "Consigliati" collection
-    // is still treated as a drink there — the client uses this to keep drinks
-    // orderable while food dishes stay locked during the cooldown.
-    const drinkCats = new Set(selfOrderCfg.drink_category_ids);
-    const drinkById = new Map(items.map((it) => [it.id, it.category_id != null && drinkCats.has(it.category_id)]));
-    const orderSections: SelfOrderSection[] = sections
-      .map((s) => ({
-        key: s.key,
-        title: s.title,
-        featured: s.featured,
-        items: s.items
-          .filter((it) => it.price != null)
-          .map((it) => ({
-            id: it.id,
-            name: it.name,
-            description: it.description,
-            price: it.price as number,
-            image_url: it.image_url,
-            allergenLabels: it.allergenLabels,
-            variants: variantsById.get(it.id) || [],
-            isDrink: drinkById.get(it.id) ?? false,
-          })),
-      }))
-      .filter((s) => s.items.length > 0);
-    // Only bother the client with the cooldown when the owner actually flagged
-    // drinks — with no drink category the whole menu is food and locking it on
-    // arrival would just block everyone, so we leave ordering unrestricted.
-    const cooldownActive = drinkCats.size > 0;
+  // The menu itself is ALWAYS one of the four templates the owner designed —
+  // scanning a table QR must not swap the guest onto a different-looking menu.
+  // Self-ordering is a LAYER over it: OrderLayer supplies the cart/cooldown via
+  // context and each template renders <DishAddButton> in its own style. With the
+  // feature off, no provider is mounted and those buttons render nothing, so
+  // what remains is exactly the plain showcase menu.
+  const menu = (
+    <MenuView
+      style={style}
+      restaurantName={tenant.name}
+      menuLabel={ui.menu}
+      emptyLabel={ui.updating}
+      featuredLabel={ui.featured}
+      sections={sections}
+      logoUrl={mb?.logo_url}
+    />
+  );
 
-    return (
-      <div className={`${displayFont.variable} ${manrope.variable}`} style={wrapStyle}>
-        <SelfOrderMenu
-          slug={tenant.slug}
-          tableId={orderTable.id}
-          tableName={orderTable.name}
-          restaurantName={tenant.name}
-          logoUrl={mb?.logo_url}
-          sections={orderSections}
-          strings={SELF_ORDER_STRINGS[locale]}
-          emptyLabel={ui.updating}
-          cooldownActive={cooldownActive}
-          cooldownMin={selfOrderCfg.cooldown_min}
-          initialFoodUnlockAt={initialFoodUnlockAt}
-        />
-        {payTable && (
-          <TableBill
-            slug={tenant.slug}
-            tableId={payTable.id}
-            strings={TABLE_PAY_STRINGS[locale]}
-            initialSessionId={paySessionId}
-            initialCancelled={payCancelled}
-          />
-        )}
-      </div>
+  let body = menu;
+  if (orderTable) {
+    // Per-dish ordering facts, keyed by item id so a dish that appears in both a
+    // collection and its home category resolves identically in either place.
+    // Priceless dishes are omitted — they can't be ordered, so they simply get
+    // no add button while still showing on the menu.
+    const drinkCats = new Set(selfOrderCfg.drink_category_ids);
+    const orderDishes: OrderDish[] = items
+      .filter((it) => it.price != null)
+      .map((it) => ({
+        id: it.id,
+        name: it.name,
+        price: it.price as number,
+        variants: Array.isArray(it.variants) ? it.variants : [],
+        isDrink: it.category_id != null && drinkCats.has(it.category_id),
+      }));
+    // Only run the cooldown when the owner actually flagged drinks AND set a
+    // non-zero delay — with no drink category the whole menu would lock on
+    // arrival, which just blocks everyone.
+    const cooldownActive = drinkCats.size > 0 && selfOrderCfg.cooldown_min > 0;
+
+    body = (
+      <OrderLayer
+        slug={tenant.slug}
+        tableId={orderTable.id}
+        tableName={orderTable.name}
+        dishes={orderDishes}
+        strings={SELF_ORDER_STRINGS[locale]}
+        cooldownActive={cooldownActive}
+        cooldownMin={selfOrderCfg.cooldown_min}
+        initialFoodUnlockAt={initialFoodUnlockAt}
+      >
+        {menu}
+      </OrderLayer>
     );
   }
 
   return (
-    <div className={`${displayFont.variable} ${manrope.variable}`} style={wrapStyle}>
-      <MenuView
-        style={style}
-        restaurantName={tenant.name}
-        menuLabel={ui.menu}
-        emptyLabel={ui.updating}
-        featuredLabel={ui.featured}
-        sections={sections}
-        logoUrl={mb?.logo_url}
-      />
+    <div
+      className={`${displayFont.variable} ${manrope.variable}`}
+      style={wrapStyle}
+      // Keep the last dish clear of the floating cart bar / bill button. The
+      // templates each end in their own footer, so the room is added here once
+      // rather than patched into four stylesheets.
+      data-order-mode={orderTable ? "1" : undefined}
+    >
+      {body}
       {payTable && (
         <TableBill
           slug={tenant.slug}
@@ -567,6 +559,7 @@ export default async function PublicMenuPage({
           initialCancelled={payCancelled}
         />
       )}
+      <style>{`[data-order-mode="1"] { padding-bottom: 5.5rem; }`}</style>
     </div>
   );
 }

@@ -2,6 +2,7 @@
 
 import { useLayoutEffect, useRef, useState } from "react";
 import { ClosePublicMenuButton } from "./ClosePublicMenuButton";
+import { DishAddButton } from "./OrderLayer";
 
 // Public hosted menu — Template 3 "SCURO" (cinematic).
 //
@@ -210,6 +211,8 @@ export default function MenuCinematic({
                         </div>
                       )}
                     </div>
+                    {/* Renders only in self-order mode (see OrderLayer). */}
+                    <DishAddButton itemId={it.id} className="cin-add" lockedClassName="cin-add is-locked" />
                   </li>
                 );
               })}
@@ -420,6 +423,27 @@ html:has(.cin-root), html:has(.cin-root) body {
   font-weight: 600; font-size: clamp(1rem, 3.6vw, 1.15rem);
   font-variant-numeric: tabular-nums; color: var(--gold);
 }
+/* Self-order add control — a gold-rimmed glass disc, matching the panel look.
+   No hover transform: .cin-dish already lifts on hover and the two would fight. */
+.cin-add {
+  flex: 0 0 auto; align-self: flex-start; margin-top: 0.1rem;
+  display: inline-grid; place-items: center; cursor: pointer;
+  height: 2.05rem; min-width: 2.05rem; padding: 0 0.5rem; border-radius: 999px;
+  border: 1px solid var(--glass-line); background: var(--glass); color: var(--gold);
+  font-family: var(--font-body), sans-serif; font-size: 1.1rem; font-weight: 700; line-height: 1;
+  backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+  transition: background-color .2s ease, border-color .2s ease;
+}
+@media (hover: hover) {
+  .cin-add:hover { background: rgba(212,175,106,0.18); border-color: var(--gold); }
+}
+.cin-add:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+.cin-add.is-locked {
+  cursor: default; color: var(--ivory-dim); border-color: rgba(255,255,255,0.08);
+  display: inline-flex; align-items: center; gap: 0.22rem;
+  font-size: 0.68rem; font-weight: 700; font-variant-numeric: tabular-nums;
+}
+
 .cin-desc {
   margin: 0.45rem 0 0; max-width: 56ch;
   font-size: 0.9rem; line-height: 1.6; color: var(--ivory-dim);

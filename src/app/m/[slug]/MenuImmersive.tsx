@@ -2,6 +2,7 @@
 
 import { useLayoutEffect, useRef, useState } from "react";
 import { ClosePublicMenuButton } from "./ClosePublicMenuButton";
+import { DishAddButton } from "./OrderLayer";
 
 // Public hosted menu — Template 1 "IMMERSIVO".
 //
@@ -223,7 +224,11 @@ export default function MenuImmersive({
                       <div className="imm-scrim" aria-hidden />
                       <figcaption className="imm-overlay">
                         <h3 className="imm-dish-name">{it.name}</h3>
-                        {price && <span className="imm-price">{price}</span>}
+                        <span className="imm-price-row">
+                          {price && <span className="imm-price">{price}</span>}
+                          {/* Renders only in self-order mode (see OrderLayer). */}
+                          <DishAddButton itemId={it.id} className="imm-add" lockedClassName="imm-add is-locked" />
+                        </span>
                       </figcaption>
                     </figure>
 
@@ -464,6 +469,25 @@ html:has(.imm-root), html:has(.imm-root) body {
   padding: 0.34rem 0.75rem; border-radius: 999px;
   box-shadow: 0 4px 14px -4px rgba(0,0,0,0.5);
 }
+/* Self-order add control — a gold disc next to the price plate, sharing the
+   overlay's bottom line so it reads as part of the card, not an app widget. */
+.imm-price-row { flex: 0 0 auto; display: flex; align-items: center; gap: 0.5rem; }
+.imm-add {
+  flex: 0 0 auto; display: inline-grid; place-items: center; cursor: pointer;
+  height: 2.1rem; min-width: 2.1rem; padding: 0 0.55rem; border-radius: 999px; border: 0;
+  font-family: var(--font-body), sans-serif; font-size: 1.15rem; font-weight: 700; line-height: 1;
+  color: #17110a; background: linear-gradient(135deg, #eed4a4, var(--gold));
+  box-shadow: 0 4px 14px -4px rgba(0,0,0,0.5);
+  transition: transform .12s ease;
+}
+.imm-add:active { transform: scale(0.92); }
+.imm-add:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+.imm-add.is-locked {
+  cursor: default; background: rgba(255,255,255,0.14); color: var(--ink-dim);
+  box-shadow: none; font-size: 0.72rem; font-weight: 700; gap: 0.25rem;
+  font-variant-numeric: tabular-nums; display: inline-flex; align-items: center;
+}
+
 .imm-body { padding: clamp(0.85rem, 3vw, 1.15rem) clamp(0.9rem, 3vw, 1.3rem) clamp(1rem, 3vw, 1.3rem); }
 .imm-desc {
   margin: 0; font-size: 0.9rem; line-height: 1.6; color: var(--ink-dim); max-width: 60ch;

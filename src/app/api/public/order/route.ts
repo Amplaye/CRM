@@ -205,11 +205,11 @@ export async function POST(req: NextRequest) {
   // order is locked unless the cooldown is effectively zero.
   if (hasFood) {
     const openedAtMs = existing?.opened_at ? new Date(existing.opened_at).getTime() : now;
-    if (!foodUnlocked(openedAtMs, now)) {
+    if (!foodUnlocked(openedAtMs, now, selfOrder.cooldown_min)) {
       return NextResponse.json(
         {
           error: "food_locked",
-          unlock_at: new Date(foodUnlockAtMs(openedAtMs)).toISOString(),
+          unlock_at: new Date(foodUnlockAtMs(openedAtMs, selfOrder.cooldown_min)).toISOString(),
           cooldown_min: selfOrder.cooldown_min,
         },
         { status: 409 },

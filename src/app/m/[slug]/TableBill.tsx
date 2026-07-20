@@ -182,12 +182,15 @@ export default function TableBill({
 
   return (
     <>
-      {/* Floating bill pill — top-right so it never fights the self-order cart bar. */}
+      {/* Floating bill pill — top-right, clear of the cart bar at the bottom.
+          In self-order mode OrderLayer renders a sticky table bar across that
+          same strip, so we sit just below it (--ol-topbar-h, 0 when absent)
+          instead of being hidden underneath it. */}
       {!open && (
         <button
           onClick={() => setOpen(true)}
-          className="fixed top-3 right-3 z-40 inline-flex items-center gap-1.5 rounded-full px-4 py-2 text-[13px] font-bold text-white shadow-lg cursor-pointer"
-          style={{ background: ACCENT }}
+          className="fixed right-3 z-40 inline-flex items-center gap-1.5 rounded-full px-4 py-2 text-[13px] font-bold text-white shadow-lg cursor-pointer"
+          style={{ background: ACCENT, top: "calc(0.75rem + var(--ol-topbar-h, 0px))" }}
         >
           <span aria-hidden>🧾</span> {s.billButton}
         </button>

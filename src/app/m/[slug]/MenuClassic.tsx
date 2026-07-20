@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { ClosePublicMenuButton } from "./ClosePublicMenuButton";
+import { DishAddButton } from "./OrderLayer";
 
 // Public hosted menu — Template 4 "CLASSICO".
 //
@@ -210,6 +211,8 @@ export default function MenuClassic({
                                 </div>
                               )}
                             </div>
+                            {/* Renders only in self-order mode (see OrderLayer). */}
+                            <DishAddButton itemId={it.id} className="cla-add" lockedClassName="cla-add is-locked" />
                           </li>
                         );
                       })}
@@ -429,6 +432,24 @@ html:has(.cla-root), html:has(.cla-root) body {
   font-weight: 600; font-size: clamp(1rem, 4vw, 1.16rem);
   font-variant-numeric: tabular-nums; color: var(--brass-deep);
 }
+/* Self-order add control — brass on paper, like a stamped mark on the carte. */
+.cla-add {
+  flex: 0 0 auto; align-self: flex-start; margin-top: 0.1rem;
+  display: inline-grid; place-items: center; cursor: pointer;
+  height: 2rem; min-width: 2rem; padding: 0 0.5rem; border-radius: 999px;
+  border: 1.5px solid var(--brass); background: transparent; color: var(--brass-deep);
+  font-family: var(--font-body), sans-serif; font-size: 1.1rem; font-weight: 700; line-height: 1;
+  transition: background-color .18s ease, color .18s ease, transform .12s ease;
+}
+@media (hover: hover) { .cla-add:hover { background: var(--brass); color: var(--paper); } }
+.cla-add:active { transform: scale(0.92); }
+.cla-add:focus-visible { outline: 2px solid var(--brass); outline-offset: 2px; }
+.cla-add.is-locked {
+  cursor: default; border-color: rgba(36,27,16,0.18); color: var(--ink-soft);
+  display: inline-flex; align-items: center; gap: 0.22rem;
+  font-size: 0.68rem; font-weight: 700; font-variant-numeric: tabular-nums;
+}
+
 .cla-desc {
   margin: 0.4rem 0 0; max-width: 54ch;
   font-family: var(--font-display), serif; font-style: italic;
