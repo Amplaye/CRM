@@ -249,7 +249,7 @@ export function InvoiceCapture({
       />
       <button
         onClick={() => fileRef.current?.click()}
-        className="shrink-0 inline-flex items-center gap-1.5 px-4 py-2 text-white text-sm font-bold rounded-lg cursor-pointer"
+        className="shrink-0 inline-flex items-center gap-1.5 px-4 py-2 text-white text-sm font-bold rounded-xl cursor-pointer"
         style={{ background: "linear-gradient(135deg, #059669, #047857)" }}
       >
         <Camera className="w-4 h-4" /> {t("inv_capture_btn" as keyof Dictionary) || "Registra consegna"}

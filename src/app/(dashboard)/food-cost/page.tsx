@@ -25,7 +25,7 @@ type SaveState = { status: "idle" | "saving" | "ok" | "error"; msg?: string };
 type Filter = "all" | "low" | "norecipe" | "ok";
 
 const CARD = "rounded-2xl border bg-white/70";
-const CARD_STYLE = { borderColor: "#eaddcb" } as const;
+const CARD_STYLE = { borderColor: "#d9c3a3" } as const;
 
 /** Price that brings a dish exactly to the target food cost %, rounded UP to
  * 50 cents so the suggestion is always safe and menu-friendly. */
@@ -229,7 +229,7 @@ export default function FoodCostPage() {
           <h1 className="text-2xl font-bold text-black flex items-center gap-2">
             <Calculator className="w-6 h-6" /> {t("nav_food_cost")}
           </h1>
-          <p className="mt-1 text-sm" style={{ color: "#8b6540" }}>
+          <p className="mt-1 text-sm" style={{ color: "#000" }}>
             {t("food_cost_subtitle_v2")}
           </p>
         </div>
@@ -247,14 +247,14 @@ export default function FoodCostPage() {
       {/* Hero: average food cost vs target + counters */}
       <div className={`${CARD} p-5 flex flex-wrap items-center gap-x-8 gap-y-4`} style={CARD_STYLE}>
         <div>
-          <div className="text-xs font-bold uppercase tracking-wide" style={{ color: "#8b6540" }}>
+          <div className="text-xs font-bold uppercase tracking-wide" style={{ color: "#000" }}>
             {t("food_cost_avg")}
           </div>
           <div className="flex items-baseline gap-2">
             <span className="text-4xl font-bold tabular-nums" style={{ color: avgColor }}>
               {avgPct != null ? `${avgPct.toFixed(1)}%` : "—"}
             </span>
-            <span className="text-sm" style={{ color: "#8b6540" }}>
+            <span className="text-sm" style={{ color: "#000" }}>
               {t("food_cost_target").replace("{n}", String(targetPct))}
             </span>
           </div>
@@ -292,7 +292,7 @@ export default function FoodCostPage() {
               <div style={{ height: 260 }}>
                 <ChartFrame>
                   <BarChart data={chartData} margin={{ top: 8, right: 16, bottom: 8, left: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#e7d8c5" />
+                    <CartesianGrid strokeDasharray="3 3" stroke="#d3bd9c" />
                     <XAxis dataKey="name" tick={{ fontSize: 11 }} interval={0} angle={-20} textAnchor="end" height={60} />
                     <YAxis tick={{ fontSize: 11 }} unit="%" />
                     <Tooltip formatter={(v: any) => `${Number(v).toFixed(1)}%`} />
@@ -313,17 +313,17 @@ export default function FoodCostPage() {
       {/* Search + filter chips */}
       <div className="flex flex-wrap items-center gap-2">
         <div className="relative flex-1 min-w-[200px] max-w-sm">
-          <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2" style={{ color: "#8b6540" }} />
+          <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2" style={{ color: "#000" }} />
           <input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder={t("food_cost_search_ph")}
             className="w-full pl-9 pr-8 py-2 text-sm rounded-xl border bg-white/70 text-black outline-none focus:border-[#c4956a]"
-            style={{ borderColor: "#eaddcb" }}
+            style={{ borderColor: "#d9c3a3" }}
           />
           {query && (
             <button onClick={() => setQuery("")} className="absolute right-2.5 top-1/2 -translate-y-1/2 cursor-pointer" aria-label="clear">
-              <X className="w-4 h-4" style={{ color: "#8b6540" }} />
+              <X className="w-4 h-4" style={{ color: "#000" }} />
             </button>
           )}
         </div>
@@ -338,7 +338,7 @@ export default function FoodCostPage() {
                 style={
                   active
                     ? { background: "#c4956a", borderColor: "#c4956a", color: "#fff" }
-                    : { borderColor: "#eaddcb", background: "rgba(255,255,255,0.7)", color: "#000" }
+                    : { borderColor: "#d9c3a3", background: "rgba(255,255,255,0.7)", color: "#000" }
                 }
               >
                 {c.label}
@@ -349,7 +349,7 @@ export default function FoodCostPage() {
                       ? { background: "rgba(255,255,255,0.3)", color: "#fff" }
                       : c.color && c.count > 0
                         ? { background: c.color, color: "#fff" }
-                        : { color: "#8b6540" }
+                        : { color: "#000" }
                   }
                 >
                   {c.count}
@@ -407,7 +407,7 @@ export default function FoodCostPage() {
               onClick={() => setPage((p) => Math.max(0, p - 1))}
               disabled={safePage === 0}
               className="flex items-center gap-1 px-3 py-1.5 rounded-lg border cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed bg-white/70"
-              style={{ borderColor: "#c4956a", color: "#8b6540" }}
+              style={{ borderColor: "#c4956a", color: "#000" }}
             >
               <ChevronLeft className="w-4 h-4" /> {t("back")}
             </button>
@@ -416,7 +416,7 @@ export default function FoodCostPage() {
               onClick={() => setPage((p) => Math.min(pageCount - 1, p + 1))}
               disabled={safePage >= pageCount - 1}
               className="flex items-center gap-1 px-3 py-1.5 rounded-lg border cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed bg-white/70"
-              style={{ borderColor: "#c4956a", color: "#8b6540" }}
+              style={{ borderColor: "#c4956a", color: "#000" }}
             >
               {t("next")} <ChevronRight className="w-4 h-4" />
             </button>
@@ -430,7 +430,7 @@ export default function FoodCostPage() {
 function HeroStat({ label, value, color }: { label: string; value: number; color: string }) {
   return (
     <div>
-      <div className="text-xs font-bold uppercase tracking-wide" style={{ color: "#8b6540" }}>{label}</div>
+      <div className="text-xs font-bold uppercase tracking-wide" style={{ color: "#000" }}>{label}</div>
       <div className="text-2xl font-bold tabular-nums" style={{ color }}>{value}</div>
     </div>
   );
@@ -461,11 +461,11 @@ const DishCard = memo(function DishCard({
   t: (k: keyof Dictionary) => string;
 }) {
   const statusColor = r.noRecipe ? "#d97706" : r.lowMargin ? "#dc2626" : r.foodCostPct == null ? "#d97706" : "#059669";
-  const pctColor = r.foodCostPct == null ? "#8b6540" : r.lowMargin ? "#dc2626" : "#059669";
+  const pctColor = r.foodCostPct == null ? "#000" : r.lowMargin ? "#dc2626" : "#059669";
   const suggested = r.lowMargin && r.cost > 0 ? suggestedPrice(r.cost, targetPct) : null;
 
   return (
-    <div className={CARD} style={{ ...CARD_STYLE, borderColor: isOpen ? "#c4956a" : r.lowMargin ? "rgba(220,38,38,0.35)" : "#eaddcb" }}>
+    <div className={CARD} style={{ ...CARD_STYLE, borderColor: isOpen ? "#c4956a" : r.lowMargin ? "rgba(220,38,38,0.35)" : "#d9c3a3" }}>
       <div className="flex items-center gap-3 px-3 sm:px-4 py-3 cursor-pointer select-none" onClick={() => onToggle(r.menuItemId)}>
         <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: statusColor }} aria-hidden />
 
@@ -498,7 +498,7 @@ const DishCard = memo(function DishCard({
               </>
             )}
             {!r.noRecipe && (
-              <span className="text-xs tabular-nums" style={{ color: "#8b6540" }}>
+              <span className="text-xs tabular-nums" style={{ color: "#000" }}>
                 {t("food_cost_cost_short")} € {r.cost.toFixed(2)}
               </span>
             )}
@@ -520,7 +520,7 @@ const DishCard = memo(function DishCard({
 
         {/* Margin */}
         <div className="hidden sm:block text-right shrink-0 w-20">
-          <div className="text-xs" style={{ color: "#8b6540" }}>{t("food_cost_col_margin")}</div>
+          <div className="text-xs" style={{ color: "#000" }}>{t("food_cost_col_margin")}</div>
           <div className="text-sm font-bold tabular-nums text-black">{r.margin != null ? `€ ${r.margin.toFixed(2)}` : "—"}</div>
         </div>
 
@@ -559,7 +559,7 @@ const DishCard = memo(function DishCard({
       )}
 
       {isOpen && (
-        <div className="px-3 sm:px-4 pb-4 border-t pt-3" style={{ borderColor: "#f0e5d4" }}>
+        <div className="px-3 sm:px-4 pb-4 border-t pt-3" style={{ borderColor: "#e0d0b8" }}>
           {/* mobile-only suggested price (hidden in the row on small screens) */}
           {suggested != null && suggested > (r.price ?? 0) && (
             <button

@@ -23,7 +23,7 @@ const PERIODS = [7, 30, 90] as const;
 type PeriodDays = (typeof PERIODS)[number];
 
 const CARD = "rounded-2xl border bg-white/70";
-const CARD_STYLE = { borderColor: "#eaddcb" } as const;
+const CARD_STYLE = { borderColor: "#d9c3a3" } as const;
 
 const dateStr = (d: Date) => d.toISOString().slice(0, 10);
 const daysInMonth = (year: number, month0: number) => new Date(year, month0 + 1, 0).getDate();
@@ -351,7 +351,7 @@ export default function PlPage() {
           <h1 className="text-2xl font-bold text-black flex items-center gap-2">
             <PieIcon className="w-6 h-6" /> {t("nav_pl" as keyof Dictionary) || "Conto economico"}
           </h1>
-          <p className="mt-1 text-sm" style={{ color: "#8b6540" }}>
+          <p className="mt-1 text-sm" style={{ color: "#000" }}>
             {t("pl_subtitle_v2" as keyof Dictionary) || "Calcolato in automatico da cassa, ricette e costi. Confronto con il periodo precedente."}
           </p>
         </div>
@@ -387,20 +387,20 @@ export default function PlPage() {
           {/* Hero: revenue + operating margin */}
           <div className={`${CARD} p-5 sm:p-6 grid grid-cols-1 sm:grid-cols-2 gap-5`} style={CARD_STYLE}>
             <div>
-              <div className="text-xs font-bold uppercase tracking-wide" style={{ color: "#8b6540" }}>
+              <div className="text-xs font-bold uppercase tracking-wide" style={{ color: "#000" }}>
                 {t("pl_revenue" as keyof Dictionary) || "Ricavi"}
               </div>
               <div className="mt-1 flex items-center gap-2 flex-wrap">
                 <span className="text-4xl font-bold text-black tabular-nums">{fmt(summary?.revenue ?? null)}</span>
                 <DeltaChip d={summary && prev ? plDelta(summary.revenue, prev.revenue) : null} />
               </div>
-              <div className="mt-1 text-sm" style={{ color: "#8b6540" }}>
+              <div className="mt-1 text-sm" style={{ color: "#000" }}>
                 {summary?.covers ?? 0} {t("pl_covers" as keyof Dictionary)?.toLowerCase() || "coperti"}
                 {summary?.avgTicket != null && ` · € ${summary.avgTicket.toFixed(2)} ${t("pl_avg_ticket_short" as keyof Dictionary) || "a coperto"}`}
               </div>
             </div>
-            <div className="sm:border-l sm:pl-6" style={{ borderColor: "#f0e5d4" }}>
-              <div className="text-xs font-bold uppercase tracking-wide" style={{ color: "#8b6540" }}>
+            <div className="sm:border-l sm:pl-6" style={{ borderColor: "#e0d0b8" }}>
+              <div className="text-xs font-bold uppercase tracking-wide" style={{ color: "#000" }}>
                 {t("pl_operating_margin" as keyof Dictionary) || "Margine operativo"}
               </div>
               <div className="mt-1 flex items-center gap-2 flex-wrap">
@@ -410,7 +410,7 @@ export default function PlPage() {
                 )}
                 <DeltaChip d={summary && prev ? plDelta(summary.operatingMargin, prev.operatingMargin) : null} />
               </div>
-              <div className="mt-1 text-sm" style={{ color: "#8b6540" }}>
+              <div className="mt-1 text-sm" style={{ color: "#000" }}>
                 {(t("pl_margin_hint" as keyof Dictionary) || "quello che resta dopo food, personale, commissioni e fissi")}
               </div>
             </div>
@@ -424,9 +424,9 @@ export default function PlPage() {
               className="rounded-xl border p-3 flex items-start gap-2 text-sm cursor-pointer"
               style={{ borderColor: "rgba(196,149,106,0.5)", background: "rgba(196,149,106,0.08)" }}
             >
-              <Settings className="w-5 h-5 shrink-0" style={{ color: "#8b6540" }} />
+              <Settings className="w-5 h-5 shrink-0" style={{ color: "#000" }} />
               <span className="text-black">
-                {t("pl_missing_costs")} <span className="font-bold underline underline-offset-2" style={{ color: "#8b6540" }}>{t("nav_settings")} →</span>
+                {t("pl_missing_costs")} <span className="font-bold underline underline-offset-2" style={{ color: "#000" }}>{t("nav_settings")} →</span>
               </span>
             </Link>
           )}
@@ -444,11 +444,11 @@ export default function PlPage() {
 
           {/* ── The statement: from revenue down to operating margin ─────────── */}
           <div className={`${CARD} overflow-hidden`} style={CARD_STYLE}>
-            <div className="px-4 sm:px-5 py-3 border-b flex items-center justify-between" style={{ borderColor: "#f0e5d4" }}>
+            <div className="px-4 sm:px-5 py-3 border-b flex items-center justify-between" style={{ borderColor: "#e0d0b8" }}>
               <span className="text-sm font-bold text-black">
                 {(t("pl_statement_title" as keyof Dictionary) || "Da ricavi a margine — ultimi {n} giorni").replace("{n}", String(windowDays))}
               </span>
-              <span className="text-xs" style={{ color: "#8b6540" }}>
+              <span className="text-xs" style={{ color: "#000" }}>
                 {t("pl_statement_hint" as keyof Dictionary) || "barre = % dei ricavi · △▽ = vs periodo precedente"}
               </span>
             </div>
@@ -474,13 +474,13 @@ export default function PlPage() {
                     className="px-4 sm:px-5 py-3 grid items-center gap-x-3"
                     style={{
                       gridTemplateColumns: "minmax(90px, 160px) 1fr auto",
-                      borderTop: "1px solid #f6eee0",
+                      borderTop: "1px solid #e5d6bf",
                       background: isResult ? (row.value >= 0 ? "rgba(5,150,105,0.06)" : "rgba(220,38,38,0.05)") : isSubtotal ? "rgba(196,149,106,0.06)" : undefined,
                     }}
                   >
                     <span className={`text-sm ${isResult || isRevenue || isSubtotal ? "font-bold" : "font-medium"} text-black`}>
-                      {!isRevenue && !isResult && <span style={{ color: "#8b6540" }}>{isSubtotal ? "= " : "− "}</span>}
-                      {isResult && <span style={{ color: "#8b6540" }}>= </span>}
+                      {!isRevenue && !isResult && <span style={{ color: "#000" }}>{isSubtotal ? "= " : "− "}</span>}
+                      {isResult && <span style={{ color: "#000" }}>= </span>}
                       {row.label}
                       {(row as any).warn && <AlertTriangle className="inline w-3.5 h-3.5 ml-1 text-red-600" />}
                     </span>
@@ -489,7 +489,7 @@ export default function PlPage() {
                     </div>
                     <div className="flex items-center justify-end gap-2 min-w-[150px]">
                       {row.pct != null && !isRevenue && (
-                        <span className="text-xs tabular-nums w-12 text-right" style={{ color: (row as any).warn ? "#dc2626" : "#8b6540" }}>
+                        <span className="text-xs tabular-nums w-12 text-right" style={{ color: (row as any).warn ? "#dc2626" : "#000" }}>
                           {Math.abs(row.pct).toFixed(0)}%
                         </span>
                       )}
@@ -513,28 +513,28 @@ export default function PlPage() {
             return (
               <div className={`${CARD} p-4 sm:p-5`} style={CARD_STYLE}>
                 <div className="flex items-center gap-2 mb-3">
-                  <div className="p-2 rounded-lg shrink-0" style={{ background: "rgba(196,149,106,0.12)", color: "#8b6540" }}>
+                  <div className="p-2 rounded-lg shrink-0" style={{ background: "rgba(196,149,106,0.12)", color: "#000" }}>
                     <Package className="w-4 h-4" />
                   </div>
                   <span className="text-sm font-bold text-black">{t("pl_purchases_title" as keyof Dictionary) || "Merce acquistata (fatture)"}</span>
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                  <div className="rounded-xl border p-3" style={{ borderColor: "#f0e5d4", background: "rgba(196,149,106,0.05)" }}>
-                    <div className="text-xs" style={{ color: "#8b6540" }}>{t("pl_purchases_label" as keyof Dictionary) || "Acquisti nel periodo"}</div>
+                  <div className="rounded-xl border p-3" style={{ borderColor: "#e0d0b8", background: "rgba(196,149,106,0.05)" }}>
+                    <div className="text-xs" style={{ color: "#000" }}>{t("pl_purchases_label" as keyof Dictionary) || "Acquisti nel periodo"}</div>
                     <div className="mt-1 text-2xl font-bold text-black tabular-nums">{fmt(purchases)}</div>
                   </div>
-                  <div className="rounded-xl border p-3" style={{ borderColor: "#f0e5d4" }}>
-                    <div className="text-xs" style={{ color: "#8b6540" }}>{t("pl_foodcost_theoretical" as keyof Dictionary) || "Food cost teorico (venduto)"}</div>
+                  <div className="rounded-xl border p-3" style={{ borderColor: "#e0d0b8" }}>
+                    <div className="text-xs" style={{ color: "#000" }}>{t("pl_foodcost_theoretical" as keyof Dictionary) || "Food cost teorico (venduto)"}</div>
                     <div className="mt-1 text-2xl font-bold text-black tabular-nums">{fmt(summary.foodCost)}</div>
                   </div>
-                  <div className="rounded-xl border p-3" style={{ borderColor: "#f0e5d4" }}>
-                    <div className="text-xs" style={{ color: "#8b6540" }}>{t("pl_variance_label" as keyof Dictionary) || "Scostamento"}</div>
+                  <div className="rounded-xl border p-3" style={{ borderColor: "#e0d0b8" }}>
+                    <div className="text-xs" style={{ color: "#000" }}>{t("pl_variance_label" as keyof Dictionary) || "Scostamento"}</div>
                     <div className="mt-1 text-2xl font-bold tabular-nums" style={{ color: overBuy ? "#b45309" : "#059669" }}>
                       {variance < 0 ? `− € ${Math.abs(variance).toLocaleString("it-IT", { maximumFractionDigits: 0 })}` : `+ € ${variance.toLocaleString("it-IT", { maximumFractionDigits: 0 })}`}
                     </div>
                   </div>
                 </div>
-                <p className="mt-3 text-xs leading-relaxed" style={{ color: "#8b6540" }}>
+                <p className="mt-3 text-xs leading-relaxed" style={{ color: "#000" }}>
                   {t("pl_purchases_hint" as keyof Dictionary) || "Fatture fornitore confermate con data in questo periodo. Il margine qui sopra usa comunque il food cost teorico."}
                 </p>
               </div>
@@ -557,7 +557,7 @@ export default function PlPage() {
                 <div style={{ height: 260 }}>
                   <ChartFrame>
                     <BarChart data={byDay} margin={{ top: 8, right: 16, bottom: 8, left: 0 }}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#e7d8c5" />
+                      <CartesianGrid strokeDasharray="3 3" stroke="#d3bd9c" />
                       <XAxis dataKey="day" tick={{ fontSize: 11 }} />
                       <YAxis tick={{ fontSize: 11 }} />
                       <Tooltip formatter={(v: any) => `€ ${Number(v).toFixed(0)}`} />
@@ -576,7 +576,7 @@ export default function PlPage() {
                 <div style={{ height: 260 }}>
                   <ChartFrame>
                     <BarChart data={bandChart} margin={{ top: 8, right: 16, bottom: 8, left: 0 }}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#e7d8c5" />
+                      <CartesianGrid strokeDasharray="3 3" stroke="#d3bd9c" />
                       <XAxis dataKey="band" tick={{ fontSize: 12 }} />
                       <YAxis tick={{ fontSize: 11 }} />
                       <Tooltip formatter={(v: any) => `€ ${Number(v).toFixed(0)}`} />
@@ -598,9 +598,9 @@ export default function PlPage() {
 function MiniStat({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) {
   return (
     <div className={`${CARD} px-4 py-3 flex items-center gap-3`} style={CARD_STYLE}>
-      <div className="p-2 rounded-lg shrink-0" style={{ background: "rgba(196,149,106,0.12)", color: "#8b6540" }}>{icon}</div>
+      <div className="p-2 rounded-lg shrink-0" style={{ background: "rgba(196,149,106,0.12)", color: "#000" }}>{icon}</div>
       <div className="min-w-0">
-        <div className="text-xs truncate" style={{ color: "#8b6540" }}>{label}</div>
+        <div className="text-xs truncate" style={{ color: "#000" }}>{label}</div>
         <div className="text-lg font-bold text-black tabular-nums">{value}</div>
       </div>
     </div>

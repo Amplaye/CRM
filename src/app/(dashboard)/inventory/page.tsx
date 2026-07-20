@@ -81,7 +81,7 @@ const EXPIRY_SOON_DAYS = 5;
 // Shared visual language of the management restyle: one soft card surface,
 // traffic-light status colors, no heavy double borders.
 const CARD = "rounded-2xl border bg-white/70";
-const CARD_STYLE = { borderColor: "#eaddcb" } as const;
+const CARD_STYLE = { borderColor: "#d9c3a3" } as const;
 const BRONZE_BTN =
   "inline-flex items-center gap-1.5 px-4 py-2 text-white text-sm font-bold rounded-xl cursor-pointer disabled:opacity-60";
 const BRONZE_BG = { background: "linear-gradient(135deg, #d4a574, #c4956a)" } as const;
@@ -486,7 +486,7 @@ export default function InventoryPage() {
           <h1 className="text-2xl font-bold text-black flex items-center gap-2">
             <Package className="w-6 h-6" /> {t("nav_inventory")}
           </h1>
-          <p className="mt-1 text-sm" style={{ color: "#8b6540" }}>
+          <p className="mt-1 text-sm" style={{ color: "#000" }}>
             {t("inventory_subtitle_v2")}
           </p>
         </div>
@@ -586,7 +586,7 @@ export default function InventoryPage() {
           </div>
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             {reorderBySupplier.map(([supplier, lines]) => (
-              <div key={supplier || "__none__"} className="rounded-xl border p-3" style={{ borderColor: "#eaddcb", background: "rgba(252,246,237,0.6)" }}>
+              <div key={supplier || "__none__"} className="rounded-xl border p-3" style={{ borderColor: "#d9c3a3", background: "rgba(252,246,237,0.6)" }}>
                 <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
                   <span className="text-sm font-bold text-black">
                     {supplier || t("inventory_no_supplier")}
@@ -617,7 +617,7 @@ export default function InventoryPage() {
                       <span>{l.name}</span>
                       <span className="tabular-nums">
                         <strong>{fmtQty(l.suggestedQty)} {l.unit}</strong>
-                        <span style={{ color: "#8b6540" }}> · € {l.estimatedCost.toFixed(0)}</span>
+                        <span style={{ color: "#000" }}> · € {l.estimatedCost.toFixed(0)}</span>
                       </span>
                     </li>
                   ))}
@@ -631,7 +631,7 @@ export default function InventoryPage() {
       {/* Shrinkage detail */}
       {showShrinkage && shrinkage.lines.length > 0 && (
         <div className={`${CARD} p-4`} style={CARD_STYLE}>
-          <p className="text-xs mb-2" style={{ color: "#8b6540" }}>
+          <p className="text-xs mb-2" style={{ color: "#000" }}>
             {t("inventory_shrinkage_help")}
           </p>
           <ul className="space-y-1.5">
@@ -648,32 +648,36 @@ export default function InventoryPage() {
       )}
 
       {/* ── Search + filter chips ───────────────────────────────────────────── */}
-      <div className="flex flex-wrap items-center gap-2">
-        <div className="relative flex-1 min-w-[200px] max-w-sm">
-          <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2" style={{ color: "#8b6540" }} />
-          <input
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder={t("inventory_search_ph")}
-            className="w-full pl-9 pr-8 py-2 text-sm rounded-xl border bg-white/70 text-black outline-none focus:border-[#c4956a]"
-            style={{ borderColor: "#eaddcb" }}
-          />
-          {query && (
-            <button onClick={() => { setQuery(""); setScanMsg(null); }} className="absolute right-2.5 top-1/2 -translate-y-1/2 cursor-pointer" aria-label="clear">
-              <X className="w-4 h-4" style={{ color: "#8b6540" }} />
-            </button>
-          )}
+      <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
+        {/* Search + scan: one input group, kept together */}
+        <div className="flex items-center gap-2 flex-1 min-w-[240px] max-w-md">
+          <div className="relative flex-1">
+            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2" style={{ color: "#000" }} />
+            <input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder={t("inventory_search_ph")}
+              className="w-full pl-9 pr-8 py-2 text-sm rounded-xl border bg-white/70 text-black outline-none focus:border-[#c4956a]"
+              style={{ borderColor: "#d9c3a3" }}
+            />
+            {query && (
+              <button onClick={() => { setQuery(""); setScanMsg(null); }} className="absolute right-2.5 top-1/2 -translate-y-1/2 cursor-pointer" aria-label="clear">
+                <X className="w-4 h-4" style={{ color: "#000" }} />
+              </button>
+            )}
+          </div>
+
+          {/* Scan a package instead of typing its name. */}
+          <button
+            onClick={() => { setScanMsg(null); setScanTarget(null); setScanOpen(true); }}
+            className="shrink-0 inline-flex items-center gap-1.5 px-3 py-2 text-sm font-bold rounded-xl border bg-white/70 text-black cursor-pointer"
+            style={{ borderColor: "#d9c3a3" }}
+          >
+            <ScanBarcode className="w-4 h-4" /> <span className="hidden sm:inline">{t("scan_barcode_btn")}</span>
+          </button>
         </div>
 
-        {/* Scan a package instead of typing its name. */}
-        <button
-          onClick={() => { setScanMsg(null); setScanTarget(null); setScanOpen(true); }}
-          className="inline-flex items-center gap-1.5 px-3 py-2 text-sm font-bold rounded-xl border bg-white/70 text-black cursor-pointer"
-          style={{ borderColor: "#eaddcb" }}
-        >
-          <ScanBarcode className="w-4 h-4" /> {t("scan_barcode_btn")}
-        </button>
-
+        {/* Filter chips: their own cluster, pushed to the right */}
         <div className="flex flex-wrap gap-1.5">
           {chips.map((c) => {
             const active = filter === c.key;
@@ -686,7 +690,7 @@ export default function InventoryPage() {
                 style={
                   active
                     ? { background: "#c4956a", borderColor: "#c4956a", color: "#fff" }
-                    : { borderColor: "#eaddcb", background: "rgba(255,255,255,0.7)", color: "#000" }
+                    : { borderColor: "#d9c3a3", background: "rgba(255,255,255,0.7)", color: "#000" }
                 }
               >
                 {c.label}
@@ -698,7 +702,7 @@ export default function InventoryPage() {
                     {c.count}
                   </span>
                 )}
-                {c.key === "all" && <span className="ml-1.5 text-xs tabular-nums" style={{ color: active ? "#fff" : "#8b6540" }}>{c.count}</span>}
+                {c.key === "all" && <span className="ml-1.5 text-xs tabular-nums" style={{ color: active ? "#fff" : "#000" }}>{c.count}</span>}
               </button>
             );
           })}
@@ -793,18 +797,18 @@ function SmartCard({
   return (
     <div
       className="rounded-2xl border p-4 flex items-center gap-3"
-      style={active ? { background: tones.bg, borderColor: tones.border } : { background: "rgba(255,255,255,0.6)", borderColor: "#eaddcb" }}
+      style={active ? { background: tones.bg, borderColor: tones.border } : { background: "rgba(255,255,255,0.6)", borderColor: "#d9c3a3" }}
     >
-      <div className="p-2.5 rounded-xl shrink-0" style={{ background: active ? tones.bg : "rgba(196,149,106,0.12)", color: active ? tones.fg : "#8b6540" }}>
+      <div className="p-2.5 rounded-xl shrink-0" style={{ background: active ? tones.bg : "rgba(196,149,106,0.12)", color: active ? tones.fg : "#000" }}>
         {icon}
       </div>
       <div className="min-w-0 flex-1">
-        <div className="text-xs font-bold uppercase tracking-wide flex items-center gap-1" style={{ color: "#8b6540" }}>
+        <div className="text-xs font-bold uppercase tracking-wide flex items-center gap-1" style={{ color: "#000" }}>
           {title}
           {info && <InfoHotspot side="top" title={info.title} body={info.body} />}
         </div>
         <div className="text-xl font-bold tabular-nums" style={{ color: active ? tones.fg : "#000" }}>{big}</div>
-        <div className="text-xs truncate" style={{ color: "#8b6540" }}>{sub}</div>
+        <div className="text-xs truncate" style={{ color: "#000" }}>{sub}</div>
       </div>
       {action && (
         <button
@@ -867,10 +871,10 @@ const IngredientCard = memo(function IngredientCard({
   const hasLots = (lots?.length ?? 0) > 0;
   const statusColor = low ? "#dc2626" : soon ? "#d97706" : "#059669";
   const inputCls = "px-2.5 py-1.5 text-sm border rounded-lg text-black bg-white";
-  const inputStyle = { borderColor: "#dfcdb4" };
+  const inputStyle = { borderColor: "#cbb492" };
 
   return (
-    <div className={CARD} style={{ ...CARD_STYLE, borderColor: isOpen ? "#c4956a" : low ? "rgba(220,38,38,0.35)" : "#eaddcb" }}>
+    <div className={CARD} style={{ ...CARD_STYLE, borderColor: isOpen ? "#c4956a" : low ? "rgba(220,38,38,0.35)" : "#d9c3a3" }}>
       {/* Main row */}
       <div className="flex items-center gap-3 px-3 sm:px-4 py-3 cursor-pointer select-none" onClick={() => onToggle(r.id)}>
         <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: statusColor }} aria-hidden />
@@ -887,7 +891,7 @@ const IngredientCard = memo(function IngredientCard({
             <div className="w-24 sm:w-36">
               <StockBar stock={Number(r.stock_qty)} par={Number(r.par_level)} />
             </div>
-            <span className="text-xs truncate" style={{ color: "#8b6540" }}>
+            <span className="text-xs truncate" style={{ color: "#000" }}>
               {r.supplier_name || (Number(r.par_level) > 0 ? `min ${fmtQty(Number(r.par_level))} ${r.unit}` : "")}
             </span>
           </div>
@@ -931,7 +935,7 @@ const IngredientCard = memo(function IngredientCard({
               <span className={`text-base font-bold tabular-nums ${low ? "text-red-600" : "text-black"}`}>
                 {fmtQty(Number(r.stock_qty))}
               </span>
-              <span className="text-xs" style={{ color: "#8b6540" }}>{r.unit}</span>
+              <span className="text-xs" style={{ color: "#000" }}>{r.unit}</span>
             </button>
           )}
         </div>
@@ -945,7 +949,7 @@ const IngredientCard = memo(function IngredientCard({
 
       {/* Expanded editor */}
       {isOpen && (
-        <div className="px-3 sm:px-4 pb-4 space-y-4 border-t pt-4" style={{ borderColor: "#f0e5d4" }}>
+        <div className="px-3 sm:px-4 pb-4 space-y-4 border-t pt-4" style={{ borderColor: "#e0d0b8" }}>
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
             <label className="flex flex-col gap-1">
               <span className="text-xs font-bold text-black">{t("inventory_col_name")}</span>
@@ -962,7 +966,7 @@ const IngredientCard = memo(function IngredientCard({
                 <button
                   onClick={() => onPatch(r.id, { par_level: parSuggestion })}
                   className="text-left text-xs cursor-pointer underline decoration-dotted underline-offset-2"
-                  style={{ color: "#8b6540" }}
+                  style={{ color: "#000" }}
                 >
                   {t("inventory_autopar_row")
                     .replace("{v}", fmtQty(parSuggestion))
@@ -987,7 +991,7 @@ const IngredientCard = memo(function IngredientCard({
               ) : (
                 <input key={r.expiry_date || "none"} type="date" defaultValue={r.expiry_date || ""} onBlur={(e) => { const v = e.target.value || null; if (v !== r.expiry_date) onPatch(r.id, { expiry_date: v }); }} className={inputCls} style={inputStyle} />
               )}
-              {hasLots && <span className="text-[11px]" style={{ color: "#8b6540" }}>{t("inventory_lots_managed")}</span>}
+              {hasLots && <span className="text-[11px]" style={{ color: "#000" }}>{t("inventory_lots_managed")}</span>}
             </label>
             <label className="flex flex-col gap-1">
               <span className="text-xs font-bold text-black">{t("inventory_shelf_life")}</span>
@@ -1012,16 +1016,16 @@ const IngredientCard = memo(function IngredientCard({
                   <button
                     onClick={() => onPatch(r.id, { shelf_life_days: s })}
                     className="text-left text-xs cursor-pointer underline decoration-dotted underline-offset-2"
-                    style={{ color: "#8b6540" }}
+                    style={{ color: "#000" }}
                   >
                     {t("inventory_shelf_life_suggest").replace("{n}", String(s))}
                   </button>
                 ) : (
-                  <span className="text-[11px]" style={{ color: "#8b6540" }}>{t("inventory_shelf_life_hint")}</span>
+                  <span className="text-[11px]" style={{ color: "#000" }}>{t("inventory_shelf_life_hint")}</span>
                 );
               })()}
               {r.shelf_life_days != null && (
-                <span className="text-[11px]" style={{ color: "#8b6540" }}>{t("inventory_shelf_life_hint")}</span>
+                <span className="text-[11px]" style={{ color: "#000" }}>{t("inventory_shelf_life_hint")}</span>
               )}
             </label>
             {/* Barcode: type it, or scan the package once and every later scan
@@ -1044,7 +1048,7 @@ const IngredientCard = memo(function IngredientCard({
                 <button
                   onClick={() => onScanFor(r.id)}
                   className="p-2 rounded-lg border cursor-pointer text-black shrink-0"
-                  style={{ borderColor: "#eaddcb" }}
+                  style={{ borderColor: "#d9c3a3" }}
                   title={t("scan_barcode_btn")}
                   aria-label={t("scan_barcode_btn")}
                 >
@@ -1057,9 +1061,9 @@ const IngredientCard = memo(function IngredientCard({
           {/* Lots — per-delivery expiry reminders. Each row is a batch received on
               a date; "fatto" closes it (the DB trigger moves the badge to the next). */}
           {hasLots && (
-            <div className="pt-2 border-t" style={{ borderColor: "#f0e5d4" }}>
+            <div className="pt-2 border-t" style={{ borderColor: "#e0d0b8" }}>
               <div className="text-xs font-bold text-black mb-2 flex items-center gap-1.5">
-                <Clock className="w-3.5 h-3.5" style={{ color: "#8b6540" }} /> {t("inventory_lots_title")}
+                <Clock className="w-3.5 h-3.5" style={{ color: "#000" }} /> {t("inventory_lots_title")}
               </div>
               <div className="space-y-1.5">
                 {lots!.map((lot) => {
@@ -1072,14 +1076,14 @@ const IngredientCard = memo(function IngredientCard({
                         {ld <= 0 ? t("inventory_expired") : `${ld} ${t("pl_days_short")}`}
                       </span>
                       <span className="text-black tabular-nums">{lot.expiry_date}</span>
-                      <span className="text-xs truncate flex-1" style={{ color: "#8b6540" }}>
+                      <span className="text-xs truncate flex-1" style={{ color: "#000" }}>
                         {lot.qty != null ? `${fmtQty(Number(lot.qty))} ${r.unit}` : ""}
                         {lot.received_on ? ` · ${t("inventory_lot_received")} ${lot.received_on}` : ""}
                       </span>
                       <button
                         onClick={() => onCloseLot(lot.id, r.id)}
                         className="inline-flex items-center gap-1 px-2 py-1 text-xs font-bold rounded-lg border cursor-pointer text-black bg-white shrink-0"
-                        style={{ borderColor: "#eaddcb" }}
+                        style={{ borderColor: "#d9c3a3" }}
                       >
                         <Check className="w-3.5 h-3.5 text-emerald-600" /> {t("inventory_lot_done")}
                       </button>
@@ -1087,12 +1091,12 @@ const IngredientCard = memo(function IngredientCard({
                   );
                 })}
               </div>
-              <p className="mt-2 text-[11px]" style={{ color: "#8b6540" }}>{t("inventory_lots_hint")}</p>
+              <p className="mt-2 text-[11px]" style={{ color: "#000" }}>{t("inventory_lots_hint")}</p>
             </div>
           )}
 
           {/* POS product link — connect this ingredient to a sellable till product so stock syncs. */}
-          <div className="flex flex-wrap items-end gap-3 pt-2 border-t" style={{ borderColor: "#f0e5d4" }}>
+          <div className="flex flex-wrap items-end gap-3 pt-2 border-t" style={{ borderColor: "#e0d0b8" }}>
             <label className="flex flex-col gap-1 min-w-[260px]">
               <span className="text-xs font-bold text-black flex items-center gap-1">
                 <Link2 className="w-3.5 h-3.5" /> {t("inventory_pos_link")}
@@ -1144,7 +1148,7 @@ function NewIngredientForm({ onCreate, onCancel, t }: { onCreate: (name: string,
   const [name, setName] = useState("");
   const [unit, setUnit] = useState("kg");
   const inputCls = "px-3 py-2 text-sm border rounded-lg text-black bg-white";
-  const inputStyle = { borderColor: "#dfcdb4" };
+  const inputStyle = { borderColor: "#cbb492" };
   return (
     <div className={`${CARD} p-4 flex flex-wrap items-end gap-3`} style={CARD_STYLE}>
       <label className="flex flex-col gap-1">
@@ -1158,7 +1162,7 @@ function NewIngredientForm({ onCreate, onCancel, t }: { onCreate: (name: string,
       <button onClick={() => onCreate(name, unit)} disabled={!name.trim()} className={BRONZE_BTN + " disabled:cursor-not-allowed disabled:opacity-40"} style={BRONZE_BG}>
         {t("save")}
       </button>
-      <button onClick={onCancel} className="px-4 py-2 text-sm font-bold rounded-xl border cursor-pointer text-black bg-white" style={{ borderColor: "#dfcdb4" }}>
+      <button onClick={onCancel} className="px-4 py-2 text-sm font-bold rounded-xl border cursor-pointer text-black bg-white" style={{ borderColor: "#cbb492" }}>
         {t("cancel")}
       </button>
     </div>
