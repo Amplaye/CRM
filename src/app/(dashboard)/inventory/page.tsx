@@ -38,6 +38,7 @@ import {
   type MovementLite,
 } from "@/lib/management/inventory-analysis";
 import { InvoiceCapture } from "@/components/management/InvoiceCapture";
+import { isRetailBarcode } from "@/lib/management/barcode";
 
 interface IngredientRow {
   id: string;
@@ -371,7 +372,15 @@ export default function InventoryPage() {
       setScanMsg(null);
       return;
     }
-    // …or hand the digits to the search box so the owner can add the product.
+    // …or work out why it missed. Suppliers print a barcode on the delivery
+    // note itself, and scanning that can never match a product — so say so
+    // instead of inviting the owner to create an ingredient out of a DDT number.
+    if (!isRetailBarcode(value)) {
+      setScanMsg(t("inventory_barcode_not_a_product"));
+      return;
+    }
+    // A genuine package code we simply don't have yet: hand the digits to the
+    // search box so the owner can add the product.
     setQuery(value);
     setScanMsg(t("inventory_barcode_unknown"));
   }, [scanTarget, patchIngredient, t]);

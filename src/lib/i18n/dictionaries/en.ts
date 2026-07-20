@@ -1383,6 +1383,7 @@ export const en = {
   inventory_barcode_ph: "EAN / UPC",
   inventory_barcode_saved: "Barcode saved.",
   inventory_barcode_unknown: "No product with that barcode. It's been filled into the search — add it as new.",
+  inventory_barcode_not_a_product: "That isn't a product code — it looks like the document number (delivery note or invoice). To book the goods in, use “Stock in from invoice / delivery note”. For the scanner, point it at the barcode printed on the package.",
   guests_reservation_history: "Reservation history",
   guests_tags_label: "Tags",
   guests_tags_placeholder: "+ tag",

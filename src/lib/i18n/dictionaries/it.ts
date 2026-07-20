@@ -1386,6 +1386,7 @@ export const it: Dictionary = {
   inventory_barcode_ph: "EAN / UPC",
   inventory_barcode_saved: "Codice a barre salvato.",
   inventory_barcode_unknown: "Nessun prodotto con quel codice. L'abbiamo messo nella ricerca — aggiungilo come nuovo.",
+  inventory_barcode_not_a_product: "Questo non è il codice di un prodotto: sembra il codice del documento (bolla o fattura). Per caricare la merce usa «Carico da fattura / bolla». Per lo scanner, inquadra il codice a barre stampato sulla confezione.",
   guests_reservation_history: "Storico prenotazioni",
   guests_tags_label: "Etichette",
   guests_tags_placeholder: "+ etichetta",

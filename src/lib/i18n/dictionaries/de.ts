@@ -1386,6 +1386,7 @@ export const de: Dictionary = {
   inventory_barcode_ph: "EAN / UPC",
   inventory_barcode_saved: "Barcode gespeichert.",
   inventory_barcode_unknown: "Kein Produkt mit diesem Barcode. Er steht jetzt in der Suche — legen Sie es neu an.",
+  inventory_barcode_not_a_product: "Das ist kein Produktcode — es sieht nach der Belegnummer aus (Lieferschein oder Rechnung). Zum Einbuchen der Ware nutzen Sie „Wareneingang aus Rechnung / Lieferschein“. Für den Scanner richten Sie ihn auf den Barcode auf der Verpackung.",
   guests_reservation_history: "Reservierungshistorie",
   guests_tags_label: "Etiketten",
   guests_tags_placeholder: "+ Etikett",
