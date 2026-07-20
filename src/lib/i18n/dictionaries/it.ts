@@ -2057,6 +2057,11 @@ export const it: Dictionary = {
   pl_statement_hint: "barre = % dei ricavi · △▽ = vs periodo precedente",
   pl_missing_costs: "Personale o costi fissi a zero: inseriscili in Impostazioni → Gestionale per un margine operativo reale.",
 
+  // Product announcements
+  announce_badge: "Novità",
+  announce_cta_default: "Scoprila",
+  announce_dismiss: "Ho capito",
+
   // PWA / Offline
   pwa_update_available: "È disponibile una nuova versione",
   pwa_reload: "Ricarica",

@@ -2054,6 +2054,12 @@ export const en = {
   pl_statement_hint: "bars = % of revenue · △▽ = vs previous period",
   pl_missing_costs: "Staff or fixed costs are at zero: add them in Settings → Management to get a real operating margin.",
 
+  // Product announcements (the "new feature" modal — copy comes from the DB,
+  // these are just the chrome around it)
+  announce_badge: "New",
+  announce_cta_default: "Discover it",
+  announce_dismiss: "Got it",
+
   // PWA / Offline
   pwa_update_available: "A new version is available",
   pwa_reload: "Reload",

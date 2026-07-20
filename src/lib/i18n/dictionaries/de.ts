@@ -2057,6 +2057,11 @@ export const de: Dictionary = {
   pl_statement_hint: "Balken = % vom Umsatz · △▽ = vs Vorperiode",
   pl_missing_costs: "Personal- oder Fixkosten stehen auf null: trage sie in Einstellungen → Verwaltung ein, um eine echte operative Marge zu sehen.",
 
+  // Product announcements
+  announce_badge: "Neu",
+  announce_cta_default: "Jetzt entdecken",
+  announce_dismiss: "Verstanden",
+
   // PWA / Offline
   pwa_update_available: "Eine neue Version ist verfügbar",
   pwa_reload: "Neu laden",

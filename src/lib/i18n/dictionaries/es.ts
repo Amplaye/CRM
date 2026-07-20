@@ -2057,6 +2057,11 @@ export const es: Dictionary = {
   pl_statement_hint: "barras = % de ingresos · △▽ = vs periodo anterior",
   pl_missing_costs: "Personal o costes fijos a cero: añádelos en Ajustes → Gestión para un margen operativo real.",
 
+  // Product announcements
+  announce_badge: "Novedad",
+  announce_cta_default: "Descúbrela",
+  announce_dismiss: "Entendido",
+
   // PWA / Offline
   pwa_update_available: "Hay una nueva versión disponible",
   pwa_reload: "Recargar",

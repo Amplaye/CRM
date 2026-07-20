@@ -29,6 +29,7 @@ import {
   Globe,
   Gift,
   Share2,
+  Sparkles,
 } from "lucide-react";
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
@@ -243,6 +244,7 @@ export function Sidebar({ mobileOpen = false, onClose }: SidebarProps) {
     { href: "/admin/billing", icon: DollarSign, label: "Billing" },
     { href: "/admin/monitoring", icon: Activity, label: "Monitoring" },
     { href: "/admin/bali", icon: Inbox, label: "Bali Inbox" },
+    { href: "/admin/announcements", icon: Sparkles, label: "Announcements" },
   ];
 
   const isAdmin = globalRole === "platform_admin";

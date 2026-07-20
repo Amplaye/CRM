@@ -3,6 +3,7 @@
 import { Sidebar } from "./Sidebar";
 import { Topbar } from "./Topbar";
 import { AssistantWidget } from "@/components/assistant/AssistantWidget";
+import { AnnouncementModal } from "@/components/announcements/AnnouncementModal";
 import { ReactNode, useState, useEffect, useMemo } from "react";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import { useTenant } from "@/lib/contexts/TenantContext";
@@ -155,6 +156,9 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
         </div>
         {/* Built-in help assistant (local KB, no external APIs). Tenant pages only. */}
         {!isOnAdminPage && activeTenant && <AssistantWidget />}
+        {/* "We shipped something new" modal. Skipped during onboarding — a
+            first-run owner has enough on screen already. */}
+        {!isOnAdminPage && activeTenant && !needsOnboarding && <AnnouncementModal />}
       </div>
     </ProtectedRoute>
   );
