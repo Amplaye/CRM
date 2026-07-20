@@ -76,8 +76,20 @@ function postWithProgress(form: FormData, onProgress: (pct: number) => void): Pr
       } catch {
         /* a proxy error page, handled just below */
       }
-      if (xhr.status >= 200 && xhr.status < 300) resolve(data);
-      else reject(new Error(data?.error || `Errore ${xhr.status || "di rete"}`));
+      if (xhr.status >= 200 && xhr.status < 300) return resolve(data);
+      // Already booked: the unique index refused a second copy of the same
+      // document, which is what stops a delivery entering stock twice.
+      if (xhr.status === 409 && data?.error === "duplicate_confirmed") {
+        const when = data.booked_on ? String(data.booked_on).slice(0, 10) : null;
+        return reject(
+          new Error(
+            `Questo documento è già stato caricato a magazzino${data.invoice_number ? ` (n. ${data.invoice_number}` : ""}${
+              data.supplier_name ? ` — ${data.supplier_name})` : data.invoice_number ? ")" : ""
+            }${when ? ` il ${when}` : ""}. Non lo ricarico, altrimenti le giacenze raddoppierebbero.`,
+          ),
+        );
+      }
+      reject(new Error(data?.error || `Errore ${xhr.status || "di rete"}`));
     };
     xhr.onerror = () => reject(new Error("Connessione interrotta durante il caricamento."));
     xhr.onabort = () => reject(new Error("Caricamento annullato."));

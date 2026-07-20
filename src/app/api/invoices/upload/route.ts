@@ -78,7 +78,7 @@ export async function POST(req: NextRequest) {
   });
 
   // Header
-  const { data: invoice, error: invErr } = await supabase
+  let { data: invoice, error: invErr } = await supabase
     .from("supplier_invoices")
     .insert({
       tenant_id: tenantId,
@@ -98,7 +98,51 @@ export async function POST(req: NextRequest) {
     .select("id")
     .single();
   if (invErr || !invoice) {
-    return NextResponse.json({ error: "Failed to store invoice", details: invErr?.message }, { status: 500 });
+    // A tenant re-photographing a document they already imported hits the
+    // (tenant, supplier_vat, invoice_number) unique index. That index is doing
+    // its job — booking the same delivery twice would double the stock — but
+    // "Failed to store invoice" tells the owner nothing. Answer precisely, and
+    // pick up where they left off when nothing has been booked yet.
+    if (invErr?.code === "23505" && extracted.supplierVat && extracted.invoiceNumber) {
+      const { data: existing } = await supabase
+        .from("supplier_invoices")
+        .select("id, status, invoice_date, created_at")
+        .eq("tenant_id", tenantId)
+        .eq("supplier_vat", extracted.supplierVat)
+        .eq("invoice_number", extracted.invoiceNumber)
+        .maybeSingle();
+
+      if (existing?.status === "confirmed") {
+        return NextResponse.json(
+          {
+            error: "duplicate_confirmed",
+            invoice_id: existing.id,
+            supplier_name: extracted.supplierName,
+            invoice_number: extracted.invoiceNumber,
+            booked_on: existing.invoice_date || existing.created_at,
+          },
+          { status: 409 },
+        );
+      }
+      if (existing) {
+        // Parsed but never confirmed: nothing has entered stock, so replace the
+        // stale lines with this fresh read and let the review continue.
+        await supabase
+          .from("supplier_invoice_items")
+          .delete()
+          .eq("invoice_id", existing.id)
+          .eq("tenant_id", tenantId);
+        invoice = { id: existing.id };
+        invErr = null;
+      }
+    }
+    if (invErr || !invoice) {
+      return apiError(invErr, {
+        route: "invoices/upload",
+        publicMessage: `Non sono riuscito a salvare il documento${invErr?.message ? `: ${invErr.message}` : ""}`,
+        status: 500,
+      });
+    }
   }
 
   // Lines
