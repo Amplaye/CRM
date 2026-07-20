@@ -99,12 +99,20 @@ export async function POST(req: Request) {
   // Auto-expiry: fresh goods in → push the expiry to (today + shelf life) when the
   // ingredient carries a shelf life. Single per-ingredient date, so a receipt always
   // sets the freshest batch's expiry (best we can do without per-lot tracking).
+  // A received batch with a shelf life becomes a lot; the stock_lots trigger
+  // refreshes ingredients.expiry_date to the earliest open lot.
   let newExpiry: string | undefined;
   if (kind === "receipt") {
     const derived = deriveExpiry(new Date(), ing.shelf_life_days);
     if (derived) {
       newExpiry = derived;
-      await svc.from("ingredients").update({ expiry_date: newExpiry, updated_at: new Date().toISOString() }).eq("id", ingredientId);
+      await svc.from("stock_lots").insert({
+        tenant_id: ing.tenant_id,
+        ingredient_id: ingredientId,
+        qty,
+        expiry_date: derived,
+        source: "manual",
+      });
     }
   }
 

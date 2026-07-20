@@ -57,6 +57,15 @@ interface IngredientRow {
   barcode: string | null;
 }
 
+/** An open delivery batch with its own expiry — a reminder, not a stock source. */
+interface Lot {
+  id: string;
+  ingredient_id: string;
+  qty: number | null;
+  expiry_date: string;
+  received_on: string | null;
+}
+
 interface PosProduct {
   externalProductId: string;
   name: string;
@@ -135,11 +144,13 @@ export default function InventoryPage() {
   // Last 30 days of the stock ledger — feeds the automatic par levels and the
   // waste/shrinkage panel. Loaded together with the ingredients.
   const [movements, setMovements] = useState<MovementLite[]>([]);
+  // Open lots grouped by ingredient — the per-batch expiry list.
+  const [lotsByIng, setLotsByIng] = useState<Record<string, Lot[]>>({});
 
   const load = useCallback(async () => {
     if (!activeTenant?.id || !enabled) return;
     const since = new Date(Date.now() - 30 * 86400000).toISOString();
-    const [{ data }, { data: mv }] = await Promise.all([
+    const [{ data }, { data: mv }, { data: lotsRaw }] = await Promise.all([
       supabase
         .from("ingredients")
         .select("id, name, unit, current_unit_cost, stock_qty, par_level, supplier_name, expiry_date, shelf_life_days, pos_external_product_id, barcode")
@@ -153,8 +164,17 @@ export default function InventoryPage() {
         .gte("created_at", since)
         .order("created_at", { ascending: false })
         .limit(5000),
+      supabase
+        .from("stock_lots")
+        .select("id, ingredient_id, qty, expiry_date, received_on")
+        .eq("tenant_id", activeTenant.id)
+        .eq("status", "open")
+        .order("expiry_date"),
     ]);
     setRows((data || []) as IngredientRow[]);
+    const lotMap: Record<string, Lot[]> = {};
+    for (const l of (lotsRaw || []) as Lot[]) (lotMap[l.ingredient_id] ||= []).push(l);
+    setLotsByIng(lotMap);
     setMovements(
       ((mv || []) as Array<{ ingredient_id: string; qty_delta: number; kind: string; created_at: string }>).map((m) => ({
         ingredientId: m.ingredient_id,
@@ -350,6 +370,14 @@ export default function InventoryPage() {
       setSaveStates((s) => ({ ...s, [id]: { status: "ok" } }));
       setTimeout(() => setSaveStates((s) => ({ ...s, [id]: { status: "idle" } })), 1500);
     }
+  }, [supabase]);
+
+  // Close a lot (the batch is used up or discarded): clears the expiry reminder.
+  // The DB trigger moves ingredients.expiry_date to the next open lot. Stock is
+  // NOT touched here — sales already depleted it, or the owner books a "Scarto".
+  const closeLot = useCallback(async (lotId: string, ingredientId: string) => {
+    setLotsByIng((m) => ({ ...m, [ingredientId]: (m[ingredientId] || []).filter((l) => l.id !== lotId) }));
+    await supabase.from("stock_lots").update({ status: "closed", closed_at: new Date().toISOString() }).eq("id", lotId);
   }, [supabase]);
 
   const handleScan = useCallback((code: string) => {
@@ -725,12 +753,14 @@ export default function InventoryPage() {
               saveState={saveStates[r.id]}
               posProducts={posProducts}
               parSuggestion={parSuggestions.get(r.id)}
+              lots={lotsByIng[r.id]}
               onToggle={toggleRow}
               onStartEdit={startStockEdit}
               onDraftChange={setDraftStock}
               onCommit={commitStock}
               onCancel={cancelStockEdit}
               onPatch={patchIngredient}
+              onCloseLot={closeLot}
               onArchive={archiveIngredient}
               onScanFor={openScanFor}
               t={t}
@@ -808,8 +838,8 @@ function StockBar({ stock, par }: { stock: number; par: number }) {
 // Memoized — all handlers are id-based and referentially stable, so expanding or
 // typing in one card never re-renders the rest of the list.
 const IngredientCard = memo(function IngredientCard({
-  r, isOpen, editing, draft, saveState, posProducts, parSuggestion,
-  onToggle, onStartEdit, onDraftChange, onCommit, onCancel, onPatch, onArchive, onScanFor, t,
+  r, isOpen, editing, draft, saveState, posProducts, parSuggestion, lots,
+  onToggle, onStartEdit, onDraftChange, onCommit, onCancel, onPatch, onCloseLot, onArchive, onScanFor, t,
 }: {
   r: IngredientRow;
   isOpen: boolean;
@@ -818,12 +848,14 @@ const IngredientCard = memo(function IngredientCard({
   saveState?: SaveState;
   posProducts: PosProduct[] | null;
   parSuggestion?: number;
+  lots?: Lot[];
   onToggle: (id: string) => void;
   onStartEdit: (id: string) => void;
   onDraftChange: (v: string) => void;
   onCommit: (id: string, value: string) => void;
   onCancel: () => void;
   onPatch: (id: string, patch: Partial<IngredientRow>) => void;
+  onCloseLot: (lotId: string, ingredientId: string) => void;
   onArchive: (id: string) => void;
   /** Open the camera to assign a barcode TO THIS ingredient. */
   onScanFor: (id: string) => void;
@@ -832,6 +864,7 @@ const IngredientCard = memo(function IngredientCard({
   const low = isLow(r);
   const days = daysToExpiry(r);
   const soon = days != null && days <= EXPIRY_SOON_DAYS;
+  const hasLots = (lots?.length ?? 0) > 0;
   const statusColor = low ? "#dc2626" : soon ? "#d97706" : "#059669";
   const inputCls = "px-2.5 py-1.5 text-sm border rounded-lg text-black bg-white";
   const inputStyle = { borderColor: "#dfcdb4" };
@@ -947,7 +980,14 @@ const IngredientCard = memo(function IngredientCard({
             </label>
             <label className="flex flex-col gap-1">
               <span className="text-xs font-bold text-black">{t("inventory_col_expiry")}</span>
-              <input key={r.expiry_date || "none"} type="date" defaultValue={r.expiry_date || ""} onBlur={(e) => { const v = e.target.value || null; if (v !== r.expiry_date) onPatch(r.id, { expiry_date: v }); }} className={inputCls} style={inputStyle} />
+              {hasLots ? (
+                <span className={inputCls + " flex items-center"} style={{ ...inputStyle, background: "rgba(196,149,106,0.06)" }}>
+                  {r.expiry_date || "—"}
+                </span>
+              ) : (
+                <input key={r.expiry_date || "none"} type="date" defaultValue={r.expiry_date || ""} onBlur={(e) => { const v = e.target.value || null; if (v !== r.expiry_date) onPatch(r.id, { expiry_date: v }); }} className={inputCls} style={inputStyle} />
+              )}
+              {hasLots && <span className="text-[11px]" style={{ color: "#8b6540" }}>{t("inventory_lots_managed")}</span>}
             </label>
             <label className="flex flex-col gap-1">
               <span className="text-xs font-bold text-black">{t("inventory_shelf_life")}</span>
@@ -1013,6 +1053,43 @@ const IngredientCard = memo(function IngredientCard({
               </div>
             </label>
           </div>
+
+          {/* Lots — per-delivery expiry reminders. Each row is a batch received on
+              a date; "fatto" closes it (the DB trigger moves the badge to the next). */}
+          {hasLots && (
+            <div className="pt-2 border-t" style={{ borderColor: "#f0e5d4" }}>
+              <div className="text-xs font-bold text-black mb-2 flex items-center gap-1.5">
+                <Clock className="w-3.5 h-3.5" style={{ color: "#8b6540" }} /> {t("inventory_lots_title")}
+              </div>
+              <div className="space-y-1.5">
+                {lots!.map((lot) => {
+                  const ld = Math.floor((new Date(lot.expiry_date + "T00:00:00").getTime() - Date.now()) / 86400000);
+                  const col = ld <= 0 ? "#dc2626" : ld <= EXPIRY_SOON_DAYS ? "#b45309" : "#059669";
+                  return (
+                    <div key={lot.id} className="flex items-center gap-2 text-sm rounded-lg px-2.5 py-1.5" style={{ background: "rgba(196,149,106,0.06)" }}>
+                      <span className="w-2 h-2 rounded-full shrink-0" style={{ background: col }} aria-hidden />
+                      <span className="font-bold tabular-nums shrink-0" style={{ color: col }}>
+                        {ld <= 0 ? t("inventory_expired") : `${ld} ${t("pl_days_short")}`}
+                      </span>
+                      <span className="text-black tabular-nums">{lot.expiry_date}</span>
+                      <span className="text-xs truncate flex-1" style={{ color: "#8b6540" }}>
+                        {lot.qty != null ? `${fmtQty(Number(lot.qty))} ${r.unit}` : ""}
+                        {lot.received_on ? ` · ${t("inventory_lot_received")} ${lot.received_on}` : ""}
+                      </span>
+                      <button
+                        onClick={() => onCloseLot(lot.id, r.id)}
+                        className="inline-flex items-center gap-1 px-2 py-1 text-xs font-bold rounded-lg border cursor-pointer text-black bg-white shrink-0"
+                        style={{ borderColor: "#eaddcb" }}
+                      >
+                        <Check className="w-3.5 h-3.5 text-emerald-600" /> {t("inventory_lot_done")}
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+              <p className="mt-2 text-[11px]" style={{ color: "#8b6540" }}>{t("inventory_lots_hint")}</p>
+            </div>
+          )}
 
           {/* POS product link — connect this ingredient to a sellable till product so stock syncs. */}
           <div className="flex flex-wrap items-end gap-3 pt-2 border-t" style={{ borderColor: "#f0e5d4" }}>

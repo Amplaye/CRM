@@ -1294,6 +1294,57 @@ drop trigger if exists trg_apply_stock_movement on public.stock_movements;
 create trigger trg_apply_stock_movement after insert on public.stock_movements
   for each row execute function public.fn_apply_stock_movement();
 
+-- Per-batch expiry reminders (2026-07-20-stock-lots.sql). Each goods-in with a
+-- shelf life creates a lot (received date, qty, expiry). Lots do NOT drive
+-- stock_qty or sale depletion — they are an expiry reminder per delivery batch.
+-- A trigger keeps ingredients.expiry_date = earliest OPEN lot (only for
+-- ingredients that have lots, so lot-free ones keep their manual date).
+create table if not exists public.stock_lots (
+  id uuid default uuid_generate_v4() primary key,
+  tenant_id uuid not null references public.tenants(id) on delete cascade,
+  ingredient_id uuid not null references public.ingredients(id) on delete cascade,
+  qty numeric(14,3),
+  unit text,
+  expiry_date date not null,
+  received_on date not null default current_date,
+  source text not null default 'receipt' check (source in ('receipt','invoice','manual')),
+  note text,
+  status text not null default 'open' check (status in ('open','closed')),
+  closed_at timestamptz,
+  ref_id uuid,
+  created_at timestamptz not null default now()
+);
+create index if not exists idx_stock_lots_ingredient_open on public.stock_lots(ingredient_id) where status = 'open';
+create index if not exists idx_stock_lots_tenant on public.stock_lots(tenant_id, expiry_date);
+
+create or replace function public.fn_sync_ingredient_expiry()
+returns trigger language plpgsql security definer set search_path = public, pg_temp as $$
+declare
+  v_ingredient uuid := coalesce(NEW.ingredient_id, OLD.ingredient_id);
+  v_tenant uuid := coalesce(NEW.tenant_id, OLD.tenant_id);
+  v_expiry date;
+begin
+  select min(expiry_date) into v_expiry
+    from public.stock_lots
+   where ingredient_id = v_ingredient and status = 'open';
+  update public.ingredients set expiry_date = v_expiry, updated_at = now()
+   where id = v_ingredient and tenant_id = v_tenant;
+  return null;
+end $$;
+drop trigger if exists trg_sync_ingredient_expiry on public.stock_lots;
+create trigger trg_sync_ingredient_expiry
+  after insert or update or delete on public.stock_lots
+  for each row execute function public.fn_sync_ingredient_expiry();
+
+alter table public.stock_lots enable row level security;
+drop policy if exists "stock_lots tenant access" on public.stock_lots;
+create policy "stock_lots tenant access" on public.stock_lots
+  for all using (private.is_tenant_member(tenant_id))
+  with check (private.is_tenant_member(tenant_id));
+drop policy if exists "stock_lots admin access" on public.stock_lots;
+create policy "stock_lots admin access" on public.stock_lots
+  for all using (private.is_platform_admin()) with check (private.is_platform_admin());
+
 -- Monthly fixed costs (rent, utilities…) → real operating margin on the P&L.
 create table if not exists public.overhead_costs (
   id uuid default uuid_generate_v4() primary key,

@@ -236,22 +236,28 @@ export async function POST(req: NextRequest) {
         }
       }
 
-      // Auto-expiry: for each received ingredient with a shelf life, stamp
-      // expiry = invoice date (delivery) + shelf life. Falls back to today when
-      // the document carried no date.
-      const expiryBase = invoiceHeader?.invoice_date || new Date().toISOString().slice(0, 10);
-      const expiryDone = new Set<string>();
+      // Auto-expiry via lots: each received line with a shelf life becomes a lot
+      // (a delivered batch), expiry = invoice date + shelf life. The stock_lots
+      // trigger keeps ingredients.expiry_date = earliest open lot. Falls back to
+      // today when the document carried no date.
+      const expiryBase = invoiceHeader?.invoice_date || nowIso.slice(0, 10);
+      const lotRows = [];
       for (const l of toReceive) {
-        const ingId = l.ingredient_id as string;
-        if (expiryDone.has(ingId)) continue;
-        const derived = deriveExpiry(expiryBase, preReceipt.get(ingId)?.shelfLife ?? null);
+        const derived = deriveExpiry(expiryBase, preReceipt.get(l.ingredient_id as string)?.shelfLife ?? null);
         if (!derived) continue;
-        const { error: expErr } = await supabase
-          .from("ingredients")
-          .update({ expiry_date: derived, updated_at: nowIso })
-          .eq("id", ingId)
-          .eq("tenant_id", body.tenant_id);
-        if (!expErr) { expiriesSet++; expiryDone.add(ingId); }
+        lotRows.push({
+          tenant_id: body.tenant_id,
+          ingredient_id: l.ingredient_id,
+          qty: Number(l.quantity),
+          expiry_date: derived,
+          received_on: expiryBase,
+          source: "invoice" as const,
+          ref_id: l.id,
+        });
+      }
+      if (lotRows.length > 0) {
+        const { error: lotErr } = await supabase.from("stock_lots").insert(lotRows);
+        if (!lotErr) expiriesSet = lotRows.length;
       }
     }
   }
