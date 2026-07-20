@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { PieChart as PieIcon, Users, Calculator, Wallet, TrendingUp, Download, AlertTriangle, Settings } from "lucide-react";
+import { PieChart as PieIcon, Users, Calculator, Wallet, TrendingUp, Download, AlertTriangle, Settings, Package } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend } from "recharts";
 import { ChartFrame } from "@/components/ChartFrame";
 import { useLanguage } from "@/lib/contexts/LanguageContext";
@@ -36,8 +36,8 @@ async function loadWindow(
   to: string,
   overheadByMonth: Map<string, number>,
   tz: string,
-): Promise<{ summary: PlSummary; bands: Record<Shift, PlSummary>; byDay: Map<string, number> }> {
-  const [{ data: salesRaw }, { data: recipes }, { data: ings }, { data: labor }] = await Promise.all([
+): Promise<{ summary: PlSummary; bands: Record<Shift, PlSummary>; byDay: Map<string, number>; purchases: number }> {
+  const [{ data: salesRaw }, { data: recipes }, { data: ings }, { data: labor }, { data: invoices }] = await Promise.all([
     supabase
       .from("pos_sales")
       .select("id, business_date, closed_at, channel, gross_total, net_total, fees_total, covers")
@@ -48,6 +48,16 @@ async function loadWindow(
     supabase.from("recipe_items").select("menu_item_id, ingredient_id, qty, waste_pct").eq("tenant_id", tenantId),
     supabase.from("ingredients").select("id, current_unit_cost").eq("tenant_id", tenantId),
     supabase.from("labor_cost").select("work_date, shift, cost").eq("tenant_id", tenantId).gte("work_date", from).lte("work_date", to),
+    // Real goods purchased: confirmed supplier invoices dated inside the window
+    // (ex-VAT net, falling back to gross). This is actual cash-out for merchandise,
+    // shown alongside the theoretical food cost — it never feeds the margin.
+    supabase
+      .from("supplier_invoices")
+      .select("net_total, gross_total")
+      .eq("tenant_id", tenantId)
+      .eq("status", "confirmed")
+      .gte("invoice_date", from)
+      .lte("invoice_date", to),
   ]);
 
   const sales: SaleRow[] = (salesRaw || []).map((s: any) => ({
@@ -101,7 +111,10 @@ async function loadWindow(
   const bands = plByBand(sales, foodCost, laborByShift, tz);
   const byDay = new Map<string, number>();
   for (const s of sales) byDay.set(s.businessDate, (byDay.get(s.businessDate) || 0) + (s.netTotal ?? s.grossTotal));
-  return { summary, bands, byDay };
+  const purchases = Math.round(
+    (invoices || []).reduce((s: number, i: any) => s + Number(i.net_total ?? i.gross_total ?? 0), 0) * 100,
+  ) / 100;
+  return { summary, bands, byDay, purchases };
 }
 
 export default function PlPage() {
@@ -118,6 +131,7 @@ export default function PlPage() {
   const [prev, setPrev] = useState<PlSummary | null>(null);
   const [bands, setBands] = useState<Record<Shift, PlSummary> | null>(null);
   const [byDay, setByDay] = useState<Array<{ day: string; revenue: number; cost: number }>>([]);
+  const [purchases, setPurchases] = useState(0);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -151,6 +165,7 @@ export default function PlPage() {
       setSummary(cur.summary);
       setPrev(pre.summary);
       setBands(cur.bands);
+      setPurchases(cur.purchases);
 
       const totalRev = cur.summary.revenue;
       const totalCost = cur.summary.foodCost + cur.summary.labor + cur.summary.overhead;
@@ -490,6 +505,41 @@ export default function PlPage() {
               })}
             </div>
           </div>
+
+          {/* ── Goods purchased (real invoices) vs theoretical food cost ─────── */}
+          {purchases > 0 && summary && (() => {
+            const variance = Math.round((purchases - summary.foodCost) * 100) / 100;
+            const overBuy = variance > 0;
+            return (
+              <div className={`${CARD} p-4 sm:p-5`} style={CARD_STYLE}>
+                <div className="flex items-center gap-2 mb-3">
+                  <div className="p-2 rounded-lg shrink-0" style={{ background: "rgba(196,149,106,0.12)", color: "#8b6540" }}>
+                    <Package className="w-4 h-4" />
+                  </div>
+                  <span className="text-sm font-bold text-black">{t("pl_purchases_title" as keyof Dictionary) || "Merce acquistata (fatture)"}</span>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div className="rounded-xl border p-3" style={{ borderColor: "#f0e5d4", background: "rgba(196,149,106,0.05)" }}>
+                    <div className="text-xs" style={{ color: "#8b6540" }}>{t("pl_purchases_label" as keyof Dictionary) || "Acquisti nel periodo"}</div>
+                    <div className="mt-1 text-2xl font-bold text-black tabular-nums">{fmt(purchases)}</div>
+                  </div>
+                  <div className="rounded-xl border p-3" style={{ borderColor: "#f0e5d4" }}>
+                    <div className="text-xs" style={{ color: "#8b6540" }}>{t("pl_foodcost_theoretical" as keyof Dictionary) || "Food cost teorico (venduto)"}</div>
+                    <div className="mt-1 text-2xl font-bold text-black tabular-nums">{fmt(summary.foodCost)}</div>
+                  </div>
+                  <div className="rounded-xl border p-3" style={{ borderColor: "#f0e5d4" }}>
+                    <div className="text-xs" style={{ color: "#8b6540" }}>{t("pl_variance_label" as keyof Dictionary) || "Scostamento"}</div>
+                    <div className="mt-1 text-2xl font-bold tabular-nums" style={{ color: overBuy ? "#b45309" : "#059669" }}>
+                      {variance < 0 ? `− € ${Math.abs(variance).toLocaleString("it-IT", { maximumFractionDigits: 0 })}` : `+ € ${variance.toLocaleString("it-IT", { maximumFractionDigits: 0 })}`}
+                    </div>
+                  </div>
+                </div>
+                <p className="mt-3 text-xs leading-relaxed" style={{ color: "#8b6540" }}>
+                  {t("pl_purchases_hint" as keyof Dictionary) || "Fatture fornitore confermate con data in questo periodo. Il margine qui sopra usa comunque il food cost teorico."}
+                </p>
+              </div>
+            );
+          })()}
 
           {/* Per-cover tiles */}
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">

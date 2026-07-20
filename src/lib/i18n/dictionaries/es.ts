@@ -1609,6 +1609,8 @@ export const es: Dictionary = {
   inventory_col_cost: "Coste",
   inventory_col_supplier: "Proveedor",
   inventory_col_expiry: "Caducidad",
+  inventory_shelf_life: "Caducidad (días)",
+  inventory_shelf_life_hint: "Configúralo una vez: la fecha de caducidad se calcula sola en cada entrada de mercancía.",
   inventory_empty: "Sin ingredientes.",
   inventory_low_badge: "bajo",
   inventory_expiring_badge: "por caducar",
@@ -2066,6 +2068,11 @@ export const es: Dictionary = {
 
   // Cuenta de resultados (restyle)
   pl_subtitle_v2: "Calculado automáticamente con caja, recetas y costes. Comparado con el periodo anterior.",
+  pl_purchases_title: "Mercancía comprada (facturas)",
+  pl_purchases_label: "Compras del periodo",
+  pl_foodcost_theoretical: "Food cost teórico (vendido)",
+  pl_variance_label: "Desviación",
+  pl_purchases_hint: "Facturas de proveedor confirmadas con fecha en este periodo. El margen de arriba sigue usando el food cost teórico (recetas × ventas); aquí ves lo que compraste de verdad frente a lo que deberían haber consumido los platos vendidos — la diferencia es stock acumulado, mermas o exceso de compra.",
   pl_avg_ticket_short: "por comensal",
   pl_margin_hint: "lo que queda tras comida, personal, comisiones y fijos",
   pl_labor_over: "Coste de personal € {n} por encima del presupuesto mensual de € {b}.",

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { authorizeTenant } from "@/lib/pos/write-back";
 import { createServiceRoleClient } from "@/lib/supabase/server";
 import { assertManagement } from "@/lib/billing/guard";
+import { deriveExpiry } from "@/lib/inventory/expiry";
 
 // Record a stock movement (the audited write path for inventory). The trigger
 // trg_apply_stock_movement keeps ingredients.stock_qty in sync, so we only INSERT
@@ -44,7 +45,7 @@ export async function POST(req: Request) {
   const svc = createServiceRoleClient();
   const { data: ing } = await svc
     .from("ingredients")
-    .select("id, tenant_id, stock_qty, current_unit_cost")
+    .select("id, tenant_id, stock_qty, current_unit_cost, shelf_life_days")
     .eq("id", ingredientId)
     .maybeSingle();
   if (!ing) return NextResponse.json({ error: "ingredient_not_found" }, { status: 404 });
@@ -95,5 +96,17 @@ export async function POST(req: Request) {
   });
   if (movErr) return NextResponse.json({ error: movErr.message }, { status: 500 });
 
-  return NextResponse.json({ ok: true, kind, qty_delta: qtyDelta, new_unit_cost: newUnitCost });
+  // Auto-expiry: fresh goods in → push the expiry to (today + shelf life) when the
+  // ingredient carries a shelf life. Single per-ingredient date, so a receipt always
+  // sets the freshest batch's expiry (best we can do without per-lot tracking).
+  let newExpiry: string | undefined;
+  if (kind === "receipt") {
+    const derived = deriveExpiry(new Date(), ing.shelf_life_days);
+    if (derived) {
+      newExpiry = derived;
+      await svc.from("ingredients").update({ expiry_date: newExpiry, updated_at: new Date().toISOString() }).eq("id", ingredientId);
+    }
+  }
+
+  return NextResponse.json({ ok: true, kind, qty_delta: qtyDelta, new_unit_cost: newUnitCost, expiry_date: newExpiry });
 }

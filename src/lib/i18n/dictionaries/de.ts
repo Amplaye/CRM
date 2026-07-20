@@ -1609,6 +1609,8 @@ export const de: Dictionary = {
   inventory_col_cost: "Kosten",
   inventory_col_supplier: "Lieferant",
   inventory_col_expiry: "Ablauf",
+  inventory_shelf_life: "Haltbarkeit (Tage)",
+  inventory_shelf_life_hint: "Einmal einstellen: Das Ablaufdatum wird bei jedem Wareneingang automatisch berechnet.",
   inventory_empty: "Keine Zutaten.",
   inventory_low_badge: "niedrig",
   inventory_expiring_badge: "läuft ab",
@@ -2066,6 +2068,11 @@ export const de: Dictionary = {
 
   // GuV (Restyle)
   pl_subtitle_v2: "Automatisch berechnet aus Kasse, Rezepten und Kosten. Vergleich mit der Vorperiode.",
+  pl_purchases_title: "Eingekaufte Ware (Rechnungen)",
+  pl_purchases_label: "Einkäufe im Zeitraum",
+  pl_foodcost_theoretical: "Theoretischer Wareneinsatz (verkauft)",
+  pl_variance_label: "Abweichung",
+  pl_purchases_hint: "Bestätigte Lieferantenrechnungen mit Datum in diesem Zeitraum. Die Marge oben nutzt weiterhin den theoretischen Wareneinsatz (Rezepte × Verkäufe); hier siehst du, was du tatsächlich eingekauft hast, gegenüber dem, was die verkauften Gerichte verbraucht haben sollten — die Differenz ist Lageraufbau, Verderb oder Überbestellung.",
   pl_avg_ticket_short: "pro Gedeck",
   pl_margin_hint: "was nach Food, Personal, Gebühren und Fixkosten übrig bleibt",
   pl_labor_over: "Personalkosten € {n} über dem Monatsbudget von € {b}.",

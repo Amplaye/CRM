@@ -1609,6 +1609,8 @@ export const it: Dictionary = {
   inventory_col_cost: "Costo",
   inventory_col_supplier: "Fornitore",
   inventory_col_expiry: "Scadenza",
+  inventory_shelf_life: "Durata (giorni)",
+  inventory_shelf_life_hint: "Impostala una volta: la scadenza si calcola da sola a ogni carico merce.",
   inventory_empty: "Nessun ingrediente.",
   inventory_low_badge: "bassa",
   inventory_expiring_badge: "in scadenza",
@@ -2066,6 +2068,11 @@ export const it: Dictionary = {
 
   // Conto economico (restyle)
   pl_subtitle_v2: "Calcolato in automatico da cassa, ricette e costi. Confronto con il periodo precedente.",
+  pl_purchases_title: "Merce acquistata (fatture)",
+  pl_purchases_label: "Acquisti nel periodo",
+  pl_foodcost_theoretical: "Food cost teorico (venduto)",
+  pl_variance_label: "Scostamento",
+  pl_purchases_hint: "Fatture fornitore confermate con data in questo periodo. Il margine qui sopra usa comunque il food cost teorico (ricette × venduto); qui vedi quanto hai comprato davvero rispetto a quanto avrebbero consumato i piatti venduti — la differenza è scorta accumulata, sprechi o troppa merce.",
   pl_avg_ticket_short: "a coperto",
   pl_margin_hint: "quello che resta dopo food, personale, commissioni e fissi",
   pl_labor_over: "Costo del personale € {n} oltre il budget mensile di € {b}.",

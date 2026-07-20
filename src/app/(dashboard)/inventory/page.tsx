@@ -49,6 +49,8 @@ interface IngredientRow {
   par_level: number;
   supplier_name: string | null;
   expiry_date: string | null;
+  /** Days the product keeps once received. Set once → expiry auto-fills on every goods-in. */
+  shelf_life_days: number | null;
   pos_external_product_id: string | null;
   /** EAN/UPC on the package — what the phone camera scans to find this product. */
   barcode: string | null;
@@ -139,7 +141,7 @@ export default function InventoryPage() {
     const [{ data }, { data: mv }] = await Promise.all([
       supabase
         .from("ingredients")
-        .select("id, name, unit, current_unit_cost, stock_qty, par_level, supplier_name, expiry_date, pos_external_product_id, barcode")
+        .select("id, name, unit, current_unit_cost, stock_qty, par_level, supplier_name, expiry_date, shelf_life_days, pos_external_product_id, barcode")
         .eq("tenant_id", activeTenant.id)
         .eq("archived", false)
         .order("name"),
@@ -944,7 +946,26 @@ const IngredientCard = memo(function IngredientCard({
             </label>
             <label className="flex flex-col gap-1">
               <span className="text-xs font-bold text-black">{t("inventory_col_expiry")}</span>
-              <input type="date" defaultValue={r.expiry_date || ""} onBlur={(e) => { const v = e.target.value || null; if (v !== r.expiry_date) onPatch(r.id, { expiry_date: v }); }} className={inputCls} style={inputStyle} />
+              <input key={r.expiry_date || "none"} type="date" defaultValue={r.expiry_date || ""} onBlur={(e) => { const v = e.target.value || null; if (v !== r.expiry_date) onPatch(r.id, { expiry_date: v }); }} className={inputCls} style={inputStyle} />
+            </label>
+            <label className="flex flex-col gap-1">
+              <span className="text-xs font-bold text-black">{t("inventory_shelf_life")}</span>
+              <input
+                type="number"
+                min="0"
+                step="1"
+                inputMode="numeric"
+                placeholder="—"
+                defaultValue={r.shelf_life_days ?? ""}
+                onBlur={(e) => {
+                  const raw = e.target.value.trim();
+                  const v = raw === "" ? null : Math.max(0, Math.round(Number(raw)));
+                  if ((v ?? null) !== (r.shelf_life_days ?? null) && (raw === "" || Number.isFinite(v))) onPatch(r.id, { shelf_life_days: v });
+                }}
+                className={inputCls}
+                style={inputStyle}
+              />
+              <span className="text-[11px]" style={{ color: "#8b6540" }}>{t("inventory_shelf_life_hint")}</span>
             </label>
             {/* Barcode: type it, or scan the package once and every later scan
                 jumps straight to this product. */}

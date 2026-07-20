@@ -1606,6 +1606,8 @@ export const en = {
   inventory_col_cost: "Cost",
   inventory_col_supplier: "Supplier",
   inventory_col_expiry: "Expiry",
+  inventory_shelf_life: "Shelf life (days)",
+  inventory_shelf_life_hint: "Set it once and the expiry date fills in automatically at every goods-in.",
   inventory_empty: "No ingredients.",
   inventory_low_badge: "low",
   inventory_expiring_badge: "expiring",
@@ -2063,6 +2065,11 @@ export const en = {
 
   // P&L (restyle)
   pl_subtitle_v2: "Computed automatically from till, recipes and costs. Compared with the previous period.",
+  pl_purchases_title: "Goods purchased (invoices)",
+  pl_purchases_label: "Purchases in the period",
+  pl_foodcost_theoretical: "Theoretical food cost (sold)",
+  pl_variance_label: "Variance",
+  pl_purchases_hint: "Confirmed supplier invoices dated in this period. The operating margin above still uses the theoretical food cost (recipes × sales); here you see what you actually bought versus what the sold dishes should have consumed — the gap is stock build-up, waste or over-buying.",
   pl_avg_ticket_short: "per cover",
   pl_margin_hint: "what's left after food, staff, fees and fixed costs",
   pl_labor_over: "Staff cost € {n} is over the monthly budget of € {b}.",

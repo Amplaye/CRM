@@ -1,12 +1,20 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { assertManagement } from "@/lib/billing/guard";
+import { deriveExpiry } from "@/lib/inventory/expiry";
 
 // Confirm a parsed supplier invoice. The owner may have edited line values and
 // mapped lines to ingredients. For every line that carries an ingredient_id we
 // INSERT a row into ingredient_cost_history with the line's unit price — the DB
 // trigger (fn_apply_ingredient_cost) then updates ingredients.current_unit_cost
 // (last-price-wins). The invoice flips to status 'confirmed'.
+//
+// When receive_stock is on, goods also land in the warehouse as 'receipt'
+// movements, and two automations mirror the manual receipt path:
+//   • weighted-average costing — if the tenant's cost_method is 'avg', the new
+//     goods blend into the average instead of overwriting with the last price;
+//   • auto-expiry — ingredients with a shelf_life_days get expiry_date stamped as
+//     (invoice date + shelf life), so the owner never types a date.
 //
 // Auth: signed-in dashboard user; RLS scopes everything to the tenant.
 
@@ -53,7 +61,7 @@ export async function POST(req: NextRequest) {
   // ingredients so the reorder list can group by supplier from day one.
   const { data: invoiceHeader } = await supabase
     .from("supplier_invoices")
-    .select("supplier_name")
+    .select("supplier_name, invoice_date")
     .eq("id", body.invoice_id)
     .eq("tenant_id", body.tenant_id)
     .maybeSingle();
@@ -118,6 +126,35 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Invoice not accessible", details: linesErr.message }, { status: 403 });
   }
 
+  // Lines that will carry stock in: mapped, positive qty, not already received.
+  const toReceive = (lines || []).filter(
+    (l) => l.ingredient_id && l.quantity != null && Number(l.quantity) > 0 && !l.received_at,
+  );
+
+  // Costing method + per-ingredient snapshots taken BEFORE we touch stock/cost.
+  // 'avg' needs pre-receipt stock+cost to blend the new goods into the average
+  // (mirrors the manual receipt path); shelf_life_days drives auto-expiry. Both
+  // only matter when goods are actually received.
+  let costMethod = "last";
+  const preReceipt = new Map<string, { stock: number; cost: number; shelfLife: number | null }>();
+  if (body.receive_stock && toReceive.length > 0) {
+    const { data: tenant } = await supabase.from("tenants").select("settings").eq("id", body.tenant_id).maybeSingle();
+    costMethod = (tenant?.settings as any)?.management?.cost_method === "avg" ? "avg" : "last";
+    const recvIds = [...new Set(toReceive.map((l) => l.ingredient_id as string))];
+    const { data: snaps } = await supabase
+      .from("ingredients")
+      .select("id, stock_qty, current_unit_cost, shelf_life_days")
+      .in("id", recvIds)
+      .eq("tenant_id", body.tenant_id);
+    for (const s of snaps || []) {
+      preReceipt.set(s.id, {
+        stock: Number(s.stock_qty),
+        cost: Number(s.current_unit_cost),
+        shelfLife: s.shelf_life_days == null ? null : Number(s.shelf_life_days),
+      });
+    }
+  }
+
   const costRows = (lines || [])
     .filter((l) => l.ingredient_id && l.unit_price != null)
     .map((l) => ({
@@ -130,7 +167,7 @@ export async function POST(req: NextRequest) {
 
   let costsApplied = 0;
   if (costRows.length > 0) {
-    // The AFTER INSERT trigger updates ingredients.current_unit_cost per row.
+    // The AFTER INSERT trigger updates ingredients.current_unit_cost per row (last-price).
     const { error: histErr } = await supabase.from("ingredient_cost_history").insert(costRows);
     if (histErr) {
       return NextResponse.json({ error: "Failed to apply costs", details: histErr.message }, { status: 500 });
@@ -143,29 +180,74 @@ export async function POST(req: NextRequest) {
   // tops up ingredients.stock_qty) and stamp received_at so a re-confirm can't
   // double-receive the same line.
   let stockReceived = 0;
-  if (body.receive_stock) {
-    const toReceive = (lines || []).filter(
-      (l) => l.ingredient_id && l.quantity != null && Number(l.quantity) > 0 && !l.received_at,
-    );
-    if (toReceive.length > 0) {
-      const nowIso = new Date().toISOString();
-      const movements = toReceive.map((l) => ({
-        tenant_id: body.tenant_id,
-        ingredient_id: l.ingredient_id,
-        qty_delta: Number(l.quantity),
-        kind: "receipt" as const,
-        reason: "invoice",
-        unit_cost: l.unit_price ?? null,
-        ref_id: l.id,
-      }));
-      const { error: movErr } = await supabase.from("stock_movements").insert(movements);
-      if (!movErr) {
-        await supabase
-          .from("supplier_invoice_items")
-          .update({ received_at: nowIso })
-          .in("id", toReceive.map((l) => l.id))
+  let expiriesSet = 0;
+  let costsAveraged = 0;
+  if (body.receive_stock && toReceive.length > 0) {
+    const nowIso = new Date().toISOString();
+    const movements = toReceive.map((l) => ({
+      tenant_id: body.tenant_id,
+      ingredient_id: l.ingredient_id,
+      qty_delta: Number(l.quantity),
+      kind: "receipt" as const,
+      reason: "invoice",
+      unit_cost: l.unit_price ?? null,
+      ref_id: l.id,
+    }));
+    const { error: movErr } = await supabase.from("stock_movements").insert(movements);
+    if (!movErr) {
+      await supabase
+        .from("supplier_invoice_items")
+        .update({ received_at: nowIso })
+        .in("id", toReceive.map((l) => l.id))
+        .eq("tenant_id", body.tenant_id);
+      stockReceived = toReceive.length;
+
+      // Weighted-average costing on the invoice path (only when the tenant asked
+      // for it): blend pre-receipt stock@cost with the incoming qty@price. Unpriced
+      // received qty is left out of both sides so it can't skew the average.
+      if (costMethod === "avg") {
+        const incoming = new Map<string, { qty: number; value: number }>();
+        for (const l of toReceive) {
+          if (l.unit_price == null) continue;
+          const price = Number(l.unit_price);
+          if (!Number.isFinite(price)) continue;
+          const qty = Number(l.quantity);
+          const cur = incoming.get(l.ingredient_id as string) || { qty: 0, value: 0 };
+          cur.qty += qty;
+          cur.value += qty * price;
+          incoming.set(l.ingredient_id as string, cur);
+        }
+        for (const [ingId, inc] of incoming) {
+          const snap = preReceipt.get(ingId);
+          if (!snap || inc.qty <= 0) continue;
+          const denom = snap.stock + inc.qty;
+          if (denom <= 0) continue;
+          const weighted = Math.round(((snap.stock * snap.cost + inc.value) / denom) * 10000) / 10000;
+          const { error: avgErr } = await supabase
+            .from("ingredients")
+            .update({ current_unit_cost: weighted, updated_at: nowIso })
+            .eq("id", ingId)
+            .eq("tenant_id", body.tenant_id);
+          if (!avgErr) costsAveraged++;
+        }
+      }
+
+      // Auto-expiry: for each received ingredient with a shelf life, stamp
+      // expiry = invoice date (delivery) + shelf life. Falls back to today when
+      // the document carried no date.
+      const expiryBase = invoiceHeader?.invoice_date || new Date().toISOString().slice(0, 10);
+      const expiryDone = new Set<string>();
+      for (const l of toReceive) {
+        const ingId = l.ingredient_id as string;
+        if (expiryDone.has(ingId)) continue;
+        const derived = deriveExpiry(expiryBase, preReceipt.get(ingId)?.shelfLife ?? null);
+        if (!derived) continue;
+        const { error: expErr } = await supabase
+          .from("ingredients")
+          .update({ expiry_date: derived, updated_at: nowIso })
+          .eq("id", ingId)
           .eq("tenant_id", body.tenant_id);
-        stockReceived = toReceive.length;
+        if (!expErr) { expiriesSet++; expiryDone.add(ingId); }
       }
     }
   }
@@ -184,5 +266,7 @@ export async function POST(req: NextRequest) {
     costs_applied: costsApplied,
     stock_received: stockReceived,
     ingredients_created: ingredientsCreated,
+    costs_averaged: costsAveraged,
+    expiries_set: expiriesSet,
   });
 }
