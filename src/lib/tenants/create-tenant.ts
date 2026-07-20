@@ -1,6 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { TenantStatus } from "./status";
-import { complianceSettingsForPhone } from "@/lib/compliance/detect-country";
+import { complianceSettingsForCountry, complianceSettingsForPhone } from "@/lib/compliance/detect-country";
 
 /**
  * Single way to create a tenant row.
@@ -35,6 +35,12 @@ export interface CreateTenantInput {
    * An explicit `settings.compliance` always wins over this inference.
    */
   phone?: string | null;
+  /**
+   * Compliance country the owner DECLARED (self-signup dropdown). Wins over the
+   * phone inference: a stated market beats a guessed one. Ignored when it isn't
+   * one of the supported markets, so a stale/garbage value can't assign a regime.
+   */
+  country?: string | null;
 }
 
 // Build a URL-safe slug from a free-text name. Falls back to "resto" when the
@@ -67,7 +73,8 @@ export async function createTenant(
   // don't fall back to timezone or geo-IP).
   const settings = { ...input.settings };
   if (!settings.compliance) {
-    const compliance = complianceSettingsForPhone(input.phone);
+    const compliance =
+      complianceSettingsForCountry(input.country) ?? complianceSettingsForPhone(input.phone);
     if (compliance) settings.compliance = compliance;
   }
 

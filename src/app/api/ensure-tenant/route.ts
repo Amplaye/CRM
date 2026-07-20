@@ -67,6 +67,11 @@ export async function POST(req: Request) {
     const tenant = await createTenant(svc, {
       name: businessName,
       status: "trial",
+      // The country the owner picked at sign-up, stashed on the auth user because
+      // THIS is normally where the tenant is really born (after email
+      // confirmation) — not in register-tenant. Without carrying it here the
+      // dropdown would be silently dropped for most self-signups.
+      country: (user.user_metadata as any)?.country ?? null,
       settings: {
         timezone: "Europe/Rome",
         currency: "EUR",

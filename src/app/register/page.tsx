@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
-import { Loader2, Lock, Mail, User, Building2, CheckCircle, Eye, EyeOff } from "lucide-react";
+import { Loader2, Lock, Mail, User, Building2, CheckCircle, Eye, EyeOff, Globe } from "lucide-react";
 import Link from "next/link";
 import { useLanguage } from "@/lib/contexts/LanguageContext";
 
@@ -12,12 +12,37 @@ import { useLanguage } from "@/lib/contexts/LanguageContext";
 // business_type="restaurant" regardless of what the client sends.)
 const BUSINESS_TYPE = "restaurant";
 
+// The markets we can govern (see lib/compliance/regions). Asked at sign-up so the
+// tenant is born with a data-protection policy instead of waiting for an admin to
+// configure one by hand — which never happened, leaving the retention job inert
+// for every self-signup tenant. Declared beats inferred: assigning a country
+// assigns a legal regime, so we ask rather than guess from timezone or geo-IP.
+const COUNTRIES = [
+  { code: "ES", label: "España" },
+  { code: "IT", label: "Italia" },
+  { code: "DE", label: "Deutschland" },
+  { code: "CH", label: "Schweiz / Suisse" },
+] as const;
+
+// Pre-select from the browser locale when it names one of our markets — a hint the
+// owner can override, never a silent decision (the field stays visible and empty
+// when we can't tell, and "other" is always available).
+function guessCountry(): string {
+  if (typeof navigator === "undefined") return "";
+  for (const loc of navigator.languages || []) {
+    const region = loc.split("-")[1]?.toUpperCase();
+    if (region && COUNTRIES.some((c) => c.code === region)) return region;
+  }
+  return "";
+}
+
 export default function RegisterPage() {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [businessName, setBusinessName] = useState("");
+  const [country, setCountry] = useState<string>(() => guessCountry());
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [step, setStep] = useState(1);
@@ -45,7 +70,7 @@ export default function RegisterPage() {
           // to the email templates as {{ .Data.locale }}, so the confirmation
           // email is rendered in the user's own language. Keep it in sync with
           // the resend path (/api/auth/resend-confirmation).
-          data: { name, business_name: businessName, locale: language },
+          data: { name, business_name: businessName, locale: language, country },
           // New owners land in the self-serve onboarding wizard, not an empty CRM.
           // We also carry the locale on the redirect so the interstitial
           // confirm page and any resend can stay in the same language.
@@ -83,7 +108,8 @@ export default function RegisterPage() {
           body: JSON.stringify({
             userId: signUpData.user.id,
             businessName,
-            businessType: BUSINESS_TYPE
+            businessType: BUSINESS_TYPE,
+            country
           })
         });
         if (!res.ok) {
@@ -165,6 +191,36 @@ export default function RegisterPage() {
                     placeholder={t("auth_business_placeholder")}
                   />
                 </div>
+              </div>
+
+              {/* Country → data-protection regime for this tenant. Optional on
+                  purpose: an owner outside our four markets must be able to sign
+                  up, and an unset country is the safe default (nothing is
+                  deleted until a policy exists). */}
+              <div>
+                <label htmlFor="country" className="block text-sm font-medium text-black">
+                  {t("auth_country")}
+                </label>
+                <div className="mt-1 relative rounded-md shadow-sm">
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                    <Globe className="h-4 w-4 text-black" />
+                  </div>
+                  <select
+                    id="country"
+                    name="country"
+                    autoComplete="country"
+                    value={country}
+                    onChange={(e) => setCountry(e.target.value)}
+                    className="block w-full pl-10 sm:text-sm border-2 p-2.5 rounded-md focus:ring-[#c4956a] focus:border-[#c4956a] appearance-none text-black"
+                    style={{ borderColor: '#c4956a', background: 'rgba(252,246,237,0.6)' }}
+                  >
+                    <option value="">{t("auth_country_other")}</option>
+                    {COUNTRIES.map((c) => (
+                      <option key={c.code} value={c.code}>{c.label}</option>
+                    ))}
+                  </select>
+                </div>
+                <p className="mt-1 text-xs text-black">{t("auth_country_help")}</p>
               </div>
 
               <div>

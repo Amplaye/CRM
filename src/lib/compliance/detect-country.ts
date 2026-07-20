@@ -19,6 +19,9 @@
 
 import type { ComplianceCountry } from "./regions";
 
+/** The markets `REGIONS` supports. Anything else is not a country we can govern. */
+const SUPPORTED = new Set<ComplianceCountry>(["ES", "IT", "DE", "CH"]);
+
 /** Dialling prefix → market. Only the four markets `REGIONS` supports. */
 const PREFIX_TO_COUNTRY: Array<[string, ComplianceCountry]> = [
   ["34", "ES"],
@@ -59,6 +62,30 @@ export function countryFromPhone(phone: string | null | undefined): ComplianceCo
     return country;
   }
   return null;
+}
+
+/**
+ * Validate a country the owner DECLARED (the self-signup dropdown) before it is
+ * allowed to set a legal regime.
+ *
+ * Everything arriving from a form is untrusted: an old client, a tampered body or
+ * a market we've since dropped must NOT be written through to
+ * `settings.compliance`, because a country we don't have a `RegionConfig` for
+ * would make `getComplianceConfig` fall back to the unset defaults while the
+ * tenant *looked* configured. Unknown value → null → tenant stays honestly unset.
+ */
+export function normalizeCountry(value: string | null | undefined): ComplianceCountry | null {
+  if (!value) return null;
+  const upper = value.trim().toUpperCase();
+  return SUPPORTED.has(upper as ComplianceCountry) ? (upper as ComplianceCountry) : null;
+}
+
+/** Same contract as complianceSettingsForPhone, for a declared country. */
+export function complianceSettingsForCountry(
+  value: string | null | undefined,
+): { country: ComplianceCountry } | null {
+  const country = normalizeCountry(value);
+  return country ? { country } : null;
 }
 
 /**

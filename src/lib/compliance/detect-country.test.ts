@@ -1,5 +1,10 @@
 import { describe, it, expect } from "vitest";
-import { countryFromPhone, complianceSettingsForPhone } from "./detect-country";
+import {
+  countryFromPhone,
+  complianceSettingsForPhone,
+  normalizeCountry,
+  complianceSettingsForCountry,
+} from "./detect-country";
 
 // This resolver assigns a LEGAL JURISDICTION, so the tests care as much about
 // what it REFUSES to guess as about what it resolves.
@@ -43,6 +48,40 @@ describe("countryFromPhone", () => {
     expect(countryFromPhone("")).toBeNull();
     expect(countryFromPhone("   ")).toBeNull();
     expect(countryFromPhone("not a phone")).toBeNull();
+  });
+});
+
+// The self-signup dropdown is untrusted form input: a country we can't govern must
+// never reach settings.compliance, or the tenant looks configured while
+// getComplianceConfig silently falls back to the unset defaults.
+describe("normalizeCountry", () => {
+  it("accepts the supported markets, case-insensitively", () => {
+    expect(normalizeCountry("ES")).toBe("ES");
+    expect(normalizeCountry("it")).toBe("IT");
+    expect(normalizeCountry(" de ")).toBe("DE");
+    expect(normalizeCountry("Ch")).toBe("CH");
+  });
+
+  it("rejects markets we have no RegionConfig for", () => {
+    expect(normalizeCountry("FR")).toBeNull();
+    expect(normalizeCountry("US")).toBeNull();
+  });
+
+  it("rejects empty and junk values instead of assigning a regime", () => {
+    expect(normalizeCountry("")).toBeNull();
+    expect(normalizeCountry(null)).toBeNull();
+    expect(normalizeCountry(undefined)).toBeNull();
+    expect(normalizeCountry("../../etc")).toBeNull();
+  });
+});
+
+describe("complianceSettingsForCountry", () => {
+  it("builds the block for a declared market", () => {
+    expect(complianceSettingsForCountry("es")).toEqual({ country: "ES" });
+  });
+
+  it("returns null for an ungoverned market so the tenant stays unset", () => {
+    expect(complianceSettingsForCountry("FR")).toBeNull();
   });
 });
 

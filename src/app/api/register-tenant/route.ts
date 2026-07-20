@@ -12,7 +12,7 @@ export async function POST(req: NextRequest) {
     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     const userId = user.id;
 
-    const { businessName } = await req.json();
+    const { businessName, country } = await req.json();
     if (!businessName) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
     }
@@ -38,6 +38,9 @@ export async function POST(req: NextRequest) {
     const tenant = await createTenant(supabase, {
       name: businessName,
       status: "trial",
+      // Data-protection regime declared at sign-up. createTenant validates it and
+      // leaves the tenant unset for markets we don't govern (never a wrong regime).
+      country: country ?? (user.user_metadata as any)?.country ?? null,
       settings: {
         timezone: "Europe/Rome",
         currency: "EUR",
