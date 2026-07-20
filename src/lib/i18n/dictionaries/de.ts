@@ -1536,6 +1536,9 @@ export const de: Dictionary = {
   settings_pos_sync_ok: "Synchronisiert ({n} aktualisiert)",
   settings_pos_sync_err: "Synchronisierung fehlgeschlagen",
   settings_pos_choose: "Welche Kasse nutzt du?",
+  settings_pos_builtin_title: "BALI Flow Kasse (inklusive)",
+  settings_pos_builtin_desc: "Eine Kasse ist in BALI Flow bereits enthalten: Bestellungen aufnehmen, kassieren und den Tag abschließen – ohne externe Hardware oder Abos. Verbinde unten nur dann eine externe Kasse, wenn du bereits eine nutzt und sie behalten möchtest.",
+  settings_pos_builtin_cta: "Kasse öffnen",
   settings_pos_soon: "bald",
   settings_pos_token: "Zugriffstoken",
   settings_pos_token_ph: "Kassentoken hier einfügen",
@@ -1808,7 +1811,7 @@ export const de: Dictionary = {
   settings_wa_error_generic: "Etwas ist schiefgelaufen. Bitte erneut versuchen oder BALI Flow kontaktieren.",
 
   // Native Kasse (integriertes POS)
-  nav_cassa: "BALI Flow",
+  nav_cassa: "Kasse",
   cassa_error: "Kassenfehler",
   cassa_tab_sala: "Saal",
   cassa_tab_receipts: "Bons",

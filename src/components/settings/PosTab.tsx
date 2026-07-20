@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Plug, CheckCircle2, XCircle, RefreshCw, Loader2, KeyRound, Store } from "lucide-react";
+import Link from "next/link";
+import { Plug, CheckCircle2, XCircle, RefreshCw, Loader2, KeyRound, Store, Banknote } from "lucide-react";
 import { useLanguage } from "@/lib/contexts/LanguageContext";
 import { useTenant } from "@/lib/contexts/TenantContext";
 import { createClient } from "@/lib/supabase/client";
@@ -155,6 +156,27 @@ export function PosTab() {
           </button>
         </div>
       )}
+
+      {/* The till we ship. Shown first so an owner doesn't shop for a third-party
+          POS without realising one is already included. Not a POS_OPTIONS entry:
+          it needs no credentials and isn't a sync source, it's the till itself. */}
+      <div className="rounded-lg border-2 p-4 flex flex-wrap items-start justify-between gap-3" style={{ borderColor: "#c4956a", background: "rgba(196,149,106,0.08)" }}>
+        <div className="flex items-start gap-2">
+          <Banknote className="w-5 h-5 shrink-0 mt-0.5" style={{ color: "#8b6540" }} />
+          <div className="max-w-xl">
+            <div className="font-bold text-black">{t("settings_pos_builtin_title" as keyof Dictionary) || "Cassa BALI Flow (inclusa)"}</div>
+            <p className="mt-1 text-sm text-black">{t("settings_pos_builtin_desc" as keyof Dictionary) || "Hai già una cassa inclusa in BALI Flow."}</p>
+          </div>
+        </div>
+        <Link
+          href="/cassa"
+          className="inline-flex items-center gap-2 px-4 py-2 text-white text-sm font-bold rounded-lg shrink-0"
+          style={{ background: "linear-gradient(135deg, #d4a574, #c4956a)" }}
+        >
+          <Banknote className="w-4 h-4" />
+          {t("settings_pos_builtin_cta" as keyof Dictionary) || "Apri la cassa"}
+        </Link>
+      </div>
 
       {/* Provider picker */}
       <div className="space-y-2">

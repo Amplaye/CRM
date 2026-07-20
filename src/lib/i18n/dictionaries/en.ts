@@ -1533,6 +1533,9 @@ export const en = {
   settings_pos_sync_ok: "Synced ({n} updated)",
   settings_pos_sync_err: "Sync failed",
   settings_pos_choose: "Which till do you use?",
+  settings_pos_builtin_title: "BALI Flow Till (built in)",
+  settings_pos_builtin_desc: "You already have a till included in BALI Flow: take orders, cash up and close the day, no external hardware or subscription needed. Connect an external till below only if you already use one and want to keep it.",
+  settings_pos_builtin_cta: "Open the till",
   settings_pos_soon: "soon",
   settings_pos_token: "Access token",
   settings_pos_token_ph: "Paste your till token here",
@@ -1805,7 +1808,7 @@ export const en = {
   settings_wa_error_generic: "Something went wrong. Please try again or contact BALI Flow.",
 
   // Native cassa (built-in POS)
-  nav_cassa: "BALI Flow",
+  nav_cassa: "Till",
   cassa_error: "Till error",
   cassa_tab_sala: "Room",
   cassa_tab_receipts: "Receipts",

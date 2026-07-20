@@ -1536,6 +1536,9 @@ export const it: Dictionary = {
   settings_pos_sync_ok: "Sincronizzato ({n} aggiornati)",
   settings_pos_sync_err: "Sincronizzazione non riuscita",
   settings_pos_choose: "Quale cassa usi?",
+  settings_pos_builtin_title: "Cassa BALI Flow (inclusa)",
+  settings_pos_builtin_desc: "Hai già una cassa inclusa in BALI Flow: prendi le comande, incassi e chiudi la giornata, senza hardware o abbonamenti esterni. Collega una cassa esterna qui sotto solo se ne usi già una e vuoi tenerla.",
+  settings_pos_builtin_cta: "Apri la cassa",
   settings_pos_soon: "presto",
   settings_pos_token: "Token di accesso",
   settings_pos_token_ph: "Incolla qui il token della cassa",
@@ -1808,7 +1811,7 @@ export const it: Dictionary = {
   settings_wa_error_generic: "Qualcosa è andato storto. Riprova o contatta BALI Flow.",
 
   // Cassa nativa (POS interno)
-  nav_cassa: "BALI Flow",
+  nav_cassa: "Cassa",
   cassa_error: "Errore cassa",
   cassa_tab_sala: "Sala",
   cassa_tab_receipts: "Scontrini",

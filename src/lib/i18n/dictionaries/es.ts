@@ -1536,6 +1536,9 @@ export const es: Dictionary = {
   settings_pos_sync_ok: "Sincronizado ({n} actualizados)",
   settings_pos_sync_err: "Sincronización fallida",
   settings_pos_choose: "¿Qué TPV usas?",
+  settings_pos_builtin_title: "Caja BALI Flow (incluida)",
+  settings_pos_builtin_desc: "Ya tienes una caja incluida en BALI Flow: toma comandas, cobra y cierra el día, sin hardware ni suscripciones externas. Conecta una caja externa abajo solo si ya usas una y quieres mantenerla.",
+  settings_pos_builtin_cta: "Abrir la caja",
   settings_pos_soon: "pronto",
   settings_pos_token: "Token de acceso",
   settings_pos_token_ph: "Pega aquí el token del TPV",
@@ -1808,7 +1811,7 @@ export const es: Dictionary = {
   settings_wa_error_generic: "Algo salió mal. Inténtalo de nuevo o contacta con BALI Flow.",
 
   // Caja nativa (TPV integrado)
-  nav_cassa: "BALI Flow",
+  nav_cassa: "Caja",
   cassa_error: "Error de caja",
   cassa_tab_sala: "Sala",
   cassa_tab_receipts: "Tickets",
