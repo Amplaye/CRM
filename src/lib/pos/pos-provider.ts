@@ -14,6 +14,7 @@ export function getPosProvider(settings: TenantSettings | null | undefined): Pos
   const explicit = settings?.pos?.provider;
   if (
     explicit === "mock" ||
+    explicit === "cassa" ||
     explicit === "cassa_in_cloud" ||
     explicit === "tilby" ||
     explicit === "ipratico" ||
@@ -31,7 +32,11 @@ export interface PosSwitchPlan {
   noop: boolean;
   from: PosProvider;
   to: PosProvider;
-  /** Real tills need stored credentials before they can sync; 'mock' never does. */
+  /**
+   * External tills need stored credentials before they can sync. 'mock' never
+   * does, and neither does 'cassa' — the built-in till writes its own sales, it
+   * is not something we authenticate against.
+   */
   needsCredentials: boolean;
 }
 
@@ -45,7 +50,7 @@ export function resolvePosProvider(
     noop: from === target,
     from,
     to: target,
-    needsCredentials: target !== "mock",
+    needsCredentials: target !== "mock" && target !== "cassa",
   };
 }
 

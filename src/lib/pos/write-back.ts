@@ -13,13 +13,26 @@ import { getPosProvider } from "@/lib/pos/pos-provider";
 import { verifyTenantMembership } from "@/lib/tenant-membership";
 import type { PosAdapter, PosProvider } from "@/lib/pos/types";
 
-export interface TillTarget {
+export type TillCtx = { tenantId: string; credentials: Record<string, unknown>; config: Record<string, unknown> };
+
+/** A till we can actually push to: adapter and context are both present. */
+export interface ConnectedTill {
   provider: PosProvider;
   adapter: PosAdapter;
-  /** Adapter context (decrypted credentials + connection config). null when this
-   * tenant has no active real connection — the caller reports "not connected". */
-  ctx: { tenantId: string; credentials: Record<string, unknown>; config: Record<string, unknown> } | null;
+  ctx: TillCtx;
 }
+
+/** Nothing to push to — no active connection, 'mock', or the built-in till
+ * (which has no adapter at all). Callers report "not connected". */
+export interface UnconnectedTill {
+  provider: PosProvider;
+  adapter: PosAdapter | null;
+  ctx: null;
+}
+
+/** Discriminated on `ctx`, so the existing `if (!till.ctx) …` guards narrow
+ * `adapter` to non-null for free — no non-null assertions at the call sites. */
+export type TillTarget = ConnectedTill | UnconnectedTill;
 
 /** Resolve the calling user and assert they may act on `tenantId` — a member OR a
  * platform admin (who can manage any client, incl. while impersonating from the
@@ -51,6 +64,10 @@ export async function resolveTill(
 ): Promise<TillTarget> {
   const { data: tenant } = await svc.from("tenants").select("settings").eq("id", tenantId).maybeSingle();
   const provider = getPosProvider(tenant?.settings);
+  // The built-in till has no adapter and nothing to push to: it reads the CRM's
+  // own menu directly, so a price edit is already live the moment it is saved.
+  // Return before getAdapter(), which throws on any provider without one.
+  if (provider === "cassa") return { provider, adapter: null, ctx: null };
   const adapter = getAdapter(provider);
   if (provider === "mock") return { provider, adapter, ctx: null };
 

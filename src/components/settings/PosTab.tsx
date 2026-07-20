@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { Plug, CheckCircle2, XCircle, RefreshCw, Loader2, KeyRound, Store, Banknote } from "lucide-react";
+import { Plug, CheckCircle2, XCircle, RefreshCw, Loader2, KeyRound, Store, Banknote, ArrowRightLeft } from "lucide-react";
 import { useLanguage } from "@/lib/contexts/LanguageContext";
 import { useTenant } from "@/lib/contexts/TenantContext";
 import { createClient } from "@/lib/supabase/client";
@@ -33,7 +33,7 @@ interface ConnRow {
   last_error: string | null;
 }
 
-type Phase = "idle" | "testing" | "saving" | "syncing";
+type Phase = "idle" | "testing" | "saving" | "syncing" | "switching";
 
 export function PosTab() {
   const { t } = useLanguage();
@@ -47,6 +47,11 @@ export function PosTab() {
   const [phase, setPhase] = useState<Phase>("idle");
   const [result, setResult] = useState<{ ok: boolean; msg: string } | null>(null);
   const [conn, setConn] = useState<ConnRow | null>(null);
+  const [confirmSwitch, setConfirmSwitch] = useState(false);
+
+  // On the built-in till when settings say so, or when no external till is
+  // connected at all. Either way there is nothing to switch away from.
+  const onBuiltIn = activeProvider === "cassa" || !conn;
 
   // Load the existing connection row (status + last sync) for this tenant.
   const loadConn = async () => {
@@ -69,10 +74,12 @@ export function PosTab() {
   const selected = POS_OPTIONS.find((o) => o.id === choice);
   const isLive = !!selected?.live;
 
-  async function call(action: "test" | "save" | "sync") {
+  async function call(action: "test" | "save" | "sync" | "switch") {
     if (!tenant?.id) return;
     setResult(null);
-    setPhase(action === "test" ? "testing" : action === "save" ? "saving" : "syncing");
+    setPhase(
+      action === "test" ? "testing" : action === "save" ? "saving" : action === "switch" ? "switching" : "syncing",
+    );
     try {
       const res = await fetch("/api/pos/connect", {
         method: "POST",
@@ -80,11 +87,26 @@ export function PosTab() {
         body: JSON.stringify({
           tenant_id: tenant.id,
           action,
-          ...(action !== "sync" ? { provider: choice, token: token.trim(), store_id: storeId.trim() || undefined } : {}),
+          ...(action === "test" || action === "save"
+            ? { provider: choice, token: token.trim(), store_id: storeId.trim() || undefined }
+            : {}),
         }),
       });
       const data = await res.json();
-      if (action === "sync") {
+      if (action === "switch") {
+        setResult({
+          ok: !!data?.ok,
+          msg: data?.ok
+            ? t("settings_pos_switch_ok" as keyof Dictionary) ||
+              "Fatto: ora incassi con la cassa BALI Flow. Lo storico della cassa precedente resta nei report."
+            : data?.error || (t("settings_pos_switch_err" as keyof Dictionary) || "Passaggio non riuscito"),
+        });
+        if (data?.ok) {
+          setConfirmSwitch(false);
+          await refreshActiveTenant();
+          await loadConn();
+        }
+      } else if (action === "sync") {
         const r = data?.result;
         setResult({
           ok: !!data?.ok,
@@ -178,6 +200,63 @@ export function PosTab() {
         </Link>
       </div>
 
+      {/* Switch-over. Only offered while an external till is still connected —
+          the two must never run together (double revenue, double stock). */}
+      {!onBuiltIn && (
+        <div className="rounded-lg border-2 p-4 space-y-3" style={{ borderColor: "#c4956a", background: "rgba(252,246,237,0.6)" }}>
+          <div className="flex items-start gap-2">
+            <ArrowRightLeft className="w-5 h-5 shrink-0 mt-0.5" style={{ color: "#8b6540" }} />
+            <div>
+              <div className="font-bold text-black">
+                {t("settings_pos_switch_title" as keyof Dictionary) || "Passa alla cassa BALI Flow"}
+              </div>
+              <p className="mt-1 text-sm text-black">
+                {t("settings_pos_switch_desc" as keyof Dictionary) ||
+                  "Disattiva la cassa esterna e inizia a incassare da qui. Lo storico delle vendite precedenti resta salvato e continua a comparire in Conto Economico e Food Cost: non si perde nulla."}
+              </p>
+            </div>
+          </div>
+
+          {!confirmSwitch ? (
+            <button
+              onClick={() => setConfirmSwitch(true)}
+              disabled={busy}
+              className="inline-flex items-center gap-2 px-4 py-2 text-sm font-bold rounded-lg border-2 disabled:opacity-40 cursor-pointer disabled:cursor-not-allowed"
+              style={{ borderColor: "#c4956a", color: "#8b6540" }}
+            >
+              <ArrowRightLeft className="w-4 h-4" />
+              {t("settings_pos_switch_cta" as keyof Dictionary) || "Passa alla cassa BALI Flow"}
+            </button>
+          ) : (
+            <div className="rounded-lg p-3 space-y-3" style={{ background: "rgba(196,149,106,0.12)" }}>
+              <p className="text-sm font-bold text-black">
+                {t("settings_pos_switch_confirm" as keyof Dictionary) ||
+                  "Da questo momento la cassa esterna smette di sincronizzare e incassi solo da BALI Flow. Fallo a servizio chiuso, quando non ci sono conti aperti. Procedo?"}
+              </p>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  onClick={() => call("switch")}
+                  disabled={busy}
+                  className="inline-flex items-center gap-2 px-4 py-2 text-white text-sm font-bold rounded-lg disabled:opacity-40 cursor-pointer disabled:cursor-not-allowed"
+                  style={{ background: "linear-gradient(135deg, #d4a574, #c4956a)" }}
+                >
+                  {phase === "switching" ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
+                  {t("settings_pos_switch_yes" as keyof Dictionary) || "Sì, passa a BALI Flow"}
+                </button>
+                <button
+                  onClick={() => setConfirmSwitch(false)}
+                  disabled={busy}
+                  className="px-4 py-2 text-sm font-bold rounded-lg border-2 text-black disabled:opacity-40 cursor-pointer disabled:cursor-not-allowed"
+                  style={{ borderColor: "#eaddcb" }}
+                >
+                  {t("settings_pos_switch_no" as keyof Dictionary) || "Annulla"}
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Provider picker */}
       <div className="space-y-2">
         <span className="text-sm font-bold text-black">{t("settings_pos_choose" as keyof Dictionary) || "Quale cassa usi?"}</span>
@@ -239,6 +318,13 @@ export function PosTab() {
               <span>{result.msg}</span>
             </div>
           )}
+        </div>
+      ) : result && phase === "idle" ? (
+        // The external form is hidden (built-in till, or a not-yet-live brand),
+        // so the switch outcome needs its own place to land.
+        <div className={`flex items-start gap-2 text-sm rounded-lg p-3 ${result.ok ? "text-emerald-700" : "text-red-600"}`} style={{ background: result.ok ? "rgba(16,185,129,0.08)" : "rgba(220,38,38,0.06)" }}>
+          {result.ok ? <CheckCircle2 className="w-4 h-4 mt-0.5 shrink-0" /> : <XCircle className="w-4 h-4 mt-0.5 shrink-0" />}
+          <span>{result.msg}</span>
         </div>
       ) : (
         <div className="rounded-lg border-2 p-4 text-sm text-black" style={{ borderColor: "#eaddcb", background: "rgba(252,246,237,0.4)" }}>

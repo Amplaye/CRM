@@ -191,7 +191,7 @@ export interface TenantSettings {
    * active `provider` stays `mock` (its real adapter isn't shipped yet), so we know
    * which adapter to wire up when its API access arrives. */
   pos?: {
-    provider?: "mock" | "cassa_in_cloud" | "tilby" | "ipratico" | "nempos" | "deliverect" | "loyverse";
+    provider?: "mock" | "cassa" | "cassa_in_cloud" | "tilby" | "ipratico" | "nempos" | "deliverect" | "loyverse";
     declared?: "none" | "cassa_in_cloud" | "tilby" | "ipratico" | "nempos" | "deliverect" | "loyverse";
   };
   /** Native cassa (built-in POS) preferences. `cover_charge` is the coperto per

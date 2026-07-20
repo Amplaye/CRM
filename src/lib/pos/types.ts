@@ -6,8 +6,14 @@
 // a row. Add a real till tomorrow = add an adapter with the same contract, zero
 // downstream changes. Mirrors the single-resolution-point idiom of voice-provider.ts.
 
+// "cassa" is the till we ship (/cassa). It is not an external integration and has
+// no adapter: fn_cassa_pay_atomic already stamps pos_sales.provider='cassa'
+// directly. It exists here so a tenant that has switched to the built-in till is
+// representable — before, settings.pos.provider="cassa" silently resolved to
+// "mock" and the app behaved as if no till had been chosen at all.
 export type PosProvider =
   | "mock"
+  | "cassa"
   | "cassa_in_cloud"
   | "tilby"
   | "ipratico"

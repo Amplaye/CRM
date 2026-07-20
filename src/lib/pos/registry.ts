@@ -12,7 +12,10 @@ import { nemposAdapter } from "@/lib/pos/adapters/nempos";
 import { deliverectAdapter } from "@/lib/pos/adapters/deliverect";
 import { loyverseAdapter } from "@/lib/pos/adapters/loyverse";
 
-const ADAPTERS: Record<PosProvider, PosAdapter> = {
+// "cassa" is intentionally absent: the built-in till is not an integration we
+// talk to over a wire, it writes its own sales. Callers must branch on it before
+// asking for an adapter (see resolveTill), and getAdapter throws if they don't.
+const ADAPTERS: Record<Exclude<PosProvider, "cassa">, PosAdapter> = {
   mock: mockAdapter,
   cassa_in_cloud: cassaInCloudAdapter,
   tilby: tilbyAdapter,
@@ -23,6 +26,9 @@ const ADAPTERS: Record<PosProvider, PosAdapter> = {
 };
 
 export function getAdapter(provider: PosProvider): PosAdapter {
+  if (provider === "cassa") {
+    throw new Error("The built-in till has no adapter — check for it before calling getAdapter.");
+  }
   const adapter = ADAPTERS[provider];
   if (!adapter) throw new Error(`Unknown POS provider: ${provider}`);
   return adapter;
