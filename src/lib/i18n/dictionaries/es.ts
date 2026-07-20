@@ -2034,7 +2034,6 @@ export const es: Dictionary = {
   // Carga desde foto de factura
   inv_capture_btn: "Registrar entrega",
   inv_capture_title: "Carga desde factura / albarán",
-  inv_capture_reading: "Leyendo el documento… (10-20 segundos)",
   inv_capture_done_title: "Entrega registrada",
   inv_capture_done_body: "{stock} líneas cargadas al almacén · {costs} precios actualizados · {created} ingredientes nuevos creados",
   inv_capture_unknown_supplier: "Proveedor desconocido",
@@ -2046,6 +2045,10 @@ export const es: Dictionary = {
   inv_capture_confirm: "Confirmar y cargar al almacén",
   inv_capture_help: "Revisa las líneas: cantidad y precio vienen del documento. Las líneas sin emparejar crean un ingrediente nuevo en el almacén. Al confirmar, existencias y precios se actualizan solos.",
   inv_capture_pack_hint: "Formato leído del documento: {expl}",
+  inv_capture_stage_send: "Subiendo el documento…",
+  inv_capture_stage_read: "Leyendo…",
+  inv_capture_stage_send_hint: "No cierres esta ventana.",
+  inv_capture_stage_read_hint: "Un documento denso puede tardar unos minutos. No hay límite de tiempo: espera tranquilo.",
   inv_capture_kind_service: "servicio — no va al almacén",
   inv_capture_kind_charge: "gasto — no va al almacén",
 

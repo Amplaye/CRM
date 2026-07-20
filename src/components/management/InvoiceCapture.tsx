@@ -49,6 +49,42 @@ interface UploadResult {
   lines: UploadedLine[];
 }
 
+/**
+ * POST the document with a real progress readout.
+ *
+ * fetch() cannot report upload progress, so this uses XHR — the only way to
+ * show the owner a true percentage instead of a spinner. `timeout` is left at
+ * 0 (no limit) deliberately: reading a dense invoice can take minutes once the
+ * server retries a rate-limited model call, and cutting that short would throw
+ * away work the tenant has already been charged for.
+ */
+function postWithProgress(form: FormData, onProgress: (pct: number) => void): Promise<unknown> {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open("POST", "/api/invoices/upload");
+    xhr.timeout = 0;
+    xhr.upload.onprogress = (e) => {
+      if (e.lengthComputable && e.total > 0) {
+        onProgress(Math.min(100, Math.round((e.loaded / e.total) * 100)));
+      }
+    };
+    xhr.upload.onload = () => onProgress(100); // handed over; the model takes it from here
+    xhr.onload = () => {
+      let data: any = null;
+      try {
+        data = JSON.parse(xhr.responseText);
+      } catch {
+        /* a proxy error page, handled just below */
+      }
+      if (xhr.status >= 200 && xhr.status < 300) resolve(data);
+      else reject(new Error(data?.error || `Errore ${xhr.status || "di rete"}`));
+    };
+    xhr.onerror = () => reject(new Error("Connessione interrotta durante il caricamento."));
+    xhr.onabort = () => reject(new Error("Caricamento annullato."));
+    xhr.send(form);
+  });
+}
+
 // Per-line decision in the review step.
 type Mapping =
   | { kind: "ingredient"; ingredientId: string }
@@ -57,7 +93,10 @@ type Mapping =
 
 type Phase =
   | { s: "idle" }
-  | { s: "uploading" }
+  /** `pct` is the real share of the file on the wire; once it lands the model
+   *  starts reading and there is no honest percentage for that, so we switch to
+   *  an elapsed counter rather than inventing a number that creeps to 99%. */
+  | { s: "uploading"; stage: "send" | "read"; pct: number; secs: number }
   | { s: "review"; data: UploadResult }
   | { s: "confirming"; data: UploadResult }
   | { s: "done"; summary: { costs: number; stock: number; created: number } }
@@ -78,6 +117,7 @@ export function InvoiceCapture({
   const [mappings, setMappings] = useState<Record<string, Mapping>>({});
   const [qtyDrafts, setQtyDrafts] = useState<Record<string, string>>({});
   const [priceDrafts, setPriceDrafts] = useState<Record<string, string>>({});
+  const tickRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const ingById = useMemo(() => new Map(ingredients.map((i) => [i.id, i])), [ingredients]);
 
@@ -90,14 +130,27 @@ export function InvoiceCapture({
   };
 
   async function upload(file: File) {
-    setPhase({ s: "uploading" });
+    setPhase({ s: "uploading", stage: "send", pct: 0, secs: 0 });
+    // Tick the elapsed counter while the model reads, so a long document looks
+    // like work in progress rather than a frozen dialog.
+    const startedAt = Date.now();
+    if (tickRef.current) clearInterval(tickRef.current);
+    tickRef.current = setInterval(() => {
+      setPhase((p) =>
+        p.s === "uploading" ? { ...p, secs: Math.floor((Date.now() - startedAt) / 1000) } : p,
+      );
+    }, 1000);
     try {
       const form = new FormData();
       form.set("tenant_id", tenantId);
       form.set("file", file);
-      const res = await fetch("/api/invoices/upload", { method: "POST", body: form });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data?.error || "upload failed");
+      const data = await postWithProgress(form, (pct) =>
+        setPhase((p) =>
+          p.s === "uploading"
+            ? { ...p, pct, stage: pct >= 100 ? "read" : "send" }
+            : p,
+        ),
+      );
       const result = data as UploadResult;
       // Seed the review so the owner confirms rather than types. Matched lines
       // point at their ingredient, unmatched goods default to "create new", and
@@ -129,6 +182,9 @@ export function InvoiceCapture({
       setPhase({ s: "review", data: result });
     } catch (e: any) {
       setPhase({ s: "error", msg: e?.message || "Errore" });
+    } finally {
+      if (tickRef.current) clearInterval(tickRef.current);
+      tickRef.current = null;
     }
   }
 
@@ -203,9 +259,43 @@ export function InvoiceCapture({
 
             <div className="p-5">
               {phase.s === "uploading" && (
-                <div className="py-12 flex flex-col items-center gap-3 text-black">
+                <div className="py-10 flex flex-col items-center gap-4 text-black">
                   <Loader2 className="w-8 h-8 animate-spin" style={{ color: "#c4956a" }} />
-                  <p className="text-sm font-medium">{t("inv_capture_reading" as keyof Dictionary) || "Sto leggendo il documento… (10-20 secondi)"}</p>
+                  <div className="w-full max-w-sm">
+                    <div className="flex items-baseline justify-between mb-1.5">
+                      <span className="text-sm font-bold">
+                        {phase.stage === "send"
+                          ? t("inv_capture_stage_send" as keyof Dictionary) || "Caricamento del documento…"
+                          : t("inv_capture_stage_read" as keyof Dictionary) || "Lettura in corso…"}
+                      </span>
+                      <span className="text-sm font-bold tabular-nums" style={{ color: "#8b6540" }}>
+                        {phase.stage === "send"
+                          ? `${phase.pct}%`
+                          : `${Math.floor(phase.secs / 60)}:${String(phase.secs % 60).padStart(2, "0")}`}
+                      </span>
+                    </div>
+                    <div className="h-2.5 w-full rounded-full overflow-hidden" style={{ background: "#eaddcb" }}>
+                      {/* A real bar while the bytes move; once the model has the
+                          file there is nothing truthful to fill it with, so it
+                          becomes an indeterminate sweep. */}
+                      <div
+                        className={phase.stage === "read" ? "h-full animate-pulse" : "h-full transition-all duration-200"}
+                        style={{
+                          width: phase.stage === "read" ? "100%" : `${phase.pct}%`,
+                          background:
+                            phase.stage === "read"
+                              ? "linear-gradient(90deg, #eaddcb, #c4956a, #eaddcb)"
+                              : "linear-gradient(135deg, #d4a574, #c4956a)",
+                        }}
+                      />
+                    </div>
+                    <p className="mt-2.5 text-xs text-center" style={{ color: "#8b6540" }}>
+                      {phase.stage === "send"
+                        ? t("inv_capture_stage_send_hint" as keyof Dictionary) || "Non chiudere questa finestra."
+                        : t("inv_capture_stage_read_hint" as keyof Dictionary) ||
+                          "Un documento fitto può richiedere qualche minuto. Non c'è limite di tempo: aspetta pure."}
+                    </p>
+                  </div>
                 </div>
               )}
 

@@ -2031,7 +2031,6 @@ export const en = {
   // Invoice photo capture
   inv_capture_btn: "Record delivery",
   inv_capture_title: "Load from invoice / delivery note",
-  inv_capture_reading: "Reading the document… (10–20 seconds)",
   inv_capture_done_title: "Delivery recorded",
   inv_capture_done_body: "{stock} lines loaded into stock · {costs} prices updated · {created} new ingredients created",
   inv_capture_unknown_supplier: "Unknown supplier",
@@ -2043,6 +2042,10 @@ export const en = {
   inv_capture_confirm: "Confirm and load into stock",
   inv_capture_help: "Check the lines: quantity and price come from the document. Unmatched lines create a new stock ingredient. On confirm, stock and prices update by themselves.",
   inv_capture_pack_hint: "Pack format read from the document: {expl}",
+  inv_capture_stage_send: "Uploading the document…",
+  inv_capture_stage_read: "Reading it…",
+  inv_capture_stage_send_hint: "Please keep this window open.",
+  inv_capture_stage_read_hint: "A dense document can take a few minutes. There is no time limit — just wait.",
   inv_capture_kind_service: "service — not stock",
   inv_capture_kind_charge: "charge — not stock",
 

@@ -2034,7 +2034,6 @@ export const it: Dictionary = {
   // Carico da foto fattura
   inv_capture_btn: "Registra consegna",
   inv_capture_title: "Carico da fattura / bolla",
-  inv_capture_reading: "Sto leggendo il documento… (10-20 secondi)",
   inv_capture_done_title: "Consegna registrata",
   inv_capture_done_body: "{stock} righe caricate a magazzino · {costs} prezzi aggiornati · {created} nuovi ingredienti creati",
   inv_capture_unknown_supplier: "Fornitore sconosciuto",
@@ -2046,6 +2045,10 @@ export const it: Dictionary = {
   inv_capture_confirm: "Conferma e carica a magazzino",
   inv_capture_help: "Controlla le righe: quantità e prezzo vengono dal documento. Le righe senza abbinamento creano un nuovo ingrediente in magazzino. Confermando, giacenze e prezzi si aggiornano da soli.",
   inv_capture_pack_hint: "Formato letto dal documento: {expl}",
+  inv_capture_stage_send: "Caricamento del documento…",
+  inv_capture_stage_read: "Lettura in corso…",
+  inv_capture_stage_send_hint: "Non chiudere questa finestra.",
+  inv_capture_stage_read_hint: "Un documento fitto può richiedere qualche minuto. Non c'è limite di tempo: aspetta pure.",
   inv_capture_kind_service: "servizio — non va a magazzino",
   inv_capture_kind_charge: "spesa — non va a magazzino",
 

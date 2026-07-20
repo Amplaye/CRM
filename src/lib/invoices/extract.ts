@@ -112,26 +112,51 @@ function responsesText(res: ResponsesApiResponse): string {
   return parts.join("");
 }
 
+/** Transient upstream failures — worth another go with the same input. */
+function isRetryable(status: number): boolean {
+  // 429 rate limit, 500/502/503/504 upstream hiccups. A 4xx about our request
+  // (400 bad input, 401 bad key) would fail identically on every retry.
+  return status === 429 || status === 408 || (status >= 500 && status <= 599);
+}
+
+const RETRY_DELAYS_MS = [1500, 4000, 9000];
+
 async function callResponses(content: ResponseContentBlock[]): Promise<string> {
   const key = process.env.OPENAI_API_KEY;
   if (!key) throw new Error("OPENAI_API_KEY not configured");
-  const res = await fetch("https://api.openai.com/v1/responses", {
-    method: "POST",
-    headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}` },
-    body: JSON.stringify({
-      model: MODEL,
-      max_output_tokens: MAX_OUTPUT_TOKENS,
-      temperature: 0,
-      instructions: SYSTEM_PROMPT,
-      input: [{ role: "user", content }],
-    }),
-  });
-  if (!res.ok) {
+
+  let lastError = "";
+  // A supplier document is scanned once and the owner is watching, so a blip
+  // must not surface as "extraction failed" — it costs them a whole re-upload.
+  for (let attempt = 0; attempt <= RETRY_DELAYS_MS.length; attempt++) {
+    if (attempt > 0) await sleep(RETRY_DELAYS_MS[attempt - 1]);
+    let res: Response;
+    try {
+      res = await fetch("https://api.openai.com/v1/responses", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}` },
+        body: JSON.stringify({
+          model: MODEL,
+          max_output_tokens: MAX_OUTPUT_TOKENS,
+          temperature: 0,
+          instructions: SYSTEM_PROMPT,
+          input: [{ role: "user", content }],
+        }),
+      });
+    } catch (e: any) {
+      // Network-level failure (socket closed, DNS): retryable by nature.
+      lastError = `network: ${e?.message || e}`;
+      continue;
+    }
+    if (res.ok) return responsesText((await res.json()) as ResponsesApiResponse);
     const body = await res.text().catch(() => "");
-    throw new Error(`openai responses ${res.status}: ${body.slice(0, 500)}`);
+    lastError = `openai responses ${res.status}: ${body.slice(0, 500)}`;
+    if (!isRetryable(res.status)) break;
   }
-  return responsesText((await res.json()) as ResponsesApiResponse);
+  throw new Error(lastError || "openai responses failed");
 }
+
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 /** Extract an invoice from a base64 PDF/image. */
 export async function extractInvoice(

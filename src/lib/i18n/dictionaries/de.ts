@@ -2034,7 +2034,6 @@ export const de: Dictionary = {
   // Einbuchen per Rechnungsfoto
   inv_capture_btn: "Lieferung erfassen",
   inv_capture_title: "Einbuchen aus Rechnung / Lieferschein",
-  inv_capture_reading: "Dokument wird gelesen… (10–20 Sekunden)",
   inv_capture_done_title: "Lieferung erfasst",
   inv_capture_done_body: "{stock} Zeilen eingebucht · {costs} Preise aktualisiert · {created} neue Zutaten angelegt",
   inv_capture_unknown_supplier: "Unbekannter Lieferant",
@@ -2046,6 +2045,10 @@ export const de: Dictionary = {
   inv_capture_confirm: "Bestätigen und einbuchen",
   inv_capture_help: "Prüfe die Zeilen: Menge und Preis stammen aus dem Dokument. Zeilen ohne Zuordnung legen eine neue Lagerzutat an. Nach Bestätigung aktualisieren sich Bestände und Preise von selbst.",
   inv_capture_pack_hint: "Gebindeformat aus dem Beleg: {expl}",
+  inv_capture_stage_send: "Beleg wird hochgeladen…",
+  inv_capture_stage_read: "Beleg wird gelesen…",
+  inv_capture_stage_send_hint: "Dieses Fenster bitte offen lassen.",
+  inv_capture_stage_read_hint: "Ein dichter Beleg kann einige Minuten dauern. Es gibt kein Zeitlimit — einfach warten.",
   inv_capture_kind_service: "Dienstleistung — kein Lagerbestand",
   inv_capture_kind_charge: "Nebenkosten — kein Lagerbestand",
 

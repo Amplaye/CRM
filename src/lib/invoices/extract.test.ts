@@ -1,5 +1,5 @@
-import { describe, it, expect } from "vitest";
-import { parseInvoice, normalizeInvoice, SYSTEM_PROMPT } from "@/lib/invoices/extract";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { parseInvoice, normalizeInvoice, SYSTEM_PROMPT, extractInvoice } from "@/lib/invoices/extract";
 
 describe("parseInvoice", () => {
   it("strips markdown fences and leading prose", () => {
@@ -81,5 +81,68 @@ describe("SYSTEM_PROMPT contract", () => {
 
   it("skips the legal boilerplate printed under the goods table", () => {
     expect(SYSTEM_PROMPT).toMatch(/art\. 62/);
+  });
+});
+
+// Two consecutive upload failures sent the owner back to square one with a
+// bare "Extraction failed". A rate-limited or hiccuping model call is normal
+// and must not cost them the whole document.
+describe("extractInvoice resilience", () => {
+  const OK = {
+    ok: true, status: 200,
+    json: async () => ({ output_text: '{"supplierName":"Metro","lines":[]}' }),
+  };
+  const fail = (status: number) => ({ ok: false, status, text: async () => "upstream boom" });
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+    process.env.OPENAI_API_KEY = "sk-test";
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+  });
+
+  /** Run `p` while letting every pending retry delay elapse. */
+  async function withTimers<T>(p: Promise<T>): Promise<T> {
+    const settled = p.then((v) => ({ v }), (e) => ({ e }));
+    await vi.runAllTimersAsync();
+    const r = (await settled) as { v?: T; e?: unknown };
+    if (r.e) throw r.e;
+    return r.v as T;
+  }
+
+  it("retries a 429 and succeeds", async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(fail(429))
+      .mockResolvedValueOnce(OK);
+    vi.stubGlobal("fetch", fetchMock);
+    const inv = await withTimers(extractInvoice("Zm9v", "application/pdf"));
+    expect(inv.supplierName).toBe("Metro");
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("retries a dropped connection", async () => {
+    const fetchMock = vi.fn()
+      .mockRejectedValueOnce(new Error("socket hang up"))
+      .mockResolvedValueOnce(OK);
+    vi.stubGlobal("fetch", fetchMock);
+    await withTimers(extractInvoice("Zm9v", "application/pdf"));
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("gives up after exhausting the retries, reporting the real reason", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(fail(503));
+    vi.stubGlobal("fetch", fetchMock);
+    await expect(withTimers(extractInvoice("Zm9v", "application/pdf"))).rejects.toThrow(/503/);
+    expect(fetchMock).toHaveBeenCalledTimes(4); // first try + 3 retries
+  });
+
+  it("does NOT retry a request that is wrong on our side", async () => {
+    // A 400 would fail identically every time; retrying only delays the error.
+    const fetchMock = vi.fn().mockResolvedValue(fail(400));
+    vi.stubGlobal("fetch", fetchMock);
+    await expect(withTimers(extractInvoice("Zm9v", "application/pdf"))).rejects.toThrow(/400/);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 });

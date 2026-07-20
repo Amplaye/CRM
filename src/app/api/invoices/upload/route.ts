@@ -17,7 +17,11 @@ import { apiError } from "@/lib/api-error";
 // manage (members have full access to supplier_invoices/_items).
 
 export const runtime = "nodejs";
-export const maxDuration = 60;
+// A dense invoice (a dozen lines, a scanned photo) can keep the model busy well
+// past a minute, and the retries in extractInvoice add to that. The owner is
+// standing at the till watching the bar — better a slow success than a timeout
+// that makes them shoot the whole document again.
+export const maxDuration = 300;
 
 const ALLOWED: Record<string, "application/pdf" | "image/jpeg" | "image/png" | "image/webp" | "image/gif"> = {
   "application/pdf": "application/pdf",
