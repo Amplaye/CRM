@@ -1,7 +1,7 @@
 "use client";
 
 import { memo, useEffect, useMemo, useState, useCallback, useRef } from "react";
-import { Calculator, AlertTriangle, ChevronDown, ChevronRight, ChevronLeft, Check, Loader2, Search, X, Sparkles, BarChart3 } from "lucide-react";
+import { Calculator, AlertTriangle, ChevronDown, ChevronRight, ChevronLeft, Check, Loader2, Search, X, Sparkles, BarChart3, TrendingUp, Wallet, Star, ArrowUpNarrowWide } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ReferenceLine, Cell } from "recharts";
 import { ChartFrame } from "@/components/ChartFrame";
 import { RecipePanel } from "@/components/management/RecipePanel";
@@ -15,7 +15,16 @@ import { createClient } from "@/lib/supabase/client";
 import { Dictionary } from "@/lib/i18n/dictionaries/en";
 import { getFeatures } from "@/lib/types/tenant-settings";
 import { dishCostTable } from "@/lib/management/food-cost";
-import type { Dish, DishCostRow, RecipeLine } from "@/lib/management/types";
+import {
+  buildInsights,
+  foodCostTotals,
+  sortInsights,
+  topProfitIds,
+  suggestedPrice,
+  type DishInsight,
+  type SortKey,
+} from "@/lib/management/food-cost-insights";
+import type { Dish, RecipeLine } from "@/lib/management/types";
 import type { MenuEngineeringInput } from "@/lib/management/menu-engineering";
 
 const SALES_WINDOW_DAYS = 30;
@@ -27,12 +36,7 @@ type Filter = "all" | "low" | "norecipe" | "ok";
 const CARD = "rounded-2xl border bg-white/70";
 const CARD_STYLE = { borderColor: "#d9c3a3" } as const;
 
-/** Price that brings a dish exactly to the target food cost %, rounded UP to
- * 50 cents so the suggestion is always safe and menu-friendly. */
-function suggestedPrice(cost: number, targetPct: number): number {
-  if (!(cost > 0) || !(targetPct > 0)) return 0;
-  return Math.ceil((cost / (targetPct / 100)) * 2) / 2;
-}
+const fmtEur = (n: number) => n.toLocaleString("it-IT", { maximumFractionDigits: 0 });
 
 export default function FoodCostPage() {
   const { t } = useLanguage();
@@ -58,6 +62,7 @@ export default function FoodCostPage() {
   const [filter, setFilter] = useState<Filter>("all");
   const [query, setQuery] = useState("");
   const [showAnalysis, setShowAnalysis] = useState(false);
+  const [sortKey, setSortKey] = useState<SortKey>("action");
 
   // Mirror of `dishes` so per-row handlers stay referentially stable (rows are
   // memoized; closing over `dishes` would rebuild every handler per save).
@@ -119,41 +124,53 @@ export default function FoodCostPage() {
     [dishes, recipesByDish, costs, targetPct],
   );
 
-  const withPct = rows.filter((r) => r.foodCostPct != null);
-  const avgPct = withPct.length ? withPct.reduce((s, r) => s + (r.foodCostPct || 0), 0) / withPct.length : null;
-  const lowMarginCount = rows.filter((r) => r.lowMargin).length;
-  const noRecipeCount = rows.filter((r) => r.noRecipe).length;
-  const okCount = withPct.length - lowMarginCount;
-  const incompleteCount = rows.filter((r) => r.incompleteCost).length;
-  const chartData = withPct.slice(0, 8).map((r) => ({ name: r.name, pct: r.foodCostPct as number, low: r.lowMargin }));
+  // Enrich every dish with 30-day sales → profit, revenue, €recoverable. This is
+  // the layer that makes the page actionable rather than a flat cost table.
+  const insights = useMemo(() => buildInsights(rows, unitsSold, targetPct), [rows, unitsSold, targetPct]);
+  const totals = useMemo(() => foodCostTotals(insights), [insights]);
+  // Menu "stars": the Pareto set of dishes carrying the top half of all profit.
+  const starIds = useMemo(() => topProfitIds(insights, 0.5), [insights]);
+
+  const lowMarginCount = totals.actionableCount;
+  const noRecipeCount = totals.noRecipeCount;
+  const withPctCount = insights.filter((r) => r.foodCostPct != null).length;
+  const okCount = insights.filter((r) => r.foodCostPct != null && !r.lowMargin).length;
+  const incompleteCount = insights.filter((r) => r.incompleteCost).length;
+  const avgPct = totals.weightedFoodCostPct;
+  const chartData = [...insights]
+    .filter((r) => r.foodCostPct != null)
+    .sort((a, b) => (b.foodCostPct! - a.foodCostPct!))
+    .slice(0, 8)
+    .map((r) => ({ name: r.name, pct: r.foodCostPct as number, low: r.lowMargin }));
 
   // Menu-engineering input: dishes with a known unit margin, with their sales volume.
   const meInput: MenuEngineeringInput[] = useMemo(
     () =>
-      rows
+      insights
         .filter((r) => r.margin != null && !r.noRecipe)
-        .map((r) => ({ menuItemId: r.menuItemId, name: r.name, margin: r.margin, unitsSold: unitsSold.get(r.menuItemId) || 0 })),
-    [rows, unitsSold],
+        .map((r) => ({ menuItemId: r.menuItemId, name: r.name, margin: r.margin, unitsSold: r.unitsSold })),
+    [insights],
   );
 
-  // Filter + search, then paginate. KPIs and analysis stay computed over ALL dishes.
+  // Filter + search + sort, then paginate. KPIs stay computed over ALL dishes.
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    return rows.filter((r) => {
+    const kept = insights.filter((r) => {
       if (q && !r.name.toLowerCase().includes(q)) return false;
       if (filter === "low") return r.lowMargin;
       if (filter === "norecipe") return r.noRecipe;
       if (filter === "ok") return !r.noRecipe && !r.lowMargin && r.foodCostPct != null;
       return true;
     });
-  }, [rows, query, filter]);
+    return sortInsights(kept, sortKey);
+  }, [insights, query, filter, sortKey]);
 
   const PER_PAGE = 25;
   const pageCount = Math.max(1, Math.ceil(filtered.length / PER_PAGE));
   const safePage = Math.min(page, pageCount - 1);
   const pageRows = filtered.slice(safePage * PER_PAGE, safePage * PER_PAGE + PER_PAGE);
   useEffect(() => { if (page > pageCount - 1) setPage(pageCount - 1); }, [pageCount, page]);
-  useEffect(() => { setPage(0); }, [filter, query]);
+  useEffect(() => { setPage(0); }, [filter, query, sortKey]);
 
   // ── Stable per-row handlers (dish cards are React.memo) ───────────────────
   const toggleRow = useCallback((id: string) => {
@@ -244,32 +261,60 @@ export default function FoodCostPage() {
         </button>
       </div>
 
-      {/* Hero: average food cost vs target + counters */}
-      <div className={`${CARD} p-5 flex flex-wrap items-center gap-x-8 gap-y-4`} style={CARD_STYLE}>
-        <div>
-          <div className="text-xs font-bold uppercase tracking-wide" style={{ color: "#000" }}>
-            {t("food_cost_avg")}
+      {/* Hero: the money numbers first — profit, recoverable, weighted food cost */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
+        {/* Estimated profit over the window — the headline */}
+        <div className={`${CARD} p-4`} style={CARD_STYLE}>
+          <div className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wide" style={{ color: "#000" }}>
+            <TrendingUp className="w-4 h-4" /> {t("food_cost_profit_title")}
           </div>
-          <div className="flex items-baseline gap-2">
-            <span className="text-4xl font-bold tabular-nums" style={{ color: avgColor }}>
+          <div className="text-3xl font-bold tabular-nums mt-1 text-emerald-700">€ {fmtEur(totals.totalProfit)}</div>
+          <div className="text-xs mt-0.5" style={{ color: "#000" }}>{t("food_cost_window_30d")}</div>
+        </div>
+
+        {/* Money left on the table — the actionable one */}
+        <div
+          className={`${CARD} p-4`}
+          style={totals.totalRecoverable > 0 ? { background: "rgba(5,150,105,0.07)", borderColor: "rgba(5,150,105,0.35)" } : CARD_STYLE}
+        >
+          <div className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wide" style={{ color: "#000" }}>
+            <Wallet className="w-4 h-4" /> {t("food_cost_recoverable_title")}
+          </div>
+          <div className="text-3xl font-bold tabular-nums mt-1" style={{ color: totals.totalRecoverable > 0 ? "#047857" : "#000" }}>
+            {totals.totalRecoverable > 0 ? `+ € ${fmtEur(totals.totalRecoverable)}` : "—"}
+          </div>
+          <div className="text-xs mt-0.5" style={{ color: "#000" }}>
+            {totals.totalRecoverable > 0
+              ? t("food_cost_recoverable_sub").replace("{n}", String(totals.actionableCount))
+              : t("food_cost_recoverable_none")}
+          </div>
+        </div>
+
+        {/* Weighted food cost vs target */}
+        <div className={`${CARD} p-4`} style={CARD_STYLE}>
+          <div className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wide" style={{ color: "#000" }}>
+            <Calculator className="w-4 h-4" /> {t("food_cost_avg")}
+          </div>
+          <div className="flex items-baseline gap-2 mt-1">
+            <span className="text-3xl font-bold tabular-nums" style={{ color: avgColor }}>
               {avgPct != null ? `${avgPct.toFixed(1)}%` : "—"}
             </span>
-            <span className="text-sm" style={{ color: "#000" }}>
-              {t("food_cost_target").replace("{n}", String(targetPct))}
-            </span>
+            <span className="text-xs" style={{ color: "#000" }}>{t("food_cost_target").replace("{n}", String(targetPct))}</span>
           </div>
-          {/* average vs target gauge */}
-          <div className="mt-2 relative h-2 rounded-full w-48 overflow-hidden" style={{ background: "rgba(196,149,106,0.18)" }}>
+          <div className="mt-2 relative h-2 rounded-full w-full overflow-hidden" style={{ background: "rgba(196,149,106,0.18)" }}>
             {avgPct != null && (
               <div className="absolute inset-y-0 left-0 rounded-full" style={{ width: `${Math.min(100, (avgPct / 60) * 100)}%`, background: avgColor }} />
             )}
             <div className="absolute inset-y-0" style={{ left: `${Math.min(100, (targetPct / 60) * 100)}%`, width: 2, background: "rgba(0,0,0,0.35)" }} />
           </div>
+          <div className="text-[11px] mt-1" style={{ color: "#000" }}>{t("food_cost_weighted_hint")}</div>
         </div>
-        <div className="flex items-center gap-6">
-          <HeroStat label={t("food_cost_low_margin")} value={lowMarginCount} color={lowMarginCount > 0 ? "#dc2626" : "#059669"} />
-          <HeroStat label={t("food_cost_no_recipe")} value={noRecipeCount} color={noRecipeCount > 0 ? "#d97706" : "#059669"} />
-          <HeroStat label="OK" value={okCount} color="#059669" />
+
+        {/* Health counters */}
+        <div className={`${CARD} p-4 flex flex-col justify-center gap-2`} style={CARD_STYLE}>
+          <MiniStat label={t("food_cost_low_margin")} value={lowMarginCount} color={lowMarginCount > 0 ? "#dc2626" : "#059669"} />
+          <MiniStat label={t("food_cost_no_recipe")} value={noRecipeCount} color={noRecipeCount > 0 ? "#d97706" : "#059669"} />
+          <MiniStat label="OK" value={okCount} color="#059669" />
         </div>
       </div>
 
@@ -310,7 +355,7 @@ export default function FoodCostPage() {
         </div>
       )}
 
-      {/* Search + filter chips */}
+      {/* Search + filter chips + sort */}
       <div className="flex flex-wrap items-center gap-2">
         <div className="relative flex-1 min-w-[200px] max-w-sm">
           <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2" style={{ color: "#000" }} />
@@ -358,6 +403,23 @@ export default function FoodCostPage() {
             );
           })}
         </div>
+
+        {/* Sort — the control that makes the list actually useful */}
+        <div className="ml-auto flex items-center gap-1.5">
+          <ArrowUpNarrowWide className="w-4 h-4 shrink-0" style={{ color: "#000" }} />
+          <select
+            value={sortKey}
+            onChange={(e) => setSortKey(e.target.value as SortKey)}
+            className="px-2.5 py-1.5 text-sm font-bold rounded-lg border bg-white/70 text-black cursor-pointer outline-none focus:border-[#c4956a]"
+            style={{ borderColor: "#d9c3a3" }}
+            aria-label={t("food_cost_sort_label")}
+          >
+            <option value="action">{t("food_cost_sort_action")}</option>
+            <option value="profit">{t("food_cost_sort_profit")}</option>
+            <option value="pct">{t("food_cost_sort_pct")}</option>
+            <option value="sold">{t("food_cost_sort_sold")}</option>
+          </select>
+        </div>
       </div>
 
       {/* Dish list */}
@@ -375,6 +437,7 @@ export default function FoodCostPage() {
             <DishCard
               key={r.menuItemId}
               r={r}
+              isStar={starIds.has(r.menuItemId)}
               targetPct={targetPct}
               isOpen={expanded === r.menuItemId}
               editing={editing === r.menuItemId}
@@ -427,11 +490,11 @@ export default function FoodCostPage() {
   );
 }
 
-function HeroStat({ label, value, color }: { label: string; value: number; color: string }) {
+function MiniStat({ label, value, color }: { label: string; value: number; color: string }) {
   return (
-    <div>
-      <div className="text-xs font-bold uppercase tracking-wide" style={{ color: "#000" }}>{label}</div>
-      <div className="text-2xl font-bold tabular-nums" style={{ color }}>{value}</div>
+    <div className="flex items-center justify-between gap-2">
+      <span className="text-xs font-bold" style={{ color: "#000" }}>{label}</span>
+      <span className="text-lg font-bold tabular-nums shrink-0" style={{ color }}>{value}</span>
     </div>
   );
 }
@@ -441,10 +504,11 @@ function HeroStat({ label, value, color }: { label: string; value: number; color
 // Memoized — id-based stable handlers, so expanding one card doesn't re-render
 // the other 24 on the page.
 const DishCard = memo(function DishCard({
-  r, targetPct, isOpen, editing, draft, saveState, tenantId,
+  r, isStar, targetPct, isOpen, editing, draft, saveState, tenantId,
   onToggle, onStartEdit, onDraftChange, onCommit, onCancel, onApplySuggested, onRecipeChanged, t,
 }: {
-  r: DishCostRow;
+  r: DishInsight;
+  isStar: boolean;
   targetPct: number;
   isOpen: boolean;
   editing: boolean;
@@ -472,6 +536,11 @@ const DishCard = memo(function DishCard({
         {/* Name + gauge */}
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
+            {isStar && (
+              <span title={t("food_cost_star_hint")} className="shrink-0">
+                <Star className="w-4 h-4 text-amber-500 fill-amber-400" />
+              </span>
+            )}
             <span className="font-bold text-black truncate">{r.name}</span>
             {r.noRecipe && (
               <span className="text-xs font-bold px-2 py-0.5 rounded-full shrink-0" style={{ background: "rgba(217,119,6,0.12)", color: "#b45309" }}>
@@ -484,10 +553,10 @@ const DishCard = memo(function DishCard({
               </span>
             )}
           </div>
-          <div className="flex items-center gap-2 mt-1">
+          <div className="flex items-center gap-x-3 gap-y-0.5 mt-1 flex-wrap">
             {r.foodCostPct != null && (
-              <>
-                <div className="relative h-1.5 rounded-full w-24 sm:w-36 overflow-hidden" style={{ background: "rgba(196,149,106,0.18)" }}>
+              <span className="flex items-center gap-2">
+                <div className="relative h-1.5 rounded-full w-20 sm:w-28 overflow-hidden" style={{ background: "rgba(196,149,106,0.18)" }}>
                   <div
                     className="absolute inset-y-0 left-0 rounded-full"
                     style={{ width: `${Math.min(100, (r.foodCostPct / 60) * 100)}%`, background: pctColor }}
@@ -495,11 +564,15 @@ const DishCard = memo(function DishCard({
                   <div className="absolute inset-y-0" style={{ left: `${Math.min(100, (targetPct / 60) * 100)}%`, width: 2, background: "rgba(0,0,0,0.3)" }} />
                 </div>
                 <span className="text-xs font-bold tabular-nums" style={{ color: pctColor }}>{r.foodCostPct.toFixed(0)}%</span>
-              </>
+              </span>
             )}
-            {!r.noRecipe && (
-              <span className="text-xs tabular-nums" style={{ color: "#000" }}>
-                {t("food_cost_cost_short")} € {r.cost.toFixed(2)}
+            {/* Units sold — the missing context that made the old page useless */}
+            <span className="text-xs tabular-nums" style={{ color: "#000" }}>
+              {t("food_cost_sold_short").replace("{n}", String(r.unitsSold))}
+            </span>
+            {r.recoverable > 0 && (
+              <span className="text-xs font-bold tabular-nums text-emerald-700">
+                {t("food_cost_recoverable_row").replace("{v}", fmtEur(r.recoverable))}
               </span>
             )}
           </div>
@@ -518,10 +591,17 @@ const DishCard = memo(function DishCard({
           </button>
         )}
 
-        {/* Margin */}
-        <div className="hidden sm:block text-right shrink-0 w-20">
-          <div className="text-xs" style={{ color: "#000" }}>{t("food_cost_col_margin")}</div>
-          <div className="text-sm font-bold tabular-nums text-black">{r.margin != null ? `€ ${r.margin.toFixed(2)}` : "—"}</div>
+        {/* Profit (window) — the number that ranks the menu; unit margin below it */}
+        <div className="hidden sm:block text-right shrink-0 w-24">
+          <div className="text-xs" style={{ color: "#000" }}>{t("food_cost_col_profit")}</div>
+          <div className="text-sm font-bold tabular-nums" style={{ color: r.profit != null && r.profit > 0 ? "#047857" : "#000" }}>
+            {r.profit != null ? `€ ${fmtEur(r.profit)}` : "—"}
+          </div>
+          {r.margin != null && (
+            <div className="text-[11px] tabular-nums" style={{ color: "#000" }}>
+              {t("food_cost_unit_margin_short").replace("{v}", r.margin.toFixed(2))}
+            </div>
+          )}
         </div>
 
         {/* Price — tappable, writes back to the till */}
