@@ -187,8 +187,8 @@ export default function AdminPage() {
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-4">
           <Link href="/admin/billing" className="rounded-xl p-3 sm:p-4 border-2 hover:bg-[#c4956a]/5 transition-colors" style={cardStyle}>
             <p className="text-xs text-black font-medium">MRR</p>
-            <p className="text-xl font-bold text-[#22c55e]">€{billing.mrr.toLocaleString("es-ES")}</p>
-            <p className="text-[10px] text-black/70">ARR €{billing.arr.toLocaleString("es-ES")}</p>
+            <p className="text-xl font-bold text-[#22c55e]">€{billing.mrr.toLocaleString()}</p>
+            <p className="text-[10px] text-black/70">ARR €{billing.arr.toLocaleString()}</p>
           </Link>
           <Link href="/admin/billing" className="rounded-xl p-3 sm:p-4 border-2 hover:bg-[#c4956a]/5 transition-colors" style={cardStyle}>
             <p className="text-xs text-black font-medium">Trial in scadenza ≤7g</p>

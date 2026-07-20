@@ -199,9 +199,9 @@ export default function BaliInboxPage() {
     const now = new Date();
     const sameDay = d.toDateString() === now.toDateString();
     if (sameDay) {
-      return d.toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit" });
+      return d.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
     }
-    return d.toLocaleDateString("es-ES", { day: "2-digit", month: "short" });
+    return d.toLocaleDateString(undefined, { day: "2-digit", month: "short" });
   };
 
   return (
@@ -441,7 +441,7 @@ export default function BaliInboxPage() {
                             isInbound ? "text-left" : "text-right"
                           }`}
                         >
-                          {new Date(m.created_at).toLocaleTimeString("es-ES", {
+                          {new Date(m.created_at).toLocaleTimeString(undefined, {
                             hour: "2-digit",
                             minute: "2-digit",
                           })}

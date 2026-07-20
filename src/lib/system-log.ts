@@ -28,11 +28,20 @@ export async function logSystemEvent(event: {
     if (event.error_key) metadata.error_key = event.error_key;
 
     if (event.error_key) {
-      const { data: existing } = await supabase
+      // Dedup is tenant-scoped: the same error_key raised by two tenants must
+      // stay two rows, or the second tenant's fault silently increments the
+      // first one's counter and disappears from their monitoring view.
+      let dedupQuery = supabase
         .from("system_logs")
         .select("id, metadata")
         .eq("status", "open")
-        .contains("metadata", { error_key: event.error_key })
+        .contains("metadata", { error_key: event.error_key });
+
+      dedupQuery = event.tenant_id
+        ? dedupQuery.eq("tenant_id", event.tenant_id)
+        : dedupQuery.is("tenant_id", null);
+
+      const { data: existing } = await dedupQuery
         .order("created_at", { ascending: false })
         .limit(1);
 

@@ -83,7 +83,7 @@ const ACTION_FALLBACK: Record<string, string> = {
 };
 
 export function CreditsTab() {
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
   const { activeTenant: tenant } = useTenant();
   const supabase = useMemo(() => createClient(), []);
 
@@ -357,7 +357,7 @@ export function CreditsTab() {
                   <div className="min-w-0">
                     <p className="text-sm font-medium text-black truncate">{actionLabel(ev.action_type)}</p>
                     <p className="text-xs text-black">
-                      {new Date(ev.created_at).toLocaleString("es-ES", {
+                      {new Date(ev.created_at).toLocaleString(language, {
                         day: "2-digit",
                         month: "2-digit",
                         hour: "2-digit",
