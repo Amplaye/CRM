@@ -1611,6 +1611,7 @@ export const es: Dictionary = {
   inventory_col_expiry: "Caducidad",
   inventory_shelf_life: "Caducidad (días)",
   inventory_shelf_life_hint: "Configúralo una vez: la fecha de caducidad se calcula sola en cada entrada de mercancía.",
+  inventory_shelf_life_suggest: "Sugerido: {n} días — usar",
   inventory_empty: "Sin ingredientes.",
   inventory_low_badge: "bajo",
   inventory_expiring_badge: "por caducar",

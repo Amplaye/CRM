@@ -1,7 +1,7 @@
-// Server-side Web Push fan-out. Called from the write paths (new booking,
-// new waitlist entry, inbound WhatsApp conversation) — NEVER from a cron
-// (Hobby plan = daily crons only) and never blocking: callers fire-and-forget
-// inside try/catch.
+// Server-side Web Push fan-out. Called from the write paths (new booking, new
+// waitlist entry, inbound WhatsApp conversation) and from the daily crons now
+// that scheduling runs on the Cloudflare bot-engine (the old "no cron" note was
+// a Vercel-Hobby limit). Never blocking: callers fire-and-forget inside try/catch.
 //
 // Config: VAPID keys live ONLY in env (Vercel + .env.local). When they're
 // missing the module degrades to a silent no-op so local/preview builds and
@@ -19,7 +19,8 @@ export type PushEvent =
   | "shift_request_new"
   | "shift_request_approved"
   | "shift_request_rejected"
-  | "review_new";
+  | "review_new"
+  | "expiry_soon";
 
 type Lang = "en" | "it" | "es" | "de";
 
@@ -80,6 +81,12 @@ const MESSAGES: Record<PushEvent, Record<Lang, { title: string; body: string }>>
     es: { title: "Nueva reseña", body: "{stars} — {name}" },
     de: { title: "Neue Bewertung", body: "{stars} — {name}" },
   },
+  expiry_soon: {
+    en: { title: "Products expiring", body: "{count} products expiring soon — check the warehouse" },
+    it: { title: "Prodotti in scadenza", body: "{count} prodotti in scadenza — controlla il magazzino" },
+    es: { title: "Productos por caducar", body: "{count} productos por caducar — revisa el almacén" },
+    de: { title: "Ware läuft ab", body: "{count} Produkte laufen bald ab — Lager prüfen" },
+  },
 };
 
 const EVENT_URL: Record<PushEvent, string> = {
@@ -92,6 +99,7 @@ const EVENT_URL: Record<PushEvent, string> = {
   shift_request_approved: "/staff",
   shift_request_rejected: "/staff",
   review_new: "/reviews",
+  expiry_soon: "/inventory",
 };
 
 function vapidConfigured(): boolean {

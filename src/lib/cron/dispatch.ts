@@ -2,12 +2,13 @@
 // endpoints that must run at that hour.
 //
 // WHY a dispatcher (not one trigger per cron): Cloudflare Workers Free caps an
-// account at 5 Cron Triggers. The CRM has 8 cron endpoints. So a single hourly
+// account at 5 Cron Triggers. The CRM has 10 cron endpoints. So a single hourly
 // trigger ("0 * * * *") fires the scheduled() handler, and this module decides
 // which endpoints to call based on the UTC hour — the same hours vercel.json
 // used (Vercel ran those schedules in UTC).
 //
-// The six daily jobs keep their exact vercel.json hour. booking-reminders and
+// The daily jobs keep their exact vercel.json hour (expiry-alert is new, at 06
+// UTC ≈ local morning). booking-reminders and
 // post-visit-followup were NOT in vercel.json (Vercel Hobby forbade sub-daily
 // crons, so n8n drove them); n8n is now off, so we run both EVERY hour — both
 // are idempotent via audit_events (see their route headers), so an hourly tick
@@ -33,6 +34,8 @@ export const CRON_JOBS: CronJob[] = [
   { path: "data-retention", hour: 4 }, // was 45 4 * * *
   { path: "credits-reset", hour: 5 }, // was 20 5 * * *
   { path: "fiscal-flush", hour: 5 }, // was 50 5 * * *
+  { path: "expiry-alert", hour: 6 }, // morning push: stock expiring within 3 days
+
   { path: "booking-reminders", hour: "hourly" }, // n8n-driven before; now hourly
   { path: "post-visit-followup", hour: "hourly" }, // n8n-driven before; now hourly
   { path: "social-publish", hour: "hourly" }, // publish approved+scheduled social posts

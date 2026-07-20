@@ -1608,6 +1608,7 @@ export const en = {
   inventory_col_expiry: "Expiry",
   inventory_shelf_life: "Shelf life (days)",
   inventory_shelf_life_hint: "Set it once and the expiry date fills in automatically at every goods-in.",
+  inventory_shelf_life_suggest: "Suggested: {n} days — use",
   inventory_empty: "No ingredients.",
   inventory_low_badge: "low",
   inventory_expiring_badge: "expiring",

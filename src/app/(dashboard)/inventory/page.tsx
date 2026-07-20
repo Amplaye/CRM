@@ -39,6 +39,7 @@ import {
 } from "@/lib/management/inventory-analysis";
 import { InvoiceCapture } from "@/components/management/InvoiceCapture";
 import { isRetailBarcode } from "@/lib/management/barcode";
+import { suggestShelfLife } from "@/lib/inventory/shelf-life-presets";
 
 interface IngredientRow {
   id: string;
@@ -965,7 +966,23 @@ const IngredientCard = memo(function IngredientCard({
                 className={inputCls}
                 style={inputStyle}
               />
-              <span className="text-[11px]" style={{ color: "#8b6540" }}>{t("inventory_shelf_life_hint")}</span>
+              {r.shelf_life_days == null && (() => {
+                const s = suggestShelfLife(r.name);
+                return s != null ? (
+                  <button
+                    onClick={() => onPatch(r.id, { shelf_life_days: s })}
+                    className="text-left text-xs cursor-pointer underline decoration-dotted underline-offset-2"
+                    style={{ color: "#8b6540" }}
+                  >
+                    {t("inventory_shelf_life_suggest").replace("{n}", String(s))}
+                  </button>
+                ) : (
+                  <span className="text-[11px]" style={{ color: "#8b6540" }}>{t("inventory_shelf_life_hint")}</span>
+                );
+              })()}
+              {r.shelf_life_days != null && (
+                <span className="text-[11px]" style={{ color: "#8b6540" }}>{t("inventory_shelf_life_hint")}</span>
+              )}
             </label>
             {/* Barcode: type it, or scan the package once and every later scan
                 jumps straight to this product. */}

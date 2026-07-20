@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { assertManagement } from "@/lib/billing/guard";
 import { deriveExpiry } from "@/lib/inventory/expiry";
+import { suggestShelfLife } from "@/lib/inventory/shelf-life-presets";
 
 // Confirm a parsed supplier invoice. The owner may have edited line values and
 // mapped lines to ingredients. For every line that carries an ingredient_id we
@@ -86,6 +87,9 @@ export async function POST(req: NextRequest) {
           current_unit_cost: 0, // the cost-history insert below sets the real price
           stock_qty: 0,
           par_level: 0,
+          // Seed a typical shelf life from the product name so auto-expiry works
+          // from the first delivery (owner can override). Null when unknown.
+          shelf_life_days: suggestShelfLife(name),
           supplier_name: invoiceHeader?.supplier_name || null,
           archived: false,
         })

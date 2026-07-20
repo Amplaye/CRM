@@ -1611,6 +1611,7 @@ export const it: Dictionary = {
   inventory_col_expiry: "Scadenza",
   inventory_shelf_life: "Durata (giorni)",
   inventory_shelf_life_hint: "Impostala una volta: la scadenza si calcola da sola a ogni carico merce.",
+  inventory_shelf_life_suggest: "Consigliato: {n} gg — usa",
   inventory_empty: "Nessun ingrediente.",
   inventory_low_badge: "bassa",
   inventory_expiring_badge: "in scadenza",

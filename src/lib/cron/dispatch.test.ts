@@ -20,6 +20,7 @@ describe("jobsForHour", () => {
     expect(jobsForHour(5)).toEqual(
       expect.arrayContaining(["credits-reset", "fiscal-flush"]),
     );
+    expect(jobsForHour(6)).toContain("expiry-alert");
   });
 
   it("does not run a daily job at the wrong hour", () => {
@@ -31,7 +32,7 @@ describe("jobsForHour", () => {
     const seen = new Set<string>();
     for (let h = 0; h < 24; h++) jobsForHour(h).forEach((p) => seen.add(p));
     expect(seen.size).toBe(CRON_JOBS.length);
-    expect(seen.size).toBe(9);
+    expect(seen.size).toBe(10);
   });
 });
 

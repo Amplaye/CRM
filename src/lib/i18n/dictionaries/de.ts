@@ -1611,6 +1611,7 @@ export const de: Dictionary = {
   inventory_col_expiry: "Ablauf",
   inventory_shelf_life: "Haltbarkeit (Tage)",
   inventory_shelf_life_hint: "Einmal einstellen: Das Ablaufdatum wird bei jedem Wareneingang automatisch berechnet.",
+  inventory_shelf_life_suggest: "Empfohlen: {n} Tage — übernehmen",
   inventory_empty: "Keine Zutaten.",
   inventory_low_badge: "niedrig",
   inventory_expiring_badge: "läuft ab",
