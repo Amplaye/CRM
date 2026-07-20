@@ -10,7 +10,7 @@ import { isSendableGuestPhone } from "@/lib/whatsapp/phone";
  *
  * Best-effort and self-contained: never throws into the caller's transaction.
  * Skips silently when the stored phone is missing/implausible (e.g. the mangled
- * "+6341790137" from a bad STT) so we don't hand Twilio an undeliverable number.
+ * "+6341790137" from a bad STT) so we don't hand Meta an undeliverable number.
  */
 export async function sendReservationConfirmationWhatsApp(params: {
   tenantId: string;

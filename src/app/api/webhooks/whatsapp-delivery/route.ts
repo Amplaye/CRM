@@ -4,8 +4,8 @@ import { handleMetaWebhookVerification, verifyMetaSignature } from '@/lib/meta-s
 import { logSystemEvent } from '@/lib/system-log';
 
 // Meta WhatsApp Cloud API delivery status webhook (sent → delivered → read, or
-// failed). Replaces the Twilio status callback (src/app/api/twilio/
-// delivery-callback, now deprecated). Each status update is recorded as one row
+// failed). The only delivery-status surface: the Twilio status callback it
+// replaced was deleted on 2026-07-20. Each status update is recorded as one row
 // in audit_events for the matching tenant.
 //
 // Meta posts a webhook envelope; statuses live at

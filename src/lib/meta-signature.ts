@@ -5,8 +5,8 @@ import crypto from 'node:crypto';
 // Meta signs every webhook POST with HMAC-SHA256(appSecret, rawBody), sent in
 // the `X-Hub-Signature-256` header as "sha256=<hex>". Verifying it protects us
 // from spoofed webhooks (anyone who knows the path could otherwise POST fake
-// messages into our pipeline). This replaces the Twilio SHA-1 scheme
-// (src/lib/twilio-signature.ts) for the Meta WhatsApp Cloud API migration.
+// messages into our pipeline). It replaced the old Twilio SHA-1 scheme, whose
+// helper was deleted with the rest of Twilio on 2026-07-20.
 //
 // FAIL-CLOSED: verification is active whenever META_APP_SECRET is configured.
 // The only way to skip it is the explicit emergency opt-out

@@ -4,10 +4,6 @@ import {
   isMetaVerificationEnabled,
   verifyMetaSignature,
 } from './meta-signature';
-import {
-  isTwilioVerificationEnabled,
-  verifyTwilioSignature,
-} from './twilio-signature';
 
 // Fail-closed contract for webhook signature verification:
 // - secret configured           → verification enforced
@@ -17,8 +13,6 @@ import {
 const ENV_KEYS = [
   'META_APP_SECRET',
   'FACEBOOK_VERIFY_SIGNATURE',
-  'TWILIO_AUTH_TOKEN',
-  'TWILIO_VERIFY_SIGNATURE',
 ] as const;
 
 let saved: Record<string, string | undefined>;
@@ -40,11 +34,6 @@ afterEach(() => {
 
 function metaSign(body: string, secret: string): string {
   return 'sha256=' + crypto.createHmac('sha256', secret).update(body, 'utf-8').digest('hex');
-}
-
-function twilioSign(url: string, params: Record<string, string>, token: string): string {
-  const data = url + Object.keys(params).sort().map((k) => k + params[k]).join('');
-  return crypto.createHmac('sha1', token).update(data, 'utf-8').digest('base64');
 }
 
 describe('Meta signature verification (fail-closed)', () => {
@@ -93,43 +82,5 @@ describe('Meta signature verification (fail-closed)', () => {
     process.env.META_APP_SECRET = 'shhh';
     process.env.FACEBOOK_VERIFY_SIGNATURE = '0';
     expect(verifyMetaSignature('{}', null)).toBe(true);
-  });
-});
-
-describe('Twilio signature verification (fail-closed)', () => {
-  const URL = 'https://crm.example.com/api/twilio/delivery-callback?tenant_id=t1';
-
-  it('is enabled when TWILIO_AUTH_TOKEN is set', () => {
-    process.env.TWILIO_AUTH_TOKEN = 'tok';
-    expect(isTwilioVerificationEnabled()).toBe(true);
-  });
-
-  it('is disabled without TWILIO_AUTH_TOKEN', () => {
-    expect(isTwilioVerificationEnabled()).toBe(false);
-  });
-
-  it('can be opted out only with TWILIO_VERIFY_SIGNATURE=0', () => {
-    process.env.TWILIO_AUTH_TOKEN = 'tok';
-    process.env.TWILIO_VERIFY_SIGNATURE = '0';
-    expect(isTwilioVerificationEnabled()).toBe(false);
-    process.env.TWILIO_VERIFY_SIGNATURE = '1';
-    expect(isTwilioVerificationEnabled()).toBe(true);
-  });
-
-  it('accepts a valid signature', () => {
-    process.env.TWILIO_AUTH_TOKEN = 'tok';
-    const params = { MessageSid: 'SM123', MessageStatus: 'delivered' };
-    expect(verifyTwilioSignature(URL, params, twilioSign(URL, params, 'tok'))).toBe(true);
-  });
-
-  it('rejects a missing signature when the token is configured', () => {
-    process.env.TWILIO_AUTH_TOKEN = 'tok';
-    expect(verifyTwilioSignature(URL, {}, null)).toBe(false);
-  });
-
-  it('rejects tampered params', () => {
-    process.env.TWILIO_AUTH_TOKEN = 'tok';
-    const sig = twilioSign(URL, { MessageStatus: 'delivered' }, 'tok');
-    expect(verifyTwilioSignature(URL, { MessageStatus: 'failed' }, sig)).toBe(false);
   });
 });

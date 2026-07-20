@@ -140,7 +140,7 @@ export default function AdminPage() {
                   <span className="font-semibold text-black">{p.name}</span>
                   {p.slug && (
                     <span className="text-xs text-emerald-700/90 block sm:inline sm:ml-2">
-                      webhook Twilio → <code className="bg-white px-1 py-0.5 rounded">{p.slug}-whatsapp</code>
+                      webhook WhatsApp → <code className="bg-white px-1 py-0.5 rounded">{p.slug}-whatsapp</code>
                     </span>
                   )}
                 </div>

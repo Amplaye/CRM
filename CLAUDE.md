@@ -25,7 +25,7 @@ CRM SaaS multi-tenant per ristoranti (e cliniche). Next.js 16 + Supabase + **Clo
 
 ## Convenzioni & trappole (IMPARATE — rispettale)
 - **Multi-tenant**: ogni query/azione è tenant-scoped. Mai logica che ignori `tenant_id` (guard fa skip silenzioso se manca). Niente "branches" per tenant.
-- **WhatsApp = Meta Cloud API**, NON Twilio (Twilio resta solo per voce/SMS legacy dove indicato).
+- **WhatsApp = Meta Cloud API**. Twilio è stato **rimosso del tutto** il 2026-07-20 (codice, route `/api/twilio/*`, helper firma, fallback nel bot-engine): non esiste più nessun path Twilio, né per WhatsApp né per voce/SMS. Non reintrodurlo.
 - **Add-on gating**: gestionale/POS sono add-on → gate in `src/lib/billing/entitlements.ts`. Flag: `management_enabled`, `commercial_info_enabled`.
 - **system_logs**: usa colonne `title` + `description`, MAI `message`. Wrappa il logging in try/catch.
 - **Cron**: le route `/api/cron/*` sono chiamate dal Worker `bot-engine` (scheduled dispatch, `src/lib/cron/dispatch.ts`), auth `Authorization: Bearer ${CRON_SECRET}`. `vercel.json` è stato rimosso.

@@ -12,7 +12,7 @@ import { buildTenantCallConfig } from "@/lib/voice/engine";
 // lets the n8n voice webhooks resolve the tenant (one engine serves all).
 //
 // The composed prompt is behavioural instructions, not a secret, so it is safe
-// to hand to the browser; the real secrets (Supabase/OpenAI/Twilio keys) stay
+// to hand to the browser; the real secrets (Supabase/OpenAI/Meta keys) stay
 // server-side in n8n. No auth: this only RETURNS config; the call itself is
 // created client-side with the public key, exactly as before.
 

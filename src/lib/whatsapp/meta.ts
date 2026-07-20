@@ -5,8 +5,8 @@
 // auth, payload shape and error handling live in ONE place — not duplicated
 // across each API route the way the old Twilio fetch() blocks were.
 //
-// Twilio still exists in this codebase, but ONLY as the future voice trunk
-// (phone number → forward → Vapi). It must never touch WhatsApp again.
+// Twilio was removed entirely on 2026-07-20 (code, routes and signature
+// helper): WhatsApp runs on Meta and nothing else does outbound messaging.
 //
 // Endpoint:  POST https://graph.facebook.com/{version}/{phone_number_id}/messages
 // Auth:      Authorization: Bearer <META_ACCESS_TOKEN>   (system-user token)

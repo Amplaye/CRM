@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import crypto from 'crypto';
 
 /**
- * Guards AI-webhook routes (n8n / Vapi / Twilio integrations) with a
+ * Guards AI-webhook routes (bot-engine / Vapi / Meta integrations) with a
  * shared secret header. Fail-closed:
  *
  *   - If AI_WEBHOOK_SECRET env var is NOT set, every request is rejected

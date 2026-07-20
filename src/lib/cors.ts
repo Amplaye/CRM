@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 /**
  * Cross-origin policy for AI / webhook routes.
  *
- * These routes are called server-to-server (n8n, Vapi, Twilio). They
+ * These routes are called server-to-server (bot-engine, Vapi, Meta). They
  * have no legitimate browser caller today, so the policy is "no browser
  * cross-origin access". `assertAiSecret` already requires a custom header
  * a browser can't add without a CORS preflight, but this guard is an
@@ -17,7 +17,7 @@ const ALLOWED_ORIGINS = new Set([
   'http://localhost:3000',
 ]);
 
-const SENSITIVE_PREFIXES = ['/api/ai/', '/api/webhooks', '/api/twilio/'];
+const SENSITIVE_PREFIXES = ['/api/ai/', '/api/webhooks'];
 
 export function enforceApiCors(request: NextRequest): NextResponse | null {
   const path = request.nextUrl.pathname;

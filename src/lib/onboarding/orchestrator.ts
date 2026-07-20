@@ -454,8 +454,7 @@ export async function runOnboard(
         // hardening). The bot-engine reads the token from {bot_config ∪ secrets}
         // and sends via Meta when meta_phone_number_id + meta_access_token are both
         // present (META_ON). Without this, a new tenant has no Meta creds and
-        // silently falls back to the Twilio sandbox — we want every new tenant to be
-        // born on Meta. During the demo phase all tenants share the one sandbox number
+        // cannot send at all — we want every new tenant to be born on Meta. During the demo phase all tenants share the one sandbox number
         // (META_WHATSAPP_PHONE_NUMBER_ID); a real customer gets their own number later.
         // Sourced from env (single source of truth — rotate the env, new tenants follow).
         const metaToken = process.env.META_ACCESS_TOKEN || "";
@@ -516,7 +515,7 @@ export async function runOnboard(
             if (metaSecrets.metaCreds) {
               push({ step: "meta", message: `Meta WhatsApp creds written (shared sandbox number ${metaPhoneId})`, ok: true });
             } else {
-              push({ step: "meta", message: `Meta creds NOT set (env META_ACCESS_TOKEN / META_WHATSAPP_PHONE_NUMBER_ID missing) — bot will fall back to Twilio`, ok: false });
+              push({ step: "meta", message: `Meta creds NOT set (env META_ACCESS_TOKEN / META_WHATSAPP_PHONE_NUMBER_ID missing) — il bot non potrà inviare`, ok: false });
             }
           }
         }

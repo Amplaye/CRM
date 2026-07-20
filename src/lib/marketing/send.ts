@@ -232,7 +232,7 @@ export async function sendCampaign(
         }
         else { failed++; await mark("failed", res.errorMessage); }
       } else {
-        // SMS: legacy Twilio path not wired for campaigns yet.
+        // SMS: no provider wired for campaigns yet.
         skipped++; await mark("skipped", "channel_not_supported");
       }
     } catch (e) {
