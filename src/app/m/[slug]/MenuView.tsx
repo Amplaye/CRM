@@ -46,6 +46,8 @@ type Props = {
   menuLabel: string;
   emptyLabel: string;
   featuredLabel: string;
+  /** Copy for the tag filter row all four templates render. */
+  filterLabels: { all: string; noMatch: string };
   sections: MenuViewSection[];
   /** Optional owner-uploaded menu logo (menu_branding.logo_url). When set, each
    * template renders it in the header next to / above the wordmark. */

@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { ClosePublicMenuButton } from "./ClosePublicMenuButton";
 import { DishAddButton } from "./OrderLayer";
+import { useTagFilter } from "./useMenuFilters";
 
 // Public hosted menu — Template 4 "CLASSICO".
 //
@@ -42,6 +43,8 @@ type Props = {
   menuLabel: string;
   emptyLabel: string;
   featuredLabel: string;
+  /** "All" / "no dish matches" — localized on the server. */
+  filterLabels: { all: string; noMatch: string };
   sections: MenuViewSection[];
   logoUrl?: string;
 };
@@ -57,13 +60,25 @@ export default function MenuClassic({
   menuLabel,
   emptyLabel,
   featuredLabel,
+  filterLabels,
   sections,
   logoUrl,
 }: Props) {
-  const valid = sections.filter((s) => s.items.length > 0);
-  const empty = valid.length === 0;
+  const all = sections.filter((s) => s.items.length > 0);
+  const empty = all.length === 0;
 
-  const [activeKey, setActiveKey] = useState<string>(valid[0]?.key ?? "");
+  const { activeTags, availableTags, toggleTag, clearTags, matches } = useTagFilter(
+    all.map((s) => ({ key: s.key, items: s.items.map((it) => ({ tags: it.tagLabels })) })),
+  );
+
+  // The whole carte prints at once, so a filtered-out course is removed from
+  // the card and from the index — a printed menu never shows an empty course.
+  const valid = all
+    .map((s) => ({ ...s, items: s.items.filter((it) => matches(it.tagLabels)) }))
+    .filter((s) => s.items.length > 0);
+  const noMatch = !empty && valid.length === 0;
+
+  const [activeKey, setActiveKey] = useState<string>(all[0]?.key ?? "");
   const barRef = useRef<HTMLDivElement | null>(null);
   const chipRefs = useRef<Map<string, HTMLElement>>(new Map());
   const secRefs = useRef<Map<string, HTMLElement>>(new Map());
@@ -159,10 +174,40 @@ export default function MenuClassic({
                     </button>
                   ))}
                 </div>
+
+                {/* Tag filters — only when the menu actually carries tags, so
+                    an untagged carte keeps its plain brass index. */}
+                {availableTags.length > 0 && (
+                  <div className="cla-tagbar" role="group" aria-label={filterLabels.all}>
+                    <button
+                      type="button"
+                      onClick={clearTags}
+                      aria-pressed={activeTags.length === 0}
+                      className={`cla-tagchip${activeTags.length === 0 ? " is-on" : ""}`}
+                    >
+                      {filterLabels.all}
+                    </button>
+                    {availableTags.map((label) => {
+                      const on = activeTags.includes(label);
+                      return (
+                        <button
+                          key={label}
+                          type="button"
+                          onClick={() => toggleTag(label)}
+                          aria-pressed={on}
+                          className={`cla-tagchip${on ? " is-on" : ""}`}
+                        >
+                          {label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
               </nav>
 
               {/* ── Courses — the whole carte flows like paper ──────────────── */}
               <main className="cla-main">
+                {noMatch && <p className="cla-nomatch">{filterLabels.noMatch}</p>}
                 {valid.map((s, si) => (
                   <section
                     key={s.key}
@@ -379,6 +424,32 @@ html:has(.cla-root), html:has(.cla-root) body {
 .cla-chip:focus-visible { outline: 2px solid var(--brass-deep); outline-offset: 2px; }
 .cla-star { color: var(--brass-deep); }
 .cla-chip.is-on .cla-star { color: #f3ddb2; }
+
+/* Tag filter row — engraved small caps under the course index: outlined rather
+   than filled, so the brass course chips stay the loudest thing in the bar. */
+.cla-tagbar {
+  display: flex; gap: 0.35rem; overflow-x: auto;
+  padding: 0 clamp(1rem, 4vw, 2rem) 0.5rem;
+  scrollbar-width: none; -ms-overflow-style: none;
+}
+.cla-tagbar::-webkit-scrollbar { display: none; }
+.cla-tagchip {
+  flex: 0 0 auto; cursor: pointer; white-space: nowrap;
+  font-family: inherit;
+  font-size: 0.6rem; font-weight: 700; letter-spacing: 0.16em; text-transform: uppercase;
+  padding: 0.26rem 0.64rem; border-radius: 999px;
+  color: var(--ink-soft); background: transparent;
+  border: 1px solid rgba(164,118,47,0.4);
+  transition: color .2s ease, background-color .2s ease, border-color .2s ease;
+}
+.cla-tagchip:hover { color: var(--ink); background: rgba(164,118,47,0.12); }
+.cla-tagchip.is-on { color: #fdf6ea; background: var(--brass-deep); border-color: var(--brass-deep); }
+.cla-tagchip:focus-visible { outline: 2px solid var(--brass-deep); outline-offset: 2px; }
+
+.cla-nomatch {
+  text-align: center; padding: 3.5rem 1rem; margin: 0; color: var(--brass-deep);
+  font-family: var(--font-display), serif; font-style: italic; font-size: 1.05rem;
+}
 
 /* Courses */
 .cla-main { padding: clamp(1.8rem, 6vw, 3rem) clamp(1.5rem, 6vw, 3.5rem) clamp(2rem, 6vw, 3rem); }

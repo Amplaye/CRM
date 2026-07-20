@@ -56,6 +56,26 @@ type Bill = {
 const ACCENT = "var(--accent, #b45309)";
 const euro = (n: number) => `€ ${n.toFixed(2)}`;
 
+/** Ionicons "cash-outline" (MIT), inlined — the pack isn't a dependency and one
+ * glyph doesn't justify adding it. Replaces the 🧾 emoji, which rendered as a
+ * different picture on every platform and read as "receipt" rather than "pay". */
+function CashIcon() {
+  return (
+    <svg
+      viewBox="0 0 512 512"
+      className="h-[18px] w-[18px]"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={32}
+      aria-hidden
+    >
+      <rect x="32" y="112" width="448" height="288" rx="32" ry="32" />
+      <circle cx="256" cy="256" r="64" />
+      <path d="M480 208a96 96 0 01-96-96M32 208a96 96 0 0096-96M480 304a96 96 0 00-96 96M32 304a96 96 0 0196 96" />
+    </svg>
+  );
+}
+
 export default function TableBill({
   slug,
   tableId,
@@ -182,17 +202,20 @@ export default function TableBill({
 
   return (
     <>
-      {/* Floating bill pill — top-right, clear of the cart bar at the bottom.
-          In self-order mode OrderLayer renders a sticky table bar across that
-          same strip, so we sit just below it (--ol-topbar-h, 0 when absent)
-          instead of being hidden underneath it. */}
+      {/* Floating bill pill — bottom-right, where a thumb actually reaches. It
+          sits ABOVE the self-order cart dock (which spans the full width at the
+          very bottom) rather than beside it, so neither covers the other. */}
       {!open && (
         <button
           onClick={() => setOpen(true)}
-          className="fixed right-3 z-40 inline-flex items-center gap-1.5 rounded-full px-4 py-2 text-[13px] font-bold text-white shadow-lg cursor-pointer"
-          style={{ background: ACCENT, top: "calc(0.75rem + var(--ol-topbar-h, 0px))" }}
+          className="fixed right-3 z-40 inline-flex items-center gap-1.5 rounded-full px-4 py-2.5 text-[13px] font-bold text-white shadow-lg cursor-pointer"
+          style={{
+            background: ACCENT,
+            bottom: "calc(0.75rem + var(--ol-dock-h, 0px) + env(safe-area-inset-bottom, 0px))",
+          }}
         >
-          <span aria-hidden>🧾</span> {s.billButton}
+          <CashIcon />
+          {s.billButton}
         </button>
       )}
 
@@ -301,14 +324,20 @@ export default function TableBill({
                       <span className="text-sm font-semibold text-stone-500">{s.total}</span>
                       <span className="text-xl font-bold text-stone-900 tabular-nums">{euro(order!.total)}</span>
                     </div>
-                    <button
-                      onClick={pay}
-                      disabled={paying || !bill!.payable}
-                      className="w-full py-3.5 rounded-2xl text-white font-bold cursor-pointer disabled:opacity-60"
-                      style={{ background: ACCENT }}
-                    >
-                      {paying ? s.redirecting : `${s.pay} · ${euro(order!.total)}`}
-                    </button>
+                    {/* A greyed-out "Pay by card" reads as a broken button. When
+                        the venue simply doesn't take card-from-phone, the bill
+                        summary plus the "pay at the till" line above is the whole
+                        story — so the button isn't rendered at all. */}
+                    {bill!.payable && (
+                      <button
+                        onClick={pay}
+                        disabled={paying}
+                        className="w-full py-3.5 rounded-2xl text-white font-bold cursor-pointer disabled:opacity-60"
+                        style={{ background: ACCENT }}
+                      >
+                        {paying ? s.redirecting : `${s.pay} · ${euro(order!.total)}`}
+                      </button>
+                    )}
                   </div>
                 )}
               </>

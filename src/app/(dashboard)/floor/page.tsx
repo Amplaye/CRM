@@ -156,6 +156,8 @@ export default function FloorPage() {
 
   // Delete table modal (edit mode)
   const [deleteTableModal, setDeleteTableModal] = useState<TableData | null>(null);
+  // Draft name for the rename field inside the plan-mode table sheet.
+  const [planRenameValue, setPlanRenameValue] = useState("");
   const [deleteTableLoading, setDeleteTableLoading] = useState(false);
 
   // Delete zone modal (edit mode)
@@ -1251,6 +1253,7 @@ export default function FloorPage() {
               onTableRotate={rotateTable}
               onTableClick={(table) => {
                 if (editingPlan) {
+                  setPlanRenameValue(table.name);
                   setDeleteTableModal(table);
                   return;
                 }
@@ -1489,6 +1492,43 @@ export default function FloorPage() {
             <h3 className="text-lg font-bold text-black mb-2">
               {t("floor_delete_table_title").replace("{name}", deleteTableModal.name)}
             </h3>
+
+            {/* Rename lives here too: in plan mode the canvas is the only way to
+                reach a table, and opening this sheet to delete is exactly when an
+                owner notices the label is wrong. Committing closes the modal, so
+                a rename never falls through into the delete confirmation below. */}
+            <label className="block text-xs font-semibold text-black mb-1">
+              {t("floor_rename_table")}
+            </label>
+            <div className="flex gap-2 mb-4">
+              <input
+                value={planRenameValue}
+                maxLength={20}
+                onChange={(e) => setPlanRenameValue(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key !== "Enter") return;
+                  e.preventDefault();
+                  renameTable(deleteTableModal.id, planRenameValue);
+                  setDeleteTableModal(null);
+                }}
+                className="flex-1 min-w-0 border-2 rounded-lg px-2 py-1.5 text-sm font-bold text-black outline-none"
+                style={{ borderColor: "#c4956a", background: "#fff" }}
+              />
+              <button
+                onClick={() => {
+                  renameTable(deleteTableModal.id, planRenameValue);
+                  setDeleteTableModal(null);
+                }}
+                disabled={
+                  !planRenameValue.trim() || planRenameValue.trim() === deleteTableModal.name
+                }
+                className="px-3 py-1.5 text-sm font-semibold rounded-lg text-white transition-colors disabled:opacity-40"
+                style={{ background: "#c4956a" }}
+              >
+                {t("floor_save_name")}
+              </button>
+            </div>
+
             <p className="text-sm text-black mb-4">
               {t("floor_delete_table_confirm")}
             </p>

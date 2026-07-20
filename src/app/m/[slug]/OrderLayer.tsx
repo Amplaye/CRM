@@ -40,7 +40,6 @@ export type OrderDish = {
 };
 
 export type OrderStrings = {
-  table: string;
   add: string;
   yourOrder: string;
   empty: string;
@@ -151,7 +150,6 @@ export function DishAddButton({
 export default function OrderLayer({
   slug,
   tableId,
-  tableName,
   dishes,
   strings: s,
   cooldownActive,
@@ -161,7 +159,6 @@ export default function OrderLayer({
 }: {
   slug: string;
   tableId: string;
-  tableName: string;
   dishes: OrderDish[];
   strings: OrderStrings;
   /** False when the owner flagged no drink category — locking the WHOLE menu on
@@ -347,12 +344,16 @@ export default function OrderLayer({
         <div className="ol-toast" role="status">✓ {s.foodUnlockedToast}</div>
       )}
 
-      {/* Docked cart bar */}
+      {/* Docked cart bar. While it's up it publishes its own height so the bill
+          pill (TableBill, bottom-right) floats above it instead of underneath. */}
       {cartCount > 0 && !cartOpen && !sent && (
-        <button type="button" className="ol-dock" onClick={() => setCartOpen(true)}>
-          <span>{cartCount} {s.items}</span>
-          <span>{s.viewOrder} · {euro(cartTotal)}</span>
-        </button>
+        <>
+          <style>{`:root { --ol-dock-h: 4.25rem; }`}</style>
+          <button type="button" className="ol-dock" onClick={() => setCartOpen(true)}>
+            <span>{cartCount} {s.items}</span>
+            <span>{s.viewOrder} · {euro(cartTotal)}</span>
+          </button>
+        </>
       )}
 
       {/* Cart sheet */}
@@ -470,12 +471,10 @@ export default function OrderLayer({
 
   return (
     <OrderCtx.Provider value={ctx}>
-      {/* A slim always-on strip naming the table: the guest's proof they scanned
-          the right QR, and the one piece of order-mode chrome that belongs
-          inline rather than floating. */}
-      <div className="ol-tablebar">
-        <span>{s.table} <strong>{tableName}</strong></span>
-      </div>
+      {/* No table-name strip: it pushed the templates' own sticky category bars
+          off the top of the viewport, and the guest already knows which table
+          they're sitting at. The table id still rides the order payload, so
+          nothing functional depended on showing it. */}
       {children}
       {mounted && createPortal(overlays, document.body)}
     </OrderCtx.Provider>
@@ -487,20 +486,10 @@ export default function OrderLayer({
 // not as part of the menu's art direction. --accent (owner brand colour) still
 // drives every action surface so they stay on-brand.
 const overlayStyles = `
-/* Published so TableBill's floating pill can sit BELOW this bar rather than
-   underneath it. Kept in sync with the bar's real height (padding + line-box). */
-:root { --ol-topbar-h: 2.1rem; }
-
-.ol-tablebar {
-  position: sticky; top: 0; z-index: 60;
-  height: var(--ol-topbar-h); box-sizing: border-box;
-  display: flex; justify-content: center; align-items: center;
-  padding: 0.5rem 1rem;
-  font-family: var(--font-body), ui-sans-serif, system-ui, sans-serif;
-  font-size: 0.72rem; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase;
-  color: #fff; background: var(--accent, #b45309);
-}
-.ol-tablebar strong { font-weight: 800; }
+/* The table bar is gone, so nothing offsets the top of the viewport any more.
+   Kept at 0 (rather than deleted) because TableBill and the banners still read
+   it — one place to reintroduce a top strip if we ever want one back. */
+:root { --ol-topbar-h: 0rem; }
 
 .ol-banner, .ol-toast, .ol-dock, .ol-sheet-wrap, .ol-sent {
   font-family: var(--font-body), ui-sans-serif, system-ui, sans-serif;
@@ -508,10 +497,8 @@ const overlayStyles = `
 
 .ol-banner {
   position: fixed; z-index: 70;
-  /* Below the table bar AND the bill pill that sits under it, so the three
-     never overlap when both features are on. */
   left: 0.75rem; right: 0.75rem;
-  top: calc(var(--ol-topbar-h, 0px) + 3.4rem + env(safe-area-inset-top, 0px));
+  top: calc(0.75rem + env(safe-area-inset-top, 0px));
   display: flex; align-items: center; gap: 0.75rem;
   padding: 0.8rem 0.9rem; border-radius: 16px;
   background: rgba(24,18,12,0.94);
@@ -532,7 +519,7 @@ const overlayStyles = `
 .ol-toast {
   position: fixed; z-index: 70;
   left: 0.75rem; right: 0.75rem;
-  top: calc(var(--ol-topbar-h, 0px) + 3.4rem + env(safe-area-inset-top, 0px));
+  top: calc(0.75rem + env(safe-area-inset-top, 0px));
   padding: 0.8rem; border-radius: 14px; text-align: center;
   font-size: 0.86rem; font-weight: 700; color: #fff; background: #15803d;
   box-shadow: 0 18px 40px -20px rgba(0,0,0,0.8);

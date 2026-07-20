@@ -1021,6 +1021,7 @@ export const it: Dictionary = {
   floor_party_size_custom: "Numero personalizzato",
   floor_add_table_btn: "Aggiungi tavolo",
   floor_rename_table: "Rinomina tavolo",
+  floor_save_name: "Salva",
   floor_add_zone: "Aggiungi zona",
   floor_zone_name_prompt: "Nome zona (es. Terrazza, Interno):",
   floor_delete_table: "Elimina tavolo",

@@ -1018,6 +1018,7 @@ export const en = {
   floor_party_size_custom: "Custom number",
   floor_add_table_btn: "Add table",
   floor_rename_table: "Rename table",
+  floor_save_name: "Save",
   floor_add_zone: "Add zone",
   floor_zone_name_prompt: "Zone name (e.g. Terrace, Inside):",
   floor_delete_table: "Delete table",

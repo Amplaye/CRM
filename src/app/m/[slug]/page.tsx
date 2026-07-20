@@ -103,19 +103,39 @@ function resolveLocale(raw: unknown): MenuLocale {
 // the whole public menu speaks one language.
 const PUBLIC_STRINGS: Record<
   MenuLocale,
-  { menu: string; updating: string; other: string; featured: string }
+  {
+    menu: string;
+    updating: string;
+    other: string;
+    featured: string;
+    /** Tag-filter row: the "show everything" chip and the empty result line. */
+    filterAll: string;
+    filterNoMatch: string;
+  }
 > = {
-  it: { menu: "Menu", updating: "Menù in aggiornamento.", other: "Altro", featured: "Selezione" },
-  es: { menu: "Carta", updating: "Carta en actualización.", other: "Otros", featured: "Selección" },
-  en: { menu: "Menu", updating: "Menu being updated.", other: "Other", featured: "Selection" },
-  de: { menu: "Speisekarte", updating: "Speisekarte wird aktualisiert.", other: "Sonstiges", featured: "Auswahl" },
+  it: {
+    menu: "Menu", updating: "Menù in aggiornamento.", other: "Altro", featured: "Selezione",
+    filterAll: "Tutti", filterNoMatch: "Nessun piatto con questi filtri.",
+  },
+  es: {
+    menu: "Carta", updating: "Carta en actualización.", other: "Otros", featured: "Selección",
+    filterAll: "Todos", filterNoMatch: "Ningún plato con estos filtros.",
+  },
+  en: {
+    menu: "Menu", updating: "Menu being updated.", other: "Other", featured: "Selection",
+    filterAll: "All", filterNoMatch: "No dish matches these filters.",
+  },
+  de: {
+    menu: "Speisekarte", updating: "Speisekarte wird aktualisiert.", other: "Sonstiges", featured: "Auswahl",
+    filterAll: "Alle", filterNoMatch: "Kein Gericht passt zu diesen Filtern.",
+  },
 };
 
 // Strings for the table self-order mode (?table=<id>), same server-localized
 // pattern as PUBLIC_STRINGS — the whole flow speaks the tenant's language.
 const SELF_ORDER_STRINGS: Record<MenuLocale, OrderStrings> = {
   it: {
-    table: "Tavolo", add: "Aggiungi", yourOrder: "Il tuo ordine", empty: "Il carrello è vuoto",
+    add: "Aggiungi", yourOrder: "Il tuo ordine", empty: "Il carrello è vuoto",
     sendOrder: "Invia ordine", sending: "Invio…", viewOrder: "Vedi ordine", items: "articoli",
     notesPlaceholder: "Note (allergie, senza cipolla…)", total: "Totale", cancel: "Annulla",
     sentTitle: "Ordine inviato!", sentBody: "Il personale l'ha ricevuto e lo prepara al più presto.",
@@ -129,7 +149,7 @@ const SELF_ORDER_STRINGS: Record<MenuLocale, OrderStrings> = {
     minutesShort: "min",
   },
   es: {
-    table: "Mesa", add: "Añadir", yourOrder: "Tu pedido", empty: "El carrito está vacío",
+    add: "Añadir", yourOrder: "Tu pedido", empty: "El carrito está vacío",
     sendOrder: "Enviar pedido", sending: "Enviando…", viewOrder: "Ver pedido", items: "artículos",
     notesPlaceholder: "Notas (alergias, sin cebolla…)", total: "Total", cancel: "Cancelar",
     sentTitle: "¡Pedido enviado!", sentBody: "El personal lo ha recibido y lo prepara enseguida.",
@@ -143,7 +163,7 @@ const SELF_ORDER_STRINGS: Record<MenuLocale, OrderStrings> = {
     minutesShort: "min",
   },
   en: {
-    table: "Table", add: "Add", yourOrder: "Your order", empty: "Your cart is empty",
+    add: "Add", yourOrder: "Your order", empty: "Your cart is empty",
     sendOrder: "Send order", sending: "Sending…", viewOrder: "View order", items: "items",
     notesPlaceholder: "Notes (allergies, no onion…)", total: "Total", cancel: "Cancel",
     sentTitle: "Order sent!", sentBody: "The staff received it and will prepare it right away.",
@@ -157,7 +177,7 @@ const SELF_ORDER_STRINGS: Record<MenuLocale, OrderStrings> = {
     minutesShort: "min",
   },
   de: {
-    table: "Tisch", add: "Hinzufügen", yourOrder: "Deine Bestellung", empty: "Der Warenkorb ist leer",
+    add: "Hinzufügen", yourOrder: "Deine Bestellung", empty: "Der Warenkorb ist leer",
     sendOrder: "Bestellung senden", sending: "Wird gesendet…", viewOrder: "Bestellung ansehen", items: "Artikel",
     notesPlaceholder: "Hinweise (Allergien, ohne Zwiebeln…)", total: "Gesamt", cancel: "Abbrechen",
     sentTitle: "Bestellung gesendet!", sentBody: "Das Personal hat sie erhalten und bereitet sie gleich zu.",
@@ -180,7 +200,7 @@ const TABLE_PAY_STRINGS: Record<MenuLocale, TableBillStrings> = {
     noBill: "Non c'è ancora un conto aperto per questo tavolo.",
     covers: "Coperto", discount: "Sconto", total: "Totale", pay: "Paga con carta",
     redirecting: "Apro il pagamento…",
-    notPayableStripe: "Per questo tavolo il pagamento con carta dal telefono non è attivo: puoi pagare in cassa o chiamare il personale.",
+    notPayableStripe: "Qui si paga direttamente in cassa o al tavolo con il personale. Questo è il riepilogo del tuo conto.",
     notPayableClosed: "La cassa è chiusa in questo momento: chiama il personale.",
     confirming: "Confermiamo il pagamento…",
     paidTitle: "Pagato, grazie!", paidBody: "Il conto è stato saldato e chiuso in cassa. Buona giornata!",
@@ -197,7 +217,7 @@ const TABLE_PAY_STRINGS: Record<MenuLocale, TableBillStrings> = {
     noBill: "Todavía no hay una cuenta abierta para esta mesa.",
     covers: "Cubierto", discount: "Descuento", total: "Total", pay: "Pagar con tarjeta",
     redirecting: "Abriendo el pago…",
-    notPayableStripe: "En esta mesa el pago con tarjeta desde el móvil no está activo: puedes pagar en caja o llamar al personal.",
+    notPayableStripe: "Aquí se paga directamente en caja o en la mesa con el personal. Este es el resumen de tu cuenta.",
     notPayableClosed: "La caja está cerrada ahora mismo: llama al personal.",
     confirming: "Confirmando el pago…",
     paidTitle: "¡Pagado, gracias!", paidBody: "La cuenta se ha saldado y cerrado en caja. ¡Buen día!",
@@ -214,7 +234,7 @@ const TABLE_PAY_STRINGS: Record<MenuLocale, TableBillStrings> = {
     noBill: "There's no open bill for this table yet.",
     covers: "Cover charge", discount: "Discount", total: "Total", pay: "Pay by card",
     redirecting: "Opening payment…",
-    notPayableStripe: "Card payment from your phone isn't set up for this table: you can pay at the till or call the staff.",
+    notPayableStripe: "Payment is taken at the till or at your table by the staff. Here's a summary of your bill.",
     notPayableClosed: "The till is closed right now: please call the staff.",
     confirming: "Confirming your payment…",
     paidTitle: "Paid, thank you!", paidBody: "Your bill has been settled and closed at the till. Have a great day!",
@@ -231,7 +251,7 @@ const TABLE_PAY_STRINGS: Record<MenuLocale, TableBillStrings> = {
     noBill: "Für diesen Tisch gibt es noch keine offene Rechnung.",
     covers: "Gedeck", discount: "Rabatt", total: "Gesamt", pay: "Mit Karte zahlen",
     redirecting: "Zahlung wird geöffnet…",
-    notPayableStripe: "Kartenzahlung per Handy ist für diesen Tisch nicht eingerichtet: bitte an der Kasse zahlen oder das Personal rufen.",
+    notPayableStripe: "Bezahlt wird an der Kasse oder am Tisch beim Personal. Hier ist die Übersicht deiner Rechnung.",
     notPayableClosed: "Die Kasse ist gerade geschlossen: bitte das Personal rufen.",
     confirming: "Zahlung wird bestätigt…",
     paidTitle: "Bezahlt, danke!", paidBody: "Die Rechnung wurde beglichen und an der Kasse geschlossen. Schönen Tag!",
@@ -498,6 +518,7 @@ export default async function PublicMenuPage({
       menuLabel={ui.menu}
       emptyLabel={ui.updating}
       featuredLabel={ui.featured}
+      filterLabels={{ all: ui.filterAll, noMatch: ui.filterNoMatch }}
       sections={sections}
       logoUrl={mb?.logo_url}
     />
@@ -528,7 +549,6 @@ export default async function PublicMenuPage({
       <OrderLayer
         slug={tenant.slug}
         tableId={orderTable.id}
-        tableName={orderTable.name}
         dishes={orderDishes}
         strings={SELF_ORDER_STRINGS[locale]}
         cooldownActive={cooldownActive}

@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { ClosePublicMenuButton } from "./ClosePublicMenuButton";
 import { DishAddButton } from "./OrderLayer";
+import { useTagFilter } from "./useMenuFilters";
 
 // Public hosted menu — Template 2 "EDITORIALE".
 //
@@ -43,6 +44,8 @@ type Props = {
   menuLabel: string;
   emptyLabel: string;
   featuredLabel: string;
+  /** "All" / "no dish matches" — localized on the server. */
+  filterLabels: { all: string; noMatch: string };
   sections: MenuViewSection[];
   logoUrl?: string;
 };
@@ -58,13 +61,26 @@ export default function MenuEditorial({
   menuLabel,
   emptyLabel,
   featuredLabel,
+  filterLabels,
   sections,
   logoUrl,
 }: Props) {
-  const valid = sections.filter((s) => s.items.length > 0);
-  const empty = valid.length === 0;
+  const all = sections.filter((s) => s.items.length > 0);
+  const empty = all.length === 0;
 
-  const [activeKey, setActiveKey] = useState<string>(valid[0]?.key ?? "");
+  const { activeTags, availableTags, toggleTag, clearTags, matches } = useTagFilter(
+    all.map((s) => ({ key: s.key, items: s.items.map((it) => ({ tags: it.tagLabels })) })),
+  );
+
+  // This template prints every course at once, so filtering can't just empty a
+  // list: a course with nothing left is dropped whole — index entry included —
+  // rather than left as a heading over a void.
+  const valid = all
+    .map((s) => ({ ...s, items: s.items.filter((it) => matches(it.tagLabels)) }))
+    .filter((s) => s.items.length > 0);
+  const noMatch = !empty && valid.length === 0;
+
+  const [activeKey, setActiveKey] = useState<string>(all[0]?.key ?? "");
   const chipBarRef = useRef<HTMLDivElement | null>(null);
   const chipRefs = useRef<Map<string, HTMLElement>>(new Map());
   const secRefs = useRef<Map<string, HTMLElement>>(new Map());
@@ -164,6 +180,35 @@ export default function MenuEditorial({
                 </li>
               ))}
             </ul>
+
+            {/* Same filters as the mobile bar — the chip bar is hidden ≥1024px,
+                so without this copy the rail would lose them entirely. */}
+            {availableTags.length > 0 && (
+              <div className="edi-tagbar edi-tagbar-rail" role="group" aria-label={filterLabels.all}>
+                <button
+                  type="button"
+                  onClick={clearTags}
+                  aria-pressed={activeTags.length === 0}
+                  className={`edi-tagchip${activeTags.length === 0 ? " is-on" : ""}`}
+                >
+                  {filterLabels.all}
+                </button>
+                {availableTags.map((label) => {
+                  const on = activeTags.includes(label);
+                  return (
+                    <button
+                      key={label}
+                      type="button"
+                      onClick={() => toggleTag(label)}
+                      aria-pressed={on}
+                      className={`edi-tagchip${on ? " is-on" : ""}`}
+                    >
+                      {label}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
           </nav>
 
           <nav className="edi-chipbar" aria-label={menuLabel}>
@@ -183,10 +228,40 @@ export default function MenuEditorial({
                 </button>
               ))}
             </div>
+
+            {/* Tag filters — only when the menu actually carries tags, so an
+                untagged menu keeps its original bare index. */}
+            {availableTags.length > 0 && (
+              <div className="edi-tagbar" role="group" aria-label={filterLabels.all}>
+                <button
+                  type="button"
+                  onClick={clearTags}
+                  aria-pressed={activeTags.length === 0}
+                  className={`edi-tagchip${activeTags.length === 0 ? " is-on" : ""}`}
+                >
+                  {filterLabels.all}
+                </button>
+                {availableTags.map((label) => {
+                  const on = activeTags.includes(label);
+                  return (
+                    <button
+                      key={label}
+                      type="button"
+                      onClick={() => toggleTag(label)}
+                      aria-pressed={on}
+                      className={`edi-tagchip${on ? " is-on" : ""}`}
+                    >
+                      {label}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
           </nav>
 
           {/* ── Courses ──────────────────────────────────────────────────── */}
           <main className="edi-main">
+            {noMatch && <p className="edi-nomatch">{filterLabels.noMatch}</p>}
             {valid.map((s, si) => (
               <section
                 key={s.key}
@@ -384,6 +459,43 @@ html:has(.edi-root), html:has(.edi-root) body {
 .edi-chip:focus-visible { outline: 2px solid var(--sienna); outline-offset: 2px; }
 .edi-star { color: var(--sienna); }
 .edi-chip.is-on .edi-star { color: #eec7a2; }
+
+/* Tag filter row — set below the index in caption type, so it reads as a
+   secondary "refine" line rather than competing with the course index. It sits
+   inside the sticky chip bar on phones and above the courses on desktop. */
+.edi-tagbar {
+  display: flex; gap: 0.35rem; overflow-x: auto;
+  padding: 0 clamp(1rem, 4vw, 2rem) 0.55rem;
+  scrollbar-width: none; -ms-overflow-style: none;
+}
+.edi-tagbar::-webkit-scrollbar { display: none; }
+.edi-tagchip {
+  flex: 0 0 auto; cursor: pointer; white-space: nowrap;
+  font-family: inherit;
+  font-size: 0.62rem; font-weight: 800; letter-spacing: 0.14em; text-transform: uppercase;
+  padding: 0.28rem 0.66rem; border-radius: 999px;
+  color: var(--ink-soft); background: transparent;
+  border: 1px solid var(--hair);
+  transition: color .18s ease, background-color .18s ease, border-color .18s ease;
+}
+.edi-tagchip:hover { color: var(--ink); border-color: var(--sienna); }
+.edi-tagchip.is-on { color: var(--paper); background: var(--sienna); border-color: var(--sienna); }
+.edi-tagchip:focus-visible { outline: 2px solid var(--sienna); outline-offset: 2px; }
+/* In the 16rem rail there is no room to scroll sideways — wrap instead, under
+   a hairline that separates the filters from the index above them. */
+.edi-tagbar-rail { display: none; }
+@media (min-width: 1024px) {
+  .edi-tagbar-rail {
+    display: flex; flex-wrap: wrap; overflow: visible;
+    margin-top: 1.4rem; padding: 1.1rem 0 0;
+    border-top: 1px solid var(--hair);
+  }
+}
+
+.edi-nomatch {
+  text-align: center; padding: 3.5rem 1rem; margin: 0; color: var(--ink-soft);
+  font-family: var(--font-display), serif; font-style: italic; font-size: 1.05rem;
+}
 
 /* Courses */
 .edi-main {

@@ -1,8 +1,9 @@
 "use client";
 
-import { useLayoutEffect, useRef, useState } from "react";
+import { useLayoutEffect, useRef } from "react";
 import { ClosePublicMenuButton } from "./ClosePublicMenuButton";
 import { DishAddButton } from "./OrderLayer";
+import { useCategoryTransition, useTagFilter } from "./useMenuFilters";
 
 // Public hosted menu — Template 3 "SCURO" (cinematic).
 //
@@ -42,6 +43,8 @@ type Props = {
   menuLabel: string;
   emptyLabel: string;
   featuredLabel: string;
+  /** "Filters" / "All" / "no dish matches" — localized on the server. */
+  filterLabels: { all: string; noMatch: string };
   sections: MenuViewSection[];
   logoUrl?: string;
 };
@@ -57,19 +60,23 @@ export default function MenuCinematic({
   menuLabel,
   emptyLabel,
   featuredLabel,
+  filterLabels,
   sections,
   logoUrl,
 }: Props) {
   const valid = sections.filter((s) => s.items.length > 0);
   const empty = valid.length === 0;
 
-  const [activeKey, setActiveKey] = useState<string>(valid[0]?.key ?? "");
-  const [swapKey, setSwapKey] = useState(0);
+  const { activeKey, phase, swapKey, select: selectKey } = useCategoryTransition(valid[0]?.key ?? "");
+  const { activeTags, availableTags, toggleTag, clearTags, matches } = useTagFilter(
+    valid.map((s) => ({ key: s.key, items: s.items.map((it) => ({ tags: it.tagLabels })) })),
+  );
   const barRef = useRef<HTMLDivElement | null>(null);
   const tabRefs = useRef<Map<string, HTMLButtonElement>>(new Map());
 
   const activeIdx = Math.max(0, valid.findIndex((s) => s.key === activeKey));
   const active = valid[activeIdx] ?? valid[0];
+  const shownItems = active ? active.items.filter((it) => matches(it.tagLabels)) : [];
 
   // Center the selected tab inside the bar (never scroll the page).
   useLayoutEffect(() => {
@@ -82,11 +89,12 @@ export default function MenuCinematic({
     });
   }, [activeKey]);
 
+  // Scroll AFTER the swap, so the jump to the top happens while the panel is
+  // invisible mid-crossfade rather than yanking the page under a visible one.
   const select = (key: string) => {
-    if (key === activeKey) return;
-    setActiveKey(key);
-    setSwapKey((n) => n + 1);
-    window.scrollTo({ top: 0, behavior: "auto" });
+    selectKey(key, () => {
+      window.scrollTo({ top: 0, behavior: "auto" });
+    });
   };
 
   const onTabKeyDown = (e: React.KeyboardEvent, idx: number) => {
@@ -159,6 +167,35 @@ export default function MenuCinematic({
                 );
               })}
             </div>
+
+            {/* Tag filters — only rendered when the menu actually carries tags,
+                so an untagged menu keeps its original clean chrome. */}
+            {availableTags.length > 0 && (
+              <div className="cin-tagbar" role="group" aria-label={filterLabels.all}>
+                <button
+                  type="button"
+                  onClick={clearTags}
+                  aria-pressed={activeTags.length === 0}
+                  className={`cin-tagchip${activeTags.length === 0 ? " is-on" : ""}`}
+                >
+                  {filterLabels.all}
+                </button>
+                {availableTags.map((label) => {
+                  const on = activeTags.includes(label);
+                  return (
+                    <button
+                      key={label}
+                      type="button"
+                      onClick={() => toggleTag(label)}
+                      aria-pressed={on}
+                      className={`cin-tagchip${on ? " is-on" : ""}`}
+                    >
+                      {label}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
           </nav>
 
           {/* ── Active course ──────────────────────────────────────────────── */}
@@ -167,7 +204,7 @@ export default function MenuCinematic({
             id="cin-panel"
             role="tabpanel"
             aria-labelledby={`cin-tab-${active.key}`}
-            className="cin-main"
+            className={`cin-main${phase === "out" ? " is-out" : ""}`}
           >
             <div className="cin-course-head">
               <span className="cin-course-no" aria-hidden>
@@ -180,8 +217,10 @@ export default function MenuCinematic({
               <span className="cin-course-rule" aria-hidden />
             </div>
 
+            {shownItems.length === 0 && <p className="cin-nomatch">{filterLabels.noMatch}</p>}
+
             <ul className="cin-dishes">
-              {active.items.map((it, i) => {
+              {shownItems.map((it, i) => {
                 const price = priceText(it);
                 return (
                   <li
@@ -350,12 +389,43 @@ html:has(.cin-root), html:has(.cin-root) body {
 .cin-tab-star { margin-right: 0.35em; font-size: 0.85em; }
 .cin-tab:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
 
+/* Tag filter row — visually secondary to the course tabs above it (smaller,
+   hairline glass rather than filled) so the primary navigation stays obvious. */
+.cin-tagbar {
+  display: flex; gap: 0.4rem; overflow-x: auto;
+  max-width: 68rem; margin: 0 auto;
+  padding: 0 clamp(1rem, 4vw, 2rem) 0.6rem;
+  scrollbar-width: none; -ms-overflow-style: none;
+}
+.cin-tagbar::-webkit-scrollbar { display: none; }
+.cin-tagchip {
+  flex: 0 0 auto; cursor: pointer; white-space: nowrap;
+  font-family: var(--font-body), sans-serif;
+  font-size: 0.64rem; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase;
+  padding: 0.3rem 0.7rem; border-radius: 999px;
+  color: var(--ivory-dim); background: transparent;
+  border: 1px solid var(--glass-line);
+  transition: color .2s ease, background-color .2s ease, border-color .2s ease;
+}
+.cin-tagchip:hover { color: var(--ivory); border-color: rgba(212,175,106,0.5); }
+.cin-tagchip.is-on { color: #151009; background: var(--gold); border-color: transparent; }
+.cin-tagchip:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+
+.cin-nomatch {
+  text-align: center; padding: 3rem 1rem; margin: 0; color: var(--ivory-dim);
+  font-family: var(--font-display), serif; font-style: italic; font-size: 1.05rem;
+}
+
 /* Course head */
 .cin-main {
   max-width: 68rem; margin: 0 auto;
   padding: clamp(2rem, 5.5vw, 3.4rem) clamp(1.1rem, 4vw, 2rem) clamp(3rem, 7vw, 5rem);
   animation: cinPanel 260ms ease both;
 }
+/* Fade-OUT half of the crossfade: the panel keeps this class for FADE_MS
+   (useMenuFilters) before the new course mounts and fades in. Duration must
+   stay in step with FADE_MS or the swap shows a flash of the old panel. */
+.cin-main.is-out { animation: none; opacity: 0; transition: opacity 180ms ease; }
 .cin-course-head { text-align: center; margin-bottom: clamp(1.6rem, 5vw, 2.6rem); }
 .cin-course-no {
   display: block; font-family: var(--font-display), serif; font-style: italic; font-weight: 500;

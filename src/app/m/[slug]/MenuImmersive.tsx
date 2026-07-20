@@ -1,8 +1,9 @@
 "use client";
 
-import { useLayoutEffect, useRef, useState } from "react";
+import { useLayoutEffect, useRef } from "react";
 import { ClosePublicMenuButton } from "./ClosePublicMenuButton";
 import { DishAddButton } from "./OrderLayer";
+import { useCategoryTransition, useTagFilter } from "./useMenuFilters";
 
 // Public hosted menu — Template 1 "IMMERSIVO".
 //
@@ -44,6 +45,8 @@ type Props = {
   menuLabel: string;
   emptyLabel: string;
   featuredLabel: string;
+  /** "Filters" / "All" / "no dish matches" — localized on the server. */
+  filterLabels: { all: string; noMatch: string };
   sections: MenuViewSection[];
   logoUrl?: string;
 };
@@ -69,20 +72,24 @@ export default function MenuImmersive({
   menuLabel,
   emptyLabel,
   featuredLabel,
+  filterLabels,
   sections,
   logoUrl,
 }: Props) {
   const valid = sections.filter((s) => s.items.length > 0);
   const empty = valid.length === 0;
 
-  const [activeKey, setActiveKey] = useState<string>(valid[0]?.key ?? "");
-  const [swapKey, setSwapKey] = useState(0);
+  const { activeKey, phase, swapKey, select: selectKey } = useCategoryTransition(valid[0]?.key ?? "");
+  const { activeTags, availableTags, toggleTag, clearTags, matches } = useTagFilter(
+    valid.map((s) => ({ key: s.key, items: s.items.map((it) => ({ tags: it.tagLabels })) })),
+  );
   const barRef = useRef<HTMLDivElement | null>(null);
   const chipRefs = useRef<Map<string, HTMLButtonElement>>(new Map());
   const galleryRef = useRef<HTMLElement | null>(null);
 
   const activeIdx = Math.max(0, valid.findIndex((s) => s.key === activeKey));
   const active = valid[activeIdx] ?? valid[0];
+  const shownItems = active ? active.items.filter((it) => matches(it.tagLabels)) : [];
 
   // Center the selected chip by scrolling the BAR only (never the page).
   useLayoutEffect(() => {
@@ -95,16 +102,15 @@ export default function MenuImmersive({
     });
   }, [activeKey]);
 
+  // Scroll AFTER the swap, so the jump happens while the panel is invisible
+  // mid-crossfade rather than yanking the page under a visible one.
   const select = (key: string) => {
-    if (key === activeKey) return;
-    setActiveKey(key);
-    setSwapKey((n) => n + 1);
-    // Land at the top of the gallery, keeping the sticky bar in view.
-    const gal = galleryRef.current;
-    if (gal) {
+    selectKey(key, () => {
+      const gal = galleryRef.current;
+      if (!gal) return;
       const y = gal.getBoundingClientRect().top + window.scrollY - 76;
       window.scrollTo({ top: Math.max(0, y), behavior: "auto" });
-    }
+    });
   };
 
   const onChipKeyDown = (e: React.KeyboardEvent, idx: number) => {
@@ -179,6 +185,35 @@ export default function MenuImmersive({
                 );
               })}
             </div>
+
+            {/* Tag filters — only rendered when the menu actually carries tags,
+                so an untagged menu keeps its original clean chrome. */}
+            {availableTags.length > 0 && (
+              <div className="imm-tagbar" role="group" aria-label={filterLabels.all}>
+                <button
+                  type="button"
+                  onClick={clearTags}
+                  aria-pressed={activeTags.length === 0}
+                  className={`imm-tagchip${activeTags.length === 0 ? " is-on" : ""}`}
+                >
+                  {filterLabels.all}
+                </button>
+                {availableTags.map((label) => {
+                  const on = activeTags.includes(label);
+                  return (
+                    <button
+                      key={label}
+                      type="button"
+                      onClick={() => toggleTag(label)}
+                      aria-pressed={on}
+                      className={`imm-tagchip${on ? " is-on" : ""}`}
+                    >
+                      {label}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
           </nav>
 
           {/* ── Active section gallery ─────────────────────────────────────── */}
@@ -188,7 +223,7 @@ export default function MenuImmersive({
             id="imm-panel"
             role="tabpanel"
             aria-labelledby={`imm-tab-${active.key}`}
-            className="imm-main"
+            className={`imm-main${phase === "out" ? " is-out" : ""}`}
           >
             <div className="imm-sec-head">
               <span className="imm-sec-no" aria-hidden>{String(activeIdx + 1).padStart(2, "0")}</span>
@@ -198,8 +233,10 @@ export default function MenuImmersive({
               )}
             </div>
 
+            {shownItems.length === 0 && <p className="imm-nomatch">{filterLabels.noMatch}</p>}
+
             <ul className="imm-grid">
-              {active.items.map((it, i) => {
+              {shownItems.map((it, i) => {
                 const price = priceText(it);
                 const hasPhoto = !!it.image_url;
                 return (
@@ -382,12 +419,43 @@ html:has(.imm-root), html:has(.imm-root) body {
 .imm-chip-star { margin-right: 0.35em; font-size: 0.85em; }
 .imm-chip:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
 
+/* Tag filter row — visually secondary to the category chips above it (smaller,
+   outlined rather than filled) so the primary navigation stays obvious. */
+.imm-tagbar {
+  display: flex; gap: 0.4rem; overflow-x: auto;
+  max-width: 78rem; margin: 0 auto;
+  padding: 0 clamp(1rem, 4vw, 2rem) 0.6rem;
+  scrollbar-width: none; -ms-overflow-style: none;
+}
+.imm-tagbar::-webkit-scrollbar { display: none; }
+.imm-tagchip {
+  flex: 0 0 auto; cursor: pointer; white-space: nowrap;
+  font-family: var(--font-body), sans-serif;
+  font-size: 0.66rem; font-weight: 700; letter-spacing: 0.09em; text-transform: uppercase;
+  padding: 0.3rem 0.7rem; border-radius: 999px;
+  color: var(--ink-dim); background: transparent;
+  border: 1px solid rgba(255,255,255,0.16);
+  transition: color .2s ease, background-color .2s ease, border-color .2s ease;
+}
+.imm-tagchip:hover { color: var(--ink); border-color: rgba(200,155,94,0.5); }
+.imm-tagchip.is-on { color: #17110a; background: var(--gold); border-color: transparent; }
+.imm-tagchip:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+
+.imm-nomatch {
+  text-align: center; padding: 3rem 1rem; margin: 0; color: var(--ink-dim);
+  font-family: var(--font-display), serif; font-style: italic; font-size: 1.05rem;
+}
+
 /* Section head */
 .imm-main {
   max-width: 78rem; margin: 0 auto;
   padding: clamp(2rem, 5vw, 3.5rem) clamp(1rem, 4vw, 2rem) clamp(3rem, 7vw, 5rem);
   animation: immPanel 260ms ease both;
 }
+/* Fade-OUT half of the crossfade: the panel keeps this class for FADE_MS
+   (useMenuFilters) before the new category mounts and fades in. Duration must
+   stay in step with FADE_MS or the swap shows a flash of the old panel. */
+.imm-main.is-out { animation: none; opacity: 0; transition: opacity 180ms ease; }
 .imm-sec-head {
   display: flex; align-items: baseline; gap: 0.9rem; flex-wrap: wrap;
   margin-bottom: clamp(1.4rem, 4vw, 2.2rem);
