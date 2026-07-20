@@ -1,6 +1,6 @@
 "use client";
 
-import { Save, Plus, Trash2, Clock, Power, PowerOff, Store, Phone, BarChart3, Check, Bell } from "lucide-react";
+import { Save, Plus, Trash2, Clock, Power, PowerOff, Phone, BarChart3, Check, Bell } from "lucide-react";
 import { useLanguage } from "@/lib/contexts/LanguageContext";
 import { useTenant } from "@/lib/contexts/TenantContext";
 import { useEffect, useState } from "react";
@@ -89,7 +89,11 @@ export function GeneralTab() {
   const push = usePushSubscription(tenant?.id);
   const supabase = createClient();
 
-  const [name, setName] = useState("");
+  // The restaurant name is decided at onboarding and is NOT editable here —
+  // it's read-only for the owner. Only a platform admin can rename a tenant
+  // (/admin/tenant/[id]), because the name is stamped on bookings, menus,
+  // receipts and bot messages.
+  const name = tenant?.name || "";
   const [timezone, setTimezone] = useState("Atlantic/Canary");
   const [avgSpend, setAvgSpend] = useState(50);
   const [avgCost, setAvgCost] = useState(25);
@@ -130,7 +134,6 @@ export function GeneralTab() {
 
   useEffect(() => {
     if (!tenant) return;
-    setName(tenant.name);
     const s = tenant.settings as any;
     if (s) {
       setTimezone(s.timezone || "Atlantic/Canary");
@@ -229,8 +232,9 @@ export function GeneralTab() {
       vapi_voicemail: voicemail,
     };
 
+    // Never write `name` from here — it isn't editable in this form, and sending
+    // a stale copy would silently revert an admin rename.
     const { error } = await supabase.from("tenants").update({
-      name,
       settings: newSettings,
     }).eq("id", tenant.id);
 
@@ -386,18 +390,6 @@ export function GeneralTab() {
       </div>
 
       <div className="space-y-6">
-        <section className="p-6 rounded-xl border-2" style={{ background: "rgba(252,246,237,0.85)", borderColor: "#c4956a" }}>
-          <div>
-            <label className="flex items-center gap-2 text-sm font-medium text-black">
-              <Store className="h-4 w-4 text-[#c4956a]" />
-              {t("settings_name")}
-            </label>
-            <input type="text" value={name} onChange={e => setName(e.target.value)}
-              className={`mt-1 ${inputStyle}`} style={inputBorder} />
-          </div>
-
-        </section>
-
         <section className="p-6 rounded-xl border-2" style={{ background: "rgba(252,246,237,0.85)", borderColor: "#c4956a" }}>
           <h3 className="flex items-center gap-2 text-lg font-bold text-black mb-4">
             <BarChart3 className="h-5 w-5 text-[#c4956a]" />

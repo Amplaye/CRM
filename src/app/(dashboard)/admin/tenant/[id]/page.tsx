@@ -7,7 +7,7 @@ import Link from "next/link";
 import {
   ArrowLeft, Bot, AlertTriangle, MessageSquare, Calendar,
   Phone, TrendingUp, UserX, Zap, Clock, Lightbulb, DollarSign, ShieldCheck, Eye,
-  CheckCircle2, XCircle, AlertCircle, Package, LogIn, Sliders, StickyNote, Trash2, Save, CreditCard, ExternalLink,
+  CheckCircle2, XCircle, AlertCircle, Package, LogIn, Sliders, StickyNote, Trash2, Save, CreditCard, ExternalLink, Pencil,
 } from "lucide-react";
 import { CoinIcon } from "@/components/ui/CoinIcon";
 import { TENANT_STATUSES, type TenantStatus } from "@/lib/tenants/status";
@@ -124,6 +124,11 @@ export default function TenantDetailPage() {
     connection: { phone_number_id: string | null; waba_id: string | null; connection_status: string; last_error: string | null } | null;
   } | null>(null);
   const [statusSaving, setStatusSaving] = useState(false);
+  // Renaming a restaurant is admin-only: the Settings page shows the name
+  // read-only, so this is the single place it can change after onboarding.
+  const [renaming, setRenaming] = useState(false);
+  const [nameDraft, setNameDraft] = useState("");
+  const [nameSaving, setNameSaving] = useState(false);
   const [danger, setDanger] = useState<null | "archive" | "purge">(null);
   const [confirmText, setConfirmText] = useState("");
   const [working, setWorking] = useState(false);
@@ -281,6 +286,27 @@ export default function TenantDetailPage() {
       console.error(err);
     }
     setStatusSaving(false);
+  };
+
+  const saveName = async () => {
+    const next = nameDraft.trim();
+    if (!tenantId || !next) return;
+    if (next === data?.tenant.name) { setRenaming(false); return; }
+    setNameSaving(true);
+    try {
+      const res = await fetch("/api/admin/tenant", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tenant_id: tenantId, name: next }),
+      });
+      const j = await res.json();
+      if (!res.ok) throw new Error(j.error || "Failed");
+      setData((prev) => (prev ? { ...prev, tenant: { ...prev.tenant, name: j.name || next } } : prev));
+      setRenaming(false);
+    } catch (err: any) {
+      setActionMsg(`Rinomina fallita: ${err?.message || "errore"}`);
+    }
+    setNameSaving(false);
   };
 
   // --- Credits (prepaid AI wallet) ---------------------------------------
@@ -523,7 +549,50 @@ export default function TenantDetailPage() {
         </Link>
         <div className="flex-1">
           <div className="flex items-center gap-2 flex-wrap">
-            <h1 className="text-xl sm:text-2xl font-bold text-black">{tenant.name}</h1>
+            {renaming ? (
+              <div className="flex items-center gap-2">
+                <input
+                  autoFocus
+                  value={nameDraft}
+                  maxLength={120}
+                  onChange={(e) => setNameDraft(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") saveName();
+                    if (e.key === "Escape") setRenaming(false);
+                  }}
+                  className="text-xl sm:text-2xl font-bold text-black border-2 rounded-lg px-2 py-1 focus:outline-none focus:ring-1 focus:ring-[#c4956a]"
+                  style={{ borderColor: "#c4956a", background: "rgba(252,246,237,0.6)" }}
+                />
+                <button
+                  onClick={saveName}
+                  disabled={nameSaving || !nameDraft.trim()}
+                  className="px-3 py-1.5 rounded-lg bg-[#c4956a] text-white text-xs font-bold hover:bg-[#8b6540] transition-colors disabled:opacity-50"
+                >
+                  {nameSaving ? "..." : "Salva"}
+                </button>
+                <button
+                  onClick={() => setRenaming(false)}
+                  disabled={nameSaving}
+                  className="px-3 py-1.5 rounded-lg border-2 text-black text-xs font-bold disabled:opacity-50"
+                  style={{ borderColor: "#c4956a" }}
+                >
+                  Annulla
+                </button>
+              </div>
+            ) : (
+              <>
+                <h1 className="text-xl sm:text-2xl font-bold text-black">{tenant.name}</h1>
+                {tenant.status !== "archived" && (
+                  <button
+                    onClick={() => { setNameDraft(tenant.name); setRenaming(true); }}
+                    title="Rinomina il ristorante (solo admin)"
+                    className="p-1.5 rounded-lg hover:bg-[#c4956a]/10 transition-colors"
+                  >
+                    <Pencil className="w-3.5 h-3.5 text-[#c4956a]" />
+                  </button>
+                )}
+              </>
+            )}
             <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${STATUS_BADGE[tenant.status] || STATUS_BADGE.pending}`}>
               {tenant.status}
             </span>

@@ -100,13 +100,23 @@ export async function PATCH(req: NextRequest) {
     const auth = await assertPlatformAdmin();
     if (!auth.ok) return auth.res;
 
-    const { tenant_id, settings, status } = await req.json();
-    if (!tenant_id || (settings === undefined && status === undefined)) {
+    const { tenant_id, settings, status, name } = await req.json();
+    if (!tenant_id || (settings === undefined && status === undefined && name === undefined)) {
       return NextResponse.json({ error: "Missing tenant_id or nothing to update" }, { status: 400 });
     }
     if (status !== undefined && !isAdminSettableStatus(status)) {
       // 'archived' is reachable only through the protected archive flow.
       return NextResponse.json({ error: "Invalid status" }, { status: 400 });
+    }
+    // Renaming a restaurant is admin-only (the Settings page no longer exposes
+    // it): the name is stamped on menus, receipts and bot replies, so it must
+    // never be blanked or turned into whitespace by accident.
+    let cleanName: string | undefined;
+    if (name !== undefined) {
+      if (typeof name !== "string" || !name.trim()) {
+        return NextResponse.json({ error: "Invalid name" }, { status: 400 });
+      }
+      cleanName = name.trim().slice(0, 120);
     }
 
     const supabase = createServiceRoleClient();
@@ -125,6 +135,7 @@ export async function PATCH(req: NextRequest) {
       update.settings = merged;
     }
     if (status !== undefined) update.status = status;
+    if (cleanName !== undefined) update.name = cleanName;
 
     const { error } = await supabase
       .from("tenants")
@@ -132,7 +143,7 @@ export async function PATCH(req: NextRequest) {
       .eq("id", tenant_id);
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-    return NextResponse.json({ success: true, settings: merged, status });
+    return NextResponse.json({ success: true, settings: merged, status, name: cleanName });
   } catch (err: any) {
     return apiError(err, { route: "admin/tenant", publicMessage: "operation_failed", status: 500 });
   }
