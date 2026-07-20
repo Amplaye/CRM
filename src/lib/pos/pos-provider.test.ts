@@ -8,15 +8,15 @@ describe("getPosProvider", () => {
     expect(getPosProvider({ pos: { provider: "bogus" as any } })).toBe("mock");
   });
   it("reads an explicit provider", () => {
-    expect(getPosProvider({ pos: { provider: "tilby" } })).toBe("tilby");
+    expect(getPosProvider({ pos: { provider: "loyverse" } })).toBe("loyverse");
   });
 });
 
 describe("resolvePosProvider", () => {
   it("noop when already on target; real tills need credentials, mock doesn't", () => {
     expect(resolvePosProvider({ pos: { provider: "mock" } }, "mock").noop).toBe(true);
-    const plan = resolvePosProvider({ pos: { provider: "mock" } }, "cassa_in_cloud");
-    expect(plan).toMatchObject({ noop: false, from: "mock", to: "cassa_in_cloud", needsCredentials: true });
+    const plan = resolvePosProvider({ pos: { provider: "mock" } }, "loyverse");
+    expect(plan).toMatchObject({ noop: false, from: "mock", to: "loyverse", needsCredentials: true });
     expect(resolvePosProvider({}, "mock").needsCredentials).toBe(false);
   });
 });
@@ -53,8 +53,8 @@ describe("the built-in till as a provider", () => {
 
 describe("applyPosProvider", () => {
   it("flips provider while preserving other settings", () => {
-    const next = applyPosProvider({ timezone: "Europe/Rome", pos: { provider: "mock" } }, "tilby");
-    expect(next.pos?.provider).toBe("tilby");
+    const next = applyPosProvider({ timezone: "Europe/Rome", pos: { provider: "mock" } }, "loyverse");
+    expect(next.pos?.provider).toBe("loyverse");
     expect(next.timezone).toBe("Europe/Rome");
   });
 });

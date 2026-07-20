@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { Plug, CheckCircle2, XCircle, RefreshCw, Loader2, KeyRound, Store, Banknote, ArrowRightLeft } from "lucide-react";
+import { Plug, CheckCircle2, XCircle, RefreshCw, Loader2, KeyRound, Store, Banknote, ArrowRightLeft, MessageCircle } from "lucide-react";
 import { useLanguage } from "@/lib/contexts/LanguageContext";
 import { useTenant } from "@/lib/contexts/TenantContext";
 import { createClient } from "@/lib/supabase/client";
@@ -11,19 +11,22 @@ import { Dictionary } from "@/lib/i18n/dictionaries/en";
 
 // Settings → Cassa. The self-service POS connection the owner uses instead of us
 // running a script: pick the till, paste the access token, test it, save it (the
-// app then reads the real till), and sync on demand. Only Loyverse is live today;
-// the other brands are shown but disabled with a "coming soon" note, matching the
-// onboarding wizard. Secrets go to /api/pos/connect (encrypted server-side); they
-// never touch tenants.settings.
+// app then reads the real till), and sync on demand. Secrets go to
+// /api/pos/connect (encrypted server-side); they never touch tenants.settings.
+//
+// Only tills we actually integrate are listed. The brands that used to sit here
+// disabled (Cassa in Cloud, Tilby, iPratico, NemPOS, Deliverect) were removed:
+// their adapters are stubs that throw, so listing them promised an integration we
+// could not deliver. Owners on another till get the "not in the list" card below,
+// which opens WhatsApp to sales — we build the adapter once we have API access.
 
 const POS_OPTIONS: Array<{ id: string; label: string; live: boolean }> = [
   { id: "loyverse", label: "Loyverse", live: true },
-  { id: "cassa_in_cloud", label: "Cassa in Cloud", live: false },
-  { id: "tilby", label: "Tilby", live: false },
-  { id: "ipratico", label: "iPratico", live: false },
-  { id: "nempos", label: "NemPOS", live: false },
-  { id: "deliverect", label: "Deliverect", live: false },
 ];
+
+// Sales contact for "my till is not in the list". Precompiled in the CRM's
+// language so the owner just hits send.
+const SALES_WHATSAPP = "34684109244";
 
 interface ConnRow {
   provider: string;
@@ -272,9 +275,27 @@ export function PosTab() {
               style={{ borderColor: choice === opt.id ? "#c4956a" : "#eaddcb", background: choice === opt.id ? "rgba(196,149,106,0.12)" : undefined }}
             >
               {opt.label}
-              {!opt.live && <span className="block text-[10px] text-black">{t("settings_pos_soon" as keyof Dictionary) || "presto"}</span>}
             </button>
           ))}
+        </div>
+
+        {/* "My till is not in the list" → WhatsApp to sales, message prefilled in
+            the CRM's language. We integrate any till that exposes an API. */}
+        <div className="rounded-lg border-2 border-dashed p-3 flex flex-wrap items-center justify-between gap-3" style={{ borderColor: "#c4956a", background: "rgba(252,246,237,0.6)" }}>
+          <div className="min-w-0">
+            <p className="text-sm font-bold text-black">{t("settings_pos_other_title" as keyof Dictionary)}</p>
+            <p className="text-xs text-black">{t("settings_pos_other_body" as keyof Dictionary)}</p>
+          </div>
+          <a
+            href={`https://wa.me/${SALES_WHATSAPP}?text=${encodeURIComponent(t("settings_pos_other_wa" as keyof Dictionary))}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-2 px-4 py-2 text-sm font-bold rounded-lg border-2 shrink-0 cursor-pointer hover:bg-[#c4956a]/10"
+            style={{ borderColor: "#c4956a", color: "#8b6540" }}
+          >
+            <MessageCircle className="w-4 h-4" />
+            {t("settings_pos_other_cta" as keyof Dictionary)}
+          </a>
         </div>
       </div>
 

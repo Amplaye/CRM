@@ -65,9 +65,22 @@ export async function POST(req: Request) {
 
   const { data: tenant } = await svc.from("tenants").select("settings").eq("id", dish.tenant_id).maybeSingle();
   const provider = getPosProvider(tenant?.settings as any);
-  const adapter = getAdapter(provider);
 
-  if (provider !== "mock" && typeof adapter.pushProductPrice === "function") {
+  // The built-in till has no adapter and getAdapter throws on it, so return
+  // before asking (same guard as resolveTill in write-back.ts). Its prices live
+  // in our own menu, which step 3 already updated — there is nothing to push.
+  // A provider we no longer integrate has no adapter either, and reports as such
+  // instead of 500-ing on a menu price edit.
+  let adapter: ReturnType<typeof getAdapter> | null = null;
+  if (provider !== "cassa") {
+    try {
+      adapter = getAdapter(provider);
+    } catch {
+      pos.detail = `Cassa "${provider}" non integrata: prezzo aggiornato solo nel CRM.`;
+    }
+  }
+
+  if (adapter && provider !== "mock" && typeof adapter.pushProductPrice === "function") {
     if (!dish.pos_external_product_id) {
       pos.detail = "Piatto non ancora collegato a un prodotto della cassa (verrà collegato al prossimo sync).";
     } else {

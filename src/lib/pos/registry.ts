@@ -5,23 +5,19 @@
 
 import type { PosAdapter, PosProvider } from "@/lib/pos/types";
 import { mockAdapter } from "@/lib/pos/adapters/mock";
-import { cassaInCloudAdapter } from "@/lib/pos/adapters/cassa-in-cloud";
-import { tilbyAdapter } from "@/lib/pos/adapters/tilby";
-import { ipraticoAdapter } from "@/lib/pos/adapters/ipratico";
-import { nemposAdapter } from "@/lib/pos/adapters/nempos";
-import { deliverectAdapter } from "@/lib/pos/adapters/deliverect";
 import { loyverseAdapter } from "@/lib/pos/adapters/loyverse";
 
 // "cassa" is intentionally absent: the built-in till is not an integration we
 // talk to over a wire, it writes its own sales. Callers must branch on it before
 // asking for an adapter (see resolveTill), and getAdapter throws if they don't.
-const ADAPTERS: Record<Exclude<PosProvider, "cassa">, PosAdapter> = {
+//
+// The brands we do not integrate yet (cassa_in_cloud, tilby, ipratico, nempos,
+// deliverect) are absent too: their adapters were stubs that only threw, so the
+// map is Partial and getAdapter reports them as unknown. They stay in the
+// PosProvider union because tenants may carry the value in settings from before,
+// and the union is what lets those settings still parse.
+const ADAPTERS: Partial<Record<Exclude<PosProvider, "cassa">, PosAdapter>> = {
   mock: mockAdapter,
-  cassa_in_cloud: cassaInCloudAdapter,
-  tilby: tilbyAdapter,
-  ipratico: ipraticoAdapter,
-  nempos: nemposAdapter,
-  deliverect: deliverectAdapter,
   loyverse: loyverseAdapter,
 };
 

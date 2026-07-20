@@ -40,7 +40,11 @@ import type { PosProvider } from "@/lib/pos/types";
 //
 // Body: { tenant_id, action, provider?, token?, store_id? }
 type Action = "test" | "save" | "sync" | "switch";
-const REAL_PROVIDERS: PosProvider[] = ["loyverse", "cassa_in_cloud", "tilby", "ipratico", "nempos", "deliverect"];
+// Tills we actually integrate. The brands we do not (cassa_in_cloud, tilby,
+// ipratico, nempos, deliverect) were dropped along with their stub adapters: the
+// UI no longer offers them, and this list is the server-side half of that — a
+// forged body naming one is rejected here rather than saved and left broken.
+const REAL_PROVIDERS: PosProvider[] = ["loyverse"];
 
 export async function POST(req: Request) {
   let body: any;

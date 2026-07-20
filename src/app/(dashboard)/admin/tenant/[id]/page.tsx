@@ -42,7 +42,11 @@ const ENTITLEMENT_OVERRIDES: Array<{ key: string; title: string; hint: string }>
   { key: "website_design", title: "Sito web", hint: "Pacchetto realizzazione sito." },
 ];
 
-const POS_PROVIDERS = ["mock", "cassa_in_cloud", "tilby", "ipratico", "nempos", "deliverect", "loyverse"];
+// Internal admin override, so it still lists the brands we no longer integrate:
+// a tenant may carry one from before and staff need to be able to read and
+// correct it here. Only "mock", "cassa" and "loyverse" have an adapter — setting
+// any other value leaves external sync failing by design.
+const POS_PROVIDERS = ["mock", "cassa", "cassa_in_cloud", "tilby", "ipratico", "nempos", "deliverect", "loyverse"];
 
 interface ClientNote { id: string; content: string; author: string; created_at: string; }
 
