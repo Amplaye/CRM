@@ -137,15 +137,19 @@ export function AssistantWidget() {
   // Drive the panel enter/exit animation off `open`.
   useEffect(() => {
     if (open) {
-      // Mount, then flip to the "in" state on the next frame so the browser
-      // animates from the closed state instead of snapping straight to open.
+      // The enter/exit are CSS @keyframes (.assistant-panel / --closing) rather
+      // than a transition between two class states, so the animation runs from
+      // the moment the element mounts — no next-frame flip needed to avoid the
+      // panel snapping straight to its open state.
       setPanelRender(true);
-      const raf = requestAnimationFrame(() => setPanelIn(true));
-      return () => cancelAnimationFrame(raf);
+      setPanelIn(true);
+      return;
     }
-    // Closing: play the exit transition, then unmount when it finishes.
+    // Closing: play the exit animation, then unmount once it has finished. This
+    // timeout MUST stay in sync with the .assistant-panel--closing duration in
+    // globals.css (240ms) — unmounting early cuts the animation off mid-way.
     setPanelIn(false);
-    const t = setTimeout(() => setPanelRender(false), 220);
+    const t = setTimeout(() => setPanelRender(false), 240);
     return () => clearTimeout(t);
   }, [open]);
 
@@ -848,7 +852,7 @@ export function AssistantWidget() {
           onClick={() => setOpen(true)}
           aria-label={ui.openLabel}
           title={ui.title}
-          className="assistant-fab fixed bottom-5 right-5 z-40 w-14 h-14 rounded-full flex items-center justify-center text-white cursor-pointer shadow-lg transition-transform duration-200 ease-out hover:scale-105 motion-safe:animate-[assistant-fab-pop_0.2s_ease-out]"
+          className="assistant-fab fixed bottom-5 right-5 z-40 w-14 h-14 rounded-full flex items-center justify-center text-white cursor-pointer shadow-lg transition-transform duration-200 ease-out hover:scale-105 active:scale-95 motion-safe:animate-[assistant-fab-pop_0.42s_cubic-bezier(0.22,1,0.36,1)_both]"
           style={{ background: "linear-gradient(135deg, #d4a574, #c4956a)" }}
         >
           <Sparkles className="w-6 h-6" />
@@ -860,8 +864,8 @@ export function AssistantWidget() {
         <div
           role="dialog"
           aria-modal="true"
-          className={`fixed z-40 inset-0 sm:inset-auto sm:bottom-4 sm:right-4 sm:w-[400px] sm:max-h-[80dvh] flex flex-col rounded-none sm:rounded-2xl border-0 sm:border-2 shadow-2xl overflow-hidden origin-bottom-right will-change-transform transition-all duration-200 ease-out motion-reduce:transition-none ${
-            panelIn ? "opacity-100 scale-100 translate-y-0" : "opacity-0 scale-90 translate-y-2"
+          className={`fixed z-40 inset-0 sm:inset-auto sm:bottom-4 sm:right-4 sm:w-[400px] sm:max-h-[80dvh] flex flex-col rounded-none sm:rounded-2xl border-0 sm:border-2 shadow-2xl overflow-hidden origin-bottom-right ${
+            panelIn ? "assistant-panel" : "assistant-panel--closing"
           }`}
           style={{ borderColor: "#c4956a", background: "#FCF6ED" }}
         >

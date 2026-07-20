@@ -356,10 +356,46 @@ tr.is-new-row::after {
   from { transform: translateX(0); }
   to { transform: translateX(-100%); }
 }
-/* Assistant launcher FAB: gentle pop as it (re)appears when the panel closes. */
+/* Assistant launcher FAB: settles back in with a slight overshoot as the panel
+   closes, so the button feels like it springs back rather than blinking on. */
 @keyframes assistant-fab-pop {
-  from { opacity: 0; transform: scale(0.6); }
-  to { opacity: 1; transform: scale(1); }
+  0%   { opacity: 0; transform: scale(0.5) rotate(-12deg); }
+  60%  { opacity: 1; transform: scale(1.08) rotate(2deg); }
+  100% { opacity: 1; transform: scale(1) rotate(0deg); }
+}
+
+/* Assistant panel open/close.
+   The panel grows out of — and shrinks back into — the launcher corner
+   (transform-origin sits bottom-right, over the FAB).
+
+   Timing is deliberate: the old version was a flat 200ms ease-out on everything,
+   which read as an abrupt blink rather than a panel opening. Now the OPEN uses a
+   soft overshoot curve over 380ms so the motion is clearly visible and lands with
+   a little weight, while the CLOSE is quicker (240ms) on an accelerating curve —
+   dismissals should feel prompt, and matching the open duration makes closing feel
+   sluggish. Opacity is deliberately faster than the transform on open (the panel
+   is legible early while it's still settling) and slower on close (it doesn't
+   vanish before it has visibly shrunk). */
+@keyframes assistant-panel-in {
+  0%   { opacity: 0; transform: scale(0.82) translateY(16px); }
+  55%  { opacity: 1; transform: scale(1.02) translateY(-2px); }
+  100% { opacity: 1; transform: scale(1) translateY(0); }
+}
+@keyframes assistant-panel-out {
+  0%   { opacity: 1; transform: scale(1) translateY(0); }
+  100% { opacity: 0; transform: scale(0.88) translateY(10px); }
+}
+.assistant-panel {
+  animation: assistant-panel-in 0.38s cubic-bezier(0.22, 1, 0.36, 1) both;
+  will-change: transform, opacity;
+}
+.assistant-panel--closing {
+  animation: assistant-panel-out 0.24s cubic-bezier(0.4, 0, 1, 1) both;
+  will-change: transform, opacity;
+}
+@media (prefers-reduced-motion: reduce) {
+  .assistant-panel, .assistant-panel--closing { animation: none; }
+  .assistant-fab { animation: none !important; }
 }
 .drawer-backdrop {
   animation: drawer-backdrop-in 0.25s ease-out both;

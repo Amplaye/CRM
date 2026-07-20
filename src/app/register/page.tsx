@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
 import { Loader2, Lock, Mail, User, Building2, CheckCircle, Eye, EyeOff, Globe } from "lucide-react";
@@ -42,13 +42,22 @@ export default function RegisterPage() {
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [businessName, setBusinessName] = useState("");
-  const [country, setCountry] = useState<string>(() => guessCountry());
+  // Starts empty and is filled in on the client: a lazy useState initializer runs
+  // during SSR too, where `navigator` doesn't exist, and React keeps that server
+  // value through hydration — so the pre-selection would silently never apply.
+  const [country, setCountry] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [step, setStep] = useState(1);
   const router = useRouter();
   const supabase = createClient();
   const { t, language } = useLanguage();
+
+  // Pre-select the market from the browser locale, once, on the client. Only fills
+  // an untouched field so it can never fight a choice the owner already made.
+  useEffect(() => {
+    setCountry((prev) => prev || guessCountry());
+  }, []);
 
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
