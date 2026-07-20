@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { Loader2, Lock, Mail, User, Building2, CheckCircle, Eye, EyeOff, Globe } from "lucide-react";
 import Link from "next/link";
 import { useLanguage } from "@/lib/contexts/LanguageContext";
+import { safeLocal } from "@/lib/safe-storage";
 
 // Single vertical: this is the restaurant CRM. We no longer ask the user to
 // pick a business type — every workspace is a restaurant. (The server forces
@@ -17,11 +18,18 @@ const BUSINESS_TYPE = "restaurant";
 // configure one by hand — which never happened, leaving the retention job inert
 // for every self-signup tenant. Declared beats inferred: assigning a country
 // assigns a legal regime, so we ask rather than guess from timezone or geo-IP.
+//
+// These are COUNTRIES, not languages — the list exists because each one has a
+// different privacy framework (Switzerland runs revFADP, not GDPR), and it is
+// unrelated to the four UI languages (it/en/es/de). Endonyms alone ("Deutschland",
+// "Schweiz") read like a language picker, so each option carries a flag AND the
+// name in the user's own interface language; the label is translated, and "CH" is
+// never shown as a bare code.
 const COUNTRIES = [
-  { code: "ES", label: "España" },
-  { code: "IT", label: "Italia" },
-  { code: "DE", label: "Deutschland" },
-  { code: "CH", label: "Schweiz / Suisse" },
+  { code: "ES", flag: "🇪🇸", key: "auth_country_es" },
+  { code: "IT", flag: "🇮🇹", key: "auth_country_it" },
+  { code: "DE", flag: "🇩🇪", key: "auth_country_de" },
+  { code: "CH", flag: "🇨🇭", key: "auth_country_ch" },
 ] as const;
 
 // Pre-select from the browser locale when it names one of our markets — a hint the
@@ -51,7 +59,18 @@ export default function RegisterPage() {
   const [step, setStep] = useState(1);
   const router = useRouter();
   const supabase = createClient();
-  const { t, language } = useLanguage();
+  const { t, language, setLanguage } = useLanguage();
+
+  // Same rule as the login page: sign-up happens before any tenant exists, so
+  // there's no crm_locale to honour yet — auto-detect the browser language for a
+  // first-time visitor, while a returning user's saved language wins. Without
+  // this, /register rendered in English for everyone (login had the detection,
+  // register never got it), so an Italian owner signed up on an English form.
+  useEffect(() => {
+    if (safeLocal.get("app_lang_v2")) return; // returning user → keep their language
+    const code = (navigator.language || "").slice(0, 2).toLowerCase();
+    if (code === "es" || code === "it" || code === "de" || code === "en") setLanguage(code);
+  }, [setLanguage]);
 
   // Pre-select the market from the browser locale, once, on the client. Only fills
   // an untouched field so it can never fight a choice the owner already made.
@@ -225,7 +244,9 @@ export default function RegisterPage() {
                   >
                     <option value="">{t("auth_country_other")}</option>
                     {COUNTRIES.map((c) => (
-                      <option key={c.code} value={c.code}>{c.label}</option>
+                      <option key={c.code} value={c.code}>
+                        {c.flag} {t(c.key as any)}
+                      </option>
                     ))}
                   </select>
                 </div>
