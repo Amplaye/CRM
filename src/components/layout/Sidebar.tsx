@@ -384,7 +384,7 @@ export function Sidebar({ mobileOpen = false, onClose }: SidebarProps) {
                   : undefined
               }
               className={cn(
-                "flex items-center justify-center gap-2.5 h-12 rounded-xl text-base font-bold tracking-wide transition-all",
+                "flex items-center justify-center gap-2.5 h-12 rounded-xl text-base font-bold tracking-wide uppercase transition-all",
                 cassaLocked
                   ? "border-2 border-dashed text-black opacity-70 hover:opacity-100 hover:bg-[#c4956a]/10"
                   : "text-white shadow-lg hover:brightness-105 active:scale-[0.98]",
