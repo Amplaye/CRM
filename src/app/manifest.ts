@@ -31,8 +31,8 @@ export default function manifest(): MetadataRoute.Manifest {
     // Long-press / right-click deep links (Chrome/Edge/Android; iOS ignores).
     shortcuts: [
       {
-        name: "BALI Flow",
-        short_name: "BALI Flow",
+        name: "Cassa",
+        short_name: "Cassa",
         url: "/cassa",
         icons: [{ src: "/icons/icon-192.png", sizes: "192x192" }],
       },
