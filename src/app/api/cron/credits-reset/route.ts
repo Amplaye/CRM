@@ -3,8 +3,8 @@ import { createServiceRoleClient } from "@/lib/supabase/server";
 import { resetIncludedCredits } from "@/lib/billing/credits";
 import { logSystemEvent } from "@/lib/system-log";
 
-// Daily cron (vercel.json — fixed minute+hour: Vercel Hobby rejects sub-daily
-// schedules and the whole deploy fails). Vercel sends `Authorization: Bearer ${CRON_SECRET}`.
+// Daily cron (bot-engine Worker scheduled dispatch), which sends
+// `Authorization: Bearer ${CRON_SECRET}`.
 //
 // The BACKSTOP for the monthly allowance reset, not the primary path — the
 // renewal webhook (upsertSubscription) resets credits the moment Stripe/PayPal

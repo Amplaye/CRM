@@ -37,8 +37,7 @@ AI_WEBHOOK_SECRET          # n8n / Retell shared secret
 TWILIO_ACCOUNT_SID
 TWILIO_AUTH_TOKEN
 TWILIO_VERIFY_SIGNATURE    # opt-in: "1" to enforce HMAC on twilio webhooks
-OPENAI_API_KEY             # used by translate-note + conversation-summary
-AI_GATEWAY_API_KEY         # optional: route OpenAI calls via Vercel AI Gateway
+OPENAI_API_KEY             # all AI calls: assistant, translate-note, conversation-summary, onboard
 RATE_LIMIT_ENABLED         # opt-in: "1" to enable Supabase-backed rate limit
 N8N_BASE_URL
 N8N_API_KEY

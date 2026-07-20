@@ -3,7 +3,7 @@ import { createServiceRoleClient } from "@/lib/supabase/server";
 import { logSystemEvent } from "@/lib/system-log";
 import { planRetention } from "@/lib/compliance/retention";
 
-// Daily cron (vercel.json). Vercel sends `Authorization: Bearer ${CRON_SECRET}`.
+// Daily cron (bot-engine Worker), sends `Authorization: Bearer ${CRON_SECRET}`.
 //
 // Data-minimization pass: for every tenant that OPTED IN to a retention policy
 // (a configured country or explicit retention_days), delete closed conversation

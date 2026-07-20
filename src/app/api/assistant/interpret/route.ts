@@ -93,13 +93,15 @@ export async function POST(request: Request) {
   ];
 
   try {
-    // No response_format: the Vercel AI Gateway rejects it as invalid input
-    // (shape is validated before auth). The JSON-only system prompt plus
-    // parseInterpretation's fence-stripping/validation cover it instead.
+    // Now that calls go straight to OpenAI (the Vercel AI Gateway used to
+    // reject response_format as invalid input), we can enforce JSON at the
+    // API level instead of relying on the prompt alone. parseInterpretation
+    // still validates/sanitises every field.
     const res = await chatCompletion({
       model: "gpt-4.1-mini",
       temperature: 0.1,
       max_tokens: 300,
+      response_format: { type: "json_object" },
       messages,
     });
     if (!res.ok) {

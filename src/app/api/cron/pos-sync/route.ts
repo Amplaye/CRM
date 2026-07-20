@@ -4,7 +4,7 @@ import { syncConnection, type PosConnectionRow } from "@/lib/pos/sync";
 import { logSystemEvent } from "@/lib/system-log";
 import { hasManagement } from "@/lib/billing/entitlements";
 
-// Hourly cron (vercel.json). Vercel sends `Authorization: Bearer ${CRON_SECRET}`.
+// Hourly cron (bot-engine Worker), sends `Authorization: Bearer ${CRON_SECRET}`.
 // Loops every active POS connection and pulls new sales into the canonical
 // tables. Idempotent (upsert on external_id), so an overlapping window is safe.
 export async function GET(req: NextRequest) {

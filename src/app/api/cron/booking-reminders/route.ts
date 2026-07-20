@@ -18,7 +18,7 @@ import { formatDateFull } from "@/lib/format-date";
 // already has that row, so an hourly cron never double-reminds. No schema
 // change — audit_events is the same table the reminder pipeline already uses.
 //
-// Vercel sends `Authorization: Bearer ${CRON_SECRET}` (see vercel.json).
+// The bot-engine Worker sends `Authorization: Bearer ${CRON_SECRET}`.
 
 // Reservations whose start is this many hours away get reminded. Window is wide
 // enough that an hourly cron catches every booking exactly once the day before.

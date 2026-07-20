@@ -3,7 +3,7 @@ import { createServiceRoleClient } from "@/lib/supabase/server";
 import { purgeTenant } from "@/lib/tenants/delete-tenant";
 import { logSystemEvent } from "@/lib/system-log";
 
-// Daily cron (vercel.json). Vercel sends `Authorization: Bearer ${CRON_SECRET}`.
+// Daily cron (bot-engine Worker), sends `Authorization: Bearer ${CRON_SECRET}`.
 export async function GET(req: NextRequest) {
   const secret = process.env.CRON_SECRET;
   if (!secret || req.headers.get("authorization") !== `Bearer ${secret}`) {
