@@ -762,13 +762,17 @@ export default function InventoryPage() {
             )}
           </div>
 
-          {/* Scan a package instead of typing its name. */}
+          {/* Scan a package instead of typing its name. The label is long in
+              several languages ("Scansiona codice a barre" ≈ 220px), which as a
+              shrink-0 sibling starved the search input down to ~70px. It now
+              truncates, and drops to the icon alone below lg. */}
           <button
             onClick={() => { setScanMsg(null); setScanTarget(null); setScanOpen(true); }}
-            className="shrink-0 inline-flex items-center gap-1.5 px-3 py-2 text-sm font-bold rounded-xl border bg-white/70 text-black cursor-pointer"
+            className="shrink-0 inline-flex items-center gap-1.5 px-3 py-2 text-sm font-bold rounded-xl border bg-white/70 text-black cursor-pointer max-w-[45%]"
             style={{ borderColor: "#d9c3a3" }}
+            title={t("scan_barcode_btn")}
           >
-            <ScanBarcode className="w-4 h-4" /> <span className="hidden sm:inline">{t("scan_barcode_btn")}</span>
+            <ScanBarcode className="w-4 h-4 shrink-0" /> <span className="hidden lg:inline truncate">{t("scan_barcode_btn")}</span>
           </button>
         </div>
 
