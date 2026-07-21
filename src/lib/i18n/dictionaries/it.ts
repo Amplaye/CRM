@@ -2195,4 +2195,41 @@ export const it: Dictionary = {
   email_msg_resend_dev:
     "resend.dev è l'indirizzo di prova di Resend: raggiunge solo te, non i tuoi clienti. Verifica il tuo dominio su resend.com/domains e usa un indirizzo su quel dominio.",
   email_msg_no_owner_email: "Non riusciamo a leggere la tua email per l'invio di prova.",
+
+  // Registratore fiscale (RT) — scheda impostazioni
+  settings_tab_fiscal_device: "Registratore fiscale",
+  settings_rt_title: "Registratore fiscale",
+  settings_rt_desc: "Collega la cassa al tuo registratore telematico: da qui in poi ogni incasso stampa da solo il documento commerciale legale. Serve solo l'indirizzo del registratore in rete.",
+  settings_rt_enable: "Attiva il collegamento al registratore fiscale",
+  settings_rt_enable_help: "Quando è attivo, la cassa emette il documento commerciale sul registratore invece dello scontrino di gestione.",
+  settings_rt_brand: "Marca del registratore",
+  settings_rt_host: "Indirizzo del registratore in rete",
+  settings_rt_host_ph: "es. 192.168.1.50",
+  settings_rt_host_help: "Non lo sai? Chiedilo a chi ti ha installato il registratore (CENTROCASSA): è l'indirizzo IP del device in rete.",
+  settings_rt_host_required: "Inserisci l'indirizzo del registratore",
+  settings_rt_tls: "Il registratore usa HTTPS",
+  settings_rt_lottery: "Abilita la lotteria degli scontrini",
+  settings_rt_test: "Prova connessione",
+  settings_rt_save: "Salva",
+  settings_rt_test_ok: "Registratore collegato",
+  settings_rt_test_fail: "Registratore non raggiungibile",
+  settings_rt_save_fail: "Salvataggio non riuscito",
+  settings_rt_saved: "Impostazioni salvate",
+  settings_rt_reparto_title: "Reparti IVA",
+  settings_rt_reparto_help: "Ogni aliquota IVA corrisponde a un reparto programmato sul registratore. I valori di default vanno bene per quasi tutti; cambiali solo se il tecnico ha programmato reparti diversi.",
+  settings_rt_reparto_note: "Prerequisito: fatti confermare da CENTROCASSA che sul registratore i reparti abbiano le aliquote giuste (di solito servono 10% e 22%).",
+
+  // Registratore fiscale (RT) — cassa
+  cassa_rt_printing: "Emissione documento fiscale…",
+  cassa_rt_failed: "Documento fiscale non emesso",
+  cassa_rt_retry: "Riprova stampa",
+  cassa_rt_z_button: "Chiusura fiscale (Z)",
+  cassa_rt_z_hint: "Trasmette i corrispettivi del giorno all'Agenzia delle Entrate tramite il registratore.",
+  cassa_rt_z_ok: "Chiusura fiscale eseguita",
+  cassa_rt_z_fail: "Chiusura fiscale non riuscita",
+
+  // Conto economico — costi servizi/attrezzature
+  pl_services_title: "Costi servizi / attrezzature",
+  pl_services_label: "Nel periodo",
+  pl_services_hint: "Fatture di servizi e attrezzature (noleggi, canoni, assistenza, licenze). Non sono acquisti di merce e non entrano nel food cost.",
 };

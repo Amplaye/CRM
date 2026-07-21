@@ -36,7 +36,7 @@ async function loadWindow(
   to: string,
   overheadByMonth: Map<string, number>,
   tz: string,
-): Promise<{ summary: PlSummary; bands: Record<Shift, PlSummary>; byDay: Map<string, number>; purchases: number }> {
+): Promise<{ summary: PlSummary; bands: Record<Shift, PlSummary>; byDay: Map<string, number>; purchases: number; services: number }> {
   const [{ data: salesRaw }, { data: recipes }, { data: ings }, { data: labor }, { data: invoices }] = await Promise.all([
     supabase
       .from("pos_sales")
@@ -48,12 +48,14 @@ async function loadWindow(
     supabase.from("recipe_items").select("menu_item_id, ingredient_id, qty, waste_pct").eq("tenant_id", tenantId),
     supabase.from("ingredients").select("id, current_unit_cost").eq("tenant_id", tenantId),
     supabase.from("labor_cost").select("work_date, shift, cost").eq("tenant_id", tenantId).gte("work_date", from).lte("work_date", to),
-    // Real goods purchased: confirmed supplier invoices dated inside the window
-    // (ex-VAT net, falling back to gross). This is actual cash-out for merchandise,
-    // shown alongside the theoretical food cost — it never feeds the margin.
+    // Confirmed supplier invoices dated inside the window, split into merchandise
+    // vs services/equipment. Goods = real cash-out for food (shown next to the
+    // theoretical food cost, never feeds the margin); services = rent/maintenance/
+    // licences (e.g. CENTROCASSA RT rental) kept out of food purchases. goods_total/
+    // service_total are written at confirm; older rows (null) fall back to net_total.
     supabase
       .from("supplier_invoices")
-      .select("net_total, gross_total")
+      .select("net_total, gross_total, goods_total, service_total")
       .eq("tenant_id", tenantId)
       .eq("status", "confirmed")
       .gte("invoice_date", from)
@@ -112,9 +114,15 @@ async function loadWindow(
   const byDay = new Map<string, number>();
   for (const s of sales) byDay.set(s.businessDate, (byDay.get(s.businessDate) || 0) + (s.netTotal ?? s.grossTotal));
   const purchases = Math.round(
-    (invoices || []).reduce((s: number, i: any) => s + Number(i.net_total ?? i.gross_total ?? 0), 0) * 100,
+    (invoices || []).reduce(
+      (s: number, i: any) => s + Number(i.goods_total ?? i.net_total ?? i.gross_total ?? 0),
+      0,
+    ) * 100,
   ) / 100;
-  return { summary, bands, byDay, purchases };
+  const services = Math.round(
+    (invoices || []).reduce((s: number, i: any) => s + Number(i.service_total ?? 0), 0) * 100,
+  ) / 100;
+  return { summary, bands, byDay, purchases, services };
 }
 
 export default function PlPage() {
@@ -132,6 +140,7 @@ export default function PlPage() {
   const [bands, setBands] = useState<Record<Shift, PlSummary> | null>(null);
   const [byDay, setByDay] = useState<Array<{ day: string; revenue: number; cost: number }>>([]);
   const [purchases, setPurchases] = useState(0);
+  const [services, setServices] = useState(0);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -166,6 +175,7 @@ export default function PlPage() {
       setPrev(pre.summary);
       setBands(cur.bands);
       setPurchases(cur.purchases);
+      setServices(cur.services);
 
       const totalRev = cur.summary.revenue;
       const totalCost = cur.summary.foodCost + cur.summary.labor + cur.summary.overhead;
@@ -540,6 +550,25 @@ export default function PlPage() {
               </div>
             );
           })()}
+
+          {/* ── Service / equipment costs (rent, maintenance, licences) ──────── */}
+          {services > 0 && (
+            <div className={`${CARD} p-4 sm:p-5`} style={CARD_STYLE}>
+              <div className="flex items-center gap-2 mb-3">
+                <div className="p-2 rounded-lg shrink-0" style={{ background: "rgba(196,149,106,0.12)", color: "#000" }}>
+                  <Wallet className="w-4 h-4" />
+                </div>
+                <span className="text-sm font-bold text-black">{t("pl_services_title" as keyof Dictionary) || "Costi servizi / attrezzature"}</span>
+              </div>
+              <div className="rounded-xl border p-3 max-w-xs" style={{ borderColor: "#e0d0b8", background: "rgba(196,149,106,0.05)" }}>
+                <div className="text-xs" style={{ color: "#000" }}>{t("pl_services_label" as keyof Dictionary) || "Nel periodo"}</div>
+                <div className="mt-1 text-2xl font-bold text-black tabular-nums">{fmt(services)}</div>
+              </div>
+              <p className="mt-3 text-xs leading-relaxed" style={{ color: "#000" }}>
+                {t("pl_services_hint" as keyof Dictionary) || "Fatture di servizi e attrezzature (noleggi, canoni, assistenza, licenze). Non sono acquisti di merce e non entrano nel food cost."}
+              </p>
+            </div>
+          )}
 
           {/* Per-cover tiles */}
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">

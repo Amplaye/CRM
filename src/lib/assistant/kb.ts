@@ -426,6 +426,52 @@ export const KB: KbTopic[] = [
     related: ["cassa-pay", "cassa-open-close"],
   },
   {
+    id: "fiscal-recorder",
+    title: {
+      it: "Registratore fiscale (RT): collegare la cassa",
+      en: "Fiscal recorder (RT): connect the till",
+      es: "Registrador fiscal (RT): conectar la caja",
+      de: "Fiskalspeicher (RT): Kasse verbinden",
+    },
+    keywords: [
+      "registratore fiscale", "registratore telematico", "rt", "documento commerciale", "scontrino fiscale", "chiusura z", "epson", "axon", "micrelec", "helios", "centrocassa", "reparto", "reparti iva", "lotteria scontrini", "fiscal recorder", "fiscal printer", "commercial receipt", "z report", "vat department", "registrador fiscal", "ticket fiscal", "cierre z", "fiskalspeicher", "fiskalbeleg", "handelsbeleg",
+    ],
+    answer: {
+      it: "In Impostazioni → Registratore fiscale colleghi la cassa al tuo registratore telematico in tre passi: scegli la marca (Epson, Axon/Micrelec…), inserisci l'indirizzo IP del device in rete e premi «Prova connessione». Da lì in poi ogni incasso stampa da solo il documento commerciale legale sul registratore, e la dicitura «documento di gestione — non fiscale» sparisce. Non serve nessuna certificazione: pilotiamo un RT già certificato. Se il registratore è irraggiungibile al momento dell'incasso, la vendita non si blocca: appare un avviso con «Riprova stampa». A fine giornata usi «Chiusura fiscale (Z)» dalla cassa. L'indirizzo IP e la programmazione dei reparti li chiedi a chi ti ha installato il registratore (es. CENTROCASSA).",
+      en: "In Settings → Fiscal recorder you connect the till to your telematic recorder in three steps: pick the brand (Epson, Axon/Micrelec…), enter the device's IP address on the network and press “Test connection”. From then on every payment prints the legal commercial receipt on the recorder by itself, and the “management document — not fiscal” wording disappears. No certification is needed: we drive an already-certified recorder. If the recorder is unreachable at payment time the sale is not blocked: a banner with “Retry print” appears. At the end of the day use “Fiscal close (Z)” from the till. Ask whoever installed your recorder (e.g. CENTROCASSA) for the IP address and the department programming.",
+      es: "En Ajustes → Registrador fiscal conectas la caja a tu registrador telemático en tres pasos: elige la marca (Epson, Axon/Micrelec…), introduce la dirección IP del dispositivo en la red y pulsa «Probar conexión». A partir de ahí cada cobro imprime solo el documento comercial legal en el registrador y desaparece el texto «documento de gestión — no fiscal». No hace falta ninguna certificación: gobernamos un RT ya certificado. Si el registrador no está accesible al cobrar, la venta no se bloquea: aparece un aviso con «Reintentar impresión». Al final del día usas «Cierre fiscal (Z)» desde la caja. La dirección IP y la programación de departamentos se las pides a quien te instaló el registrador (p. ej. CENTROCASSA).",
+      de: "Unter Einstellungen → Fiskalspeicher verbindest du die Kasse in drei Schritten mit deinem telematischen Gerät: Marke wählen (Epson, Axon/Micrelec…), die IP-Adresse des Geräts im Netzwerk eingeben und „Verbindung testen“ drücken. Ab dann druckt jeder Zahlungsvorgang den gesetzlichen Handelsbeleg von selbst auf dem Gerät, und der Hinweis „Verwaltungsbeleg — nicht fiskalisch“ verschwindet. Keine Zertifizierung nötig: wir steuern ein bereits zertifiziertes Gerät. Ist das Gerät beim Kassieren nicht erreichbar, wird der Verkauf nicht blockiert: es erscheint ein Hinweis mit „Druck erneut versuchen“. Am Tagesende nutzt du „Fiskalabschluss (Z)“ an der Kasse. IP-Adresse und Abteilungsprogrammierung erfragst du bei dem, der dein Gerät installiert hat (z. B. CENTROCASSA).",
+    },
+    steps: {
+      it: ["Apri Impostazioni → Registratore fiscale", "Scegli la marca e inserisci l'indirizzo IP del registratore", "Premi «Prova connessione» → verde → Salva", "Incassa: il documento commerciale esce dal registratore", "A fine giornata premi «Chiusura fiscale (Z)»"],
+      en: ["Open Settings → Fiscal recorder", "Pick the brand and enter the recorder's IP address", "Press “Test connection” → green → Save", "Charge: the commercial receipt prints from the recorder", "At day's end press “Fiscal close (Z)”"],
+      es: ["Abre Ajustes → Registrador fiscal", "Elige la marca e introduce la dirección IP del registrador", "Pulsa «Probar conexión» → verde → Guardar", "Cobra: el documento comercial sale del registrador", "Al final del día pulsa «Cierre fiscal (Z)»"],
+      de: ["Öffne Einstellungen → Fiskalspeicher", "Marke wählen und IP-Adresse des Geräts eingeben", "„Verbindung testen“ drücken → grün → Speichern", "Kassieren: der Handelsbeleg kommt aus dem Gerät", "Am Tagesende „Fiskalabschluss (Z)“ drücken"],
+    },
+    links: [{ href: "/settings", label: { it: "Apri Impostazioni", en: "Open Settings", es: "Abrir Ajustes", de: "Einstellungen öffnen" } }],
+    related: ["cassa-pay", "cassa-receipts"],
+  },
+  {
+    id: "invoice-categories",
+    title: {
+      it: "Fatture di servizi e attrezzature (non merce)",
+      en: "Service and equipment invoices (not merchandise)",
+      es: "Facturas de servicios y equipos (no mercancía)",
+      de: "Rechnungen für Dienstleistungen und Geräte (keine Ware)",
+    },
+    keywords: [
+      "fattura servizi", "fattura attrezzature", "noleggio", "canone", "assistenza", "licenza", "trasporto", "spesa non merce", "non va a magazzino", "categoria fattura", "fornitore servizi", "centrocassa", "food cost sporcato", "service invoice", "equipment invoice", "rental", "not stock", "supplier category", "factura de servicios", "alquiler", "no va al almacén", "dienstleistungsrechnung", "miete", "nicht ins lager",
+    ],
+    answer: {
+      it: "Quando carichi la foto di una fattura, ogni riga viene riconosciuta come merce, servizio o spesa. Le righe di servizio/attrezzatura (noleggio, canone, assistenza, licenze — es. le fatture CENTROCASSA del registratore) NON creano ingredienti e non entrano in magazzino né nel food cost: sono marcate «non va a magazzino» e nell'anteprima restano su «ignora». Al momento della conferma l'importo di queste righe finisce nel Conto Economico sotto «Costi servizi / attrezzature», separato dagli acquisti di merce. Se un fornitore fa solo servizi, viene ricordato così e le sue fatture future sono già classificate come servizio.",
+      en: "When you upload an invoice photo, each line is recognised as goods, service or charge. Service/equipment lines (rental, fees, maintenance, licences — e.g. the CENTROCASSA recorder invoices) do NOT create ingredients and never enter the warehouse or the food cost: they are tagged “not stock” and default to “ignore” in the preview. On confirm their amount lands in the P&L under “Service / equipment costs”, separate from merchandise purchases. If a supplier only does services, it's remembered that way and its future invoices are already classified as service.",
+      es: "Al subir la foto de una factura, cada línea se reconoce como mercancía, servicio o gasto. Las líneas de servicio/equipo (alquiler, cánones, mantenimiento, licencias — p. ej. las facturas CENTROCASSA del registrador) NO crean ingredientes ni entran en el almacén ni en el food cost: se marcan «no va al almacén» y quedan en «ignorar» en la vista previa. Al confirmar, su importe va a la Cuenta de resultados en «Costes de servicios / equipos», separado de las compras de mercancía. Si un proveedor solo hace servicios, se recuerda así y sus facturas futuras ya salen clasificadas como servicio.",
+      de: "Beim Hochladen eines Rechnungsfotos wird jede Zeile als Ware, Dienstleistung oder Gebühr erkannt. Dienstleistungs-/Gerätezeilen (Miete, Gebühren, Wartung, Lizenzen — z. B. die CENTROCASSA-Rechnungen des Geräts) erzeugen KEINE Zutaten und gelangen weder ins Lager noch in den Food Cost: sie sind mit „nicht ins Lager“ markiert und stehen in der Vorschau auf „ignorieren“. Beim Bestätigen landet ihr Betrag in der GuV unter „Kosten für Dienstleistungen / Geräte“, getrennt von den Wareneinkäufen. Macht ein Lieferant nur Dienstleistungen, wird das gemerkt und seine künftigen Rechnungen sind bereits als Dienstleistung eingestuft.",
+    },
+    links: [{ href: "/inventory", label: { it: "Apri Inventario", en: "Open Inventory", es: "Abrir Inventario", de: "Inventar öffnen" } }],
+    related: ["inventory", "pl"],
+  },
+  {
     id: "inventory",
     title: {
       it: "Inventario: scorte, carichi da foto e ordini",

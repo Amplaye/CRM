@@ -197,8 +197,26 @@ export interface TenantSettings {
   /** Native cassa (built-in POS) preferences. `cover_charge` is the coperto per
    * person in €; each new bill snapshots it as cassa_orders.cover_unit, so a
    * price change never rewrites bills already open. Edited from the /cassa
-   * screen (owner/manager) via /api/cassa/settings. */
-  cassa?: { cover_charge?: number };
+   * screen (owner/manager) via /api/cassa/settings.
+   *
+   * `fiscal_device` is the Italian RT (Registratore Telematico) hookup: the
+   * browser drives a certified fiscal printer on the restaurant LAN to emit the
+   * legal documento commerciale. No secrets here — the RT needs only its LAN
+   * address; auth is physical/network. Resolved by src/lib/cassa/fiscal-device.
+   * `vat_reparto_map` maps a VAT rate ("10") to the reparto index programmed on
+   * the device. Edited from Settings → Registratore fiscale (owner, IT only). */
+  cassa?: {
+    cover_charge?: number;
+    fiscal_device?: {
+      enabled?: boolean;
+      brand?: "epson" | "axon" | "generic";
+      transport?: "lan_http" | "lan_ws";
+      host?: string;
+      tls?: boolean;
+      vat_reparto_map?: Record<string, number>;
+      lottery_enabled?: boolean;
+    };
+  };
   /** Controllo-gestione preferences (Settings → Gestionale). Targets/budgets the
    * food-cost and P&L screens read; not policy the bot enforces. */
   management?: {

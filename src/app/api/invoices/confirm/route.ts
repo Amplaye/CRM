@@ -123,16 +123,34 @@ export async function POST(req: NextRequest) {
   // Read back the lines that ended up mapped to an ingredient + have a price.
   const { data: lines, error: linesErr } = await supabase
     .from("supplier_invoice_items")
-    .select("id, ingredient_id, unit_price, quantity, received_at")
+    .select("id, ingredient_id, unit_price, quantity, received_at, kind, line_total")
     .eq("invoice_id", body.invoice_id)
     .eq("tenant_id", body.tenant_id);
   if (linesErr) {
     return NextResponse.json({ error: "Invoice not accessible", details: linesErr.message }, { status: 403 });
   }
 
-  // Lines that will carry stock in: mapped, positive qty, not already received.
+  // Only 'goods' lines touch the warehouse/costs. A service or charge line
+  // (noleggio RT, canone, trasporto) must never create ingredients, cost history,
+  // stock or lots — even if it somehow carries an ingredient_id. Unclassified
+  // (null kind, older rows) is treated as goods, matching the conservative default.
+  const isGoodsLine = (l: any) => l.kind !== "service" && l.kind !== "charge";
+
+  // Split the invoice value into merce vs servizi/attrezzature for the P&L header,
+  // so a service invoice lands in operating costs, not in food purchases.
+  let goodsTotal = 0;
+  let serviceTotal = 0;
+  for (const l of lines || []) {
+    const amt = Number((l as any).line_total ?? 0) || 0;
+    if (isGoodsLine(l)) goodsTotal += amt;
+    else serviceTotal += amt;
+  }
+  goodsTotal = Math.round(goodsTotal * 100) / 100;
+  serviceTotal = Math.round(serviceTotal * 100) / 100;
+
+  // Lines that will carry stock in: goods only, mapped, positive qty, not received.
   const toReceive = (lines || []).filter(
-    (l) => l.ingredient_id && l.quantity != null && Number(l.quantity) > 0 && !l.received_at,
+    (l) => isGoodsLine(l) && l.ingredient_id && l.quantity != null && Number(l.quantity) > 0 && !l.received_at,
   );
 
   // Costing method + per-ingredient snapshots taken BEFORE we touch stock/cost.
@@ -160,7 +178,7 @@ export async function POST(req: NextRequest) {
   }
 
   const costRows = (lines || [])
-    .filter((l) => l.ingredient_id && l.unit_price != null)
+    .filter((l) => isGoodsLine(l) && l.ingredient_id && l.unit_price != null)
     .map((l) => ({
       tenant_id: body.tenant_id,
       ingredient_id: l.ingredient_id,
@@ -264,7 +282,12 @@ export async function POST(req: NextRequest) {
 
   const { error: statusErr } = await supabase
     .from("supplier_invoices")
-    .update({ status: "confirmed", updated_at: new Date().toISOString() })
+    .update({
+      status: "confirmed",
+      goods_total: goodsTotal,
+      service_total: serviceTotal,
+      updated_at: new Date().toISOString(),
+    })
     .eq("id", body.invoice_id)
     .eq("tenant_id", body.tenant_id);
   if (statusErr) {
@@ -278,5 +301,7 @@ export async function POST(req: NextRequest) {
     ingredients_created: ingredientsCreated,
     costs_averaged: costsAveraged,
     expiries_set: expiriesSet,
+    goods_total: goodsTotal,
+    service_total: serviceTotal,
   });
 }

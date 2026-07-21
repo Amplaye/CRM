@@ -430,7 +430,7 @@ function ReviewTable({
                 {/* A rental or a transport fee is a real cost but not stock —
                     say why it was left out rather than silently skipping it. */}
                 {l.suggestion && l.suggestion.kind !== "goods" && (
-                  <span className="ml-2 text-xs px-1.5 py-0.5 rounded" style={{ background: "#ece3d6", color: "#7a5c3e" }}>
+                  <span className="ml-2 text-xs px-1.5 py-0.5 rounded font-bold text-black" style={{ background: "#ece3d6" }}>
                     {l.suggestion.kind === "service"
                       ? t("inv_capture_kind_service" as keyof Dictionary) || "servizio — non va a magazzino"
                       : t("inv_capture_kind_charge" as keyof Dictionary) || "spesa — non va a magazzino"}

@@ -35,6 +35,9 @@ interface SessionViewProps {
   onOpenSession: (openingFloat: number) => void;
   onCloseSession: (countedCash: number | null, notes: string | null) => void;
   onSaveCoverCharge: (value: number) => void;
+  /** RT (registratore telematico) collegato: chiusura fiscale Z dal device. */
+  onFiscalClose?: () => void;
+  fiscalBusy?: boolean;
 }
 
 export function SessionView({
@@ -49,6 +52,8 @@ export function SessionView({
   onOpenSession,
   onCloseSession,
   onSaveCoverCharge,
+  onFiscalClose,
+  fiscalBusy,
 }: SessionViewProps) {
   const { t } = useLanguage();
   const [floatStr, setFloatStr] = useState("");
@@ -264,6 +269,19 @@ export function SessionView({
                   >
                     <Lock className="w-4 h-4" /> {t("cassa_close_day")}
                   </button>
+                  {onFiscalClose && (
+                    <div className="pt-1">
+                      <button
+                        disabled={busy || fiscalBusy}
+                        onClick={onFiscalClose}
+                        className="w-full max-w-xs h-11 rounded-xl text-sm font-bold border-2 disabled:opacity-40 cursor-pointer inline-flex items-center justify-center gap-2"
+                        style={{ borderColor: "#c4956a", color: "#8b6540" }}
+                      >
+                        <Lock className="w-4 h-4" /> {t("cassa_rt_z_button") || "Chiusura fiscale (Z)"}
+                      </button>
+                      <p className="mt-1 text-xs text-black">{t("cassa_rt_z_hint") || "Trasmette i corrispettivi del giorno all'Agenzia delle Entrate tramite il registratore."}</p>
+                    </div>
+                  )}
                 </>
               ) : (
                 <p className="text-sm text-black italic">{t("cassa_close_manager_only")}</p>

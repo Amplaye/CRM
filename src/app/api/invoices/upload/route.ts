@@ -4,6 +4,7 @@ import { extractInvoice } from "@/lib/invoices/extract";
 import { assertManagement } from "@/lib/billing/guard";
 import { assertCredits, consumeCredits } from "@/lib/billing/credits";
 import { suggestLineMatches } from "@/lib/management/ingredient-match";
+import { classifyLine } from "@/lib/management/line-kind";
 import { apiError } from "@/lib/api-error";
 
 // Upload a supplier-invoice photo/PDF → OCR it synchronously (an invoice is a
@@ -31,6 +32,48 @@ const ALLOWED: Record<string, "application/pdf" | "image/jpeg" | "image/png" | "
   "image/webp": "image/webp",
   "image/gif": "image/gif",
 };
+
+// Find or create the supplier for this tenant. Prefer VAT (the unique key);
+// fall back to a case-insensitive name match; create a bare record otherwise.
+async function resolveSupplier(
+  supabase: Awaited<ReturnType<typeof createServerSupabaseClient>>,
+  tenantId: string,
+  rawName: string | null | undefined,
+  rawVat: string | null | undefined,
+): Promise<{ id: string | null; defaultKind: "goods" | "service" | "charge" | null }> {
+  const name = rawName?.trim() || "";
+  const vat = rawVat?.trim() || "";
+  if (!name && !vat) return { id: null, defaultKind: null };
+
+  let existing: { id: string; default_kind: string | null } | null = null;
+  if (vat) {
+    const { data } = await supabase
+      .from("suppliers")
+      .select("id, default_kind")
+      .eq("tenant_id", tenantId)
+      .eq("vat", vat)
+      .maybeSingle();
+    existing = data as any;
+  }
+  if (!existing && name) {
+    const { data } = await supabase
+      .from("suppliers")
+      .select("id, default_kind")
+      .eq("tenant_id", tenantId)
+      .ilike("name", name)
+      .limit(1)
+      .maybeSingle();
+    existing = data as any;
+  }
+  if (existing) return { id: existing.id, defaultKind: (existing.default_kind as any) ?? null };
+
+  const { data: created } = await supabase
+    .from("suppliers")
+    .insert({ tenant_id: tenantId, name: name || vat, vat: vat || null })
+    .select("id, default_kind")
+    .maybeSingle();
+  return { id: (created as any)?.id ?? null, defaultKind: (created as any)?.default_kind ?? null };
+}
 
 export async function POST(req: NextRequest) {
   const supabase = await createServerSupabaseClient();
@@ -77,12 +120,18 @@ export async function POST(req: NextRequest) {
     metadata: { media_type: mediaType },
   });
 
+  // Supplier entity: resolve (or create) the supplier so its remembered
+  // default_kind can force this invoice's classification — a service supplier
+  // (e.g. CENTROCASSA: RT rental, maintenance) never books its lines to stock.
+  const supplier = await resolveSupplier(supabase, tenantId, extracted.supplierName, extracted.supplierVat);
+
   // Header
   let { data: invoice, error: invErr } = await supabase
     .from("supplier_invoices")
     .insert({
       tenant_id: tenantId,
       source: "photo",
+      supplier_id: supplier.id,
       supplier_name: extracted.supplierName,
       supplier_vat: extracted.supplierVat,
       invoice_number: extracted.invoiceNumber,
@@ -145,7 +194,10 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  // Lines
+  // Lines. Persist the classification (goods/service/charge) so the confirm step
+  // and P&L can trust it. A non-goods supplier default forces every line off the
+  // warehouse; otherwise each line is classified from its own description.
+  const forcedKind = supplier.defaultKind && supplier.defaultKind !== "goods" ? supplier.defaultKind : null;
   const rows = extracted.lines.map((l) => ({
     tenant_id: tenantId,
     invoice_id: invoice.id,
@@ -155,6 +207,7 @@ export async function POST(req: NextRequest) {
     unit_price: l.unitPrice,
     line_total: l.lineTotal,
     tax_rate: l.taxRate,
+    kind: forcedKind ?? classifyLine(l.description),
     raw_payload: l as any,
   }));
   let stored: Array<{ id: string; description: string | null; quantity: number | null; unit: string | null; unit_price: number | null; line_total: number | null }> = [];

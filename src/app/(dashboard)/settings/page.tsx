@@ -1,7 +1,7 @@
 "use client";
 
 import { Suspense, useState, useEffect } from "react";
-import { Settings as SettingsIcon, ToggleRight, CalendarClock, LineChart, Plug, CreditCard, Tags, MessageCircle, Mail, Landmark } from "lucide-react";
+import { Settings as SettingsIcon, ToggleRight, CalendarClock, LineChart, Plug, CreditCard, Tags, MessageCircle, Mail, Landmark, Receipt } from "lucide-react";
 import { CoinIcon } from "@/components/ui/CoinIcon";
 import { useSearchParams, useRouter, usePathname } from "next/navigation";
 import { useLanguage } from "@/lib/contexts/LanguageContext";
@@ -14,12 +14,13 @@ import { PosTab } from "@/components/settings/PosTab";
 import { PaymentsTab } from "@/components/settings/PaymentsTab";
 import { CreditsTab } from "@/components/settings/CreditsTab";
 import { FiscalTab } from "@/components/settings/FiscalTab";
+import { FiscalDeviceTab } from "@/components/settings/FiscalDeviceTab";
 import { CommercialInfoTab } from "@/components/settings/CommercialInfoTab";
 import { WhatsAppTab } from "@/components/settings/WhatsAppTab";
 import { EmailTab } from "@/components/settings/EmailTab";
 import { getFeatures } from "@/lib/types/tenant-settings";
 
-type Tab = "general" | "booking" | "features" | "commercial" | "management" | "pos" | "payments" | "credits" | "whatsapp" | "email" | "fiscal";
+type Tab = "general" | "booking" | "features" | "commercial" | "management" | "pos" | "payments" | "credits" | "whatsapp" | "email" | "fiscal" | "fiscal_device";
 
 function SettingsContent() {
   const { t } = useLanguage();
@@ -72,6 +73,11 @@ function SettingsContent() {
   // is where the till becomes a fiscal system, so: owner (or Bali Flow staff) only.
   const isSpanish = (activeTenant?.settings as any)?.compliance?.country === "ES";
   const canSeeFiscalTab = (activeRole === "owner" || globalRole === "platform_admin") && isSpanish;
+  // Registratore fiscale (RT) = Italian fiscal printer hookup. Italy is the default
+  // fallback for non-Spain tenants, so treat "not Spain" (incl. unset) as Italian.
+  // Same owner/admin + management gate as the till: it drives the cassa's receipt.
+  const isItalian = (activeTenant?.settings as any)?.compliance?.country !== "ES";
+  const canSeeFiscalDeviceTab = (activeRole === "owner" || globalRole === "platform_admin") && managementEnabled && isItalian;
   // WhatsApp = self-service Meta connection. Owner-level (or Bali Flow staff
   // impersonating); every restaurant connects its own number, no add-on gate.
   const canSeeWhatsAppTab = activeRole === "owner" || globalRole === "platform_admin";
@@ -155,6 +161,16 @@ function SettingsContent() {
             {t("settings_tab_pos") || "Cassa"}
           </button>
         )}
+        {canSeeFiscalDeviceTab && (
+          <button
+            onClick={() => setActiveTab("fiscal_device")}
+            className={`inline-flex shrink-0 whitespace-nowrap items-center gap-2 px-4 py-2 text-sm font-medium border-b-2 transition-colors cursor-pointer ${tab === "fiscal_device" ? "text-black" : "text-black hover:text-black border-transparent"}`}
+            style={tab === "fiscal_device" ? { borderColor: "#c4956a" } : {}}
+          >
+            <Receipt className="w-4 h-4" />
+            {t("settings_tab_fiscal_device") || "Registratore fiscale"}
+          </button>
+        )}
         {canSeeWhatsAppTab && (
           <button
             onClick={() => setActiveTab("whatsapp")}
@@ -213,6 +229,7 @@ function SettingsContent() {
       {tab === "commercial" && canSeeCommercialTab && <CommercialInfoTab />}
       {tab === "management" && canSeeManagementTab && <ManagementTab />}
       {tab === "pos" && canSeePosTab && <PosTab />}
+      {tab === "fiscal_device" && canSeeFiscalDeviceTab && <FiscalDeviceTab />}
       {tab === "payments" && canSeePaymentsTab && <PaymentsTab />}
       {tab === "credits" && canSeeCreditsTab && <CreditsTab />}
       {tab === "fiscal" && canSeeFiscalTab && <FiscalTab />}

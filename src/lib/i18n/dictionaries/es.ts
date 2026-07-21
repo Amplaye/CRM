@@ -2196,4 +2196,41 @@ export const es: Dictionary = {
   email_msg_resend_dev:
     "resend.dev es la dirección de prueba de Resend: solo te llega a ti, no a tus clientes. Verifica tu dominio en resend.com/domains y usa una dirección de ese dominio.",
   email_msg_no_owner_email: "No conseguimos leer tu email para el envío de prueba.",
+
+  // Registrador fiscal (RT) — pestaña de ajustes
+  settings_tab_fiscal_device: "Registrador fiscal",
+  settings_rt_title: "Registrador fiscal",
+  settings_rt_desc: "Conecta la caja a tu registrador telemático: a partir de ahí cada cobro imprime solo el documento comercial legal. Solo hace falta la dirección del registrador en la red.",
+  settings_rt_enable: "Activar la conexión con el registrador fiscal",
+  settings_rt_enable_help: "Cuando está activo, la caja emite el documento comercial en el registrador en lugar del recibo de gestión.",
+  settings_rt_brand: "Marca del registrador",
+  settings_rt_host: "Dirección del registrador en la red",
+  settings_rt_host_ph: "p. ej. 192.168.1.50",
+  settings_rt_host_help: "¿No la sabes? Pregúntasela a quien te instaló el registrador (CENTROCASSA): es la dirección IP del dispositivo en la red.",
+  settings_rt_host_required: "Introduce la dirección del registrador",
+  settings_rt_tls: "El registrador usa HTTPS",
+  settings_rt_lottery: "Habilitar la lotería de tickets",
+  settings_rt_test: "Probar conexión",
+  settings_rt_save: "Guardar",
+  settings_rt_test_ok: "Registrador conectado",
+  settings_rt_test_fail: "Registrador no accesible",
+  settings_rt_save_fail: "No se pudo guardar",
+  settings_rt_saved: "Ajustes guardados",
+  settings_rt_reparto_title: "Departamentos de IVA",
+  settings_rt_reparto_help: "Cada tipo de IVA corresponde a un departamento programado en el registrador. Los valores por defecto sirven para casi todos; cámbialos solo si el técnico programó departamentos distintos.",
+  settings_rt_reparto_note: "Requisito: que CENTROCASSA confirme que los departamentos del registrador tienen los tipos correctos (normalmente hacen falta 10% y 22%).",
+
+  // Registrador fiscal (RT) — caja
+  cassa_rt_printing: "Emitiendo documento fiscal…",
+  cassa_rt_failed: "Documento fiscal no emitido",
+  cassa_rt_retry: "Reintentar impresión",
+  cassa_rt_z_button: "Cierre fiscal (Z)",
+  cassa_rt_z_hint: "Transmite la recaudación del día a la agencia tributaria a través del registrador.",
+  cassa_rt_z_ok: "Cierre fiscal realizado",
+  cassa_rt_z_fail: "Cierre fiscal fallido",
+
+  // Cuenta de resultados — costes de servicios/equipos
+  pl_services_title: "Costes de servicios / equipos",
+  pl_services_label: "En el periodo",
+  pl_services_hint: "Facturas de servicios y equipos (alquileres, cánones, mantenimiento, licencias). No son compras de mercancía y no entran en el food cost.",
 };

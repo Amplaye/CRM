@@ -2198,4 +2198,41 @@ export const de: Dictionary = {
   email_msg_resend_dev:
     "resend.dev ist die Testadresse von Resend: Sie erreicht nur Sie, nicht Ihre Kunden. Verifizieren Sie Ihre Domain auf resend.com/domains und verwenden Sie eine Adresse auf dieser Domain.",
   email_msg_no_owner_email: "Wir können Ihre E-Mail-Adresse für den Testversand nicht auslesen.",
+
+  // Fiskalspeicher (RT) — Einstellungen-Tab
+  settings_tab_fiscal_device: "Fiskalspeicher",
+  settings_rt_title: "Fiskalspeicher",
+  settings_rt_desc: "Verbinden Sie die Kasse mit Ihrem telematischen Fiskalspeicher: ab dann druckt jeder Zahlungsvorgang den gesetzlichen Beleg von selbst. Nötig ist nur die Netzwerkadresse des Geräts.",
+  settings_rt_enable: "Verbindung zum Fiskalspeicher aktivieren",
+  settings_rt_enable_help: "Wenn aktiv, gibt die Kasse den Handelsbeleg auf dem Fiskalspeicher aus statt des Verwaltungsbelegs.",
+  settings_rt_brand: "Marke des Geräts",
+  settings_rt_host: "Adresse des Geräts im Netzwerk",
+  settings_rt_host_ph: "z. B. 192.168.1.50",
+  settings_rt_host_help: "Nicht bekannt? Fragen Sie, wer Ihr Gerät installiert hat (CENTROCASSA): es ist die IP-Adresse des Geräts im Netzwerk.",
+  settings_rt_host_required: "Geben Sie die Adresse des Geräts ein",
+  settings_rt_tls: "Das Gerät verwendet HTTPS",
+  settings_rt_lottery: "Beleg-Lotterie aktivieren",
+  settings_rt_test: "Verbindung testen",
+  settings_rt_save: "Speichern",
+  settings_rt_test_ok: "Gerät verbunden",
+  settings_rt_test_fail: "Gerät nicht erreichbar",
+  settings_rt_save_fail: "Speichern fehlgeschlagen",
+  settings_rt_saved: "Einstellungen gespeichert",
+  settings_rt_reparto_title: "MwSt.-Abteilungen",
+  settings_rt_reparto_help: "Jeder MwSt.-Satz entspricht einer auf dem Gerät programmierten Abteilung. Die Standardwerte passen für fast alle; ändern Sie sie nur, wenn der Techniker andere Abteilungen programmiert hat.",
+  settings_rt_reparto_note: "Voraussetzung: Lassen Sie sich von CENTROCASSA bestätigen, dass die Abteilungen des Geräts die richtigen Sätze haben (meist werden 10% und 22% benötigt).",
+
+  // Fiskalspeicher (RT) — Kasse
+  cassa_rt_printing: "Fiskalbeleg wird ausgegeben…",
+  cassa_rt_failed: "Fiskalbeleg nicht ausgegeben",
+  cassa_rt_retry: "Druck erneut versuchen",
+  cassa_rt_z_button: "Fiskalabschluss (Z)",
+  cassa_rt_z_hint: "Übermittelt die Tageseinnahmen über das Gerät an die Steuerbehörde.",
+  cassa_rt_z_ok: "Fiskalabschluss ausgeführt",
+  cassa_rt_z_fail: "Fiskalabschluss fehlgeschlagen",
+
+  // GuV — Kosten für Dienstleistungen/Geräte
+  pl_services_title: "Kosten für Dienstleistungen / Geräte",
+  pl_services_label: "Im Zeitraum",
+  pl_services_hint: "Rechnungen für Dienstleistungen und Geräte (Mieten, Gebühren, Wartung, Lizenzen). Es sind keine Wareneinkäufe und fließen nicht in den Food Cost ein.",
 };

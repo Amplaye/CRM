@@ -38,6 +38,9 @@ import { PayModal, type PayEntry } from "@/components/cassa/PayModal";
 import { ReceiptsView } from "@/components/cassa/ReceiptsView";
 import { SessionView } from "@/components/cassa/SessionView";
 import { PrintSheet, type PrintPayload } from "@/components/cassa/PrintSheet";
+import { getFiscalDriver } from "@/lib/cassa/fiscal-device/registry";
+import { buildCommercialDoc } from "@/lib/cassa/fiscal-device/build-doc";
+import type { FiscalBrand, FiscalTransport, FiscalDeviceConfig } from "@/lib/cassa/fiscal-device/types";
 
 // La cassa nativa: sala → comanda → conto → incasso → chiusura di giornata.
 // Reads go straight to supabase under RLS (like every dashboard page); every
@@ -863,6 +866,9 @@ export default function CassaPage() {
       setOpenOrders((prev) => prev.filter((o) => o.id !== activeOrder.id));
       loadSession();
       if (view === "receipts") loadReceipts();
+      // RT: emette il documento commerciale legale sul registratore (browser-side).
+      // Fire-and-forget: non blocca l'incasso, già committato lato server.
+      if (rtEnabled) void emitFiscalDoc(data.order);
     } catch (err) {
       fail(err);
     } finally {
@@ -912,6 +918,91 @@ export default function CassaPage() {
             }
           : null,
     };
+  };
+
+  // ---- Registratore Telematico (RT): emissione documento commerciale ----
+  // Il driver gira NEL BROWSER (il Worker edge non vede la LAN del ristorante).
+  // La vendita è già registrata a DB: l'RT stampa solo il documento legale, e un
+  // fallimento non blocca mai l'incasso.
+  const fiscalDevice = (activeTenant?.settings as any)?.cassa?.fiscal_device as
+    | {
+        enabled?: boolean;
+        brand?: FiscalBrand;
+        transport?: FiscalTransport;
+        host?: string;
+        tls?: boolean;
+        vat_reparto_map?: Record<string, number>;
+        lottery_enabled?: boolean;
+      }
+    | undefined;
+  const rtEnabled = !!fiscalDevice?.enabled && !!fiscalDevice?.host;
+  const [rtBanner, setRtBanner] = useState<
+    { kind: "printing" | "pending" | "ok"; msg: string; retryOrder?: CassaOrderFull } | null
+  >(null);
+  const [rtClosing, setRtClosing] = useState(false);
+  // Orders whose legal receipt the RT already printed — so the courtesy scontrino
+  // browser print is suppressed (the physical fiscal receipt is already out).
+  const rtEmittedRef = useRef<Set<string>>(new Set());
+
+  const buildRtConfig = (): FiscalDeviceConfig | null => {
+    if (!fiscalDevice?.host) return null;
+    return {
+      brand: fiscalDevice.brand || "epson",
+      transport: fiscalDevice.transport || "lan_http",
+      host: fiscalDevice.host,
+      tls: !!fiscalDevice.tls,
+      vatRepartoMap: fiscalDevice.vat_reparto_map,
+      lotteryEnabled: !!fiscalDevice.lottery_enabled,
+    };
+  };
+
+  const emitFiscalDoc = async (order: CassaOrderFull) => {
+    const cfg = buildRtConfig();
+    if (!cfg) return;
+    setRtBanner({ kind: "printing", msg: t("cassa_rt_printing") || "Emissione documento fiscale…" });
+    try {
+      const res = await getFiscalDriver(cfg.brand).printCommercialDocument(cfg, buildCommercialDoc(order));
+      if (res.ok) {
+        rtEmittedRef.current.add(order.id);
+        setRtBanner(null);
+        api(`/api/cassa/orders/${order.id}/fiscal-doc`, {
+          method: "POST",
+          body: JSON.stringify({
+            tenant_id: tenantId,
+            rt_status: "emitted",
+            rt_doc_number: res.docNumber,
+            rt_doc_date: res.docDate,
+            rt_serial: res.serial,
+          }),
+        }).catch(() => {});
+      } else {
+        setRtBanner({ kind: "pending", msg: res.error || t("cassa_rt_failed") || "Documento fiscale non emesso", retryOrder: order });
+        api(`/api/cassa/orders/${order.id}/fiscal-doc`, {
+          method: "POST",
+          body: JSON.stringify({ tenant_id: tenantId, rt_status: "pending" }),
+        }).catch(() => {});
+      }
+    } catch (e: any) {
+      setRtBanner({ kind: "pending", msg: e?.message || t("cassa_rt_failed") || "Documento fiscale non emesso", retryOrder: order });
+    }
+  };
+
+  const fiscalClose = async () => {
+    const cfg = buildRtConfig();
+    if (!cfg) return;
+    setRtClosing(true);
+    try {
+      const res = await getFiscalDriver(cfg.brand).dailyClose(cfg);
+      if (res.ok) {
+        setRtBanner({ kind: "ok", msg: (t("cassa_rt_z_ok") || "Chiusura fiscale eseguita") + (res.zNumber ? ` (Z ${res.zNumber})` : "") });
+      } else {
+        setRtBanner({ kind: "pending", msg: res.error || t("cassa_rt_z_fail") || "Chiusura fiscale non riuscita" });
+      }
+    } catch (e: any) {
+      setRtBanner({ kind: "pending", msg: e?.message || t("cassa_rt_z_fail") || "Chiusura fiscale non riuscita" });
+    } finally {
+      setRtClosing(false);
+    }
   };
 
   const preconto = async () => {
@@ -1245,6 +1336,8 @@ export default function CassaPage() {
             onOpenSession={openSession}
             onCloseSession={closeSession}
             onSaveCoverCharge={saveCoverCharge}
+            onFiscalClose={rtEnabled ? fiscalClose : undefined}
+            fiscalBusy={rtClosing}
           />
         ) : (
           <SalaView
@@ -1276,7 +1369,9 @@ export default function CassaPage() {
           result={payResult}
           onConfirm={confirmPay}
           onPrintReceipt={() => {
-            if (paidOrder) enqueuePrint(buildReceiptPayload(paidOrder));
+            // Se l'RT ha già emesso il documento commerciale legale, non stampare
+            // anche lo scontrino di cortesia (sarebbe un doppione non fiscale).
+            if (paidOrder && !rtEmittedRef.current.has(paidOrder.id)) enqueuePrint(buildReceiptPayload(paidOrder));
           }}
           onClose={() => {
             setPayOpen(false);
@@ -1292,6 +1387,26 @@ export default function CassaPage() {
 
       {gate && (
         <OpenRegisterModal busy={busy} onConfirm={(f) => void confirmGate(f)} onClose={() => setGate(null)} />
+      )}
+
+      {rtBanner && (
+        <div
+          className="fixed inset-x-0 bottom-0 z-50 px-4 py-3 flex flex-wrap items-center justify-center gap-3 text-sm font-bold text-white print:hidden"
+          style={{ background: rtBanner.kind === "pending" ? "#b91c1c" : rtBanner.kind === "ok" ? "#047857" : "#8b6540" }}
+        >
+          <span>{rtBanner.msg}</span>
+          {rtBanner.kind === "pending" && rtBanner.retryOrder && (
+            <button
+              onClick={() => rtBanner.retryOrder && void emitFiscalDoc(rtBanner.retryOrder)}
+              className="px-3 py-1 rounded-lg bg-white text-black font-bold cursor-pointer"
+            >
+              {t("cassa_rt_retry") || "Riprova stampa"}
+            </button>
+          )}
+          <button onClick={() => setRtBanner(null)} className="px-2 py-1 rounded-lg border border-white/60 cursor-pointer" aria-label="chiudi">
+            ✕
+          </button>
+        </div>
       )}
 
       <PrintSheet payload={printQueue[0] ?? null} onDone={() => setPrintQueue((q) => q.slice(1))} />

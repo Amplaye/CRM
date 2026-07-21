@@ -2192,6 +2192,43 @@ export const en = {
   email_msg_resend_dev:
     "resend.dev is Resend's test address: it only reaches you, not your customers. Verify your domain on resend.com/domains and use an address on that domain.",
   email_msg_no_owner_email: "We can't read your email address to send the test message.",
+
+  // Fiscal recorder (RT) — settings tab
+  settings_tab_fiscal_device: "Fiscal recorder",
+  settings_rt_title: "Fiscal recorder",
+  settings_rt_desc: "Connect the till to your telematic recorder: from then on every payment prints the legal commercial receipt by itself. All it needs is the recorder's address on the network.",
+  settings_rt_enable: "Turn on the connection to the fiscal recorder",
+  settings_rt_enable_help: "When on, the till issues the commercial receipt on the recorder instead of the management receipt.",
+  settings_rt_brand: "Recorder brand",
+  settings_rt_host: "Recorder address on the network",
+  settings_rt_host_ph: "e.g. 192.168.1.50",
+  settings_rt_host_help: "Don't know it? Ask whoever installed your recorder (CENTROCASSA): it's the device's IP address on the network.",
+  settings_rt_host_required: "Enter the recorder's address",
+  settings_rt_tls: "The recorder uses HTTPS",
+  settings_rt_lottery: "Enable the receipts lottery",
+  settings_rt_test: "Test connection",
+  settings_rt_save: "Save",
+  settings_rt_test_ok: "Recorder connected",
+  settings_rt_test_fail: "Recorder not reachable",
+  settings_rt_save_fail: "Save failed",
+  settings_rt_saved: "Settings saved",
+  settings_rt_reparto_title: "VAT departments",
+  settings_rt_reparto_help: "Each VAT rate maps to a department programmed on the recorder. The defaults work for almost everyone; change them only if the technician programmed different departments.",
+  settings_rt_reparto_note: "Prerequisite: have CENTROCASSA confirm the recorder's departments carry the right rates (usually 10% and 22% are needed).",
+
+  // Fiscal recorder (RT) — till
+  cassa_rt_printing: "Issuing fiscal receipt…",
+  cassa_rt_failed: "Fiscal receipt not issued",
+  cassa_rt_retry: "Retry print",
+  cassa_rt_z_button: "Fiscal close (Z)",
+  cassa_rt_z_hint: "Transmits the day's takings to the tax authority through the recorder.",
+  cassa_rt_z_ok: "Fiscal close done",
+  cassa_rt_z_fail: "Fiscal close failed",
+
+  // P&L — service/equipment costs
+  pl_services_title: "Service / equipment costs",
+  pl_services_label: "In the period",
+  pl_services_hint: "Service and equipment invoices (rentals, fees, maintenance, licences). They are not merchandise purchases and do not enter the food cost.",
 };
 
 export type Dictionary = typeof en;
