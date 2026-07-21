@@ -8,6 +8,8 @@ import { useLanguage } from "@/lib/contexts/LanguageContext";
 import { getFeatures } from "@/lib/types/tenant-settings";
 import { Dictionary } from "@/lib/i18n/dictionaries/en";
 import { dishCost, foodCostPct, effectiveQty } from "@/lib/management/food-cost";
+import { convertQty } from "@/lib/management/units";
+import { UnitSelect } from "./UnitSelect";
 import type { RecipeLine } from "@/lib/management/types";
 import type { ResolvedLine } from "@/lib/management/recipe-suggest";
 import {
@@ -60,6 +62,17 @@ export function RecipePanel({
   const [rows, setRows] = useState<RecipeRow[]>([]);
   const [picker, setPicker] = useState("");
   const [qty, setQty] = useState("");
+  // The unit the COOK types in, which needn't be the unit the warehouse stocks:
+  // a recipe says "150 g of flour" even when flour is bought by the kg. It
+  // follows the chosen ingredient by default, and the quantity is converted on
+  // save.
+  const [addUnit, setAddUnit] = useState("g");
+  const [addWaste, setAddWaste] = useState("0");
+  // Why the last add attempt did nothing. The form used to fail silently.
+  const [addError, setAddError] = useState<string | null>(null);
+  // Free-text filter over the ingredient list — a 180-row <select> is unusable
+  // without one.
+  const [search, setSearch] = useState("");
   const [status, setStatus] = useState<"idle" | "saving" | "error">("idle");
   const savedTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -162,23 +175,49 @@ export function RecipePanel({
 
   const ingById = (id: string) => ingredients.find((i) => i.id === id);
 
+  /**
+   * Add the composed line to the dish.
+   *
+   * The old version returned silently on every rejection — empty picker, bad
+   * number, ingredient already in the dish — so a click that did nothing looked
+   * identical to a click that worked. Every branch now says why, and the
+   * quantity is converted from the unit the cook typed into the unit the
+   * warehouse stocks (write "150 g" against an ingredient held in kg and it
+   * must be stored as 0.15, never 150).
+   */
   const addRow = async () => {
     const qn = Number(qty.replace(",", "."));
-    if (!picker || !Number.isFinite(qn) || qn <= 0) return;
-    if (rows.some((r) => r.ingredient_id === picker)) return; // unique per dish
+    const ing = ingredients.find((i) => i.id === picker);
+    if (!ing) return setAddError(t("recipe_err_pick_ingredient"));
+    if (!Number.isFinite(qn) || qn <= 0) return setAddError(t("recipe_err_qty"));
+    if (rows.some((r) => r.ingredient_id === picker)) return setAddError(t("recipe_err_duplicate"));
+
+    const stored = convertQty(qn, addUnit, ing.unit);
+    if (stored == null) return setAddError(t("recipe_err_unit").replace("{unit}", ing.unit));
+
+    setAddError(null);
     setStatus("saving");
+    const wn = Math.min(99, Math.max(0, Number(addWaste.replace(",", ".")) || 0));
     const { data, error } = await supabase
       .from("recipe_items")
-      .insert({ tenant_id: tenantId, menu_item_id: menuItemId, ingredient_id: picker, qty: qn })
-      .select("id, ingredient_id, qty")
+      .insert({
+        tenant_id: tenantId,
+        menu_item_id: menuItemId,
+        ingredient_id: picker,
+        qty: Math.round(stored * 1e6) / 1e6,
+        waste_pct: wn,
+      })
+      .select("id, ingredient_id, qty, waste_pct")
       .single();
     if (error || !data) {
       setStatus("error");
+      setAddError(t("recipe_err_save"));
       return;
     }
     setRows((prev) => [...prev, data as RecipeRow]);
     setPicker("");
     setQty("");
+    setAddWaste("0");
     flashSaved();
   };
 
@@ -217,6 +256,26 @@ export function RecipePanel({
   if (!enabled) return null;
 
   const available = ingredients.filter((i) => !rows.some((r) => r.ingredient_id === i.id));
+  const q = search.trim().toLowerCase();
+  const filteredAvailable = q ? available.filter((i) => i.name.toLowerCase().includes(q)) : available;
+
+  // Live preview of the line being composed: what it becomes in warehouse units
+  // and what it costs. The whole point of letting the cook type "150 g" against
+  // a product stocked in kg is that they can see it land as 0,15 kg before
+  // saving, instead of discovering a 1000× food cost afterwards.
+  const previewIng = ingredients.find((i) => i.id === picker);
+  const previewQty = Number(qty.replace(",", "."));
+  let addPreview: { converted: string; cost: number } | null = null;
+  if (previewIng && Number.isFinite(previewQty) && previewQty > 0) {
+    const stored = convertQty(previewQty, addUnit, previewIng.unit);
+    if (stored != null) {
+      const wn = Math.min(99, Math.max(0, Number(addWaste.replace(",", ".")) || 0));
+      addPreview = {
+        converted: `${previewQty} ${addUnit} = ${Number(stored.toFixed(6))} ${previewIng.unit}`,
+        cost: effectiveQty(stored, wn) * Number(previewIng.current_unit_cost),
+      };
+    }
+  }
 
   return (
     <div className="px-4 py-4 border-t" style={{ borderColor: "#c4956a", background: "rgba(252,246,237,0.5)" }}>
@@ -336,39 +395,104 @@ export function RecipePanel({
             })}
           </div>
 
-          <div className="flex items-center gap-2 mt-3">
-            <select
-              value={picker}
-              onChange={(e) => setPicker(e.target.value)}
-              className="flex-1 min-w-0 px-2 py-1.5 text-sm border-2 rounded cursor-pointer"
-              style={{ borderColor: "#c4956a" }}
-            >
-              <option value="">{t("recipe_pick_ingredient" as keyof Dictionary) || "Aggiungi ingrediente…"}</option>
-              {available.map((i) => (
-                <option key={i.id} value={i.id}>
-                  {i.name} (€{Number(i.current_unit_cost).toFixed(4)}/{i.unit})
-                </option>
-              ))}
-            </select>
-            <input
-              type="number"
-              placeholder="qty"
-              value={qty}
-              onChange={(e) => setQty(e.target.value)}
-              className="w-20 px-2 py-1.5 text-sm border-2 rounded"
-              style={{ borderColor: "#c4956a" }}
-            />
-            <button
-              onClick={addRow}
-              disabled={!picker || !qty}
-              className="p-1.5 text-white rounded disabled:opacity-40 cursor-pointer disabled:cursor-not-allowed"
-              style={{ background: "linear-gradient(135deg, #d4a574, #c4956a)" }}
-              aria-label="add"
-            >
-              <Plus className="w-4 h-4" />
-            </button>
+          {/* Add-ingredient form: search + picker + qty in ANY unit + waste %.
+              Deliberately mirrors what the AI review row can express, so a
+              hand-written line is never second-class next to a generated one. */}
+          <div className="mt-3 rounded-xl border p-2.5" style={{ borderColor: "#d9c3a3", background: "rgba(255,255,255,0.6)" }}>
+            <div className="flex flex-wrap items-end gap-2">
+              <div className="flex-1 min-w-[12rem] flex flex-col gap-1">
+                <input
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder={t("recipe_search_ingredient")}
+                  className="w-full px-2 py-1.5 text-sm border-2 rounded text-black"
+                  style={{ borderColor: "#d9c3a3" }}
+                />
+                <select
+                  value={picker}
+                  onChange={(e) => {
+                    const id = e.target.value;
+                    setPicker(id);
+                    setAddError(null);
+                    // Default to the warehouse unit: the common case is typing
+                    // the quantity in the same unit the product is stocked in.
+                    const chosen = ingredients.find((i) => i.id === id);
+                    if (chosen) setAddUnit(chosen.unit);
+                  }}
+                  className="w-full px-2 py-1.5 text-sm border-2 rounded cursor-pointer text-black"
+                  style={{ borderColor: "#c4956a" }}
+                >
+                  <option value="">{t("recipe_pick_ingredient" as keyof Dictionary) || "Aggiungi ingrediente…"}</option>
+                  {filteredAvailable.map((i) => (
+                    <option key={i.id} value={i.id}>
+                      {i.name} (€{Number(i.current_unit_cost).toFixed(4)}/{i.unit})
+                    </option>
+                  ))}
+                </select>
+                {search.trim() !== "" && filteredAvailable.length === 0 && (
+                  <span className="text-xs" style={{ color: "#b45309" }}>{t("recipe_no_ingredient_match")}</span>
+                )}
+              </div>
+
+              <label className="flex flex-col gap-1">
+                <span className="text-xs font-bold text-black">{t("recipe_qty")}</span>
+                <input
+                  type="number"
+                  inputMode="decimal"
+                  min="0"
+                  step="any"
+                  value={qty}
+                  onChange={(e) => { setQty(e.target.value); setAddError(null); }}
+                  onKeyDown={(e) => { if (e.key === "Enter") void addRow(); }}
+                  className="w-24 px-2 py-1.5 text-sm border-2 rounded text-black"
+                  style={{ borderColor: "#c4956a" }}
+                />
+              </label>
+
+              <label className="flex flex-col gap-1">
+                <span className="text-xs font-bold text-black">{t("inventory_unit")}</span>
+                <UnitSelect
+                  value={addUnit}
+                  onChange={(u) => { setAddUnit(u); setAddError(null); }}
+                  t={t}
+                  className="w-40 px-2 py-1.5 text-sm border-2 rounded cursor-pointer text-black bg-white"
+                  style={{ borderColor: "#c4956a" }}
+                />
+              </label>
+
+              <label className="flex flex-col gap-1" title={t("recipe_waste_hint" as keyof Dictionary) || ""}>
+                <span className="text-xs font-bold text-black">% {t("recipe_waste" as keyof Dictionary) || "scarto"}</span>
+                <input
+                  type="number"
+                  min="0"
+                  max="99"
+                  value={addWaste}
+                  onChange={(e) => setAddWaste(e.target.value)}
+                  className="w-16 px-2 py-1.5 text-sm border-2 rounded text-right text-black"
+                  style={{ borderColor: "#c4956a" }}
+                />
+              </label>
+
+              <button
+                onClick={addRow}
+                className="inline-flex items-center gap-1 px-3 py-1.5 text-sm font-bold text-white rounded cursor-pointer"
+                style={{ background: "linear-gradient(135deg, #d4a574, #c4956a)" }}
+              >
+                <Plus className="w-4 h-4" /> {t("recipe_add_line")}
+              </button>
+            </div>
+
+            {/* What the line will actually cost, before it's committed. */}
+            {addPreview && (
+              <p className="mt-2 text-xs text-black">
+                {addPreview.converted}
+                <span className="font-bold"> · € {addPreview.cost.toFixed(2)}</span>
+              </p>
+            )}
+            {addError && <p className="mt-2 text-xs font-bold text-red-600">{addError}</p>}
           </div>
-          {status === "error" && (
+
+          {status === "error" && !addError && (
             <p className="text-xs text-red-600 mt-2">{t("settings_save_error" as keyof Dictionary) || "Errore"}</p>
           )}
         </>

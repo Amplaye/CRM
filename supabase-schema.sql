@@ -1098,7 +1098,17 @@ create table if not exists public.ingredients (
   id uuid default uuid_generate_v4() primary key,
   tenant_id uuid not null references public.tenants(id) on delete cascade,
   name text not null,
-  unit text not null default 'g' check (unit in ('g','kg','ml','l','pz')),
+  -- Wide on purpose: every unit a supplier prints but we don't accept becomes a
+  -- conversion the owner does in their head, and a chance to slip a decimal.
+  -- Mirrors src/lib/management/units.ts.
+  unit text not null default 'g' check (unit in (
+    'mg','g','hg','kg','q','t','oz','lb',
+    'ml','cl','dl','l','tsp','tbsp','cup','floz','pt','gal',
+    'pz','dz','cf','ct','bt','lt_can','vas','bus','sac','porz'
+  )),
+  -- Warehouse category slug (src/lib/management/ingredient-categories.ts):
+  -- what the product IS, so stock is browsed the way it's shelved.
+  category text,
   current_unit_cost numeric(12,4) not null default 0,   -- cost per `unit`
   stock_qty numeric(14,3) not null default 0,
   par_level numeric(14,3) not null default 0,           -- minimum-stock threshold
@@ -1114,6 +1124,8 @@ create table if not exists public.ingredients (
 create index if not exists idx_ingredients_tenant on public.ingredients(tenant_id);
 create index if not exists idx_ingredients_tenant_lowstock
   on public.ingredients(tenant_id) where stock_qty <= par_level;
+create index if not exists idx_ingredients_tenant_category
+  on public.ingredients(tenant_id, category);
 
 -- ============================================
 -- 2. Recipe items: dish = list of (ingredient, qty in the ingredient's unit)

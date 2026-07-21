@@ -6,6 +6,7 @@ import {
   AlertTriangle,
   Clock,
   ChevronDown,
+  ChevronLeft,
   ChevronRight,
   Plus,
   Check,
@@ -40,11 +41,20 @@ import {
 import { InvoiceCapture } from "@/components/management/InvoiceCapture";
 import { isRetailBarcode } from "@/lib/management/barcode";
 import { suggestShelfLife } from "@/lib/inventory/shelf-life-presets";
+import {
+  INGREDIENT_CATEGORIES,
+  categoryLabelKey,
+  classifyIngredient,
+} from "@/lib/management/ingredient-categories";
+import { CategorySelect, UnitSelect } from "@/components/management/UnitSelect";
+import { convertQty, convertUnitCost } from "@/lib/management/units";
 
 interface IngredientRow {
   id: string;
   name: string;
   unit: string;
+  /** Warehouse category slug — what the product IS (see ingredient-categories). */
+  category: string | null;
   current_unit_cost: number;
   stock_qty: number;
   par_level: number;
@@ -124,10 +134,7 @@ export default function InventoryPage() {
   const [filter, setFilter] = useState<Filter>("all");
   const [query, setQuery] = useState("");
   const [catFilter, setCatFilter] = useState<string>(ALL_CATS);
-  // Menu categories + which categories' dishes consume each ingredient. This is
-  // what lets the stock list be browsed the same way the menu is.
-  const [categories, setCategories] = useState<Array<{ id: string; name: string }>>([]);
-  const [catsByIngredient, setCatsByIngredient] = useState<Map<string, Set<string>>>(new Map());
+  const [page, setPage] = useState(0); // 0-based; PER_PAGE rows per page
   // Barcode scan, two jobs from the same camera:
   //   • LOOKUP (scanTarget = null, from the toolbar): find the product carrying
   //     that code — or, when nothing does, put the digits in the search box so
@@ -163,10 +170,10 @@ export default function InventoryPage() {
   const load = useCallback(async () => {
     if (!activeTenant?.id || !enabled) return;
     const since = new Date(Date.now() - 30 * 86400000).toISOString();
-    const [{ data }, { data: mv }, { data: lotsRaw }, { data: cats }, { data: menuItems }, { data: recipeLines }] = await Promise.all([
+    const [{ data }, { data: mv }, { data: lotsRaw }] = await Promise.all([
       supabase
         .from("ingredients")
-        .select("id, name, unit, current_unit_cost, stock_qty, par_level, supplier_name, expiry_date, shelf_life_days, pos_external_product_id, barcode")
+        .select("id, name, unit, category, current_unit_cost, stock_qty, par_level, supplier_name, expiry_date, shelf_life_days, pos_external_product_id, barcode")
         .eq("tenant_id", activeTenant.id)
         .eq("archived", false)
         .order("name"),
@@ -183,30 +190,26 @@ export default function InventoryPage() {
         .eq("tenant_id", activeTenant.id)
         .eq("status", "open")
         .order("expiry_date"),
-      supabase
-        .from("menu_categories")
-        .select("id, name, sort_order")
-        .eq("tenant_id", activeTenant.id)
-        .order("sort_order", { ascending: true })
-        .order("created_at", { ascending: true }),
-      supabase.from("menu_items").select("id, category_id").eq("tenant_id", activeTenant.id),
-      supabase.from("recipe_items").select("menu_item_id, ingredient_id").eq("tenant_id", activeTenant.id),
     ]);
-    setRows((data || []) as IngredientRow[]);
+    const ingredients = (data || []) as IngredientRow[];
+    setRows(ingredients);
 
-    // ingredient → the set of menu categories whose dishes use it.
-    setCategories(((cats || []) as any[]).map((c) => ({ id: c.id, name: c.name })));
-    const catOfDish = new Map<string, string | null>();
-    for (const m of (menuItems || []) as any[]) catOfDish.set(m.id, m.category_id ?? null);
-    const byIng = new Map<string, Set<string>>();
-    for (const r of (recipeLines || []) as any[]) {
-      const cid = catOfDish.get(r.menu_item_id);
-      if (!cid) continue; // uncategorised dish → doesn't put the stock in a chip
-      const set = byIng.get(r.ingredient_id) || new Set<string>();
-      set.add(cid);
-      byIng.set(r.ingredient_id, set);
+    // Stock that predates the category column (or arrived from an invoice
+    // import) has no category yet. File it from its name and persist the guess,
+    // so the shelf is never half-empty and the owner only fixes the misses.
+    const uncategorised = ingredients.filter((r) => !r.category);
+    if (uncategorised.length > 0) {
+      const guesses = uncategorised.map((r) => ({ id: r.id, category: classifyIngredient(r.name) }));
+      setRows((rs) => {
+        const m = new Map(guesses.map((g) => [g.id, g.category]));
+        return rs.map((r) => (m.has(r.id) ? { ...r, category: m.get(r.id)! } : r));
+      });
+      // Best-effort: a failed backfill just means the chips show it next reload.
+      await Promise.all(
+        guesses.map((g) => supabase.from("ingredients").update({ category: g.category }).eq("id", g.id)),
+      );
     }
-    setCatsByIngredient(byIng);
+
     const lotMap: Record<string, Lot[]> = {};
     for (const l of (lotsRaw || []) as Lot[]) (lotMap[l.ingredient_id] ||= []).push(l);
     setLotsByIng(lotMap);
@@ -459,13 +462,14 @@ export default function InventoryPage() {
     await supabase.from("ingredients").update({ archived: true, updated_at: new Date().toISOString() }).eq("id", id);
   }, [supabase, t]);
 
-  async function createIngredient(name: string, unit: string) {
+  async function createIngredient(name: string, unit: string, category: string) {
     if (!activeTenant?.id || !name.trim()) return;
     setCreating(false);
     const { error } = await supabase.from("ingredients").insert({
       tenant_id: activeTenant.id,
       name: name.trim(),
       unit: unit.trim() || "kg",
+      category: category || classifyIngredient(name),
       current_unit_cost: 0,
       stock_qty: 0,
       par_level: 0,
@@ -487,37 +491,42 @@ export default function InventoryPage() {
         !(r.barcode || "").toLowerCase().includes(q)
       )
         return false;
-      // Category chip: an ingredient "belongs" to every menu category whose
-      // dishes use it in a recipe. NO_CAT is the stock nothing cooks with yet.
-      if (catFilter !== ALL_CATS) {
-        const cats = catsByIngredient.get(r.id);
-        if (catFilter === NO_CAT) {
-          if (cats && cats.size > 0) return false;
-        } else if (!cats?.has(catFilter)) {
-          return false;
-        }
-      }
+      // Category chip: the WAREHOUSE category — what the product is (Carne,
+      // Verdura, Vino…), so the shelf is browsed the way it's actually stocked.
+      if (catFilter !== ALL_CATS && (r.category || "other") !== catFilter) return false;
       if (filter === "low") return isLow(r);
       if (filter === "expiring") return isExpiringSoon(r);
       if (filter === "reorder") return reorderIds.has(r.id);
       return true;
     });
-  }, [rows, query, filter, reorderIds, catFilter, catsByIngredient]);
+  }, [rows, query, filter, reorderIds, catFilter]);
 
-  // Chips: menu categories that actually consume stock, in menu order, plus a
-  // bucket for ingredients no recipe touches.
+  // Chips: the warehouse categories that actually hold stock, in catalogue
+  // order. Empty categories are hidden — a chip that filters to nothing is
+  // noise, and the picker on each row is what fills them.
   const catChips = useMemo(() => {
     const counts = new Map<string, number>();
     for (const r of rows) {
-      const cats = catsByIngredient.get(r.id);
-      if (!cats || cats.size === 0) counts.set(NO_CAT, (counts.get(NO_CAT) || 0) + 1);
-      else for (const c of cats) counts.set(c, (counts.get(c) || 0) + 1);
+      const c = r.category || "other";
+      counts.set(c, (counts.get(c) || 0) + 1);
     }
-    return categories
-      .filter((c) => counts.has(c.id))
-      .map((c) => ({ id: c.id, name: c.name, count: counts.get(c.id)! }))
-      .concat(counts.has(NO_CAT) ? [{ id: NO_CAT, name: t("inventory_cat_unused"), count: counts.get(NO_CAT)! }] : []);
-  }, [rows, catsByIngredient, categories, t]);
+    return INGREDIENT_CATEGORIES.filter((c) => counts.has(c)).map((c) => ({
+      id: c as string,
+      name: t(categoryLabelKey(c) as keyof Dictionary),
+      count: counts.get(c)!,
+    }));
+  }, [rows, t]);
+
+  // 20 rows a page: the whole shelf at once is a wall of cards nobody scrolls,
+  // and the category chips are what make a page-at-a-time navigable.
+  const PER_PAGE = 20;
+  const pageCount = Math.max(1, Math.ceil(visible.length / PER_PAGE));
+  const safePage = Math.min(page, pageCount - 1);
+  const pageRows = visible.slice(safePage * PER_PAGE, safePage * PER_PAGE + PER_PAGE);
+
+  // Any change to what's being filtered puts you back on page 1 — otherwise
+  // narrowing a 5-page list while on page 4 shows an empty screen.
+  useEffect(() => { setPage(0); }, [query, filter, catFilter]);
 
   // Stable identity for the InvoiceCapture prop (it re-renders on every parent
   // render otherwise).
@@ -837,7 +846,7 @@ export default function InventoryPage() {
             {rows.length === 0 ? t("inventory_empty") : t("inventory_no_match")}
           </div>
         ) : (
-          visible.map((r) => (
+          pageRows.map((r) => (
             <IngredientCard
               key={r.id}
               r={r}
@@ -863,6 +872,36 @@ export default function InventoryPage() {
           ))
         )}
       </div>
+
+      {visible.length > PER_PAGE && (
+        <div className="flex items-center justify-between text-sm">
+          <span className="text-black">
+            {t("food_cost_pagination")
+              .replace("{from}", String(safePage * PER_PAGE + 1))
+              .replace("{to}", String(Math.min((safePage + 1) * PER_PAGE, visible.length)))
+              .replace("{total}", String(visible.length))}
+          </span>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setPage((p) => Math.max(0, p - 1))}
+              disabled={safePage === 0}
+              className="flex items-center gap-1 px-3 py-1.5 rounded-lg border cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed bg-white/70"
+              style={{ borderColor: "#c4956a", color: "#000" }}
+            >
+              <ChevronLeft className="w-4 h-4" /> {t("back")}
+            </button>
+            <span className="text-black tabular-nums">{safePage + 1} / {pageCount}</span>
+            <button
+              onClick={() => setPage((p) => Math.min(pageCount - 1, p + 1))}
+              disabled={safePage >= pageCount - 1}
+              className="flex items-center gap-1 px-3 py-1.5 rounded-lg border cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed bg-white/70"
+              style={{ borderColor: "#c4956a", color: "#000" }}
+            >
+              {t("next")} <ChevronRight className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -1048,8 +1087,41 @@ const IngredientCard = memo(function IngredientCard({
               <input defaultValue={r.name} onBlur={(e) => { const v = e.target.value.trim(); if (v && v !== r.name) onPatch(r.id, { name: v }); }} className={inputCls} style={inputStyle} />
             </label>
             <label className="flex flex-col gap-1">
+              <span className="text-xs font-bold text-black">{t("inventory_category")}</span>
+              <CategorySelect
+                value={r.category}
+                onChange={(c) => { if (c !== (r.category || "other")) onPatch(r.id, { category: c }); }}
+                t={t}
+                className={inputCls + " cursor-pointer"}
+                style={inputStyle}
+              />
+            </label>
+            <label className="flex flex-col gap-1">
               <span className="text-xs font-bold text-black">{t("inventory_unit")}</span>
-              <input defaultValue={r.unit} onBlur={(e) => { const v = e.target.value.trim(); if (v && v !== r.unit) onPatch(r.id, { unit: v }); }} className={inputCls} style={inputStyle} />
+              <UnitSelect
+                value={r.unit}
+                onChange={(v) => {
+                  if (!v || v === r.unit) return;
+                  // Switching unit must carry the NUMBERS with it: 2 kg of stock
+                  // at €8/kg is 2000 g at €0.008/g, not 2 g at €8/g. Without the
+                  // conversion, one dropdown change silently rewrites the
+                  // warehouse value and every food cost that depends on it.
+                  const qty = convertQty(Number(r.stock_qty), r.unit, v);
+                  const par = convertQty(Number(r.par_level), r.unit, v);
+                  const cost = convertUnitCost(Number(r.current_unit_cost), r.unit, v);
+                  onPatch(r.id, {
+                    unit: v,
+                    // Incompatible dimensions (kg → l) have no conversion: keep
+                    // the raw figures and let the owner restate them.
+                    ...(qty != null ? { stock_qty: Math.round(qty * 1000) / 1000 } : {}),
+                    ...(par != null ? { par_level: Math.round(par * 1000) / 1000 } : {}),
+                    ...(cost != null ? { current_unit_cost: Math.round(cost * 10000) / 10000 } : {}),
+                  });
+                }}
+                t={t}
+                className={inputCls + " cursor-pointer"}
+                style={inputStyle}
+              />
             </label>
             <label className="flex flex-col gap-1">
               <span className="text-xs font-bold text-black">{t("inventory_col_par")}</span>
@@ -1245,22 +1317,44 @@ const IngredientCard = memo(function IngredientCard({
   );
 });
 
-function NewIngredientForm({ onCreate, onCancel, t }: { onCreate: (name: string, unit: string) => void; onCancel: () => void; t: (k: keyof Dictionary) => string }) {
+function NewIngredientForm({ onCreate, onCancel, t }: { onCreate: (name: string, unit: string, category: string) => void; onCancel: () => void; t: (k: keyof Dictionary) => string }) {
   const [name, setName] = useState("");
   const [unit, setUnit] = useState("kg");
+  // The category follows the name until the owner overrides it: type "Pomodori"
+  // and the picker lands on Verdura by itself. Once they choose, their choice
+  // sticks — further typing must never yank it back.
+  const [category, setCategory] = useState("other");
+  const [catTouched, setCatTouched] = useState(false);
   const inputCls = "px-3 py-2 text-sm border rounded-lg text-black bg-white";
   const inputStyle = { borderColor: "#cbb492" };
+
+  const onName = (v: string) => {
+    setName(v);
+    if (!catTouched) setCategory(classifyIngredient(v));
+  };
+  const submit = () => onCreate(name, unit, category);
+
   return (
     <div className={`${CARD} p-4 flex flex-wrap items-end gap-3`} style={CARD_STYLE}>
       <label className="flex flex-col gap-1">
         <span className="text-xs font-bold text-black">{t("inventory_col_name")}</span>
-        <input autoFocus value={name} onChange={(e) => setName(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") onCreate(name, unit); }} className={inputCls} style={inputStyle} placeholder={t("inventory_new_name_ph")} />
+        <input autoFocus value={name} onChange={(e) => onName(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") submit(); }} className={inputCls} style={inputStyle} placeholder={t("inventory_new_name_ph")} />
+      </label>
+      <label className="flex flex-col gap-1">
+        <span className="text-xs font-bold text-black">{t("inventory_category")}</span>
+        <CategorySelect
+          value={category}
+          onChange={(c) => { setCategory(c); setCatTouched(true); }}
+          t={t}
+          className={inputCls + " w-44 cursor-pointer"}
+          style={inputStyle}
+        />
       </label>
       <label className="flex flex-col gap-1">
         <span className="text-xs font-bold text-black">{t("inventory_unit")}</span>
-        <input value={unit} onChange={(e) => setUnit(e.target.value)} className={inputCls + " w-28"} style={inputStyle} />
+        <UnitSelect value={unit} onChange={setUnit} t={t} className={inputCls + " w-44 cursor-pointer"} style={inputStyle} />
       </label>
-      <button onClick={() => onCreate(name, unit)} disabled={!name.trim()} className={BRONZE_BTN + " disabled:cursor-not-allowed disabled:opacity-40"} style={BRONZE_BG}>
+      <button onClick={submit} disabled={!name.trim()} className={BRONZE_BTN + " disabled:cursor-not-allowed disabled:opacity-40"} style={BRONZE_BG}>
         {t("save")}
       </button>
       <button onClick={onCancel} className="px-4 py-2 text-sm font-bold rounded-xl border cursor-pointer text-black bg-white" style={{ borderColor: "#cbb492" }}>
