@@ -1,14 +1,12 @@
 "use client";
 
 import { memo, useEffect, useMemo, useState, useCallback, useRef } from "react";
-import { Calculator, AlertTriangle, ChevronDown, ChevronRight, ChevronLeft, Check, Loader2, Search, X, Sparkles, BarChart3, TrendingUp, Wallet, Star, ArrowUpNarrowWide } from "lucide-react";
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ReferenceLine, Cell } from "recharts";
-import { ChartFrame } from "@/components/ChartFrame";
+import { Calculator, AlertTriangle, ChevronDown, ChevronRight, ChevronLeft, Check, Loader2, Search, X, Sparkles, TrendingUp, Star, ArrowUpNarrowWide } from "lucide-react";
 import { RecipePanel } from "@/components/management/RecipePanel";
+import { BulkRecipeModal } from "@/components/management/BulkRecipeModal";
 import { ManagementLocked } from "@/components/management/ManagementLocked";
 import { WipComingSoon } from "@/components/management/WipComingSoon";
 import { canSeeWip } from "@/lib/billing/wip";
-import { MenuEngineeringMatrix } from "@/components/management/MenuEngineeringMatrix";
 import { useLanguage } from "@/lib/contexts/LanguageContext";
 import { useTenant } from "@/lib/contexts/TenantContext";
 import { createClient } from "@/lib/supabase/client";
@@ -25,7 +23,9 @@ import {
   type SortKey,
 } from "@/lib/management/food-cost-insights";
 import type { Dish, RecipeLine } from "@/lib/management/types";
-import type { MenuEngineeringInput } from "@/lib/management/menu-engineering";
+
+/** A menu category, for grouping the dish list (mirrors the Menu page). */
+type Category = { id: string; name: string; sort_order: number };
 
 const SALES_WINDOW_DAYS = 30;
 
@@ -51,6 +51,9 @@ export default function FoodCostPage() {
   const [recipesByDish, setRecipesByDish] = useState<Map<string, RecipeLine[]>>(new Map());
   const [costs, setCosts] = useState<Map<string, number>>(new Map());
   const [unitsSold, setUnitsSold] = useState<Map<string, number>>(new Map());
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [catOf, setCatOf] = useState<Map<string, string | null>>(new Map());
+  const [descOf, setDescOf] = useState<Map<string, string>>(new Map());
   const [loading, setLoading] = useState(true);
 
   // UI state.
@@ -58,11 +61,11 @@ export default function FoodCostPage() {
   const [editing, setEditing] = useState<string | null>(null);
   const [draftPrice, setDraftPrice] = useState("");
   const [saveStates, setSaveStates] = useState<Record<string, SaveState>>({});
-  const [page, setPage] = useState(0); // 0-based; 25 dishes per page
+  const [page, setPage] = useState(0); // 0-based; PER_PAGE dishes per page
   const [filter, setFilter] = useState<Filter>("all");
   const [query, setQuery] = useState("");
-  const [showAnalysis, setShowAnalysis] = useState(false);
   const [sortKey, setSortKey] = useState<SortKey>("action");
+  const [bulkOpen, setBulkOpen] = useState(false);
 
   // Mirror of `dishes` so per-row handlers stay referentially stable (rows are
   // memoized; closing over `dishes` would rebuild every handler per save).
@@ -72,10 +75,16 @@ export default function FoodCostPage() {
   const load = useCallback(async () => {
     if (!activeTenant?.id || !enabled) return;
     setLoading(true);
-    const [{ data: items }, { data: recipes }, { data: ings }] = await Promise.all([
-      supabase.from("menu_items").select("id, name, price").eq("tenant_id", activeTenant.id),
+    const [{ data: items }, { data: recipes }, { data: ings }, { data: cats }] = await Promise.all([
+      supabase.from("menu_items").select("id, name, price, description, category_id").eq("tenant_id", activeTenant.id),
       supabase.from("recipe_items").select("menu_item_id, ingredient_id, qty").eq("tenant_id", activeTenant.id),
       supabase.from("ingredients").select("id, current_unit_cost").eq("tenant_id", activeTenant.id),
+      supabase
+        .from("menu_categories")
+        .select("id, name, sort_order")
+        .eq("tenant_id", activeTenant.id)
+        .order("sort_order", { ascending: true })
+        .order("created_at", { ascending: true }),
     ]);
     const c = new Map<string, number>();
     for (const i of ings || []) c.set(i.id, Number(i.current_unit_cost));
@@ -87,6 +96,15 @@ export default function FoodCostPage() {
     }
     setCosts(c);
     setRecipesByDish(byDish);
+    setCategories(((cats || []) as any[]).map((c) => ({ id: c.id, name: c.name, sort_order: Number(c.sort_order) })));
+    const cof = new Map<string, string | null>();
+    const dof = new Map<string, string>();
+    for (const i of (items || []) as any[]) {
+      cof.set(i.id, i.category_id ?? null);
+      if (i.description) dof.set(i.id, String(i.description));
+    }
+    setCatOf(cof);
+    setDescOf(dof);
     setDishes((items || []).map((i: any) => ({ menuItemId: i.id, name: i.name, price: i.price })));
 
     // Sales volume per dish over the window → menu-engineering popularity axis.
@@ -133,26 +151,32 @@ export default function FoodCostPage() {
 
   const lowMarginCount = totals.actionableCount;
   const noRecipeCount = totals.noRecipeCount;
-  const withPctCount = insights.filter((r) => r.foodCostPct != null).length;
   const okCount = insights.filter((r) => r.foodCostPct != null && !r.lowMargin).length;
   const incompleteCount = insights.filter((r) => r.incompleteCost).length;
   const avgPct = totals.weightedFoodCostPct;
-  const chartData = [...insights]
-    .filter((r) => r.foodCostPct != null)
-    .sort((a, b) => (b.foodCostPct! - a.foodCostPct!))
-    .slice(0, 8)
-    .map((r) => ({ name: r.name, pct: r.foodCostPct as number, low: r.lowMargin }));
 
-  // Menu-engineering input: dishes with a known unit margin, with their sales volume.
-  const meInput: MenuEngineeringInput[] = useMemo(
+  // Every dish still missing a recipe — the bulk "generate missing recipes" set.
+  const noRecipeDishes = useMemo(
     () =>
       insights
-        .filter((r) => r.margin != null && !r.noRecipe)
-        .map((r) => ({ menuItemId: r.menuItemId, name: r.name, margin: r.margin, unitsSold: r.unitsSold })),
-    [insights],
+        .filter((r) => r.noRecipe)
+        .map((r) => ({ menuItemId: r.menuItemId, name: r.name, description: descOf.get(r.menuItemId) || null, price: r.price })),
+    [insights, descOf],
   );
 
-  // Filter + search + sort, then paginate. KPIs stay computed over ALL dishes.
+  // Category ordering: sort_order (uncategorized last), then a name for the header.
+  const catOrder = useMemo(() => {
+    const m = new Map<string | null, { name: string; order: number }>();
+    categories.forEach((c) => m.set(c.id, { name: c.name, order: c.sort_order }));
+    return m;
+  }, [categories]);
+  const catRank = useCallback(
+    (id: string | null) => (id != null && catOrder.has(id) ? catOrder.get(id)!.order : Number.MAX_SAFE_INTEGER),
+    [catOrder],
+  );
+
+  // Filter + search, then order by category (primary) and the sort selector
+  // (secondary, within each category), then paginate. KPIs stay over ALL dishes.
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     const kept = insights.filter((r) => {
@@ -162,10 +186,22 @@ export default function FoodCostPage() {
       if (filter === "ok") return !r.noRecipe && !r.lowMargin && r.foodCostPct != null;
       return true;
     });
-    return sortInsights(kept, sortKey);
-  }, [insights, query, filter, sortKey]);
+    // Group by category, sort each group with the selected key, then flatten in
+    // category order so a category run stays contiguous across the page.
+    const byCat = new Map<string | null, DishInsight[]>();
+    for (const r of kept) {
+      const cid = catOf.get(r.menuItemId) ?? null;
+      const list = byCat.get(cid) || [];
+      list.push(r);
+      byCat.set(cid, list);
+    }
+    const catIds = Array.from(byCat.keys()).sort((a, b) => catRank(a) - catRank(b));
+    const out: DishInsight[] = [];
+    for (const cid of catIds) out.push(...sortInsights(byCat.get(cid)!, sortKey));
+    return out;
+  }, [insights, query, filter, sortKey, catOf, catRank]);
 
-  const PER_PAGE = 25;
+  const PER_PAGE = 20;
   const pageCount = Math.max(1, Math.ceil(filtered.length / PER_PAGE));
   const safePage = Math.min(page, pageCount - 1);
   const pageRows = filtered.slice(safePage * PER_PAGE, safePage * PER_PAGE + PER_PAGE);
@@ -250,19 +286,20 @@ export default function FoodCostPage() {
             {t("food_cost_subtitle_v2")}
           </p>
         </div>
-        <button
-          onClick={() => setShowAnalysis((v) => !v)}
-          className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-bold rounded-xl border cursor-pointer text-black bg-white/70"
-          style={{ borderColor: "#c4956a" }}
-        >
-          <BarChart3 className="w-4 h-4" />
-          {t("food_cost_analysis")}
-          {showAnalysis ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
-        </button>
+        {noRecipeDishes.length > 0 && (
+          <button
+            onClick={() => setBulkOpen(true)}
+            className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-bold rounded-xl border cursor-pointer text-white"
+            style={{ background: "linear-gradient(135deg, #d4a574, #c4956a)", borderColor: "#c4956a" }}
+          >
+            <Sparkles className="w-4 h-4" />
+            {t("food_cost_bulk_generate").replace("{n}", String(noRecipeDishes.length))}
+          </button>
+        )}
       </div>
 
-      {/* Hero: the money numbers first — profit, recoverable, weighted food cost */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
+      {/* Hero: the money numbers first — profit, weighted food cost, health */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
         {/* Estimated profit over the window — the headline */}
         <div className={`${CARD} p-4`} style={CARD_STYLE}>
           <div className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wide" style={{ color: "#000" }}>
@@ -270,24 +307,6 @@ export default function FoodCostPage() {
           </div>
           <div className="text-3xl font-bold tabular-nums mt-1 text-emerald-700">€ {fmtEur(totals.totalProfit)}</div>
           <div className="text-xs mt-0.5" style={{ color: "#000" }}>{t("food_cost_window_30d")}</div>
-        </div>
-
-        {/* Money left on the table — the actionable one */}
-        <div
-          className={`${CARD} p-4`}
-          style={totals.totalRecoverable > 0 ? { background: "rgba(5,150,105,0.07)", borderColor: "rgba(5,150,105,0.35)" } : CARD_STYLE}
-        >
-          <div className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wide" style={{ color: "#000" }}>
-            <Wallet className="w-4 h-4" /> {t("food_cost_recoverable_title")}
-          </div>
-          <div className="text-3xl font-bold tabular-nums mt-1" style={{ color: totals.totalRecoverable > 0 ? "#047857" : "#000" }}>
-            {totals.totalRecoverable > 0 ? `+ € ${fmtEur(totals.totalRecoverable)}` : "—"}
-          </div>
-          <div className="text-xs mt-0.5" style={{ color: "#000" }}>
-            {totals.totalRecoverable > 0
-              ? t("food_cost_recoverable_sub").replace("{n}", String(totals.actionableCount))
-              : t("food_cost_recoverable_none")}
-          </div>
         </div>
 
         {/* Weighted food cost vs target */}
@@ -324,34 +343,6 @@ export default function FoodCostPage() {
           <span className="text-black">
             {t("food_cost_incomplete_warning").replace("{n}", String(incompleteCount))}
           </span>
-        </div>
-      )}
-
-      {/* Analysis: menu-engineering matrix + worst-8 chart, collapsed by default */}
-      {showAnalysis && (
-        <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
-          {meInput.length > 0 && <MenuEngineeringMatrix input={meInput} />}
-          {chartData.length > 0 && (
-            <div className={`${CARD} p-4`} style={CARD_STYLE}>
-              <h2 className="text-sm font-bold text-black mb-3">{t("food_cost_chart_title")} (target {targetPct}%)</h2>
-              <div style={{ height: 260 }}>
-                <ChartFrame>
-                  <BarChart data={chartData} margin={{ top: 8, right: 16, bottom: 8, left: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#d3bd9c" />
-                    <XAxis dataKey="name" tick={{ fontSize: 11 }} interval={0} angle={-20} textAnchor="end" height={60} />
-                    <YAxis tick={{ fontSize: 11 }} unit="%" />
-                    <Tooltip formatter={(v: any) => `${Number(v).toFixed(1)}%`} />
-                    <ReferenceLine y={targetPct} stroke="#c4956a" strokeDasharray="4 4" />
-                    <Bar dataKey="pct" radius={[4, 4, 0, 0]}>
-                      {chartData.map((d, i) => (
-                        <Cell key={i} fill={d.low ? "#dc2626" : "#c4956a"} />
-                      ))}
-                    </Bar>
-                  </BarChart>
-                </ChartFrame>
-              </div>
-            </div>
-          )}
         </div>
       )}
 
@@ -433,27 +424,45 @@ export default function FoodCostPage() {
             {rows.length === 0 ? t("food_cost_empty") : t("inventory_no_match")}
           </div>
         ) : (
-          pageRows.map((r) => (
-            <DishCard
-              key={r.menuItemId}
-              r={r}
-              isStar={starIds.has(r.menuItemId)}
-              targetPct={targetPct}
-              isOpen={expanded === r.menuItemId}
-              editing={editing === r.menuItemId}
-              draft={editing === r.menuItemId ? draftPrice : ""}
-              saveState={saveStates[r.menuItemId]}
-              tenantId={activeTenant!.id}
-              onToggle={toggleRow}
-              onStartEdit={startEdit}
-              onDraftChange={setDraftPrice}
-              onCommit={savePrice}
-              onCancel={cancelEdit}
-              onApplySuggested={applySuggested}
-              onRecipeChanged={load}
-              t={t}
-            />
-          ))
+          pageRows.map((r, i) => {
+            const cid = catOf.get(r.menuItemId) ?? null;
+            const prevCid = i > 0 ? (catOf.get(pageRows[i - 1].menuItemId) ?? null) : Symbol("none");
+            const showHeader = cid !== prevCid;
+            const catName = cid != null ? (catOrder.get(cid)?.name ?? null) : null;
+            const catCount = filtered.filter((d) => (catOf.get(d.menuItemId) ?? null) === cid).length;
+            return (
+              <div key={r.menuItemId} className="space-y-2">
+                {showHeader && (
+                  <div className="flex items-baseline gap-2 pt-1 pl-1">
+                    <span className="text-sm font-bold text-black">
+                      {catName ?? t("food_cost_uncategorized")}
+                    </span>
+                    <span className="text-xs" style={{ color: "#000" }}>
+                      {t("food_cost_cat_count").replace("{n}", String(catCount))}
+                    </span>
+                  </div>
+                )}
+                <DishCard
+                  r={r}
+                  isStar={starIds.has(r.menuItemId)}
+                  targetPct={targetPct}
+                  isOpen={expanded === r.menuItemId}
+                  editing={editing === r.menuItemId}
+                  draft={editing === r.menuItemId ? draftPrice : ""}
+                  saveState={saveStates[r.menuItemId]}
+                  tenantId={activeTenant!.id}
+                  onToggle={toggleRow}
+                  onStartEdit={startEdit}
+                  onDraftChange={setDraftPrice}
+                  onCommit={savePrice}
+                  onCancel={cancelEdit}
+                  onApplySuggested={applySuggested}
+                  onRecipeChanged={load}
+                  t={t}
+                />
+              </div>
+            );
+          })
         )}
       </div>
 
@@ -485,6 +494,15 @@ export default function FoodCostPage() {
             </button>
           </div>
         </div>
+      )}
+
+      {bulkOpen && (
+        <BulkRecipeModal
+          tenantId={activeTenant!.id}
+          dishes={noRecipeDishes}
+          onClose={() => setBulkOpen(false)}
+          onSaved={() => { setBulkOpen(false); void load(); }}
+        />
       )}
     </div>
   );
@@ -654,7 +672,7 @@ const DishCard = memo(function DishCard({
           {/* RecipePanel writes recipe_items directly; refresh the table after
               edits so cost/% reflect the new recipe. */}
           <div onBlur={() => { void onRecipeChanged(); }}>
-            <RecipePanel tenantId={tenantId} menuItemId={r.menuItemId} price={r.price} />
+            <RecipePanel tenantId={tenantId} menuItemId={r.menuItemId} price={r.price} dishName={r.name} />
           </div>
         </div>
       )}

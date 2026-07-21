@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Plus, Trash2, Calculator } from "lucide-react";
+import { Plus, Trash2, Calculator, Sparkles, Loader2 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { useTenant } from "@/lib/contexts/TenantContext";
 import { useLanguage } from "@/lib/contexts/LanguageContext";
@@ -9,6 +9,13 @@ import { getFeatures } from "@/lib/types/tenant-settings";
 import { Dictionary } from "@/lib/i18n/dictionaries/en";
 import { dishCost, foodCostPct, effectiveQty } from "@/lib/management/food-cost";
 import type { RecipeLine } from "@/lib/management/types";
+import type { ResolvedLine } from "@/lib/management/recipe-suggest";
+import {
+  toReviewLines,
+  saveReviewedRecipe,
+  RecipeReviewRow,
+  type ReviewLine,
+} from "./RecipeReview";
 
 // Recipe editor for a single dish, mounted in the Menu edit modal. Lists the
 // dish's ingredients (qty in the ingredient's unit), shows live cost + food
@@ -33,10 +40,16 @@ export function RecipePanel({
   tenantId,
   menuItemId,
   price,
+  dishName,
+  dishDescription,
 }: {
   tenantId: string;
   menuItemId: string;
   price: number | null;
+  /** Optional: dish name/description for the AI "suggest recipe" button. When
+   * absent the button falls back to reading the menu_items row on demand. */
+  dishName?: string;
+  dishDescription?: string | null;
 }) {
   const { activeTenant } = useTenant();
   const { t } = useLanguage();
@@ -49,6 +62,27 @@ export function RecipePanel({
   const [qty, setQty] = useState("");
   const [status, setStatus] = useState<"idle" | "saving" | "error">("idle");
   const savedTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // AI suggest-recipe review block (draft, above the add-form).
+  const [aiStatus, setAiStatus] = useState<"idle" | "loading" | "review" | "saving" | "error">("idle");
+  const [aiLines, setAiLines] = useState<ReviewLine[]>([]);
+
+  const reload = async () => {
+    const [{ data: ings }, { data: recipe }] = await Promise.all([
+      supabase
+        .from("ingredients")
+        .select("id, name, unit, current_unit_cost")
+        .eq("tenant_id", tenantId)
+        .eq("archived", false)
+        .order("name"),
+      supabase
+        .from("recipe_items")
+        .select("id, ingredient_id, qty, waste_pct")
+        .eq("menu_item_id", menuItemId),
+    ]);
+    setIngredients((ings || []) as Ingredient[]);
+    setRows((recipe || []) as RecipeRow[]);
+  };
 
   useEffect(() => {
     if (!enabled) return;
@@ -74,6 +108,47 @@ export function RecipePanel({
       cancelled = true;
     };
   }, [enabled, supabase, tenantId, menuItemId]);
+
+  // ── AI suggest recipe ─────────────────────────────────────────────────────
+  const suggestRecipe = async () => {
+    setAiStatus("loading");
+    setAiLines([]);
+    try {
+      // Fall back to the DB row if the host didn't pass name/description.
+      let name = dishName || "";
+      let description = dishDescription ?? null;
+      if (!name) {
+        const { data } = await supabase
+          .from("menu_items")
+          .select("name, description")
+          .eq("id", menuItemId)
+          .maybeSingle();
+        name = (data?.name as string) || "";
+        description = (data?.description as string) ?? null;
+      }
+      const res = await fetch("/api/management/suggest-recipe", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tenantId, dishes: [{ menuItemId, name, description, price }] }),
+      });
+      if (!res.ok) throw new Error("suggest failed");
+      const data = (await res.json()) as { results: Array<{ menuItemId: string; lines: ResolvedLine[] }> };
+      const lines = data.results?.[0]?.lines || [];
+      setAiLines(toReviewLines(lines));
+      setAiStatus("review");
+    } catch {
+      setAiStatus("error");
+    }
+  };
+
+  const saveAiRecipe = async () => {
+    setAiStatus("saving");
+    const existing = new Set(rows.map((r) => r.ingredient_id));
+    const { saved } = await saveReviewedRecipe(supabase, tenantId, menuItemId, aiLines, existing);
+    if (saved > 0) await reload();
+    setAiLines([]);
+    setAiStatus("idle");
+  };
 
   const costMap = useMemo(() => {
     const m = new Map<string, number>();
@@ -145,20 +220,74 @@ export function RecipePanel({
 
   return (
     <div className="px-4 py-4 border-t" style={{ borderColor: "#c4956a", background: "rgba(252,246,237,0.5)" }}>
-      <div className="flex items-center justify-between mb-3">
+      <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
         <h3 className="text-sm font-bold text-black flex items-center gap-2">
           <Calculator className="w-4 h-4" />
           {t("recipe_title" as keyof Dictionary) || "Ricetta & food cost"}
         </h3>
-        <div className="text-sm font-bold text-black">
-          {t("recipe_cost" as keyof Dictionary) || "Costo"}: € {cost.toFixed(2)}
-          {pct != null && (
-            <span className={`ml-2 ${pct > 30 ? "text-red-600" : "text-emerald-600"}`}>({pct.toFixed(1)}%)</span>
-          )}
+        <div className="flex items-center gap-2">
+          <button
+            onClick={suggestRecipe}
+            disabled={aiStatus === "loading" || aiStatus === "saving"}
+            className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-bold rounded-lg cursor-pointer text-white disabled:opacity-50 disabled:cursor-not-allowed"
+            style={{ background: "linear-gradient(135deg, #d4a574, #c4956a)" }}
+          >
+            {aiStatus === "loading" ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
+            {t("food_cost_suggest_recipe")}
+          </button>
+          <div className="text-sm font-bold text-black">
+            {t("recipe_cost" as keyof Dictionary) || "Costo"}: € {cost.toFixed(2)}
+            {pct != null && (
+              <span className={`ml-2 ${pct > 30 ? "text-red-600" : "text-emerald-600"}`}>({pct.toFixed(1)}%)</span>
+            )}
+          </div>
         </div>
       </div>
 
-      {ingredients.length === 0 ? (
+      {/* AI suggestion review block — a draft the owner confirms before saving */}
+      {aiStatus === "error" && (
+        <p className="text-xs text-red-600 mb-3">{t("food_cost_bulk_error")}</p>
+      )}
+      {(aiStatus === "review" || aiStatus === "saving") && (
+        <div className="mb-3 rounded-xl border p-3" style={{ borderColor: "#c4956a", background: "rgba(255,255,255,0.7)" }}>
+          <p className="text-xs mb-2" style={{ color: "#000" }}>{t("food_cost_ai_estimate_hint")}</p>
+          {aiLines.length === 0 ? (
+            <p className="text-xs text-black">{t("food_cost_ai_no_lines")}</p>
+          ) : (
+            <div className="space-y-2">
+              {aiLines.map((l, i) => (
+                <RecipeReviewRow
+                  key={i}
+                  line={l}
+                  options={ingredients.map((ing) => ({ id: ing.id, name: ing.name, unit: ing.unit }))}
+                  createLabel={(name) => t("food_cost_create_ingredient").replace("{name}", name)}
+                  onChange={(next) => setAiLines((prev) => prev.map((p, j) => (j === i ? next : p)))}
+                />
+              ))}
+            </div>
+          )}
+          <div className="flex items-center justify-end gap-2 mt-3">
+            <button
+              onClick={() => { setAiLines([]); setAiStatus("idle"); }}
+              className="px-3 py-1.5 text-xs font-bold rounded-lg border cursor-pointer text-black bg-white/70"
+              style={{ borderColor: "#d9c3a3" }}
+            >
+              {t("cancel")}
+            </button>
+            <button
+              onClick={saveAiRecipe}
+              disabled={aiStatus === "saving" || aiLines.filter((l) => l.include).length === 0}
+              className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-bold rounded-lg cursor-pointer text-white disabled:opacity-50 disabled:cursor-not-allowed"
+              style={{ background: "#059669" }}
+            >
+              {aiStatus === "saving" && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+              {t("food_cost_save_recipe")}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {ingredients.length === 0 && aiStatus === "idle" ? (
         <p className="text-xs text-black">
           {t("recipe_no_ingredients" as keyof Dictionary) ||
             "Nessun ingrediente: aggiungili dalla sezione Inventario."}
