@@ -741,9 +741,10 @@ export default function InventoryPage() {
       {/* ── Search + filter chips ───────────────────────────────────────────── */}
       <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
         {/* Search + scan: one input group, kept together */}
-        {/* min-w-0 on phones: a hard 240px minimum plus the scan button
-            exceeded the ~343px of usable width at 375px and blew the row out. */}
-        <div className="flex items-center gap-2 flex-1 min-w-0 sm:min-w-[240px] max-w-md">
+        {/* min-w-0 throughout: any hard minimum here plus the scan button
+            exceeds the usable width once the row shares it with the chips
+            (375px phone, and 768px tablet where the pane is narrower still). */}
+        <div className="flex items-center gap-2 flex-1 min-w-0 basis-64 max-w-md">
           <div className="relative flex-1">
             <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2" style={{ color: "#000" }} />
             <input
