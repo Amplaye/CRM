@@ -878,7 +878,9 @@ export default function FloorPage() {
       <div>
         <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
           <h2 className="text-lg font-bold text-black">{t("floor_tables")}</h2>
-          <div className="flex items-center gap-2">
+          {/* flex-wrap: QR + "Modifica piantina" + the Plano/Lista toggle are
+              together wider than a 375px phone, and only the outer row wrapped. */}
+          <div className="flex flex-wrap items-center gap-2">
             {features.self_order_enabled && tables.length > 0 && (
               <button
                 onClick={() => setQrModalOpen(true)}
