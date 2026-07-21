@@ -420,7 +420,11 @@ export default function DashboardPage() {
           <h1 className="text-xl sm:text-2xl font-bold text-black tracking-tight">{t("nav_dashboard")}</h1>
           <p className="mt-0.5 text-xs sm:text-sm text-black">{t("dash_ai_performance")}</p>
         </div>
-        <div className="flex items-center gap-1.5 sm:gap-2 overflow-x-auto no-scrollbar -mx-1 px-1">
+        {/* flex-wrap so the period navigator drops to a second line on narrow
+            phones instead of being clipped mid-control by the scroller (the
+            year <select> was half cut off at 375px, with no visible affordance
+            that the strip scrolled). */}
+        <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 overflow-x-auto no-scrollbar -mx-1 px-1">
           {/* View mode toggle */}
           <div className="inline-flex rounded-lg border-2 overflow-hidden flex-shrink-0" style={{ borderColor: "#c4956a" }}>
             {(["day", "month", "year"] as const).map(mode => (
@@ -662,14 +666,18 @@ export default function DashboardPage() {
                 >
                   <Icon className="w-4 h-4 sm:w-5 sm:h-5" style={{ color: BRAND_BROWN }} />
                 </div>
+                {/* break-words: these labels are long single words in several
+                    languages (e.g. "NO-SHOWS PREVENTED", "PRENOTAZIONI") and
+                    with uppercase + tracking-wider they overflow the narrow
+                    centre column on a 375px phone unless they may break. */}
                 <div className="min-w-0 text-center">
-                  <p className="text-[10px] sm:text-[11px] font-semibold uppercase tracking-wider text-black leading-tight">
+                  <p className="text-[10px] sm:text-[11px] font-semibold uppercase tracking-wider text-black leading-tight break-words hyphens-auto">
                     {m.label}
                   </p>
                   <p className="text-lg sm:text-2xl font-bold text-black tabular-nums leading-tight mt-0.5">
                     {m.value}
                   </p>
-                  <p className="text-[10px] sm:text-[11px] text-black leading-tight mt-0.5">{m.sub}</p>
+                  <p className="text-[10px] sm:text-[11px] text-black leading-tight mt-0.5 break-words">{m.sub}</p>
                 </div>
                 <div aria-hidden className="w-9 h-9 sm:w-10 sm:h-10" />
               </div>

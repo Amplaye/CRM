@@ -365,7 +365,9 @@ export default function PlPage() {
             {t("pl_subtitle_v2" as keyof Dictionary) || "Calcolato in automatico da cassa, ricette e costi. Confronto con il periodo precedente."}
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        {/* Wraps on phones: the 4 period buttons plus CSV/PDF are ~360px wide,
+            more than the usable width at 375px. */}
+        <div className="flex flex-wrap items-center gap-2">
           <div className="inline-flex rounded-xl border overflow-hidden bg-white/70" style={{ borderColor: "#c4956a" }}>
             {PERIODS.map((p) => (
               <button
@@ -481,9 +483,8 @@ export default function PlPage() {
                 return (
                   <div
                     key={row.key}
-                    className="px-4 sm:px-5 py-3 grid items-center gap-x-3"
+                    className="px-4 sm:px-5 py-3 grid items-center gap-x-2 sm:gap-x-3 grid-cols-[minmax(0,1fr)_auto] sm:grid-cols-[minmax(90px,160px)_1fr_auto]"
                     style={{
-                      gridTemplateColumns: "minmax(90px, 160px) 1fr auto",
                       borderTop: "1px solid #e5d6bf",
                       background: isResult ? (row.value >= 0 ? "rgba(5,150,105,0.06)" : "rgba(220,38,38,0.05)") : isSubtotal ? "rgba(196,149,106,0.06)" : undefined,
                     }}
@@ -497,7 +498,7 @@ export default function PlPage() {
                     <div className="hidden sm:block relative h-2.5 rounded-full overflow-hidden" style={{ background: "rgba(196,149,106,0.13)" }}>
                       <div className="absolute inset-y-0 left-0 rounded-full" style={{ width: `${barPct}%`, background: barColor, opacity: isResult || isRevenue ? 1 : 0.85 }} />
                     </div>
-                    <div className="flex items-center justify-end gap-2 min-w-[150px]">
+                    <div className="flex items-center justify-end gap-1.5 sm:gap-2 sm:min-w-[150px]">
                       {row.pct != null && !isRevenue && (
                         <span className="text-xs tabular-nums w-12 text-right" style={{ color: (row as any).warn ? "#dc2626" : "#000" }}>
                           {Math.abs(row.pct).toFixed(0)}%

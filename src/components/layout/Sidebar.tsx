@@ -263,7 +263,7 @@ export function Sidebar({ mobileOpen = false, onClose }: SidebarProps) {
             {activeTenant?.name || "BaliFlow"}
           </span>
         )}
-        <button onClick={onClose} className="md:hidden p-1 -mr-1 hover:bg-[#c4956a]/10 rounded-lg">
+        <button onClick={onClose} className="lg:hidden p-1 -mr-1 hover:bg-[#c4956a]/10 rounded-lg">
           <X className="w-5 h-5 text-black" />
         </button>
       </div>
@@ -432,15 +432,20 @@ export function Sidebar({ mobileOpen = false, onClose }: SidebarProps) {
 
   return (
     <>
-      {/* Desktop sidebar - always visible from md+ */}
-      <aside className="w-64 border-r h-full hidden md:flex flex-col flex-shrink-0" style={{ background: 'rgba(252,246,237,0.85)', borderColor: '#c4956a' }}>
+      {/* Desktop sidebar — permanent from lg+ only. It must NOT pin at md
+          (768px): a portrait tablet is exactly 768px wide, so the 256px rail
+          would leave ~512px of content while the page bodies are still using
+          their `sm:` (640px+) multi-column layouts — that mismatch is what
+          squeezed /settings, /incidents and /marketing into overflowing
+          slivers. Below lg the drawer covers it. */}
+      <aside className="w-64 border-r h-full hidden lg:flex flex-col flex-shrink-0" style={{ background: 'rgba(252,246,237,0.85)', borderColor: '#c4956a' }}>
         {sidebarContent}
       </aside>
 
       {/* Mobile overlay + drawer — slides in/out (see .drawer-* in globals.css).
           Stays mounted through the closing animation via `rendered`/`closing`. */}
       {rendered && (
-        <div className="md:hidden fixed inset-0 z-50 flex">
+        <div className="lg:hidden fixed inset-0 z-50 flex">
           {/* Backdrop */}
           <div
             className={cn("fixed inset-0 bg-black/40", closing ? "drawer-backdrop--closing" : "drawer-backdrop")}

@@ -579,7 +579,9 @@ export default function InventoryPage() {
             {t("inventory_subtitle_v2")}
           </p>
         </div>
-        <div className="shrink-0 flex flex-wrap items-center gap-2 justify-end">
+        {/* No shrink-0: it kept this group at its full intrinsic width, pushing
+            past the row on a phone instead of letting the buttons wrap. */}
+        <div className="flex flex-wrap items-center gap-2 sm:justify-end">
           {activeTenant?.id && (
             <InvoiceCapture tenantId={activeTenant.id} ingredients={captureIngredients} onDone={load} />
           )}
@@ -739,7 +741,9 @@ export default function InventoryPage() {
       {/* ── Search + filter chips ───────────────────────────────────────────── */}
       <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
         {/* Search + scan: one input group, kept together */}
-        <div className="flex items-center gap-2 flex-1 min-w-[240px] max-w-md">
+        {/* min-w-0 on phones: a hard 240px minimum plus the scan button
+            exceeded the ~343px of usable width at 375px and blew the row out. */}
+        <div className="flex items-center gap-2 flex-1 min-w-0 sm:min-w-[240px] max-w-md">
           <div className="relative flex-1">
             <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2" style={{ color: "#000" }} />
             <input

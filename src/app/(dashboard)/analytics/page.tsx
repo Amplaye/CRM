@@ -608,14 +608,17 @@ export default function AnalyticsPage() {
                 >
                   <Icon className="w-5 h-5" style={{ color: BRAND_BROWN }} />
                 </div>
+                {/* break-words: uppercase + tracking-wider labels are long
+                    single words in several languages and overflow this narrow
+                    column when the sidebar shares the width. */}
                 <div className="min-w-0">
-                  <p className="text-[10px] sm:text-[11px] font-semibold uppercase tracking-wider text-black leading-tight">
+                  <p className="text-[10px] sm:text-[11px] font-semibold uppercase tracking-wider text-black leading-tight break-words hyphens-auto">
                     {m.label}
                   </p>
                   <p className="text-xl sm:text-2xl font-bold text-black tabular-nums leading-tight mt-0.5">
                     {m.value}
                   </p>
-                  <p className="text-[10px] sm:text-[11px] text-black leading-tight mt-0.5">{m.sub}</p>
+                  <p className="text-[10px] sm:text-[11px] text-black leading-tight mt-0.5 break-words">{m.sub}</p>
                 </div>
               </div>
             );

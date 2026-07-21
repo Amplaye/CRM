@@ -438,7 +438,7 @@ export function Topbar({ onMenuToggle }: TopbarProps) {
       <div className="flex items-center gap-2 min-w-0">
         <button
           onClick={onMenuToggle}
-          className="md:hidden p-2 -ml-1 hover:bg-[#c4956a]/10 rounded-lg transition-colors"
+          className="lg:hidden p-2 -ml-1 hover:bg-[#c4956a]/10 rounded-lg transition-colors"
         >
           <Menu className="h-5 w-5 text-black" />
         </button>

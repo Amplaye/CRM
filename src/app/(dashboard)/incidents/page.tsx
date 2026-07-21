@@ -148,12 +148,14 @@ export default function IncidentsPage() {
           <h1 className="text-2xl font-bold text-black tracking-tight">{t("inc_title")}</h1>
           <p className="mt-1 text-sm text-black">{t("inc_subtitle")}</p>
         </div>
-        <div className="flex space-x-3 mt-4 sm:mt-0">
-            <div className="relative">
+        {/* Toolbar wraps and the search flexes: a fixed w-64 input next to the
+            button overflowed the row on phones, clipping the button off-screen. */}
+        <div className="flex flex-wrap items-center gap-3 mt-4 sm:mt-0 w-full sm:w-auto">
+            <div className="relative flex-1 min-w-0 sm:min-w-[16rem] sm:flex-none">
                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-black" />
-               <input type="text" placeholder={t("inc_search")} className="w-64 pl-9 pr-3 py-2 border-2 rounded-lg text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-[#c4956a]" style={{ borderColor: '#c4956a', background: 'rgba(252,246,237,0.6)' }} />
+               <input type="text" placeholder={t("inc_search")} className="w-full sm:w-64 pl-9 pr-3 py-2 border-2 rounded-lg text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-[#c4956a]" style={{ borderColor: '#c4956a', background: 'rgba(252,246,237,0.6)' }} />
             </div>
-            <button className="px-4 py-2 bg-zinc-900 text-white text-sm font-bold rounded-lg shadow-sm hover:bg-zinc-800 transition-colors">
+            <button className="shrink-0 px-4 py-2 bg-zinc-900 text-white text-sm font-bold rounded-lg shadow-sm hover:bg-zinc-800 transition-colors">
                {t("inc_report_manual")}
             </button>
         </div>
@@ -162,12 +164,15 @@ export default function IncidentsPage() {
       {loading ? (
         <div className="flex-1 flex items-center justify-center text-black animate-pulse font-medium">{t("inc_loading")}</div>
       ) : (
-        <div className="flex-1 flex gap-6 overflow-hidden pb-4">
+        // Three equal flex-1 columns collapse to ~100px each on a phone —
+        // unreadable. Below lg the board scrolls sideways with each column at
+        // a legible minimum width; from lg it shares the width as before.
+        <div className="flex-1 flex gap-4 sm:gap-6 overflow-x-auto lg:overflow-hidden overflow-y-hidden pb-4 -mx-4 px-4 sm:mx-0 sm:px-0 snap-x snap-mandatory lg:snap-none">
            {columns.map(col => {
               const colIncidents = incidents.filter(i => i.status === col.id);
 
               return (
-                 <div key={col.id} className={`flex-1 flex flex-col rounded-2xl border ${col.bg} overflow-hidden shadow-sm`}>
+                 <div key={col.id} className={`flex flex-col rounded-2xl border ${col.bg} overflow-hidden shadow-sm w-[78vw] max-w-[20rem] shrink-0 snap-start lg:w-auto lg:max-w-none lg:flex-1 lg:shrink`}>
                     <div className="px-5 py-4 border-b border-black/5 bg-white/50 backdrop-blur-sm flex justify-between items-center shrink-0">
                        <h2 className="font-bold text-black tracking-tight">{col.label}</h2>
                        <span className="bg-white border border-black/10 text-black text-[10px] font-bold px-2 py-0.5 rounded-full shadow-sm">{colIncidents.length}</span>
