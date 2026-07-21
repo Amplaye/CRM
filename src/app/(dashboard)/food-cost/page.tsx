@@ -730,11 +730,18 @@ const DishCard = memo(function DishCard({
               {t("food_cost_suggested").replace("{p}", suggested.toFixed(2))}
             </button>
           )}
-          {/* RecipePanel writes recipe_items directly; refresh the table after
-              edits so cost/% reflect the new recipe. */}
-          <div onBlur={() => { void onRecipeChanged(); }}>
-            <RecipePanel tenantId={tenantId} menuItemId={r.menuItemId} price={r.price} dishName={r.name} />
-          </div>
+          {/* RecipePanel writes recipe_items directly and tells us when a line
+              actually changed. It used to be wrapped in an `onBlur` handler,
+              but blur BUBBLES: merely clicking the ingredient search box or
+              tabbing to the picker reloaded the whole page, wiping the typed
+              search and the half-composed line. Refresh on real saves only. */}
+          <RecipePanel
+            tenantId={tenantId}
+            menuItemId={r.menuItemId}
+            price={r.price}
+            dishName={r.name}
+            onChanged={onRecipeChanged}
+          />
         </div>
       )}
     </div>

@@ -44,6 +44,7 @@ export function RecipePanel({
   price,
   dishName,
   dishDescription,
+  onChanged,
 }: {
   tenantId: string;
   menuItemId: string;
@@ -52,6 +53,9 @@ export function RecipePanel({
    * absent the button falls back to reading the menu_items row on demand. */
   dishName?: string;
   dishDescription?: string | null;
+  /** Called after a line is actually added/edited/removed, so the host can
+   * refresh its cost table. Deliberately NOT fired on focus changes. */
+  onChanged?: () => void | Promise<void>;
 }) {
   const { activeTenant } = useTenant();
   const { t } = useLanguage();
@@ -70,11 +74,13 @@ export function RecipePanel({
   const [addWaste, setAddWaste] = useState("0");
   // Why the last add attempt did nothing. The form used to fail silently.
   const [addError, setAddError] = useState<string | null>(null);
-  // Free-text filter over the ingredient list — a 180-row <select> is unusable
-  // without one.
+  // Free-text filter over the ingredient list — a 180-row picker is unusable
+  // without one. `listOpen` drives the combobox dropdown.
   const [search, setSearch] = useState("");
+  const [listOpen, setListOpen] = useState(false);
   const [status, setStatus] = useState<"idle" | "saving" | "error">("idle");
   const savedTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const comboRef = useRef<HTMLDivElement | null>(null);
 
   // AI suggest-recipe review block (draft, above the add-form).
   const [aiStatus, setAiStatus] = useState<"idle" | "loading" | "review" | "saving" | "error">("idle");
@@ -122,6 +128,16 @@ export function RecipePanel({
     };
   }, [enabled, supabase, tenantId, menuItemId]);
 
+  // Close the ingredient dropdown on a click anywhere outside it.
+  useEffect(() => {
+    if (!listOpen) return;
+    const onDown = (e: MouseEvent) => {
+      if (!comboRef.current?.contains(e.target as Node)) setListOpen(false);
+    };
+    document.addEventListener("mousedown", onDown);
+    return () => document.removeEventListener("mousedown", onDown);
+  }, [listOpen]);
+
   // ── AI suggest recipe ─────────────────────────────────────────────────────
   const suggestRecipe = async () => {
     setAiStatus("loading");
@@ -158,7 +174,10 @@ export function RecipePanel({
     setAiStatus("saving");
     const existing = new Set(rows.map((r) => r.ingredient_id));
     const { saved } = await saveReviewedRecipe(supabase, tenantId, menuItemId, aiLines, existing);
-    if (saved > 0) await reload();
+    if (saved > 0) {
+      await reload();
+      void onChanged?.();
+    }
     setAiLines([]);
     setAiStatus("idle");
   };
@@ -216,6 +235,8 @@ export function RecipePanel({
     }
     setRows((prev) => [...prev, data as RecipeRow]);
     setPicker("");
+    setSearch("");
+    setListOpen(false);
     setQty("");
     setAddWaste("0");
     flashSaved();
@@ -246,11 +267,13 @@ export function RecipePanel({
   const removeRow = async (id: string | undefined, ingredientId: string) => {
     setRows((prev) => prev.filter((r) => r.ingredient_id !== ingredientId));
     if (id) await supabase.from("recipe_items").delete().eq("id", id);
+    void onChanged?.();
   };
 
   const flashSaved = () => {
     setStatus("idle");
     if (savedTimer.current) clearTimeout(savedTimer.current);
+    void onChanged?.();
   };
 
   if (!enabled) return null;
@@ -258,6 +281,9 @@ export function RecipePanel({
   const available = ingredients.filter((i) => !rows.some((r) => r.ingredient_id === i.id));
   const q = search.trim().toLowerCase();
   const filteredAvailable = q ? available.filter((i) => i.name.toLowerCase().includes(q)) : available;
+  // Once an ingredient is picked the field shows its name; while searching it
+  // shows what's being typed.
+  const pickerLabel = picker ? (ingredients.find((i) => i.id === picker)?.name ?? search) : search;
 
   // Live preview of the line being composed: what it becomes in warehouse units
   // and what it costs. The whole point of letting the cook type "150 g" against
@@ -400,37 +426,63 @@ export function RecipePanel({
               hand-written line is never second-class next to a generated one. */}
           <div className="mt-3 rounded-xl border p-2.5" style={{ borderColor: "#d9c3a3", background: "rgba(255,255,255,0.6)" }}>
             <div className="flex flex-wrap items-end gap-2">
-              <div className="flex-1 min-w-[12rem] flex flex-col gap-1">
+              {/* Combobox, not a search box wired to a separate <select>: with
+                  the old pair, typing narrowed a dropdown you still had to open
+                  by hand, so the search felt broken. Now typing filters and a
+                  click picks, in one control. */}
+              <div ref={comboRef} className="flex-1 min-w-[12rem] flex flex-col gap-1 relative">
                 <input
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
+                  value={pickerLabel}
+                  onChange={(e) => {
+                    setSearch(e.target.value);
+                    setListOpen(true);
+                    // Typing again means "I'm re-choosing" — drop the old pick
+                    // so the field can't show one ingredient while another is
+                    // staged for saving.
+                    if (picker) setPicker("");
+                    setAddError(null);
+                  }}
+                  onFocus={() => setListOpen(true)}
                   placeholder={t("recipe_search_ingredient")}
                   className="w-full px-2 py-1.5 text-sm border-2 rounded text-black"
-                  style={{ borderColor: "#d9c3a3" }}
+                  style={{ borderColor: picker ? "#c4956a" : "#d9c3a3" }}
                 />
-                <select
-                  value={picker}
-                  onChange={(e) => {
-                    const id = e.target.value;
-                    setPicker(id);
-                    setAddError(null);
-                    // Default to the warehouse unit: the common case is typing
-                    // the quantity in the same unit the product is stocked in.
-                    const chosen = ingredients.find((i) => i.id === id);
-                    if (chosen) setAddUnit(chosen.unit);
-                  }}
-                  className="w-full px-2 py-1.5 text-sm border-2 rounded cursor-pointer text-black"
-                  style={{ borderColor: "#c4956a" }}
-                >
-                  <option value="">{t("recipe_pick_ingredient" as keyof Dictionary) || "Aggiungi ingrediente…"}</option>
-                  {filteredAvailable.map((i) => (
-                    <option key={i.id} value={i.id}>
-                      {i.name} (€{Number(i.current_unit_cost).toFixed(4)}/{i.unit})
-                    </option>
-                  ))}
-                </select>
-                {search.trim() !== "" && filteredAvailable.length === 0 && (
-                  <span className="text-xs" style={{ color: "#b45309" }}>{t("recipe_no_ingredient_match")}</span>
+                {listOpen && (
+                  <div
+                    className="absolute z-20 left-0 right-0 top-full mt-1 max-h-56 overflow-y-auto rounded-lg border-2 bg-white shadow-lg"
+                    style={{ borderColor: "#c4956a" }}
+                  >
+                    {filteredAvailable.length === 0 ? (
+                      <p className="px-2 py-2 text-xs" style={{ color: "#b45309" }}>
+                        {t("recipe_no_ingredient_match")}
+                      </p>
+                    ) : (
+                      filteredAvailable.slice(0, 60).map((i) => (
+                        <button
+                          key={i.id}
+                          type="button"
+                          onMouseDown={(e) => {
+                            // mousedown, not click: the input's blur would close
+                            // the list before a click could ever land.
+                            e.preventDefault();
+                            setPicker(i.id);
+                            setSearch("");
+                            setListOpen(false);
+                            setAddError(null);
+                            // Default to the warehouse unit: the common case is
+                            // typing the quantity in the unit it's stocked in.
+                            setAddUnit(i.unit);
+                          }}
+                          className="w-full text-left px-2 py-1.5 text-sm text-black hover:bg-[#c4956a]/15 cursor-pointer"
+                        >
+                          {i.name}{" "}
+                          <span className="text-xs" style={{ color: "#7a6a55" }}>
+                            (€{Number(i.current_unit_cost).toFixed(4)}/{i.unit})
+                          </span>
+                        </button>
+                      ))
+                    )}
+                  </div>
                 )}
               </div>
 

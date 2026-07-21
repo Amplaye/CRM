@@ -1619,6 +1619,8 @@ export const it: Dictionary = {
   inventory_lot_done: "fatto",
   inventory_lots_hint: "Ogni riga è una partita ricevuta. Premi «fatto» quando è finita o buttata: sparisce il promemoria (la giacenza non cambia).",
   inventory_empty: "Nessun ingrediente.",
+  inventory_seed_defaults: "Carica il magazzino predefinito",
+  inventory_seed_defaults_hint: "Aggiunge gli ingredienti base di una cucina professionale, già categorizzati. I costi restano a zero: inseriscili tu o lasciali compilare dalle fatture.",
   inventory_low_badge: "bassa",
   inventory_expiring_badge: "in scadenza",
   inventory_reorder: "Da riordinare",

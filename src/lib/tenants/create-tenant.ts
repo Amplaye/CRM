@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { TenantStatus } from "./status";
 import { complianceSettingsForCountry, complianceSettingsForPhone } from "@/lib/compliance/detect-country";
+import { seedDefaultIngredients } from "@/lib/management/seed-ingredients";
 
 /**
  * Single way to create a tenant row.
@@ -91,5 +92,19 @@ export async function createTenant(
     .single();
 
   if (error) throw new Error(`tenant insert: ${error.message}`);
-  return { id: data.id as string };
+  const id = data.id as string;
+
+  // Stock the warehouse so Inventory and Food Cost are usable on day one. A new
+  // tenant used to land on an empty table, which also left the AI recipe
+  // generator with no real stock to ground in. Best-effort: a seeding failure
+  // must never cost the owner the tenant they just created — the Inventory page
+  // can top it up later.
+  try {
+    const locale = (settings as { crm_locale?: string }).crm_locale || "en";
+    await seedDefaultIngredients(supabase, id, locale);
+  } catch (e) {
+    console.error("[createTenant] default ingredient seed failed", e);
+  }
+
+  return { id };
 }

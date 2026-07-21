@@ -1616,6 +1616,8 @@ export const en = {
   inventory_lot_done: "done",
   inventory_lots_hint: "Each row is a delivered batch. Tap “done” when it's used up or thrown away — the reminder disappears (stock isn't changed).",
   inventory_empty: "No ingredients.",
+  inventory_seed_defaults: "Load the default storeroom",
+  inventory_seed_defaults_hint: "Adds the staple ingredients of a professional kitchen, already categorised. Costs stay at zero: fill them in yourself or let the invoice importer do it.",
   inventory_low_badge: "low",
   inventory_expiring_badge: "expiring",
   inventory_reorder: "To reorder",

@@ -131,6 +131,7 @@ export default function InventoryPage() {
   // recipes automatically, so it needs no manual link (see the card below).
   const [posProvider, setPosProvider] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
+  const [seeding, setSeeding] = useState(false);
   const [filter, setFilter] = useState<Filter>("all");
   const [query, setQuery] = useState("");
   const [catFilter, setCatFilter] = useState<string>(ALL_CATS);
@@ -199,7 +200,8 @@ export default function InventoryPage() {
     // so the shelf is never half-empty and the owner only fixes the misses.
     const uncategorised = ingredients.filter((r) => !r.category);
     if (uncategorised.length > 0) {
-      const guesses = uncategorised.map((r) => ({ id: r.id, category: classifyIngredient(r.name) }));
+      // Unit matters: "Limone" held in ml is juice, not fruit.
+      const guesses = uncategorised.map((r) => ({ id: r.id, category: classifyIngredient(r.name, r.unit) }));
       setRows((rs) => {
         const m = new Map(guesses.map((g) => [g.id, g.category]));
         return rs.map((r) => (m.has(r.id) ? { ...r, category: m.get(r.id)! } : r));
@@ -462,6 +464,23 @@ export default function InventoryPage() {
     await supabase.from("ingredients").update({ archived: true, updated_at: new Date().toISOString() }).eq("id", id);
   }, [supabase, t]);
 
+  // Fill an empty warehouse with the default catalogue, in the tenant's CRM
+  // language. Idempotent server-side, so a double-click can't duplicate stock.
+  async function seedDefaults() {
+    if (!activeTenant?.id || seeding) return;
+    setSeeding(true);
+    try {
+      const res = await fetch("/api/management/seed-ingredients", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tenantId: activeTenant.id }),
+      });
+      if (res.ok) await load();
+    } finally {
+      setSeeding(false);
+    }
+  }
+
   async function createIngredient(name: string, unit: string, category: string) {
     if (!activeTenant?.id || !name.trim()) return;
     setCreating(false);
@@ -469,7 +488,7 @@ export default function InventoryPage() {
       tenant_id: activeTenant.id,
       name: name.trim(),
       unit: unit.trim() || "kg",
-      category: category || classifyIngredient(name),
+      category: category || classifyIngredient(name, unit),
       current_unit_cost: 0,
       stock_qty: 0,
       par_level: 0,
@@ -844,6 +863,24 @@ export default function InventoryPage() {
         ) : visible.length === 0 ? (
           <div className={`${CARD} p-8 text-center text-sm text-black`} style={CARD_STYLE}>
             {rows.length === 0 ? t("inventory_empty") : t("inventory_no_match")}
+            {/* An empty warehouse makes Food Cost unusable, so offer the stocked
+                storeroom instead of leaving the owner to type 130 rows. */}
+            {rows.length === 0 && (
+              <div className="mt-4">
+                <button
+                  onClick={seedDefaults}
+                  disabled={seeding}
+                  className="inline-flex items-center gap-2 px-4 py-2 text-sm font-bold rounded-lg cursor-pointer text-white disabled:opacity-50 disabled:cursor-not-allowed"
+                  style={{ background: "linear-gradient(135deg, #d4a574, #c4956a)" }}
+                >
+                  {seeding && <Loader2 className="w-4 h-4 animate-spin" />}
+                  {t("inventory_seed_defaults")}
+                </button>
+                <p className="mt-2 text-xs" style={{ color: "#7a6a55" }}>
+                  {t("inventory_seed_defaults_hint")}
+                </p>
+              </div>
+            )}
           </div>
         ) : (
           pageRows.map((r) => (

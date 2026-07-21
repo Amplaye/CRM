@@ -1619,6 +1619,8 @@ export const es: Dictionary = {
   inventory_lot_done: "hecho",
   inventory_lots_hint: "Cada fila es un lote recibido. Pulsa «hecho» cuando se acabe o se tire: desaparece el recordatorio (las existencias no cambian).",
   inventory_empty: "Sin ingredientes.",
+  inventory_seed_defaults: "Cargar el almacén predeterminado",
+  inventory_seed_defaults_hint: "Añade los ingredientes básicos de una cocina profesional, ya categorizados. Los costes quedan a cero: complétalos tú o deja que lo hagan las facturas.",
   inventory_low_badge: "bajo",
   inventory_expiring_badge: "por caducar",
   inventory_reorder: "Por reponer",

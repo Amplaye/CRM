@@ -1619,6 +1619,8 @@ export const de: Dictionary = {
   inventory_lot_done: "erledigt",
   inventory_lots_hint: "Jede Zeile ist eine erhaltene Charge. Auf „erledigt“ tippen, wenn sie aufgebraucht oder entsorgt ist — die Erinnerung verschwindet (der Bestand ändert sich nicht).",
   inventory_empty: "Keine Zutaten.",
+  inventory_seed_defaults: "Standardlager laden",
+  inventory_seed_defaults_hint: "Fügt die Grundzutaten einer Profiküche hinzu, bereits kategorisiert. Die Kosten bleiben bei null: Trage sie selbst ein oder lass sie aus den Rechnungen übernehmen.",
   inventory_low_badge: "niedrig",
   inventory_expiring_badge: "läuft ab",
   inventory_reorder: "Nachzubestellen",

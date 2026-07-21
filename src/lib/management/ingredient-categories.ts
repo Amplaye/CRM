@@ -78,6 +78,63 @@ const RULES: CategoryRule[] = [
 
   { category: "frozen", stems: ["surgelat", "congelat", "frozen", "helado", "iqf"] },
 
+  // Herbs whose name contains a vegetable stem, pre-empted before produce can
+  // claim them: chives are "erba CIPOLLina"/"CEBOLLino", not onions.
+  { category: "spices", stems: ["erba cipollina", "cebollino", "chive"] },
+
+  // ── Pre-empts ────────────────────────────────────────────────────────────
+  // Names that a LATER rule would grab via a stem belonging to an ingredient
+  // they merely mention. Each line here is a bug the catalogue test caught.
+
+  // A burger is meat (or, for the bun, bakery) — never a cured meat, which is
+  // what "hamburguesa"/"hamburger" hits via the charcuterie list.
+  { category: "bread_pastry", stems: ["panino da hamburger", "pan de hamburguesa", "burger bun", "burgerbrotchen", "pan brioche"] },
+  { category: "meat", stems: ["hamburger", "hamburguesa", "burger patty", "patty"] },
+
+  // Tinned/jarred goods named after their raw material, before produce and fish
+  // claim them.
+  { category: "preserves", stems: ["tomate triturado", "tomate pelado", "passierte tomaten", "geschalte tomaten", "peeled tomato", "tonno sott", "tinned tuna", "atun en aceite", "tuna in oil"] },
+
+  // Gnocchi are a starch, not a potato.
+  { category: "pasta_rice", stems: ["gnocch", "noqui", "nyoqui"] },
+
+  // Yeast is a dry good; "lievito di BIRRA" is not beer.
+  { category: "flour_cereals", stems: ["lievito", "levadura", "yeast", "hefe", "pangrattat", "pan rallado", "breadcrumb", "semmelbros", "amido di mais", "cornstarch", "maizena", "speisestarke"] },
+
+  // Cured meats whose Spanish names collide with "sal"/"salsa" (spices) and
+  // "jamón" (preserves, via "jam").
+  { category: "cured_meats", stems: ["jamon", "salchich", "chorizo", "cecina", "embutido"] },
+
+  // Sweet peppers are produce; the GROUND spice is paprika powder. Both are
+  // spelled "paprika" in German, so the unqualified word stays produce there
+  // and only the explicit powder forms are seasoning.
+  { category: "spices", stems: ["paprika dolce", "paprika powder", "paprikapulver", "pimenton", "peperoncin", "guindilla", "chilli", "chili powder"] },
+  { category: "vegetables", stems: ["bell pepper", "paprika", "peperoni", "pimiento"] },
+
+  // Herbs whose names start with a fruit stem ("PEREjil" vs "pera").
+  { category: "spices", stems: ["perejil", "petersilie", "prezzemol", "parsley"] },
+
+  // Fizzy drinks named after the fruit they're flavoured with.
+  { category: "soft_drinks", stems: ["orange soda", "naranjada", "orangenlimonade", "aranciat", "limonade", "limonada", "gazzosa", "gassosa"] },
+
+  // Frozen goods whose Spanish/Italian names don't carry a "congelado" stem.
+  { category: "frozen", stems: ["patatas fritas congeladas", "guisantes congelados", "gelato", "ice cream", "speiseeis", "ghiaccio", "hielo", "eiswurfel", "ice cube"] },
+
+  // Cocoa POWDER is a baking good; the fruit rule grabs it via "coco".
+  { category: "bread_pastry", stems: ["cocoa", "cacao", "kakao"] },
+
+  // Olive OIL, before the olive-preserve rule takes it.
+  { category: "oil_vinegar", stems: ["olivenol", "olive oil", "aceite de oliva", "olio oliva", "olio extraverg", "olio di oliva"] },
+
+  // Avocado: the Spanish "aguacate" ends in "-cate" but starts with "agua"
+  // (water → soft drinks).
+  { category: "vegetables", stems: ["aguacate", "avocado"] },
+
+  // Sugar is a pantry staple, not a pastry: it seasons a cocktail and a marinade
+  // as often as it sweetens a cake, and burying it under bread_pastry hides it
+  // from whoever is counting the dry store.
+  { category: "spices", stems: ["zucchero", "azucar", "sugar", "dolcificante", "edulcorante", "sciroppo d'acero", "maple"] },
+
   // Vinegar before wine, so "aceto di vino" doesn't file itself as wine.
   { category: "oil_vinegar", stems: ["olio", "oliva", "aceto", "extraverg", "extra verg", "strutto", "vinagre", "vinegar", "aceite", "oil"] },
 
@@ -109,7 +166,7 @@ const RULES: CategoryRule[] = [
 
   { category: "meat", stems: ["carne", "manzo", "vitell", "ternera", "maiale", "cerdo", "cochino", "suino", "bovin", "agnell", "cordero", "pollo", "chicken", "pollame", "tacchino", "pavo", "anatra", "pato", "coniglio", "conejo", "hamburger", "burger", "patty", "macinat", "picada", "costat", "ribs", "filetto", "solomillo", "entrecote", "tagliata", "arrosto", "spezzatino", "ossobuco", "brasato", "petto di", "pechuga", "coscia", "muslo", "alette", "alitas", "fegato", "higado", "trippa", "callos", "beef", "angus", "pork", "lamb", "turkey", "mechado", "pulled"] },
 
-  { category: "vegetables", stems: ["verdur", "ortagg", "insalat", "lechuga", "lattuga", "salad", "rucola", "rucula", "radicchio", "mezclum", "misticanza", "spinaci", "espinaca", "spinach", "bietol", "cicoria", "cavolo", "col ", "cavolfior", "coliflor", "broccol", "brocoli", "verza", "zucchin", "calabacin", "zucchini", "zucca", "calabaza", "melanzan", "berenjena", "peperon", "pimiento", "pepper flake", "pomodor", "tomate", "tomato", "cipoll", "cebolla", "onion", "aglio", "ajo", "garlic", "scalogno", "chalota", "porro", "puerro", "sedano", "apio", "carot", "zanahoria", "patat", "papa", "papas", "potato", "finocchi", "hinojo", "asparag", "esparrago", "carciof", "alcachofa", "funghi", "champin", "champignon", "setas", "mushroom", "porcini", "piselli", "guisante", "fagiolin", "judias", "ceci", "garbanzo", "lenticchi", "lenteja", "fagioli", "frijol", "mais", "maiz", "corn", "cetriol", "pepino", "cucumber", "ravanell", "rabano", "barbabietol", "remolacha", "topinambur", "germogli", "brotes", "puntarelle", "friarielli", "tartufo", "trufa", "truffle", "aguacate", "avocado", "jengibre", "wasabi"] },
+  { category: "vegetables", stems: ["verdur", "ortagg", "insalat", "lechuga", "lattuga", "salad", "rucola", "rucula", "radicchio", "mezclum", "misticanza", "spinaci", "espinaca", "spinach", "bietol", "cicoria", "cavolo", "col ", "cavolfior", "coliflor", "broccol", "brocoli", "verza", "zucchin", "calabacin", "zucchini", "zucca", "calabaza", "melanzan", "berenjena", "peperon", "pimiento", "pepper flake", "pomodor", "tomate", "tomato", "cipoll", "cebolla", "onion", "aglio", "ajo", "garlic", "scalogno", "chalota", "porro", "puerro", "sedano", "apio", "carot", "zanahoria", "patat", "papa", "papas", "potato", "finocchi", "hinojo", "asparag", "esparrago", "carciof", "alcachofa", "funghi", "champin", "champignon", "setas", "mushroom", "porcini", "piselli", "guisante", "fagiolin", "judias", "ceci", "garbanzo", "lenticchi", "lenteja", "fagioli", "frijol", "mais", "maiz", "corn", "cetriol", "pepino", "cucumber", "ravanell", "rabano", "barbabietol", "remolacha", "topinambur", "germogli", "brotes", "puntarelle", "friarielli", "tartufo", "trufa", "truffle", "aguacate", "avocado", "jengibre", "alga", "nori", "wakame", "kombu"] },
 
   { category: "fruit", stems: ["limon", "lemon", "arance", "arancia", "naranja", "orange", "mandarin", "pompelmo", "pomelo", "grapefruit", "lime", "lima", "mela", "mele ", "manzana", "apple", "pera", "pere ", "banan", "platano", "fragol", "fresa", "strawberr", "lampon", "frambuesa", "mirtill", "arandano", "blueberr", "ciliegi", "cereza", "cherry", "pesca", "pesche", "melocoton", "peach", "albicocc", "albaricoque", "prugn", "ciruela", "susin", "uva", "grape", "melone", "melon", "anguria", "sandia", "cocomero", "kiwi", "ananas", "pina", "pineapple", "mango", "maracuya", "papaya", "fico", "fichi", "higo", "melagran", "granada", "cachi", "frutta", "fruta", "fruit", "frutti di bosco", "cocco", "coco", "coconut", "datter", "datil"] },
 
@@ -119,7 +176,10 @@ const RULES: CategoryRule[] = [
 
   { category: "flour_cereals", stems: ["farina", "harina", "flour", "semola", "semolino", "avena", "oat", "orzo", "farro", "segale", "centeno", "grano", "trigo", "crusca", "salvado", "amido", "almidon", "maizena", "lievito", "levadura", "yeast", "polenta", "quinoa", "cous cous", "couscous", "bulgur"] },
 
-  { category: "spices", stems: ["sale", "sal ", " sal", "salt", "pepe nero", "pepe ", "pimienta", "pepper", "spezie", "especia", "spice", "origano", "oregano", "basilico", "albahaca", "basil", "prezzemol", "perejil", "parsley", "rosmarin", "romero", "salvia", "timo", "tomillo", "thyme", "alloro", "laurel", "menta", "hierbabuena", "mint", "maggiorana", "erba cipollina", "cebollino", "chive", "aneto", "eneldo", "coriandol", "cilantro", "curcuma", "curry", "zafferano", "azafran", "cannella", "canela", "cinnamon", "chiodi di garofano", "clavo", "noce moscata", "nuez moscada", "paprika", "pimenton", "peperoncin", "chili", "chile", "guindilla", "zenzero", "cumino", "comino", "anice", "anis", "vaniglia", "vainilla", "vanilla", "cardamomo", "ginepro", "enebro"] },
+  // Herbs and seasonings. "erba cipollina"/"cebollino" (chives) must be listed
+  // here AND reached before the vegetable rule claims them via "cipoll"/"cebolla"
+  // — see the herb pre-empt block above the produce rules.
+  { category: "spices", stems: ["sale", "sal ", " sal", "salt", "pepe nero", "pepe ", "pimienta", "pepper", "spezie", "especia", "spice", "origano", "oregano", "basilico", "albahaca", "basil", "prezzemol", "perejil", "parsley", "rosmarin", "romero", "salvia", "timo", "tomillo", "thyme", "alloro", "laurel", "menta", "hierbabuena", "mint", "maggiorana", "erba cipollina", "cebollino", "chive", "aneto", "eneldo", "coriandol", "cilantro", "curcuma", "curry", "zafferano", "azafran", "cannella", "canela", "cinnamon", "chiodi di garofano", "clavo", "noce moscata", "nuez moscada", "paprika", "pimenton", "peperoncin", "chili", "chile", "guindilla", "zenzero", "cumino", "comino", "anice", "anis", "vaniglia", "vainilla", "vanilla", "cardamomo", "ginepro", "enebro", "wasabi", "spirulina", "espirulina", "matcha"] },
 
   { category: "consumables", stems: ["tovagli", "servilleta", "napkin", "sacchett", "bolsa", "sacco spazzatura", "basura", "carta forno", "papel", "cartone", "vaschett", "contenitor", "envase", "posate", "cubierto", "bicchier", "vaso ", "copa ", "piatt", "plato", "cannucce", "pajita", "straw", "coperchi", "tapa ", "pellicola", "film ", "alluminio", "aluminio", "detersiv", "detergent", "sgrassat", "igienizz", "desinfect", "disinfett", "limpieza", "guanti", "guante", "glove", "spugn", "esponja", "scottex", "asciugaman", "stuzzicaden", "palillo", "sottobicchier", "posavaso", "scontrin", "ticket", "rotolo", "rollo", "cleaning"] },
 ];
@@ -164,12 +224,24 @@ function hasStem(haystack: string, stem: string): boolean {
  * chip and none goes missing from the list. First rule that hits wins (see the
  * ordering note above).
  */
-export function classifyIngredient(name: string): IngredientCategory {
+export function classifyIngredient(name: string, unit?: string): IngredientCategory {
   const n = normalize(name);
+  let guess: IngredientCategory = "other";
   for (const rule of RULES) {
-    for (const stem of rule.stems) {
-      if (hasStem(n, stem.trim())) return rule.category;
+    if (rule.stems.some((s) => hasStem(n, s.trim()))) {
+      guess = rule.category;
+      break;
     }
   }
-  return "other";
+
+  // Whole fruit is weighed, juice is poured. A row called plainly "Limone" held
+  // in ml is the juice, not the lemon — the name alone can't tell them apart, so
+  // the unit settles it. Only bare produce is reclassified: anything that already
+  // said "zumo"/"succo"/"juice" was filed as a drink by the rules above.
+  if (guess === "fruit" && unit && LIQUID_UNITS.has(unit)) return "soft_drinks";
+
+  return guess;
 }
+
+/** Units that mean "this is a liquid" (mirrors src/lib/management/units.ts). */
+const LIQUID_UNITS = new Set(["ml", "cl", "dl", "l", "floz", "pt", "gal"]);
