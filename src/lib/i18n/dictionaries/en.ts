@@ -2013,6 +2013,7 @@ export const en = {
   // Inventory (restyle)
   inventory_subtitle_v2: "Updates itself from till sales and photographed invoices. Tap a quantity to correct it.",
   inventory_filter_all: "All",
+  inventory_cat_unused: "Not used in recipes",
   inventory_all_good: "All good: nothing to reorder, no expiry coming up.",
   inventory_reorder_est_short: "est. € {total}",
   inventory_nothing: "nothing to do",

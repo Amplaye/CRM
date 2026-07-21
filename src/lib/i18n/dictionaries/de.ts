@@ -2016,6 +2016,7 @@ export const de: Dictionary = {
   // Inventar (Restyle)
   inventory_subtitle_v2: "Aktualisiert sich selbst über Kassenverkäufe und fotografierte Rechnungen. Tippe auf eine Menge, um sie zu korrigieren.",
   inventory_filter_all: "Alle",
+  inventory_cat_unused: "Nicht in Rezepten",
   inventory_all_good: "Alles in Ordnung: nichts nachzubestellen, keine Ablaufdaten in Sicht.",
   inventory_reorder_est_short: "ca. € {total}",
   inventory_nothing: "nichts zu tun",

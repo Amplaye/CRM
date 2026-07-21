@@ -130,6 +130,42 @@ describe("resolveSuggestion", () => {
     expect(out[1].suggestedName).toBe("Pecorino");
   });
 
+  // Regression: the model answers in g/ml, but a recipe qty is stored in the
+  // INGREDIENT's own unit. Snapping "100 g" onto a kg-stocked ingredient without
+  // converting saved it as 100 KG — a real dish came out at € 2323 (66371%).
+  it("converts the AI quantity into the matched ingredient's warehouse unit", () => {
+    const kgStock: MatchCandidate[] = [
+      { id: "ing-polpa", name: "Polpa Pomodoro", unit: "kg" },
+    ];
+    const [line] = resolveSuggestion(
+      [{ name: "Polpa Pomodoro", qty: 100, unit: "g" }],
+      kgStock,
+    );
+    expect(line.match.ingredientId).toBe("ing-polpa");
+    expect(line.qty).toBe(0.1); // 100 g → 0.1 kg, NOT 100
+    expect(line.unit).toBe("kg");
+  });
+
+  it("converts ml → l for a litre-stocked ingredient", () => {
+    const [line] = resolveSuggestion(
+      [{ name: "Panna Fresca", qty: 30, unit: "ml" }],
+      [{ id: "ing-panna", name: "Panna Fresca", unit: "l" }],
+    );
+    expect(line.qty).toBe(0.03);
+    expect(line.unit).toBe("l");
+  });
+
+  it("leaves the qty alone but adopts the warehouse unit when dimensions differ", () => {
+    // ml → kg needs a density we don't have: keep the number, show the real unit
+    // so the owner corrects it instead of silently saving a wrong quantity.
+    const [line] = resolveSuggestion(
+      [{ name: "Olio", qty: 20, unit: "ml" }],
+      [{ id: "ing-olio", name: "Olio", unit: "kg" }],
+    );
+    expect(line.qty).toBe(20);
+    expect(line.unit).toBe("kg");
+  });
+
   it("handles an empty ingredient list — everything becomes a create-proposal", () => {
     const out = resolveSuggestion([{ name: "Spaghetti", qty: 120, unit: "g" }], []);
     expect(out[0].match.ingredientId).toBeNull();

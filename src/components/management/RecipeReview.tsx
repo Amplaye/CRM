@@ -3,6 +3,7 @@
 import { useState } from "react";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { ResolvedLine } from "@/lib/management/recipe-suggest";
+import { convertQty } from "@/lib/management/units";
 
 // Shared review UI + save logic for AI-suggested recipes, used by both the
 // per-dish RecipePanel button and the bulk food-cost modal. An AI suggestion is
@@ -146,7 +147,24 @@ export function RecipeReviewRow({
       </span>
       <select
         value={line.chosenId}
-        onChange={(e) => onChange({ ...line, chosenId: e.target.value })}
+        onChange={(e) => {
+          // Re-point the line at another ingredient — and carry the quantity
+          // ACROSS units. A "100 g" line moved onto an ingredient stocked in kg
+          // must become 0.1, never stay 100 (that would be 100 kg in the dish).
+          const id = e.target.value;
+          const nextUnit = id
+            ? (options.find((o) => o.id === id)?.unit ?? line.unit)
+            : line.match.proposalUnit;
+          const converted = convertQty(line.qty, line.unit, nextUnit);
+          onChange({
+            ...line,
+            chosenId: id,
+            unit: nextUnit,
+            // Incompatible dimensions (ml → kg) can't be converted without a
+            // density: keep the number and let the owner fix it.
+            qty: converted != null ? Math.round(converted * 1e6) / 1e6 : line.qty,
+          });
+        }}
         disabled={!line.include}
         className="flex-1 min-w-0 px-2 py-1.5 text-sm border-2 rounded text-black bg-white cursor-pointer disabled:opacity-50"
         style={{ borderColor: "#c4956a" }}

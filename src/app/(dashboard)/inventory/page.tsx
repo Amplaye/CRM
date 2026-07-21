@@ -78,6 +78,10 @@ type Filter = "all" | "low" | "expiring" | "reorder";
 
 const EXPIRY_SOON_DAYS = 5;
 
+/** Category-chip sentinels: "every category" and "stock no recipe uses". */
+const ALL_CATS = "__all";
+const NO_CAT = "__none";
+
 // Shared visual language of the management restyle: one soft card surface,
 // traffic-light status colors, no heavy double borders.
 const CARD = "rounded-2xl border bg-white/70";
@@ -119,6 +123,11 @@ export default function InventoryPage() {
   const [creating, setCreating] = useState(false);
   const [filter, setFilter] = useState<Filter>("all");
   const [query, setQuery] = useState("");
+  const [catFilter, setCatFilter] = useState<string>(ALL_CATS);
+  // Menu categories + which categories' dishes consume each ingredient. This is
+  // what lets the stock list be browsed the same way the menu is.
+  const [categories, setCategories] = useState<Array<{ id: string; name: string }>>([]);
+  const [catsByIngredient, setCatsByIngredient] = useState<Map<string, Set<string>>>(new Map());
   // Barcode scan, two jobs from the same camera:
   //   • LOOKUP (scanTarget = null, from the toolbar): find the product carrying
   //     that code — or, when nothing does, put the digits in the search box so
@@ -154,7 +163,7 @@ export default function InventoryPage() {
   const load = useCallback(async () => {
     if (!activeTenant?.id || !enabled) return;
     const since = new Date(Date.now() - 30 * 86400000).toISOString();
-    const [{ data }, { data: mv }, { data: lotsRaw }] = await Promise.all([
+    const [{ data }, { data: mv }, { data: lotsRaw }, { data: cats }, { data: menuItems }, { data: recipeLines }] = await Promise.all([
       supabase
         .from("ingredients")
         .select("id, name, unit, current_unit_cost, stock_qty, par_level, supplier_name, expiry_date, shelf_life_days, pos_external_product_id, barcode")
@@ -174,8 +183,30 @@ export default function InventoryPage() {
         .eq("tenant_id", activeTenant.id)
         .eq("status", "open")
         .order("expiry_date"),
+      supabase
+        .from("menu_categories")
+        .select("id, name, sort_order")
+        .eq("tenant_id", activeTenant.id)
+        .order("sort_order", { ascending: true })
+        .order("created_at", { ascending: true }),
+      supabase.from("menu_items").select("id, category_id").eq("tenant_id", activeTenant.id),
+      supabase.from("recipe_items").select("menu_item_id, ingredient_id").eq("tenant_id", activeTenant.id),
     ]);
     setRows((data || []) as IngredientRow[]);
+
+    // ingredient → the set of menu categories whose dishes use it.
+    setCategories(((cats || []) as any[]).map((c) => ({ id: c.id, name: c.name })));
+    const catOfDish = new Map<string, string | null>();
+    for (const m of (menuItems || []) as any[]) catOfDish.set(m.id, m.category_id ?? null);
+    const byIng = new Map<string, Set<string>>();
+    for (const r of (recipeLines || []) as any[]) {
+      const cid = catOfDish.get(r.menu_item_id);
+      if (!cid) continue; // uncategorised dish → doesn't put the stock in a chip
+      const set = byIng.get(r.ingredient_id) || new Set<string>();
+      set.add(cid);
+      byIng.set(r.ingredient_id, set);
+    }
+    setCatsByIngredient(byIng);
     const lotMap: Record<string, Lot[]> = {};
     for (const l of (lotsRaw || []) as Lot[]) (lotMap[l.ingredient_id] ||= []).push(l);
     setLotsByIng(lotMap);
@@ -456,12 +487,37 @@ export default function InventoryPage() {
         !(r.barcode || "").toLowerCase().includes(q)
       )
         return false;
+      // Category chip: an ingredient "belongs" to every menu category whose
+      // dishes use it in a recipe. NO_CAT is the stock nothing cooks with yet.
+      if (catFilter !== ALL_CATS) {
+        const cats = catsByIngredient.get(r.id);
+        if (catFilter === NO_CAT) {
+          if (cats && cats.size > 0) return false;
+        } else if (!cats?.has(catFilter)) {
+          return false;
+        }
+      }
       if (filter === "low") return isLow(r);
       if (filter === "expiring") return isExpiringSoon(r);
       if (filter === "reorder") return reorderIds.has(r.id);
       return true;
     });
-  }, [rows, query, filter, reorderIds]);
+  }, [rows, query, filter, reorderIds, catFilter, catsByIngredient]);
+
+  // Chips: menu categories that actually consume stock, in menu order, plus a
+  // bucket for ingredients no recipe touches.
+  const catChips = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const r of rows) {
+      const cats = catsByIngredient.get(r.id);
+      if (!cats || cats.size === 0) counts.set(NO_CAT, (counts.get(NO_CAT) || 0) + 1);
+      else for (const c of cats) counts.set(c, (counts.get(c) || 0) + 1);
+    }
+    return categories
+      .filter((c) => counts.has(c.id))
+      .map((c) => ({ id: c.id, name: c.name, count: counts.get(c.id)! }))
+      .concat(counts.has(NO_CAT) ? [{ id: NO_CAT, name: t("inventory_cat_unused"), count: counts.get(NO_CAT)! }] : []);
+  }, [rows, catsByIngredient, categories, t]);
 
   // Stable identity for the InvoiceCapture prop (it re-renders on every parent
   // render otherwise).
@@ -713,6 +769,35 @@ export default function InventoryPage() {
           })}
         </div>
       </div>
+
+      {/* Category jump bar — browse the stock the way the menu is organised */}
+      {catChips.length > 0 && (
+        <div className="flex flex-wrap gap-1.5">
+          {[{ id: ALL_CATS, name: t("inventory_filter_all"), count: rows.length }, ...catChips].map((c) => {
+            const active = catFilter === c.id;
+            return (
+              <button
+                key={c.id}
+                onClick={() => setCatFilter(c.id)}
+                className="px-3 py-1.5 text-sm font-bold rounded-full border cursor-pointer transition-colors"
+                style={
+                  active
+                    ? { background: "#c4956a", borderColor: "#c4956a", color: "#fff" }
+                    : { borderColor: "#d9c3a3", background: "rgba(255,255,255,0.7)", color: "#000" }
+                }
+              >
+                {c.name}
+                <span
+                  className="ml-1.5 text-xs px-1.5 py-0.5 rounded-full tabular-nums"
+                  style={active ? { background: "rgba(255,255,255,0.3)", color: "#fff" } : { color: "#000" }}
+                >
+                  {c.count}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      )}
 
       {scanMsg && (
         <div className="rounded-xl border px-4 py-2.5 text-sm font-bold text-black bg-white/70 flex items-center justify-between gap-3" style={{ borderColor: "#c4956a" }}>

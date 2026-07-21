@@ -2016,6 +2016,7 @@ export const es: Dictionary = {
   // Inventario (restyle)
   inventory_subtitle_v2: "Se actualiza solo con las ventas de la caja y las facturas fotografiadas. Toca una cantidad para corregirla.",
   inventory_filter_all: "Todos",
+  inventory_cat_unused: "Sin usar en recetas",
   inventory_all_good: "Todo en orden: nada que pedir, sin caducidades próximas.",
   inventory_reorder_est_short: "estim. € {total}",
   inventory_nothing: "nada que hacer",

@@ -14,6 +14,7 @@
 import { suggestLineMatches } from "./ingredient-match";
 import type { MatchCandidate, MatchConfidence } from "./ingredient-match";
 import { normalizeUnit } from "./ingredient-match";
+import { convertQty } from "./units";
 import type { Unit } from "./units";
 
 /** The dish we ask the model to draft a recipe for. */
@@ -146,15 +147,41 @@ export function resolveSuggestion(
   const matches = suggestLineMatches(toMatch, ingredients);
   const byId = new Map(matches.map((m) => [m.lineId, m]));
 
+  const byIngredientId = new Map(ingredients.map((i) => [i.id, i]));
+
   return lines.map((l, i) => {
     const m = byId.get(String(i));
     // The AI already tells us the unit; keep it as the fallback create-unit so a
     // "create" row is born with grams/ml/pz rather than the matcher's guess.
     const aiUnit = normalizeUnit(l.unit);
+    const matched = m?.ingredientId ? byIngredientId.get(m.ingredientId) : undefined;
+
+    // CRITICAL: a recipe line's qty is always expressed in the ingredient's OWN
+    // warehouse unit (that's the unit current_unit_cost is priced in). The model
+    // answers in g/ml/pz, so a "100 g" line snapped onto an ingredient stocked in
+    // kg must become 0.1 — otherwise it reads as 100 KG and the dish cost
+    // explodes by 1000×. Convert here, at the seam, so every consumer (review UI,
+    // save, food cost) already speaks the warehouse's unit.
+    let qty = l.qty;
+    let unit = l.unit || aiUnit;
+    if (matched) {
+      const converted = convertQty(l.qty, aiUnit, matched.unit);
+      if (converted != null) {
+        // Keep a sane precision: 100 g → 0.1 kg, not 0.10000000000000001.
+        qty = Math.round(converted * 1e6) / 1e6;
+        unit = matched.unit;
+      } else {
+        // Dimensions disagree (model said ml, warehouse stocks kg). We cannot
+        // convert without a density, so surface the warehouse unit and let the
+        // owner correct the number rather than silently saving a wrong one.
+        unit = matched.unit;
+      }
+    }
+
     return {
       suggestedName: l.name,
-      qty: l.qty,
-      unit: l.unit || aiUnit,
+      qty,
+      unit,
       match: {
         ingredientId: m?.ingredientId ?? null,
         confidence: m?.confidence ?? "none",

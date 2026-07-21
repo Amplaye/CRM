@@ -29,6 +29,10 @@ type Category = { id: string; name: string; sort_order: number };
 
 const SALES_WINDOW_DAYS = 30;
 
+/** Category-chip sentinels: "every category" and "dishes with no category". */
+const ALL_CATS = "__all";
+const NO_CAT = "__none";
+
 // Per-dish price-save state, so each row shows its own spinner / result.
 type SaveState = { status: "idle" | "saving" | "ok" | "error"; msg?: string };
 type Filter = "all" | "low" | "norecipe" | "ok";
@@ -65,6 +69,7 @@ export default function FoodCostPage() {
   const [filter, setFilter] = useState<Filter>("all");
   const [query, setQuery] = useState("");
   const [sortKey, setSortKey] = useState<SortKey>("action");
+  const [catFilter, setCatFilter] = useState<string>(ALL_CATS);
   const [bulkOpen, setBulkOpen] = useState(false);
 
   // Mirror of `dishes` so per-row handlers stay referentially stable (rows are
@@ -175,21 +180,48 @@ export default function FoodCostPage() {
     [catOrder],
   );
 
-  // Filter + search, then order by category (primary) and the sort selector
-  // (secondary, within each category), then paginate. KPIs stay over ALL dishes.
-  const filtered = useMemo(() => {
+  // Dishes passing search + status, BEFORE the category chip narrows them — the
+  // chip counts are computed from this set so they match what a click will show.
+  const kept = useMemo(() => {
     const q = query.trim().toLowerCase();
-    const kept = insights.filter((r) => {
+    return insights.filter((r) => {
       if (q && !r.name.toLowerCase().includes(q)) return false;
       if (filter === "low") return r.lowMargin;
       if (filter === "norecipe") return r.noRecipe;
       if (filter === "ok") return !r.noRecipe && !r.lowMargin && r.foodCostPct != null;
       return true;
     });
+  }, [insights, query, filter]);
+
+  const catKeyOf = useCallback(
+    (menuItemId: string) => catOf.get(menuItemId) ?? NO_CAT,
+    [catOf],
+  );
+
+  // One chip per category that actually has dishes, in menu order.
+  const catChips = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const r of kept) {
+      const k = catKeyOf(r.menuItemId);
+      counts.set(k, (counts.get(k) || 0) + 1);
+    }
+    return Array.from(counts.entries())
+      .sort((a, b) => catRank(a[0] === NO_CAT ? null : a[0]) - catRank(b[0] === NO_CAT ? null : b[0]))
+      .map(([id, count]) => ({
+        id,
+        name: id === NO_CAT ? t("food_cost_uncategorized") : (catOrder.get(id)?.name ?? t("food_cost_uncategorized")),
+        count,
+      }));
+  }, [kept, catKeyOf, catRank, catOrder, t]);
+
+  // Narrow to the picked category, then order by category (primary) and the sort
+  // selector (secondary, within each category). KPIs stay over ALL dishes.
+  const filtered = useMemo(() => {
+    const scoped = catFilter === ALL_CATS ? kept : kept.filter((r) => catKeyOf(r.menuItemId) === catFilter);
     // Group by category, sort each group with the selected key, then flatten in
     // category order so a category run stays contiguous across the page.
     const byCat = new Map<string | null, DishInsight[]>();
-    for (const r of kept) {
+    for (const r of scoped) {
       const cid = catOf.get(r.menuItemId) ?? null;
       const list = byCat.get(cid) || [];
       list.push(r);
@@ -199,14 +231,14 @@ export default function FoodCostPage() {
     const out: DishInsight[] = [];
     for (const cid of catIds) out.push(...sortInsights(byCat.get(cid)!, sortKey));
     return out;
-  }, [insights, query, filter, sortKey, catOf, catRank]);
+  }, [kept, catFilter, catKeyOf, sortKey, catOf, catRank]);
 
   const PER_PAGE = 20;
   const pageCount = Math.max(1, Math.ceil(filtered.length / PER_PAGE));
   const safePage = Math.min(page, pageCount - 1);
   const pageRows = filtered.slice(safePage * PER_PAGE, safePage * PER_PAGE + PER_PAGE);
   useEffect(() => { if (page > pageCount - 1) setPage(pageCount - 1); }, [pageCount, page]);
-  useEffect(() => { setPage(0); }, [filter, query, sortKey]);
+  useEffect(() => { setPage(0); }, [filter, query, sortKey, catFilter]);
 
   // ── Stable per-row handlers (dish cards are React.memo) ───────────────────
   const toggleRow = useCallback((id: string) => {
@@ -412,6 +444,35 @@ export default function FoodCostPage() {
           </select>
         </div>
       </div>
+
+      {/* Category jump bar — one tap to move between menu sections */}
+      {catChips.length > 1 && (
+        <div className="flex flex-wrap gap-1.5">
+          {[{ id: ALL_CATS, name: t("inventory_filter_all"), count: kept.length }, ...catChips].map((c) => {
+            const active = catFilter === c.id;
+            return (
+              <button
+                key={c.id}
+                onClick={() => setCatFilter(c.id)}
+                className="px-3 py-1.5 text-sm font-bold rounded-full border cursor-pointer transition-colors"
+                style={
+                  active
+                    ? { background: "#c4956a", borderColor: "#c4956a", color: "#fff" }
+                    : { borderColor: "#d9c3a3", background: "rgba(255,255,255,0.7)", color: "#000" }
+                }
+              >
+                {c.name}
+                <span
+                  className="ml-1.5 text-xs px-1.5 py-0.5 rounded-full tabular-nums"
+                  style={active ? { background: "rgba(255,255,255,0.3)", color: "#fff" } : { color: "#000" }}
+                >
+                  {c.count}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      )}
 
       {/* Dish list */}
       <div className="space-y-2">
