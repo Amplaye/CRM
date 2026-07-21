@@ -238,8 +238,8 @@ export default function WebsitePage() {
                 <span key={c} className="h-4 w-4 rounded-full border" style={{ background: c, borderColor: "rgba(0,0,0,0.15)" }} />
               ))}
             </span>
-            <span className="mt-2 block text-sm font-bold text-black">{t("website_template_classic")}</span>
-            <span className="block text-xs text-black opacity-70">{t("website_template_classic_desc")}</span>
+            <span className="mt-2 block text-sm font-bold text-black break-words">{t("website_template_classic")}</span>
+            <span className="block text-xs text-black opacity-70 break-words">{t("website_template_classic_desc")}</span>
           </button>
           {(Object.entries(SITE_TEMPLATE_DEFS) as [Exclude<SiteTemplateKey, "classic">, (typeof SITE_TEMPLATE_DEFS)[Exclude<SiteTemplateKey, "classic">]][]).map(
             ([k, d]) => (
@@ -255,8 +255,8 @@ export default function WebsitePage() {
                     <span key={c} className="h-4 w-4 rounded-full border" style={{ background: c, borderColor: "rgba(0,0,0,0.15)" }} />
                   ))}
                 </span>
-                <span className="mt-2 block text-sm font-bold text-black">{d.label}</span>
-                <span className="block text-xs text-black opacity-70">{d.vibe}</span>
+                <span className="mt-2 block text-sm font-bold text-black break-words">{d.label}</span>
+                <span className="block text-xs text-black opacity-70 break-words">{d.vibe}</span>
               </button>
             ),
           )}

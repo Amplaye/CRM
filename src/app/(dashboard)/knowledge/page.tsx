@@ -520,7 +520,7 @@ export default function KnowledgePage() {
                )}
             </div>
          ) : (
-            <div className="flex-1 flex flex-col items-center justify-center p-12 text-center animate-in fade-in duration-500">
+            <div className="flex-1 flex flex-col items-center justify-center p-6 sm:p-12 text-center animate-in fade-in duration-500">
                <div className="h-24 w-24 bg-zinc-50 rounded-full flex items-center justify-center mb-6">
                   <BookOpen className="w-10 h-10 text-zinc-200" />
                </div>

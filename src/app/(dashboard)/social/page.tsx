@@ -381,7 +381,9 @@ export default function SocialPage() {
             </div>
             <div>
               <label className="mb-1.5 block text-sm font-medium text-black">{tt("social_targets")}</label>
-              <div className="flex gap-2 pt-1">
+              {/* flex-wrap: "instagram" + "facebook" side by side are wider
+                  than this grid cell once the pane narrows. */}
+              <div className="flex flex-wrap gap-2 pt-1">
                 {(["instagram", "facebook"] as const).map((tg) => {
                   const on = targets.includes(tg);
                   return (

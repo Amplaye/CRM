@@ -519,7 +519,7 @@ export default function MenuPage() {
     <div className="p-0 h-[calc(100dvh-3.5rem)] md:h-[calc(100dvh-4rem)] flex overflow-hidden">
       {/* LEFT PANE: categories sidebar */}
       <aside
-        className={`border-r flex-col shrink-0 w-full md:w-[340px] md:flex ${
+        className={`border-r flex-col shrink-0 w-full md:w-[300px] lg:w-[340px] md:flex ${
           mobilePane === "detail" ? "hidden" : "flex"
         }`}
         style={{ background: "rgba(252,246,237,0.85)", borderColor: "#c4956a" }}

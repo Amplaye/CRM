@@ -274,8 +274,11 @@ export default function MarketingPage() {
               <label className="block text-sm font-bold text-black mb-1">{t("mkt_channel_label")}</label>
               <div className="flex gap-2">
                 {(["whatsapp", "email"] as const).map((c) => (
+                  // min-w-0: without it the icon + "WhatsApp" label sets an
+                  // intrinsic floor that flex-1 can't go under, so the pair
+                  // overflowed this grid cell on narrow panes.
                   <button key={c} type="button" onClick={() => setChannel(c)}
-                    className={`flex-1 inline-flex items-center justify-center gap-1.5 rounded-lg border-2 px-3 py-2 text-sm font-semibold ${channel === c ? "text-white" : "text-black"}`}
+                    className={`flex-1 min-w-0 inline-flex items-center justify-center gap-1.5 rounded-lg border-2 px-2 sm:px-3 py-2 text-sm font-semibold ${channel === c ? "text-white" : "text-black"}`}
                     style={channel === c ? { background: "#c4956a", borderColor: "#c4956a" } : { borderColor: "#c4956a", background: "rgba(252,246,237,0.6)" }}>
                     {c === "email" ? <Mail className="w-4 h-4" /> : <MessageCircle className="w-4 h-4" />}
                     {c === "email" ? "Email" : "WhatsApp"}
@@ -319,7 +322,9 @@ export default function MarketingPage() {
           <div className="rounded-lg border-2 p-3" style={{ borderColor: "rgba(196,149,106,0.5)", background: "rgba(196,149,106,0.08)" }}>
             <label className="block text-sm font-bold text-black mb-1 items-center gap-1.5"><Sparkles className="w-4 h-4 inline" /> {t("mkt_ai_label")}</label>
             <div className="flex gap-2">
-              <input value={brief} onChange={(e) => setBrief(e.target.value)} placeholder={t("mkt_ai_ph")} className={INPUT} style={{ ...INPUT_STYLE, background: "#fff" }} />
+              {/* min-w-0: an <input> defaults to a ~180px intrinsic width that
+                  flex won't shrink past, pushing the button out of the card. */}
+              <input value={brief} onChange={(e) => setBrief(e.target.value)} placeholder={t("mkt_ai_ph")} className={`${INPUT} min-w-0`} style={{ ...INPUT_STYLE, background: "#fff" }} />
               <button type="button" onClick={doGenerate} disabled={busy === "ai" || !brief.trim()}
                 className="shrink-0 rounded-lg px-4 py-2 text-sm font-semibold text-white disabled:opacity-50" style={{ background: "linear-gradient(135deg, #c4956a, #a0764e)" }}>
                 {busy === "ai" ? "…" : t("mkt_ai_btn")}

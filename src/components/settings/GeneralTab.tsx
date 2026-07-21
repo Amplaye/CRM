@@ -553,7 +553,9 @@ export function GeneralTab() {
                 <p className="text-xs text-black mt-0.5">{t("settings_voicemail_mode_hint")}</p>
               </div>
 
-              <div className="flex flex-wrap gap-1.5 shrink-0" role="radiogroup" aria-label={t("settings_voicemail_mode")}>
+              {/* shrink-0 only from md: on a narrow pane the three mode buttons
+                  kept their full intrinsic width and overflowed the card. */}
+              <div className="flex flex-wrap gap-1.5 md:shrink-0" role="radiogroup" aria-label={t("settings_voicemail_mode")}>
                 {([
                   { value: "always" as const, icon: Power, label: t("settings_voicemail_mode_always") },
                   { value: "scheduled" as const, icon: Clock, label: t("settings_voicemail_mode_scheduled") },
