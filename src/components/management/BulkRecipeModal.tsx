@@ -163,7 +163,8 @@ export function BulkRecipeModal({
 
           {(phase === "review" || phase === "saving") && (
             <>
-              <p className="text-xs mb-3" style={{ color: "#000" }}>{t("food_cost_ai_estimate_hint")}</p>
+              <p className="text-xs mb-1" style={{ color: "#000" }}>{t("food_cost_ai_estimate_hint")}</p>
+              <p className="text-xs mb-3" style={{ color: "#b45309" }}>{t("food_cost_ai_new_note")}</p>
               <div className="space-y-2">
                 {reviews.map((d, dishIdx) => (
                   <div key={d.menuItemId} className="rounded-xl border" style={{ borderColor: "#e0d0b8" }}>
@@ -194,6 +195,8 @@ export function BulkRecipeModal({
                               line={l}
                               options={ingredients}
                               createLabel={(name) => t("food_cost_create_ingredient").replace("{name}", name)}
+                              matchedLabel={t("food_cost_ai_matched")}
+                              newLabel={t("food_cost_ai_new")}
                               onChange={(next) => updateLine(dishIdx, lineIdx, next)}
                             />
                           ))

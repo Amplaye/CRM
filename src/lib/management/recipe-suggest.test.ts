@@ -26,7 +26,9 @@ describe("buildRecipePrompt", () => {
   it("handles a dish with no description and no known ingredients", () => {
     const msgs = buildRecipePrompt({ menuItemId: "1", name: "Insalata" }, []);
     expect(msgs[1].content).toContain("Insalata");
-    expect(msgs[1].content.toLowerCase()).toContain("none");
+    // With no warehouse the prompt tells the model the stock is empty and to
+    // stay conservative rather than inventing a full recipe.
+    expect(msgs[1].content.toLowerCase()).toContain("empty");
   });
 });
 

@@ -57,21 +57,21 @@ export function buildRecipePrompt(
   ingredientNames: string[],
 ): Array<{ role: string; content: string }> {
   const known = ingredientNames.filter(Boolean).slice(0, 300);
-  const system = `You are a chef writing the recipe (ingredient list) for ONE portion of a restaurant dish. Your ONLY output is a strict JSON object, no prose, no markdown fences.
+  const system = `You are a chef drafting the ingredient list for ONE portion of a restaurant dish. Your ONLY output is a strict JSON object, no prose, no markdown fences.
 
 Return exactly: {"ingredients":[{"name":string,"qty":number,"unit":string}]}
 
 Rules:
-- One entry per raw ingredient needed to plate a SINGLE portion.
-- "qty" is the amount for that single portion, as a positive number.
-- "unit" is one of: "g" (grams), "ml" (millilitres) or "pz" (pieces/units). Use g for solids, ml for liquids, pz for countable items (eggs, buns).
-- Prefer names from the KNOWN INGREDIENTS list below when an ingredient matches one of them; otherwise use a short, generic Italian ingredient name (no brands, no packaging).
-- Estimate sensible restaurant quantities. This is a draft the owner will review.
-- 4–12 ingredients is typical. Skip water, salt and pepper unless central to the dish.`;
+- Include ONLY ingredients you are confident are actually in THIS specific dish, judging from its name and description. Do not pad the list with plausible-but-unlisted extras.
+- STRONGLY prefer names from the KNOWN INGREDIENTS list below: that is the restaurant's real warehouse. Reuse a known name verbatim whenever it plausibly fits the dish.
+- Only invent a new (non-listed) ingredient when it is clearly essential to the dish AND no known ingredient covers it. Every invented ingredient is extra manual work for the owner, so keep these to the strict minimum.
+- If the dish name is vague, generic, or you cannot tell what is in it, it is CORRECT to return few ingredients — or an empty list {"ingredients":[]}. Never guess a whole recipe from a name you don't recognise.
+- "qty" is the amount for that single portion, as a positive number. "unit" is one of: "g" (grams), "ml" (millilitres) or "pz" (pieces/units). Use g for solids, ml for liquids, pz for countable items (eggs, buns).
+- Quantities are best-effort estimates the owner will review and correct. Skip water, salt and pepper unless central to the dish.`;
 
   const knownBlock = known.length > 0
-    ? `KNOWN INGREDIENTS (prefer these names when they fit):\n${known.join(", ")}`
-    : `KNOWN INGREDIENTS: (none yet — propose generic ingredient names)`;
+    ? `KNOWN INGREDIENTS (the real warehouse — reuse these names whenever they fit; only go outside this list for something clearly essential and truly missing):\n${known.join(", ")}`
+    : `KNOWN INGREDIENTS: (the warehouse is empty — the owner has not stocked anything yet. Propose only the few core ingredients you are sure the dish contains, or return an empty list if the name is unclear.)`;
 
   const desc = (dish.description || "").trim();
   const user = `Dish: ${dish.name}${desc ? `\nDescription: ${desc}` : ""}

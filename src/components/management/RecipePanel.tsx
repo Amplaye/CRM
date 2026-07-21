@@ -250,17 +250,20 @@ export function RecipePanel({
       )}
       {(aiStatus === "review" || aiStatus === "saving") && (
         <div className="mb-3 rounded-xl border p-3" style={{ borderColor: "#c4956a", background: "rgba(255,255,255,0.7)" }}>
-          <p className="text-xs mb-2" style={{ color: "#000" }}>{t("food_cost_ai_estimate_hint")}</p>
+          <p className="text-xs mb-1" style={{ color: "#000" }}>{t("food_cost_ai_estimate_hint")}</p>
           {aiLines.length === 0 ? (
             <p className="text-xs text-black">{t("food_cost_ai_no_lines")}</p>
           ) : (
             <div className="space-y-2">
+              <p className="text-xs mb-1" style={{ color: "#b45309" }}>{t("food_cost_ai_new_note")}</p>
               {aiLines.map((l, i) => (
                 <RecipeReviewRow
                   key={i}
                   line={l}
                   options={ingredients.map((ing) => ({ id: ing.id, name: ing.name, unit: ing.unit }))}
                   createLabel={(name) => t("food_cost_create_ingredient").replace("{name}", name)}
+                  matchedLabel={t("food_cost_ai_matched")}
+                  newLabel={t("food_cost_ai_new")}
                   onChange={(next) => setAiLines((prev) => prev.map((p, j) => (j === i ? next : p)))}
                 />
               ))}

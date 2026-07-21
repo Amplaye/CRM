@@ -24,11 +24,21 @@ export interface IngredientOption {
   unit: string;
 }
 
-/** Wrap the route's ResolvedLine[] into editable review lines (accept-by-default). */
+/**
+ * Wrap the route's ResolvedLine[] into editable review lines.
+ *
+ * Accept-by-default ONLY the lines the AI snapped onto a REAL warehouse
+ * ingredient (confidence high/medium → a concrete ingredientId). Lines that
+ * would create a brand-new ingredient (confidence "none") start UNCHECKED: they
+ * are the AI's guesses, and a guessed ingredient lands in the warehouse at cost
+ * 0 and silently skews food cost. So "Salva tutte" never writes a phantom
+ * ingredient the owner didn't deliberately tick — this is the fix for the AI
+ * inventing whole recipes when the menu doesn't match the stock.
+ */
 export function toReviewLines(lines: ResolvedLine[]): ReviewLine[] {
   return lines.map((l) => ({
     ...l,
-    include: true,
+    include: l.match.ingredientId != null,
     chosenId: l.match.ingredientId ?? "",
   }));
 }
@@ -99,14 +109,23 @@ export function RecipeReviewRow({
   line,
   options,
   createLabel,
+  matchedLabel = "in magazzino",
+  newLabel = "nuovo",
   onChange,
 }: {
   line: ReviewLine;
   options: IngredientOption[];
   /** Label for the "create «X»" option, e.g. `crea «Tartufo»`. */
   createLabel: (name: string) => string;
+  /** Badge for a line snapped onto a real warehouse ingredient. */
+  matchedLabel?: string;
+  /** Badge for a line that would create a brand-new (guessed) ingredient. */
+  newLabel?: string;
   onChange: (next: ReviewLine) => void;
 }) {
+  // The badge tracks the CURRENT choice, not the original AI match: pick a real
+  // ingredient from the select and the "new" tag flips to "in magazzino" live.
+  const isNew = line.chosenId === "";
   return (
     <div className="flex items-center gap-2">
       <input
@@ -116,6 +135,15 @@ export function RecipeReviewRow({
         className="w-4 h-4 shrink-0 cursor-pointer accent-[#c4956a]"
         aria-label="include"
       />
+      <span
+        className="shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded-full whitespace-nowrap"
+        style={isNew
+          ? { background: "rgba(217,119,6,0.12)", color: "#b45309" }
+          : { background: "rgba(5,150,105,0.12)", color: "#047857" }}
+        title={isNew ? line.suggestedName : undefined}
+      >
+        {isNew ? newLabel : matchedLabel}
+      </span>
       <select
         value={line.chosenId}
         onChange={(e) => onChange({ ...line, chosenId: e.target.value })}

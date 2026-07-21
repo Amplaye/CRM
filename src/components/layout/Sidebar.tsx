@@ -75,8 +75,8 @@ const navItems: Array<{ name: string; href: string; icon: any; badgeKey?: keyof 
   { name: "Knowledge Base", href: "/knowledge", icon: BookOpen },
   // Gestionale (controllo gestione) — only when management_enabled is ON.
   { name: "Food Cost", href: "/food-cost", icon: Calculator, feature: "management_enabled" },
-  { name: "PL", href: "/pl", icon: PieChart, feature: "management_enabled" },
   { name: "Inventory", href: "/inventory", icon: Package, feature: "management_enabled" },
+  { name: "PL", href: "/pl", icon: PieChart, feature: "management_enabled" },
   { name: "Settings", href: "/settings", icon: Settings },
 ];
 
