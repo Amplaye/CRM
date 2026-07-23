@@ -23,8 +23,10 @@ export async function POST(request: Request) {
   const unauth = assertAiSecret(request);
   if (unauth) return unauth;
   try {
-    const { tenant_id, guest_phone, cancellation_source } = await request.json();
-    if (!tenant_id || !guest_phone) {
+    const { tenant_id, guest_phone, cancellation_source, reservation_id } = await request.json();
+    // reservation_id (opzionale) arriva dal bottone NO del reminder
+    // (payload BR_CANCEL:<id>): cancella ESATTAMENTE quella prenotazione.
+    if (!tenant_id || (!guest_phone && !reservation_id)) {
       return NextResponse.json({ cancelled: false, error: "Missing tenant_id or guest_phone" }, { status: 400 });
     }
 
@@ -37,6 +39,64 @@ export async function POST(request: Request) {
       : null;
 
     const supabase = createServiceRoleClient();
+
+    // Percorso diretto per id: il bottone NO del reminder ha già la prenotazione.
+    if (reservation_id) {
+      const { data: resv } = await supabase
+        .from('reservations')
+        .select('id, status, date, time')
+        .eq('tenant_id', tenant_id)
+        .eq('id', reservation_id)
+        .limit(1)
+        .maybeSingle();
+
+      if (!resv) {
+        return NextResponse.json({ cancelled: false, message: "Reservation not found" });
+      }
+      // Idempotente: doppio tap su NO non è un errore.
+      if (resv.status === 'cancelled') {
+        return NextResponse.json({ cancelled: true, reservation_id: resv.id, already: true, date: resv.date, time: resv.time });
+      }
+
+      const updateData: Record<string, any> = {
+        status: 'cancelled',
+        updated_at: new Date().toISOString(),
+      };
+      if (source) updateData.cancellation_source = source;
+
+      await supabase
+        .from('reservations')
+        .update(updateData)
+        .eq('id', resv.id);
+
+      await supabase
+        .from('waitlist_entries')
+        .update({
+          status: 'waiting',
+          matched_reservation_id: null,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('tenant_id', tenant_id)
+        .eq('matched_reservation_id', resv.id)
+        .eq('status', 'offered');
+
+      await logAuditEvent({
+        tenant_id,
+        action: "cancel_reservation",
+        entity_id: resv.id,
+        source: "ai_agent",
+        details: { reason: "Cancelled via reminder button", cancellation_source: source || "unknown" }
+      });
+
+      return NextResponse.json({
+        cancelled: true,
+        reservation_id: resv.id,
+        cancellation_source: source,
+        date: resv.date,
+        time: resv.time,
+      });
+    }
+
     const phoneDigits = guest_phone.replace(/\D/g, '');
 
     // Deterministic phone match — compare the last 9 digits (E.164
