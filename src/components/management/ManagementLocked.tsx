@@ -14,7 +14,7 @@ import { Dictionary } from "@/lib/i18n/dictionaries/en";
 //
 // `section` tailors the centred card (icon + title) to the page it gates.
 
-type Section = "food_cost" | "pl" | "inventory" | "management" | "cassa";
+type Section = "food_cost" | "pl" | "inventory" | "management" | "cassa" | "incassi" | "invoices";
 
 const SECTION_ICON: Record<Section, typeof Calculator> = {
   food_cost: Calculator,
@@ -22,6 +22,8 @@ const SECTION_ICON: Record<Section, typeof Calculator> = {
   inventory: Package,
   management: FileText,
   cassa: Banknote,
+  incassi: Banknote,
+  invoices: FileText,
 };
 
 const SECTION_TITLE_KEY: Record<Section, keyof Dictionary> = {
@@ -30,6 +32,8 @@ const SECTION_TITLE_KEY: Record<Section, keyof Dictionary> = {
   inventory: "nav_inventory" as keyof Dictionary,
   management: "management_locked_title" as keyof Dictionary,
   cassa: "nav_cassa" as keyof Dictionary,
+  incassi: "nav_incassi" as keyof Dictionary,
+  invoices: "nav_invoices" as keyof Dictionary,
 };
 
 // A purely decorative skeleton of a dashboard — bars, KPI tiles, rows — that

@@ -510,6 +510,24 @@ export const KB: KbTopic[] = [
     related: ["inventory", "pl", "menu-manage"],
   },
   {
+    id: "incassi",
+    title: {
+      it: "Incassi (area ricavi)",
+      en: "Takings (revenue area)",
+      es: "Ingresos (área de recaudación)",
+      de: "Einnahmen (Umsatzbereich)",
+    },
+    keywords: ["incassi", "incassato", "ricavi", "scontrino medio", "coperti", "takings", "revenue", "average ticket", "payment method", "metodo di pagamento", "ingresos", "recaudado", "ticket medio", "einnahmen", "umsatz", "zahlungsart", "fascia oraria", "per giorno", "canale", "asporto", "delivery"],
+    answer: {
+      it: "In Incassi vedi quanto hai incassato dalla cassa: totale, scontrino medio e coperti, con i grafici per giorno, per categoria di menu, per metodo di pagamento e per fascia oraria — più la ripartizione per canale (sala, asporto, delivery). Scegli il periodo, attiva o disattiva l'IVA ed esporta in CSV o PDF.",
+      en: "Takings shows how much you cashed at the till: total, average ticket and covers, with charts by day, by menu category, by payment method and by time band — plus the split by channel (dine-in, takeaway, delivery). Pick the period, toggle VAT and export to CSV or PDF.",
+      es: "En Ingresos ves cuánto has recaudado en caja: total, ticket medio y comensales, con gráficos por día, por categoría de menú, por método de pago y por franja horaria — más el reparto por canal (sala, para llevar, delivery). Elige el periodo, activa o desactiva el IVA y exporta a CSV o PDF.",
+      de: "Unter Einnahmen siehst du, wie viel du an der Kasse eingenommen hast: Gesamtsumme, Durchschnittsbon und Gedecke, mit Diagrammen nach Tag, Menükategorie, Zahlungsart und Zeitfenster — plus die Aufteilung nach Kanal (vor Ort, Mitnahme, Lieferung). Zeitraum wählen, MwSt. umschalten und als CSV oder PDF exportieren.",
+    },
+    links: [{ href: "/incassi", label: { it: "Apri Incassi", en: "Open Takings", es: "Abrir Ingresos", de: "Einnahmen öffnen" } }],
+    related: ["pl", "cassa-pay", "analytics"],
+  },
+  {
     id: "pl",
     title: {
       it: "Conto economico (P&L)",
