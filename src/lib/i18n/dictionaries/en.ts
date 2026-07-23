@@ -2365,6 +2365,15 @@ export const en = {
   invoices_line_total: "Total",
   invoices_line_kind: "Kind",
   invoices_no_lines: "No lines.",
+  invoices_cost_category: "Cost category",
+  invoices_cat_auto: "Automatic",
+  invoices_cat_food: "Food",
+  invoices_cat_beverage: "Beverage",
+  invoices_cat_consumables: "Consumables",
+  invoices_cat_structure: "Structure",
+  invoices_cat_rent: "Rent",
+  invoices_cat_utilities: "Utilities",
+  invoices_cat_other: "Other",
 
   // Labor cost from shifts (staff page)
   staff_labor_title: "Labor cost",
@@ -2378,6 +2387,29 @@ export const en = {
   staff_labor_save: "Save & update P&L",
   staff_labor_saved: "Labor cost written into the P&L ({n} days).",
   staff_labor_error: "Update failed.",
+
+  // Annual P&L (12-month cost tree)
+  pl_year_mode: "Year",
+  pl_year_total: "Total",
+  pl_year_cogs: "Cost of goods",
+  pl_year_food: "Food",
+  pl_year_beverage: "Beverage",
+  pl_year_consumables: "Consumables",
+  pl_year_structure: "Structure costs",
+  pl_year_rent: "Rent",
+  pl_year_utilities: "Utilities",
+  pl_year_services: "Services",
+  pl_year_open_days: "Trading days",
+  pl_year_sales_day: "Sales/day",
+  pl_year_no_data: "No data for this year.",
+  pl_tip_revenue: "Total takings from the till in the month.",
+  pl_tip_cogs: "Merchandise purchases (confirmed invoices) split into food, beverage and consumables.",
+  pl_tip_labor: "Labor cost derived from the planned rota.",
+  pl_tip_structure: "Fixed costs and services (utilities, maintenance, fees).",
+  pl_tip_rent: "Premises rent.",
+  pl_tip_margin: "What's left after goods, labor, structure and rent.",
+  pl_tip_open_days: "Days with at least one sale in the month.",
+  pl_tip_sales_day: "Month's revenue divided by trading days.",
 };
 
 export type Dictionary = typeof en;

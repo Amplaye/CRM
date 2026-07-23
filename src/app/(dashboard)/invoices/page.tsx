@@ -35,8 +35,11 @@ type Invoice = {
   source: string;
   due_date: string | null;
   paid_at: string | null;
+  cost_category: string | null;
   created_at: string;
 };
+
+const COST_CATEGORIES = ["food", "beverage", "consumables", "structure", "rent", "utilities", "other"] as const;
 type Line = { id: string; description: string | null; quantity: number | null; unit: string | null; unit_price: number | null; line_total: number | null; kind: string | null };
 type PayFilter = "all" | "unpaid" | "overdue" | "paid";
 type StatusFilter = "all" | "parsed" | "confirmed";
@@ -68,7 +71,7 @@ export default function InvoicesPage() {
     setLoading(true);
     const { data } = await supabase
       .from("supplier_invoices")
-      .select("id, supplier_name, supplier_vat, invoice_number, invoice_date, net_total, tax_total, gross_total, status, source, due_date, paid_at, created_at")
+      .select("id, supplier_name, supplier_vat, invoice_number, invoice_date, net_total, tax_total, gross_total, status, source, due_date, paid_at, cost_category, created_at")
       .eq("tenant_id", activeTenant.id)
       .order("invoice_date", { ascending: false, nullsFirst: false })
       .order("created_at", { ascending: false })
@@ -324,11 +327,27 @@ export default function InvoicesPage() {
                           <div className="text-black text-sm">…</div>
                         ) : (
                           <div className="space-y-2">
-                            {i.status === "parsed" && (
-                              <button onClick={() => confirmInvoice(i)} disabled={busyId === i.id} className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-bold rounded-lg text-white cursor-pointer" style={{ background: BROWN }}>
-                                {busyId === i.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />} {t("invoices_confirm" as keyof Dictionary) || "Conferma fattura"}
-                              </button>
-                            )}
+                            <div className="flex flex-wrap items-center gap-2">
+                              {i.status === "parsed" && (
+                                <button onClick={() => confirmInvoice(i)} disabled={busyId === i.id} className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-bold rounded-lg text-white cursor-pointer" style={{ background: BROWN }}>
+                                  {busyId === i.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />} {t("invoices_confirm" as keyof Dictionary) || "Conferma fattura"}
+                                </button>
+                              )}
+                              <label className="inline-flex items-center gap-1.5 text-xs text-black">
+                                {t("invoices_cost_category" as keyof Dictionary) || "Categoria costo"}
+                                <select
+                                  value={i.cost_category ?? ""}
+                                  onChange={(e) => patch(i.id, { cost_category: e.target.value || null })}
+                                  className="rounded-lg border px-2 py-1 text-black bg-white/80 text-xs"
+                                  style={{ borderColor: BROWN }}
+                                >
+                                  <option value="">{t("invoices_cat_auto" as keyof Dictionary) || "Automatica"}</option>
+                                  {COST_CATEGORIES.map((c) => (
+                                    <option key={c} value={c}>{t((`invoices_cat_${c}`) as keyof Dictionary) || c}</option>
+                                  ))}
+                                </select>
+                              </label>
+                            </div>
                             <table className="w-full text-xs">
                               <thead>
                                 <tr className="text-left text-black/70">

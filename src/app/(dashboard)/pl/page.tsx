@@ -12,6 +12,7 @@ import { Dictionary } from "@/lib/i18n/dictionaries/en";
 import { getFeatures } from "@/lib/types/tenant-settings";
 import { ManagementLocked } from "@/components/management/ManagementLocked";
 import { WipComingSoon } from "@/components/management/WipComingSoon";
+import { PlAnnual } from "@/components/management/PlAnnual";
 import { canSeeWip } from "@/lib/billing/wip";
 import { plSummary, plByBand, periodFoodCost, plDelta } from "@/lib/management/pl";
 import type { PlDelta, PlSummary, RecipeLine, SaleRow } from "@/lib/management/types";
@@ -135,6 +136,7 @@ export default function PlPage() {
   const tz = (settings as any)?.timezone || "Europe/Rome";
 
   const [windowDays, setWindowDays] = useState<PeriodDays>(30);
+  const [annual, setAnnual] = useState(false);
   const [summary, setSummary] = useState<PlSummary | null>(null);
   const [prev, setPrev] = useState<PlSummary | null>(null);
   const [bands, setBands] = useState<Record<Shift, PlSummary> | null>(null);
@@ -144,7 +146,7 @@ export default function PlPage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (!activeTenant?.id || !enabled) return;
+    if (!activeTenant?.id || !enabled || annual) return;
     let cancelled = false;
     (async () => {
       setLoading(true);
@@ -372,24 +374,37 @@ export default function PlPage() {
             {PERIODS.map((p) => (
               <button
                 key={p}
-                onClick={() => setWindowDays(p)}
-                className={`px-3.5 py-2 text-sm cursor-pointer ${windowDays === p ? "text-white font-bold" : "text-black"}`}
-                style={windowDays === p ? { background: "#c4956a" } : undefined}
+                onClick={() => { setWindowDays(p); setAnnual(false); }}
+                className={`px-3.5 py-2 text-sm cursor-pointer ${!annual && windowDays === p ? "text-white font-bold" : "text-black"}`}
+                style={!annual && windowDays === p ? { background: "#c4956a" } : undefined}
               >
                 {p}{t("pl_days_short" as keyof Dictionary) || "gg"}
               </button>
             ))}
+            <button
+              onClick={() => setAnnual(true)}
+              className={`px-3.5 py-2 text-sm cursor-pointer border-l ${annual ? "text-white font-bold" : "text-black"}`}
+              style={{ borderColor: "#c4956a", ...(annual ? { background: "#c4956a" } : {}) }}
+            >
+              {t("pl_year_mode" as keyof Dictionary) || "Anno"}
+            </button>
           </div>
-          <button onClick={exportCsv} className="inline-flex items-center gap-1.5 px-3.5 py-2 text-sm font-bold rounded-xl border cursor-pointer text-black bg-white/70" style={{ borderColor: "#c4956a" }}>
-            <Download className="w-4 h-4" /> CSV
-          </button>
-          <button onClick={exportPdf} className="inline-flex items-center gap-1.5 px-3.5 py-2 text-sm font-bold rounded-xl border cursor-pointer text-black bg-white/70" style={{ borderColor: "#c4956a" }}>
-            <Download className="w-4 h-4" /> PDF
-          </button>
+          {!annual && (
+            <>
+              <button onClick={exportCsv} className="inline-flex items-center gap-1.5 px-3.5 py-2 text-sm font-bold rounded-xl border cursor-pointer text-black bg-white/70" style={{ borderColor: "#c4956a" }}>
+                <Download className="w-4 h-4" /> CSV
+              </button>
+              <button onClick={exportPdf} className="inline-flex items-center gap-1.5 px-3.5 py-2 text-sm font-bold rounded-xl border cursor-pointer text-black bg-white/70" style={{ borderColor: "#c4956a" }}>
+                <Download className="w-4 h-4" /> PDF
+              </button>
+            </>
+          )}
         </div>
       </div>
 
-      {loading && !summary ? (
+      {annual ? (
+        <PlAnnual />
+      ) : loading && !summary ? (
         <>
           <div className={`${CARD} h-28 animate-pulse`} style={{ ...CARD_STYLE, background: "rgba(252,246,237,0.6)" }} />
           <div className={`${CARD} h-80 animate-pulse`} style={{ ...CARD_STYLE, background: "rgba(252,246,237,0.6)" }} />
