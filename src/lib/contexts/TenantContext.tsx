@@ -92,7 +92,11 @@ export const TenantProvider = ({ children }: { children: ReactNode }) => {
           supabase.from("users").select("global_role").eq("id", user.id).single(),
           supabase
             .from("tenant_members")
-            .select("tenant_id, role, tenants(id, name, slug, status, created_at, settings)")
+            // Disambiguate the FK: since staff_pay added a second tenant_members↔tenants
+            // relationship, PostgREST rejects a bare `tenants(...)` embed with PGRST201.
+            // Pin the join to the direct FK or the whole membership query errors → no
+            // tenant resolves → every user falls through to a guest/locked dashboard.
+            .select("tenant_id, role, tenants!tenant_members_tenant_id_fkey(id, name, slug, status, created_at, settings)")
             .eq("user_id", user.id)
         ]);
 
