@@ -101,7 +101,7 @@ export async function POST(req: NextRequest) {
   const amountCents = toCents(totals.total);
   const currency = String(settings?.currency || "EUR");
   const locale = ["it", "es", "en", "de"].includes(settings?.crm_locale) ? settings.crm_locale : undefined;
-  const origin = process.env.NEXT_PUBLIC_APP_URL || "https://crm.baliflowagency.com";
+  const origin = process.env.NEXT_PUBLIC_APP_URL || "https://app.baliflowagency.com";
   const back = `${origin}/m/${tenant.slug}?table=${table.id}`;
   const productName = `${tenant.name} — ${table.name || "Table"}`;
 

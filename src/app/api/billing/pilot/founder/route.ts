@@ -20,7 +20,7 @@ export async function POST(req: Request) {
   const rl = await assertRateLimit(req, "pilot:founder", { max: 10, windowSecs: 60 });
   if (rl) return rl;
 
-  const origin = req.headers.get("origin") || process.env.NEXT_PUBLIC_APP_URL || "https://crm.baliflowagency.com";
+  const origin = req.headers.get("origin") || process.env.NEXT_PUBLIC_APP_URL || "https://app.baliflowagency.com";
   const result = await createPilotCheckout("founder", resolvePilotCycle(req), origin, resolvePilotLang(req));
   if (!result.ok) {
     return NextResponse.json({ error: result.error, reason: result.reason }, { status: result.status });

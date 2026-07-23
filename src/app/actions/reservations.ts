@@ -326,7 +326,7 @@ export async function updateReservationDetailsAction(params: {
           metadata: { reservation_id: params.reservationId },
         });
       } else {
-        const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "https://crm.baliflowagency.com";
+        const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "https://app.baliflowagency.com";
         void sendReservationConfirmationWhatsApp({
           tenantId: params.tenantId,
           reservation: {

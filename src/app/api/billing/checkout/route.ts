@@ -118,7 +118,7 @@ export async function POST(req: Request) {
   }
 
   const email: string | undefined = typeof body?.email === "string" ? body.email : undefined;
-  const origin = req.headers.get("origin") || process.env.NEXT_PUBLIC_APP_URL || "https://crm.baliflowagency.com";
+  const origin = req.headers.get("origin") || process.env.NEXT_PUBLIC_APP_URL || "https://app.baliflowagency.com";
   // A top-up starts and ends on the Credits tab — sending them back to Payments
   // would hide the balance they just paid to refill.
   const returnTab = kind === "credits" ? "credits" : "payments";

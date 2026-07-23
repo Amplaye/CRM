@@ -84,7 +84,7 @@ export async function POST(req: Request) {
   const amountCents = design ? design.amount_cents : requestedCents;
 
   const currency = String(tenant.settings?.currency || "EUR");
-  const origin = process.env.NEXT_PUBLIC_APP_URL || "https://crm.baliflowagency.com";
+  const origin = process.env.NEXT_PUBLIC_APP_URL || "https://app.baliflowagency.com";
   const locale = typeof tenant.settings?.crm_locale === "string" ? tenant.settings.crm_locale : undefined;
 
   try {

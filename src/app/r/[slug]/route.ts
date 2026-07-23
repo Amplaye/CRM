@@ -5,7 +5,7 @@ import { createServiceRoleClient } from "@/lib/supabase/server";
 // Public review-link resolver.
 //
 // The post-dinner follow-up uses ONE approved Meta template whose dynamic URL
-// button points at https://crm.baliflowagency.com/r/{slug}. This route 302s the
+// button points at https://app.baliflowagency.com/r/{slug}. This route 302s the
 // guest to *that tenant's own* Google review link (settings.review_url), so a
 // single template serves every tenant and each guest lands on the right page.
 //

@@ -13,7 +13,8 @@ import { NextRequest, NextResponse } from 'next/server';
  * /admin or /conversations keep working if anyone ever wires them up.
  */
 const ALLOWED_ORIGINS = new Set([
-  'https://crm.baliflowagency.com',
+  'https://app.baliflowagency.com',
+  'https://crm.baliflowagency.com', // legacy domain, still serves the same worker
   'http://localhost:3000',
 ]);
 

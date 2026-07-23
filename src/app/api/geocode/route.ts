@@ -16,7 +16,7 @@ export const runtime = "nodejs";
 
 const NOMINATIM = "https://nominatim.openstreetmap.org/search";
 // Nominatim's policy wants an identifiable app + contact in the User-Agent.
-const UA = "BaliFlowCRM/1.0 (https://crm.baliflowagency.com)";
+const UA = "BaliFlowCRM/1.0 (https://app.baliflowagency.com)";
 
 export async function GET(req: NextRequest) {
   const q = (req.nextUrl.searchParams.get("q") || "").trim().slice(0, 200);

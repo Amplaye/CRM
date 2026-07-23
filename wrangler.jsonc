@@ -36,10 +36,11 @@
   },
   // Non-secret build/runtime vars. CRON_BASE_URL is the origin the scheduled()
   // dispatcher calls its own /api/cron/* routes on — set to the preview host
-  // during staging, then crm.baliflowagency.com at cutover. Secrets (CRON_SECRET,
+  // during staging, then app.baliflowagency.com at cutover. Secrets (CRON_SECRET,
   // Stripe/PayPal, ENC keys, etc.) go via `wrangler secret put`, never here.
   "vars": {
     // CUTOVER (2026-07-17): dispatcher calls its own /api/cron/* on the prod domain.
-    "CRON_BASE_URL": "https://crm.baliflowagency.com"
+    // Primary domain is app.baliflowagency.com (crm.* is a legacy alias on the same worker).
+    "CRON_BASE_URL": "https://app.baliflowagency.com"
   }
 }

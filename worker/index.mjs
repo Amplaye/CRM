@@ -27,7 +27,7 @@ export default {
   async scheduled(controller, env, ctx) {
     // The worker calls its own public HTTP endpoints (the /api/cron/* routes),
     // so baseUrl must be the deployed origin. Set CRON_BASE_URL to the preview
-    // host during staging and to https://crm.baliflowagency.com at cutover.
+    // host during staging and to https://app.baliflowagency.com at cutover.
     const baseUrl = env.CRON_BASE_URL;
     const cronSecret = env.CRON_SECRET;
     if (!baseUrl || !cronSecret) {

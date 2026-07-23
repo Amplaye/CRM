@@ -148,7 +148,7 @@ export async function sendCampaign(
       .map((r) => r.guest_id),
   );
 
-  const origin = process.env.NEXT_PUBLIC_APP_URL || "https://crm.baliflowagency.com";
+  const origin = process.env.NEXT_PUBLIC_APP_URL || "https://app.baliflowagency.com";
   const from = tenantWhatsAppFrom(tenant.settings);
   // Email identity: the guest reads the venue's NAME, on top of the venue's OWN
   // verified sending address (emailCfg.fromAddress — the platform's domain would

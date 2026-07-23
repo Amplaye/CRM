@@ -7,7 +7,7 @@ import { getFeatures } from "@/lib/types/tenant-settings";
 // tenants with website_enabled. Dashboard/API routes deliberately never appear.
 export const dynamic = "force-dynamic";
 
-const BASE = process.env.NEXT_PUBLIC_APP_URL || "https://crm.baliflowagency.com";
+const BASE = process.env.NEXT_PUBLIC_APP_URL || "https://app.baliflowagency.com";
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const sb = createServiceRoleClient();

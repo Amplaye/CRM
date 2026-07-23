@@ -38,7 +38,7 @@ type ItemRow = {
 
 type CategoryRow = { id: string; name: string; sort_order: number };
 
-const PUBLIC_BASE = 'https://crm.baliflowagency.com';
+const PUBLIC_BASE = 'https://app.baliflowagency.com';
 
 // Fold accents + lowercase so "Margherita", "margherita" and a customer's
 // "marguerita"-ish input all compare on the same footing.

@@ -51,7 +51,7 @@ export function jobsForHour(utcHour: number): string[] {
 export interface RunCronTickDeps {
   /** Trigger time (ms epoch) — Cloudflare passes controller.scheduledTime. */
   scheduledTime: number;
-  /** Absolute base URL of this worker, e.g. https://crm.baliflowagency.com. */
+  /** Absolute base URL of this worker, e.g. https://app.baliflowagency.com. */
   baseUrl: string;
   /** Shared secret the /api/cron/* routes require as `Bearer`. */
   cronSecret: string;

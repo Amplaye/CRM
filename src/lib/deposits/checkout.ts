@@ -55,7 +55,7 @@ export async function createDepositForReservation(
     }
     if (!due.due) return null;
 
-    const origin = process.env.NEXT_PUBLIC_APP_URL || "https://crm.baliflowagency.com";
+    const origin = process.env.NEXT_PUBLIC_APP_URL || "https://app.baliflowagency.com";
     const productName = `Deposit — ${params.tenantName}, ${params.date} ${params.time}`;
     const session = await createDepositCheckoutSession({
       amountCents: due.amountCents,

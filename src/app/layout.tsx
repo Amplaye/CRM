@@ -17,7 +17,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  metadataBase: new URL("https://crm.baliflowagency.com"),
+  metadataBase: new URL("https://app.baliflowagency.com"),
   title: "BaliFlow CRM",
   description: "BaliFlow CRM - Business Operations Dashboard",
   applicationName: "BaliFlow CRM",
