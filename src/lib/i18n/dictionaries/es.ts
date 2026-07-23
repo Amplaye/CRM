@@ -2391,6 +2391,7 @@ export const es: Dictionary = {
   staff_labor_save: "Guardar y actualizar Cuenta de resultados",
   staff_labor_saved: "Coste de personal registrado en la Cuenta de resultados ({n} días).",
   staff_labor_error: "Actualización fallida.",
+  staff_export_pdf: "Exportar PDF",
 
   // Cuenta de resultados anual (árbol de costes a 12 meses)
   pl_year_mode: "Año",
@@ -2414,4 +2415,15 @@ export const es: Dictionary = {
   pl_tip_margin: "Lo que queda tras materia prima, personal, estructura y alquiler.",
   pl_tip_open_days: "Días con al menos una venta en el mes.",
   pl_tip_sales_day: "Ingresos del mes divididos por los días de trabajo.",
+
+  // Food cost — tabla densa (análisis de mix)
+  food_cost_view_cards: "Fichas",
+  food_cost_view_table: "Tabla",
+  food_cost_col_item: "Artículo",
+  food_cost_col_revenue: "Ingreso",
+  food_cost_col_rev_pct: "% Ingreso",
+  food_cost_col_qty: "Cant.",
+  food_cost_col_qty_pct: "% Cant.",
+  food_cost_col_fc_pct: "% FoodCost",
+  food_cost_col_net: "Neto",
 };

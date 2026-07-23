@@ -2390,6 +2390,7 @@ export const it: Dictionary = {
   staff_labor_save: "Salva e aggiorna Conto Economico",
   staff_labor_saved: "Costo del lavoro aggiornato nel Conto Economico ({n} giorni).",
   staff_labor_error: "Aggiornamento non riuscito.",
+  staff_export_pdf: "Esporta PDF",
 
   // Conto economico annuale (albero costi a 12 mesi)
   pl_year_mode: "Anno",
@@ -2413,4 +2414,15 @@ export const it: Dictionary = {
   pl_tip_margin: "Quello che resta dopo materia prima, personale, struttura e affitto.",
   pl_tip_open_days: "Giorni con almeno una vendita nel mese.",
   pl_tip_sales_day: "Ricavi del mese diviso i giorni di lavoro.",
+
+  // Food cost — tabella densa (analisi mix)
+  food_cost_view_cards: "Schede",
+  food_cost_view_table: "Tabella",
+  food_cost_col_item: "Articolo",
+  food_cost_col_revenue: "Incasso",
+  food_cost_col_rev_pct: "% Incasso",
+  food_cost_col_qty: "Q.tà",
+  food_cost_col_qty_pct: "% Q.tà",
+  food_cost_col_fc_pct: "% FoodCost",
+  food_cost_col_net: "Netto",
 };

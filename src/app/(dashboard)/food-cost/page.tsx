@@ -69,6 +69,7 @@ export default function FoodCostPage() {
   const [filter, setFilter] = useState<Filter>("all");
   const [query, setQuery] = useState("");
   const [sortKey, setSortKey] = useState<SortKey>("action");
+  const [viewMode, setViewMode] = useState<"cards" | "table">("cards");
   const [catFilter, setCatFilter] = useState<string>(ALL_CATS);
   const [bulkOpen, setBulkOpen] = useState(false);
 
@@ -151,6 +152,13 @@ export default function FoodCostPage() {
   // the layer that makes the page actionable rather than a flat cost table.
   const insights = useMemo(() => buildInsights(rows, unitsSold, targetPct), [rows, unitsSold, targetPct]);
   const totals = useMemo(() => foodCostTotals(insights), [insights]);
+  // Menu-wide revenue / units, so the table's two mix percentages (share of
+  // takings vs share of covers) are relative to the whole menu, not the page.
+  const mixTotals = useMemo(() => {
+    let rev = 0, units = 0;
+    for (const d of insights) { rev += d.revenue; units += d.unitsSold; }
+    return { rev, units };
+  }, [insights]);
   // Menu "stars": the Pareto set of dishes carrying the top half of all profit.
   const starIds = useMemo(() => topProfitIds(insights, 0.5), [insights]);
 
@@ -427,8 +435,22 @@ export default function FoodCostPage() {
           })}
         </div>
 
+        {/* Cards ↔ dense table (mix analysis) */}
+        <div className="ml-auto inline-flex rounded-lg border overflow-hidden bg-white/70" style={{ borderColor: "#d9c3a3" }}>
+          {(["cards", "table"] as const).map((v) => (
+            <button
+              key={v}
+              onClick={() => setViewMode(v)}
+              className={`px-3 py-1.5 text-sm cursor-pointer ${viewMode === v ? "text-white font-bold" : "text-black"}`}
+              style={viewMode === v ? { background: "#c4956a" } : undefined}
+            >
+              {v === "cards" ? (t("food_cost_view_cards" as keyof Dictionary) || "Schede") : (t("food_cost_view_table" as keyof Dictionary) || "Tabella")}
+            </button>
+          ))}
+        </div>
+
         {/* Sort — the control that makes the list actually useful */}
-        <div className="ml-auto flex items-center gap-1.5">
+        <div className="flex items-center gap-1.5">
           <ArrowUpNarrowWide className="w-4 h-4 shrink-0" style={{ color: "#000" }} />
           <select
             value={sortKey}
@@ -484,6 +506,8 @@ export default function FoodCostPage() {
           <div className={`${CARD} p-8 text-center text-sm text-black`} style={CARD_STYLE}>
             {rows.length === 0 ? t("food_cost_empty") : t("inventory_no_match")}
           </div>
+        ) : viewMode === "table" ? (
+          <FoodCostMixTable rows={pageRows} totalRev={mixTotals.rev} totalUnits={mixTotals.units} targetPct={targetPct} t={t} />
         ) : (
           pageRows.map((r, i) => {
             const cid = catOf.get(r.menuItemId) ?? null;
@@ -747,3 +771,59 @@ const DishCard = memo(function DishCard({
     </div>
   );
 });
+
+// Dense mix-analysis table (iammi's "Area piatti"): each dish with its € takings
+// and share of takings, its units and share of covers, cost, food-cost % and net
+// contribution. The two percentages are the menu-engineering read: a dish heavy
+// on takings but light on covers is a premium seller; the reverse is a workhorse.
+function FoodCostMixTable({
+  rows, totalRev, totalUnits, targetPct, t,
+}: {
+  rows: DishInsight[];
+  totalRev: number;
+  totalUnits: number;
+  targetPct: number;
+  t: (k: keyof Dictionary) => string;
+}) {
+  const eur = (n: number | null) => (n == null ? "—" : `€ ${n.toLocaleString("it-IT", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`);
+  const share = (n: number, tot: number) => (tot > 0 ? `${((n / tot) * 100).toFixed(1)}%` : "—");
+  return (
+    <div className={`${CARD} overflow-hidden`} style={CARD_STYLE}>
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm" style={{ minWidth: 760 }}>
+          <thead>
+            <tr className="text-left" style={{ borderBottom: "1px solid #e0d0b8" }}>
+              <th className="px-3 py-2.5 text-xs font-bold uppercase tracking-wide text-black">{t("food_cost_col_item" as keyof Dictionary) || "Articolo"}</th>
+              <th className="px-3 py-2.5 text-xs font-bold uppercase tracking-wide text-black text-right">{t("food_cost_col_revenue" as keyof Dictionary) || "Incasso"}</th>
+              <th className="px-3 py-2.5 text-xs font-bold uppercase tracking-wide text-black text-right">{t("food_cost_col_rev_pct" as keyof Dictionary) || "% Incasso"}</th>
+              <th className="px-3 py-2.5 text-xs font-bold uppercase tracking-wide text-black text-right">{t("food_cost_col_qty" as keyof Dictionary) || "Q.tà"}</th>
+              <th className="px-3 py-2.5 text-xs font-bold uppercase tracking-wide text-black text-right">{t("food_cost_col_qty_pct" as keyof Dictionary) || "% Q.tà"}</th>
+              <th className="px-3 py-2.5 text-xs font-bold uppercase tracking-wide text-black text-right">{t("food_cost_col_cost" as keyof Dictionary) || "Costo"}</th>
+              <th className="px-3 py-2.5 text-xs font-bold uppercase tracking-wide text-black text-right">{t("food_cost_col_fc_pct" as keyof Dictionary) || "% FoodCost"}</th>
+              <th className="px-3 py-2.5 text-xs font-bold uppercase tracking-wide text-black text-right">{t("food_cost_col_net" as keyof Dictionary) || "Netto"}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((r) => {
+              const fcOver = r.foodCostPct != null && (r.lowMargin || r.foodCostPct > targetPct);
+              return (
+                <tr key={r.menuItemId} style={{ borderTop: "1px solid #efe3cf" }}>
+                  <td className="px-3 py-2 text-black">{r.name}</td>
+                  <td className="px-3 py-2 text-black text-right tabular-nums whitespace-nowrap">{eur(r.revenue)}</td>
+                  <td className="px-3 py-2 text-black text-right tabular-nums">{share(r.revenue, totalRev)}</td>
+                  <td className="px-3 py-2 text-black text-right tabular-nums">{r.unitsSold}</td>
+                  <td className="px-3 py-2 text-black text-right tabular-nums">{share(r.unitsSold, totalUnits)}</td>
+                  <td className="px-3 py-2 text-black text-right tabular-nums whitespace-nowrap">{eur(r.cost)}</td>
+                  <td className="px-3 py-2 text-right tabular-nums font-bold" style={{ color: fcOver ? "#dc2626" : "#000" }}>
+                    {r.foodCostPct != null ? `${r.foodCostPct.toFixed(0)}%` : "—"}
+                  </td>
+                  <td className="px-3 py-2 text-right tabular-nums font-bold whitespace-nowrap" style={{ color: (r.profit ?? 0) >= 0 ? "#000" : "#dc2626" }}>{eur(r.profit)}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}

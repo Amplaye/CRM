@@ -12,7 +12,7 @@ import {
   CalendarClock, ChevronLeft, ChevronRight, Plus, X, Sun, Moon, Clock,
   CheckCircle2, XCircle, Hourglass, Users, Lock, Send, CalendarRange, CopyPlus,
   Plane, Thermometer, UserMinus, CalendarOff, User, Repeat,
-  DollarSign, ChevronUp, ChevronDown,
+  DollarSign, ChevronUp, ChevronDown, Download,
 } from "lucide-react";
 import { useLanguage } from "@/lib/contexts/LanguageContext";
 import { useTenant } from "@/lib/contexts/TenantContext";
@@ -21,6 +21,7 @@ import type { Dictionary } from "@/lib/i18n/dictionaries/en";
 import { hasActivePlan } from "@/lib/billing/entitlements";
 import { bandPreset, datesInRange, type AbsenceKind } from "@/lib/staff/shift-rules";
 import { StaffTab } from "@/components/settings/StaffTab";
+import { buildReportPdf, downloadPdf } from "@/lib/export/to-pdf";
 
 type DbRole = "owner" | "manager" | "host";
 type Member = { id: string; user_id: string; role: DbRole; name: string; email: string };
@@ -277,6 +278,30 @@ export default function StaffPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTenant?.id, weekStart, refresh]);
 
+  // Export the visible week's rota as a branded PDF (one row per member, one
+  // column per day) — the "stampa turni" the shift board pins to the wall.
+  const exportShiftsPdf = useCallback(async () => {
+    const dayCols = weekDays.map((d) => d.toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "numeric" }));
+    const roster = members.filter((m) => shifts.some((s) => s.member_id === m.id && s.status === "scheduled"));
+    const list = roster.length ? roster : members;
+    const rows = list.map((m) => {
+      const cells = weekDays.map((d) => {
+        const ss = shiftsFor(m.id, dateStr(d));
+        return ss.length ? ss.map((s) => `${hhmm(s.start_time)}-${hhmm(s.end_time)}`).join(", ") : "—";
+      });
+      return [m.name || m.email || "—", ...cells];
+    });
+    const bytes = await buildReportPdf({
+      title: tk("staff_page_title") || "Turni",
+      subtitle: `${weekDays[0].getDate()}/${pad(weekDays[0].getMonth() + 1)} — ${weekDays[6].getDate()}/${pad(weekDays[6].getMonth() + 1)}`,
+      business: activeTenant?.name || undefined,
+      sections: [{ columns: ["", ...dayCols], rows }],
+      footer: `${tk("export_generated") || "Generato il"} ${dateStr(new Date())} — TableFlow`,
+    });
+    downloadPdf(`turni-${dateStr(weekDays[0])}.pdf`, bytes);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [weekDays, members, shifts, shiftsFor, activeTenant?.name]);
+
   // ── Guards ──
   if (!hasActivePlan(activeTenant?.settings)) {
     return (
@@ -529,6 +554,14 @@ export default function StaffPage() {
                   style={{ borderColor: "#c4956a" }}
                 >
                   <CalendarOff className="w-4 h-4" /> {tk("staff_absence_open")}
+                </button>
+                <button
+                  onClick={exportShiftsPdf}
+                  className="inline-flex items-center gap-1.5 px-3 py-2 text-sm font-bold rounded-xl border cursor-pointer text-black bg-white/70"
+                  style={{ borderColor: "#c4956a" }}
+                  title={tk("staff_export_pdf") || "Esporta PDF"}
+                >
+                  <Download className="w-4 h-4" /> PDF
                 </button>
               </div>
             )}

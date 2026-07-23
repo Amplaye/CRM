@@ -2387,6 +2387,7 @@ export const en = {
   staff_labor_save: "Save & update P&L",
   staff_labor_saved: "Labor cost written into the P&L ({n} days).",
   staff_labor_error: "Update failed.",
+  staff_export_pdf: "Export PDF",
 
   // Annual P&L (12-month cost tree)
   pl_year_mode: "Year",
@@ -2410,6 +2411,17 @@ export const en = {
   pl_tip_margin: "What's left after goods, labor, structure and rent.",
   pl_tip_open_days: "Days with at least one sale in the month.",
   pl_tip_sales_day: "Month's revenue divided by trading days.",
+
+  // Food cost — dense table (mix analysis)
+  food_cost_view_cards: "Cards",
+  food_cost_view_table: "Table",
+  food_cost_col_item: "Item",
+  food_cost_col_revenue: "Takings",
+  food_cost_col_rev_pct: "% Takings",
+  food_cost_col_qty: "Qty",
+  food_cost_col_qty_pct: "% Qty",
+  food_cost_col_fc_pct: "% Food cost",
+  food_cost_col_net: "Net",
 };
 
 export type Dictionary = typeof en;

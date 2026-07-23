@@ -2393,6 +2393,7 @@ export const de: Dictionary = {
   staff_labor_save: "Speichern & GuV aktualisieren",
   staff_labor_saved: "Personalkosten in die GuV geschrieben ({n} Tage).",
   staff_labor_error: "Aktualisierung fehlgeschlagen.",
+  staff_export_pdf: "PDF exportieren",
 
   // Jahres-GuV (12-Monats-Kostenbaum)
   pl_year_mode: "Jahr",
@@ -2416,4 +2417,15 @@ export const de: Dictionary = {
   pl_tip_margin: "Was nach Ware, Personal, Struktur und Miete bleibt.",
   pl_tip_open_days: "Tage mit mindestens einem Verkauf im Monat.",
   pl_tip_sales_day: "Monatsumsatz geteilt durch Arbeitstage.",
+
+  // Food Cost — dichte Tabelle (Mix-Analyse)
+  food_cost_view_cards: "Karten",
+  food_cost_view_table: "Tabelle",
+  food_cost_col_item: "Artikel",
+  food_cost_col_revenue: "Einnahmen",
+  food_cost_col_rev_pct: "% Einnahmen",
+  food_cost_col_qty: "Menge",
+  food_cost_col_qty_pct: "% Menge",
+  food_cost_col_fc_pct: "% Food Cost",
+  food_cost_col_net: "Netto",
 };
