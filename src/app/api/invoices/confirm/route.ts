@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { assertManagement } from "@/lib/billing/guard";
 import { deriveExpiry } from "@/lib/inventory/expiry";
 import { suggestShelfLife } from "@/lib/inventory/shelf-life-presets";
+import { authorizeInvoiceRequest } from "@/lib/ai/manager-auth";
 
 // Confirm a parsed supplier invoice. The owner may have edited line values and
 // mapped lines to ingredients. For every line that carries an ingredient_id we
@@ -36,6 +36,8 @@ type LineUpdate = {
 type Body = {
   tenant_id: string;
   invoice_id: string;
+  /** WhatsApp bot path only: the verified staff number driving the confirm. */
+  phone?: string;
   lines?: LineUpdate[]; // edits + ingredient mappings; omitted → confirm as-is
   /** When true, every mapped line with a quantity is also carried into stock as a
    * 'receipt' movement (the invoices → warehouse seam), once each (received_at). */
@@ -43,16 +45,16 @@ type Body = {
 };
 
 export async function POST(req: NextRequest) {
-  const supabase = await createServerSupabaseClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-
   const body = (await req.json().catch(() => null)) as Body | null;
   if (!body || typeof body.tenant_id !== "string" || typeof body.invoice_id !== "string") {
     return NextResponse.json({ error: "Missing tenant_id or invoice_id" }, { status: 400 });
   }
+
+  // Dashboard user (RLS) OR the WhatsApp bot on behalf of a verified staff member
+  // (x-ai-secret + service-role). Same pipeline either way.
+  const auth = await authorizeInvoiceRequest(req, body.tenant_id, body.phone);
+  if ("error" in auth) return auth.error;
+  const supabase = auth.supabase;
 
   // Paid add-on gate: confirming an invoice (writes ingredient costs) is gestionale.
   const gate = await assertManagement(body.tenant_id);

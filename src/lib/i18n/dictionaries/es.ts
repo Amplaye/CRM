@@ -2392,6 +2392,13 @@ export const es: Dictionary = {
   staff_labor_saved: "Coste de personal registrado en la Cuenta de resultados ({n} días).",
   staff_labor_error: "Actualización fallida.",
   staff_export_pdf: "Exportar PDF",
+  staff_wa_title: "WhatsApp gestión",
+  staff_wa_desc: "Recibe en WhatsApp las respuestas de almacén e ingresos y sube facturas por foto.",
+  staff_wa_link: "Vincular mi WhatsApp",
+  staff_wa_verified: "Número vinculado",
+  staff_wa_code_instr: "Envía este código desde tu WhatsApp al número del restaurante:",
+  staff_wa_waiting: "Esperando verificación…",
+  staff_wa_the_number: "el número del restaurante",
 
   // Cuenta de resultados anual (árbol de costes a 12 meses)
   pl_year_mode: "Año",

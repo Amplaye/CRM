@@ -2391,6 +2391,13 @@ export const it: Dictionary = {
   staff_labor_saved: "Costo del lavoro aggiornato nel Conto Economico ({n} giorni).",
   staff_labor_error: "Aggiornamento non riuscito.",
   staff_export_pdf: "Esporta PDF",
+  staff_wa_title: "WhatsApp gestione",
+  staff_wa_desc: "Ricevi su WhatsApp le risposte su magazzino e incassi e carica le fatture da foto.",
+  staff_wa_link: "Collega il mio WhatsApp",
+  staff_wa_verified: "Numero collegato",
+  staff_wa_code_instr: "Invia questo codice dal tuo WhatsApp al numero del ristorante:",
+  staff_wa_waiting: "In attesa di verifica…",
+  staff_wa_the_number: "il numero del ristorante",
 
   // Conto economico annuale (albero costi a 12 mesi)
   pl_year_mode: "Anno",

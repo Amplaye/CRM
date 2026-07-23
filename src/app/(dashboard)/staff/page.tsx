@@ -12,7 +12,7 @@ import {
   CalendarClock, ChevronLeft, ChevronRight, Plus, X, Sun, Moon, Clock,
   CheckCircle2, XCircle, Hourglass, Users, Lock, Send, CalendarRange, CopyPlus,
   Plane, Thermometer, UserMinus, CalendarOff, User, Repeat,
-  DollarSign, ChevronUp, ChevronDown, Download,
+  DollarSign, ChevronUp, ChevronDown, Download, MessageSquare, Check,
 } from "lucide-react";
 import { useLanguage } from "@/lib/contexts/LanguageContext";
 import { useTenant } from "@/lib/contexts/TenantContext";
@@ -586,6 +586,11 @@ export default function StaffPage() {
               weekTo={weekTo}
               onFlash={setFlash}
             />
+          )}
+
+          {/* Link the manager's WhatsApp to the manager agent (stock/takings/invoices). */}
+          {isManager && myMemberId && (
+            <ManagerWhatsAppCard t={tk} supabase={supabase} tenantId={activeTenant!.id} memberId={myMemberId} />
           )}
 
           {/* ── "My shifts": one card per day of the visible week, so a waiter on a
@@ -1506,6 +1511,102 @@ function LaborCostPanel({
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+// ── Link my WhatsApp to the manager agent ───────────────────────────────────
+// A manager taps "Collega", gets a one-time code, sends it from their phone to
+// the restaurant's WhatsApp; the bot verifies it. We poll staff_pay… no —
+// staff_whatsapp — for verified_at while a code is outstanding. Wages-grade RLS
+// (owner/manager), so this only renders for managers.
+function ManagerWhatsAppCard({
+  t, supabase, tenantId, memberId,
+}: {
+  t: (k: string) => string;
+  supabase: ReturnType<typeof createClient>;
+  tenantId: string;
+  memberId: string;
+}) {
+  const [status, setStatus] = useState<"loading" | "none" | "pending" | "verified">("loading");
+  const [phone, setPhone] = useState<string | null>(null);
+  const [code, setCode] = useState<string | null>(null);
+  const [botNumber, setBotNumber] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  const refresh = useCallback(async () => {
+    const { data } = await supabase
+      .from("staff_whatsapp")
+      .select("phone, verify_code, verified_at")
+      .eq("tenant_id", tenantId)
+      .eq("member_id", memberId)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (!data) { setStatus("none"); return; }
+    if ((data as any).verified_at) { setStatus("verified"); setPhone((data as any).phone); }
+    else if ((data as any).verify_code) { setStatus("pending"); }
+    else setStatus("none");
+  }, [supabase, tenantId, memberId]);
+
+  useEffect(() => { void refresh(); }, [refresh]);
+
+  // Poll while a code is outstanding so the card flips to "linked" on its own.
+  useEffect(() => {
+    if (status !== "pending") return;
+    const id = setInterval(refresh, 5000);
+    return () => clearInterval(id);
+  }, [status, refresh]);
+
+  const link = async () => {
+    setBusy(true);
+    try {
+      const res = await fetch("/api/team/whatsapp/start-verify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tenant_id: tenantId }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (res.ok && json.code) { setCode(json.code); setBotNumber(json.bot_number ?? null); setStatus("pending"); }
+    } finally { setBusy(false); }
+  };
+
+  if (status === "loading") return null;
+
+  return (
+    <div className="rounded-2xl border bg-white/70 p-4" style={{ borderColor: "#d9c3a3" }}>
+      <div className="flex items-start gap-2">
+        <MessageSquare className="w-5 h-5 shrink-0 text-black" />
+        <div className="flex-1 min-w-0">
+          <div className="text-sm font-bold text-black">{t("staff_wa_title") || "WhatsApp gestione"}</div>
+          {status === "verified" ? (
+            <p className="text-sm text-black mt-1">
+              <span className="inline-flex items-center gap-1 font-bold" style={{ color: "#047857" }}><Check className="w-4 h-4" /> {t("staff_wa_verified") || "Numero collegato"}</span>
+              {phone && <span className="text-black/70"> · {phone}</span>}
+            </p>
+          ) : status === "pending" && code ? (
+            <div className="mt-1 space-y-2">
+              <p className="text-sm text-black">
+                {t("staff_wa_code_instr") || "Invia questo codice dal tuo WhatsApp al numero del ristorante:"}
+              </p>
+              <div className="flex items-center gap-2">
+                <span className="text-2xl font-bold tabular-nums tracking-widest px-3 py-1.5 rounded-lg" style={{ background: "rgba(196,149,106,0.15)", color: "#000" }}>{code}</span>
+                <span className="text-sm text-black/70">→ {botNumber || (t("staff_wa_the_number") || "il numero del ristorante")}</span>
+              </div>
+              <p className="text-xs text-black/60">{t("staff_wa_waiting") || "In attesa di verifica…"}</p>
+            </div>
+          ) : status === "pending" ? (
+            <p className="text-sm text-black/70 mt-1">{t("staff_wa_waiting") || "In attesa di verifica…"}</p>
+          ) : (
+            <>
+              <p className="text-sm text-black/80 mt-1">{t("staff_wa_desc") || "Ricevi su WhatsApp le risposte su magazzino e incassi e carica le fatture da foto."}</p>
+              <button onClick={link} disabled={busy} className="mt-2 inline-flex items-center gap-1.5 px-3.5 py-2 text-sm font-bold rounded-xl text-white cursor-pointer disabled:opacity-50" style={{ background: "#c4956a" }}>
+                {busy ? "…" : (t("staff_wa_link") || "Collega il mio WhatsApp")}
+              </button>
+            </>
+          )}
+        </div>
+      </div>
     </div>
   );
 }

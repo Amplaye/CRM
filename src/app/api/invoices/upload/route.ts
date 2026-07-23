@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createServerSupabaseClient } from "@/lib/supabase/server";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { extractInvoice } from "@/lib/invoices/extract";
 import { assertManagement } from "@/lib/billing/guard";
 import { assertCredits, consumeCredits } from "@/lib/billing/credits";
 import { suggestLineMatches } from "@/lib/management/ingredient-match";
 import { classifyLine } from "@/lib/management/line-kind";
 import { apiError } from "@/lib/api-error";
+import { authorizeInvoiceRequest } from "@/lib/ai/manager-auth";
 
 // Upload a supplier-invoice photo/PDF → OCR it synchronously (an invoice is a
 // single page, so unlike the menu importer we don't need the async job) → store
@@ -36,7 +37,7 @@ const ALLOWED: Record<string, "application/pdf" | "image/jpeg" | "image/png" | "
 // Find or create the supplier for this tenant. Prefer VAT (the unique key);
 // fall back to a case-insensitive name match; create a bare record otherwise.
 async function resolveSupplier(
-  supabase: Awaited<ReturnType<typeof createServerSupabaseClient>>,
+  supabase: SupabaseClient,
   tenantId: string,
   rawName: string | null | undefined,
   rawVat: string | null | undefined,
@@ -76,18 +77,20 @@ async function resolveSupplier(
 }
 
 export async function POST(req: NextRequest) {
-  const supabase = await createServerSupabaseClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-
   const form = await req.formData().catch(() => null);
   const tenantId = form?.get("tenant_id");
   const file = form?.get("file");
   if (!form || typeof tenantId !== "string" || !tenantId || !(file instanceof File)) {
     return NextResponse.json({ error: "Missing tenant_id or file" }, { status: 400 });
   }
+
+  // Dashboard user (RLS) OR the WhatsApp bot on behalf of a verified staff member
+  // (x-ai-secret + service-role) — the "fattura da foto" path. `phone` is present
+  // only on the bot request.
+  const phoneField = form.get("phone");
+  const auth = await authorizeInvoiceRequest(req, tenantId, typeof phoneField === "string" ? phoneField : undefined);
+  if ("error" in auth) return auth.error;
+  const supabase = auth.supabase;
 
   // Paid add-on gate: invoice OCR is part of the gestionale. Check before the
   // expensive extraction so an unentitled tenant never burns an OCR call.
@@ -142,7 +145,7 @@ export async function POST(req: NextRequest) {
       gross_total: extracted.grossTotal,
       status: "parsed",
       raw_payload: extracted as any,
-      created_by: user.id,
+      created_by: auth.createdBy,
     })
     .select("id")
     .single();

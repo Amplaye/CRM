@@ -2388,6 +2388,13 @@ export const en = {
   staff_labor_saved: "Labor cost written into the P&L ({n} days).",
   staff_labor_error: "Update failed.",
   staff_export_pdf: "Export PDF",
+  staff_wa_title: "Manager WhatsApp",
+  staff_wa_desc: "Get stock and takings answers on WhatsApp and upload invoices from a photo.",
+  staff_wa_link: "Link my WhatsApp",
+  staff_wa_verified: "Number linked",
+  staff_wa_code_instr: "Send this code from your WhatsApp to the restaurant's number:",
+  staff_wa_waiting: "Waiting for verification…",
+  staff_wa_the_number: "the restaurant's number",
 
   // Annual P&L (12-month cost tree)
   pl_year_mode: "Year",

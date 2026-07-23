@@ -2394,6 +2394,13 @@ export const de: Dictionary = {
   staff_labor_saved: "Personalkosten in die GuV geschrieben ({n} Tage).",
   staff_labor_error: "Aktualisierung fehlgeschlagen.",
   staff_export_pdf: "PDF exportieren",
+  staff_wa_title: "Manager-WhatsApp",
+  staff_wa_desc: "Erhalte Lager- und Umsatzantworten per WhatsApp und lade Rechnungen per Foto hoch.",
+  staff_wa_link: "Mein WhatsApp verknüpfen",
+  staff_wa_verified: "Nummer verknüpft",
+  staff_wa_code_instr: "Sende diesen Code von deinem WhatsApp an die Nummer des Restaurants:",
+  staff_wa_waiting: "Warte auf Bestätigung…",
+  staff_wa_the_number: "die Nummer des Restaurants",
 
   // Jahres-GuV (12-Monats-Kostenbaum)
   pl_year_mode: "Jahr",
