@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useTenant } from "@/lib/contexts/TenantContext";
+import { useLanguage } from "@/lib/contexts/LanguageContext";
 import {
   ShieldAlert,
   RefreshCw,
@@ -50,12 +51,12 @@ interface ApiResponse {
 const cardStyle = { background: "rgba(252,246,237,0.85)", borderColor: "#c4956a" };
 const inputBorder = { borderColor: "#c4956a", background: "rgba(252,246,237,0.6)" };
 
-function flagLabel(key: keyof LoginEvent["flags"]) {
+function flagLabelKey(key: keyof LoginEvent["flags"]) {
   switch (key) {
-    case "new_ip": return "New IP";
-    case "new_country": return "New country";
-    case "off_hours": return "Off-hours";
-    case "many_ips_same_day": return ">3 IPs/day";
+    case "new_ip": return "adm_sec_flag_new_ip" as const;
+    case "new_country": return "adm_sec_flag_new_country" as const;
+    case "off_hours": return "adm_sec_flag_off_hours" as const;
+    case "many_ips_same_day": return "adm_sec_flag_many_ips" as const;
   }
 }
 
@@ -65,6 +66,7 @@ function hasAnyFlag(ev: LoginEvent) {
 
 export default function SecurityPage() {
   const { globalRole } = useTenant();
+  const { t } = useLanguage();
   const [data, setData] = useState<ApiResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -84,7 +86,7 @@ export default function SecurityPage() {
       const j: ApiResponse = await res.json();
       setData(j);
     } catch (e: any) {
-      setError(e.message || "Failed to load");
+      setError(e.message || t("adm_sec_failed_load"));
     }
     setLoading(false);
   };
@@ -125,7 +127,7 @@ export default function SecurityPage() {
   }, [filtered]);
 
   if (globalRole && globalRole !== "platform_admin") {
-    return <div className="p-8 text-center text-black">Unauthorized</div>;
+    return <div className="p-8 text-center text-black">{t("adm_sec_unauthorized")}</div>;
   }
 
   return (
@@ -134,12 +136,12 @@ export default function SecurityPage() {
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div className="flex items-center gap-2">
           <ShieldAlert className="w-5 h-5 text-[#c4956a]" />
-          <h1 className="text-xl sm:text-2xl font-bold text-black">Login Monitor</h1>
+          <h1 className="text-xl sm:text-2xl font-bold text-black">{t("adm_sec_title")}</h1>
         </div>
         <button
           onClick={() => fetchData(days)}
           className="p-2 hover:bg-[#c4956a]/10 rounded-lg transition-colors"
-          title="Refresh"
+          title={t("adm_sec_refresh")}
         >
           <RefreshCw className={`w-4 h-4 text-black ${loading ? "animate-spin" : ""}`} />
         </button>
@@ -148,23 +150,23 @@ export default function SecurityPage() {
       {/* Summary */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-4">
         <div className="rounded-xl p-3 sm:p-4 border-2" style={cardStyle}>
-          <p className="text-xs text-black font-medium">Logins ({data?.window_days ?? days}d)</p>
+          <p className="text-xs text-black font-medium">{t("adm_sec_logins_window").replace("{days}", String(data?.window_days ?? days))}</p>
           <p className="text-xl font-bold text-black">{data?.total ?? 0}</p>
         </div>
         <div className="rounded-xl p-3 sm:p-4 border-2" style={cardStyle}>
-          <p className="text-xs text-black font-medium">Anomalies</p>
+          <p className="text-xs text-black font-medium">{t("adm_sec_anomalies")}</p>
           <p className={`text-xl font-bold ${(data?.anomalies ?? 0) > 0 ? "text-red-600" : "text-black"}`}>
             {data?.anomalies ?? 0}
           </p>
         </div>
         <div className="rounded-xl p-3 sm:p-4 border-2" style={cardStyle}>
-          <p className="text-xs text-black font-medium">Distinct accounts</p>
+          <p className="text-xs text-black font-medium">{t("adm_sec_distinct_accounts")}</p>
           <p className="text-xl font-bold text-black">
             {data ? new Set(data.events.map(e => e.actor_id || e.actor_email)).size : 0}
           </p>
         </div>
         <div className="rounded-xl p-3 sm:p-4 border-2" style={cardStyle}>
-          <p className="text-xs text-black font-medium">Distinct IPs</p>
+          <p className="text-xs text-black font-medium">{t("adm_sec_distinct_ips")}</p>
           <p className="text-xl font-bold text-black">
             {data ? new Set(data.events.map(e => e.ip_address).filter(Boolean)).size : 0}
           </p>
@@ -174,7 +176,7 @@ export default function SecurityPage() {
       {/* Filters */}
       <div className="rounded-xl border-2 p-4 flex flex-wrap gap-3 items-center" style={cardStyle}>
         <div className="flex items-center gap-2 text-xs font-bold text-black uppercase tracking-wider">
-          <Filter className="w-4 h-4" /> Filters
+          <Filter className="w-4 h-4" /> {t("adm_sec_filters")}
         </div>
         <div className="relative">
           <select
@@ -183,10 +185,10 @@ export default function SecurityPage() {
             className="text-xs border-2 rounded-lg px-3 py-2 pr-7 focus:outline-none focus:ring-1 focus:ring-[#c4956a] appearance-none"
             style={inputBorder}
           >
-            <option value={1}>Last 24h</option>
-            <option value={7}>Last 7 days</option>
-            <option value={30}>Last 30 days</option>
-            <option value={90}>Last 90 days</option>
+            <option value={1}>{t("adm_sec_last_24h")}</option>
+            <option value={7}>{t("adm_sec_last_7d")}</option>
+            <option value={30}>{t("adm_sec_last_30d")}</option>
+            <option value={90}>{t("adm_sec_last_90d")}</option>
           </select>
           <ChevronDown className="w-3 h-3 text-black absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none" />
         </div>
@@ -197,9 +199,9 @@ export default function SecurityPage() {
             className="text-xs border-2 rounded-lg px-3 py-2 pr-7 focus:outline-none focus:ring-1 focus:ring-[#c4956a] appearance-none"
             style={inputBorder}
           >
-            <option value="all">All clients</option>
-            <option value="__none__">Has tenant</option>
-            {tenants.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+            <option value="all">{t("adm_sec_all_clients")}</option>
+            <option value="__none__">{t("adm_sec_has_tenant")}</option>
+            {tenants.map(tn => <option key={tn.id} value={tn.id}>{tn.name}</option>)}
           </select>
           <ChevronDown className="w-3 h-3 text-black absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none" />
         </div>
@@ -210,7 +212,7 @@ export default function SecurityPage() {
             onChange={e => setOnlyAnomalies(e.target.checked)}
             className="rounded border-[#c4956a]"
           />
-          Only anomalies
+          {t("adm_sec_only_anomalies")}
         </label>
       </div>
 
@@ -223,11 +225,11 @@ export default function SecurityPage() {
       {/* Events by day */}
       {loading && !data ? (
         <div className="rounded-xl border-2 p-12 text-center text-black animate-pulse" style={cardStyle}>
-          Loading login events…
+          {t("adm_sec_loading")}
         </div>
       ) : grouped.length === 0 ? (
         <div className="rounded-xl border-2 p-12 text-center text-black" style={cardStyle}>
-          No logins in this window.
+          {t("adm_sec_empty")}
         </div>
       ) : (
         <div className="space-y-4">
@@ -240,11 +242,11 @@ export default function SecurityPage() {
                     {new Date(day).toLocaleDateString(undefined, { weekday: "short", year: "numeric", month: "short", day: "numeric" })}
                   </h2>
                   <div className="flex items-center gap-3 text-xs">
-                    <span className="text-black">{list.length} login{list.length === 1 ? "" : "s"}</span>
+                    <span className="text-black">{t(list.length === 1 ? "adm_sec_login_one" : "adm_sec_login_other").replace("{count}", String(list.length))}</span>
                     {dayAnomalies > 0 && (
                       <span className="inline-flex items-center gap-1 text-red-700 font-bold">
                         <AlertTriangle className="w-3 h-3" />
-                        {dayAnomalies} anomal{dayAnomalies === 1 ? "y" : "ies"}
+                        {t(dayAnomalies === 1 ? "adm_sec_anomaly_one" : "adm_sec_anomaly_other").replace("{count}", String(dayAnomalies))}
                       </span>
                     )}
                   </div>
@@ -253,13 +255,13 @@ export default function SecurityPage() {
                   <table className="min-w-full text-sm">
                     <thead>
                       <tr className="text-xs text-black uppercase tracking-wider">
-                        <th className="px-4 py-2 text-left font-medium">Time</th>
-                        <th className="px-4 py-2 text-left font-medium">Account</th>
-                        <th className="px-4 py-2 text-left font-medium hidden sm:table-cell">Client</th>
+                        <th className="px-4 py-2 text-left font-medium">{t("adm_sec_col_time")}</th>
+                        <th className="px-4 py-2 text-left font-medium">{t("adm_sec_col_account")}</th>
+                        <th className="px-4 py-2 text-left font-medium hidden sm:table-cell">{t("adm_sec_col_client")}</th>
                         <th className="px-4 py-2 text-left font-medium hidden lg:table-cell">IP</th>
-                        <th className="px-4 py-2 text-left font-medium hidden md:table-cell">Location</th>
-                        <th className="px-4 py-2 text-left font-medium hidden lg:table-cell">Device</th>
-                        <th className="px-4 py-2 text-left font-medium">Flags</th>
+                        <th className="px-4 py-2 text-left font-medium hidden md:table-cell">{t("adm_sec_col_location")}</th>
+                        <th className="px-4 py-2 text-left font-medium hidden lg:table-cell">{t("adm_sec_col_device")}</th>
+                        <th className="px-4 py-2 text-left font-medium">{t("adm_sec_col_flags")}</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y" style={{ borderColor: "rgba(196,149,106,0.2)" }}>
@@ -312,7 +314,7 @@ export default function SecurityPage() {
                                     className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-red-50 text-red-700 border border-red-200"
                                   >
                                     <AlertTriangle className="w-2.5 h-2.5" />
-                                    {flagLabel(f)}
+                                    {t(flagLabelKey(f))}
                                   </span>
                                 ))}
                               </div>

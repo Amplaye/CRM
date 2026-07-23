@@ -26,16 +26,16 @@ interface Q4Strings {
   lrAtClose: string; lrBeforeClose: string; lrNoService: string;
   // card 2
   highChairs: string; kidsMenu: string; pets: string; accessible: string; wifi: string;
-  terrace: string; takeaway: string; takeawayWait: string;
-  delivery: string; deliveryPlatform: string; celebrations: string; outsideCake: string;
+  terrace: string; takeaway: string; takeawayWait: string; takeawayWaitPlaceholder: string;
+  delivery: string; deliveryPlatform: string; deliveryPlatformPlaceholder: string; celebrations: string; outsideCake: string;
   paymentMethods: string; payCash: string; payCard: string; payContactless: string;
   // card 3
   vegetarian: string; vegan: string; glutenFree: string; lactoseFree: string; celiac: string;
   allergensTitle: string; allergensHint: string; cannotGuarantee: string; severeAllergy: string; allergenSheet: string;
   alGluten: string; alDairy: string; alEgg: string; alNuts: string; alPeanuts: string; alFish: string; alShellfish: string; alSoy: string; alSesame: string;
   // card 4
-  cuisineType: string; address: string; addressHint: string; addressSearching: string; cityPostal: string; area: string; parking: string;
-  publicTransport: string; landmark: string;
+  cuisineType: string; cuisineTypePlaceholder: string; address: string; addressPlaceholder: string; addressHint: string; addressSearching: string; cityPostal: string; cityPostalPlaceholder: string; area: string; areaPlaceholder: string; parking: string;
+  publicTransport: string; landmark: string; landmarkPlaceholder: string;
   pkOwn: string; pkPublic: string; pkStreet: string; pkNone: string;
   // card 5
   chefHint: string;
@@ -68,7 +68,7 @@ interface UiStrings {
   posLive: string;       // badge on the one till we can connect today (Loyverse)
   sumPos: string;        // summary label
   // step 1 fields
-  fName: string; fPhone: string; fWhatsapp: string; fReview: string;
+  fName: string; fNamePlaceholder: string; fPhone: string; fPhonePlaceholder: string; fWhatsapp: string; fWhatsappPlaceholder: string; fReview: string;
   fTimezone: string; fLanguages: string; fLanguagesHint: string;
   fCrmLang: string; fCrmLangHint: string;
   primary: string; makePrimaryHint: string;
@@ -108,8 +108,8 @@ export const UI: Record<UiLang, UiStrings> = {
     posNone: "Lo decido más tarde", posNoneHint: "Sin caja conectada por ahora",
     posComingSoon: "Próximamente", posLive: "Disponible",
     sumPos: "Caja (TPV)",
-    fName: "Nombre del restaurante", fPhone: "Teléfono público",
-    fWhatsapp: "Tu WhatsApp (avisos al personal)", fReview: "Enlace de reseñas Google (opcional)",
+    fName: "Nombre del restaurante", fNamePlaceholder: "Trattoria Rossa", fPhone: "Teléfono público", fPhonePlaceholder: "+34 928 123 456",
+    fWhatsapp: "Tu WhatsApp (avisos al personal)", fWhatsappPlaceholder: "+34 6XX XXX XXX", fReview: "Enlace de reseñas Google (opcional)",
     fTimezone: "Zona horaria", fLanguages: "Idiomas del asistente",
     fLanguagesHint: "Elige uno o varios. El primero (★) es el principal: define el saludo y la voz.",
     fCrmLang: "Idioma de tu panel (CRM)",
@@ -135,8 +135,8 @@ export const UI: Record<UiLang, UiStrings> = {
       lrAtClose: "Hasta la hora de cierre", lrBeforeClose: "antes del cierre", lrNoService: "Sin este servicio",
       highChairs: "¿Tronas para niños?", kidsMenu: "¿Menú infantil?", pets: "¿Se admiten mascotas?",
       accessible: "¿Entrada accesible?", wifi: "¿WiFi para clientes?",
-      terrace: "¿Tienes terraza/sala extra?", takeaway: "¿Comida para llevar?", takeawayWait: "Tiempo de espera para llevar (opcional)",
-      delivery: "¿Delivery (a domicilio)?", deliveryPlatform: "Plataforma de delivery (opcional)",
+      terrace: "¿Tienes terraza/sala extra?", takeaway: "¿Comida para llevar?", takeawayWait: "Tiempo de espera para llevar (opcional)", takeawayWaitPlaceholder: "20-30 min",
+      delivery: "¿Delivery (a domicilio)?", deliveryPlatform: "Plataforma de delivery (opcional)", deliveryPlatformPlaceholder: "Glovo, Uber Eats…",
       celebrations: "¿Aceptáis celebraciones (cumpleaños, etc.)?", outsideCake: "¿Se puede traer tarta propia?",
       paymentMethods: "Métodos de pago", payCash: "Efectivo", payCard: "Tarjeta", payContactless: "Contactless",
       vegetarian: "¿Opciones vegetarianas?", vegan: "¿Opciones veganas?", glutenFree: "¿Opciones sin gluten?",
@@ -148,11 +148,11 @@ export const UI: Record<UiLang, UiStrings> = {
       allergenSheet: "¿Hoja de alérgenos disponible bajo petición?",
       alGluten: "Gluten / trigo", alDairy: "Lácteos", alEgg: "Huevo", alNuts: "Frutos secos", alPeanuts: "Cacahuetes",
       alFish: "Pescado", alShellfish: "Marisco", alSoy: "Soja", alSesame: "Sésamo",
-      cuisineType: "Tipo de cocina / concepto (opcional)", address: "Dirección",
+      cuisineType: "Tipo de cocina / concepto (opcional)", cuisineTypePlaceholder: "Cocina mediterránea", address: "Dirección", addressPlaceholder: "Avenida Rafael Cabrera, 7",
       addressHint: "Empieza a escribir y elige una sugerencia: rellenamos población y zona automáticamente.",
       addressSearching: "Buscando direcciones…",
-      cityPostal: "Población / código postal (opcional)", area: "Zona / barrio (opcional)", parking: "Aparcamiento",
-      publicTransport: "¿Bien comunicado en transporte público?", landmark: "Punto de referencia (opcional)",
+      cityPostal: "Población / código postal (opcional)", cityPostalPlaceholder: "35002 Las Palmas", area: "Zona / barrio (opcional)", areaPlaceholder: "Triana / Vegueta", parking: "Aparcamiento",
+      publicTransport: "¿Bien comunicado en transporte público?", landmark: "Punto de referencia (opcional)", landmarkPlaceholder: "Junto a la playa de Las Canteras",
       pkOwn: "Parking propio", pkPublic: "Parking público cercano", pkStreet: "En la calle", pkNone: "Sin aparcamiento",
       chefHint: "Añade hasta 6 platos que recomiendas, con una nota corta. El asistente los usará para responder «¿qué me recomiendas?». Déjalo vacío si prefieres remitir a la carta.",
       optional: " (opcional)",
@@ -198,8 +198,8 @@ export const UI: Record<UiLang, UiStrings> = {
     posNone: "Lo decido più tardi", posNoneHint: "Nessuna cassa collegata per ora",
     posComingSoon: "In arrivo", posLive: "Disponibile",
     sumPos: "Cassa (POS)",
-    fName: "Nome del ristorante", fPhone: "Telefono pubblico",
-    fWhatsapp: "Il tuo WhatsApp (avvisi al personale)", fReview: "Link recensioni Google (opzionale)",
+    fName: "Nome del ristorante", fNamePlaceholder: "Trattoria Rossa", fPhone: "Telefono pubblico", fPhonePlaceholder: "+39 06 1234567",
+    fWhatsapp: "Il tuo WhatsApp (avvisi al personale)", fWhatsappPlaceholder: "+39 3XX XXX XXXX", fReview: "Link recensioni Google (opzionale)",
     fTimezone: "Fuso orario", fLanguages: "Lingue dell'assistente",
     fLanguagesHint: "Scegline una o più. La prima (★) è la principale: definisce il saluto e la voce.",
     fCrmLang: "Lingua del tuo pannello (CRM)",
@@ -225,8 +225,8 @@ export const UI: Record<UiLang, UiStrings> = {
       lrAtClose: "Fino all'orario di chiusura", lrBeforeClose: "prima della chiusura", lrNoService: "Servizio non attivo",
       highChairs: "Seggioloni per bambini?", kidsMenu: "Menù bambini?", pets: "Sono ammessi animali?",
       accessible: "Ingresso accessibile?", wifi: "WiFi per i clienti?",
-      terrace: "Hai una terrazza/sala extra?", takeaway: "Cibo da asporto?", takeawayWait: "Tempo di attesa per l'asporto (opzionale)",
-      delivery: "Delivery (a domicilio)?", deliveryPlatform: "Piattaforma di delivery (opzionale)",
+      terrace: "Hai una terrazza/sala extra?", takeaway: "Cibo da asporto?", takeawayWait: "Tempo di attesa per l'asporto (opzionale)", takeawayWaitPlaceholder: "20-30 min",
+      delivery: "Delivery (a domicilio)?", deliveryPlatform: "Piattaforma di delivery (opzionale)", deliveryPlatformPlaceholder: "Glovo, Uber Eats…",
       celebrations: "Accettate celebrazioni (compleanni, ecc.)?", outsideCake: "Si può portare la propria torta?",
       paymentMethods: "Metodi di pagamento", payCash: "Contanti", payCard: "Carta", payContactless: "Contactless",
       vegetarian: "Opzioni vegetariane?", vegan: "Opzioni vegane?", glutenFree: "Opzioni senza glutine?",
@@ -238,11 +238,11 @@ export const UI: Record<UiLang, UiStrings> = {
       allergenSheet: "Scheda allergeni disponibile su richiesta?",
       alGluten: "Glutine / frumento", alDairy: "Latticini", alEgg: "Uova", alNuts: "Frutta a guscio", alPeanuts: "Arachidi",
       alFish: "Pesce", alShellfish: "Crostacei", alSoy: "Soia", alSesame: "Sesamo",
-      cuisineType: "Tipo di cucina / concept (opzionale)", address: "Indirizzo",
+      cuisineType: "Tipo di cucina / concept (opzionale)", cuisineTypePlaceholder: "Trattoria napoletana", address: "Indirizzo", addressPlaceholder: "Via Roma, 12",
       addressHint: "Inizia a scrivere e scegli un suggerimento: città e zona si compilano da sole.",
       addressSearching: "Cerco gli indirizzi…",
-      cityPostal: "Città / CAP (opzionale)", area: "Zona / quartiere (opzionale)", parking: "Parcheggio",
-      publicTransport: "Ben servito dai mezzi pubblici?", landmark: "Punto di riferimento (opzionale)",
+      cityPostal: "Città / CAP (opzionale)", cityPostalPlaceholder: "00184 Roma", area: "Zona / quartiere (opzionale)", areaPlaceholder: "Trastevere / Centro", parking: "Parcheggio",
+      publicTransport: "Ben servito dai mezzi pubblici?", landmark: "Punto di riferimento (opzionale)", landmarkPlaceholder: "Vicino al Colosseo",
       pkOwn: "Parcheggio proprio", pkPublic: "Parcheggio pubblico vicino", pkStreet: "Su strada", pkNone: "Nessun parcheggio",
       chefHint: "Aggiungi fino a 6 piatti che consigli, con una nota breve. L'assistente li userà per rispondere «cosa mi consigli?». Lascia vuoto se preferisci rimandare al menù.",
       optional: " (opzionale)",
@@ -288,8 +288,8 @@ export const UI: Record<UiLang, UiStrings> = {
     posNone: "I'll decide later", posNoneHint: "No till connected for now",
     posComingSoon: "Coming soon", posLive: "Available",
     sumPos: "Till (POS)",
-    fName: "Restaurant name", fPhone: "Public phone",
-    fWhatsapp: "Your WhatsApp (staff alerts)", fReview: "Google reviews link (optional)",
+    fName: "Restaurant name", fNamePlaceholder: "The Olive Branch", fPhone: "Public phone", fPhonePlaceholder: "+44 20 1234 5678",
+    fWhatsapp: "Your WhatsApp (staff alerts)", fWhatsappPlaceholder: "+44 7XXX XXXXXX", fReview: "Google reviews link (optional)",
     fTimezone: "Time zone", fLanguages: "Assistant languages",
     fLanguagesHint: "Pick one or more. The first one (★) is primary: it sets the greeting and the voice.",
     fCrmLang: "Your dashboard (CRM) language",
@@ -315,8 +315,8 @@ export const UI: Record<UiLang, UiStrings> = {
       lrAtClose: "Up to closing time", lrBeforeClose: "before closing", lrNoService: "No such service",
       highChairs: "High chairs for children?", kidsMenu: "Kids' menu?", pets: "Are pets allowed?",
       accessible: "Accessible entrance?", wifi: "WiFi for guests?",
-      terrace: "Do you have a terrace/extra room?", takeaway: "Takeaway?", takeawayWait: "Takeaway wait time (optional)",
-      delivery: "Delivery (to home)?", deliveryPlatform: "Delivery platform (optional)",
+      terrace: "Do you have a terrace/extra room?", takeaway: "Takeaway?", takeawayWait: "Takeaway wait time (optional)", takeawayWaitPlaceholder: "20-30 min",
+      delivery: "Delivery (to home)?", deliveryPlatform: "Delivery platform (optional)", deliveryPlatformPlaceholder: "Deliveroo, Uber Eats…",
       celebrations: "Do you accept celebrations (birthdays, etc.)?", outsideCake: "Can guests bring their own cake?",
       paymentMethods: "Payment methods", payCash: "Cash", payCard: "Card", payContactless: "Contactless",
       vegetarian: "Vegetarian options?", vegan: "Vegan options?", glutenFree: "Gluten-free options?",
@@ -328,11 +328,11 @@ export const UI: Record<UiLang, UiStrings> = {
       allergenSheet: "Allergen sheet available on request?",
       alGluten: "Gluten / wheat", alDairy: "Dairy", alEgg: "Egg", alNuts: "Tree nuts", alPeanuts: "Peanuts",
       alFish: "Fish", alShellfish: "Shellfish", alSoy: "Soy", alSesame: "Sesame",
-      cuisineType: "Cuisine type / concept (optional)", address: "Address",
+      cuisineType: "Cuisine type / concept (optional)", cuisineTypePlaceholder: "Modern British", address: "Address", addressPlaceholder: "12 High Street",
       addressHint: "Start typing and pick a suggestion — we fill city and area for you.",
       addressSearching: "Searching addresses…",
-      cityPostal: "City / postcode (optional)", area: "Area / neighbourhood (optional)", parking: "Parking",
-      publicTransport: "Well connected by public transport?", landmark: "Landmark (optional)",
+      cityPostal: "City / postcode (optional)", cityPostalPlaceholder: "SW1A 1AA London", area: "Area / neighbourhood (optional)", areaPlaceholder: "Soho / Mayfair", parking: "Parking",
+      publicTransport: "Well connected by public transport?", landmark: "Landmark (optional)", landmarkPlaceholder: "Next to Hyde Park",
       pkOwn: "Private parking", pkPublic: "Public car park nearby", pkStreet: "On the street", pkNone: "No parking",
       chefHint: "Add up to 6 dishes you recommend, with a short note. The assistant will use them to answer “what do you recommend?”. Leave empty if you prefer to point to the menu.",
       optional: " (optional)",
@@ -378,8 +378,8 @@ export const UI: Record<UiLang, UiStrings> = {
     posNone: "Ich entscheide später", posNoneHint: "Vorerst keine Kasse verbunden",
     posComingSoon: "Demnächst", posLive: "Verfügbar",
     sumPos: "Kasse (POS)",
-    fName: "Name des Restaurants", fPhone: "Öffentliche Telefonnummer",
-    fWhatsapp: "Dein WhatsApp (Personal-Benachrichtigungen)", fReview: "Google-Bewertungslink (optional)",
+    fName: "Name des Restaurants", fNamePlaceholder: "Zur Alten Post", fPhone: "Öffentliche Telefonnummer", fPhonePlaceholder: "+49 30 12345678",
+    fWhatsapp: "Dein WhatsApp (Personal-Benachrichtigungen)", fWhatsappPlaceholder: "+49 15X XXXXXXX", fReview: "Google-Bewertungslink (optional)",
     fTimezone: "Zeitzone", fLanguages: "Sprachen des Assistenten",
     fLanguagesHint: "Wähle eine oder mehrere. Die erste (★) ist die primäre: sie bestimmt Begrüßung und Stimme.",
     fCrmLang: "Sprache deines Dashboards (CRM)",
@@ -405,8 +405,8 @@ export const UI: Record<UiLang, UiStrings> = {
       lrAtClose: "Bis zur Schließzeit", lrBeforeClose: "vor Schließung", lrNoService: "Kein solcher Service",
       highChairs: "Hochstühle für Kinder?", kidsMenu: "Kindermenü?", pets: "Sind Haustiere erlaubt?",
       accessible: "Barrierefreier Eingang?", wifi: "WLAN für Gäste?",
-      terrace: "Haben Sie eine Terrasse/einen Extraraum?", takeaway: "Essen zum Mitnehmen?", takeawayWait: "Wartezeit zum Mitnehmen (optional)",
-      delivery: "Lieferung (nach Hause)?", deliveryPlatform: "Lieferplattform (optional)",
+      terrace: "Haben Sie eine Terrasse/einen Extraraum?", takeaway: "Essen zum Mitnehmen?", takeawayWait: "Wartezeit zum Mitnehmen (optional)", takeawayWaitPlaceholder: "20-30 Min.",
+      delivery: "Lieferung (nach Hause)?", deliveryPlatform: "Lieferplattform (optional)", deliveryPlatformPlaceholder: "Lieferando, Uber Eats…",
       celebrations: "Nehmt ihr Feiern an (Geburtstage usw.)?", outsideCake: "Darf eigene Torte mitgebracht werden?",
       paymentMethods: "Zahlungsarten", payCash: "Bargeld", payCard: "Karte", payContactless: "Kontaktlos",
       vegetarian: "Vegetarische Optionen?", vegan: "Vegane Optionen?", glutenFree: "Glutenfreie Optionen?",
@@ -418,11 +418,11 @@ export const UI: Record<UiLang, UiStrings> = {
       allergenSheet: "Allergenliste auf Anfrage verfügbar?",
       alGluten: "Gluten / Weizen", alDairy: "Milchprodukte", alEgg: "Ei", alNuts: "Schalenfrüchte", alPeanuts: "Erdnüsse",
       alFish: "Fisch", alShellfish: "Schalentiere", alSoy: "Soja", alSesame: "Sesam",
-      cuisineType: "Küchenart / Konzept (optional)", address: "Adresse",
+      cuisineType: "Küchenart / Konzept (optional)", cuisineTypePlaceholder: "Bayerische Küche", address: "Adresse", addressPlaceholder: "Friedrichstraße 12",
       addressHint: "Tippen und einen Vorschlag wählen – Stadt und Gegend füllen wir automatisch aus.",
       addressSearching: "Adressen werden gesucht…",
-      cityPostal: "Stadt / PLZ (optional)", area: "Gegend / Viertel (optional)", parking: "Parken",
-      publicTransport: "Gut mit öffentlichen Verkehrsmitteln erreichbar?", landmark: "Orientierungspunkt (optional)",
+      cityPostal: "Stadt / PLZ (optional)", cityPostalPlaceholder: "10115 Berlin", area: "Gegend / Viertel (optional)", areaPlaceholder: "Mitte / Kreuzberg", parking: "Parken",
+      publicTransport: "Gut mit öffentlichen Verkehrsmitteln erreichbar?", landmark: "Orientierungspunkt (optional)", landmarkPlaceholder: "Nahe dem Brandenburger Tor",
       pkOwn: "Eigener Parkplatz", pkPublic: "Öffentlicher Parkplatz in der Nähe", pkStreet: "Auf der Straße", pkNone: "Kein Parkplatz",
       chefHint: "Füge bis zu 6 empfohlene Gerichte mit einer kurzen Notiz hinzu. Der Assistent nutzt sie, um auf „Was empfiehlst du?“ zu antworten. Leer lassen, wenn du lieber auf die Karte verweist.",
       optional: " (optional)",

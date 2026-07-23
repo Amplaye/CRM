@@ -14,32 +14,34 @@ import { TENANT_STATUSES, type TenantStatus } from "@/lib/tenants/status";
 import { getRawFeatures, type TenantFeatures } from "@/lib/types/tenant-settings";
 import { entitlementFor, hasActivePlan } from "@/lib/billing/entitlements";
 import { formatCredits } from "@/lib/billing/credits-catalog";
+import { useLanguage } from "@/lib/contexts/LanguageContext";
+import type { Dictionary } from "@/lib/i18n/dictionaries/en";
 
 // All per-tenant feature flags the admin can toggle (Italian admin copy). The
 // management module shows its entitlement reason (manual / paid / grace) inline.
-const FEATURE_TOGGLES: Array<{ flag: keyof TenantFeatures; title: string; hint: string }> = [
-  { flag: "management_enabled", title: "Gestionale — Inventario, Food Cost, P&L", hint: "Pagine di controllo gestione (vendite POS, food cost, conto economico, inventario, fatture)." },
-  { flag: "waitlist_enabled", title: "Lista d'attesa", hint: "Raccoglie i clienti quando è pieno e avvisa al liberarsi di un tavolo." },
-  { flag: "double_shift", title: "Doppio turno", hint: "Aperto sia a pranzo che a cena." },
-  { flag: "multi_room", title: "Più sale", hint: "Sale / aree separate nella mappa tavoli." },
-  { flag: "multi_language", title: "Multilingua", hint: "Il bot risponde ai clienti in più lingue." },
-  { flag: "events_enabled", title: "Eventi / gruppi", hint: "Serate speciali, eventi privati, grandi gruppi." },
-  { flag: "terrace", title: "Terrazza", hint: "Posti all'aperto." },
-  { flag: "pet_friendly", title: "Pet friendly", hint: "Animali ammessi." },
-  { flag: "reminders_enabled", title: "Promemoria", hint: "Promemoria prenotazione il giorno prima (template WhatsApp)." },
-  { flag: "followup_enabled", title: "Follow-up post-visita", hint: "Ringraziamento / richiesta recensione dopo la visita (template marketing)." },
-  { flag: "commercial_info_enabled", title: "Info commerciali", hint: "Il bot risponde su listini, menù fissi, buffet dalle voci KB 'commerciale'." },
+const FEATURE_TOGGLES: Array<{ flag: keyof TenantFeatures; titleKey: keyof Dictionary; hintKey: keyof Dictionary }> = [
+  { flag: "management_enabled", titleKey: "adm_tenant_ft_management_title", hintKey: "adm_tenant_ft_management_hint" },
+  { flag: "waitlist_enabled", titleKey: "adm_tenant_ft_waitlist_title", hintKey: "adm_tenant_ft_waitlist_hint" },
+  { flag: "double_shift", titleKey: "adm_tenant_ft_double_shift_title", hintKey: "adm_tenant_ft_double_shift_hint" },
+  { flag: "multi_room", titleKey: "adm_tenant_ft_multi_room_title", hintKey: "adm_tenant_ft_multi_room_hint" },
+  { flag: "multi_language", titleKey: "adm_tenant_ft_multi_language_title", hintKey: "adm_tenant_ft_multi_language_hint" },
+  { flag: "events_enabled", titleKey: "adm_tenant_ft_events_title", hintKey: "adm_tenant_ft_events_hint" },
+  { flag: "terrace", titleKey: "adm_tenant_ft_terrace_title", hintKey: "adm_tenant_ft_terrace_hint" },
+  { flag: "pet_friendly", titleKey: "adm_tenant_ft_pet_friendly_title", hintKey: "adm_tenant_ft_pet_friendly_hint" },
+  { flag: "reminders_enabled", titleKey: "adm_tenant_ft_reminders_title", hintKey: "adm_tenant_ft_reminders_hint" },
+  { flag: "followup_enabled", titleKey: "adm_tenant_ft_followup_title", hintKey: "adm_tenant_ft_followup_hint" },
+  { flag: "commercial_info_enabled", titleKey: "adm_tenant_ft_commercial_title", hintKey: "adm_tenant_ft_commercial_hint" },
 ];
 
 // Paid services the admin can manually force on/off per tenant (payment disputes).
 // `key` is "plan" (core-CRM access) or an add-on id. The override lives in
 // settings.manual_entitlements and WINS over billing.
-const ENTITLEMENT_OVERRIDES: Array<{ key: string; title: string; hint: string }> = [
-  { key: "plan", title: "Accesso CRM (piano)", hint: "Prenotazioni, sala, ospiti, conversazioni, analisi — l'intero CRM." },
-  { key: "smart_inventory", title: "Gestionale", hint: "Inventario, food cost, conto economico, POS, fatture." },
-  { key: "voice_vapi", title: "Voce — Vapi", hint: "Segretaria vocale AI (tier base)." },
-  { key: "voice_retell", title: "Voce — Retell", hint: "Segretaria vocale AI (tier premium)." },
-  { key: "website_design", title: "Sito web", hint: "Pacchetto realizzazione sito." },
+const ENTITLEMENT_OVERRIDES: Array<{ key: string; titleKey: keyof Dictionary; hintKey: keyof Dictionary }> = [
+  { key: "plan", titleKey: "adm_tenant_ov_plan_title", hintKey: "adm_tenant_ov_plan_hint" },
+  { key: "smart_inventory", titleKey: "adm_tenant_ov_inventory_title", hintKey: "adm_tenant_ov_inventory_hint" },
+  { key: "voice_vapi", titleKey: "adm_tenant_ov_voice_vapi_title", hintKey: "adm_tenant_ov_voice_vapi_hint" },
+  { key: "voice_retell", titleKey: "adm_tenant_ov_voice_retell_title", hintKey: "adm_tenant_ov_voice_retell_hint" },
+  { key: "website_design", titleKey: "adm_tenant_ov_website_title", hintKey: "adm_tenant_ov_website_hint" },
 ];
 
 // Internal admin override, so it still lists the brands we no longer integrate:
@@ -113,6 +115,7 @@ const sourceIcon = (s: string) => {
 
 export default function TenantDetailPage() {
   const { globalRole, switchTenant } = useTenant();
+  const { t } = useLanguage();
   const params = useParams();
   const tenantId = params?.id as string;
   const [data, setData] = useState<TenantDetail | null>(null);
@@ -235,7 +238,7 @@ export default function TenantDetailPage() {
       const j = await res.json();
       if (!res.ok) throw new Error(j.error || "Failed");
       setDownloadUrl(j.download_url || null);
-      setActionMsg(`Archiviato. Cancellazione definitiva il ${new Date(j.purge_after).toLocaleDateString()}.`);
+      setActionMsg(t("adm_tenant_archived_msg").replace("{date}", new Date(j.purge_after).toLocaleDateString()));
       setData((p) => (p ? { ...p, tenant: { ...p.tenant, status: "archived" } } : p));
       setDanger(null); setConfirmText("");
     } catch (e: any) { setActionMsg(e.message); }
@@ -250,7 +253,7 @@ export default function TenantDetailPage() {
       });
       const j = await res.json();
       if (!res.ok) throw new Error(j.error || "Failed");
-      setActionMsg("Cliente cancellato definitivamente.");
+      setActionMsg(t("adm_tenant_purged_msg"));
       setDanger(null); setConfirmText("");
       setTimeout(() => { window.location.href = "/admin"; }, 1200);
     } catch (e: any) { setActionMsg(e.message); }
@@ -265,7 +268,7 @@ export default function TenantDetailPage() {
       });
       const j = await res.json();
       if (!res.ok) throw new Error(j.error || "Failed");
-      setActionMsg("Ripristinato.");
+      setActionMsg(t("adm_tenant_restored_msg"));
       setData((p) => (p ? { ...p, tenant: { ...p.tenant, status: j.status } } : p));
     } catch (e: any) { setActionMsg(e.message); }
     setWorking(false);
@@ -304,7 +307,7 @@ export default function TenantDetailPage() {
       setData((prev) => (prev ? { ...prev, tenant: { ...prev.tenant, name: j.name || next } } : prev));
       setRenaming(false);
     } catch (err: any) {
-      setActionMsg(`Rinomina fallita: ${err?.message || "errore"}`);
+      setActionMsg(t("adm_tenant_rename_failed").replace("{msg}", err?.message || t("adm_tenant_error_generic")));
     }
     setNameSaving(false);
   };
@@ -341,10 +344,12 @@ export default function TenantDetailPage() {
       if (!res.ok || !j?.ok) throw new Error(j?.error || "Failed");
       setCreditsAmount("");
       setCreditsReason("");
-      setCreditsMsg(amount > 0 ? `+${amount} crediti accreditati` : `${amount} crediti rimossi`);
+      setCreditsMsg(amount > 0
+        ? t("adm_tenant_credits_granted_msg").replace("{n}", String(amount))
+        : t("adm_tenant_credits_removed_msg").replace("{n}", String(amount)));
       await loadCredits();
     } catch (err: any) {
-      setCreditsMsg(`Errore: ${err?.message || "operazione fallita"}`);
+      setCreditsMsg(t("adm_tenant_credits_error").replace("{msg}", err?.message || t("adm_tenant_credits_error_default")));
     }
     setCreditsBusy(false);
   };
@@ -450,7 +455,7 @@ export default function TenantDetailPage() {
       const j = await res.json();
       if (!res.ok) throw new Error(j.error || "Failed");
       setData((prev) => (prev ? { ...prev, tenant: { ...prev.tenant, settings: j.settings || { ...s, ...settings } } } : prev));
-      setSettingsMsg("Salvato");
+      setSettingsMsg(t("adm_tenant_save"));
     } catch (e: any) { setSettingsMsg(e.message); }
     setSavingSettings(false);
   };
@@ -468,7 +473,7 @@ export default function TenantDetailPage() {
     try {
       const res = await fetch(`/api/admin/compliance/dsar?tenant_id=${tenantId}&${dsarParam()}`);
       const j = await res.json();
-      if (!res.ok) throw new Error(j.error || "Export fallito");
+      if (!res.ok) throw new Error(j.error || t("adm_tenant_dsar_export_failed"));
       // Trigger a client-side download of the export JSON.
       const blob = new Blob([JSON.stringify(j, null, 2)], { type: "application/json" });
       const url = URL.createObjectURL(blob);
@@ -476,15 +481,15 @@ export default function TenantDetailPage() {
       a.href = url; a.download = `dsar-${j.guest?.id || "subject"}.json`;
       document.body.appendChild(a); a.click(); a.remove();
       URL.revokeObjectURL(url);
-      setDsarMsg("Export scaricato");
+      setDsarMsg(t("adm_tenant_dsar_export_downloaded"));
     } catch (e: any) { setDsarMsg(e.message); }
     setDsarBusy(false);
   };
 
   const runDsarErase = async (mode: "anonymize" | "delete") => {
     if (!tenantId || !dsarQuery.trim()) return;
-    const label = mode === "delete" ? "ELIMINARE definitivamente" : "anonimizzare";
-    if (!window.confirm(`Confermi di voler ${label} tutti i dati di questo cliente? L'operazione non è reversibile.`)) return;
+    const label = mode === "delete" ? t("adm_tenant_dsar_action_delete") : t("adm_tenant_dsar_action_anonymize");
+    if (!window.confirm(t("adm_tenant_dsar_confirm").replace("{action}", label))) return;
     setDsarBusy(true); setDsarMsg(null);
     try {
       const q = dsarQuery.trim();
@@ -495,9 +500,14 @@ export default function TenantDetailPage() {
         body: JSON.stringify({ tenant_id: tenantId, mode, ...(isUuid ? { guest_id: q } : { phone: q }) }),
       });
       const j = await res.json();
-      if (!res.ok) throw new Error(j.error || "Operazione fallita");
+      if (!res.ok) throw new Error(j.error || t("adm_tenant_dsar_op_failed"));
       const a = j.affected || {};
-      setDsarMsg(`Fatto (${mode}): prenotazioni ${a.reservations || 0}, conversazioni ${a.conversations || 0}, lista d'attesa ${a.waitlist_entries || 0}, consensi anonimizzati ${a.consent_tombstoned || 0}.`);
+      setDsarMsg(t("adm_tenant_dsar_done")
+        .replace("{mode}", mode)
+        .replace("{reservations}", String(a.reservations || 0))
+        .replace("{conversations}", String(a.conversations || 0))
+        .replace("{waitlist}", String(a.waitlist_entries || 0))
+        .replace("{consents}", String(a.consent_tombstoned || 0)));
     } catch (e: any) { setDsarMsg(e.message); }
     setDsarBusy(false);
   };
@@ -525,17 +535,17 @@ export default function TenantDetailPage() {
   };
 
   if (globalRole !== "platform_admin") {
-    return <div className="p-8 text-center text-black">Unauthorized</div>;
+    return <div className="p-8 text-center text-black">{t("adm_tenant_unauthorized")}</div>;
   }
 
   const cardStyle = { background: "rgba(252,246,237,0.85)", borderColor: "#c4956a" };
 
   if (loading) {
-    return <div className="p-12 text-center text-black animate-pulse">Loading tenant details...</div>;
+    return <div className="p-12 text-center text-black animate-pulse">{t("adm_tenant_loading")}</div>;
   }
 
   if (!data) {
-    return <div className="p-12 text-center text-black">Tenant not found</div>;
+    return <div className="p-12 text-center text-black">{t("adm_tenant_not_found")}</div>;
   }
 
   const { tenant, kpis, recentReservations, recentConversations, recentIncidents, recentLogs } = data;
@@ -568,7 +578,7 @@ export default function TenantDetailPage() {
                   disabled={nameSaving || !nameDraft.trim()}
                   className="px-3 py-1.5 rounded-lg bg-[#c4956a] text-white text-xs font-bold hover:bg-[#8b6540] transition-colors disabled:opacity-50"
                 >
-                  {nameSaving ? "..." : "Salva"}
+                  {nameSaving ? "..." : t("adm_tenant_save")}
                 </button>
                 <button
                   onClick={() => setRenaming(false)}
@@ -576,7 +586,7 @@ export default function TenantDetailPage() {
                   className="px-3 py-1.5 rounded-lg border-2 text-black text-xs font-bold disabled:opacity-50"
                   style={{ borderColor: "#c4956a" }}
                 >
-                  Annulla
+                  {t("adm_tenant_cancel")}
                 </button>
               </div>
             ) : (
@@ -585,7 +595,7 @@ export default function TenantDetailPage() {
                 {tenant.status !== "archived" && (
                   <button
                     onClick={() => { setNameDraft(tenant.name); setRenaming(true); }}
-                    title="Rinomina il ristorante (solo admin)"
+                    title={t("adm_tenant_rename_title")}
                     className="p-1.5 rounded-lg hover:bg-[#c4956a]/10 transition-colors"
                   >
                     <Pencil className="w-3.5 h-3.5 text-[#c4956a]" />
@@ -597,7 +607,7 @@ export default function TenantDetailPage() {
               {tenant.status}
             </span>
           </div>
-          <p className="text-xs text-black">Tenant since {new Date(tenant.created_at).toLocaleDateString()}</p>
+          <p className="text-xs text-black">{t("adm_tenant_since").replace("{date}", new Date(tenant.created_at).toLocaleDateString())}</p>
         </div>
         {/* Lifecycle control: only trial/active receive AI traffic. */}
         <div className="flex items-center gap-2">
@@ -605,12 +615,12 @@ export default function TenantDetailPage() {
             <button
               onClick={enterAsTenant}
               className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#c4956a] text-white text-xs font-bold hover:bg-[#8b6540] transition-colors"
-              title="Entra nel CRM operando come questo ristorante"
+              title={t("adm_tenant_enter_as_title")}
             >
-              <LogIn className="w-3.5 h-3.5" /> Entra come ristorante
+              <LogIn className="w-3.5 h-3.5" /> {t("adm_tenant_enter_as")}
             </button>
           )}
-          <label className="text-[10px] text-black uppercase tracking-wider hidden sm:block">Status</label>
+          <label className="text-[10px] text-black uppercase tracking-wider hidden sm:block">{t("adm_tenant_status")}</label>
           <select
             value={tenant.status}
             disabled={statusSaving || tenant.status === "archived"}
@@ -647,9 +657,9 @@ export default function TenantDetailPage() {
               : health.overall === "warn" ? <AlertCircle className="w-5 h-5 text-yellow-600" />
               : <XCircle className="w-5 h-5 text-red-600" />}
             <h2 className="text-sm font-bold text-black">
-              {health.overall === "ok" ? "Attivazione completa — il cliente funziona"
-                : health.overall === "warn" ? "Attivo, ma con avvisi da controllare"
-                : "Attivazione INCOMPLETA — il bot non funziona del tutto"}
+              {health.overall === "ok" ? t("adm_tenant_health_ok")
+                : health.overall === "warn" ? t("adm_tenant_health_warn")
+                : t("adm_tenant_health_fail")}
             </h2>
           </div>
           <div className="grid sm:grid-cols-2 gap-x-6 gap-y-1.5">
@@ -680,14 +690,14 @@ export default function TenantDetailPage() {
               : st === "optional" ? "bg-zinc-300"
               : "bg-red-500";
             const label = (w: HealthWorkflow) =>
-              w.state === "active" ? "attivo"
-              : w.state === "covered" ? `coperto da ${w.coveredBy || "motore unico"}`
-              : w.state === "optional" ? "opzionale — spento"
-              : "SPENTO (core)";
+              w.state === "active" ? t("adm_tenant_health_wf_active")
+              : w.state === "covered" ? t("adm_tenant_health_wf_covered").replace("{by}", w.coveredBy || t("adm_tenant_health_wf_covered_default"))
+              : w.state === "optional" ? t("adm_tenant_health_wf_optional")
+              : t("adm_tenant_health_wf_down");
             return (
               <details className="mt-3 pt-3 border-t border-black/10">
                 <summary className="text-[11px] font-medium text-black cursor-pointer select-none">
-                  Workflow n8n in tempo reale ({n8n.workflows.length})
+                  {t("adm_tenant_health_wf_realtime").replace("{count}", String(n8n.workflows.length))}
                 </summary>
                 <div className="mt-2 grid sm:grid-cols-2 gap-x-6 gap-y-1">
                   {sorted.map((w) => (
@@ -707,7 +717,7 @@ export default function TenantDetailPage() {
           })()}
           {health.overall === "fail" && (
             <p className="text-[11px] text-black mt-3 pt-3 border-t border-black/10">
-              Per riparare: riapri l&apos;onboarding di questo cliente e premi invia — il provisioning si completa da dove si era interrotto, senza duplicati.
+              {t("adm_tenant_health_repair")}
             </p>
           )}
         </div>
@@ -725,12 +735,12 @@ export default function TenantDetailPage() {
         const started = !!st && st.setup_status !== "not_started";
         const color = connected ? "#10b981" : failed ? "#ef4444" : started ? "#eab308" : "#a8a29e";
         const label = connected
-          ? "WhatsApp collegato — invia dal numero del cliente"
+          ? t("adm_tenant_wa_connected")
           : failed
-            ? "WhatsApp da seguire a mano — onboarding bloccato"
+            ? t("adm_tenant_wa_failed")
             : started
-              ? "WhatsApp in corso — collegamento non ancora completato"
-              : "WhatsApp non collegato";
+              ? t("adm_tenant_wa_started")
+              : t("adm_tenant_wa_not_connected");
         return (
           <div className="rounded-xl p-4 border-2" style={{ background: `${color}11`, borderColor: color }}>
             <div className="flex items-center gap-2 mb-2">
@@ -738,12 +748,12 @@ export default function TenantDetailPage() {
               <h2 className="text-sm font-bold text-black">{label}</h2>
             </div>
             <div className="grid sm:grid-cols-2 gap-x-6 gap-y-1 text-xs text-black">
-              <div><span className="font-medium">Stato connessione:</span> {conn?.connection_status || "—"}</div>
-              <div><span className="font-medium">Stato onboarding:</span> {st?.setup_status || "not_started"}</div>
+              <div><span className="font-medium">{t("adm_tenant_wa_conn_status")}</span> {conn?.connection_status || "—"}</div>
+              <div><span className="font-medium">{t("adm_tenant_wa_onboarding_status")}</span> {st?.setup_status || "not_started"}</div>
               <div><span className="font-medium">phone_number_id:</span> <span className="font-mono">{conn?.phone_number_id || "—"}</span></div>
               <div><span className="font-medium">waba_id:</span> <span className="font-mono">{conn?.waba_id || "—"}</span></div>
               {st?.phone_number_usage && st.phone_number_usage !== "unknown" && (
-                <div><span className="font-medium">Numero:</span> {st.phone_number_usage}</div>
+                <div><span className="font-medium">{t("adm_tenant_wa_number")}</span> {st.phone_number_usage}</div>
               )}
             </div>
             {(conn?.last_error || st?.last_error) && (
@@ -801,7 +811,7 @@ export default function TenantDetailPage() {
           <div className="rounded-xl border-2 p-4" style={cardStyle}>
             <div className="flex items-center gap-2 mb-3">
               <Package className="w-4 h-4 text-[#c4956a]" />
-              <h3 className="text-xs font-bold text-black uppercase tracking-wider">Funzionalità</h3>
+              <h3 className="text-xs font-bold text-black uppercase tracking-wider">{t("adm_tenant_features")}</h3>
             </div>
             <div className="space-y-2">
               {FEATURE_TOGGLES.map((f) => {
@@ -809,12 +819,12 @@ export default function TenantDetailPage() {
                 if (f.flag === "management_enabled") {
                   const ent = entitlementFor(tenant.settings as any, "smart_inventory");
                   const map: Record<string, { label: string; cls: string }> = {
-                    manual: { label: "override manuale", cls: "bg-blue-50 text-blue-700 border-blue-200" },
-                    active: { label: "pagato", cls: "bg-emerald-50 text-emerald-700 border-emerald-200" },
-                    grace: { label: "grazia", cls: "bg-amber-50 text-amber-700 border-amber-200" },
-                    canceled: { label: "annullato", cls: "bg-zinc-100 text-zinc-600 border-zinc-300" },
-                    expired: { label: "scaduto", cls: "bg-zinc-100 text-zinc-600 border-zinc-300" },
-                    none: { label: "non attivo", cls: "bg-zinc-100 text-zinc-600 border-zinc-300" },
+                    manual: { label: t("adm_tenant_badge_manual"), cls: "bg-blue-50 text-blue-700 border-blue-200" },
+                    active: { label: t("adm_tenant_badge_paid"), cls: "bg-emerald-50 text-emerald-700 border-emerald-200" },
+                    grace: { label: t("adm_tenant_badge_grace"), cls: "bg-amber-50 text-amber-700 border-amber-200" },
+                    canceled: { label: t("adm_tenant_badge_canceled"), cls: "bg-zinc-100 text-zinc-600 border-zinc-300" },
+                    expired: { label: t("adm_tenant_badge_expired"), cls: "bg-zinc-100 text-zinc-600 border-zinc-300" },
+                    none: { label: t("adm_tenant_badge_inactive"), cls: "bg-zinc-100 text-zinc-600 border-zinc-300" },
                   };
                   const b = map[ent.reason] || map.none;
                   badge = <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full border ${b.cls}`}>{b.label}</span>;
@@ -824,8 +834,8 @@ export default function TenantDetailPage() {
                     key={f.flag}
                     flag={f.flag}
                     icon={<Package className="w-3.5 h-3.5 text-[#c4956a]" />}
-                    title={f.title}
-                    hint={f.hint}
+                    title={t(f.titleKey)}
+                    hint={t(f.hintKey)}
                     badge={badge}
                   />
                 );
@@ -843,13 +853,13 @@ export default function TenantDetailPage() {
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-2">
               <Sliders className="w-4 h-4 text-[#c4956a]" />
-              <h3 className="text-xs font-bold text-black uppercase tracking-wider">Impostazioni</h3>
+              <h3 className="text-xs font-bold text-black uppercase tracking-wider">{t("adm_tenant_settings")}</h3>
             </div>
             <div className="flex items-center gap-2">
               {settingsMsg && <span className="text-[11px] text-black">{settingsMsg}</span>}
               <button onClick={saveSettings} disabled={savingSettings}
                 className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600 text-white text-xs font-bold hover:bg-emerald-700 transition-colors disabled:opacity-60">
-                <Save className="w-3.5 h-3.5" /> {savingSettings ? "..." : "Salva"}
+                <Save className="w-3.5 h-3.5" /> {savingSettings ? "..." : t("adm_tenant_save")}
               </button>
             </div>
           </div>
@@ -857,13 +867,13 @@ export default function TenantDetailPage() {
           {/* Kill switch — highest-value control, surfaced first */}
           <div className="flex items-start gap-3 p-3 rounded-lg mb-3" style={{ background: sForm.botPaused ? "rgba(239,68,68,0.08)" : "rgba(196,149,106,0.06)" }}>
             <div className="flex-1 min-w-0">
-              <p className="text-xs font-medium text-black">Bot in pausa (kill switch)</p>
-              <p className="text-[10px] text-black mt-0.5">Quando attivo, il motore WhatsApp smette di gestire le richieste e risponde solo col messaggio di pausa.</p>
+              <p className="text-xs font-medium text-black">{t("adm_tenant_kill_switch_title")}</p>
+              <p className="text-[10px] text-black mt-0.5">{t("adm_tenant_kill_switch_hint")}</p>
               {sForm.botPaused && (
                 <input
                   value={sForm.botPausedMessage}
                   onChange={(e) => setSForm({ ...sForm, botPausedMessage: e.target.value })}
-                  placeholder="Messaggio mostrato mentre il bot è in pausa"
+                  placeholder={t("adm_tenant_kill_switch_placeholder")}
                   className="mt-2 w-full border-2 rounded-lg px-2 py-1.5 text-xs text-black focus:outline-none focus:ring-1 focus:ring-[#c4956a]"
                   style={{ borderColor: "#c4956a", background: "rgba(252,246,237,0.6)" }}
                 />
@@ -878,31 +888,31 @@ export default function TenantDetailPage() {
 
           <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
             <label className="text-xs text-black">
-              Timezone
+              {t("adm_tenant_field_timezone")}
               <input value={sForm.timezone} onChange={(e) => setSForm({ ...sForm, timezone: e.target.value })}
                 placeholder="Europe/Rome"
                 className="mt-1 w-full border-2 rounded-lg px-2 py-1.5 text-xs text-black focus:outline-none focus:ring-1 focus:ring-[#c4956a]"
                 style={{ borderColor: "#c4956a", background: "rgba(252,246,237,0.6)" }} />
             </label>
             <label className="text-xs text-black">
-              Lingua CRM
+              {t("adm_tenant_field_crm_locale")}
               <select value={sForm.crm_locale} onChange={(e) => setSForm({ ...sForm, crm_locale: e.target.value })}
                 className="mt-1 w-full border-2 rounded-lg px-2 py-1.5 text-xs text-black focus:outline-none focus:ring-1 focus:ring-[#c4956a]"
                 style={{ borderColor: "#c4956a", background: "rgba(252,246,237,0.6)" }}>
-                <option value="">(default)</option>
+                <option value="">{t("adm_tenant_locale_default")}</option>
                 <option value="it">it</option><option value="es">es</option><option value="en">en</option><option value="de">de</option>
               </select>
             </label>
             <label className="text-xs text-black">
-              Voce (provider)
+              {t("adm_tenant_field_voice_provider")}
               <select value={sForm.voiceProvider} onChange={(e) => setSForm({ ...sForm, voiceProvider: e.target.value })}
                 className="mt-1 w-full border-2 rounded-lg px-2 py-1.5 text-xs text-black focus:outline-none focus:ring-1 focus:ring-[#c4956a]"
                 style={{ borderColor: "#c4956a", background: "rgba(252,246,237,0.6)" }}>
-                <option value="vapi">vapi (base)</option><option value="retell">retell (premium)</option>
+                <option value="vapi">{t("adm_tenant_voice_vapi_opt")}</option><option value="retell">{t("adm_tenant_voice_retell_opt")}</option>
               </select>
             </label>
             <label className="text-xs text-black">
-              POS (provider)
+              {t("adm_tenant_field_pos_provider")}
               <select value={sForm.posProvider} onChange={(e) => setSForm({ ...sForm, posProvider: e.target.value })}
                 className="mt-1 w-full border-2 rounded-lg px-2 py-1.5 text-xs text-black focus:outline-none focus:ring-1 focus:ring-[#c4956a]"
                 style={{ borderColor: "#c4956a", background: "rgba(252,246,237,0.6)" }}>
@@ -910,25 +920,25 @@ export default function TenantDetailPage() {
               </select>
             </label>
             <label className="text-xs text-black">
-              Food cost target %
+              {t("adm_tenant_field_food_cost_target")}
               <input type="number" value={sForm.foodCostTargetPct} onChange={(e) => setSForm({ ...sForm, foodCostTargetPct: e.target.value })}
                 placeholder="30"
                 className="mt-1 w-full border-2 rounded-lg px-2 py-1.5 text-xs text-black focus:outline-none focus:ring-1 focus:ring-[#c4956a]"
                 style={{ borderColor: "#c4956a", background: "rgba(252,246,237,0.6)" }} />
             </label>
             <label className="text-xs text-black">
-              Budget personale / mese (€)
+              {t("adm_tenant_field_labor_budget")}
               <input type="number" value={sForm.laborBudgetMonthly} onChange={(e) => setSForm({ ...sForm, laborBudgetMonthly: e.target.value })}
                 placeholder="5000"
                 className="mt-1 w-full border-2 rounded-lg px-2 py-1.5 text-xs text-black focus:outline-none focus:ring-1 focus:ring-[#c4956a]"
                 style={{ borderColor: "#c4956a", background: "rgba(252,246,237,0.6)" }} />
             </label>
             <label className="text-xs text-black">
-              Metodo costo
+              {t("adm_tenant_field_cost_method")}
               <select value={sForm.costMethod} onChange={(e) => setSForm({ ...sForm, costMethod: e.target.value })}
                 className="mt-1 w-full border-2 rounded-lg px-2 py-1.5 text-xs text-black focus:outline-none focus:ring-1 focus:ring-[#c4956a]"
                 style={{ borderColor: "#c4956a", background: "rgba(252,246,237,0.6)" }}>
-                <option value="last">ultimo prezzo</option><option value="avg">media ponderata</option>
+                <option value="last">{t("adm_tenant_cost_last")}</option><option value="avg">{t("adm_tenant_cost_avg")}</option>
               </select>
             </label>
           </div>
@@ -938,44 +948,43 @@ export default function TenantDetailPage() {
           <div className="mt-4 pt-4 border-t" style={{ borderColor: "rgba(196,149,106,0.3)" }}>
             <div className="flex items-center gap-2 mb-2">
               <ShieldCheck className="w-4 h-4 text-[#c4956a]" />
-              <h4 className="text-[11px] font-bold text-black uppercase tracking-wider">Protezione dati (GDPR)</h4>
+              <h4 className="text-[11px] font-bold text-black uppercase tracking-wider">{t("adm_tenant_gdpr_title")}</h4>
             </div>
             <p className="text-[10px] text-black mb-3">
-              Il paese pilota informativa privacy, obbligo di disclosure AI, residenza dati e retention.
-              La retention agisce SOLO se il paese o i giorni sono impostati.
+              {t("adm_tenant_gdpr_hint")}
             </p>
             <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3">
               <label className="text-xs text-black">
-                Paese
+                {t("adm_tenant_field_country")}
                 <select value={sForm.country} onChange={(e) => setSForm({ ...sForm, country: e.target.value })}
                   className="mt-1 w-full border-2 rounded-lg px-2 py-1.5 text-xs text-black focus:outline-none focus:ring-1 focus:ring-[#c4956a]"
                   style={{ borderColor: "#c4956a", background: "rgba(252,246,237,0.6)" }}>
-                  <option value="">(non impostato — EU-strict)</option>
-                  <option value="ES">Spagna (GDPR + LOPDGDD)</option>
-                  <option value="IT">Italia (GDPR + Codice Privacy)</option>
-                  <option value="DE">Germania (GDPR + BDSG)</option>
-                  <option value="CH">Svizzera (revFADP)</option>
+                  <option value="">{t("adm_tenant_country_unset")}</option>
+                  <option value="ES">{t("adm_tenant_country_es")}</option>
+                  <option value="IT">{t("adm_tenant_country_it")}</option>
+                  <option value="DE">{t("adm_tenant_country_de")}</option>
+                  <option value="CH">{t("adm_tenant_country_ch")}</option>
                 </select>
               </label>
               <label className="text-xs text-black">
-                Retention transcript (giorni)
+                {t("adm_tenant_field_retention")}
                 <input type="number" value={sForm.retentionDays} onChange={(e) => setSForm({ ...sForm, retentionDays: e.target.value })}
-                  placeholder="default paese (30)"
+                  placeholder={t("adm_tenant_retention_placeholder")}
                   className="mt-1 w-full border-2 rounded-lg px-2 py-1.5 text-xs text-black focus:outline-none focus:ring-1 focus:ring-[#c4956a]"
                   style={{ borderColor: "#c4956a", background: "rgba(252,246,237,0.6)" }} />
               </label>
               <label className="text-xs text-black">
-                Disclosure AI
+                {t("adm_tenant_field_ai_disclosure")}
                 <select value={sForm.aiDisclosure} onChange={(e) => setSForm({ ...sForm, aiDisclosure: e.target.value })}
                   className="mt-1 w-full border-2 rounded-lg px-2 py-1.5 text-xs text-black focus:outline-none focus:ring-1 focus:ring-[#c4956a]"
                   style={{ borderColor: "#c4956a", background: "rgba(252,246,237,0.6)" }}>
-                  <option value="">default paese (UE: ON)</option>
-                  <option value="on">forza ON</option>
-                  <option value="off">forza OFF</option>
+                  <option value="">{t("adm_tenant_ai_disclosure_default")}</option>
+                  <option value="on">{t("adm_tenant_ai_disclosure_on")}</option>
+                  <option value="off">{t("adm_tenant_ai_disclosure_off")}</option>
                 </select>
               </label>
               <label className="text-xs text-black">
-                URL informativa privacy
+                {t("adm_tenant_field_privacy_url")}
                 <input value={sForm.privacyUrl} onChange={(e) => setSForm({ ...sForm, privacyUrl: e.target.value })}
                   placeholder="https://…/privacy"
                   className="mt-1 w-full border-2 rounded-lg px-2 py-1.5 text-xs text-black focus:outline-none focus:ring-1 focus:ring-[#c4956a]"
@@ -990,32 +999,31 @@ export default function TenantDetailPage() {
       <div className="rounded-xl border-2 p-4" style={cardStyle}>
         <div className="flex items-center gap-2 mb-3">
           <ShieldCheck className="w-4 h-4 text-[#c4956a]" />
-          <h3 className="text-xs font-bold text-black uppercase tracking-wider">Richiesta dati cliente (DSAR)</h3>
+          <h3 className="text-xs font-bold text-black uppercase tracking-wider">{t("adm_tenant_dsar_title")}</h3>
         </div>
         <p className="text-[10px] text-black mb-3">
-          Esporta o cancella tutti i dati di un singolo cliente. Inserisci l&apos;ID ospite (UUID) o il numero di telefono.
-          &quot;Anonimizza&quot; mantiene le prenotazioni (senza dati personali); &quot;Elimina&quot; cancella tutto. Il registro consensi resta come prova (anonimizzato).
+          {t("adm_tenant_dsar_hint")}
         </p>
         <div className="flex flex-wrap items-center gap-2">
           <input
             value={dsarQuery}
             onChange={(e) => setDsarQuery(e.target.value)}
-            placeholder="UUID ospite o telefono (+34…)"
+            placeholder={t("adm_tenant_dsar_placeholder")}
             className="flex-1 min-w-[220px] border-2 rounded-lg px-2 py-1.5 text-xs text-black focus:outline-none focus:ring-1 focus:ring-[#c4956a]"
             style={{ borderColor: "#c4956a", background: "rgba(252,246,237,0.6)" }}
           />
           <button onClick={runDsarExport} disabled={dsarBusy || !dsarQuery.trim()}
             className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#c4956a] text-white text-xs font-bold hover:opacity-90 transition disabled:opacity-60">
-            {dsarBusy ? "..." : "Esporta"}
+            {dsarBusy ? "..." : t("adm_tenant_dsar_export")}
           </button>
           <button onClick={() => runDsarErase("anonymize")} disabled={dsarBusy || !dsarQuery.trim()}
             className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border-2 text-xs font-bold text-black hover:bg-amber-50 transition disabled:opacity-60"
             style={{ borderColor: "#c4956a" }}>
-            Anonimizza
+            {t("adm_tenant_dsar_anonymize")}
           </button>
           <button onClick={() => runDsarErase("delete")} disabled={dsarBusy || !dsarQuery.trim()}
             className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-red-600 text-white text-xs font-bold hover:bg-red-700 transition disabled:opacity-60">
-            <Trash2 className="w-3.5 h-3.5" /> Elimina
+            <Trash2 className="w-3.5 h-3.5" /> {t("adm_tenant_dsar_delete")}
           </button>
         </div>
         {dsarMsg && <p className="text-[11px] text-black mt-2">{dsarMsg}</p>}
@@ -1030,24 +1038,24 @@ export default function TenantDetailPage() {
             <div className="flex items-center justify-between mb-3">
               <div className="flex items-center gap-2">
                 <CreditCard className="w-4 h-4 text-[#c4956a]" />
-                <h3 className="text-xs font-bold text-black uppercase tracking-wider">Abbonamento</h3>
+                <h3 className="text-xs font-bold text-black uppercase tracking-wider">{t("adm_tenant_billing")}</h3>
               </div>
               {b.stripe_customer_id && (
                 <a href={`https://dashboard.stripe.com/customers/${b.stripe_customer_id}`} target="_blank" rel="noopener noreferrer"
                   className="inline-flex items-center gap-1 text-xs font-medium text-black/70 hover:text-black transition-colors">
-                  Apri su Stripe <ExternalLink className="w-3 h-3" />
+                  {t("adm_tenant_billing_open_stripe")} <ExternalLink className="w-3 h-3" />
                 </a>
               )}
             </div>
             {!hasBilling ? (
-              <p className="text-xs text-black">Nessun abbonamento attivo per questo cliente.</p>
+              <p className="text-xs text-black">{t("adm_tenant_billing_none")}</p>
             ) : (
               <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 text-xs">
-                <div><p className="text-black/60">Piano</p><p className="font-medium text-black capitalize">{b.plan || "—"}</p></div>
-                <div><p className="text-black/60">Ciclo</p><p className="font-medium text-black">{b.cycle || "—"}</p></div>
-                <div><p className="text-black/60">Stato</p><p className="font-medium text-black">{b.status || "—"}</p></div>
-                <div><p className="text-black/60">Rinnovo</p><p className="font-medium text-black">{b.current_period_end ? new Date(b.current_period_end).toLocaleDateString() : "—"}</p></div>
-                <div><p className="text-black/60">Add-on</p><p className="font-medium text-black">{(b.addons && b.addons.length) ? b.addons.join(", ") : "—"}</p></div>
+                <div><p className="text-black/60">{t("adm_tenant_billing_plan")}</p><p className="font-medium text-black capitalize">{b.plan || "—"}</p></div>
+                <div><p className="text-black/60">{t("adm_tenant_billing_cycle")}</p><p className="font-medium text-black">{b.cycle || "—"}</p></div>
+                <div><p className="text-black/60">{t("adm_tenant_billing_status")}</p><p className="font-medium text-black">{b.status || "—"}</p></div>
+                <div><p className="text-black/60">{t("adm_tenant_billing_renewal")}</p><p className="font-medium text-black">{b.current_period_end ? new Date(b.current_period_end).toLocaleDateString() : "—"}</p></div>
+                <div><p className="text-black/60">{t("adm_tenant_billing_addons")}</p><p className="font-medium text-black">{(b.addons && b.addons.length) ? b.addons.join(", ") : "—"}</p></div>
               </div>
             )}
           </div>
@@ -1061,18 +1069,18 @@ export default function TenantDetailPage() {
       <div className="rounded-xl border-2 p-4" style={cardStyle}>
         <div className="flex items-center gap-2 mb-3">
           <CoinIcon className="w-4 h-4 text-[#c4956a]" />
-          <h3 className="text-xs font-bold text-black uppercase tracking-wider">Crediti</h3>
+          <h3 className="text-xs font-bold text-black uppercase tracking-wider">{t("adm_tenant_credits")}</h3>
         </div>
 
         <div className="grid grid-cols-3 gap-3 text-xs mb-4">
           <div>
-            <p className="text-black/60">Saldo totale</p>
+            <p className="text-black/60">{t("adm_tenant_credits_total")}</p>
             <p className="font-bold text-black text-base">
               {credits ? formatCredits(credits.total_remaining_mc) : "—"}
             </p>
           </div>
           <div>
-            <p className="text-black/60">Inclusi nel piano</p>
+            <p className="text-black/60">{t("adm_tenant_credits_included")}</p>
             <p className="font-medium text-black">
               {credits
                 ? `${formatCredits(credits.included_remaining_mc)} / ${formatCredits(credits.included_granted_mc)}`
@@ -1080,7 +1088,7 @@ export default function TenantDetailPage() {
             </p>
           </div>
           <div>
-            <p className="text-black/60">Acquistati/regalati</p>
+            <p className="text-black/60">{t("adm_tenant_credits_purchased")}</p>
             <p className="font-medium text-black">
               {credits ? formatCredits(credits.purchased_remaining_mc) : "—"}
             </p>
@@ -1092,14 +1100,14 @@ export default function TenantDetailPage() {
             type="number"
             value={creditsAmount}
             onChange={(e) => setCreditsAmount(e.target.value)}
-            placeholder="Crediti (es. 500, o -100 per togliere)"
+            placeholder={t("adm_tenant_credits_amount_placeholder")}
             className="w-full sm:w-56 border-2 rounded-lg px-2 py-1.5 text-xs text-black focus:outline-none focus:ring-1 focus:ring-[#c4956a]"
             style={{ borderColor: "#c4956a", background: "rgba(252,246,237,0.6)" }}
           />
           <input
             value={creditsReason}
             onChange={(e) => setCreditsReason(e.target.value)}
-            placeholder="Motivo (resta nel registro)"
+            placeholder={t("adm_tenant_credits_reason_placeholder")}
             className="flex-1 border-2 rounded-lg px-2 py-1.5 text-xs text-black focus:outline-none focus:ring-1 focus:ring-[#c4956a]"
             style={{ borderColor: "#c4956a", background: "rgba(252,246,237,0.6)" }}
           />
@@ -1108,7 +1116,7 @@ export default function TenantDetailPage() {
             disabled={creditsBusy || !creditsAmount.trim() || Number(creditsAmount) === 0}
             className="px-3 py-1.5 rounded-lg bg-[#c4956a] text-white text-xs font-bold hover:bg-[#8b6540] transition-colors disabled:opacity-50 cursor-pointer disabled:cursor-not-allowed shrink-0"
           >
-            {creditsBusy ? "..." : Number(creditsAmount) < 0 ? "Togli" : "Accredita"}
+            {creditsBusy ? "..." : Number(creditsAmount) < 0 ? t("adm_tenant_credits_remove") : t("adm_tenant_credits_grant")}
           </button>
         </div>
         {creditsMsg && <p className="text-xs font-medium text-black mt-2">{creditsMsg}</p>}
@@ -1116,17 +1124,17 @@ export default function TenantDetailPage() {
         {credits && credits.recent.length > 0 && (
           <div className="mt-4">
             <p className="text-[10px] font-bold text-black/60 uppercase tracking-wider mb-1.5">
-              Ultime ricariche
+              {t("adm_tenant_credits_recent")}
             </p>
             <div className="space-y-1">
               {credits.recent.map((ev) => (
                 <div key={ev.id} className="flex items-center justify-between text-xs">
                   <span className="text-black">
                     {ev.action_type === "admin_grant"
-                      ? "Manuale (admin)"
+                      ? t("adm_tenant_credits_manual")
                       : ev.action_type === "topup"
-                        ? "Ricarica pagata"
-                        : "Crediti del piano"}
+                        ? t("adm_tenant_credits_topup")
+                        : t("adm_tenant_credits_plan")}
                     <span className="text-black/50 ml-2">
                       {new Date(ev.created_at).toLocaleDateString()}
                     </span>
@@ -1151,18 +1159,18 @@ export default function TenantDetailPage() {
         const effectiveOf = (key: string): boolean =>
           key === "plan" ? hasActivePlan(tenant.settings as any) : entitlementFor(tenant.settings as any, key as any).active;
         const SEG: Array<{ v: boolean | null; label: string; on: string }> = [
-          { v: null, label: "Auto", on: "bg-zinc-700 text-white" },
-          { v: true, label: "Attivo", on: "bg-emerald-500 text-white" },
-          { v: false, label: "Disattivo", on: "bg-red-500 text-white" },
+          { v: null, label: t("adm_tenant_ov_auto"), on: "bg-zinc-700 text-white" },
+          { v: true, label: t("adm_tenant_ov_active"), on: "bg-emerald-500 text-white" },
+          { v: false, label: t("adm_tenant_ov_inactive"), on: "bg-red-500 text-white" },
         ];
         return (
           <div className="rounded-xl border-2 p-4" style={cardStyle}>
             <div className="flex items-center gap-2 mb-1">
               <ShieldCheck className="w-4 h-4 text-[#c4956a]" />
-              <h3 className="text-xs font-bold text-black uppercase tracking-wider">Override servizi a pagamento</h3>
+              <h3 className="text-xs font-bold text-black uppercase tracking-wider">{t("adm_tenant_overrides_title")}</h3>
             </div>
             <p className="text-[10px] text-black/70 mb-3">
-              Forza manualmente un servizio attivo o disattivo, ignorando lo stato del pagamento. <b>Auto</b> segue l&apos;abbonamento. L&apos;override vince su Stripe/PayPal.
+              {t("adm_tenant_overrides_hint")}
             </p>
             <div className="space-y-2">
               {ENTITLEMENT_OVERRIDES.map((s) => {
@@ -1173,15 +1181,15 @@ export default function TenantDetailPage() {
                   <div key={s.key} className="flex items-start gap-3 p-3 rounded-lg" style={{ background: "rgba(196,149,106,0.06)" }}>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-1.5 flex-wrap">
-                        <p className="text-xs font-medium text-black">{s.title}</p>
+                        <p className="text-xs font-medium text-black">{t(s.titleKey)}</p>
                         <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full border ${
                           effective ? "bg-emerald-50 text-emerald-700 border-emerald-200" : "bg-zinc-100 text-zinc-600 border-zinc-300"
                         }`}>
-                          {effective ? "attivo" : "bloccato"}
-                          {current === undefined ? " · auto" : current ? " · forzato ON" : " · forzato OFF"}
+                          {effective ? t("adm_tenant_ov_state_active") : t("adm_tenant_ov_state_blocked")}
+                          {current === undefined ? t("adm_tenant_ov_suffix_auto") : current ? t("adm_tenant_ov_suffix_on") : t("adm_tenant_ov_suffix_off")}
                         </span>
                       </div>
-                      <p className="text-[10px] text-black mt-0.5">{s.hint}</p>
+                      <p className="text-[10px] text-black mt-0.5">{t(s.hintKey)}</p>
                     </div>
                     <div className="inline-flex flex-shrink-0 rounded-lg border overflow-hidden" style={{ borderColor: "#e6d8c5" }}>
                       {SEG.map((seg) => {
@@ -1212,35 +1220,35 @@ export default function TenantDetailPage() {
       {/* KPI Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-2 sm:gap-4">
         <div className="rounded-xl p-3 sm:p-4 border-2" style={cardStyle}>
-          <p className="text-xs text-black font-medium">AI Revenue (7d)</p>
+          <p className="text-xs text-black font-medium">{t("adm_tenant_kpi_ai_revenue_7")}</p>
           <p className="text-xl font-bold text-[#22c55e]">€{kpis.aiRevenue7.toLocaleString()}</p>
         </div>
         <div className="rounded-xl p-3 sm:p-4 border-2" style={cardStyle}>
-          <p className="text-xs text-black font-medium">AI Revenue (30d)</p>
+          <p className="text-xs text-black font-medium">{t("adm_tenant_kpi_ai_revenue_30")}</p>
           <p className="text-xl font-bold text-[#22c55e]">€{kpis.aiRevenue30.toLocaleString()}</p>
         </div>
         <div className="rounded-xl p-3 sm:p-4 border-2" style={cardStyle}>
           <div className="flex items-center gap-1">
             <Bot className="w-3.5 h-3.5 text-[#c4956a]" />
-            <p className="text-xs text-black font-medium">AI Handled</p>
+            <p className="text-xs text-black font-medium">{t("adm_tenant_kpi_ai_handled")}</p>
           </div>
           <p className="text-xl font-bold text-black">{kpis.aiPct}%</p>
-          <p className="text-[10px] text-black">{kpis.aiCount} AI / {kpis.totalBookings30 - kpis.aiCount} Staff</p>
+          <p className="text-[10px] text-black">{t("adm_tenant_kpi_ai_staff").replace("{ai}", String(kpis.aiCount)).replace("{staff}", String(kpis.totalBookings30 - kpis.aiCount))}</p>
         </div>
         <div className="rounded-xl p-3 sm:p-4 border-2" style={cardStyle}>
           <div className="flex items-center gap-1">
             <UserX className="w-3.5 h-3.5 text-red-400" />
-            <p className="text-xs text-black font-medium">No-Shows (30d)</p>
+            <p className="text-xs text-black font-medium">{t("adm_tenant_kpi_no_shows")}</p>
           </div>
           <p className="text-xl font-bold text-black">{kpis.noShows}</p>
         </div>
         <div className="rounded-xl p-3 sm:p-4 border-2" style={cardStyle}>
           <div className="flex items-center gap-1">
             <TrendingUp className="w-3.5 h-3.5 text-orange-400" />
-            <p className="text-xs text-black font-medium">Escalation Rate</p>
+            <p className="text-xs text-black font-medium">{t("adm_tenant_kpi_escalation_rate")}</p>
           </div>
           <p className="text-xl font-bold text-black">{kpis.escalationRate}%</p>
-          <p className="text-[10px] text-black">{kpis.escalations} escalated</p>
+          <p className="text-[10px] text-black">{t("adm_tenant_kpi_escalated").replace("{n}", String(kpis.escalations))}</p>
         </div>
       </div>
 
@@ -1249,7 +1257,7 @@ export default function TenantDetailPage() {
         <div className="rounded-xl border-2 p-4" style={cardStyle}>
           <div className="flex items-center gap-2 mb-3">
             <Lightbulb className="w-4 h-4 text-amber-500" />
-            <h3 className="text-xs font-bold text-black uppercase tracking-wider">Insights & Opportunities</h3>
+            <h3 className="text-xs font-bold text-black uppercase tracking-wider">{t("adm_tenant_insights")}</h3>
           </div>
           <div className="space-y-2">
             {insights.map((ins: any, i: number) => {
@@ -1290,11 +1298,11 @@ export default function TenantDetailPage() {
         {/* Recent Reservations */}
         <div className="rounded-xl border-2 overflow-hidden" style={cardStyle}>
           <div className="px-4 py-3 border-b" style={{ borderColor: "#c4956a" }}>
-            <h3 className="text-xs font-bold text-black uppercase tracking-wider">Recent Reservations</h3>
+            <h3 className="text-xs font-bold text-black uppercase tracking-wider">{t("adm_tenant_recent_reservations")}</h3>
           </div>
           <div className="max-h-[320px] overflow-y-auto">
             {recentReservations.length === 0 ? (
-              <p className="p-4 text-xs text-black text-center">No recent reservations</p>
+              <p className="p-4 text-xs text-black text-center">{t("adm_tenant_no_reservations")}</p>
             ) : (
               <div className="divide-y" style={{ borderColor: "rgba(196,149,106,0.15)" }}>
                 {recentReservations.map((r: any) => (
@@ -1302,7 +1310,7 @@ export default function TenantDetailPage() {
                     {sourceIcon(r.source)}
                     <div className="flex-1 min-w-0">
                       <p className="text-xs font-medium text-black truncate">
-                        {r.guests?.name || "Guest"} — {r.party_size}p
+                        {r.guests?.name || t("adm_tenant_guest")} — {r.party_size}p
                       </p>
                       <p className="text-[10px] text-black">{r.date} {r.time}</p>
                     </div>
@@ -1324,11 +1332,11 @@ export default function TenantDetailPage() {
         {/* Recent Conversations */}
         <div className="rounded-xl border-2 overflow-hidden" style={cardStyle}>
           <div className="px-4 py-3 border-b" style={{ borderColor: "#c4956a" }}>
-            <h3 className="text-xs font-bold text-black uppercase tracking-wider">Recent Conversations</h3>
+            <h3 className="text-xs font-bold text-black uppercase tracking-wider">{t("adm_tenant_recent_conversations")}</h3>
           </div>
           <div className="max-h-[320px] overflow-y-auto">
             {recentConversations.length === 0 ? (
-              <p className="p-4 text-xs text-black text-center">No recent conversations</p>
+              <p className="p-4 text-xs text-black text-center">{t("adm_tenant_no_conversations")}</p>
             ) : (
               <div className="divide-y" style={{ borderColor: "rgba(196,149,106,0.15)" }}>
                 {recentConversations.map((c: any) => (
@@ -1339,7 +1347,7 @@ export default function TenantDetailPage() {
                       <Phone className="w-3.5 h-3.5 text-indigo-500" />
                     )}
                     <div className="flex-1 min-w-0">
-                      <p className="text-xs font-medium text-black truncate">{c.summary || "No summary"}</p>
+                      <p className="text-xs font-medium text-black truncate">{c.summary || t("adm_tenant_no_summary")}</p>
                       <p className="text-[10px] text-black">{new Date(c.created_at).toLocaleString()}</p>
                     </div>
                     <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
@@ -1363,11 +1371,11 @@ export default function TenantDetailPage() {
         {/* Incidents */}
         <div className="rounded-xl border-2 overflow-hidden" style={cardStyle}>
           <div className="px-4 py-3 border-b" style={{ borderColor: "#c4956a" }}>
-            <h3 className="text-xs font-bold text-black uppercase tracking-wider">Incidents</h3>
+            <h3 className="text-xs font-bold text-black uppercase tracking-wider">{t("adm_tenant_incidents")}</h3>
           </div>
           <div className="max-h-[280px] overflow-y-auto">
             {recentIncidents.length === 0 ? (
-              <p className="p-4 text-xs text-black text-center">No incidents</p>
+              <p className="p-4 text-xs text-black text-center">{t("adm_tenant_no_incidents")}</p>
             ) : (
               <div className="divide-y" style={{ borderColor: "rgba(196,149,106,0.15)" }}>
                 {recentIncidents.map((inc: any) => (
@@ -1391,11 +1399,11 @@ export default function TenantDetailPage() {
         {/* System Logs */}
         <div className="rounded-xl border-2 overflow-hidden" style={cardStyle}>
           <div className="px-4 py-3 border-b" style={{ borderColor: "#c4956a" }}>
-            <h3 className="text-xs font-bold text-black uppercase tracking-wider">System Logs</h3>
+            <h3 className="text-xs font-bold text-black uppercase tracking-wider">{t("adm_tenant_system_logs")}</h3>
           </div>
           <div className="max-h-[280px] overflow-y-auto">
             {recentLogs.length === 0 ? (
-              <p className="p-4 text-xs text-black text-center">No system logs</p>
+              <p className="p-4 text-xs text-black text-center">{t("adm_tenant_no_logs")}</p>
             ) : (
               <div className="divide-y" style={{ borderColor: "rgba(196,149,106,0.15)" }}>
                 {recentLogs.map((log: any) => (
@@ -1422,21 +1430,21 @@ export default function TenantDetailPage() {
       <div className="rounded-xl border-2 p-4" style={cardStyle}>
         <div className="flex items-center gap-2 mb-3">
           <StickyNote className="w-4 h-4 text-[#c4956a]" />
-          <h3 className="text-xs font-bold text-black uppercase tracking-wider">Note cliente</h3>
+          <h3 className="text-xs font-bold text-black uppercase tracking-wider">{t("adm_tenant_notes")}</h3>
         </div>
         <div className="flex gap-2 mb-3">
           <input value={newNote} onChange={(e) => setNewNote(e.target.value)}
             onKeyDown={(e) => { if (e.key === "Enter") addNote(); }}
-            placeholder="Aggiungi una nota (rinnovo contratto, upsell, richiesta...)"
+            placeholder={t("adm_tenant_note_placeholder")}
             className="flex-1 border-2 rounded-lg px-2 py-1.5 text-xs text-black focus:outline-none focus:ring-1 focus:ring-[#c4956a]"
             style={{ borderColor: "#c4956a", background: "rgba(252,246,237,0.6)" }} />
           <button onClick={addNote} disabled={notesBusy || !newNote.trim()}
             className="px-3 py-1.5 rounded-lg bg-[#c4956a] text-white text-xs font-bold hover:bg-[#8b6540] transition-colors disabled:opacity-50">
-            Aggiungi
+            {t("adm_tenant_note_add")}
           </button>
         </div>
         {notes.length === 0 ? (
-          <p className="text-xs text-black">Nessuna nota.</p>
+          <p className="text-xs text-black">{t("adm_tenant_notes_none")}</p>
         ) : (
           <div className="space-y-2">
             {notes.map((n) => (
@@ -1445,7 +1453,7 @@ export default function TenantDetailPage() {
                   <p className="text-xs text-black whitespace-pre-wrap break-words">{n.content}</p>
                   <p className="text-[10px] text-black/60 mt-0.5">{new Date(n.created_at).toLocaleString()}</p>
                 </div>
-                <button onClick={() => deleteNote(n.id)} className="opacity-0 group-hover:opacity-100 text-black/50 hover:text-red-600 transition-opacity flex-shrink-0" title="Elimina nota">
+                <button onClick={() => deleteNote(n.id)} className="opacity-0 group-hover:opacity-100 text-black/50 hover:text-red-600 transition-opacity flex-shrink-0" title={t("adm_tenant_note_delete")}>
                   <Trash2 className="w-3.5 h-3.5" />
                 </button>
               </div>
@@ -1457,30 +1465,30 @@ export default function TenantDetailPage() {
       {/* Danger Zone — platform_admin only (page already gates) */}
       <div className="rounded-xl border-2 border-red-300 bg-red-50/60 p-4 space-y-3">
         <div className="flex items-center gap-2 text-red-700 font-bold text-sm">
-          <AlertTriangle className="w-4 h-4" /> Danger Zone
+          <AlertTriangle className="w-4 h-4" /> {t("adm_tenant_danger_zone")}
         </div>
 
         {actionMsg && <p className="text-xs font-medium text-black">{actionMsg}</p>}
         {downloadUrl && (
           <a href={downloadUrl} className="text-xs font-bold text-blue-700 underline" target="_blank" rel="noreferrer">
-            ⬇︎ Scarica il backup dei dati (JSON)
+            {t("adm_tenant_download_backup")}
           </a>
         )}
 
         {tenant.status === "archived" ? (
           <div className="space-y-2">
             <p className="text-xs text-black">
-              Archiviato{tenant.archived_at ? ` il ${new Date(tenant.archived_at).toLocaleDateString()}` : ""}.
-              {tenant.purge_after ? ` Cancellazione automatica il ${new Date(tenant.purge_after).toLocaleDateString()}.` : ""}
+              {tenant.archived_at ? t("adm_tenant_archived_on").replace("{date}", new Date(tenant.archived_at).toLocaleDateString()) : t("adm_tenant_archived_plain")}
+              {tenant.purge_after ? t("adm_tenant_auto_delete_on").replace("{date}", new Date(tenant.purge_after).toLocaleDateString()) : ""}
             </p>
             <div className="flex flex-wrap gap-2">
               <button onClick={runRestore} disabled={working}
                 className="px-3 py-1.5 rounded-lg bg-emerald-600 text-white text-xs font-bold hover:bg-emerald-700 disabled:opacity-50">
-                Ripristina
+                {t("adm_tenant_restore")}
               </button>
               <button onClick={() => { setDanger("purge"); setConfirmText(""); }} disabled={working}
                 className="px-3 py-1.5 rounded-lg bg-red-600 text-white text-xs font-bold hover:bg-red-700 disabled:opacity-50">
-                Cancella adesso definitivamente
+                {t("adm_tenant_delete_now_final")}
               </button>
             </div>
           </div>
@@ -1488,11 +1496,11 @@ export default function TenantDetailPage() {
           <div className="flex flex-wrap gap-2">
             <button onClick={() => { setDanger("archive"); setConfirmText(""); }} disabled={working}
               className="px-3 py-1.5 rounded-lg bg-orange-600 text-white text-xs font-bold hover:bg-orange-700 disabled:opacity-50">
-              Archivia &amp; rimuovi (recuperabile 90 giorni)
+              {t("adm_tenant_archive_remove")}
             </button>
             <button onClick={() => { setDanger("purge"); setConfirmText(""); }} disabled={working}
               className="px-3 py-1.5 rounded-lg bg-red-600 text-white text-xs font-bold hover:bg-red-700 disabled:opacity-50">
-              Cancella subito (salta l&apos;attesa)
+              {t("adm_tenant_delete_skip_wait")}
             </button>
           </div>
         )}
@@ -1504,25 +1512,25 @@ export default function TenantDetailPage() {
           <div className="w-full max-w-md rounded-xl bg-white p-5 space-y-3" onClick={(e) => e.stopPropagation()}>
             <h3 className="text-sm font-bold text-red-700 flex items-center gap-2">
               <AlertTriangle className="w-4 h-4" />
-              {danger === "archive" ? "Archivia e rimuovi" : "Cancella definitivamente"}
+              {danger === "archive" ? t("adm_tenant_modal_archive_title") : t("adm_tenant_modal_delete_title")}
             </h3>
             <p className="text-xs text-black">
               {danger === "archive"
-                ? "Il cliente sparisce subito dal CRM e i suoi servizi si fermano. Recuperabile per 90 giorni, poi cancellato per sempre."
-                : "Cancellazione IMMEDIATA e irreversibile: dati, workflow n8n, assistente vocale e accessi staff. Esiste un backup scaricabile."}
+                ? t("adm_tenant_modal_archive_body")
+                : t("adm_tenant_modal_delete_body")}
             </p>
-            <p className="text-xs text-black">Scrivi il nome esatto del ristorante per confermare: <b>{tenant.name}</b></p>
+            <p className="text-xs text-black">{t("adm_tenant_modal_confirm_name")} <b>{tenant.name}</b></p>
             <input autoFocus value={confirmText} onChange={(e) => setConfirmText(e.target.value)}
               className="w-full border-2 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-red-400"
               style={{ borderColor: "#fca5a5" }} placeholder={tenant.name} />
             <div className="flex justify-end gap-2">
               <button onClick={() => setDanger(null)} disabled={working}
-                className="px-3 py-1.5 rounded-lg border text-xs font-bold text-black disabled:opacity-50">Annulla</button>
+                className="px-3 py-1.5 rounded-lg border text-xs font-bold text-black disabled:opacity-50">{t("adm_tenant_cancel")}</button>
               <button
                 onClick={danger === "archive" ? runArchive : runPurge}
                 disabled={working || confirmText.trim() !== tenant.name}
                 className="px-3 py-1.5 rounded-lg bg-red-600 text-white text-xs font-bold hover:bg-red-700 disabled:opacity-50">
-                {working ? "..." : (danger === "archive" ? "Archivia" : "Cancella per sempre")}
+                {working ? "..." : (danger === "archive" ? t("adm_tenant_modal_confirm_archive") : t("adm_tenant_modal_confirm_delete"))}
               </button>
             </div>
           </div>

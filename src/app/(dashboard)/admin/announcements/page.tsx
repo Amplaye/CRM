@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useTenant } from "@/lib/contexts/TenantContext";
+import { useLanguage } from "@/lib/contexts/LanguageContext";
 import { Sparkles, RefreshCw, Plus, Trash2, Eye, EyeOff, MousePointerClick, Users } from "lucide-react";
 import { pickText, type L10nText } from "@/lib/announcements/select";
 
@@ -28,6 +29,7 @@ const emptyL10n = (): Record<Lang, string> => ({ it: "", en: "", es: "", de: "" 
 
 export default function AnnouncementsPage() {
   const { globalRole } = useTenant();
+  const { t } = useLanguage();
   const [rows, setRows] = useState<Row[]>([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -84,7 +86,7 @@ export default function AnnouncementsPage() {
   };
 
   const remove = async (row: Row) => {
-    if (!confirm(`Delete "${pickText(row.title, "en") || row.slug}"? Its reach stats go with it.`)) return;
+    if (!confirm(t("adm_ann_delete_confirm").replace("{name}", pickText(row.title, "en") || row.slug))) return;
     setBusy(true);
     try {
       await fetch(`/api/admin/announcements/${row.id}`, { method: "DELETE" });
@@ -94,7 +96,7 @@ export default function AnnouncementsPage() {
   };
 
   if (globalRole !== "platform_admin") {
-    return <div className="p-8 text-center text-black">Unauthorized</div>;
+    return <div className="p-8 text-center text-black">{t("adm_ann_unauthorized")}</div>;
   }
 
   const cardStyle = { background: "rgba(252,246,237,0.85)", borderColor: "#c4956a" };
@@ -106,33 +108,30 @@ export default function AnnouncementsPage() {
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Sparkles className="w-5 h-5 text-[#c4956a]" />
-          <h1 className="text-xl sm:text-2xl font-bold text-black">Announcements</h1>
+          <h1 className="text-xl sm:text-2xl font-bold text-black">{t("adm_ann_title")}</h1>
         </div>
         <button onClick={load} className="p-2 hover:bg-[#c4956a]/10 rounded-lg transition-colors">
           <RefreshCw className={`w-4 h-4 text-black ${loading ? "animate-spin" : ""}`} />
         </button>
       </div>
 
-      <p className="text-sm text-black">
-        A published announcement shows once, as a centred modal, to every eligible user across every
-        tenant. Write it as a draft, review it, then publish — publishing is what makes it appear.
-      </p>
+      <p className="text-sm text-black">{t("adm_ann_intro")}</p>
 
       {/* Composer */}
       <div className="rounded-xl border-2 p-4 space-y-3" style={cardStyle}>
         <div className="flex items-center gap-2">
           <Plus className="w-4 h-4 text-[#c4956a]" />
-          <h2 className="font-bold text-black">New announcement</h2>
+          <h2 className="font-bold text-black">{t("adm_ann_new")}</h2>
         </div>
 
         <div className="grid sm:grid-cols-2 gap-3">
           <div>
-            <label className="text-xs font-semibold text-black">Slug (internal id)</label>
+            <label className="text-xs font-semibold text-black">{t("adm_ann_slug_label")}</label>
             <input value={slug} onChange={(e) => setSlug(e.target.value)} placeholder="social-2026-07"
               className={inputStyle} style={inputBorder} />
           </div>
           <div>
-            <label className="text-xs font-semibold text-black">CTA link (in-app path)</label>
+            <label className="text-xs font-semibold text-black">{t("adm_ann_cta_link_label")}</label>
             <input value={ctaHref} onChange={(e) => setCtaHref(e.target.value)} placeholder="/social"
               className={inputStyle} style={inputBorder} />
           </div>
@@ -154,35 +153,35 @@ export default function AnnouncementsPage() {
 
         <div className="space-y-2">
           <input value={title[lang]} onChange={(e) => setTitle({ ...title, [lang]: e.target.value })}
-            placeholder={`Title (${lang})`} className={inputStyle} style={inputBorder} />
+            placeholder={t("adm_ann_title_ph").replace("{lang}", lang)} className={inputStyle} style={inputBorder} />
           <textarea value={body[lang]} onChange={(e) => setBody({ ...body, [lang]: e.target.value })}
-            placeholder={`Body (${lang}) — what it does and why they should care`} rows={3}
+            placeholder={t("adm_ann_body_ph").replace("{lang}", lang)} rows={3}
             className={inputStyle} style={inputBorder} />
           <input value={ctaLabel[lang]} onChange={(e) => setCtaLabel({ ...ctaLabel, [lang]: e.target.value })}
-            placeholder={`Button label (${lang}) — optional, defaults to "Discover it"`}
+            placeholder={t("adm_ann_btn_label_ph").replace("{lang}", lang)}
             className={inputStyle} style={inputBorder} />
         </div>
 
         <div className="flex flex-wrap items-center gap-3">
-          <label className="text-xs font-semibold text-black">Audience</label>
+          <label className="text-xs font-semibold text-black">{t("adm_ann_audience")}</label>
           <select value={audience} onChange={(e) => setAudience(e.target.value as "owner_manager" | "all")}
             className="text-sm border-2 rounded-lg px-3 py-2 text-black" style={inputBorder}>
-            <option value="owner_manager">Owners &amp; managers</option>
-            <option value="all">Everyone (waiters included)</option>
+            <option value="owner_manager">{t("adm_ann_owners_managers")}</option>
+            <option value="all">{t("adm_ann_everyone_waiters")}</option>
           </select>
           <button onClick={create} disabled={busy || !slug.trim()}
             className="ml-auto h-10 px-4 rounded-xl text-sm font-bold text-white disabled:opacity-40 inline-flex items-center gap-2"
             style={{ background: "linear-gradient(135deg, #d4a574, #c4956a)" }}>
-            <Plus className="w-4 h-4" /> Create draft
+            <Plus className="w-4 h-4" /> {t("adm_ann_create_draft")}
           </button>
         </div>
 
         {err && (
           <p className="text-sm font-medium text-red-600">
-            {err === "slug_format" ? "Slug must be 3–61 lowercase letters, digits or dashes."
-              : err === "slug_taken" ? "That slug already exists."
-              : err === "text_required" ? "Give it a title and a body in at least one language."
-              : err === "cta_href_must_be_internal" ? "The CTA link must be an in-app path starting with /."
+            {err === "slug_format" ? t("adm_ann_err_slug_format")
+              : err === "slug_taken" ? t("adm_ann_err_slug_taken")
+              : err === "text_required" ? t("adm_ann_err_text_required")
+              : err === "cta_href_must_be_internal" ? t("adm_ann_err_cta_internal")
               : err}
           </p>
         )}
@@ -191,7 +190,7 @@ export default function AnnouncementsPage() {
       {/* List */}
       <div className="space-y-3">
         {rows.length === 0 && !loading && (
-          <p className="text-sm text-black">No announcements yet.</p>
+          <p className="text-sm text-black">{t("adm_ann_none")}</p>
         )}
         {rows.map((row) => (
           <div key={row.id} className="rounded-xl border-2 p-4 space-y-2" style={cardStyle}>
@@ -199,7 +198,7 @@ export default function AnnouncementsPage() {
               <div className="min-w-0">
                 <div className="flex items-center gap-2 flex-wrap">
                   <span className={`px-2 py-0.5 rounded-full text-xs font-bold text-white ${row.published ? "bg-emerald-600" : "bg-black/40"}`}>
-                    {row.published ? "Live" : "Draft"}
+                    {row.published ? t("adm_ann_live") : t("adm_ann_draft")}
                   </span>
                   <span className="font-bold text-black truncate">{pickText(row.title, "en") || row.slug}</span>
                   <code className="text-xs text-black/60">{row.slug}</code>
@@ -207,12 +206,12 @@ export default function AnnouncementsPage() {
                 <p className="text-sm text-black mt-1">{pickText(row.body, "en")}</p>
                 <div className="flex items-center gap-4 mt-2 text-xs text-black">
                   <span className="inline-flex items-center gap-1">
-                    <Users className="w-3.5 h-3.5" /> {row.seen} seen
+                    <Users className="w-3.5 h-3.5" /> {row.seen} {t("adm_ann_seen")}
                   </span>
                   <span className="inline-flex items-center gap-1">
-                    <MousePointerClick className="w-3.5 h-3.5" /> {row.clicked} clicked
+                    <MousePointerClick className="w-3.5 h-3.5" /> {row.clicked} {t("adm_ann_clicked")}
                   </span>
-                  <span>{row.audience === "all" ? "Everyone" : "Owners & managers"}</span>
+                  <span>{row.audience === "all" ? t("adm_ann_everyone") : t("adm_ann_owners_managers")}</span>
                   {row.cta_href && <code className="text-black/60">{row.cta_href}</code>}
                   <span className="text-black/60">
                     {LANGS.filter((l) => pickText(row.title, l) && pickText(row.body, l)).join(" · ")}
@@ -221,11 +220,11 @@ export default function AnnouncementsPage() {
               </div>
               <div className="flex items-center gap-1 shrink-0">
                 <button onClick={() => patch(row.id, { published: !row.published })} disabled={busy}
-                  title={row.published ? "Unpublish" : "Publish"}
+                  title={row.published ? t("adm_ann_unpublish") : t("adm_ann_publish")}
                   className="p-2 rounded-lg hover:bg-[#c4956a]/10 transition-colors disabled:opacity-40">
                   {row.published ? <EyeOff className="w-4 h-4 text-black" /> : <Eye className="w-4 h-4 text-black" />}
                 </button>
-                <button onClick={() => remove(row)} disabled={busy} title="Delete"
+                <button onClick={() => remove(row)} disabled={busy} title={t("adm_ann_delete")}
                   className="p-2 rounded-lg hover:bg-red-500/10 transition-colors disabled:opacity-40">
                   <Trash2 className="w-4 h-4 text-red-600" />
                 </button>

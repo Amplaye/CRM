@@ -354,7 +354,7 @@ export default function WaitlistPage() {
       setSelectedTables(new Set());
     } catch (err: any) {
       console.error(err);
-      alert("Failed to assign + book: " + (err?.message || "unknown"));
+      alert(t("waitlist_err_assign_book") + (err?.message || t("err_unknown")));
     } finally {
       setConfirmInFlight(false);
     }
@@ -392,7 +392,7 @@ export default function WaitlistPage() {
       if (!res.success) throw new Error((res as any).error || "Unknown error");
       setIsCreating(false);
     } catch (err: any) {
-      alert("Failed to create: " + err.message);
+      alert(t("waitlist_err_create") + err.message);
     } finally {
       setSaving(false);
     }
@@ -770,7 +770,7 @@ export default function WaitlistPage() {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                 <div>
                   <label className="block text-xs font-bold text-black mb-1">{t("waitlist_guest_name")}</label>
-                  <input required name="guestName" type="text" placeholder="John Doe" className="w-full border-2 border-[#c4956a] bg-[rgba(252,246,237,0.6)] rounded-lg px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-[#c4956a]" />
+                  <input required name="guestName" type="text" placeholder={t("auth_name_placeholder")} className="w-full border-2 border-[#c4956a] bg-[rgba(252,246,237,0.6)] rounded-lg px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-[#c4956a]" />
                 </div>
                 <div>
                   <label className="block text-xs font-bold text-black mb-1">{t("waitlist_guest_phone")}</label>

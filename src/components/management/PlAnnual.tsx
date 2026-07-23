@@ -173,9 +173,9 @@ export function PlAnnual() {
       {/* Year navigator + VAT + export */}
       <div className="flex flex-wrap items-center gap-3">
         <div className="inline-flex items-center rounded-xl border overflow-hidden bg-white/70" style={{ borderColor: BROWN }}>
-          <button onClick={() => setYear((y) => y - 1)} className="px-3 py-2 cursor-pointer text-black" aria-label="prev year"><ChevronLeft className="w-4 h-4" /></button>
+          <button onClick={() => setYear((y) => y - 1)} className="px-3 py-2 cursor-pointer text-black" aria-label={t("aria_prev_year")}><ChevronLeft className="w-4 h-4" /></button>
           <span className="px-3 py-2 text-sm font-bold text-black tabular-nums min-w-[4rem] text-center">{year}</span>
-          <button onClick={() => setYear((y) => Math.min(nowYear, y + 1))} disabled={year >= nowYear} className="px-3 py-2 cursor-pointer text-black disabled:opacity-40" aria-label="next year"><ChevronRight className="w-4 h-4" /></button>
+          <button onClick={() => setYear((y) => Math.min(nowYear, y + 1))} disabled={year >= nowYear} className="px-3 py-2 cursor-pointer text-black disabled:opacity-40" aria-label={t("aria_next_year")}><ChevronRight className="w-4 h-4" /></button>
         </div>
         <div className="inline-flex rounded-xl border overflow-hidden bg-white/70" style={{ borderColor: BROWN }}>
           <button onClick={() => setVatIncl(false)} className={`px-3 py-2 text-sm cursor-pointer ${!vatIncl ? "text-white font-bold" : "text-black"}`} style={!vatIncl ? { background: BROWN } : undefined}>{t("incassi_vat_toggle_excl" as keyof Dictionary) || "IVA esclusa"}</button>

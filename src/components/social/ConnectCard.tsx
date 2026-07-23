@@ -240,11 +240,11 @@ export function ConnectCard({ tenantId, connectedAccountName, status, onConnecte
             </button>
             {guideOpen ? (
               <ol className="list-decimal space-y-2 px-8 pb-4 text-sm text-black">
-                <li>Crea o usa una Pagina Facebook del ristorante.</li>
-                <li>Passa Instagram a un profilo Business o Creator e collegalo alla Pagina.</li>
-                <li>Clicca “{tt("social_connect_cta")}” e accedi con Facebook.</li>
-                <li>Autorizza i permessi richiesti e scegli la Pagina.</li>
-                <li>Fatto: l’account risulta “{tt("social_connected")}”.</li>
+                <li>{tt("social_connect_step1")}</li>
+                <li>{tt("social_connect_step2")}</li>
+                <li>{tt("social_connect_step3").replace("{cta}", tt("social_connect_cta"))}</li>
+                <li>{tt("social_connect_step4")}</li>
+                <li>{tt("social_connect_step5").replace("{status}", tt("social_connected"))}</li>
                 <li>
                   <a
                     className="inline-flex items-center gap-1 font-medium text-[#c4956a] underline"
@@ -252,7 +252,7 @@ export function ConnectCard({ tenantId, connectedAccountName, status, onConnecte
                     target="_blank"
                     rel="noreferrer"
                   >
-                    Guida Meta <ExternalLink className="h-3 w-3" />
+                    {tt("social_connect_meta_guide")} <ExternalLink className="h-3 w-3" />
                   </a>
                 </li>
               </ol>

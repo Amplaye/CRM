@@ -13,6 +13,7 @@ import {
   Search,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
+import { useLanguage } from "@/lib/contexts/LanguageContext";
 
 interface BaliConversation {
   id: string;
@@ -35,6 +36,7 @@ interface BaliMessage {
 }
 
 export default function BaliInboxPage() {
+  const { t } = useLanguage();
   const supabase = createClient();
 
   const [conversations, setConversations] = useState<BaliConversation[]>([]);
@@ -159,13 +161,13 @@ export default function BaliInboxPage() {
       });
       if (!res.ok) {
         const data = await res.json();
-        alert("Error: " + (data.error || "send failed"));
+        alert(t("err_generic_prefix") + (data.error || "send failed"));
         setReplyText(body); // restore so user can retry
       }
       // Realtime will pick up the new message; also refetch convo list to update preview
       fetchConversations();
     } catch (err: any) {
-      alert("Error: " + err.message);
+      alert(t("err_generic_prefix") + err.message);
       setReplyText(body);
     }
     setSending(false);
@@ -185,11 +187,11 @@ export default function BaliInboxPage() {
       });
       if (!res.ok) {
         const d = await res.json();
-        alert("Error: " + (d.error || "takeover failed"));
+        alert(t("err_generic_prefix") + (d.error || "takeover failed"));
       }
       fetchConversations();
     } catch (err: any) {
-      alert("Error: " + err.message);
+      alert(t("err_generic_prefix") + err.message);
     }
     setTogglingTakeover(false);
   };
@@ -216,7 +218,7 @@ export default function BaliInboxPage() {
         <div className="p-5 border-b shrink-0" style={{ borderColor: "#c4956a" }}>
           <div className="flex items-center gap-2 mb-3">
             <MessageSquare className="w-5 h-5 text-[#c4956a]" />
-            <h1 className="text-lg font-bold text-black">Bali Inbox</h1>
+            <h1 className="text-lg font-bold text-black">{t("adm_bali_title")}</h1>
           </div>
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-black" />
@@ -224,7 +226,7 @@ export default function BaliInboxPage() {
               type="text"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Buscar por nombre, teléfono o mensaje…"
+              placeholder={t("adm_bali_search_placeholder")}
               className="w-full pl-9 pr-3 py-2 border-2 rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-[#c4956a]"
               style={{ borderColor: "#c4956a", background: "rgba(252,246,237,0.6)" }}
             />
@@ -242,7 +244,7 @@ export default function BaliInboxPage() {
             <div className="p-12 text-center text-black">
               <MessageSquare className="w-10 h-10 mx-auto mb-3 opacity-30" />
               <p className="text-sm">
-                {search ? "Sin resultados" : "Aún no hay conversaciones"}
+                {search ? t("adm_bali_no_results") : t("adm_bali_no_conversations")}
               </p>
             </div>
           ) : (
@@ -278,7 +280,7 @@ export default function BaliInboxPage() {
                     </p>
                     {c.human_takeover && (
                       <span className="inline-flex items-center gap-1 mt-1.5 px-1.5 py-0.5 rounded text-[9px] font-bold bg-orange-100 text-orange-700">
-                        <Pause className="w-2.5 h-2.5" /> BOT EN PAUSA
+                        <Pause className="w-2.5 h-2.5" /> {t("adm_bali_bot_paused")}
                       </span>
                     )}
                   </div>
@@ -300,7 +302,7 @@ export default function BaliInboxPage() {
           <div className="flex-1 flex items-center justify-center text-center text-black p-12">
             <div>
               <MessageSquare className="w-12 h-12 mx-auto mb-4 opacity-30" />
-              <p className="text-sm">Selecciona una conversación para empezar.</p>
+              <p className="text-sm">{t("adm_bali_select_conversation")}</p>
             </div>
           </div>
         ) : (
@@ -343,17 +345,17 @@ export default function BaliInboxPage() {
                 }
                 title={
                   selectedConvo.human_takeover
-                    ? "Liberar al bot para que vuelva a responder"
-                    : "Tomar control y silenciar al bot"
+                    ? t("adm_bali_release_bot_title")
+                    : t("adm_bali_takeover_title")
                 }
               >
                 {selectedConvo.human_takeover ? (
                   <>
-                    <Play className="w-3.5 h-3.5" /> Reactivar bot
+                    <Play className="w-3.5 h-3.5" /> {t("adm_bali_reactivate_bot")}
                   </>
                 ) : (
                   <>
-                    <Pause className="w-3.5 h-3.5" /> Tomar control
+                    <Pause className="w-3.5 h-3.5" /> {t("adm_bali_take_control")}
                   </>
                 )}
               </button>
@@ -372,7 +374,7 @@ export default function BaliInboxPage() {
                 </div>
               ) : messages.length === 0 ? (
                 <p className="text-center text-sm text-black mt-8">
-                  Sin mensajes aún.
+                  {t("adm_bali_no_messages")}
                 </p>
               ) : (
                 messages.map((m) => {
@@ -399,15 +401,15 @@ export default function BaliInboxPage() {
                         >
                           {isInbound ? (
                             <>
-                              <User className="w-2.5 h-2.5" /> CLIENTE
+                              <User className="w-2.5 h-2.5" /> {t("adm_bali_role_client")}
                             </>
                           ) : isBot ? (
                             <>
-                              <Bot className="w-2.5 h-2.5" /> BOT (ALE)
+                              <Bot className="w-2.5 h-2.5" /> {t("adm_bali_role_bot")}
                             </>
                           ) : (
                             <>
-                              <CheckCircle2 className="w-2.5 h-2.5" /> TÚ
+                              <CheckCircle2 className="w-2.5 h-2.5" /> {t("adm_bali_role_you")}
                             </>
                           )}
                         </div>
@@ -461,10 +463,7 @@ export default function BaliInboxPage() {
               {!selectedConvo.human_takeover && (
                 <div className="mb-2 px-3 py-2 rounded-lg text-[11px] flex items-center gap-2 bg-orange-50 text-orange-800 border border-orange-200">
                   <Bot className="w-3.5 h-3.5 shrink-0" />
-                  <span>
-                    El bot está activo. Si envías un mensaje, el bot quedará pausado
-                    automáticamente y tendrás que reactivarlo manualmente.
-                  </span>
+                  <span>{t("adm_bali_bot_active_notice")}</span>
                 </div>
               )}
               <div className="flex items-end gap-2">
@@ -477,7 +476,7 @@ export default function BaliInboxPage() {
                       handleSend();
                     }
                   }}
-                  placeholder="Escribe tu mensaje… (Enter para enviar, Shift+Enter para salto de línea)"
+                  placeholder={t("adm_bali_reply_placeholder")}
                   rows={2}
                   className="flex-1 border-2 rounded-lg px-3 py-2 text-sm text-black resize-none focus:outline-none focus:ring-1 focus:ring-[#c4956a]"
                   style={{
@@ -493,7 +492,7 @@ export default function BaliInboxPage() {
                     background:
                       "linear-gradient(135deg, #c4956a 0%, #b8845c 100%)",
                   }}
-                  title="Enviar"
+                  title={t("adm_bali_send")}
                 >
                   <Send className="w-5 h-5" />
                 </button>

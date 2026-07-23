@@ -886,7 +886,7 @@ export function AssistantWidget() {
                 <RotateCcw className="w-4 h-4" />
               </button>
             )}
-            <button onClick={() => setOpen(false)} className="p-1.5 rounded-lg hover:bg-white/15 cursor-pointer" aria-label="Close">
+            <button onClick={() => setOpen(false)} className="p-1.5 rounded-lg hover:bg-white/15 cursor-pointer" aria-label={t("close")}>
               <X className="w-5 h-5" />
             </button>
           </div>
@@ -956,7 +956,7 @@ export function AssistantWidget() {
               disabled={!input.trim()}
               className="w-11 h-11 rounded-xl flex items-center justify-center text-white disabled:opacity-40 cursor-pointer shrink-0"
               style={{ background: "linear-gradient(135deg, #d4a574, #c4956a)" }}
-              aria-label="Send"
+              aria-label={t("aria_send")}
             >
               <Send className="w-4 h-4" />
             </button>

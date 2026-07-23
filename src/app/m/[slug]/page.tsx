@@ -111,23 +111,25 @@ const PUBLIC_STRINGS: Record<
     /** Tag-filter row: the "show everything" chip and the empty result line. */
     filterAll: string;
     filterNoMatch: string;
+    /** aria-label / tooltip for the close-menu button. */
+    back: string;
   }
 > = {
   it: {
     menu: "Menu", updating: "Menù in aggiornamento.", other: "Altro", featured: "Selezione",
-    filterAll: "Tutti", filterNoMatch: "Nessun piatto con questi filtri.",
+    filterAll: "Tutti", filterNoMatch: "Nessun piatto con questi filtri.", back: "Torna indietro",
   },
   es: {
     menu: "Carta", updating: "Carta en actualización.", other: "Otros", featured: "Selección",
-    filterAll: "Todos", filterNoMatch: "Ningún plato con estos filtros.",
+    filterAll: "Todos", filterNoMatch: "Ningún plato con estos filtros.", back: "Volver",
   },
   en: {
     menu: "Menu", updating: "Menu being updated.", other: "Other", featured: "Selection",
-    filterAll: "All", filterNoMatch: "No dish matches these filters.",
+    filterAll: "All", filterNoMatch: "No dish matches these filters.", back: "Go back",
   },
   de: {
     menu: "Speisekarte", updating: "Speisekarte wird aktualisiert.", other: "Sonstiges", featured: "Auswahl",
-    filterAll: "Alle", filterNoMatch: "Kein Gericht passt zu diesen Filtern.",
+    filterAll: "Alle", filterNoMatch: "Kein Gericht passt zu diesen Filtern.", back: "Zurück",
   },
 };
 
@@ -516,6 +518,7 @@ export default async function PublicMenuPage({
       style={style}
       restaurantName={tenant.name}
       menuLabel={ui.menu}
+      backLabel={ui.back}
       emptyLabel={ui.updating}
       featuredLabel={ui.featured}
       filterLabels={{ all: ui.filterAll, noMatch: ui.filterNoMatch }}

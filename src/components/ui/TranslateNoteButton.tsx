@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { Languages, X, Loader2 } from "lucide-react";
+import { useLanguage } from "@/lib/contexts/LanguageContext";
 
 type Lang = "es" | "en" | "it" | "de";
 
@@ -14,6 +15,7 @@ interface Props {
 }
 
 export function TranslateNoteButton({ text, className }: Props) {
+  const { t } = useLanguage();
   const [loading, setLoading] = useState<Lang | null>(null);
   const [activeLang, setActiveLang] = useState<Lang | null>(null);
   const [preview, setPreview] = useState<string>("");
@@ -46,12 +48,12 @@ export function TranslateNoteButton({ text, className }: Props) {
         body: JSON.stringify({ text: trimmed, targetLang: lang }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Translation failed");
+      if (!res.ok) throw new Error(data.error || t("translate_note_failed"));
       setCache((c) => ({ ...c, [lang]: data.translated }));
       setPreview(data.translated);
       setActiveLang(lang);
     } catch (e: any) {
-      setError(e?.message || "Error");
+      setError(e?.message || t("translate_note_failed"));
     } finally {
       setLoading(null);
     }
@@ -76,7 +78,7 @@ export function TranslateNoteButton({ text, className }: Props) {
               type="button"
               onClick={() => translate(lang)}
               disabled={loading !== null}
-              title={`Traducir a ${LABELS[lang]}`}
+              title={t("translate_note_to").replace("{lang}", LABELS[lang])}
               className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-semibold border-2 transition-colors ${
                 isActive
                   ? "bg-[#c4956a] text-white border-[#c4956a]"
@@ -92,7 +94,7 @@ export function TranslateNoteButton({ text, className }: Props) {
           <button
             type="button"
             onClick={close}
-            title="Cerrar"
+            title={t("translate_note_close")}
             className="inline-flex items-center px-2 py-1.5 rounded-md text-sm text-black hover:bg-black/5"
           >
             <X className="w-4 h-4" />

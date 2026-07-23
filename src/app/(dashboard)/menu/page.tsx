@@ -753,7 +753,7 @@ export default function MenuPage() {
                 type="button"
                 onClick={() => setSearch("")}
                 className="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded-full text-black hover:text-black hover:bg-black/5"
-                aria-label="Cancella ricerca"
+                aria-label={t("aria_clear_search")}
               >
                 <X className="h-4 w-4" />
               </button>

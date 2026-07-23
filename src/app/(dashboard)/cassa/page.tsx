@@ -1403,7 +1403,7 @@ export default function CassaPage() {
               {t("cassa_rt_retry") || "Riprova stampa"}
             </button>
           )}
-          <button onClick={() => setRtBanner(null)} className="px-2 py-1 rounded-lg border border-white/60 cursor-pointer" aria-label="chiudi">
+          <button onClick={() => setRtBanner(null)} className="px-2 py-1 rounded-lg border border-white/60 cursor-pointer" aria-label={t("close")}>
             ✕
           </button>
         </div>

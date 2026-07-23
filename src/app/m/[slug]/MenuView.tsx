@@ -44,6 +44,7 @@ type Props = {
   style: MenuStyle;
   restaurantName: string;
   menuLabel: string;
+  backLabel: string;
   emptyLabel: string;
   featuredLabel: string;
   /** Copy for the tag filter row all four templates render. */

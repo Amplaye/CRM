@@ -199,7 +199,7 @@ export default function KnowledgePage() {
            payload.version = currentVersion + 1;
            const { tenant_id: _tid, ...updatePayload } = payload as any;
            const { error: updateErr } = await supabase.from("knowledge_articles").update(updatePayload).eq("id", selectedArticleId);
-           if (updateErr) { console.error("KB update error:", updateErr); alert("Error: " + updateErr.message); }
+           if (updateErr) { console.error("KB update error:", updateErr); alert(t("err_generic_prefix") + updateErr.message); }
            else {
              // Update local state immediately
              setArticles(prev => prev.map(a => a.id === selectedArticleId ? { ...a, ...payload, id: selectedArticleId } as KnowledgeArticle : a));
@@ -209,7 +209,7 @@ export default function KnowledgePage() {
            payload.created_at = new Date().toISOString();
            payload.display_order = (articles.reduce((max, a) => Math.max(max, a.display_order ?? 0), 0)) + 1;
            const { data: inserted, error: insertErr } = await supabase.from("knowledge_articles").insert(payload).select("*").single();
-           if (insertErr) { console.error("KB insert error:", insertErr); alert("Error: " + insertErr.message); }
+           if (insertErr) { console.error("KB insert error:", insertErr); alert(t("err_generic_prefix") + insertErr.message); }
            else if (inserted) {
              setSelectedArticleId(inserted.id);
              setArticles(prev => [inserted as KnowledgeArticle, ...prev]);
@@ -225,7 +225,7 @@ export default function KnowledgePage() {
      if (!confirm(t("know_delete_confirm"))) return;
      try {
         const { error: delErr } = await supabase.from("knowledge_articles").delete().eq("id", id);
-        if (delErr) { console.error("KB delete error:", delErr); alert("Error: " + delErr.message); return; }
+        if (delErr) { console.error("KB delete error:", delErr); alert(t("err_generic_prefix") + delErr.message); return; }
         // Remove from local state immediately — the table isn't in the realtime
         // publication, so no DELETE event arrives to trigger a refetch.
         setArticles(prev => prev.filter(a => a.id !== id));
@@ -315,7 +315,7 @@ export default function KnowledgePage() {
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-black" />
                   <input type="text" placeholder={t("know_search_placeholder") || "Search articles..."} className="w-full pl-9 pr-3 py-2 border-2 rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-[#c4956a]" style={{ borderColor: '#c4956a', background: 'rgba(252,246,237,0.6)' }} />
                </div>
-               <button onClick={() => handleStartEdit()} className="cursor-pointer p-2 text-white rounded-lg transition-colors shadow-sm" style={{ background: 'linear-gradient(135deg, #d4a574, #c4956a)' }} title="New article">
+               <button onClick={() => handleStartEdit()} className="cursor-pointer p-2 text-white rounded-lg transition-colors shadow-sm" style={{ background: 'linear-gradient(135deg, #d4a574, #c4956a)' }} title={t("know_new_article")}>
                   <Plus className="w-5 h-5" />
                </button>
             </div>

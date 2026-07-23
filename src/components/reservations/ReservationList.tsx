@@ -134,19 +134,19 @@ export function ReservationList({ date, shiftFilter = "all", onRowClick, onCreat
   const StatusPill = ({ status }: { status: Reservation['status'] }) => {
     switch (status) {
       case 'confirmed': return <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200"><UserCheck className="w-3 h-3 mr-1" /> {t("status_confirmed")}</span>;
-      case 'seated': return <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-50 text-blue-700 ring-1 ring-blue-200">Seated</span>;
+      case 'seated': return <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-50 text-blue-700 ring-1 ring-blue-200">{t("status_seated")}</span>;
       case 'cancelled': return <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-red-50 text-red-700 ring-1 ring-red-200"><UserMinus className="w-3 h-3 mr-1" /> {t("status_cancelled")}</span>;
       case 'no_show': return <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-red-50 text-red-700 ring-1 ring-red-200"><AlertTriangle className="w-3 h-3 mr-1" /> {t("status_no_show")}</span>;
-      default: return <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-amber-50 text-amber-700 ring-1 ring-amber-200">Pending</span>;
+      default: return <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-amber-50 text-amber-700 ring-1 ring-amber-200">{t("status_pending")}</span>;
     }
   };
 
   const SourceIcon = ({ source }: { source: Reservation['source'] }) => {
     switch(source) {
-       case 'ai_chat': return <div title="AI WhatsApp" className="flex h-6 w-6 items-center justify-center rounded bg-terracotta-50 text-terracotta-600 ring-1 ring-terracotta-200"><MessageSquare className="h-3 w-3" /></div>;
-       case 'ai_voice': return <div title="AI Voice" className="flex h-6 w-6 items-center justify-center rounded bg-indigo-50 text-indigo-600 ring-1 ring-indigo-200"><Phone className="h-3 w-3" /></div>;
-       case 'web': return <div title="Website" className="flex h-6 w-6 items-center justify-center rounded bg-zinc-100 text-black ring-1 ring-zinc-200"><Globe className="h-3 w-3" /></div>;
-       default: return <div title="Staff" className="flex h-6 w-6 items-center justify-center rounded bg-zinc-100 text-black ring-1 ring-zinc-200"><User className="h-3 w-3" /></div>;
+       case 'ai_chat': return <div title={t("res_source_ai_chat")} className="flex h-6 w-6 items-center justify-center rounded bg-terracotta-50 text-terracotta-600 ring-1 ring-terracotta-200"><MessageSquare className="h-3 w-3" /></div>;
+       case 'ai_voice': return <div title={t("res_source_ai_voice")} className="flex h-6 w-6 items-center justify-center rounded bg-indigo-50 text-indigo-600 ring-1 ring-indigo-200"><Phone className="h-3 w-3" /></div>;
+       case 'web': return <div title={t("res_source_web")} className="flex h-6 w-6 items-center justify-center rounded bg-zinc-100 text-black ring-1 ring-zinc-200"><Globe className="h-3 w-3" /></div>;
+       default: return <div title={t("res_source_staff")} className="flex h-6 w-6 items-center justify-center rounded bg-zinc-100 text-black ring-1 ring-zinc-200"><User className="h-3 w-3" /></div>;
     }
   };
 
@@ -339,7 +339,7 @@ export function ReservationList({ date, shiftFilter = "all", onRowClick, onCreat
                 <StatusPill status={res.status} />
               </td>
               <td className="px-4 py-4 whitespace-nowrap text-center">
-                <Link href={`/conversations?guest=${res.guest_id}`} onClick={(e) => e.stopPropagation()} className="inline-flex justify-center hover:scale-110 transition-transform" title="Open conversation">
+                <Link href={`/conversations?guest=${res.guest_id}`} onClick={(e) => e.stopPropagation()} className="inline-flex justify-center hover:scale-110 transition-transform" title={t("res_open_conversation")}>
                   <SourceIcon source={res.source} />
                 </Link>
               </td>

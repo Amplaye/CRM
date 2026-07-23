@@ -919,7 +919,7 @@ export default function ReservationsPage() {
                 </div>
                 {availableTables.length > 0 && (
                   <div>
-                    <label className="block text-sm font-medium text-black mb-2">{t("floor_tables")} <span className="text-xs font-normal text-black">(Opcional)</span></label>
+                    <label className="block text-sm font-medium text-black mb-2">{t("floor_tables")} <span className="text-xs font-normal text-black">({t("common_optional")})</span></label>
                     <div className="grid grid-cols-4 gap-2">
                       {availableTables.map(table => {
                         const isOccupied = occupiedTableIds.has(table.id);

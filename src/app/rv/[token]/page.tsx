@@ -11,6 +11,19 @@ import { ReviewForm } from "./ReviewForm";
 
 export const dynamic = "force-dynamic";
 
+const INVALID_TITLE: Record<"es" | "it" | "en" | "de", string> = {
+  es: "Enlace no válido",
+  it: "Link non valido",
+  en: "Invalid link",
+  de: "Ungültiger Link",
+};
+const INVALID_BODY: Record<"es" | "it" | "en" | "de", string> = {
+  es: "El enlace de la reseña ha caducado o no es correcto.",
+  it: "Il link della recensione è scaduto o non è corretto.",
+  en: "The review link has expired or is not correct.",
+  de: "Der Bewertungslink ist abgelaufen oder nicht korrekt.",
+};
+
 export default async function ReviewPage(props: { params: Promise<{ token: string }> }) {
   const { token } = await props.params;
   const payload = verifyReviewToken(token);
@@ -74,9 +87,9 @@ export default async function ReviewPage(props: { params: Promise<{ token: strin
           />
         ) : (
           <div className="text-center">
-            <h1 className="text-xl font-bold text-black">Enlace no válido · Link non valido</h1>
+            <h1 className="text-xl font-bold text-black">{INVALID_TITLE[lang]}</h1>
             <p className="mt-2 text-sm text-black">
-              El enlace de la reseña ha caducado o no es correcto. · Il link della recensione è scaduto o non è corretto.
+              {INVALID_BODY[lang]}
             </p>
           </div>
         )}

@@ -1,6 +1,7 @@
 "use client";
 
 import { ChevronLeft, ChevronRight } from "lucide-react";
+import { useLanguage } from "@/lib/contexts/LanguageContext";
 
 // Compact brand-styled month grid shared by the cassa calendars: the cash-day
 // history in SessionView and the journal day picker in ReceiptsView. Pure
@@ -41,6 +42,7 @@ export function MonthCalendar({
   maxDate,
   locale,
 }: MonthCalendarProps) {
+  const { t } = useLanguage();
   const [y, m] = month.split("-").map(Number);
   const first = new Date(y, m - 1, 1);
   const daysInMonth = new Date(y, m, 0).getDate();
@@ -61,7 +63,7 @@ export function MonthCalendar({
           onClick={() => onMonth(shiftMonth(month, -1))}
           className="w-10 h-10 rounded-lg border-2 flex items-center justify-center text-black hover:bg-[#c4956a]/10 cursor-pointer"
           style={{ borderColor: "#c4956a" }}
-          aria-label="previous month"
+          aria-label={t("aria_prev_month")}
         >
           <ChevronLeft className="w-4 h-4" />
         </button>
@@ -71,7 +73,7 @@ export function MonthCalendar({
           disabled={!!maxDate && shiftMonth(month, 1) > monthOf(maxDate)}
           className="w-10 h-10 rounded-lg border-2 flex items-center justify-center text-black hover:bg-[#c4956a]/10 disabled:opacity-30 cursor-pointer"
           style={{ borderColor: "#c4956a" }}
-          aria-label="next month"
+          aria-label={t("aria_next_month")}
         >
           <ChevronRight className="w-4 h-4" />
         </button>

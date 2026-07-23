@@ -43,6 +43,7 @@ export type MenuViewSection = {
 type Props = {
   restaurantName: string;
   menuLabel: string;
+  backLabel: string;
   emptyLabel: string;
   featuredLabel: string;
   /** "Filters" / "All" / "no dish matches" — localized on the server. */
@@ -70,6 +71,7 @@ const FALLBACK_GRADIENTS = [
 export default function MenuImmersive({
   restaurantName,
   menuLabel,
+  backLabel,
   emptyLabel,
   featuredLabel,
   filterLabels,
@@ -128,7 +130,7 @@ export default function MenuImmersive({
 
   return (
     <div className="imm-root">
-      <ClosePublicMenuButton />
+      <ClosePublicMenuButton label={backLabel} />
       <div className="imm-glow" aria-hidden />
       <div className="imm-grain" aria-hidden />
 

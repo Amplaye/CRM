@@ -495,14 +495,14 @@ export default function StaffPage() {
           <div className="flex items-center gap-2 flex-wrap">
             <div className="inline-flex rounded-xl border overflow-hidden bg-white/70" style={{ borderColor: "#c4956a" }}>
               <button onClick={() => setWeekStart((w) => { const d = new Date(w); d.setDate(d.getDate() - 7); return d; })}
-                className="px-3 py-2 cursor-pointer text-black" aria-label="prev week">
+                className="px-3 py-2 cursor-pointer text-black" aria-label={t("aria_prev_week")}>
                 <ChevronLeft className="w-4 h-4" />
               </button>
               <button onClick={() => setWeekStart(mondayOf(new Date()))} className="px-3 py-2 text-sm font-bold cursor-pointer text-black">
                 {tk("staff_today")}
               </button>
               <button onClick={() => setWeekStart((w) => { const d = new Date(w); d.setDate(d.getDate() + 7); return d; })}
-                className="px-3 py-2 cursor-pointer text-black" aria-label="next week">
+                className="px-3 py-2 cursor-pointer text-black" aria-label={t("aria_next_week")}>
                 <ChevronRight className="w-4 h-4" />
               </button>
             </div>

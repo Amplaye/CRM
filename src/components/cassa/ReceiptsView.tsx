@@ -97,7 +97,7 @@ export function ReceiptsView({ tenantId, receipts, businessDate, today, isToday,
           onClick={() => onShiftDay(-1)}
           className="w-10 h-10 rounded-lg border-2 flex items-center justify-center text-black hover:bg-[#c4956a]/10 cursor-pointer"
           style={{ borderColor: "#c4956a" }}
-          aria-label="previous day"
+          aria-label={t("aria_prev_day")}
         >
           <ChevronLeft className="w-4 h-4" />
         </button>
@@ -106,7 +106,7 @@ export function ReceiptsView({ tenantId, receipts, businessDate, today, isToday,
           disabled={isToday}
           className="w-10 h-10 rounded-lg border-2 flex items-center justify-center text-black hover:bg-[#c4956a]/10 disabled:opacity-30 cursor-pointer"
           style={{ borderColor: "#c4956a" }}
-          aria-label="next day"
+          aria-label={t("aria_next_day")}
         >
           <ChevronRight className="w-4 h-4" />
         </button>
@@ -237,7 +237,7 @@ export function ReceiptsView({ tenantId, receipts, businessDate, today, isToday,
               <h3 className="font-bold text-black inline-flex items-center gap-2">
                 <CalendarDays className="w-4 h-4" /> {t("cassa_pick_day")}
               </h3>
-              <button onClick={() => setShowCal(false)} className="p-1.5 rounded-lg hover:bg-[#c4956a]/10 cursor-pointer" aria-label="Close">
+              <button onClick={() => setShowCal(false)} className="p-1.5 rounded-lg hover:bg-[#c4956a]/10 cursor-pointer" aria-label={t("close")}>
                 <X className="w-5 h-5 text-black" />
               </button>
             </div>

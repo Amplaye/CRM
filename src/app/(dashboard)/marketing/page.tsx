@@ -383,9 +383,9 @@ export default function MarketingPage() {
                 return (
                   <div className="pt-2 border-t" style={{ borderColor: "rgba(196,149,106,0.4)" }}>
                     <div className="flex items-baseline justify-between gap-2">
-                      <span className="text-xs font-bold text-black">Email rimaste questo mese</span>
+                      <span className="text-xs font-bold text-black">{t("mkt_emails_left_month")}</span>
                       <span className="text-xs font-bold text-black tabular-nums">
-                        {left.toLocaleString()} su {limit.toLocaleString()}
+                        {t("mkt_emails_left_of").replace("{used}", left.toLocaleString()).replace("{total}", limit.toLocaleString())}
                       </span>
                     </div>
                     <div className="mt-1 h-1.5 rounded-full overflow-hidden" style={{ background: "rgba(196,149,106,0.2)" }}>

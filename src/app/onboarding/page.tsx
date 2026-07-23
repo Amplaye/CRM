@@ -170,7 +170,7 @@ export default function OnboardingPage() {
       const load = async () =>
         (await supabase
           .from("tenant_members")
-          .select("tenant_id, role, tenants(id, name, settings)")
+          .select("tenant_id, role, tenants!tenant_members_tenant_id_fkey(id, name, settings)")
           .eq("user_id", user.id)).data || [];
       let rows = await load();
       let owner = rows.find((r: any) => r.role === "owner");
@@ -379,9 +379,9 @@ export default function OnboardingPage() {
         <div className="space-y-5">
           <h2 className="text-base font-bold flex items-center gap-2"><Building className="w-4 h-4" /> 1. {t.s1}</h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-4">
-            <Field label={t.fName} value={restaurantName} onChange={setRestaurantName} placeholder="Trattoria Rossa" />
-            <Field label={t.fPhone} value={restaurantPhone} onChange={setRestaurantPhone} placeholder="+34 928 123 456" inputMode="tel" />
-            <Field label={t.fWhatsapp} value={ownerPhone} onChange={setOwnerPhone} placeholder="+34 6XX XXX XXX" inputMode="tel" />
+            <Field label={t.fName} value={restaurantName} onChange={setRestaurantName} placeholder={t.fNamePlaceholder} />
+            <Field label={t.fPhone} value={restaurantPhone} onChange={setRestaurantPhone} placeholder={t.fPhonePlaceholder} inputMode="tel" />
+            <Field label={t.fWhatsapp} value={ownerPhone} onChange={setOwnerPhone} placeholder={t.fWhatsappPlaceholder} inputMode="tel" />
             <Field label={t.fReview} value={reviewUrl} onChange={setReviewUrl} placeholder="https://maps.google.com/..." inputMode="url" />
             <SelectField label={t.fTimezone} value={timezone} onChange={setTimezone} options={TIMEZONES} />
             <div className="hidden sm:block" aria-hidden />
@@ -465,9 +465,9 @@ export default function OnboardingPage() {
             <YesNo label={t.q4.wifi} value={q.wifi} onChange={(v) => setQF("wifi", v)} t={t} />
             <YesNo label={t.q4.terrace} value={q.terrace} onChange={(v) => setQF("terrace", v)} t={t} />
             <YesNo label={t.q4.takeaway} value={q.takeaway} onChange={(v) => setQF("takeaway", v)} t={t} />
-            {q.takeaway && <Field label={t.q4.takeawayWait} value={q.takeaway_wait} onChange={(v) => setQF("takeaway_wait", v)} placeholder="20-30 min" />}
+            {q.takeaway && <Field label={t.q4.takeawayWait} value={q.takeaway_wait} onChange={(v) => setQF("takeaway_wait", v)} placeholder={t.q4.takeawayWaitPlaceholder} />}
             <YesNo label={t.q4.delivery} value={q.delivery} onChange={(v) => setQF("delivery", v)} t={t} />
-            {q.delivery && <Field label={t.q4.deliveryPlatform} value={q.delivery_platform} onChange={(v) => setQF("delivery_platform", v)} placeholder="Glovo, Uber Eats…" />}
+            {q.delivery && <Field label={t.q4.deliveryPlatform} value={q.delivery_platform} onChange={(v) => setQF("delivery_platform", v)} placeholder={t.q4.deliveryPlatformPlaceholder} />}
             <YesNo label={t.q4.celebrations} value={q.celebrations} onChange={(v) => setQF("celebrations", v)} t={t} />
             <YesNo label={t.q4.outsideCake} value={q.outside_cake} onChange={(v) => setQF("outside_cake", v)} t={t} />
             <div>
@@ -503,18 +503,18 @@ export default function OnboardingPage() {
 
           {/* Card 4 — How to get there */}
           <Card title={t.q4.cardLocation}>
-            <Field label={t.q4.cuisineType} value={q.cuisine_type} onChange={(v) => setQF("cuisine_type", v)} placeholder="Trattoria napolitana" />
+            <Field label={t.q4.cuisineType} value={q.cuisine_type} onChange={(v) => setQF("cuisine_type", v)} placeholder={t.q4.cuisineTypePlaceholder} />
             <AddressField
               label={t.q4.address}
               value={q.address}
-              placeholder="Avenida Rafael Cabrera, 7"
+              placeholder={t.q4.addressPlaceholder}
               hint={t.q4.addressHint}
               searching={t.q4.addressSearching}
               onChange={(v) => setQF("address", v)}
               onSelect={(p) => setQ((prev) => ({ ...prev, address: p.address, city: p.city || prev.city, neighborhood: p.neighborhood || prev.neighborhood }))}
             />
-            <Field label={t.q4.cityPostal} value={q.city} onChange={(v) => setQF("city", v)} placeholder="35002 Las Palmas de Gran Canaria" />
-            <Field label={t.q4.area} value={q.neighborhood} onChange={(v) => setQF("neighborhood", v)} placeholder="Triana / Vegueta" />
+            <Field label={t.q4.cityPostal} value={q.city} onChange={(v) => setQF("city", v)} placeholder={t.q4.cityPostalPlaceholder} />
+            <Field label={t.q4.area} value={q.neighborhood} onChange={(v) => setQF("neighborhood", v)} placeholder={t.q4.areaPlaceholder} />
             <div>
               <Lbl>{t.q4.parking}</Lbl>
               <div className="flex flex-wrap gap-2">
@@ -524,7 +524,7 @@ export default function OnboardingPage() {
               </div>
             </div>
             <YesNo label={t.q4.publicTransport} value={q.public_transport} onChange={(v) => setQF("public_transport", v)} t={t} />
-            <Field label={t.q4.landmark} value={q.landmark} onChange={(v) => setQF("landmark", v)} placeholder="Junto a la playa de Las Canteras" />
+            <Field label={t.q4.landmark} value={q.landmark} onChange={(v) => setQF("landmark", v)} placeholder={t.q4.landmarkPlaceholder} />
           </Card>
 
           {/* Recommended dishes are no longer a wizard step: the owner curates

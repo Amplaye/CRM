@@ -219,36 +219,36 @@ export default function GuestsPage() {
           <div className="w-full max-w-md rounded-2xl bg-white p-5 shadow-xl" onClick={(e) => e.stopPropagation()} style={{ border: '2px solid #c4956a' }}>
             <div className="flex items-center gap-2 mb-3">
               <Upload className="h-5 w-5 text-[#c4956a]" />
-              <h3 className="text-base font-bold text-black">Anteprima import</h3>
+              <h3 className="text-base font-bold text-black">{t("guests_import_preview")}</h3>
             </div>
-            <p className="text-xs text-black mb-3 truncate">File: <span className="font-medium">{importPlan.fileName}</span></p>
+            <p className="text-xs text-black mb-3 truncate">{t("guests_import_file")} <span className="font-medium">{importPlan.fileName}</span></p>
             <div className="space-y-2 mb-4">
               <div className="flex items-center justify-between rounded-lg px-3 py-2" style={{ background: 'rgba(16,185,129,0.08)' }}>
-                <span className="text-sm text-black">Nuovi clienti</span>
+                <span className="text-sm text-black">{t("guests_import_new")}</span>
                 <span className="text-sm font-bold text-emerald-700">{importPlan.plan.toInsert.length}</span>
               </div>
               <div className="flex items-center justify-between rounded-lg px-3 py-2" style={{ background: 'rgba(59,130,246,0.08)' }}>
-                <span className="text-sm text-black">Aggiornati (telefono già presente)</span>
+                <span className="text-sm text-black">{t("guests_import_updated")}</span>
                 <span className="text-sm font-bold text-blue-700">{importPlan.plan.toUpdate.length}</span>
               </div>
               {(importPlan.plan.skipped > 0 || importPlan.plan.duplicatesInFile > 0) && (
                 <div className="flex items-center justify-between rounded-lg px-3 py-2" style={{ background: 'rgba(120,120,120,0.08)' }}>
-                  <span className="text-sm text-black">Saltati / doppioni nel file</span>
+                  <span className="text-sm text-black">{t("guests_import_skipped")}</span>
                   <span className="text-sm font-bold text-zinc-600">{importPlan.plan.skipped + importPlan.plan.duplicatesInFile}</span>
                 </div>
               )}
             </div>
             <p className="text-[11px] text-black mb-4">
-              I clienti con lo stesso telefono vengono aggiornati (i campi vuoti non sovrascrivono i dati esistenti); i contatori visite/no-show restano invariati.
+              {t("guests_import_note")}
             </p>
             <div className="flex gap-2 justify-end">
               <button onClick={() => setImportPlan(null)} disabled={importing}
                 className="px-4 py-2 rounded-lg border-2 text-xs font-bold text-black disabled:opacity-60" style={{ borderColor: '#c4956a' }}>
-                Annulla
+                {t("cancel")}
               </button>
               <button onClick={runImport} disabled={importing || (importPlan.plan.toInsert.length + importPlan.plan.toUpdate.length === 0)}
                 className="px-4 py-2 rounded-lg bg-[#c4956a] text-white text-xs font-bold hover:opacity-90 disabled:opacity-60">
-                {importing ? "Importazione…" : `Importa ${importPlan.plan.toInsert.length + importPlan.plan.toUpdate.length}`}
+                {importing ? t("guests_import_running") : t("guests_import_confirm").replace("{n}", String(importPlan.plan.toInsert.length + importPlan.plan.toUpdate.length))}
               </button>
             </div>
           </div>
@@ -385,7 +385,7 @@ export default function GuestsPage() {
                     )}
                     <div>
                       <p className={`text-sm font-bold ${guest.no_show_count > 0 ? 'text-red-600' : 'text-black'}`}>{guest.no_show_count}</p>
-                      <p className="text-[9px] text-black uppercase">No-show</p>
+                      <p className="text-[9px] text-black uppercase">{t("topbar_noshow")}</p>
                     </div>
                   </div>
                 </div>

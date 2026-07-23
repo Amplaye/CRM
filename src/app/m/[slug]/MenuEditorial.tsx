@@ -42,6 +42,7 @@ export type MenuViewSection = {
 type Props = {
   restaurantName: string;
   menuLabel: string;
+  backLabel: string;
   emptyLabel: string;
   featuredLabel: string;
   /** "All" / "no dish matches" — localized on the server. */
@@ -59,6 +60,7 @@ function priceText(it: MenuViewItem): string | null {
 export default function MenuEditorial({
   restaurantName,
   menuLabel,
+  backLabel,
   emptyLabel,
   featuredLabel,
   filterLabels,
@@ -130,7 +132,7 @@ export default function MenuEditorial({
 
   return (
     <div className="edi-root">
-      <ClosePublicMenuButton />
+      <ClosePublicMenuButton label={backLabel} />
 
       {/* ── Masthead ─────────────────────────────────────────────────────── */}
       <header className="edi-mast">

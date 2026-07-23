@@ -444,7 +444,7 @@ export default function DashboardPage() {
           {/* Period navigator */}
           <button
             onClick={() => navigatePeriod(-1)}
-            aria-label="Previous period"
+            aria-label={t("aria_prev_period")}
             className="p-2 hover:bg-[#c4956a]/10 rounded-lg transition-colors flex-shrink-0 min-w-[36px] min-h-[36px] flex items-center justify-center"
           >
             <ChevronLeft className="w-4 h-4 text-black" />
@@ -490,7 +490,7 @@ export default function DashboardPage() {
           )}
           <button
             onClick={() => navigatePeriod(1)}
-            aria-label="Next period"
+            aria-label={t("aria_next_period")}
             className="p-2 hover:bg-[#c4956a]/10 rounded-lg transition-colors flex-shrink-0 min-w-[36px] min-h-[36px] flex items-center justify-center"
           >
             <ChevronRight className="w-4 h-4 text-black" />

@@ -1,6 +1,7 @@
 "use client";
 
 import { useTenant } from "@/lib/contexts/TenantContext";
+import { useLanguage } from "@/lib/contexts/LanguageContext";
 import { useEffect, useState } from "react";
 import { DollarSign, RefreshCw, Save, Settings } from "lucide-react";
 
@@ -16,6 +17,7 @@ interface TenantUsage {
 
 export default function CostsPage() {
   const { globalRole } = useTenant();
+  const { t } = useLanguage();
   const [data, setData] = useState<{ tenants: TenantUsage[]; platform: any } | null>(null);
   const [loading, setLoading] = useState(true);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -33,10 +35,10 @@ export default function CostsPage() {
 
   useEffect(() => { fetchData(); }, []);
 
-  const startEdit = (t: TenantUsage) => {
-    setEditingId(t.id);
+  const startEdit = (ten: TenantUsage) => {
+    setEditingId(ten.id);
     setEditValues({
-      client_monthly_fee: t.monthlyFee,
+      client_monthly_fee: ten.monthlyFee,
       cost_per_whatsapp: 0.05,
       cost_per_voice_min: 0.15,
       avg_voice_duration_min: 3,
@@ -57,7 +59,7 @@ export default function CostsPage() {
   };
 
   if (globalRole !== "platform_admin") {
-    return <div className="p-8 text-center text-black">Unauthorized</div>;
+    return <div className="p-8 text-center text-black">{t("adm_costs_unauthorized")}</div>;
   }
 
   const cardStyle = { background: "rgba(252,246,237,0.85)", borderColor: "#c4956a" };
@@ -69,8 +71,8 @@ export default function CostsPage() {
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <DollarSign className="w-5 h-5 text-[#c4956a]" />
-          <h1 className="text-xl sm:text-2xl font-bold text-black">Usage & Costs</h1>
-          <span className="text-xs text-black">Last 30 days</span>
+          <h1 className="text-xl sm:text-2xl font-bold text-black">{t("adm_costs_title")}</h1>
+          <span className="text-xs text-black">{t("adm_costs_last_30_days")}</span>
         </div>
         <button onClick={fetchData} className="p-2 hover:bg-[#c4956a]/10 rounded-lg transition-colors">
           <RefreshCw className={`w-4 h-4 text-black ${loading ? "animate-spin" : ""}`} />
@@ -81,66 +83,66 @@ export default function CostsPage() {
       {data?.platform && (
         <div className="grid grid-cols-3 gap-2 sm:gap-4">
           <div className="rounded-xl p-3 sm:p-4 border-2" style={cardStyle}>
-            <p className="text-xs text-black font-medium">Total Client Fees</p>
+            <p className="text-xs text-black font-medium">{t("adm_costs_total_client_fees")}</p>
             <p className="text-xl font-bold text-black">€{data.platform.totalFees.toLocaleString()}/mo</p>
           </div>
           <div className="rounded-xl p-3 sm:p-4 border-2" style={cardStyle}>
-            <p className="text-xs text-black font-medium">Total Costs</p>
+            <p className="text-xs text-black font-medium">{t("adm_costs_total_costs")}</p>
             <p className="text-xl font-bold text-red-500">€{data.platform.totalCosts.toLocaleString()}</p>
           </div>
           <div className="rounded-xl p-3 sm:p-4 border-2" style={cardStyle}>
-            <p className="text-xs text-black font-medium">AI Revenue Generated</p>
+            <p className="text-xs text-black font-medium">{t("adm_costs_ai_revenue_generated")}</p>
             <p className="text-xl font-bold text-[#22c55e]">€{data.platform.totalAiRevenue.toLocaleString()}</p>
           </div>
         </div>
       )}
 
       {loading ? (
-        <div className="p-12 text-center text-black animate-pulse">Loading...</div>
+        <div className="p-12 text-center text-black animate-pulse">{t("adm_costs_loading")}</div>
       ) : (
         <div className="space-y-3">
-          {(data?.tenants || []).map(t => (
-            <div key={t.id} className="rounded-xl border-2 p-4" style={cardStyle}>
+          {(data?.tenants || []).map(ten => (
+            <div key={ten.id} className="rounded-xl border-2 p-4" style={cardStyle}>
               <div className="flex items-center justify-between mb-3">
-                <h3 className="text-sm font-bold text-black">{t.name}</h3>
-                {editingId === t.id ? (
+                <h3 className="text-sm font-bold text-black">{ten.name}</h3>
+                {editingId === ten.id ? (
                   <button onClick={saveEdit} disabled={saving}
                     className="flex items-center gap-1 text-xs font-medium px-3 py-1.5 rounded-lg text-white disabled:opacity-50"
                     style={{ background: "#c4956a" }}>
-                    <Save className="w-3 h-3" /> {saving ? "Saving..." : "Save"}
+                    <Save className="w-3 h-3" /> {saving ? t("adm_costs_saving") : t("adm_costs_save")}
                   </button>
                 ) : (
-                  <button onClick={() => startEdit(t)}
+                  <button onClick={() => startEdit(ten)}
                     className="flex items-center gap-1 text-xs font-medium px-3 py-1.5 rounded-lg border-2 text-black hover:bg-[#c4956a]/10 transition-colors"
                     style={{ borderColor: "rgba(196,149,106,0.3)" }}>
-                    <Settings className="w-3 h-3" /> Configure
+                    <Settings className="w-3 h-3" /> {t("adm_costs_configure")}
                   </button>
                 )}
               </div>
 
               {/* Edit form */}
-              {editingId === t.id && (
+              {editingId === ten.id && (
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4 p-3 rounded-lg" style={{ background: "rgba(196,149,106,0.06)" }}>
                   <div>
-                    <label className="text-[10px] font-medium text-black block mb-1">Monthly Fee (€)</label>
+                    <label className="text-[10px] font-medium text-black block mb-1">{t("adm_costs_monthly_fee")}</label>
                     <input type="number" value={editValues.client_monthly_fee}
                       onChange={e => setEditValues({ ...editValues, client_monthly_fee: Number(e.target.value) })}
                       className={inputStyle} style={inputBorder} />
                   </div>
                   <div>
-                    <label className="text-[10px] font-medium text-black block mb-1">Cost/WhatsApp msg (€)</label>
+                    <label className="text-[10px] font-medium text-black block mb-1">{t("adm_costs_cost_per_whatsapp")}</label>
                     <input type="number" step="0.01" value={editValues.cost_per_whatsapp}
                       onChange={e => setEditValues({ ...editValues, cost_per_whatsapp: Number(e.target.value) })}
                       className={inputStyle} style={inputBorder} />
                   </div>
                   <div>
-                    <label className="text-[10px] font-medium text-black block mb-1">Cost/Voice min (€)</label>
+                    <label className="text-[10px] font-medium text-black block mb-1">{t("adm_costs_cost_per_voice_min")}</label>
                     <input type="number" step="0.01" value={editValues.cost_per_voice_min}
                       onChange={e => setEditValues({ ...editValues, cost_per_voice_min: Number(e.target.value) })}
                       className={inputStyle} style={inputBorder} />
                   </div>
                   <div>
-                    <label className="text-[10px] font-medium text-black block mb-1">Avg call duration (min)</label>
+                    <label className="text-[10px] font-medium text-black block mb-1">{t("adm_costs_avg_call_duration")}</label>
                     <input type="number" value={editValues.avg_voice_duration_min}
                       onChange={e => setEditValues({ ...editValues, avg_voice_duration_min: Number(e.target.value) })}
                       className={inputStyle} style={inputBorder} />
@@ -151,36 +153,36 @@ export default function CostsPage() {
               {/* Stats row */}
               <div className="grid grid-cols-3 sm:grid-cols-7 gap-3 text-center">
                 <div>
-                  <p className="text-[10px] text-black font-medium">Fee/mo</p>
-                  <p className="text-sm font-bold text-black">{t.monthlyFee > 0 ? `€${t.monthlyFee}` : "—"}</p>
+                  <p className="text-[10px] text-black font-medium">{t("adm_costs_fee_per_mo")}</p>
+                  <p className="text-sm font-bold text-black">{ten.monthlyFee > 0 ? `€${ten.monthlyFee}` : "—"}</p>
                 </div>
                 <div>
-                  <p className="text-[10px] text-black font-medium">WhatsApp</p>
-                  <p className="text-sm font-bold text-black">€{t.costs.whatsapp.toFixed(2)}</p>
-                  <p className="text-[10px] text-black">{t.usage.whatsappConversations} msg</p>
+                  <p className="text-[10px] text-black font-medium">{t("adm_costs_whatsapp")}</p>
+                  <p className="text-sm font-bold text-black">€{ten.costs.whatsapp.toFixed(2)}</p>
+                  <p className="text-[10px] text-black">{ten.usage.whatsappConversations} {t("adm_costs_msg")}</p>
                 </div>
                 <div>
-                  <p className="text-[10px] text-black font-medium">Voice</p>
-                  <p className="text-sm font-bold text-black">€{t.costs.voice.toFixed(2)}</p>
-                  <p className="text-[10px] text-black">{t.usage.voiceCalls} calls</p>
+                  <p className="text-[10px] text-black font-medium">{t("adm_costs_voice")}</p>
+                  <p className="text-sm font-bold text-black">€{ten.costs.voice.toFixed(2)}</p>
+                  <p className="text-[10px] text-black">{ten.usage.voiceCalls} {t("adm_costs_calls")}</p>
                 </div>
                 <div>
-                  <p className="text-[10px] text-black font-medium">API</p>
-                  <p className="text-sm font-bold text-black">€{t.costs.api.toFixed(2)}</p>
+                  <p className="text-[10px] text-black font-medium">{t("adm_costs_api")}</p>
+                  <p className="text-sm font-bold text-black">€{ten.costs.api.toFixed(2)}</p>
                 </div>
                 <div>
-                  <p className="text-[10px] text-black font-medium">Total Cost</p>
-                  <p className="text-sm font-bold text-red-500">€{t.costs.total.toFixed(2)}</p>
+                  <p className="text-[10px] text-black font-medium">{t("adm_costs_total_cost")}</p>
+                  <p className="text-sm font-bold text-red-500">€{ten.costs.total.toFixed(2)}</p>
                 </div>
                 <div>
-                  <p className="text-[10px] text-black font-medium">Margin</p>
-                  <p className={`text-sm font-bold ${t.monthlyFee === 0 ? "text-black" : t.margin > 50 ? "text-emerald-600" : t.margin > 20 ? "text-yellow-600" : "text-red-600"}`}>
-                    {t.monthlyFee > 0 ? `${t.margin}%` : "—"}
+                  <p className="text-[10px] text-black font-medium">{t("adm_costs_margin")}</p>
+                  <p className={`text-sm font-bold ${ten.monthlyFee === 0 ? "text-black" : ten.margin > 50 ? "text-emerald-600" : ten.margin > 20 ? "text-yellow-600" : "text-red-600"}`}>
+                    {ten.monthlyFee > 0 ? `${ten.margin}%` : "—"}
                   </p>
                 </div>
                 <div>
-                  <p className="text-[10px] text-black font-medium">AI Revenue</p>
-                  <p className="text-sm font-bold text-[#22c55e]">€{t.aiRevenue.toLocaleString()}</p>
+                  <p className="text-[10px] text-black font-medium">{t("adm_costs_ai_revenue")}</p>
+                  <p className="text-sm font-bold text-[#22c55e]">€{ten.aiRevenue.toLocaleString()}</p>
                 </div>
               </div>
             </div>

@@ -1,6 +1,7 @@
 "use client";
 
 import { useTenant } from "@/lib/contexts/TenantContext";
+import { useLanguage } from "@/lib/contexts/LanguageContext";
 import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
@@ -62,9 +63,9 @@ const typeIcon = (type: string) => {
 };
 const healthBadge = (h: string) => {
   switch (h) {
-    case "critical": return { dot: "bg-red-500", bg: "bg-red-50 text-red-700 border-red-200", label: "Critical" };
-    case "attention": return { dot: "bg-yellow-500", bg: "bg-yellow-50 text-yellow-700 border-yellow-200", label: "Attention" };
-    default: return { dot: "bg-emerald-500", bg: "bg-emerald-50 text-emerald-700 border-emerald-200", label: "Healthy" };
+    case "critical": return { dot: "bg-red-500", bg: "bg-red-50 text-red-700 border-red-200", labelKey: "adm_mon_health_critical" as const };
+    case "attention": return { dot: "bg-yellow-500", bg: "bg-yellow-50 text-yellow-700 border-yellow-200", labelKey: "adm_mon_health_attention" as const };
+    default: return { dot: "bg-emerald-500", bg: "bg-emerald-50 text-emerald-700 border-emerald-200", labelKey: "adm_mon_health_healthy" as const };
   }
 };
 
@@ -72,6 +73,7 @@ const cardStyle = { background: "rgba(252,246,237,0.85)", borderColor: "#c4956a"
 
 export default function AdminMonitoringPage() {
   const { globalRole } = useTenant();
+  const { t } = useLanguage();
   const [tab, setTab] = useState<Tab>("attention");
 
   // attention
@@ -136,10 +138,10 @@ export default function AdminMonitoringPage() {
       const res = await fetch("/api/admin/tenant/reconcile", { method: "POST" });
       const data = await res.json();
       const fixed = (data?.repaired ?? data?.fixed ?? data?.count);
-      setReconcileMsg(typeof fixed === "number" ? `Reconcile completato — ${fixed} sistemati` : "Reconcile completato");
+      setReconcileMsg(typeof fixed === "number" ? t("adm_mon_reconcile_done_n").replace("{n}", String(fixed)) : t("adm_mon_reconcile_done"));
       fetchAttention();
     } catch {
-      setReconcileMsg("Reconcile fallito");
+      setReconcileMsg(t("adm_mon_reconcile_failed"));
     }
     setReconciling(false);
   };
@@ -154,7 +156,7 @@ export default function AdminMonitoringPage() {
   };
 
   if (globalRole !== "platform_admin") {
-    return <div className="p-8 text-center text-black">Unauthorized</div>;
+    return <div className="p-8 text-center text-black">{t("adm_mon_unauthorized")}</div>;
   }
 
   const needsAttention = tenants.filter((t) => t.health !== "healthy" || t.activeIssues > 0);
@@ -181,12 +183,12 @@ export default function AdminMonitoringPage() {
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div className="flex items-center gap-2">
           <Activity className="w-5 h-5 text-[#c4956a]" />
-          <h1 className="text-xl sm:text-2xl font-bold text-black">Monitoring</h1>
+          <h1 className="text-xl sm:text-2xl font-bold text-black">{t("adm_mon_title")}</h1>
         </div>
         <div className="flex gap-2">
-          {tabBtn("attention", "Da sistemare")}
-          {tabBtn("issues", "Incidenti")}
-          {tabBtn("logs", "Log di sistema")}
+          {tabBtn("attention", t("adm_mon_tab_attention"))}
+          {tabBtn("issues", t("adm_mon_tab_issues"))}
+          {tabBtn("logs", t("adm_mon_tab_logs"))}
         </div>
       </div>
 
@@ -194,12 +196,12 @@ export default function AdminMonitoringPage() {
       {tab === "attention" && (
         <div className="space-y-4">
           <div className="flex items-center justify-between flex-wrap gap-2">
-            <p className="text-sm text-black">{needsAttention.length} tenant da tenere d&apos;occhio</p>
+            <p className="text-sm text-black">{t("adm_mon_tenants_to_watch").replace("{n}", String(needsAttention.length))}</p>
             <div className="flex items-center gap-2">
               {reconcileMsg && <span className="text-xs text-black">{reconcileMsg}</span>}
               <button onClick={runReconcile} disabled={reconciling}
                 className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#c4956a] text-white text-xs font-bold hover:bg-[#8b6540] transition-colors disabled:opacity-60">
-                <Wrench className={`w-3.5 h-3.5 ${reconciling ? "animate-pulse" : ""}`} /> Ripara provisioning
+                <Wrench className={`w-3.5 h-3.5 ${reconciling ? "animate-pulse" : ""}`} /> {t("adm_mon_repair_provisioning")}
               </button>
               <button onClick={fetchAttention} className="p-2 hover:bg-[#c4956a]/10 rounded-lg transition-colors">
                 <RefreshCw className={`w-4 h-4 text-black ${loadingAttn ? "animate-spin" : ""}`} />
@@ -208,11 +210,11 @@ export default function AdminMonitoringPage() {
           </div>
 
           {loadingAttn ? (
-            <div className="p-12 text-center text-black animate-pulse">Loading...</div>
+            <div className="p-12 text-center text-black animate-pulse">{t("adm_mon_loading")}</div>
           ) : needsAttention.length === 0 ? (
             <div className="rounded-xl border-2 p-12 text-center" style={cardStyle}>
               <CheckCircle2 className="w-8 h-8 text-emerald-500 mx-auto mb-2" />
-              <p className="text-sm font-medium text-black">Tutto in salute</p>
+              <p className="text-sm font-medium text-black">{t("adm_mon_all_healthy")}</p>
             </div>
           ) : (
             <div className="rounded-xl border-2 overflow-hidden" style={cardStyle}>
@@ -220,39 +222,39 @@ export default function AdminMonitoringPage() {
                 <table className="min-w-full text-sm">
                   <thead>
                     <tr className="text-xs text-black uppercase tracking-wider border-b" style={{ borderColor: "rgba(196,149,106,0.2)" }}>
-                      <th className="px-4 py-3 text-left font-medium">Salute</th>
-                      <th className="px-4 py-3 text-left font-medium">Ristorante</th>
-                      <th className="px-4 py-3 text-center font-medium">Problemi</th>
-                      <th className="px-4 py-3 text-right font-medium hidden sm:table-cell">Ultima attività</th>
+                      <th className="px-4 py-3 text-left font-medium">{t("adm_mon_col_health")}</th>
+                      <th className="px-4 py-3 text-left font-medium">{t("adm_mon_col_restaurant")}</th>
+                      <th className="px-4 py-3 text-center font-medium">{t("adm_mon_col_issues")}</th>
+                      <th className="px-4 py-3 text-right font-medium hidden sm:table-cell">{t("adm_mon_col_last_activity")}</th>
                       <th className="px-4 py-3 text-right font-medium"></th>
                     </tr>
                   </thead>
                   <tbody className="divide-y" style={{ borderColor: "rgba(196,149,106,0.15)" }}>
-                    {needsAttention.map((t) => {
-                      const badge = healthBadge(t.health);
+                    {needsAttention.map((row) => {
+                      const badge = healthBadge(row.health);
                       return (
-                        <tr key={t.id} className="hover:bg-[#c4956a]/5 transition-colors">
+                        <tr key={row.id} className="hover:bg-[#c4956a]/5 transition-colors">
                           <td className="px-4 py-3">
                             <span className={`inline-flex items-center gap-1.5 text-[10px] font-bold px-2 py-0.5 rounded-full border ${badge.bg}`}>
                               <span className={`w-1.5 h-1.5 rounded-full ${badge.dot}`} />
-                              {badge.label}
+                              {t(badge.labelKey)}
                             </span>
                           </td>
-                          <td className="px-4 py-3 font-medium text-black">{t.name}</td>
+                          <td className="px-4 py-3 font-medium text-black">{row.name}</td>
                           <td className="px-4 py-3 text-center">
-                            {t.activeIssues > 0 ? (
-                              <span className={`inline-flex items-center gap-1 text-xs font-bold px-2 py-0.5 rounded-full ${t.criticalIssues > 0 ? "bg-red-50 text-red-700 border border-red-200" : "bg-yellow-50 text-yellow-700 border border-yellow-200"}`}>
-                                {t.criticalIssues > 0 && <AlertTriangle className="w-3 h-3" />}
-                                {t.activeIssues}
+                            {row.activeIssues > 0 ? (
+                              <span className={`inline-flex items-center gap-1 text-xs font-bold px-2 py-0.5 rounded-full ${row.criticalIssues > 0 ? "bg-red-50 text-red-700 border border-red-200" : "bg-yellow-50 text-yellow-700 border border-yellow-200"}`}>
+                                {row.criticalIssues > 0 && <AlertTriangle className="w-3 h-3" />}
+                                {row.activeIssues}
                               </span>
                             ) : <span className="text-black">0</span>}
                           </td>
                           <td className="px-4 py-3 text-right text-xs text-black hidden sm:table-cell">
-                            {t.lastActivity ? new Date(t.lastActivity).toLocaleDateString() : "—"}
+                            {row.lastActivity ? new Date(row.lastActivity).toLocaleDateString() : "—"}
                           </td>
                           <td className="px-4 py-3 text-right">
-                            <Link href={`/admin/tenant/${t.id}`} className="text-xs font-medium text-[#c4956a] hover:text-[#8b6540] transition-colors">
-                              Apri
+                            <Link href={`/admin/tenant/${row.id}`} className="text-xs font-medium text-[#c4956a] hover:text-[#8b6540] transition-colors">
+                              {t("adm_mon_open")}
                             </Link>
                           </td>
                         </tr>
@@ -270,34 +272,34 @@ export default function AdminMonitoringPage() {
       {tab === "issues" && (
         <div className="space-y-4">
           <div className="flex items-center justify-between flex-wrap gap-3">
-            <p className="text-sm text-black">{filteredInc.length} incidenti</p>
+            <p className="text-sm text-black">{t("adm_mon_incidents_n").replace("{n}", String(filteredInc.length))}</p>
             <div className="flex gap-2 items-center">
               <Filter className="w-4 h-4 text-black" />
               <select value={incSeverity} onChange={(e) => setIncSeverity(e.target.value)}
                 className="text-xs border-2 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-[#c4956a] text-black"
                 style={{ borderColor: "#c4956a", background: "rgba(252,246,237,0.6)" }}>
-                <option value="all">Tutte le severità</option>
-                <option value="critical">Critical</option>
-                <option value="medium">Medium</option>
-                <option value="low">Low</option>
+                <option value="all">{t("adm_mon_all_severities")}</option>
+                <option value="critical">{t("adm_mon_sev_critical")}</option>
+                <option value="medium">{t("adm_mon_sev_medium")}</option>
+                <option value="low">{t("adm_mon_sev_low")}</option>
               </select>
               <select value={incStatus} onChange={(e) => setIncStatus(e.target.value)}
                 className="text-xs border-2 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-[#c4956a] text-black"
                 style={{ borderColor: "#c4956a", background: "rgba(252,246,237,0.6)" }}>
-                <option value="all">Tutti gli stati</option>
-                <option value="open">Open</option>
-                <option value="investigating">Investigating</option>
-                <option value="resolved">Resolved</option>
+                <option value="all">{t("adm_mon_all_statuses")}</option>
+                <option value="open">{t("adm_mon_status_open")}</option>
+                <option value="investigating">{t("adm_mon_status_investigating")}</option>
+                <option value="resolved">{t("adm_mon_status_resolved")}</option>
               </select>
             </div>
           </div>
 
           {loadingInc ? (
-            <div className="p-12 text-center text-black animate-pulse">Loading...</div>
+            <div className="p-12 text-center text-black animate-pulse">{t("adm_mon_loading")}</div>
           ) : filteredInc.length === 0 ? (
             <div className="rounded-xl border-2 p-12 text-center" style={cardStyle}>
               <CheckCircle2 className="w-8 h-8 text-emerald-500 mx-auto mb-2" />
-              <p className="text-sm font-medium text-black">Nessun incidente</p>
+              <p className="text-sm font-medium text-black">{t("adm_mon_no_incidents")}</p>
             </div>
           ) : (
             <div className="rounded-xl border-2 overflow-hidden" style={cardStyle}>
@@ -305,12 +307,12 @@ export default function AdminMonitoringPage() {
                 <table className="min-w-full text-sm">
                   <thead>
                     <tr className="text-xs text-black uppercase tracking-wider border-b" style={{ borderColor: "rgba(196,149,106,0.2)" }}>
-                      <th className="px-4 py-3 text-left font-medium">Severità</th>
-                      <th className="px-4 py-3 text-left font-medium">Tipo</th>
-                      <th className="px-4 py-3 text-left font-medium">Tenant</th>
-                      <th className="px-4 py-3 text-left font-medium">Titolo</th>
-                      <th className="px-4 py-3 text-left font-medium">Stato</th>
-                      <th className="px-4 py-3 text-right font-medium">Data</th>
+                      <th className="px-4 py-3 text-left font-medium">{t("adm_mon_col_severity")}</th>
+                      <th className="px-4 py-3 text-left font-medium">{t("adm_mon_col_type")}</th>
+                      <th className="px-4 py-3 text-left font-medium">{t("adm_mon_col_tenant")}</th>
+                      <th className="px-4 py-3 text-left font-medium">{t("adm_mon_col_title")}</th>
+                      <th className="px-4 py-3 text-left font-medium">{t("adm_mon_col_status")}</th>
+                      <th className="px-4 py-3 text-right font-medium">{t("adm_mon_col_date")}</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y" style={{ borderColor: "rgba(196,149,106,0.15)" }}>
@@ -348,23 +350,23 @@ export default function AdminMonitoringPage() {
       {tab === "logs" && (
         <div className="space-y-4">
           <div className="flex items-center justify-between flex-wrap gap-2">
-            <p className="text-sm text-black">{logs.length} log</p>
+            <p className="text-sm text-black">{t("adm_mon_logs_n").replace("{n}", String(logs.length))}</p>
             <div className="flex gap-1">
               {(["open", "resolved", "all"] as const).map((f) => (
                 <button key={f} onClick={() => setLogFilter(f)}
                   className={`px-3 py-1.5 text-xs font-medium rounded-lg border-2 transition-colors ${logFilter === f ? "bg-[#c4956a] text-white border-[#c4956a]" : "text-black border-[#c4956a]/30 hover:bg-[#c4956a]/10"}`}>
-                  {f.charAt(0).toUpperCase() + f.slice(1)}
+                  {f === "open" ? t("adm_mon_filter_open") : f === "resolved" ? t("adm_mon_filter_resolved") : t("adm_mon_filter_all")}
                 </button>
               ))}
             </div>
           </div>
 
           {loadingLogs ? (
-            <div className="p-12 text-center text-black animate-pulse">Loading...</div>
+            <div className="p-12 text-center text-black animate-pulse">{t("adm_mon_loading")}</div>
           ) : logs.length === 0 ? (
             <div className="rounded-xl border-2 p-12 text-center" style={cardStyle}>
               <CheckCircle2 className="w-8 h-8 text-emerald-500 mx-auto mb-2" />
-              <p className="text-sm font-medium text-black">Nessun log {logFilter === "all" ? "" : logFilter}</p>
+              <p className="text-sm font-medium text-black">{t("adm_mon_no_logs")}</p>
             </div>
           ) : (
             <div className="space-y-2">
@@ -392,10 +394,10 @@ export default function AdminMonitoringPage() {
                   {log.status === "open" ? (
                     <button onClick={() => resolveLog(log.id)}
                       className="text-[10px] font-bold px-3 py-1.5 rounded-lg bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100 transition-colors flex-shrink-0">
-                      Resolve
+                      {t("adm_mon_resolve")}
                     </button>
                   ) : log.status === "resolved" ? (
-                    <span className="text-[10px] font-bold text-emerald-600 flex-shrink-0">Resolved</span>
+                    <span className="text-[10px] font-bold text-emerald-600 flex-shrink-0">{t("adm_mon_resolved")}</span>
                   ) : null}
                 </div>
               ))}

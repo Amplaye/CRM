@@ -123,7 +123,7 @@ export function ReservationTimeline({ date, shiftFilter = "all", onRowClick }: {
   if (reservations.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center p-12 text-black border-2 border-t-0 rounded-b-xl" style={{ background: 'rgba(252,246,237,0.85)', borderColor: '#c4956a' }}>
-        <p>No reservations for this date.</p>
+        <p>{t("timeline_no_reservations")}</p>
       </div>
     );
   }
@@ -145,8 +145,8 @@ export function ReservationTimeline({ date, shiftFilter = "all", onRowClick }: {
         </div>
       )}
       <div className="flex border-b" style={{ borderColor: '#c4956a' }}>
-        <div className="w-24 border-r py-3 px-4 font-semibold text-black" style={{ borderColor: '#c4956a' }}>Time</div>
-        <div className="flex-1 py-3 px-4 font-semibold text-black">Service Floor</div>
+        <div className="w-24 border-r py-3 px-4 font-semibold text-black" style={{ borderColor: '#c4956a' }}>{t("res_col_time")}</div>
+        <div className="flex-1 py-3 px-4 font-semibold text-black">{t("timeline_service_floor")}</div>
       </div>
 
       {hours.map((hour) => {

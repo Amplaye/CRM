@@ -467,7 +467,7 @@ export function Topbar({ onMenuToggle }: TopbarProps) {
               value={language}
               onChange={(e) => setLanguage(e.target.value as "en" | "es" | "it" | "de")}
               className="bg-transparent text-xs sm:text-sm font-medium text-black outline-none cursor-pointer"
-              aria-label="CRM language"
+              aria-label={t("aria_crm_language")}
             >
               <option value="en">EN</option>
               <option value="es">ES</option>

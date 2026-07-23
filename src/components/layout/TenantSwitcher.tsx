@@ -3,9 +3,11 @@
 import { useEffect, useRef, useState } from "react";
 import { ChevronDown, Shield, Check, Search } from "lucide-react";
 import { useTenant } from "@/lib/contexts/TenantContext";
+import { useLanguage } from "@/lib/contexts/LanguageContext";
 
 export function TenantSwitcher() {
   const { activeTenant, availableTenants, switchTenant, globalRole, isImpersonating } = useTenant();
+  const { t } = useLanguage();
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const ref = useRef<HTMLDivElement>(null);
@@ -22,8 +24,8 @@ export function TenantSwitcher() {
   if (globalRole !== "platform_admin") return null;
 
   const filtered = query.trim()
-    ? availableTenants.filter((t) =>
-        t.name.toLowerCase().includes(query.trim().toLowerCase())
+    ? availableTenants.filter((ten) =>
+        ten.name.toLowerCase().includes(query.trim().toLowerCase())
       )
     : availableTenants;
 
@@ -37,7 +39,7 @@ export function TenantSwitcher() {
       >
         <Shield className={`w-4 h-4 flex-shrink-0 ${isImpersonating ? "text-amber-600" : "text-[#c4956a]"}`} />
         <span className="flex-1 truncate text-left">
-          {activeTenant ? activeTenant.name : "Platform Admin"}
+          {activeTenant ? activeTenant.name : t("adm_platform_admin")}
         </span>
         <ChevronDown className="w-4 h-4 flex-shrink-0 text-black" />
       </button>
@@ -54,7 +56,7 @@ export function TenantSwitcher() {
                 type="text"
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
-                placeholder="Cerca cliente..."
+                placeholder={t("adm_search_clients")}
                 className="flex-1 bg-transparent text-xs text-black placeholder-[#8b6540]/60 outline-none"
                 autoFocus
               />
@@ -71,14 +73,14 @@ export function TenantSwitcher() {
               className="w-full flex items-center gap-2 px-2.5 py-1.5 text-xs text-black hover:bg-[#c4956a]/10 transition-colors cursor-pointer"
             >
               <Shield className="w-3.5 h-3.5 text-[#c4956a] flex-shrink-0" />
-              <span className="flex-1 text-left font-semibold">Platform Admin</span>
+              <span className="flex-1 text-left font-semibold">{t("adm_platform_admin")}</span>
               {!activeTenant && <Check className="w-3.5 h-3.5 text-emerald-600" />}
             </button>
 
             <div className="my-1 mx-2 border-t" style={{ borderColor: "rgba(196,149,106,0.3)" }} />
 
             {filtered.length === 0 ? (
-              <div className="px-2.5 py-2 text-xs text-[#8b6540] italic">Nessun cliente trovato</div>
+              <div className="px-2.5 py-2 text-xs text-[#8b6540] italic">{t("adm_no_clients_found")}</div>
             ) : (
               filtered.map((t) => {
                 const isActive = activeTenant?.id === t.id;

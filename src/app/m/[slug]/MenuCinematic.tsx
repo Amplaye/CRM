@@ -41,6 +41,7 @@ export type MenuViewSection = {
 type Props = {
   restaurantName: string;
   menuLabel: string;
+  backLabel: string;
   emptyLabel: string;
   featuredLabel: string;
   /** "Filters" / "All" / "no dish matches" — localized on the server. */
@@ -58,6 +59,7 @@ function priceText(it: MenuViewItem): string | null {
 export default function MenuCinematic({
   restaurantName,
   menuLabel,
+  backLabel,
   emptyLabel,
   featuredLabel,
   filterLabels,
@@ -112,7 +114,7 @@ export default function MenuCinematic({
 
   return (
     <div className="cin-root">
-      <ClosePublicMenuButton />
+      <ClosePublicMenuButton label={backLabel} />
       <div className="cin-atmos" aria-hidden />
       <div className="cin-grain" aria-hidden />
 

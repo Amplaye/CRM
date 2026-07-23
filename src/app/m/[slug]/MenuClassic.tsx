@@ -41,6 +41,7 @@ export type MenuViewSection = {
 type Props = {
   restaurantName: string;
   menuLabel: string;
+  backLabel: string;
   emptyLabel: string;
   featuredLabel: string;
   /** "All" / "no dish matches" — localized on the server. */
@@ -58,6 +59,7 @@ function priceText(it: MenuViewItem): string | null {
 export default function MenuClassic({
   restaurantName,
   menuLabel,
+  backLabel,
   emptyLabel,
   featuredLabel,
   filterLabels,
@@ -127,7 +129,7 @@ export default function MenuClassic({
 
   return (
     <div className="cla-root">
-      <ClosePublicMenuButton />
+      <ClosePublicMenuButton label={backLabel} />
       <div className="cla-grain" aria-hidden />
 
       <div className="cla-stage">
