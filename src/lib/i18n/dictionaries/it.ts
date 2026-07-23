@@ -2368,4 +2368,17 @@ export const it: Dictionary = {
   invoices_line_total: "Totale",
   invoices_line_kind: "Tipo",
   invoices_no_lines: "Nessuna riga.",
+
+  // Costo del lavoro dai turni (pagina staff)
+  staff_labor_title: "Costo del lavoro",
+  staff_labor_week: "settimana",
+  staff_labor_hint: "Imposta la paga oraria di ciascuno per calcolare il costo dai turni e portarlo nel Conto Economico.",
+  staff_labor_member: "Membro",
+  staff_labor_rate: "Paga oraria",
+  staff_labor_hours: "Ore/sett.",
+  staff_labor_cost: "Costo/sett.",
+  staff_labor_month_est: "stima mese",
+  staff_labor_save: "Salva e aggiorna Conto Economico",
+  staff_labor_saved: "Costo del lavoro aggiornato nel Conto Economico ({n} giorni).",
+  staff_labor_error: "Aggiornamento non riuscito.",
 };

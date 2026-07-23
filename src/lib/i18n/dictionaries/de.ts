@@ -2371,4 +2371,17 @@ export const de: Dictionary = {
   invoices_line_total: "Gesamt",
   invoices_line_kind: "Art",
   invoices_no_lines: "Keine Positionen.",
+
+  // Personalkosten aus den Schichten (Staff-Seite)
+  staff_labor_title: "Personalkosten",
+  staff_labor_week: "Woche",
+  staff_labor_hint: "Lege den Stundenlohn jeder Person fest, um die Schichten zu bewerten und in die GuV zu übernehmen.",
+  staff_labor_member: "Mitglied",
+  staff_labor_rate: "Stundenlohn",
+  staff_labor_hours: "Std./Wo.",
+  staff_labor_cost: "Kosten/Wo.",
+  staff_labor_month_est: "Monatsschätzung",
+  staff_labor_save: "Speichern & GuV aktualisieren",
+  staff_labor_saved: "Personalkosten in die GuV geschrieben ({n} Tage).",
+  staff_labor_error: "Aktualisierung fehlgeschlagen.",
 };

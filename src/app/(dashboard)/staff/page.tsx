@@ -12,6 +12,7 @@ import {
   CalendarClock, ChevronLeft, ChevronRight, Plus, X, Sun, Moon, Clock,
   CheckCircle2, XCircle, Hourglass, Users, Lock, Send, CalendarRange, CopyPlus,
   Plane, Thermometer, UserMinus, CalendarOff, User, Repeat,
+  DollarSign, ChevronUp, ChevronDown,
 } from "lucide-react";
 import { useLanguage } from "@/lib/contexts/LanguageContext";
 import { useTenant } from "@/lib/contexts/TenantContext";
@@ -538,6 +539,20 @@ export default function StaffPage() {
               <span>{flash}</span>
               <button onClick={() => setFlash(null)} className="text-black/50 hover:text-black cursor-pointer" aria-label="dismiss"><X className="w-4 h-4" /></button>
             </div>
+          )}
+
+          {/* Labor cost from the rota — managers only (wages are owner/manager). */}
+          {isManager && (
+            <LaborCostPanel
+              t={tk}
+              supabase={supabase}
+              tenantId={activeTenant!.id}
+              members={members}
+              shifts={shifts}
+              weekFrom={weekFrom}
+              weekTo={weekTo}
+              onFlash={setFlash}
+            />
           )}
 
           {/* ── "My shifts": one card per day of the visible week, so a waiter on a
@@ -1287,6 +1302,177 @@ function AbsenceModal({
           </button>
         </div>
       </div>
+    </div>
+  );
+}
+
+// ── Labor cost from the rota ────────────────────────────────────────────────
+// Manager-only. Reads each member's hourly wage from staff_pay (owner/manager
+// RLS), costs the visible week straight from the loaded shifts, and — on save —
+// persists any rate edits and recomputes labor_cost server-side so the P&L picks
+// up the real labor line. Wages never touch tenant_members, so a waiter's client
+// can't read them.
+function LaborCostPanel({
+  t, supabase, tenantId, members, shifts, weekFrom, weekTo, onFlash,
+}: {
+  t: (k: string) => string;
+  supabase: ReturnType<typeof createClient>;
+  tenantId: string;
+  members: Member[];
+  shifts: Shift[];
+  weekFrom: string;
+  weekTo: string;
+  onFlash: (s: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [rates, setRates] = useState<Record<string, string>>({});
+  const [saved, setSaved] = useState<Record<string, number | null>>({});
+  const [busy, setBusy] = useState(false);
+
+  // Load wages once (and when the roster changes). staff_pay is manager-gated.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const { data } = await supabase.from("staff_pay").select("member_id, hourly_rate").eq("tenant_id", tenantId);
+      if (cancelled) return;
+      const map: Record<string, number | null> = {};
+      for (const r of data || []) map[(r as any).member_id] = (r as any).hourly_rate == null ? null : Number((r as any).hourly_rate);
+      setSaved(map);
+      setRates(Object.fromEntries(members.map((m) => [m.id, map[m.id] != null ? String(map[m.id]) : ""])));
+    })();
+    return () => { cancelled = true; };
+  }, [supabase, tenantId, members]);
+
+  const hoursOf = (start: string, end: string) => {
+    const toH = (x: string) => { const [h, mm] = x.split(":").map((n) => parseInt(n, 10)); return (h || 0) + (mm || 0) / 60; };
+    let h = toH(end) - toH(start);
+    if (h <= 0) h += 24;
+    return h;
+  };
+
+  const perMember = useMemo(() => {
+    const acc = new Map<string, { hours: number }>();
+    for (const s of shifts) {
+      if (s.status !== "scheduled") continue;
+      const cur = acc.get(s.member_id) || { hours: 0 };
+      cur.hours += hoursOf(s.start_time, s.end_time);
+      acc.set(s.member_id, cur);
+    }
+    return acc;
+  }, [shifts]);
+
+  const rateNum = (id: string) => { const v = parseFloat((rates[id] ?? "").replace(",", ".")); return Number.isFinite(v) ? v : 0; };
+  const weekTotal = members.reduce((s, m) => s + (perMember.get(m.id)?.hours || 0) * rateNum(m.id), 0);
+  const weekHours = members.reduce((s, m) => s + (perMember.get(m.id)?.hours || 0), 0);
+  const fmt = (n: number) => `€ ${n.toLocaleString("it-IT", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
+  const anyRate = members.some((m) => rateNum(m.id) > 0);
+
+  const save = async () => {
+    setBusy(true);
+    try {
+      // Persist changed rates (upsert one row per edited member).
+      const changed = members.filter((m) => {
+        const now = (rates[m.id] ?? "").trim();
+        const before = saved[m.id] != null ? String(saved[m.id]) : "";
+        return now !== before;
+      });
+      for (const m of changed) {
+        const v = (rates[m.id] ?? "").trim();
+        const val = v === "" ? null : rateNum(m.id);
+        await supabase.from("staff_pay").upsert(
+          { tenant_id: tenantId, member_id: m.id, hourly_rate: val, updated_at: new Date().toISOString() },
+          { onConflict: "tenant_id,member_id" },
+        );
+      }
+      setSaved(Object.fromEntries(members.map((m) => [m.id, (rates[m.id] ?? "").trim() === "" ? null : rateNum(m.id)])));
+
+      // Recompute labor_cost over a wide window so the P&L's 7/30/90 views fill.
+      const today = new Date().toISOString().slice(0, 10);
+      const from = new Date(Date.now() - 90 * 86400000).toISOString().slice(0, 10);
+      const to = weekTo > today ? weekTo : today;
+      const res = await fetch("/api/staff/labor-cost/recompute", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tenant_id: tenantId, from: from < weekFrom ? from : weekFrom, to }),
+      });
+      const json = await res.json().catch(() => ({}));
+      onFlash(res.ok
+        ? (t("staff_labor_saved") || "Costo del lavoro aggiornato nel Conto Economico ({n} giorni).").replace("{n}", String(json.written ?? 0))
+        : (t("staff_labor_error") || "Aggiornamento non riuscito."));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="rounded-2xl border bg-white/70" style={{ borderColor: "#d9c3a3" }}>
+      <button onClick={() => setOpen((o) => !o)} className="w-full flex items-center justify-between gap-3 px-4 py-3 cursor-pointer">
+        <span className="flex items-center gap-2 text-sm font-bold text-black">
+          <DollarSign className="w-4 h-4" /> {t("staff_labor_title") || "Costo del lavoro"}
+        </span>
+        <span className="flex items-center gap-3">
+          <span className="text-sm font-bold text-black tabular-nums">{fmt(weekTotal)} <span className="font-normal text-black/70">/ {t("staff_labor_week") || "settimana"}</span></span>
+          {open ? <ChevronUp className="w-4 h-4 text-black" /> : <ChevronDown className="w-4 h-4 text-black" />}
+        </span>
+      </button>
+
+      {open && (
+        <div className="px-4 pb-4 space-y-3 border-t" style={{ borderColor: "#e0d0b8" }}>
+          {!anyRate && (
+            <p className="text-xs text-black pt-3">{t("staff_labor_hint") || "Imposta la paga oraria di ciascuno per calcolare il costo dai turni e portarlo nel Conto Economico."}</p>
+          )}
+          <div className="overflow-x-auto pt-3">
+            <table className="w-full text-sm" style={{ minWidth: 460 }}>
+              <thead>
+                <tr className="text-left text-xs font-bold uppercase tracking-wide text-black">
+                  <th className="py-2 pr-3">{t("staff_labor_member") || "Membro"}</th>
+                  <th className="py-2 pr-3 text-right">{t("staff_labor_rate") || "Paga oraria"}</th>
+                  <th className="py-2 pr-3 text-right">{t("staff_labor_hours") || "Ore/sett."}</th>
+                  <th className="py-2 text-right">{t("staff_labor_cost") || "Costo/sett."}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {members.map((m) => {
+                  const hrs = perMember.get(m.id)?.hours || 0;
+                  return (
+                    <tr key={m.id} className="text-black" style={{ borderTop: "1px solid #efe3cf" }}>
+                      <td className="py-2 pr-3">{m.name || m.email || "—"}</td>
+                      <td className="py-2 pr-3 text-right">
+                        <div className="inline-flex items-center gap-1">
+                          <span className="text-black/60">€</span>
+                          <input
+                            type="number" inputMode="decimal" min={0} step="0.5"
+                            value={rates[m.id] ?? ""}
+                            onChange={(e) => setRates((r) => ({ ...r, [m.id]: e.target.value }))}
+                            className="w-20 rounded-lg border px-2 py-1 text-black bg-white/80 text-right"
+                            style={{ borderColor: "#c4956a" }}
+                            placeholder="—"
+                          />
+                        </div>
+                      </td>
+                      <td className="py-2 pr-3 text-right tabular-nums">{hrs > 0 ? `${hrs.toFixed(1)}h` : "—"}</td>
+                      <td className="py-2 text-right tabular-nums font-bold">{fmt(hrs * rateNum(m.id))}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+          <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
+            <div className="text-xs text-black">
+              {weekHours.toFixed(0)}h · {t("staff_labor_month_est") || "stima mese"} ≈ {fmt(weekTotal * 4.333)}
+            </div>
+            <button
+              onClick={save}
+              disabled={busy}
+              className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-bold rounded-xl text-white cursor-pointer disabled:opacity-50"
+              style={{ background: "#c4956a" }}
+            >
+              {busy ? "…" : t("staff_labor_save") || "Salva e aggiorna Conto Economico"}
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

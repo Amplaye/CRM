@@ -2369,4 +2369,17 @@ export const es: Dictionary = {
   invoices_line_total: "Total",
   invoices_line_kind: "Tipo",
   invoices_no_lines: "Sin líneas.",
+
+  // Coste de personal desde los turnos (página staff)
+  staff_labor_title: "Coste de personal",
+  staff_labor_week: "semana",
+  staff_labor_hint: "Fija el salario por hora de cada uno para calcular el coste de los turnos y llevarlo a la Cuenta de resultados.",
+  staff_labor_member: "Miembro",
+  staff_labor_rate: "Salario/hora",
+  staff_labor_hours: "Horas/sem.",
+  staff_labor_cost: "Coste/sem.",
+  staff_labor_month_est: "estim. mes",
+  staff_labor_save: "Guardar y actualizar Cuenta de resultados",
+  staff_labor_saved: "Coste de personal registrado en la Cuenta de resultados ({n} días).",
+  staff_labor_error: "Actualización fallida.",
 };

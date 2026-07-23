@@ -2365,6 +2365,19 @@ export const en = {
   invoices_line_total: "Total",
   invoices_line_kind: "Kind",
   invoices_no_lines: "No lines.",
+
+  // Labor cost from shifts (staff page)
+  staff_labor_title: "Labor cost",
+  staff_labor_week: "week",
+  staff_labor_hint: "Set each person's hourly wage to cost the rota and feed it into the P&L.",
+  staff_labor_member: "Member",
+  staff_labor_rate: "Hourly wage",
+  staff_labor_hours: "Hours/wk",
+  staff_labor_cost: "Cost/wk",
+  staff_labor_month_est: "monthly est.",
+  staff_labor_save: "Save & update P&L",
+  staff_labor_saved: "Labor cost written into the P&L ({n} days).",
+  staff_labor_error: "Update failed.",
 };
 
 export type Dictionary = typeof en;
