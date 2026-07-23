@@ -14,6 +14,7 @@ import {
   LayoutGrid,
   BarChart3,
   ClipboardList,
+  FileText,
   X,
   Activity,
   DollarSign,
@@ -78,6 +79,7 @@ const navItems: Array<{ name: string; href: string; icon: any; badgeKey?: keyof 
   { name: "Incassi", href: "/incassi", icon: Coins, feature: "management_enabled" },
   { name: "Food Cost", href: "/food-cost", icon: Calculator, feature: "management_enabled" },
   { name: "Inventory", href: "/inventory", icon: Package, feature: "management_enabled" },
+  { name: "Invoices", href: "/invoices", icon: FileText, feature: "management_enabled" },
   { name: "PL", href: "/pl", icon: PieChart, feature: "management_enabled" },
   { name: "Settings", href: "/settings", icon: Settings },
 ];

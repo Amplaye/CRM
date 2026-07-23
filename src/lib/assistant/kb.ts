@@ -469,7 +469,27 @@ export const KB: KbTopic[] = [
       de: "Beim Hochladen eines Rechnungsfotos wird jede Zeile als Ware, Dienstleistung oder Gebühr erkannt. Dienstleistungs-/Gerätezeilen (Miete, Gebühren, Wartung, Lizenzen — z. B. die CENTROCASSA-Rechnungen des Geräts) erzeugen KEINE Zutaten und gelangen weder ins Lager noch in den Food Cost: sie sind mit „nicht ins Lager“ markiert und stehen in der Vorschau auf „ignorieren“. Beim Bestätigen landet ihr Betrag in der GuV unter „Kosten für Dienstleistungen / Geräte“, getrennt von den Wareneinkäufen. Macht ein Lieferant nur Dienstleistungen, wird das gemerkt und seine künftigen Rechnungen sind bereits als Dienstleistung eingestuft.",
     },
     links: [{ href: "/inventory", label: { it: "Apri Inventario", en: "Open Inventory", es: "Abrir Inventario", de: "Inventar öffnen" } }],
-    related: ["inventory", "pl"],
+    related: ["inventory", "pl", "invoices"],
+  },
+  {
+    id: "invoices",
+    title: {
+      it: "Registro fatture e scadenzario",
+      en: "Invoice register and payables",
+      es: "Registro de facturas y vencimientos",
+      de: "Rechnungsregister und Fälligkeiten",
+    },
+    keywords: [
+      "fatture", "registro fatture", "scadenzario", "scadenza", "da pagare", "pagata", "fornitore", "importa xml", "fatturapa", "fattura elettronica", "sdi", "cosa devo pagare", "invoices", "invoice register", "payables", "due date", "unpaid", "overdue", "import xml", "electronic invoice", "facturas", "registro de facturas", "vencimiento", "por pagar", "importar xml", "factura electrónica", "rechnungen", "rechnungsregister", "fälligkeit", "zu zahlen", "xml importieren",
+    ],
+    answer: {
+      it: "In Fatture trovi il registro di tutte le fatture fornitore, con filtri per fornitore, stato e stato di pagamento. Lo scadenzario ti dice a colpo d'occhio quanto devi pagare e cosa è scaduto: imposti la scadenza su ogni fattura e la segni pagata con un clic. Puoi importare le fatture elettroniche in formato XML (FatturaPA) — arrivano già con importi, righe e data di scadenza — oppure caricarle da foto dall'Inventario. Le fatture «da confermare» si confermano dal dettaglio per farle entrare nel Conto Economico.",
+      en: "Invoices holds the register of every supplier invoice, with filters by supplier, status and payment status. The payables view shows at a glance how much you owe and what's overdue: set a due date on each invoice and mark it paid in one click. You can import electronic invoices in XML (FatturaPA) — they arrive with amounts, lines and due date already filled — or capture them from a photo in Inventory. Invoices marked “to confirm” are confirmed from the detail so they feed the P&L.",
+      es: "En Facturas tienes el registro de todas las facturas de proveedor, con filtros por proveedor, estado y estado de pago. Los vencimientos muestran de un vistazo cuánto debes y qué está vencido: fijas el vencimiento en cada factura y la marcas pagada con un clic. Puedes importar facturas electrónicas en XML (FatturaPA) — llegan con importes, líneas y fecha de vencimiento — o capturarlas por foto desde Inventario. Las facturas «por confirmar» se confirman desde el detalle para que entren en la Cuenta de resultados.",
+      de: "Unter Rechnungen liegt das Register aller Lieferantenrechnungen, mit Filtern nach Lieferant, Status und Zahlungsstatus. Die Fälligkeitsübersicht zeigt auf einen Blick, wie viel du schuldest und was überfällig ist: du setzt je Rechnung eine Fälligkeit und markierst sie mit einem Klick als bezahlt. Du kannst elektronische Rechnungen als XML (FatturaPA) importieren — mit Beträgen, Positionen und Fälligkeit — oder sie im Inventar per Foto erfassen. Rechnungen „zu bestätigen“ werden im Detail bestätigt und fließen so in die GuV.",
+    },
+    links: [{ href: "/invoices", label: { it: "Apri Fatture", en: "Open Invoices", es: "Abrir Facturas", de: "Rechnungen öffnen" } }],
+    related: ["inventory", "pl", "invoice-categories"],
   },
   {
     id: "inventory",
